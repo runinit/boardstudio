@@ -1271,12 +1271,12 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T06:54:26.014935+00:00",
+    "updated_at": "2026-10-03T07:04:21.680245+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet/stream, journey/criterion reporting, less testing/more implementation.",
     "parent_counts": {
       "accepted": 2,
-      "implementing": 12,
-      "planned": 48,
+      "planned": 45,
+      "implementing": 15,
       "total": 62
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
@@ -1297,8 +1297,8 @@
       "package_qualification": "Guarded provider reuse passed; source and both route assets verified; root/subpath HTTP200 COEP. Parts import, PCB synthetic propagation and measured CSS corrections are served. Changed browser journeys in progress."
     },
     "integration": {
-      "source_commit": "f2d70ea627d851ea461033b44052bbf3740d37a1",
-      "state": "Served 34747; changed Parts import, PCB toggle and Keycaps camera journeys running. Layout canvas editing compiling; Case gasket linking and next Keymap frontier authoring in isolation.",
+      "source_commit": "45a47c4d",
+      "state": "Joined Layout canvas point editing/cancellation, Case unlink, module source footprints and imported Parts preview. Combined strict page WASM check passes; fresh provider build next because Application source changed.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1364,25 +1364,49 @@
           "slice": "PCB compatibility and synthetic pointer propagation",
           "original_source": "498e2edf +75341410",
           "integrated_source": "40a75c15 +c89bdc53",
-          "state": "Served34747 with synthetic propagation correction. Strengthened trusted Ctrl-add/remove regression in progress; prior Ctrl-add GREEN and Ctrl-remove RED retained."
+          "state": "Served34747 strengthened trusted Ctrl-add/remove, plain/empty/Enter/Ctrl+Enter/Space GREEN; revision12 unchanged. Broader parent criteria remain."
         },
         {
           "slice": "Keymap Keycaps header and finding Inspector geometry",
           "original_source": "4e857e08 +8e468491",
           "integrated_source": "05c0f137 +ff9bc182",
-          "state": "Served34747 with measured2px canvas/pill spacing correction. Prior main header and Inspector receipt reused; changed camera replay in progress."
+          "state": "Served34747: same SVG/header/view-control/Inspector rects as reference; focused marker already visible. Camera vertical origin residual0.45166units (~2.2px) remains."
         },
         {
           "slice": "Parts KiCad footprint import",
           "original_source": "b6d0e0ce +7ee4ef8c +424b1180",
           "integrated_source": "fe5530c6 +5226968a +f2d70ea6",
-          "state": "Served34747. Strict page WASM all-target Clippy passed; independent source feedback-owner P2 closed. Focused paired public import/error/history/reopen in progress. Native harness did not exercise this WASM-only module; no passing regression claimed."
+          "state": "Normal import/error/Undo/reimport/reload paired verified34747, repeated pad numbers retained with distinct IDs. Pads/Add pad semantically disabled via fieldset, courtyard edits match React. Source preview gap correction joined37a62732; replay pending."
         },
         {
           "slice": "Legacy Case support admission",
           "original_source": "3e8aac8e +e4a89812",
           "integrated_source": "a2bd8b54 +dc564678",
           "state": "Minimal source independently clear; focused old-guard RED then GREEN1/1; no provider semantics change."
+        },
+        {
+          "slice": "Layout canvas perimeter editing",
+          "original_source": "9cfc261f",
+          "integrated_source": "47bce953",
+          "state": "Integrated; author and combined strict page WASM checks passed. Drag/cancel/keyboard/history/reopen public journey pending."
+        },
+        {
+          "slice": "PCB mounted-module source footprints",
+          "original_source": "root coordinator",
+          "integrated_source": "429bd6f7+7e099116",
+          "state": "Integrated; combined strict page WASM check passed. Actual module-bearing Footprints toggle/source artwork journey pending; other categories/navigation remain."
+        },
+        {
+          "slice": "Case support unlink",
+          "original_source": "e924e753+9c458293",
+          "integrated_source": "f57bc30d+d66dc9e7",
+          "state": "Integrated; author and combined strict page WASM checks passed. Actual paired unlink/history/reopen pending."
+        },
+        {
+          "slice": "Imported Parts source preview",
+          "original_source": "8cb822fc",
+          "integrated_source": "37a62732",
+          "state": "Integrated; combined strict page WASM check passed. Normal import/error/history/reopen verified34747; changed source preview replay next candidate."
         }
       ],
       "checks": {
@@ -1408,12 +1432,18 @@
           "source_commit": "424b1180",
           "result": "Pass: reserved cached page WASM all-target Clippy. Native filtered harness ran zero matching presentation tests; broader native harness hit unrelated WASM dependency errors and is not acceptance evidence. Public qualification pending.",
           "independent_review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/import-feedback-424b1180.md"
+        },
+        "combined_outline_module_case_parts": {
+          "source_commit": "47bce953",
+          "command": "cargo clippy --locked --manifest-path web/Cargo.toml --no-default-features --features page --target wasm32-unknown-unknown --all-targets -- -D warnings",
+          "result": "Pass20.84s, after replacing the new page reference to an unnameable Core module type with existing accepted immutable snapshot fields. No new API needed for module artwork; no broad tests."
         }
       },
       "candidate_build": {
-        "state": "complete",
-        "build_id": "frontend-parts-import-delivery-reuse-20261003",
-        "source_commit": "f2d70ea627d851ea461033b44052bbf3740d37a1"
+        "state": "starting",
+        "build_id": "frontend-outline-module-case-delivery-20261003",
+        "source_commit": "captured by builder after documentation checkpoint",
+        "reason": "Application preview-cancellation ownership changed; fresh provider baseline required, no reuse-guard bypass."
       }
     },
     "journeys": [
@@ -1466,22 +1496,29 @@
         "candidate": "e4bad4a6/34745",
         "receipt": ".scratch/dioxus-case-workspace/evidence/13-contextual-gasket-support-sizing/public-receipt.md",
         "remaining": "Pad width and other contextual/configuration, blocked/loading/error and full F7.2/F7.4 joins remain. Earlier zero rows were transient loading; no persistent bug or cache repair claimed."
+      },
+      {
+        "journey": "KiCad footprint import -> error -> Undo -> reimport/reopen",
+        "state": "Bounded paired verified on34747:20 source pads/repeated numbers and distinct IDs; correct parse feedback; Undo removes and second import reopens. Source preview correction unserved.",
+        "candidate": "f2d70ea6/34747",
+        "receipt": ".scratch/dioxus-parts-catalogue/evidence/05-import-kicad-footprint-paired-journey-20261003.md",
+        "remaining": "Imported preview replay, broader all-field/assets/archive/net-remap and full Parts criteria."
       }
     ],
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "heavy_slots": {
-      "root_target": "Free; package34747 complete107.03s. Next integration waits only for compiled coherent source packets, not another planning approval.",
-      "secondary_target": "Layout F34d assigned exclusive f73 target for one affected page WASM compile/check.",
-      "dispatch": "Coordinator assigned; no broad suites or repeated unchanged journeys."
+      "root_target": "Fresh full provider/page/root/subpath build for the joined batch after source freeze.",
+      "secondary_target": "Keymap fit-controls author owns f73 cached page check target.",
+      "dispatch": "One affected combined check completed; no broad suites or repeated unchanged journeys."
     },
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "next_work": {
-      "Layout": "Finish compiled canvas handles/drag/preview/cancel/snapping/keyboard packet and integrate.",
-      "PCB": "Verify previously failing Ctrl-remove on34747; then next missing PCB control.",
-      "Keymap": "Dedicated author comparing current UI and implementing one missing bounded workflow.",
-      "Keycaps": "Verify exact camera after ordinary2px CSS repair; then next missing Keycaps control.",
-      "Case": "Implement React Edit gaskets support link/unlink placement and behavior.",
-      "Parts_Project": "Focused public KiCad import/error/history/reopen on34747, then next bounded control."
+      "Layout": "Focused drag/cancel/keyboard/history/reopen on next candidate; then next missing Layout authoring control.",
+      "PCB": "Actual module-bearing source-footprint visibility on next candidate; remaining module overlay categories/navigation recorded.",
+      "Keymap": "Bounded Fit board/Fit selection footer implementation and assigned affected compile.",
+      "Keycaps": "Local Export keycap STEP action and existing CAD bridge implementation; camera residual retained.",
+      "Case": "Focused same-archive support unlink/history/reopen on next candidate; then next contextual action.",
+      "Parts_Project": "Replay imported source preview on next candidate; normal import/history evidence reused."
     },
     "execution_policy": "One required affected compile, one changed paired browser journey and one consolidated candidate review; reuse unchanged evidence. Ordinary reversible UI gets no new tests. Real bugs keep focused regressions and remaining acceptance gates explicit."
   }

@@ -1064,7 +1064,7 @@
       "acceptance_after": [
         "INT.2"
       ],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
       "shared_edit_owner": "integration coordinator",
@@ -1079,6 +1079,13 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
+      },
+      "progress_evidence": {
+        "updated_at": "2026-10-03T07:04:21.680245+00:00",
+        "checkpoint": "429bd6f7+7e099116",
+        "scope": "Accepted module scenes/selected-board PCB surface and separate layer state proven; full F5.4 navigation/categories remain.",
+        "child": "PCB14 source footprints",
+        "acceptance": "Started capability-ready child only; all original parent criteria/dependencies and final joins preserved."
       }
     },
     {
@@ -1578,7 +1585,7 @@
         "F8.2",
         "BND.1"
       ],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
@@ -1593,6 +1600,13 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
+      },
+      "progress_evidence": {
+        "updated_at": "2026-10-03T07:04:21.680245+00:00",
+        "checkpoint": "Luna author source in progress",
+        "scope": "Existing ResolveKeycaps and packaged Rust build_keycaps export proven; local STEP consumer starts, shared-viewer joins remain.",
+        "child": "Keycaps local STEP bridge",
+        "acceptance": "Started capability-ready child only; all original parent criteria/dependencies and final joins preserved."
       }
     },
     {
@@ -1844,7 +1858,7 @@
         "F7.4"
       ],
       "acceptance_after": [],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
       "shared_edit_owner": "integration coordinator",
@@ -1859,6 +1873,13 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
+      },
+      "progress_evidence": {
+        "updated_at": "2026-10-03T07:04:21.680245+00:00",
+        "checkpoint": "f57bc30d+d66dc9e7",
+        "scope": "Current generated support selection and MechanicalSettings accepted-history path proven; direct dragging/full parent criteria remain.",
+        "child": "Case support unlink",
+        "acceptance": "Started capability-ready child only; all original parent criteria/dependencies and final joins preserved."
       }
     },
     {
