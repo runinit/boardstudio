@@ -1,6 +1,6 @@
 # Case Issue13 battery envelope implementation handoff
 
-Issue13 planning and capability-start review: commit `0b7d27c8bf8fb363539f8e9127e18afda77238fd`; both-axis capability-start review at `/home/chris/.local/share/boardstudio/reviews/case13-battery-capability-start-review-0b7d27c8bf8fb363539f8e9127e18afda77238fd-sol-20261002.md` (SHA-256 `2a06d898783d24b3bb53747a3847ab5a445742f9cf55b9a1e3e76b7ee0fbc454`). Implementation commit `e3fdb7ee13bb6ab64cf9c033b6889405f4916e64`, based on `f261a327858f51a1de4928374bc65b669e2792a3`.
+Issue13 planning and capability-start review: commit `0b7d27c8bf8fb363539f8e9127e18afda77238fd`; both-axis capability-start review at `/home/chris/.local/share/boardstudio/reviews/case13-battery-capability-start-review-0b7d27c8-sol-20261002.md` (SHA-256 `2a06d898783d24b3bb53747a3847ab5a445742f9cf55b9a1e3e76b7ee0fbc454`). Implementation commit `e3fdb7ee13bb6ab64cf9c033b6889405f4916e64`, based on `f261a327858f51a1de4928374bc65b669e2792a3`.
 
 ## Scope and behavior
 
