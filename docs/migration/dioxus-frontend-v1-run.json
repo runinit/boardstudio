@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T18:30:43.832827+00:00",
+    "updated_at": "2026-10-03T18:39:37.311656+00:00",
     "parent_counts": {
       "accepted": 10,
       "implementing": 41,
@@ -25,31 +25,31 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-layout-ready-repair-20261003",
-      "source_commit": "2caace52ee2bd9a813030586bf88a1de7aa88a0c",
-      "root_url": "http://127.0.0.1:34775/",
-      "subpath_url": "http://127.0.0.1:34775/boardstudio/",
-      "provenance": "web/target/builds/frontend-layout-ready-repair-20261003/provenance.json",
-      "provenance_sha256": "656a1f2493d7c3ba092df350068bc976252ddbf16b53d25ec5f83224d608509f",
+      "build_id": "frontend-functional-selection-20261003",
+      "source_commit": "c85160c70c09c69289c6c9fd330dc5f357552c32",
+      "root_url": "http://127.0.0.1:34776/",
+      "subpath_url": "http://127.0.0.1:34776/boardstudio/",
+      "provenance": "web/target/builds/frontend-functional-selection-20261003/provenance.json",
+      "provenance_sha256": "057ac248598153797ad950c434fbed9d3f5762e2d8998857363d041a392a7fac",
       "fresh_commands": 8,
       "inherited_commands": 22,
       "source_inputs": 1385,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 188.272855,
-      "package_qualification": "Compiler/package/source checks; full local and live route assets verified by record-candidate. Focused public journeys recorded separately.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/package-proof.json",
+      "command_span_seconds": 147.557471,
+      "package_qualification": "Combined compiler/package; current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/package-proof.json",
       "release_warnings": {
-        "root": 2,
-        "subpath": 2
+        "root": 0,
+        "subpath": 0
       }
     },
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "6f8ee398386e1a6ffb6b08346fd85cdd0dacbf7a",
-      "state": "Selection-mode correction and explicit functional qualification scopes integrated; combined candidate pending. Six streams exercised, no cosmetic matching included.",
+      "source_commit": "c85160c70c09c69289c6c9fd330dc5f357552c32",
+      "state": "Candidate34776 served: Objects selection mode correction compiled, packaged and verified by trusted canvas clicks; six-stream functional evidence retained from34775 unchanged-source flows.",
       "packets": [
         {
           "stream": "Layout",
@@ -438,12 +438,11 @@
     },
     "execution_policy": "docs/agents/issue-tracker.md#frontend-delivery-records",
     "candidate_review": {
-      "candidate": "frontend-layout-ready-repair-20261003",
-      "review": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/review.md",
-      "review_sha256": "8d37af10c92f8906f7134bba2d9f9a1245921f15b58f30daf3d5d9a91835e7bf",
-      "state": "Sol6.1High PASS assessed repairs and two focused editing/history/reopen behaviors; visual/context parity and broader parent criteria remain open.",
-      "previous_review": ".scratch/dioxus-frontend-v1/evidence/candidate-34774-20261003/consolidated-review.md",
-      "previous_audit": ".scratch/dioxus-frontend-v1/evidence/candidate-34774-20261003/consolidated-audit.json"
+      "candidate": "frontend-functional-selection-20261003",
+      "review": ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/review.md",
+      "review_sha256": "65f316307f9edfedf46646232b7580254e6fdf41de7f496b4f5e2df60cb484a9",
+      "state": "Sol6.1High PASS scoped selection correction and functional qualification controls; broader parent acceptance open.",
+      "previous_review": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/review.md"
     },
     "parent_acceptances": [
       {
@@ -467,35 +466,34 @@
       {
         "stream": "Layout",
         "priority": "Functional gaps alongside other streams; exact visual parity deferred",
-        "state": "34775: responsive Sofle, all3 Properties shortcuts and key-size/outline Undo/Redo/reopen verified. Inspector/perimeter toolbar, selection-kind label and handle parity gaps recorded; broader gates remain."
+        "state": "34776: Matrix/Row/Column/Key/Part mode synchronization repaired; actual canvas hit behavior verified. Outline grid/Snap/Done already wired; exact placement deferred."
       },
       {
         "stream": "PCB",
-        "state": "Reference import/model attachments and manual-net conflict/release served34774. Source pass found no further owned controller/pin/jumper/profile control gap; final behavioral joins remain."
+        "state": "34775: manual Row1\u2192P101\u2192Apply settles and export actions available, matching TS. Persistence/history/conflict criteria remain; no data-loss defect reproduced."
       },
       {
         "stream": "Keymap",
-        "state": "Effective encoder identity/capture repair served34774 with zero source/release compiler warnings. Existing F6K.1/.2/.3 acceptances retained; new delta/cross-workflow qualification remains."
+        "state": "34775: CW F5 and Push F6 edits save and persist across workspace-tab switches. Push exists in collapsed disclosure; compact accessibility snapshot omission corrected. F5/F8 joins remain."
       },
       {
         "stream": "Keycaps",
-        "state": "F6C.1/.2/.4 accepted; F6C.3/.5 joins open. Authored/generated Export controls joined; source audit found no further Export-owned control gap."
+        "state": "34775: paired SW1 3D and byte-identical STEP download pass. F6C.3/.5 remaining criteria retained; no new source gap in happy path."
       },
       {
         "stream": "Case",
-        "state": "Openings, full closure/Critical fits/hardware controls joined. Source audit found no additional Case/shared-viewer owned control gap; later behavioral/handle qualification remains."
+        "state": "34775: generation, physical connection, view controls, profile validation and mechanical package download work. Remaining parent criteria retained."
       },
       {
         "stream": "Parts + Project",
-        "state": "Exact TS board-origin Assembly X/Y placement and accepted Part-mode callback served34774. All bounded Parts source passes complete; no speculative audit or ticket added. Final behavior/cross-workflow joins remain."
+        "state": "34775: create/import, assembly placement and footprint import survive project switch/reopen. Absolute fixture paths required for browser upload tool. Remaining parent criteria retained."
       }
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Use existing six-stream source and evidence to identify the highest-impact missing or broken functional journeys; avoid repeating completed source audits.",
-      "Integrate coherent functional batches across workbenches, then compile/package and qualify the affected behaviors with one consolidated candidate review.",
-      "Keep Layout authoring and geometry correctness active; defer cosmetic Inspector order, typography, exact toolbar placement and reference handle appearance until design refinement.",
-      "Preserve parent criteria, blocker history and the architecture/refactoring ledger; record intentional UI changes in existing specs."
+      "Prioritize genuinely unfinished functional criteria and cross-workbench joins in the existing parent graph; do not repeat the six happy-path source/browser audits recorded in the functional batch.",
+      "Complete F5 manual-pin persistence/Undo/conflict and F6K.4 firmware-position joins; preserve the already verified encoder and Push editors.",
+      "Finish scoped export/3D cancellation, stale-result and failure/retry integration where criteria remain unmet; defer cosmetic matching and retain all RF observations."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
@@ -529,53 +527,20 @@
       ]
     },
     "qualification": {
-      "trigger": "layout_ready",
-      "phase": "repairing",
-      "layout_source_commit": "5c8161cf80d2c93c6214cb7caed6dffc4463f64d",
-      "unmet_start_conditions": [],
-      "journeys": [
-        {
-          "id": "layout-selection-inspector",
-          "state": "partial",
-          "scope": "Sofle selection, contextual Objects/Inspector Properties and Relations, matrix/key edits, Undo and reopen",
-          "spec": ".scratch/dioxus-layout-authoring/spec.md",
-          "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/journey.md",
-          "verified": "Three Properties shortcut routes and key width1\u21921.25\u2192Undo1\u2192Redo1.25\u2192reload1.25 match reference behavior.",
-          "remaining": "Inspector arrangement/typography/context footer and Objects-to-toolbar selection-kind synchronization; broader authoring criteria unchanged."
-        },
-        {
-          "id": "layout-outline-authoring",
-          "state": "partial",
-          "scope": "Generated outline copy/edit; perimeter/feature controls; snap/grid; Undo and reopen",
-          "spec": ".scratch/dioxus-layout-authoring/spec.md",
-          "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/journey.md",
-          "verified": "Generated copy, point coordinate edit, Undo/Redo and reload persistence match reference operations.",
-          "remaining": "Perimeter toolbar/grid/Done surface, handle size and context/scroll parity; pristine coordinate characterization and broader outline criteria unchanged."
-        }
-      ],
-      "review": {
-        "profile": "sol-review",
-        "state": "completed",
-        "repair_verdict": "pass",
-        "layout_verdict": "partial_parity",
-        "review": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/review.md",
-        "review_sha256": "8d37af10c92f8906f7134bba2d9f9a1245921f15b58f30daf3d5d9a91835e7bf"
-      },
-      "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
-      "candidate_build_id": "frontend-layout-ready-repair-20261003",
-      "source_commit": "2caace52ee2bd9a813030586bf88a1de7aa88a0c",
-      "started_at": "2026-10-03T18:00:41.839083+00:00",
-      "browser_agent": "/root",
-      "unmet_acceptance_conditions": [
-        "Correct remaining contextual toolbar and Inspector visual/behavior gaps captured in the paired journey.",
-        "Characterize initial outline coordinate difference on matched pristine fixtures before geometry equivalence claims.",
-        "Complete broader Layout parent criteria; no new parent accepted by this bounded repair pass."
-      ],
-      "tool_session_cleanup": {
-        "layoutready-react-20261003": "closed",
-        "layoutready-dioxus-outline-20261003": "closed",
-        "layoutready-dioxus-20261003": "close command pending; exec session13690 retained; no product verdict inferred",
-        "layout-shortcut-before-20261003": "closed including owned debug contexts; traces preserved"
+      "trigger": "functional_scope",
+      "active_scope": {
+        "id": "functional-selection-20261003",
+        "source_commit": "6f8ee398386e1a6ffb6b08346fd85cdd0dacbf7a",
+        "streams": [
+          "Layout"
+        ],
+        "journeys": [
+          {
+            "id": "objects-selection-mode",
+            "scope": "Objects Matrix/Row/Column/Key/Component selection updates actual canvas interaction mode; excluded contexts retain mode.",
+            "spec": ".scratch/dioxus-layout-authoring/issues/09-layout-command-pill.md"
+          }
+        ]
       },
       "history": [
         {
@@ -608,28 +573,109 @@
               "limitation": "Verifier lost yielded execution session IDs; later command outcomes unknown. This is not evidence of a product defect."
             }
           ]
+        },
+        {
+          "trigger": "layout_ready",
+          "phase": "repairing",
+          "layout_source_commit": "5c8161cf80d2c93c6214cb7caed6dffc4463f64d",
+          "unmet_start_conditions": [],
+          "journeys": [
+            {
+              "id": "layout-selection-inspector",
+              "state": "partial",
+              "scope": "Sofle selection, contextual Objects/Inspector Properties and Relations, matrix/key edits, Undo and reopen",
+              "spec": ".scratch/dioxus-layout-authoring/spec.md",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/journey.md",
+              "verified": "Three Properties shortcut routes and key width1\u21921.25\u2192Undo1\u2192Redo1.25\u2192reload1.25 match reference behavior.",
+              "remaining": "Inspector arrangement/typography/context footer and Objects-to-toolbar selection-kind synchronization; broader authoring criteria unchanged."
+            },
+            {
+              "id": "layout-outline-authoring",
+              "state": "partial",
+              "scope": "Generated outline copy/edit; perimeter/feature controls; snap/grid; Undo and reopen",
+              "spec": ".scratch/dioxus-layout-authoring/spec.md",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/journey.md",
+              "verified": "Generated copy, point coordinate edit, Undo/Redo and reload persistence match reference operations.",
+              "remaining": "Perimeter toolbar/grid/Done surface, handle size and context/scroll parity; pristine coordinate characterization and broader outline criteria unchanged."
+            }
+          ],
+          "review": {
+            "profile": "sol-review",
+            "state": "completed",
+            "repair_verdict": "pass",
+            "layout_verdict": "partial_parity",
+            "review": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/review.md",
+            "review_sha256": "8d37af10c92f8906f7134bba2d9f9a1245921f15b58f30daf3d5d9a91835e7bf"
+          },
+          "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
+          "candidate_build_id": "frontend-layout-ready-repair-20261003",
+          "source_commit": "2caace52ee2bd9a813030586bf88a1de7aa88a0c",
+          "started_at": "2026-10-03T18:00:41.839083+00:00",
+          "browser_agent": "/root",
+          "unmet_acceptance_conditions": [
+            "Correct remaining contextual toolbar and Inspector visual/behavior gaps captured in the paired journey.",
+            "Characterize initial outline coordinate difference on matched pristine fixtures before geometry equivalence claims.",
+            "Complete broader Layout parent criteria; no new parent accepted by this bounded repair pass."
+          ],
+          "tool_session_cleanup": {
+            "layoutready-react-20261003": "closed",
+            "layoutready-dioxus-outline-20261003": "closed",
+            "layoutready-dioxus-20261003": "close command pending; exec session13690 retained; no product verdict inferred",
+            "layout-shortcut-before-20261003": "closed including owned debug contexts; traces preserved"
+          },
+          "completed_behavior_checks": [
+            "Sofle opens and remains interactive",
+            "Relations to each of three Transform Properties routes",
+            "Key width edit, Undo, Redo and reload",
+            "Copied outline point edit, Undo, Redo and reload"
+          ],
+          "next_scope": {
+            "id": "functional-selection-20261003",
+            "source_commit": "6f8ee398386e1a6ffb6b08346fd85cdd0dacbf7a",
+            "streams": [
+              "Layout"
+            ],
+            "journeys": [
+              {
+                "id": "objects-selection-mode",
+                "scope": "Objects Matrix/Row/Column/Key/Component selection updates actual canvas interaction mode; excluded contexts retain mode.",
+                "spec": ".scratch/dioxus-layout-authoring/issues/09-layout-command-pill.md"
+              }
+            ]
+          }
         }
       ],
-      "completed_behavior_checks": [
-        "Sofle opens and remains interactive",
-        "Relations to each of three Transform Properties routes",
-        "Key width edit, Undo, Redo and reload",
-        "Copied outline point edit, Undo, Redo and reload"
+      "phase": "qualified",
+      "unmet_start_conditions": [],
+      "candidate_build_id": "frontend-functional-selection-20261003",
+      "source_commit": "c85160c70c09c69289c6c9fd330dc5f357552c32",
+      "journeys": [
+        {
+          "id": "objects-selection-mode",
+          "scope": "Objects Matrix/Row/Column/Key/Component selection updates actual canvas interaction mode; excluded contexts retain mode.",
+          "spec": ".scratch/dioxus-layout-authoring/issues/09-layout-command-pill.md",
+          "state": "passed",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
+          "verified": "Matrix/Column/Key/Part/Row tree selections set matching mode; Outline retains mode. Actual canvas clicks select whole matrix, column or row as chosen."
+        }
       ],
-      "next_scope": {
-        "id": "functional-selection-20261003",
-        "source_commit": "6f8ee398386e1a6ffb6b08346fd85cdd0dacbf7a",
-        "streams": [
-          "Layout"
-        ],
-        "journeys": [
-          {
-            "id": "objects-selection-mode",
-            "scope": "Objects Matrix/Row/Column/Key/Component selection updates actual canvas interaction mode; excluded contexts retain mode.",
-            "spec": ".scratch/dioxus-layout-authoring/issues/09-layout-command-pill.md"
-          }
-        ]
-      }
+      "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
+      "started_at": "2026-10-03T18:35:56.070232+00:00",
+      "review": {
+        "profile": "sol-review",
+        "state": "completed",
+        "verdict": "pass",
+        "review": ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/review.md",
+        "review_sha256": "65f316307f9edfedf46646232b7580254e6fdf41de7f496b4f5e2df60cb484a9"
+      },
+      "completed_behavior_checks": [
+        "Tree context sets canvas selection kind",
+        "Trusted canvas hits honor Matrix, Column and Row modes",
+        "Outline selection preserves the last component-selection mode"
+      ],
+      "unmet_acceptance_conditions": [
+        "Only this bounded functional selection scope qualified; broader parent criteria and cross-workbench joins remain."
+      ]
     },
     "delivery_priority": {
       "authority": "User on 2026-10-03: make the app work; layout parity last; improve UI along the way because the design will change.",
@@ -660,7 +706,7 @@
         "Case generation/view controls/mechanical package download",
         "Paired Keycaps 3D preview and byte-identical STEP download"
       ],
-      "remaining": "Keymap/PCB diagnostic settlement; new selection fix public replay; broader parent criteria remain."
+      "remaining": "Broader parent criteria and final joins remain; cosmetic layout parity deferred."
     }
   }
 }
