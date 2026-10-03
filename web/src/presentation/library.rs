@@ -386,6 +386,8 @@ pub(super) fn Library(
         .as_ref()
         .map(|snapshot| snapshot.document.clone());
     let has_current = current.is_some();
+    let current_revision = current.as_ref().map(|document| document.revision).unwrap_or_default();
+    let current_durability = super::durability_label(&runtime.model().durability);
     let name_owner = current_snapshot.as_ref().map(ProjectNameOwner::from);
     let current_name = current
         .as_ref()
@@ -600,10 +602,11 @@ pub(super) fn Library(
                                     action.commit(&draft);
                                 }
                             },
+                            }
                         }
                     }
+                    span { class: "m1-project-current-status", "Revision {current_revision} · {current_durability}" }
                 }
-            }
             div { class: if project_menu { "m1-library-content m1-library-scroll" } else { "m1-library-content" },
                 header { class: "m1-library-heading",
                     h2 { "Your keyboards" if status() == ListStatus::Ready { span { "{saved_count}" } } }
