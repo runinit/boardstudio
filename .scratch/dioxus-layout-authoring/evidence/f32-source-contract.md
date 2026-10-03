@@ -28,3 +28,7 @@ All four draft tickets retain the true F3.2 canonical start gate F3.1. No child-
 ## Refactoring observation
 
 No new refactoring takeaway observed in this read-only source audit. Existing command/session/history ownership is a boundary to preserve, not a request to redesign it.
+
+## 2026-10-02 selected-key reachability correction
+
+Earlier paragraphs inferred the Parts workspace attached-member route from `placeLibraryDefinition`’s helper fallback. Pinned React `PartsInspectorPanel.tsx` explicitly disables non-switch/non-matrix-input definitions with an explanation to clear key selection and place standalone. That public restriction is authoritative for F3.2c; keep the helper fallback separate from UI acceptance. Existing attached-member Inspector replacement/removal remains in its own ticket. Operational capability-level starts and all canonical parent criteria remain unchanged.
