@@ -1024,6 +1024,19 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-parts-fit-contour { margin-top: 12px; }
 .m1-parts-fit-point { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-block: 8px; }
 .m1-parts-fit-editor input { box-sizing: border-box; min-width: 0; width: 100%; }
+
+/* Mounted daughterboard artwork consumes resolved source-local footprint geometry. */
+.m1-module-source-footprint { opacity: .86; }
+.m1-module-footprint-courtyard { fill: transparent; stroke: var(--wb-geometry-outline); stroke-width: .13; stroke-dasharray: .3 .2; vector-effect: non-scaling-stroke; }
+.m1-module-footprint-courtyard.is-host-hidden { stroke: none; }
+.m1-module-source-pad rect { fill: var(--wb-geometry-part); fill-opacity: .6; stroke: var(--wb-panel); stroke-width: .08; vector-effect: non-scaling-stroke; }
+.m1-module-source-pad .m1-module-source-drill { fill: var(--wb-canvas); stroke: var(--wb-geometry-outline); stroke-width: .1; vector-effect: non-scaling-stroke; }
+.m1-module-footprint-art { fill: none; stroke: var(--wb-geometry-graphic); stroke-width: .15; vector-effect: non-scaling-stroke; pointer-events: none; }
+.m1-module-footprint-art.is-silkscreen { stroke: var(--wb-geometry-label); }
+.m1-module-footprint-art.is-fabrication { stroke: var(--wb-geometry-graphic); }
+.m1-module-footprint-art.is-filled { fill: rgba(190,203,208,.08); }
+.m1-module-footprint-art.is-text { stroke: none; fill: var(--wb-geometry-label); }
+.m1-module-source-reference { fill: var(--wb-geometry-label); stroke: none; font: 1px var(--wb-mono,monospace); text-anchor: middle; pointer-events: none; }
 @media (max-width: 680px) {
   .m1-parts-fit-editor { padding: 16px; }
   .m1-parts-fit-editor :is(button, input, select), .m1-parts-mechanical-fit button { min-height: 44px; }

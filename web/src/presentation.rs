@@ -38,6 +38,7 @@ mod parts;
 mod parts_import_footprint;
 mod parts_workspace;
 mod pcb_layers;
+mod pcb_module_footprints;
 mod pcb_physical_setup;
 mod pcb_scene;
 mod pcb_wiring;
@@ -218,6 +219,7 @@ struct ResolvedTheme(Memo<&'static str>);
 #[derive(Clone, Copy)]
 struct LayerVisibility {
     hidden: Signal<BTreeSet<String>>,
+    modules_hidden: Signal<BTreeSet<String>>,
     footprints: Signal<bool>,
 }
 
@@ -467,6 +469,7 @@ pub fn App() -> Element {
     }));
     let layer_visibility = LayerVisibility {
         hidden: use_signal(BTreeSet::new),
+        modules_hidden: use_signal(pcb_module_footprints::default_hidden_layers),
         footprints: use_signal(|| false),
     };
     use_context_provider(|| layer_visibility);

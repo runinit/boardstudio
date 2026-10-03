@@ -235,6 +235,13 @@ pub(super) fn layer_groups_for_scene(
             std::mem::take(&mut objects),
         ));
     }
+    groups.push(CanvasLayerGroup::titled(
+        "Mounted modules",
+        vec![CanvasLayer::module_hidden(
+            "module-footprints",
+            "Footprints",
+        )],
+    ));
     groups
 }
 

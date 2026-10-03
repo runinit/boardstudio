@@ -7,6 +7,7 @@ use web_sys::HtmlElement;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum LayerTarget {
     Hidden(String),
+    ModuleHidden(String),
     LayoutFootprints,
 }
 
@@ -32,6 +33,15 @@ impl CanvasLayer {
             id: "Footprints".into(),
             label: "Footprints".into(),
             target: LayerTarget::LayoutFootprints,
+        }
+    }
+
+    pub(super) fn module_hidden(id: impl Into<String>, label: impl Into<String>) -> Self {
+        let id = id.into();
+        Self {
+            label: label.into(),
+            target: LayerTarget::ModuleHidden(id.clone()),
+            id,
         }
     }
 }
@@ -70,6 +80,7 @@ pub(super) fn CanvasLayers(props: CanvasLayersProps) -> Element {
     let layers = use_context::<LayerVisibility>();
     let mut open = use_signal(|| false);
     let hidden = (layers.hidden)();
+    let modules_hidden = (layers.modules_hidden)();
     let footprints = (layers.footprints)();
     let trigger_id = props.trigger_id.clone();
     let close_trigger_id = trigger_id.clone();
@@ -85,6 +96,14 @@ pub(super) fn CanvasLayers(props: CanvasLayersProps) -> Element {
         LayerTarget::LayoutFootprints => {
             let mut visible = layers.footprints;
             visible.set(!visible());
+        }
+        LayerTarget::ModuleHidden(id) => {
+            let mut hidden = layers.modules_hidden;
+            let mut next = hidden();
+            if !next.insert(id.clone()) {
+                next.remove(&id);
+            }
+            hidden.set(next);
         }
     };
     let keydown_trigger_id = props.trigger_id.clone();
@@ -129,6 +148,7 @@ pub(super) fn CanvasLayers(props: CanvasLayersProps) -> Element {
                         let controls = group.layers.iter().map(|layer| {
                             let visible = match &layer.target {
                                 LayerTarget::Hidden(id) => !hidden.contains(id),
+                                LayerTarget::ModuleHidden(id) => !modules_hidden.contains(id),
                                 LayerTarget::LayoutFootprints => footprints && !hidden.contains("Footprints"),
                             };
                             let action = if visible { "Hide" } else { "Show" };

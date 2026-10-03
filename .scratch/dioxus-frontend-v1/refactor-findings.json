@@ -190,6 +190,12 @@
           "observation": "Trusted Ctrl-add then Ctrl-remove and directly affected plain/empty/keyboard selection pass with revision12. Second RED distinguished native DOM propagation from Dioxus synthetic bubbling; both must stop before part pointer-down can own selection.",
           "current_mitigation": "PCB pointer-down owns pointer selection; compatibility clicks cannot clear or toggle again, and Dioxus synthetic propagation cannot invoke the empty-space down path. Keyboard/click-only activation retains scoped admission.",
           "status": "Bounded reproduced defect GREEN; complete PCB13/F5 criteria and cutover remain open. Existing capture/move/end/cancel/history evidence reused; no broad author suite/build."
+        },
+        {
+          "source": "PCB14 mounted-module footprint source packet; compile/public proof pending",
+          "evidence": ".scratch/dioxus-pcb-view/issues/14-mounted-module-footprints.md",
+          "observation": "The PCB scene already carried authentic module footprints, but the shell had only host-layer and Layout Footprints state. A separate transient module owner and read-only source consumer now connect the Footprints row; daughterboard pads remain source-owned. Other module categories/navigation stay explicit F5.4 work.",
+          "status": "bounded implementation; no new RF ID or broad structural refactor"
         }
       ],
       "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted.",

@@ -240,6 +240,15 @@ pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
                     }
                 }
             }
+            for module in snapshot.scene.module_scenes.iter().filter(|module| {
+                document.modules.iter().any(|instance| instance.id == module.id && instance.host_board_id == scope.board_id)
+            }) {
+                super::pcb_module_footprints::ModuleSourceFootprints {
+                    key: "{module.id}",
+                    module_id: module.id.clone(),
+                    footprints: std::rc::Rc::from(module.footprints.clone()),
+                }
+            }
         }
     }
 }
@@ -403,7 +412,12 @@ mod mounted_layer_tests {
         let (snapshot, scope) = fixture();
         let hidden = use_signal(BTreeSet::new);
         let footprints = use_signal(|| true);
-        use_context_provider(|| super::super::LayerVisibility { hidden, footprints });
+        let modules_hidden = use_signal(super::super::pcb_module_footprints::default_hidden_layers);
+        use_context_provider(|| super::super::LayerVisibility {
+            hidden,
+            modules_hidden,
+            footprints,
+        });
         rsx! {
             div { id: "pcb-layer-mount",
                 PcbLayerControls {
@@ -444,7 +458,12 @@ mod mounted_layer_tests {
         let current_scope = if empty_selected() { empty_scope } else { scope };
         let hidden = use_signal(BTreeSet::new);
         let footprints = use_signal(|| true);
-        use_context_provider(|| super::super::LayerVisibility { hidden, footprints });
+        let modules_hidden = use_signal(super::super::pcb_module_footprints::default_hidden_layers);
+        use_context_provider(|| super::super::LayerVisibility {
+            hidden,
+            modules_hidden,
+            footprints,
+        });
         rsx! {
             div { id: "pcb-layer-mount",
                 button { id: "switch-pcb-board", onclick: move |_| empty_selected.set(!empty_selected()), "Switch board" }
@@ -611,7 +630,7 @@ mod mounted_layer_tests {
                 .iter()
                 .map(|group| group.title.as_deref().unwrap_or(""))
                 .collect::<Vec<_>>(),
-            ["Copper", "Objects"]
+            ["Copper", "Objects", "Mounted modules"]
         );
         assert!(groups.iter().flat_map(|group| &group.layers).all(|layer| {
             !matches!(
@@ -644,7 +663,7 @@ mod mounted_layer_tests {
                 .iter()
                 .map(|group| group.title.as_deref().unwrap_or(""))
                 .collect::<Vec<_>>(),
-            ["Copper", "Technical", "Objects"]
+            ["Copper", "Technical", "Objects", "Mounted modules"]
         );
         let rows = groups
             .iter()
