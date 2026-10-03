@@ -249,7 +249,13 @@
           "mitigation": "Fix only the reproduced boundaries during parity; value-change draft synchronization is integrated and preserves unrelated drafts. Header/camera and PCB pointer lifecycle repairs remain active.",
           "post_port": "Assess explicit contextual layout contracts, accepted-value draft lifetimes and one pointer-selection authority after the port. Preserve trusted paired evidence; no broad refactor is started."
         }
-      ]
+      ],
+      "case_mechanical_resolution_display_20261003": {
+        "observation": "Mechanical Inspector findings/support rows currently derive from a successful exact CadScene, while the existing read-only ResolveMechanical owner can return blocked assemblies. CAD preparation discards blocked assembly output before scene publication. This couples mechanical diagnostic display to successful preview delivery.",
+        "evidence": ".scratch/dioxus-case-workspace/evidence/current-mechanical-resolution-diagnosis-20261003/README.md",
+        "status": "Architectural/error-state investigation only. Initial zero-row configured Gasket observation was transient and the completed candidate resize/Undo/Redo/reopen journey succeeds with17 pairs/40 layers. No persistent-zero bug, cache repair, public paired closure or parent acceptance is claimed.",
+        "post_port_follow_up": "If a settled blocked-result display failure is reproduced, preserve exact accepted scope/token/revision/executor/lifetime and reuse the existing current mechanical resolver independently from CAD geometry; avoid a second authority or provider change."
+      }
     },
     {
       "id": "RF-002",
@@ -674,6 +680,12 @@
         "provider_limitation": "Legacy core/src/mechanical/gasket.rs honors saved anchor identity, region, outline, perimeter position and unlink state, but resolves support length/width from global gasketLayout values rather than each saved anchor override. Per-support dimension metadata is persisted by the reference path too; this repair preserves that provider behavior and does not claim a rendered legacy dimension correction.",
         "evidence": ".scratch/dioxus-case-workspace/evidence/legacy-gasket-support-admission-20261003/README.md",
         "status": "Bounded admission repair; contextual current/legacy public journeys and full Case parents remain open."
+      },
+      "case_mechanical_resolution_display_20261003": {
+        "observation": "Mechanical Inspector findings/support rows currently derive from a successful exact CadScene, while the existing read-only ResolveMechanical owner can return blocked assemblies. CAD preparation discards blocked assembly output before scene publication. This couples mechanical diagnostic display to successful preview delivery.",
+        "evidence": ".scratch/dioxus-case-workspace/evidence/current-mechanical-resolution-diagnosis-20261003/README.md",
+        "status": "Architectural/error-state investigation only. Initial zero-row configured Gasket observation was transient and the completed candidate resize/Undo/Redo/reopen journey succeeds with17 pairs/40 layers. No persistent-zero bug, cache repair, public paired closure or parent acceptance is claimed.",
+        "post_port_follow_up": "If a settled blocked-result display failure is reproduced, preserve exact accepted scope/token/revision/executor/lifetime and reuse the existing current mechanical resolver independently from CAD geometry; avoid a second authority or provider change."
       }
     },
     {
