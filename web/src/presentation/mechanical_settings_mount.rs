@@ -401,7 +401,10 @@ pub(crate) fn use_mechanical_settings_mount(
             selected_layer == format!("gasket:{}:lower", support.id)
                 || selected_layer == format!("gasket:{}:upper", support.id)
         });
-        if !layers.iter().any(|layer| layer.id == selected_layer) && !selected_gasket_support {
+        if !layers.iter().any(|layer| layer.id == selected_layer)
+            && !selected_gasket_support
+            && !(selected_layer == "gaskets" && !gasket_supports.is_empty())
+        {
             selected_layer.clear();
         }
         let enabled = current.editable && !controller.is_busy();
@@ -450,6 +453,7 @@ pub(crate) fn use_mechanical_settings_mount(
                 };
                 let exists = scene.mechanical.as_ref().is_some_and(|assembly| {
                     assembly.stack.iter().any(|layer| layer.id == id)
+                        || (id == "gaskets" && !assembly.gasket_supports.is_empty())
                         || (assembly.gasket_supports.iter().any(|support| {
                             id == format!("gasket:{}:lower", support.id)
                                 || id == format!("gasket:{}:upper", support.id)
