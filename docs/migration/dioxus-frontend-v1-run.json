@@ -1273,7 +1273,7 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T11:37:14.307346+00:00",
+    "updated_at": "2026-10-03T11:40:12.031449+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
       "accepted": 3,
@@ -1283,24 +1283,24 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-board-geometry-vik-full-20261003",
-      "source_commit": "661296fe5633e2327488cd56738c14ab81c22341",
-      "root_url": "http://127.0.0.1:34764/",
-      "subpath_url": "http://127.0.0.1:34764/boardstudio/",
-      "provenance": "web/target/builds/frontend-board-geometry-vik-full-20261003/provenance.json",
-      "provenance_sha256": "f597c5d1cd45a8222b5ce8628ffbb5508e7400094cf1f53bcf6518e1681519c0",
-      "fresh_commands": 22,
-      "inherited_commands": 0,
-      "source_inputs": 1375,
+      "build_id": "frontend-context-findings-footprints-20261003",
+      "source_commit": "17ba32b984c13f3621a2145efe1dd478862ab5cd",
+      "root_url": "http://127.0.0.1:34765/",
+      "subpath_url": "http://127.0.0.1:34765/boardstudio/",
+      "provenance": "web/target/builds/frontend-context-findings-footprints-20261003/provenance.json",
+      "provenance_sha256": "273ca2fa2315b32fec91b0490d2f70fb03b5426d759310bced6e934ad73947d5",
+      "fresh_commands": 8,
+      "inherited_commands": 22,
+      "source_inputs": 1378,
       "source_mismatches": 0,
       "assets_per_route": 146,
-      "command_span_seconds": 447.476376,
-      "package_qualification": "CombinedstrictpageWASMalltargets17.49s PASS/newtests0; fullpackage22commands;1375sources/146assets bothroutes0mismatch,root/subpath200COOP/COEP. Changedjourneysactive; no inferredparentclosure.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34764-20261003/package-proof.json"
+      "command_span_seconds": 100.874479,
+      "package_qualification": "Strict page WASM all-targets19.23s PASS; newtests0. Fast package8fresh/22inherited,1378sources/146assets-route0mismatch,root/subpath200COOP/COEP. Changed journeys active; no parentclosure.",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34765-20261003/package-proof.json"
     },
     "integration": {
-      "source_commit": "e016e69e41f820775ba8246fdf9f2a5f5440507b",
-      "state": "Settled combined source96ab3eb0 passes strictpageWASMalltargets19.23s. Fastpackage34765 active, reusing verified34764 fullbaseline. JoinedPCBplacementdraft selfsubscription fixedbeforepackage; exactsourcefinding preserved, noexecutedREDclaim. Changedjourney receipts pending; no parentclosure.",
+      "source_commit": "17ba32b984c13f3621a2145efe1dd478862ab5cd",
+      "state": "34765 served and source/asset proof complete. Freeze released; next isolated source may join serially. Changed Layout findings, PCB module placement, VIK center preview, Case context, Keycaps disclosure and footprint ZIP journeys assigned in parallel.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1958,14 +1958,7 @@
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "heavy_slots": {
       "policy": "Coordinator assigned; maximum2 heavy jobs/1package",
-      "active": [
-        {
-          "kind": "package",
-          "build_id": "frontend-context-findings-footprints-20261003",
-          "owner": "root",
-          "reuse_baseline": "frontend-board-geometry-vik-full-20261003"
-        }
-      ],
+      "active": [],
       "check": {
         "source_commit": "96ab3eb0",
         "log": ".scratch/dioxus-frontend-v1/evidence/candidate-34765-20261003/frontend-context-findings-footprints-combined-check-green.log",
@@ -1973,7 +1966,7 @@
         "duration_seconds": 19.23,
         "new_tests": 0
       },
-      "next": "One combined strict page WASM all-target check and fast package using34764 full provider baseline."
+      "next": "Next combined source after ready packets; no heavy author job assigned."
     },
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "next_work": [
@@ -2207,6 +2200,22 @@
         "command_span_seconds": 95.620667,
         "package_qualification": "Strict page WASM all-target17.97s PASS.1371sources/145assets perroute0mismatch,root/subpath200COOP/COEP.Changed browser deltas active; no inferred parent closure.",
         "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34763-20261003/package-proof.json"
+      },
+      {
+        "build_id": "frontend-board-geometry-vik-full-20261003",
+        "source_commit": "661296fe5633e2327488cd56738c14ab81c22341",
+        "root_url": "http://127.0.0.1:34764/",
+        "subpath_url": "http://127.0.0.1:34764/boardstudio/",
+        "provenance": "web/target/builds/frontend-board-geometry-vik-full-20261003/provenance.json",
+        "provenance_sha256": "f597c5d1cd45a8222b5ce8628ffbb5508e7400094cf1f53bcf6518e1681519c0",
+        "fresh_commands": 22,
+        "inherited_commands": 0,
+        "source_inputs": 1375,
+        "source_mismatches": 0,
+        "assets_per_route": 146,
+        "command_span_seconds": 447.476376,
+        "package_qualification": "CombinedstrictpageWASMalltargets17.49s PASS/newtests0; fullpackage22commands;1375sources/146assets bothroutes0mismatch,root/subpath200COOP/COEP. Changedjourneysactive; no inferredparentclosure.",
+        "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34764-20261003/package-proof.json"
       }
     ],
     "consolidated_reviews": [
