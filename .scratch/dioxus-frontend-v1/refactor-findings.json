@@ -469,6 +469,14 @@
         "post_port_follow_up": "Evaluate a typed Parts selection target for definitions, variants and mounted-instance return context after parity; measure shared presentation change intersections before extracting navigation ownership.",
         "validation": "Source commit is isolated; cargo fmt and diff whitespace checks pass. The next integrated candidate still needs the changed pointer/Enter/Space-to-Parts route and exact-placement return journey; no build/public/parent acceptance is claimed.",
         "status": "bounded source implementation; combined compile and paired route qualification pending; RF-001/RF-006 retained without a new ID"
+      },
+      "assembly_authoring_20261003": {
+        "source": "7b7265f8",
+        "evidence": ".scratch/dioxus-frontend-v1/evidence/f46-assembly-authoring-20261003/RECEIPT.md",
+        "observation": "Saved assembly recipes currently use ReplaceDocument, so the private editor must rebase against the accepted document and reject concurrent changes to the same recipe. Recipe editing and placement remain distinct owners.",
+        "current_mitigation": "Preserve unrelated accepted changes with a narrowly scoped conflict check; edit recipes through the existing Session/history/persistence path.",
+        "post_port_follow_up": "Evaluate a dedicated assembly recipe transaction and stable editor callback interface after parity; retain existing placement identity and model-asset ownership.",
+        "validation": "Source integrated only; compiler repairs and later paired acceptance remain open."
       }
     },
     {

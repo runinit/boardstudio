@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T14:53:40.490733+00:00",
+    "updated_at": "2026-10-03T15:00:16.702724+00:00",
     "parent_counts": {
       "accepted": 10,
       "implementing": 41,
@@ -44,8 +44,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "e57fd3a8",
-      "state": "Joined source extended with authored Case STEP and outline polygon drafts after packaging preflight rejected a standalone test-runner edit. Classification repaired; application tests/browser/review remain deferred.",
+      "source_commit": "4b1a44afd0c53dccd0bad69d62e04f134c357bd6",
+      "state": "Expanded source integration continues. First preview compile exposed integration capture/type errors; original authors repair in parallel. Tests, browser qualification and review remain deferred.",
       "packets": [
         {
           "stream": "Layout",
@@ -161,6 +161,18 @@
           "integrated_commit": "82688515",
           "change": "Addition/cutout polygon drafts, snap/Alt, point Undo/finish/cancel",
           "receipt": ".scratch/dioxus-layout-authoring/evidence/f34e-manual-polygon-drafts-source-20261003.md"
+        },
+        {
+          "stream": "Parts",
+          "integrated_commit": "7b7265f8",
+          "change": "Saved assembly New/select/Duplicate and member authoring",
+          "receipt": ".scratch/dioxus-frontend-v1/evidence/f46-assembly-authoring-20261003/RECEIPT.md"
+        },
+        {
+          "stream": "Shared integration",
+          "integrated_commit": "0e51d316+840131fd+4b1a44af",
+          "change": "Mirror/PCB selection captures, module-profile imports and assembly callback compiler fixes",
+          "qualification": "Source repairs; next combined compiler build pending"
         }
       ],
       "qualification": "Joined source is not acceptance. No new application tests or browser qualification were run for this batch."
@@ -206,6 +218,25 @@
           "source_commit": "fe73cb32",
           "exit_code": 2,
           "result": "Preflight rejected scripts/test-build-m1-reuse.py as a provider input; no build output was reserved or app compiler started. Exact standalone packaging-test classification corrected; provider/source hashes and final drift guard retained."
+        },
+        {
+          "build_id": "frontend-source-batch-20261003-1",
+          "source_commit": "7b7265f87e7658015800d1442ea15dfa2604fcec",
+          "exit_code": 1,
+          "result": "failed-page-root",
+          "provenance": "web/target/builds/frontend-source-batch-20261003-1/provenance.json",
+          "provenance_sha256": "afc14f534d185d7b3ab2a4730584ac3770a5d260dc70dbffdcac5bba3c0651a9",
+          "actual_commands": [
+            {
+              "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-source-batch-20261003-1/fixtures.log",
+              "exit": 0
+            },
+            {
+              "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-source-batch-20261003-1/page-root.log",
+              "exit": 1
+            }
+          ],
+          "qualification": "Fresh demo fixtures prepared. Page compilation failed; no tests or browser journeys executed. Original compiler log retained; retry gets a fresh build ID."
         }
       ]
     },
