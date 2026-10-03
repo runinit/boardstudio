@@ -246,7 +246,6 @@ struct RendererSceneProjection {
     identity: ViewerIdentity,
     input: JsValue,
     layers: Vec<(String, String)>,
-    handles: Vec<ViewerHandle>,
 }
 
 #[derive(Clone)]
@@ -280,6 +279,9 @@ pub(crate) fn CaseSharedViewer(
     on_display_change: EventHandler<ScopedDisplayChange>,
     mechanical_settings: Option<super::MechanicalSettingsProps>,
     #[props(default)] inline_case_controls: bool,
+    #[props(default)] handles: Vec<ViewerHandle>,
+    #[props(default)] handle_preview: Option<Vec<ViewerHandle>>,
+    #[props(default)] gesture_message: Option<String>,
 ) -> Element {
     let runtime = use_context::<Rc<crate::runtime::Runtime>>();
     let _ = use_context::<Signal<u64>>()();
@@ -464,6 +466,9 @@ pub(crate) fn CaseSharedViewer(
             on_display_change,
             mechanical_settings,
             inline_case_controls,
+            handles,
+            handle_preview,
+            gesture_message,
         }
     }
 }
@@ -753,7 +758,6 @@ fn project_case_scene(
         identity,
         input,
         layers,
-        handles: Vec::new(),
     })
 }
 
@@ -794,7 +798,6 @@ fn project_native_preview(
         identity,
         input,
         layers: vec![("pcb".to_owned(), "PCB".to_owned())],
-        handles: Vec::new(),
     })
 }
 
@@ -942,7 +945,6 @@ fn project_parts_preview(
         identity,
         input,
         layers: vec![("pcb".to_owned(), "PCB".to_owned())],
-        handles: Vec::new(),
     })
 }
 
@@ -988,17 +990,30 @@ fn js_error(value: JsValue) -> String {
         .unwrap_or_else(|| "Browser renderer operation failed".to_owned())
 }
 
-#[derive(Clone, Debug)]
-struct ViewerHandle {
-    id: String,
-    x: f32,
-    y: f32,
-    z: f32,
-    tangent_x: f32,
-    tangent_y: f32,
-    normal_x: f32,
-    normal_y: f32,
-    length: f32,
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct ViewerHandle {
+    pub(super) id: String,
+    pub(super) x: f32,
+    pub(super) y: f32,
+    pub(super) z: f32,
+    pub(super) tangent_x: f32,
+    pub(super) tangent_y: f32,
+    pub(super) normal_x: f32,
+    pub(super) normal_y: f32,
+    pub(super) length: f32,
+    pub(super) invalid: bool,
+    pub(super) target: ViewerHandleTarget,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) enum ViewerHandleTarget {
+    Gasket {
+        support_id: String,
+    },
+    Mount {
+        collection: super::mechanical_settings::MechanicalMountCollection,
+        mount_id: String,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1110,9 +1125,13 @@ fn SharedViewer(
     on_display_change: EventHandler<ScopedDisplayChange>,
     mechanical_settings: Option<super::MechanicalSettingsProps>,
     inline_case_controls: bool,
+    handles: Vec<ViewerHandle>,
+    handle_preview: Option<Vec<ViewerHandle>>,
+    gesture_message: Option<String>,
 ) -> Element {
     let runtime = use_context::<Rc<crate::runtime::Runtime>>();
     let mut editing_gaskets = use_signal(|| false);
+    let mut editing_mounts = use_signal(|| false);
     let host = use_hook(|| Rc::new(RefCell::new(None::<RendererPageHost>)));
     let canvas = use_hook(|| Rc::new(RefCell::new(None::<HtmlCanvasElement>)));
     let live_projection = use_hook(|| Rc::new(RefCell::new(projection.clone())));
@@ -1261,40 +1280,52 @@ fn SharedViewer(
         },
     ));
 
-    use_effect(use_reactive((&projection, &mounted()), {
-        let host = host.clone();
-        let owner = owner.clone();
-        let current_source = current_source.clone();
-        let on_signal = on_signal;
-        let mut status = status;
-        move |(projection, mounted)| {
-            if !mounted
-                || !owner.active.get()
-                || !(current_source.0)()
-                || owner.identity.borrow().as_ref() != Some(&projection.identity)
-            {
-                return;
+    use_effect(use_reactive(
+        (
+            &projection,
+            &mounted(),
+            &editing_gaskets(),
+            &editing_mounts(),
+            &handles,
+            &handle_preview,
+        ),
+        {
+            let host = host.clone();
+            let owner = owner.clone();
+            let current_source = current_source.clone();
+            let on_signal = on_signal;
+            let mut status = status;
+            move |(projection, mounted, edit_gaskets, edit_mounts, handles, preview)| {
+                if !mounted
+                    || !owner.active.get()
+                    || !(current_source.0)()
+                    || owner.identity.borrow().as_ref() != Some(&projection.identity)
+                {
+                    return;
+                }
+                let active =
+                    active_case_handles(handles, preview.as_deref(), edit_gaskets, edit_mounts);
+                let result = handles_value(&active).and_then(|handles| {
+                    host.borrow()
+                        .as_ref()
+                        .ok_or_else(|| "3D renderer is not mounted".to_owned())
+                        .and_then(|host| host.set_handles(handles).map(|_| ()))
+                });
+                if let Err(error) = result
+                    && owner_is_current(&owner, &projection.identity)
+                    && (current_source.0)()
+                {
+                    status.set(error.clone());
+                    emit_signal(
+                        &owner,
+                        on_signal,
+                        &projection.identity,
+                        ViewerSignalKind::Failed(error),
+                    );
+                }
             }
-            let result = handles_value(&projection.handles).and_then(|handles| {
-                host.borrow()
-                    .as_ref()
-                    .ok_or_else(|| "3D renderer is not mounted".to_owned())
-                    .and_then(|host| host.set_handles(handles).map(|_| ()))
-            });
-            if let Err(error) = result
-                && owner_is_current(&owner, &projection.identity)
-                && (current_source.0)()
-            {
-                status.set(error.clone());
-                emit_signal(
-                    &owner,
-                    on_signal,
-                    &projection.identity,
-                    ViewerSignalKind::Failed(error),
-                );
-            }
-        }
-    }));
+        },
+    ));
 
     let mount_host = {
         let projection = projection.clone();
@@ -1491,6 +1522,12 @@ fn SharedViewer(
         }
     };
 
+    let active_handles = active_case_handles(
+        &handles,
+        handle_preview.as_deref(),
+        editing_gaskets(),
+        editing_mounts(),
+    );
     let on_pointer_down = {
         let projection = projection.clone();
         let host = host.clone();
@@ -1499,7 +1536,7 @@ fn SharedViewer(
         let on_signal = on_signal;
         let pointer = pointer.clone();
         let canvas = canvas.clone();
-        let handles = projection.handles.clone();
+        let handles = active_handles.clone();
         let applied_identity = applied_identity.clone();
         let mut status = status;
         move |event: dioxus::prelude::PointerEvent| {
@@ -1919,6 +1956,50 @@ fn SharedViewer(
         }
     };
 
+    let on_key_down = {
+        let projection = projection.clone();
+        let owner = owner.clone();
+        let current_source = current_source.clone();
+        let on_signal = on_signal;
+        let pointer = pointer.clone();
+        let canvas = canvas.clone();
+        move |event: KeyboardEvent| {
+            let Some(keyboard) = event.data().try_as_web_event() else {
+                return;
+            };
+            if keyboard.key() != "Escape"
+                || !owner_is_current(&owner, &projection.identity)
+                || !(current_source.0)()
+            {
+                return;
+            }
+            let active = pointer.borrow_mut().take();
+            match active {
+                Some(PointerOwner::Handle {
+                    identity,
+                    pointer_id,
+                    id,
+                    ..
+                }) if identity == projection.identity => {
+                    release_pointer_capture(&canvas, pointer_id);
+                    keyboard.prevent_default();
+                    emit_signal(
+                        &owner,
+                        on_signal,
+                        &identity,
+                        ViewerSignalKind::HandleGesture {
+                            phase: HandleGesturePhase::Cancel,
+                            handle_id: id,
+                            point: None,
+                        },
+                    );
+                }
+                Some(active) => *pointer.borrow_mut() = Some(active),
+                None => {}
+            }
+        }
+    };
+
     let select_layer = {
         let projection = projection.clone();
         let owner = owner.clone();
@@ -1962,8 +2043,11 @@ fn SharedViewer(
     };
 
     let on_pointer_cancel = EventHandler::new(on_pointer_cancel);
+    let on_key_down = EventHandler::new(on_key_down);
     let fit = host.clone();
     let top = host.clone();
+    let top_for_gaskets = host.clone();
+    let top_for_mounts = host.clone();
     let bottom = host.clone();
     let iso = host.clone();
     let case_fit = host.clone();
@@ -1983,9 +2067,20 @@ fn SharedViewer(
         })
     });
     let can_edit_gaskets = mechanical_settings.as_ref().is_some_and(|settings| {
-        !settings.gasket_supports.is_empty()
+        handles
+            .iter()
+            .any(|handle| matches!(&handle.target, ViewerHandleTarget::Gasket { .. }))
             && settings.identity.scope == projection.identity.scope
             && settings.identity.snapshot_token == projection.identity.snapshot_token
+            && settings.editable
+    });
+    let can_edit_mounts = mechanical_settings.as_ref().is_some_and(|settings| {
+        handles
+            .iter()
+            .any(|handle| matches!(&handle.target, ViewerHandleTarget::Mount { .. }))
+            && settings.identity.scope == projection.identity.scope
+            && settings.identity.snapshot_token == projection.identity.snapshot_token
+            && settings.editable
     });
     let unlink_request = selected_support.and_then(|support| {
         mechanical_settings.as_ref().map(|settings| {
@@ -2099,8 +2194,27 @@ fn SharedViewer(
                         r#type: "button",
                         aria_pressed: editing_gaskets(),
                         disabled: mechanical_settings.as_ref().is_none_or(|settings| !settings.editable),
-                        onclick: move |_| editing_gaskets.set(!editing_gaskets()),
+                        onclick: move |_| {
+                            let enable = !editing_gaskets();
+                            editing_gaskets.set(enable);
+                            editing_mounts.set(false);
+                            if enable { run_host(&top_for_gaskets, |host| host.view("top"), &mut status); }
+                        },
                         "Edit gaskets"
+                    }
+                }
+                if can_edit_mounts {
+                    button {
+                        r#type: "button",
+                        aria_pressed: editing_mounts(),
+                        disabled: mechanical_settings.as_ref().is_none_or(|settings| !settings.editable),
+                        onclick: move |_| {
+                            let enable = !editing_mounts();
+                            editing_mounts.set(enable);
+                            editing_gaskets.set(false);
+                            if enable { run_host(&top_for_mounts, |host| host.view("top"), &mut status); }
+                        },
+                        "Edit mounts"
                     }
                 }
                 if editing_gaskets() {
@@ -2285,6 +2399,7 @@ fn SharedViewer(
                     onpointerup: on_pointer_up,
                     onpointercancel: on_pointer_cancel,
                     onlostpointercapture: on_pointer_cancel,
+                    onkeydown: on_key_down,
                     onwheel: on_wheel,
                 }
                 if inline_case_controls {
@@ -2300,6 +2415,9 @@ fn SharedViewer(
                     components: component_layers,
                     display: display.clone(),
                     on_display_change: assembly_change_display,
+                }
+                if let Some(message) = gesture_message.as_deref() {
+                    p { class: "m1-case-edit-hint", role: "status", "{message}" }
                 }
                 p { class: "m1-case-view-status", role: if status().to_ascii_lowercase().contains("unavailable") || status().contains("failed") { "alert" } else { "status" }, "aria-live": "polite", "{status()}" }
             }
@@ -2468,6 +2586,26 @@ fn display_state(
     js_sys::JSON::parse(&value.to_string()).map_err(js_error)
 }
 
+fn active_case_handles(
+    handles: &[ViewerHandle],
+    preview: Option<&[ViewerHandle]>,
+    edit_gaskets: bool,
+    edit_mounts: bool,
+) -> Vec<ViewerHandle> {
+    if !edit_gaskets && !edit_mounts {
+        return Vec::new();
+    }
+    preview
+        .unwrap_or(handles)
+        .iter()
+        .filter(|handle| {
+            matches!(&handle.target, ViewerHandleTarget::Gasket { .. }) && edit_gaskets
+                || matches!(&handle.target, ViewerHandleTarget::Mount { .. }) && edit_mounts
+        })
+        .cloned()
+        .collect()
+}
+
 fn handles_value(handles: &[ViewerHandle]) -> Result<JsValue, String> {
     let handles = handles
         .iter()
@@ -2479,6 +2617,7 @@ fn handles_value(handles: &[ViewerHandle]) -> Result<JsValue, String> {
                 "normal": { "x": handle.normal_x, "y": handle.normal_y },
                 "length": handle.length,
                 "z": handle.z,
+                "invalid": handle.invalid,
             })
         })
         .collect::<Vec<_>>();

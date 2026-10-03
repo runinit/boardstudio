@@ -1,14 +1,18 @@
 //! Case owns display persistence and domain selection; the viewer owns GPU state.
 use super::shared_viewer::{
-    CaseDisplay, CaseSharedViewer, ScopedDisplayChange, ScopedViewerSignal, ViewerIdentity,
-    ViewerSignalKind,
+    CaseDisplay, CaseSharedViewer, HandleGesturePhase, ScopedDisplayChange, ScopedViewerSignal,
+    ViewerHandle, ViewerHandleTarget, ViewerIdentity, ViewerSignalKind,
 };
 use super::{InstanceSelection, ResolvedTheme, selection::SelectionAdapter};
 use crate::runtime::{CadScene, Runtime};
 use boardstudio_application::Scope;
+use boardstudio_core::model::{
+    CaseKind, GasketPlacement, MechanicalGasketAnchor, MechanicalGasketSupport,
+    MechanicalGasketTrack, MechanicalMount, Mount, MountKind, Vec2,
+};
 use boardstudio_web::cad_jobs::captured_case_document;
 use dioxus::prelude::*;
-use std::{collections::BTreeMap, rc::Rc};
+use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
 #[derive(Clone, PartialEq)]
 pub(super) struct BodySelection {
@@ -122,11 +126,40 @@ pub(crate) fn CaseViewer(
                 .map(|selected| selected.body_id.clone())
         })
         .unwrap_or_default();
+    let direct_handles = case_viewer_handles(&scene, mechanical_settings.as_ref());
+    let gesture = use_hook(|| Rc::new(RefCell::new(None::<CaseGestureDraft>)));
+    let mut handle_preview = use_signal(|| None::<Vec<ViewerHandle>>);
+    let mut gesture_field = use_signal(|| None::<String>);
+    let mut gesture_message = use_signal(|| None::<String>);
+    use_effect(use_reactive(
+        (
+            &scene.scope,
+            &scene.token,
+            &scene.snapshot.document.revision,
+        ),
+        {
+            let gesture = gesture.clone();
+            let mut handle_preview = handle_preview;
+            let mut gesture_field = gesture_field;
+            let mut gesture_message = gesture_message;
+            move |_| {
+                *gesture.borrow_mut() = None;
+                handle_preview.set(None);
+                gesture_field.set(None);
+                gesture_message.set(None);
+            }
+        },
+    ));
     let on_signal = {
         let runtime = runtime.clone();
         let scene = scene.clone();
         let preview = preview.clone();
-        let mut selection = selection;
+        let direct_handles = direct_handles.clone();
+        let mechanical_settings = mechanical_settings.clone();
+        let gesture = gesture.clone();
+        let mut handle_preview = handle_preview;
+        let mut gesture_field = gesture_field;
+        let mut gesture_message = gesture_message;
         move |event: super::shared_viewer::ScopedViewerSignal| {
             if !event.is_current()
                 || !source_is_current(&runtime, instance_selection, &scene, &event.identity)
@@ -172,10 +205,27 @@ pub(crate) fn CaseViewer(
                     }
                 }
                 ViewerSignalKind::Failed(message) => runtime.report(message),
+                ViewerSignalKind::HandleGesture {
+                    phase,
+                    handle_id,
+                    point,
+                } => handle_case_gesture(
+                    &scene,
+                    &event.identity,
+                    mechanical_settings.as_ref(),
+                    &direct_handles,
+                    &gesture,
+                    &mut handle_preview,
+                    &mut gesture_field,
+                    &mut gesture_message,
+                    selection,
+                    phase,
+                    &handle_id,
+                    point,
+                ),
                 ViewerSignalKind::SceneAccepted(_)
                 | ViewerSignalKind::Lifecycle(_)
-                | ViewerSignalKind::WorldPoint(_)
-                | ViewerSignalKind::HandleGesture { .. } => {}
+                | ViewerSignalKind::WorldPoint(_) => {}
             }
         }
     };
@@ -199,6 +249,11 @@ pub(crate) fn CaseViewer(
             selection.save_display(&scope, event.display.clone());
         }
     };
+    let displayed_gesture_message = direct_gesture_message(
+        gesture_field(),
+        gesture_message(),
+        mechanical_settings.as_ref(),
+    );
     rsx! {
         CaseSharedViewer {
             scene: Some(scene),
@@ -215,6 +270,9 @@ pub(crate) fn CaseViewer(
             on_display_change,
             mechanical_settings,
             inline_case_controls: true,
+            handles: direct_handles,
+            handle_preview: handle_preview(),
+            gesture_message: displayed_gesture_message,
         }
     }
 }
@@ -312,8 +370,774 @@ pub(crate) fn CasePreviewViewer(
             on_display_change,
             mechanical_settings: None,
             inline_case_controls: true,
+            handles: Vec::new(),
+            handle_preview: None,
+            gesture_message: None,
         }
     }
+}
+
+#[derive(Clone)]
+enum CaseGestureDraft {
+    Gasket {
+        support_id: String,
+        before: Vec<MechanicalGasketSupport>,
+        pending: Vec<MechanicalGasketSupport>,
+        tracks: Vec<MechanicalGasketTrack>,
+    },
+    Mount {
+        collection: super::mechanical_settings::MechanicalMountCollection,
+        mount_id: String,
+        before: Vec<Mount>,
+        pending: Vec<Mount>,
+        constraints: MountMoveConstraints,
+    },
+}
+
+#[derive(Clone)]
+struct MountMoveConstraints {
+    outer: Vec<Vec<Vec2>>,
+    holes: Vec<Vec<Vec2>>,
+}
+
+fn case_viewer_handles(
+    scene: &CadScene,
+    settings: Option<&super::mechanical_settings::MechanicalSettingsProps>,
+) -> Vec<ViewerHandle> {
+    let Some(settings) = settings.filter(|settings| {
+        settings.editable
+            && settings.identity.scope == scene.scope
+            && settings.identity.snapshot_token == scene.token
+            && settings.identity.revision == scene.snapshot.document.revision
+    }) else {
+        return Vec::new();
+    };
+    if !scene.exact || scene.prepared.revision != scene.snapshot.document.revision {
+        return Vec::new();
+    }
+
+    let mut handles = Vec::new();
+    if let Some(assembly) = scene.mechanical.as_ref() {
+        let z = assembly
+            .stack
+            .iter()
+            .find(|layer| layer.id == "retainer")
+            .map(|layer| layer.z + layer.thickness + 0.7)
+            .unwrap_or(9.0);
+        handles.extend(assembly.gasket_supports.iter().map(|support| ViewerHandle {
+            id: format!("gasket-handle:{}", support.id),
+            x: support.at.x as f32,
+            y: support.at.y as f32,
+            z: z as f32,
+            tangent_x: support.tangent.x as f32,
+            tangent_y: support.tangent.y as f32,
+            normal_x: support.normal.x as f32,
+            normal_y: support.normal.y as f32,
+            length: support.length as f32,
+            invalid: support.fit_error.is_some(),
+            target: ViewerHandleTarget::Gasket {
+                support_id: support.id.clone(),
+            },
+        }));
+    }
+
+    let Some(values) = settings.values.as_ref() else {
+        return handles;
+    };
+    let Some(assembly) = scene.mechanical.as_ref() else {
+        return handles;
+    };
+    if values.mount != MechanicalMount::Gasket {
+        let target_body = if values.mount == MechanicalMount::Rigid {
+            "plate"
+        } else {
+            "bottom"
+        };
+        if let Some(constraints) = mount_constraints(scene, target_body) {
+            let z = assembly
+                .stack
+                .iter()
+                .find(|layer| layer.id == target_body)
+                .map(|layer| layer.z + 0.8)
+                .unwrap_or(0.8);
+            handles.extend(values.suspension_mounts.iter().map(|mount| {
+                mount_handle(
+                    mount,
+                    z,
+                    super::mechanical_settings::MechanicalMountCollection::Suspension,
+                )
+            }));
+            let _ = constraints;
+        }
+    }
+    if let Some(mounts) = values.closure_mounts.as_ref()
+        && let Some(_constraints) = mount_constraints(scene, "bottom")
+    {
+        let z = assembly
+            .stack
+            .iter()
+            .find(|layer| layer.id == "bottom")
+            .map(|layer| layer.z + 0.8)
+            .unwrap_or(0.8);
+        handles.extend(mounts.iter().map(|mount| {
+            mount_handle(
+                mount,
+                z,
+                super::mechanical_settings::MechanicalMountCollection::Closure,
+            )
+        }));
+    }
+    handles
+}
+
+fn mount_handle(
+    mount: &Mount,
+    z: f64,
+    collection: super::mechanical_settings::MechanicalMountCollection,
+) -> ViewerHandle {
+    ViewerHandle {
+        id: format!(
+            "case-mount:{}/{}",
+            match collection {
+                super::mechanical_settings::MechanicalMountCollection::Suspension => "suspension",
+                super::mechanical_settings::MechanicalMountCollection::Closure => "closure",
+            },
+            mount.id
+        ),
+        x: mount.at.x as f32,
+        y: mount.at.y as f32,
+        z: z as f32,
+        tangent_x: 1.0,
+        tangent_y: 0.0,
+        normal_x: 0.0,
+        normal_y: 1.0,
+        length: (mount_radius(mount) * 2.0 + 3.0) as f32,
+        invalid: false,
+        target: ViewerHandleTarget::Mount {
+            collection,
+            mount_id: mount.id.clone(),
+        },
+    }
+}
+
+fn handle_case_gesture(
+    scene: &CadScene,
+    identity: &ViewerIdentity,
+    settings: Option<&super::mechanical_settings::MechanicalSettingsProps>,
+    handles: &[ViewerHandle],
+    gesture: &Rc<RefCell<Option<CaseGestureDraft>>>,
+    preview: &mut Signal<Option<Vec<ViewerHandle>>>,
+    feedback_field: &mut Signal<Option<String>>,
+    message: &mut Signal<Option<String>>,
+    selection: CaseSelection,
+    phase: HandleGesturePhase,
+    handle_id: &str,
+    point: Option<[f32; 3]>,
+) {
+    let settings = settings.filter(|settings| {
+        settings.editable
+            && settings.identity.scope == identity.scope
+            && settings.identity.snapshot_token == identity.snapshot_token
+            && settings.identity.revision == scene.snapshot.document.revision
+            && scene.exact
+            && scene.scope == identity.scope
+            && scene.token == identity.snapshot_token
+    });
+    match phase {
+        HandleGesturePhase::Start => {
+            let Some(settings) = settings else { return };
+            let Some(handle) = handles.iter().find(|handle| handle.id == handle_id) else {
+                return;
+            };
+            *gesture.borrow_mut() = match &handle.target {
+                ViewerHandleTarget::Gasket { support_id } => {
+                    let Some(assembly) = scene.mechanical.as_ref() else {
+                        return;
+                    };
+                    let before = assembly.gasket_supports.clone();
+                    if !before.iter().any(|support| support.id == *support_id) {
+                        return;
+                    }
+                    selection.layer.set(Some(LayerSelection {
+                        scope: scene.scope.clone(),
+                        id: format!("gasket:{support_id}:lower"),
+                    }));
+                    Some(CaseGestureDraft::Gasket {
+                        support_id: support_id.clone(),
+                        before: before.clone(),
+                        pending: before,
+                        tracks: assembly.gasket_tracks.clone(),
+                    })
+                }
+                ViewerHandleTarget::Mount {
+                    collection,
+                    mount_id,
+                } => {
+                    let Some(values) = settings.values.as_ref() else {
+                        return;
+                    };
+                    let before = match collection {
+                        super::mechanical_settings::MechanicalMountCollection::Suspension => {
+                            values.suspension_mounts.clone()
+                        }
+                        super::mechanical_settings::MechanicalMountCollection::Closure => {
+                            values.closure_mounts.clone().unwrap_or_default()
+                        }
+                    };
+                    if !before.iter().any(|mount| mount.id == *mount_id) {
+                        return;
+                    }
+                    let body_id = match collection {
+                        super::mechanical_settings::MechanicalMountCollection::Suspension
+                            if values.mount == MechanicalMount::Rigid =>
+                        {
+                            "plate"
+                        }
+                        _ => "bottom",
+                    };
+                    let Some(constraints) = mount_constraints(scene, body_id) else {
+                        return;
+                    };
+                    Some(CaseGestureDraft::Mount {
+                        collection: *collection,
+                        mount_id: mount_id.clone(),
+                        before: before.clone(),
+                        pending: before,
+                        constraints,
+                    })
+                }
+            };
+            feedback_field.set(None);
+            message.set(Some(if handle_id.starts_with("gasket-handle:") {
+                "Drag the gasket support; release to save its position.".to_owned()
+            } else {
+                "Drag the mount; release to save its case position.".to_owned()
+            }));
+        }
+        HandleGesturePhase::Move => {
+            let Some(point) = point.map(world_xy) else {
+                return;
+            };
+            let Some(current) = gesture.borrow().clone() else {
+                return;
+            };
+            match current {
+                CaseGestureDraft::Gasket {
+                    support_id,
+                    before,
+                    pending,
+                    tracks,
+                } => {
+                    if let Some(next) = move_gasket_support(point, &support_id, &before, &tracks) {
+                        *gesture.borrow_mut() = Some(CaseGestureDraft::Gasket {
+                            support_id,
+                            before,
+                            pending: next.clone(),
+                            tracks,
+                        });
+                        preview.set(Some(gasket_handles(handles, &next, None)));
+                        message.set(Some(
+                            "Release to place; fit is checked after placement.".into(),
+                        ));
+                    } else {
+                        preview.set(Some(gasket_handles(handles, &pending, Some(&support_id))));
+                        message.set(Some("No valid gasket perimeter position here.".into()));
+                    }
+                }
+                CaseGestureDraft::Mount {
+                    collection,
+                    mount_id,
+                    before,
+                    pending,
+                    constraints,
+                } => {
+                    if let Some(next) = move_case_mount(point, &mount_id, &before, &constraints) {
+                        *gesture.borrow_mut() = Some(CaseGestureDraft::Mount {
+                            collection,
+                            mount_id,
+                            before,
+                            pending: next.clone(),
+                            constraints,
+                        });
+                        preview.set(Some(mount_handles(handles, &next, None)));
+                        message.set(Some("Release to save mount position.".into()));
+                    } else {
+                        preview.set(Some(mount_handles(handles, &pending, Some(&mount_id))));
+                        message.set(Some(
+                            "Placement blocked by the case edge, openings, or another mount."
+                                .into(),
+                        ));
+                    }
+                }
+            }
+        }
+        HandleGesturePhase::End => {
+            let Some(settings) = settings else {
+                *gesture.borrow_mut() = None;
+                preview.set(None);
+                message.set(None);
+                return;
+            };
+            let Some(current) = gesture.borrow().clone() else {
+                return;
+            };
+            let current = if let Some(point) = point.map(world_xy) {
+                match current {
+                    CaseGestureDraft::Gasket {
+                        support_id,
+                        before,
+                        tracks,
+                        ..
+                    } => move_gasket_support(point, &support_id, &before, &tracks).map(|pending| {
+                        CaseGestureDraft::Gasket {
+                            support_id,
+                            before,
+                            pending,
+                            tracks,
+                        }
+                    }),
+                    CaseGestureDraft::Mount {
+                        collection,
+                        mount_id,
+                        before,
+                        constraints,
+                        ..
+                    } => move_case_mount(point, &mount_id, &before, &constraints).map(|pending| {
+                        CaseGestureDraft::Mount {
+                            collection,
+                            mount_id,
+                            before,
+                            pending,
+                            constraints,
+                        }
+                    }),
+                }
+            } else {
+                Some(current)
+            };
+            let Some(current) = current else {
+                *gesture.borrow_mut() = None;
+                preview.set(None);
+                message.set(Some("Blocked move was not saved.".into()));
+                return;
+            };
+            let patch = match current {
+                CaseGestureDraft::Gasket {
+                    support_id,
+                    before,
+                    pending,
+                    ..
+                } => {
+                    if supports_equal_positions(&before, &pending) {
+                        None
+                    } else {
+                        let anchors = pending
+                            .iter()
+                            .filter(|support| {
+                                before
+                                    .iter()
+                                    .find(|old| old.id == support.id)
+                                    .is_none_or(|old| (old.anchor - support.anchor).abs() > 1e-7)
+                            })
+                            .map(gasket_anchor)
+                            .collect::<Vec<_>>();
+                        (!anchors.is_empty()).then_some(
+                            super::mechanical_settings::MechanicalSettingsPatch::SetGasketSupportPlacement {
+                                support_id,
+                                anchors,
+                            },
+                        )
+                    }
+                }
+                CaseGestureDraft::Mount {
+                    collection,
+                    mount_id,
+                    before,
+                    pending,
+                    ..
+                } => pending
+                    .iter()
+                    .find(|mount| mount.id == mount_id)
+                    .zip(before.iter().find(|mount| mount.id == mount_id))
+                    .filter(|(next, old)| {
+                        (next.at.x - old.at.x).abs() > 1e-7 || (next.at.y - old.at.y).abs() > 1e-7
+                    })
+                    .map(|(mount, _)| {
+                        super::mechanical_settings::MechanicalSettingsPatch::SetMountPosition {
+                            collection,
+                            mount_id,
+                            at: mount.at.clone(),
+                        }
+                    }),
+            };
+            if let Some(patch) = patch {
+                let field_id = patch.field_id();
+                if submit_settings_patch(settings, patch) {
+                    feedback_field.set(Some(field_id));
+                    message.set(Some("Saving position…".into()));
+                } else {
+                    message.set(Some("Position could not be submitted.".into()));
+                }
+            } else {
+                message.set(None);
+            }
+            *gesture.borrow_mut() = None;
+            preview.set(None);
+        }
+        HandleGesturePhase::Cancel => {
+            *gesture.borrow_mut() = None;
+            preview.set(None);
+            feedback_field.set(None);
+            message.set(Some("Move cancelled.".into()));
+        }
+    }
+}
+
+fn direct_gesture_message(
+    field_id: Option<String>,
+    transient: Option<String>,
+    settings: Option<&super::mechanical_settings::MechanicalSettingsProps>,
+) -> Option<String> {
+    let Some(field_id) = field_id else {
+        return transient;
+    };
+    let feedback = settings?
+        .feedback
+        .iter()
+        .rev()
+        .find(|entry| entry.field_id == field_id)?;
+    Some(match feedback.state {
+        super::mechanical_settings::MechanicalSettingsFeedbackState::Pending => {
+            "Saving position…".into()
+        }
+        super::mechanical_settings::MechanicalSettingsFeedbackState::Saved => {
+            "Position saved.".into()
+        }
+        super::mechanical_settings::MechanicalSettingsFeedbackState::Failed => feedback
+            .message
+            .clone()
+            .unwrap_or_else(|| "Position could not be saved.".into()),
+    })
+}
+
+fn submit_settings_patch(
+    settings: &super::mechanical_settings::MechanicalSettingsProps,
+    patch: super::mechanical_settings::MechanicalSettingsPatch,
+) -> bool {
+    if !settings.editable {
+        return false;
+    }
+    let mut sequence = settings.request_sequence;
+    let Some(request_id) = sequence().checked_add(1) else {
+        return false;
+    };
+    sequence.set(request_id);
+    let field_id = patch.field_id();
+    settings
+        .on_request
+        .call(super::mechanical_settings::MechanicalSettingsRequest {
+            identity: settings.identity.clone(),
+            request_id,
+            field_id,
+            patch,
+        });
+    true
+}
+
+fn world_xy(point: [f32; 3]) -> Vec2 {
+    Vec2 {
+        x: f64::from(point[0]),
+        y: f64::from(point[1]),
+    }
+}
+
+fn gasket_anchor(support: &MechanicalGasketSupport) -> MechanicalGasketAnchor {
+    MechanicalGasketAnchor {
+        id: support.id.clone(),
+        region_id: support.region_id.clone(),
+        outline_key: support.outline_key.clone(),
+        anchor: support.anchor,
+        length: Some(support.length),
+        width: Some(support.width),
+        placement: Some(GasketPlacement::User),
+        unlinked: support.unlinked,
+    }
+}
+
+fn supports_equal_positions(a: &[MechanicalGasketSupport], b: &[MechanicalGasketSupport]) -> bool {
+    a.len() == b.len()
+        && a.iter().all(|support| {
+            b.iter()
+                .find(|candidate| candidate.id == support.id)
+                .is_some_and(|candidate| (support.anchor - candidate.anchor).abs() <= 1e-7)
+        })
+}
+
+fn gasket_handles(
+    original_handles: &[ViewerHandle],
+    supports: &[MechanicalGasketSupport],
+    invalid: Option<&str>,
+) -> Vec<ViewerHandle> {
+    let mut result = original_handles.to_vec();
+    for support in supports {
+        let id = format!("gasket-handle:{}", support.id);
+        if let Some(handle) = result.iter_mut().find(|handle| handle.id == id) {
+            handle.x = support.at.x as f32;
+            handle.y = support.at.y as f32;
+            handle.tangent_x = support.tangent.x as f32;
+            handle.tangent_y = support.tangent.y as f32;
+            handle.normal_x = support.normal.x as f32;
+            handle.normal_y = support.normal.y as f32;
+            handle.invalid = invalid == Some(support.id.as_str()) || support.fit_error.is_some();
+        }
+    }
+    result
+}
+
+fn mount_handles(
+    original_handles: &[ViewerHandle],
+    mounts: &[Mount],
+    invalid: Option<&str>,
+) -> Vec<ViewerHandle> {
+    let mut result = original_handles.to_vec();
+    for handle in &mut result {
+        let ViewerHandleTarget::Mount { mount_id, .. } = &handle.target else {
+            continue;
+        };
+        if let Some(mount) = mounts.iter().find(|mount| mount.id == *mount_id) {
+            handle.x = mount.at.x as f32;
+            handle.y = mount.at.y as f32;
+            handle.invalid = invalid == Some(mount.id.as_str());
+        }
+    }
+    result
+}
+
+fn move_gasket_support(
+    point: Vec2,
+    id: &str,
+    supports: &[MechanicalGasketSupport],
+    tracks: &[MechanicalGasketTrack],
+) -> Option<Vec<MechanicalGasketSupport>> {
+    let original = supports.iter().find(|support| support.id == id)?;
+    let moved = project_gasket(point, original, tracks)?;
+    let mut replacements = BTreeMap::from([(id.to_owned(), moved)]);
+    if let Some(pair_id) = original.pair_id.as_ref()
+        && let Some(axis) = original.mirror_axis
+        && !original.unlinked
+    {
+        let pair = supports.iter().find(|support| support.id == *pair_id)?;
+        if !pair.unlinked {
+            let moved = replacements.get(id)?;
+            let reflected = project_gasket(
+                Vec2 {
+                    x: 2.0 * axis - moved.at.x,
+                    y: moved.at.y,
+                },
+                pair,
+                tracks,
+            )?;
+            if (reflected.at.x - (2.0 * axis - moved.at.x)).hypot(reflected.at.y - moved.at.y)
+                > 0.001
+            {
+                return None;
+            }
+            replacements.insert(pair.id.clone(), reflected);
+        }
+    }
+    Some(
+        supports
+            .iter()
+            .map(|support| replacements.get(&support.id).unwrap_or(support).clone())
+            .collect(),
+    )
+}
+
+fn project_gasket(
+    point: Vec2,
+    support: &MechanicalGasketSupport,
+    tracks: &[MechanicalGasketTrack],
+) -> Option<MechanicalGasketSupport> {
+    let mut best = None;
+    let mut best_distance = f64::INFINITY;
+    for track in tracks
+        .iter()
+        .filter(|track| track.region_id == support.region_id)
+    {
+        let dx = track.end.x - track.start.x;
+        let dy = track.end.y - track.start.y;
+        let length_squared = dx * dx + dy * dy;
+        if length_squared <= f64::EPSILON {
+            continue;
+        }
+        let length = length_squared.sqrt();
+        let t = (((point.x - track.start.x) * dx + (point.y - track.start.y) * dy)
+            / length_squared)
+            .clamp(0.0, 1.0);
+        let at = Vec2 {
+            x: track.start.x + t * dx,
+            y: track.start.y + t * dy,
+        };
+        let distance = (point.x - at.x).hypot(point.y - at.y);
+        if distance >= best_distance {
+            continue;
+        }
+        best_distance = distance;
+        let mut next = support.clone();
+        next.at = at;
+        next.anchor = track.start_anchor + t * (track.end_anchor - track.start_anchor);
+        next.tangent = Vec2 {
+            x: dx / length,
+            y: dy / length,
+        };
+        next.normal = Vec2 {
+            x: dy / length,
+            y: -dx / length,
+        };
+        best = Some(next);
+    }
+    best
+}
+
+fn mount_constraints(scene: &CadScene, body_id: &str) -> Option<MountMoveConstraints> {
+    let body = scene
+        .prepared
+        .bodies
+        .iter()
+        .find(|body| body.body.id == body_id)?;
+    let base = body.body.z.unwrap_or(0.0);
+    let top = base
+        + body.body.thickness
+        + if body.body.kind == CaseKind::Plate {
+            0.0
+        } else {
+            body.body.wall_height.unwrap_or(0.0)
+        };
+    let mut holes = body
+        .regions
+        .iter()
+        .flat_map(|region| region.holes.iter().cloned())
+        .collect::<Vec<_>>();
+    holes.extend(
+        body.body
+            .openings
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .filter(|opening| opening.z < top && opening.z + opening.height > base)
+            .map(|opening| opening.points.clone()),
+    );
+    let outer = body
+        .regions
+        .iter()
+        .map(|region| region.outer.clone())
+        .filter(|outer| outer.len() >= 3)
+        .collect::<Vec<_>>();
+    if outer.is_empty() {
+        return None;
+    }
+    Some(MountMoveConstraints { outer, holes })
+}
+
+fn move_case_mount(
+    point: Vec2,
+    id: &str,
+    mounts: &[Mount],
+    constraints: &MountMoveConstraints,
+) -> Option<Vec<Mount>> {
+    if !point.x.is_finite() || !point.y.is_finite() {
+        return None;
+    }
+    let original = mounts.iter().find(|mount| mount.id == id)?;
+    let radius = mount_radius(original);
+    let margin = radius + 0.5;
+    if !radius.is_finite() || radius <= 0.0 {
+        return None;
+    }
+    if !constraints
+        .outer
+        .iter()
+        .any(|outer| inside_polygon(point, outer) && edge_distance(point, outer) >= margin)
+    {
+        return None;
+    }
+    if constraints
+        .holes
+        .iter()
+        .any(|hole| inside_polygon(point, hole) || edge_distance(point, hole) < margin)
+    {
+        return None;
+    }
+    if mounts.iter().any(|other| {
+        if other.id == id {
+            return false;
+        }
+        let other_radius = mount_radius(other);
+        !other_radius.is_finite()
+            || other_radius <= 0.0
+            || (point.x - other.at.x).hypot(point.y - other.at.y) < radius + other_radius + 0.5
+    }) {
+        return None;
+    }
+    Some(
+        mounts
+            .iter()
+            .map(|mount| {
+                if mount.id == id {
+                    let mut moved = mount.clone();
+                    moved.at = point.clone();
+                    moved
+                } else {
+                    mount.clone()
+                }
+            })
+            .collect(),
+    )
+}
+
+fn mount_radius(mount: &Mount) -> f64 {
+    if mount.kind == MountKind::Boss {
+        mount.boss_diameter.unwrap_or(mount.hole_diameter) / 2.0
+    } else {
+        mount.hole_diameter / 2.0
+    }
+}
+
+fn inside_polygon(point: Vec2, polygon: &[Vec2]) -> bool {
+    let mut hit = false;
+    if polygon.len() < 3 {
+        return false;
+    }
+    let mut j = polygon.len() - 1;
+    for i in 0..polygon.len() {
+        let a = &polygon[i];
+        let b = &polygon[j];
+        if (a.y > point.y) != (b.y > point.y)
+            && point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x
+        {
+            hit = !hit;
+        }
+        j = i;
+    }
+    hit
+}
+
+fn edge_distance(point: Vec2, polygon: &[Vec2]) -> f64 {
+    let mut nearest = f64::INFINITY;
+    for index in 0..polygon.len() {
+        let a = &polygon[index];
+        let b = &polygon[(index + 1) % polygon.len()];
+        let dx = b.x - a.x;
+        let dy = b.y - a.y;
+        let length = dx * dx + dy * dy;
+        let t = if length > 0.0 {
+            (((point.x - a.x) * dx + (point.y - a.y) * dy) / length).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        nearest = nearest.min((point.x - a.x - t * dx).hypot(point.y - a.y - t * dy));
+    }
+    nearest
 }
 
 fn select_native_preview_model(
@@ -403,7 +1227,20 @@ fn source_is_current(
 }
 
 fn is_layer(scene: &CadScene, id: &str) -> bool {
-    id == "pcb" || scene.result.bodies.iter().any(|body| body.id == id)
+    id == "pcb"
+        || scene.result.bodies.iter().any(|body| body.id == id)
+        || id
+            .strip_prefix("gasket:")
+            .and_then(|id| id.rsplit_once(':'))
+            .is_some_and(|(support_id, side)| {
+                matches!(side, "lower" | "upper")
+                    && scene.mechanical.as_ref().is_some_and(|assembly| {
+                        assembly
+                            .gasket_supports
+                            .iter()
+                            .any(|support| support.id == support_id)
+                    })
+            })
 }
 
 fn read_display(key: &str) -> CaseDisplay {

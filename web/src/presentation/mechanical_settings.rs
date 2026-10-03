@@ -255,6 +255,11 @@ pub(crate) enum MechanicalSettingsPatch {
         field: MechanicalDimension,
         value: f64,
     },
+    SetMountPosition {
+        collection: MechanicalMountCollection,
+        mount_id: String,
+        at: Vec2,
+    },
     SetMountKind {
         collection: MechanicalMountCollection,
         mount_id: String,
@@ -277,6 +282,10 @@ pub(crate) enum MechanicalSettingsPatch {
         anchors: Vec<MechanicalGasketAnchor>,
         field: MechanicalDimension,
         value: f64,
+    },
+    SetGasketSupportPlacement {
+        support_id: String,
+        anchors: Vec<MechanicalGasketAnchor>,
     },
     SetGasketSupportUnlinked {
         support_id: String,
@@ -313,6 +322,14 @@ impl MechanicalSettingsPatch {
                 mount_collection_id(*collection),
                 field.field_id(),
             ),
+            Self::SetMountPosition {
+                collection,
+                mount_id,
+                ..
+            } => format!(
+                "mount:{}:{mount_id}:position",
+                mount_collection_id(*collection),
+            ),
             Self::SetMountKind {
                 collection,
                 mount_id,
@@ -342,6 +359,9 @@ impl MechanicalSettingsPatch {
             ),
             Self::SetGasketSupportUnlinked { support_id, .. } => {
                 format!("gasket-support:{support_id}:link")
+            }
+            Self::SetGasketSupportPlacement { support_id, .. } => {
+                format!("gasket-support:{support_id}:placement")
             }
             Self::ResetGasketPlacement => "reset-gasket-placement".to_owned(),
             Self::SetSwitchFamily { definition_id, .. } => {

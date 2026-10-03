@@ -919,6 +919,21 @@ fn apply_patch(
                 _ => return Err("The selected mount dimension is unavailable.".into()),
             }
         }
+        MechanicalSettingsPatch::SetMountPosition {
+            collection,
+            mount_id,
+            at,
+        } => {
+            if mount_id.is_empty() || !at.x.is_finite() || !at.y.is_finite() {
+                return Err("Mount positions must be finite values.".into());
+            }
+            let mounts = mount_collection_mut(configuration, *collection);
+            let mount = mounts
+                .iter_mut()
+                .find(|mount| mount.id == *mount_id)
+                .ok_or_else(|| "The selected mount is no longer available.".to_owned())?;
+            mount.at = at.clone();
+        }
         MechanicalSettingsPatch::SetMountKind {
             collection,
             mount_id,
@@ -1010,6 +1025,46 @@ fn apply_patch(
                 } else {
                     anchor.width = Some(*value);
                 }
+                anchor.placement = Some(GasketPlacement::User);
+                if let Some(existing) = layout
+                    .supports
+                    .iter_mut()
+                    .find(|entry| entry.id == anchor.id)
+                {
+                    *existing = anchor;
+                } else {
+                    layout.supports.push(anchor);
+                }
+            }
+        }
+        MechanicalSettingsPatch::SetGasketSupportPlacement {
+            support_id,
+            anchors,
+        } => {
+            if support_id.is_empty()
+                || anchors.is_empty()
+                || anchors.len() > 2
+                || !anchors.iter().any(|anchor| anchor.id == *support_id)
+            {
+                return Err("The selected gasket support is no longer available.".into());
+            }
+            let mut ids = std::collections::HashSet::new();
+            if anchors.iter().any(|anchor| {
+                anchor.id.is_empty()
+                    || !ids.insert(&anchor.id)
+                    || !anchor.anchor.is_finite()
+                    || !(0.0..=1.0).contains(&anchor.anchor)
+            }) {
+                return Err("The gasket support placement is invalid.".into());
+            }
+            if configuration.mount != MechanicalMount::Gasket {
+                return Err("The current configuration no longer contains gasket supports.".into());
+            }
+            let layout = configuration
+                .gasket_layout
+                .get_or_insert_with(default_gasket_layout);
+            for source in anchors {
+                let mut anchor = source.clone();
                 anchor.placement = Some(GasketPlacement::User);
                 if let Some(existing) = layout
                     .supports
@@ -1145,7 +1200,12 @@ fn apply_patch(
         }
     }
     let skip_process_normalization = matches!(patch, MechanicalSettingsPatch::SetBatteryEnabled(_))
-        || matches!(patch, MechanicalSettingsPatch::ResetGasketPlacement)
+        || matches!(
+            patch,
+            MechanicalSettingsPatch::SetMountPosition { .. }
+                | MechanicalSettingsPatch::SetGasketSupportPlacement { .. }
+                | MechanicalSettingsPatch::ResetGasketPlacement
+        )
         || matches!(
             patch,
             MechanicalSettingsPatch::SetDimension {
