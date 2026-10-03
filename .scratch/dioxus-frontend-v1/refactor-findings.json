@@ -30,7 +30,8 @@
       "evidence": [
         "web/src/presentation.rs",
         "web/src/runtime.rs",
-        "app/src/ui/Workbench.tsx"
+        "app/src/ui/Workbench.tsx",
+        ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/keycaps05-navigation-owner-review-5fd4bb76-sol-20261002.md"
       ],
       "observation": "At recorded baseline c827c4e6, the presentation spanned 1,399 lines and Runtime 960 lines, with shell, workspace routing, data/service actions and lifecycle integration sharing these modules; the reference Workbench was 1,426 lines. These are historical measurements, not current line counts. Length alone is not a defect; the concrete cost is that independent workflow edits repeatedly touch the same ownership surface.",
       "impact": "Concurrent changes can conflict, and a one-to-one port could preserve broad coupling between workspace controls and service lifecycles.",
@@ -196,7 +197,16 @@
         ],
         "during_port": "Retain explicit cross-stream integration tests and independently review final join; no failing gate waived.",
         "post_port": "Assess shared interaction retirement and composition fixture ownership after parity instead of spreading conditional cancellation and ad hoc fixture glue."
-      }
+      },
+      "continuations": [
+        {
+          "date": "2026-10-02",
+          "source": "5fd4bb767fc558ed4ac90c6c9c39b821c8669129",
+          "observation": "Keycaps navigation dispatch was extracted, but accepted-source admission, destination-render scheduling and deferred Inspector focus remained in shared presentation. Independent review retained a bounded HOLD: synchronous dispatcher tests do not exercise mounted production guards, and a global deferred Inspector query has no captured owner.",
+          "during_port": "Repair production-used mounted owner/guarded frame effects in isolated slice, test replacement before queued fit/focus, retain source and public acceptance gates.",
+          "post_port": "Evaluate feature-owned effect lifetimes and injectable scheduling boundaries across workbenches after parity; no acceptance waiver."
+        }
+      ]
     },
     {
       "id": "RF-002",
