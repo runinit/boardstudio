@@ -986,7 +986,8 @@ fn layout_component_inspector_projection(
     if model.selected_part_ids.len() != 1
         || model.selected_part_ids.first() != Some(part_id)
         || !selection::context_is_current(model, &selected.scope, &selected.context)
-        || objects::context_for_part(model, part_id).as_ref() != Some(&selected.context)
+        || objects::component_context_for_finding_part(model, part_id).as_ref()
+            != Some(&selected.context)
     {
         return None;
     }
@@ -1106,6 +1107,24 @@ fn layout_component_inspector_projection(
         active_constraint,
         relationship_summary,
     })
+}
+
+fn update_layout_selection_kind_for_tree_context(
+    mut selection_kind: Signal<objects::LayoutSelectionKind>,
+    context: &objects::TreeContext,
+) {
+    if matches!(
+        context,
+        objects::TreeContext::Component {
+            part_id: Some(_),
+            matrix_id: None,
+            row: None,
+            column: None,
+            assembly_id: None,
+        }
+    ) {
+        selection_kind.set(objects::LayoutSelectionKind::Part);
+    }
 }
 
 fn layout_component_inspector_owner_key(
@@ -2699,6 +2718,7 @@ fn Editor() -> Element {
         let tree_cell_anchor = tree_cell_anchor.clone();
         let generation = render_generation;
         let mut workspace = workspace;
+        let selection_kind = layout_selection_kind;
         let inspector_settings = inspector_panel_settings;
         let mut objects_open = objects_open;
         let mut inspect_open = inspect_open;
@@ -2741,6 +2761,7 @@ fn Editor() -> Element {
             };
             let activation = request.outline_action.clone();
             let scope = request.scope.clone();
+            update_layout_selection_kind_for_tree_context(selection_kind, &request.context);
             update_tree_cell_anchor(
                 &tree_cell_anchor,
                 &owner,

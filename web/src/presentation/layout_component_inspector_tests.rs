@@ -5,8 +5,8 @@ use super::inspector::{
 use super::*;
 use boardstudio_application::{AcceptedSnapshot, ReadModel, Scope, SessionEpoch};
 use boardstudio_core::model::{
-    Board, Constraint, Layout, LayoutMirrorLink, PartDefinition, PartKind, PartOutline, Pose2,
-    ProjectDoc, Readiness, SceneDelta, Side,
+    Board, Constraint, Layout, LayoutMirrorLink, Matrix, MatrixCell, MatrixScene, MatrixSceneCell,
+    PartDefinition, PartKind, PartOutline, Pose2, ProjectDoc, Readiness, SceneDelta, Side,
 };
 use std::cell::RefCell;
 use std::sync::Arc;
@@ -130,6 +130,72 @@ fn fixture() -> (ReadModel, objects::ScopedTreeContext) {
     (model, selected)
 }
 
+fn matrix_primary_fixture() -> (ReadModel, objects::ScopedTreeContext) {
+    let (mut model, selected) = fixture();
+    let snapshot = model.accepted.as_mut().expect("fixture snapshot");
+    let document = Arc::make_mut(&mut snapshot.document);
+    document.matrices.push(Matrix {
+        id: "component-matrix".into(),
+        name: Some("keys".into()),
+        rows: 1,
+        columns: 1,
+        pitch: Vec2 { x: 19.0, y: 19.0 },
+        origin: Vec2::default(),
+        definition_id: "component-definition".into(),
+        part_ids: vec!["selected-part".into()],
+        board_id: Some("board".into()),
+        mirror: None,
+        rotation: None,
+        edge_gap: None,
+        diode_direction: None,
+        row_offsets: vec![],
+        column_offsets: vec![],
+        column_staggers: vec![],
+        column_splays: vec![],
+        column_origins: vec![],
+        cells: vec![MatrixCell {
+            row: 0,
+            column: 0,
+            enabled: true,
+            definition_id: Some("component-definition".into()),
+            variant: None,
+            offset: None,
+            rotation: None,
+            assemblies: vec![],
+            assemblies_local: None,
+        }],
+    });
+    snapshot.scene = Arc::new(SceneDelta {
+        matrix_scenes: vec![MatrixScene {
+            matrix_id: "component-matrix".into(),
+            cells: vec![MatrixSceneCell {
+                row: 0,
+                column: 0,
+                enabled: true,
+                member_id: Some("selected-part".into()),
+                pose: Pose2 {
+                    at: Vec2 { x: 4.0, y: 3.0 },
+                    rotation: 0.0,
+                },
+            }],
+            columns: vec![],
+        }],
+        ..(*snapshot.scene).clone()
+    });
+    let ordinary_context = objects::context_for_part(&model, "selected-part")
+        .expect("matrix primary remains selectable in Key mode");
+    assert!(matches!(ordinary_context, objects::TreeContext::Key { .. }));
+    let context = objects::component_context_for_finding_part(&model, "selected-part")
+        .expect("an explicit Part finding has a component Inspector context");
+    (
+        model,
+        objects::ScopedTreeContext {
+            scope: selected.scope,
+            context,
+        },
+    )
+}
+
 #[wasm_bindgen_test]
 fn standalone_component_projection_preserves_accepted_owner_and_metadata() {
     let (model, selected) = fixture();
@@ -203,6 +269,8 @@ struct MountedProbe {
     runtime: std::rc::Rc<crate::runtime::Runtime>,
     model: std::rc::Rc<RefCell<ReadModel>>,
     selected_part: std::rc::Rc<RefCell<Option<String>>>,
+    context_override: std::rc::Rc<RefCell<Option<objects::ScopedTreeContext>>>,
+    selection_kind: std::rc::Rc<RefCell<Option<Signal<objects::LayoutSelectionKind>>>>,
     projection: std::rc::Rc<RefCell<Option<LayoutComponentInspectorProjection>>>,
     action: std::rc::Rc<RefCell<Option<EventHandler<LayoutComponentInspectorAction>>>>,
     root_id: &'static str,
@@ -211,6 +279,7 @@ struct MountedProbe {
 impl MountedProbe {
     fn select(&self, part_id: Option<&str>) {
         *self.selected_part.borrow_mut() = part_id.map(str::to_owned);
+        self.context_override.borrow_mut().take();
         let mut model = self.model.borrow_mut();
         model.selected_part_ids = part_id.into_iter().map(str::to_owned).collect();
         model.selection_anchor_id = part_id.map(str::to_owned);
@@ -224,6 +293,33 @@ impl MountedProbe {
             }),
         );
     }
+
+    fn select_component_from_finding(&self, part_id: &str) {
+        *self.selected_part.borrow_mut() = Some(part_id.to_owned());
+        let mut model = self.model.borrow_mut();
+        model.selected_part_ids = vec![part_id.to_owned()];
+        model.selection_anchor_id = Some(part_id.to_owned());
+        let snapshot = model.accepted.as_ref().expect("fixture snapshot");
+        let scope = Scope {
+            session_epoch: snapshot.session_epoch,
+            document_id: snapshot.document.id.clone(),
+            board_id: model.active_board_id.clone(),
+            instance_id: model.active_instance_id.clone(),
+        };
+        let context = objects::component_context_for_finding_part(&model, part_id)
+            .expect("finding target remains a live Part");
+        *self.context_override.borrow_mut() = Some(objects::ScopedTreeContext {
+            scope: scope.clone(),
+            context: context.clone(),
+        });
+        let selection_kind = self
+            .selection_kind
+            .borrow()
+            .expect("mounted selection-kind signal");
+        update_layout_selection_kind_for_tree_context(selection_kind, &context);
+        self.runtime
+            .set_layout_component_inspector_test_state(model.clone(), Some(scope));
+    }
 }
 
 #[component]
@@ -232,6 +328,7 @@ fn mounted_component_inspector_host() -> Element {
     let render_generation = use_signal(|| 0u64);
     let _ = render_generation();
     let workspace = use_signal(|| "Layout");
+    let selection_kind = use_signal(objects::LayoutSelectionKind::default);
     let inspect_open = use_signal(|| true);
     let mut selected_context = use_signal(|| None::<objects::ScopedTreeContext>);
     let anchor_scope = use_signal(|| None::<Scope>);
@@ -241,11 +338,21 @@ fn mounted_component_inspector_host() -> Element {
     let lifetime = use_hook(|| std::rc::Rc::new(LayoutComponentInspectorLifetime::default()));
     let runtime = probe.runtime.clone();
     let model = runtime.model();
-    let next_context = probe.selected_part.borrow().as_deref().and_then(|part_id| {
-        let scope = runtime.scope()?;
-        let context = objects::context_for_part(&model, part_id)?;
-        Some(objects::ScopedTreeContext { scope, context })
-    });
+    let next_context = probe
+        .context_override
+        .borrow()
+        .clone()
+        .filter(|selected| {
+            runtime.scope().as_ref() == Some(&selected.scope)
+                && selection::context_is_current(&model, &selected.scope, &selected.context)
+        })
+        .or_else(|| {
+            probe.selected_part.borrow().as_deref().and_then(|part_id| {
+                let scope = runtime.scope()?;
+                let context = objects::context_for_part(&model, part_id)?;
+                Some(objects::ScopedTreeContext { scope, context })
+            })
+        });
     if selected_context.peek().clone() != next_context {
         selected_context.set(next_context.clone());
     }
@@ -275,14 +382,17 @@ fn mounted_component_inspector_host() -> Element {
         )
     });
     *probe.projection.borrow_mut() = projection.clone();
+    *probe.selection_kind.borrow_mut() = Some(selection_kind);
     *probe.action.borrow_mut() = Some(action_handler);
     let switch_probe = probe.clone();
     let restore_probe = probe.clone();
+    let component_probe = probe.clone();
     let clear_probe = probe.clone();
     rsx! {
         style { {include_str!("../../assets/m1.css")} }
         button { id: "component-inspector-select-source", onclick: { let mut generation = render_generation; move |_| { switch_probe.select(Some("source-part")); generation += 1; } }, "Select source" }
         button { id: "component-inspector-select-original", onclick: { let mut generation = render_generation; move |_| { restore_probe.select(Some("selected-part")); generation += 1; } }, "Select original" }
+        button { id: "component-inspector-select-component", onclick: { let mut generation = render_generation; move |_| { component_probe.select_component_from_finding("selected-part"); generation += 1; } }, "Select component from finding" }
         button { id: "component-inspector-clear", onclick: { let mut generation = render_generation; move |_| { clear_probe.select(None); generation += 1; } }, "Clear selection" }
         if let Some(projection) = projection {
             LayoutComponentInspector { projection, on_action: action_handler }
@@ -301,11 +411,35 @@ fn mounted_probe(root_id: &'static str) -> (MountedProbe, web_sys::Element) {
         .locked = Some(false);
     model.selected_part_ids = vec!["selected-part".into()];
     let scope = context.scope.clone();
+    mounted_probe_with_model(root_id, runtime, model, scope)
+}
+
+fn mounted_matrix_primary_probe(root_id: &'static str) -> (MountedProbe, web_sys::Element) {
+    let runtime = crate::runtime::Runtime::new().expect("browser runtime fixture initializes");
+    let (mut model, selected) = matrix_primary_fixture();
+    Arc::make_mut(&mut model.accepted.as_mut().unwrap().document)
+        .parts
+        .iter_mut()
+        .find(|part| part.id == "selected-part")
+        .unwrap()
+        .locked = Some(false);
+    let scope = selected.scope;
+    mounted_probe_with_model(root_id, runtime, model, scope)
+}
+
+fn mounted_probe_with_model(
+    root_id: &'static str,
+    runtime: std::rc::Rc<crate::runtime::Runtime>,
+    model: ReadModel,
+    scope: Scope,
+) -> (MountedProbe, web_sys::Element) {
     runtime.set_layout_component_inspector_test_state(model.clone(), Some(scope));
     let probe = MountedProbe {
         runtime,
         model: std::rc::Rc::new(RefCell::new(model)),
         selected_part: std::rc::Rc::new(RefCell::new(Some("selected-part".into()))),
+        context_override: std::rc::Rc::default(),
+        selection_kind: std::rc::Rc::default(),
         projection: std::rc::Rc::default(),
         action: std::rc::Rc::default(),
         root_id,
@@ -321,6 +455,70 @@ fn mounted_probe(root_id: &'static str) -> (MountedProbe, web_sys::Element) {
         dioxus_web::Config::new().rootnode(root.clone().into()),
     );
     (probe, root)
+}
+
+#[wasm_bindgen_test]
+async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_inspector() {
+    let (probe, root) = mounted_matrix_primary_probe("layout-matrix-part-inspector-test-root");
+    settle_component_inspector().await;
+    assert_eq!(
+        *probe
+            .selection_kind
+            .borrow()
+            .expect("selection mode")
+            .peek(),
+        objects::LayoutSelectionKind::Key,
+        "ordinary matrix primary selection remains in Key mode"
+    );
+    assert!(probe.projection.borrow().is_none());
+    assert!(
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector(&format!(
+                "#{} .m1-layout-component-inspector",
+                probe.root_id
+            ))
+            .unwrap()
+            .is_none(),
+        "ordinary matrix primary selection remains in Key mode"
+    );
+
+    click_component_inspector(probe.root_id, "#component-inspector-select-component");
+    settle_component_inspector().await;
+    assert_eq!(
+        probe
+            .projection
+            .borrow()
+            .as_ref()
+            .map(|projection| projection.reference.as_str()),
+        Some("U1"),
+        "explicit finding navigation must project the selected matrix Part"
+    );
+    assert_eq!(
+        *probe
+            .selection_kind
+            .borrow()
+            .expect("selection mode")
+            .peek(),
+        objects::LayoutSelectionKind::Part,
+        "explicit finding navigation publishes the matching Part toolbar mode"
+    );
+    assert!(
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector(&format!(
+                "#{} .m1-layout-component-inspector",
+                probe.root_id
+            ))
+            .unwrap()
+            .is_some(),
+        "the production component Inspector must mount for an explicit live Part context"
+    );
+    root.remove();
 }
 
 async fn settle_component_inspector() {
