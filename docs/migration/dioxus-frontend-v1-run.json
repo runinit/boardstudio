@@ -1076,5 +1076,41 @@
     "provenance_sha256": "183c7cd7dd133c6cdaf9c423d49877e37b1bfbe0ed2469e85a26fb02dd048c52",
     "qualification": "Independent full source/package verification CLEAR; bounded public chooser query and mode history checks; initial import-to-PCB controls defect remains open. Full workbench acceptance remains open.",
     "independent_review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/chooser-pcb-navigation-package-review-a8fd8988-sol-20261002.md"
+  },
+  "next_candidate_batch_20261003": {
+    "integrated": [
+      {
+        "slice": "PCB pin/lock controls",
+        "source": "03914b14",
+        "evidence": "3210e1b0"
+      },
+      {
+        "slice": "Page-feature provider reuse helper",
+        "source": "a57135a7",
+        "status": "independent guard HOLD; full path unaffected; actual reuse withheld"
+      },
+      {
+        "slice": "Case current-result title after Undo",
+        "source": "85d0a736"
+      },
+      {
+        "slice": "Project menu composition",
+        "source": "7ae521b6",
+        "test_api_fix": "30045911"
+      },
+      {
+        "slice": "Keycaps explicit Part Inspector/pill",
+        "source": "bd7f1c11"
+      }
+    ],
+    "pending": [
+      "Layout accepted-refresh draft repair",
+      "Parts accepted-refresh pad-row/draft repair",
+      "PCB/Keymap owned visual correction",
+      "PCB protected-remap dedicated Session/Core operation",
+      "Packaging fail-closed graph guards"
+    ],
+    "checks": "Strict all-target page WASM passed30045911; bd7f1c11 final combined rerun pending after remaining joins. Full helper baseline and actual reuse need production qualification.",
+    "acceptance": "No parent closure from source-only joins; currentserved a201 at34740."
   }
 }

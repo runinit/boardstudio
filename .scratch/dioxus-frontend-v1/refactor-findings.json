@@ -947,7 +947,8 @@
       },
       "continuation_notes": [
         "2026-10-02 paired public34739: initial archive5b import followed immediately by PCB retains disabled Wiring mode despite Ready/Saved; reload enables and accepted mode history/reopen passes. Reproduced independently; import/owner lifetime diagnosis remains open.",
-        "2026-10-02 Apply source e687 review: exact source identity alone is insufficient; ElectricalPlan.mode must agree with accepted board configuration/default Matrix. Mode-inconsistent positive fixtures can conceal the missing boundary; legal resolved-plan and negative mismatch coverage required. Repair underway, no Apply acceptance."
+        "2026-10-02 Apply source e687 review: exact source identity alone is insufficient; ElectricalPlan.mode must agree with accepted board configuration/default Matrix. Mode-inconsistent positive fixtures can conceal the missing boundary; legal resolved-plan and negative mismatch coverage required. Repair underway, no Apply acceptance.",
+        "2026-10-03 a201 paired PCB Matrix Apply durable archives match pinned React byte-for-byte on Left and Right; visible action-group placement and primary styling still differ. Layer operations/history/reload pass, but owned layer-button spacing remains wrong. Semantic/document equality is strong bounded evidence, not whole UI or parent acceptance. Packaging feature-graph extension a57135a7 passed its author suite but independent matched-baseline negatives expose legacy-allowlist/provider-overlap, transitive-feature, include! and nested inline-module fail-open cases; actual reuse withheld pending conservative guard repairs."
       ]
     },
     {
