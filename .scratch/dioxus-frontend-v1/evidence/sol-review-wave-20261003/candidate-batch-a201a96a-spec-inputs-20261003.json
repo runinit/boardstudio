@@ -1,0 +1,206 @@
+{
+  "axis": "Spec",
+  "source_commit": "a201a96a76c0d908580793e36e4c7d315155fbb3",
+  "baseline_commit": "a8fd8988f649c70c11393066314095447535dce5",
+  "react_commit": "5a472a9426e6e38993361da402cd4ec730feb369",
+  "files": [
+    {
+      "path": "web/assets/m1.css",
+      "sha256": "8ba039e429642f8c0147de71f6edd86f868512fbb56de5b36001f355ab50a5a1"
+    },
+    {
+      "path": "web/src/cad_presentation.rs",
+      "sha256": "7aa265e6121f2342bc7b80be4f5d036d1030254e719969e46a26a64488678693"
+    },
+    {
+      "path": "web/src/case_generation_lifecycle.rs",
+      "sha256": "409949fc40f40d60f9b40528c5d6417f70af88b622455c2389daa9d942c47ce9"
+    },
+    {
+      "path": "web/src/main.rs",
+      "sha256": "f9be3215e694c960051eb96056f7d4fbdd1e68ea45e012c87862c8bd930ada76"
+    },
+    {
+      "path": "web/src/parts_custom_definition.rs",
+      "sha256": "5886549f568dd8895217e5a140a44cc1985d70c13ae71c39bffdc89380cbb323"
+    },
+    {
+      "path": "web/src/parts_definition_name.rs",
+      "sha256": "d571101dd70669a94f57e6ee0629d0afeb41b016f26a2c806d370298da75ca27"
+    },
+    {
+      "path": "web/src/presentation.rs",
+      "sha256": "8954b9f24b498b937352bfaa179c1942233cda80c09d98958043d1c1094c0887"
+    },
+    {
+      "path": "web/src/presentation/case_workspace.rs",
+      "sha256": "897fe6c8b86f7064e92e02e7d1ae976945f41e6a55673519e0405f48541e7ed8"
+    },
+    {
+      "path": "web/src/presentation/inspector.rs",
+      "sha256": "73d013a4b482672301cda412469d477505cce94540ad626c5f8fedd47ac3634f"
+    },
+    {
+      "path": "web/src/presentation/inspector/layout_component_inspector.rs",
+      "sha256": "4554e429f60869cfbe7b8a46332ce8b10f34c260b0757e244fbfe9ddce9c5ce0"
+    },
+    {
+      "path": "web/src/presentation/keycaps_finding_marker.rs",
+      "sha256": "e10cc940cec1abb2c22af9e0a8465e4ead6fa79f9d2ef5bc8836e2983f8474e3"
+    },
+    {
+      "path": "web/src/presentation/keycaps_finding_marker_tests.rs",
+      "sha256": "dd599c11441f867fec225507753cc7b2b9ff1027b048750eeb0d1377989a2af4"
+    },
+    {
+      "path": "web/src/presentation/keycaps_fit.rs",
+      "sha256": "f9e0bc1f8fde2c2f180a806cbb1c3f234746d8cc18aa01f50698e4ed969abb2c"
+    },
+    {
+      "path": "web/src/presentation/keycaps_navigation.rs",
+      "sha256": "c827c371dd369ebbe785a2d9d2ec6241ee381453e1f3744ad536a6d2aca29aca"
+    },
+    {
+      "path": "web/src/presentation/keymap/panel.rs",
+      "sha256": "5e8acb7f67985c28847e5c78d4025ba68abc8ff3a8761d2fb8d11be2b4e88c0f"
+    },
+    {
+      "path": "web/src/presentation/layout_component_inspector_tests.rs",
+      "sha256": "40676783c6c864f4ad2686de86e1dad064aaf33367f3bb5df2652e68555e3cb5"
+    },
+    {
+      "path": "web/src/presentation/layout_workspace.rs",
+      "sha256": "2ffdae6abf277ceaa6080afc1108fe67455d01473776348eab6572c8916e2121"
+    },
+    {
+      "path": "web/src/presentation/library.rs",
+      "sha256": "965813e53ecfe5c12af2a791d6804a45e9c3f37845e01775d36c58f988217038"
+    },
+    {
+      "path": "web/src/presentation/mechanical_settings.rs",
+      "sha256": "de25bf55a3a749fa4b78d06d45757284acd3a2dde3708c77e6d1ef3fa3cad5d5"
+    },
+    {
+      "path": "web/src/presentation/mechanical_settings_mount.rs",
+      "sha256": "d920d1d9ae923f97fea713730f87c5c158d2341d44a7e3178ede7a86ce1fadc0"
+    },
+    {
+      "path": "web/src/presentation/objects.rs",
+      "sha256": "095f523b7a573f53f6943a6d729fea04503c084374b198b75d96a7ac20109703"
+    },
+    {
+      "path": "web/src/presentation/objects/tree.rs",
+      "sha256": "08d4c1b1b2af5afd7851ee59383b362d258c4adaca12740fa95dfeee91690278"
+    },
+    {
+      "path": "web/src/presentation/objects/tree_tests.rs",
+      "sha256": "a821fb49509044a0ae1e4504badf1e92b43a1b833b24684a70b4f8918549a9a7"
+    },
+    {
+      "path": "web/src/presentation/parts.rs",
+      "sha256": "fdf34185c5385a290f64501b5a7b6a4d80ad97f504bfc32e93c9cbeae6356466"
+    },
+    {
+      "path": "web/src/presentation/pcb_wiring.rs",
+      "sha256": "51b5293cb8f8e62e72ab8ba59d05301bf4744bab478466e963a28b5627797a4f"
+    },
+    {
+      "path": "web/src/presentation/pcb_wiring/apply.rs",
+      "sha256": "a9906404aaa1f77e3e18a45a02730c110adda70668d45d4e23614bf90e1c300f"
+    },
+    {
+      "path": "web/src/presentation/pcb_wiring/mode.rs",
+      "sha256": "dd4c85e6f0e3361c0784fcb6aa6314f75fa0f84be2f0890c23f08d9be82918fa"
+    },
+    {
+      "path": "web/src/presentation/pcb_wiring/mode_owner_tests.rs",
+      "sha256": "e1f45ba1b5f3f82af9d66854ae74403816d5409f1fe483835ead5e1dce6730e6"
+    },
+    {
+      "path": "web/src/presentation/workspace_composition.rs",
+      "sha256": "2d5a94e2f846904224baf270235c735eb0326189b9db0009237b0e174cd1c7cb"
+    },
+    {
+      "path": "web/src/runtime.rs",
+      "sha256": "d3421d860c2e0a6b1e41d23e1941fcd47ad2480452c4d908c766eb45669419e4"
+    }
+  ],
+  "contracts": [
+    {
+      "path": ".scratch/dioxus-workbench-parity/spec.md",
+      "sha256": "ee600f194a6b80bcd5279fc018ab0a64ce8810988952b75b88d41ddb1f879ff6",
+      "origin": "frozen Git a201a96a76c0d908580793e36e4c7d315155fbb3"
+    },
+    {
+      "path": ".scratch/dioxus-frontend-v1/tasks.json",
+      "sha256": "f31affb148fa3b61d12113a79d3c391e39bf559e5ce6bca939d97dbf8289f03d",
+      "origin": "frozen Git a201a96a76c0d908580793e36e4c7d315155fbb3"
+    },
+    {
+      "path": ".scratch/dioxus-frontend-tranche-1/drafts/19-project-menu-name-spec.md",
+      "sha256": "74cc557a53b29850403601c738e111804ee1aa77b88f1327f9b8f98a18b459d7",
+      "origin": "frozen Git a201a96a76c0d908580793e36e4c7d315155fbb3"
+    },
+    {
+      "path": ".scratch/dioxus-pcb-view/drafts/F5.2d-apply-current-board-wiring.md",
+      "sha256": "ce6b11c28b1e32e4b637c2c0a124387c8a566338c28d3ed8b1c4c2ef0c97f7d6",
+      "origin": "frozen Git a201a96a76c0d908580793e36e4c7d315155fbb3"
+    },
+    {
+      "path": ".scratch/dioxus-case-workspace/issues/11-case-generation-readiness-admission.md",
+      "sha256": "408d62d467cbe3e683b6cb6db806ddadfba4b0195977b6e4cf486e5515460f56",
+      "origin": "working contract overlay read 2026-10-03; SHA-bound"
+    },
+    {
+      "path": ".scratch/dioxus-case-workspace/evidence/case11-live-preview-20261002/implementation-handoff.md",
+      "sha256": "1dd9f436bfd2e82584eb6887f6f2e5cdd192f91594b62e28c7ef62a1341efdba",
+      "origin": "frozen Git a201a96a76c0d908580793e36e4c7d315155fbb3"
+    },
+    {
+      "path": ".scratch/dioxus-keycaps-workflow/keycaps-focused-finding-marker-spec.md",
+      "sha256": "ea3d11ae84fb97255adeffcf09d381a69832300ea7a938bc2ba961735e4bc61c",
+      "origin": "frozen Git a201a96a76c0d908580793e36e4c7d315155fbb3"
+    },
+    {
+      "path": ".scratch/dioxus-keycaps-workflow/issues/07-keycaps-focused-finding-marker.md",
+      "sha256": "9791e360959ce728b93ebb061aa96dc07b04248ea328024f31bb367584c4bb61",
+      "origin": "frozen Git a201a96a76c0d908580793e36e4c7d315155fbb3"
+    },
+    {
+      "path": ".scratch/dioxus-layout-authoring/issues/12-standalone-component-inspector.md",
+      "sha256": "03e8f855c44e57560fe91d4f393b2189c2d45a4ab4f1273d815809290089f4ed",
+      "origin": "frozen Git a201a96a76c0d908580793e36e4c7d315155fbb3"
+    },
+    {
+      "path": ".scratch/dioxus-layout-authoring/evidence/12-standalone-component-inspector/repair-b164/repair.md",
+      "sha256": "a0ade2da73acbbe6b712d9993707a1f41602ad9ff6cdc602f7652cd7b961a207",
+      "origin": "frozen Git a201a96a76c0d908580793e36e4c7d315155fbb3"
+    },
+    {
+      "path": ".scratch/dioxus-parts-catalogue/issues/04-custom-footprint-authoring.md",
+      "sha256": "d777a96a4e6fd975b27d10107262c6797c4da990b9e5126b0ed2b2b40c39b670",
+      "origin": "frozen Git a201a96a76c0d908580793e36e4c7d315155fbb3"
+    },
+    {
+      "path": ".scratch/dioxus-parts-catalogue/evidence/parts04-source-handoff-20261002.md",
+      "sha256": "7d66c1d5838c21f70910c10a624e97a8ee58b87abcb3c75922110a1cf0019ae6",
+      "origin": "frozen Git a201a96a76c0d908580793e36e4c7d315155fbb3"
+    },
+    {
+      "path": ".scratch/dioxus-keymap-layers/drafts/10-keymap-layers-disclosure-spec.md",
+      "sha256": "ab7c4e8e9891e83b993d2c4542ea6b0fa736fd7ddcd5f21a6af17660d46c6f3f",
+      "origin": "frozen Git a201a96a76c0d908580793e36e4c7d315155fbb3"
+    },
+    {
+      "path": ".scratch/dioxus-keycaps-workflow/keycaps-fit-navigation-spec.md",
+      "sha256": "03d0b27b3f4176c6a3b22c5bfd34034bdd2567617234222bbca4fd770b338869",
+      "origin": "frozen Git a201a96a76c0d908580793e36e4c7d315155fbb3"
+    },
+    {
+      "path": ".scratch/dioxus-keycaps-workflow/evidence/keycaps05-camera-part-route-20261003.md",
+      "sha256": "7df5ed351ba8fd3805b245b4e8aedb6cb3148e22e92167a4ab3cd96afddc57c8",
+      "origin": "frozen Git a201a96a76c0d908580793e36e4c7d315155fbb3"
+    }
+  ],
+  "public_acceptance": "not assessed; candidate build not yet supplied for paired browser review"
+}

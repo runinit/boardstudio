@@ -1,12 +1,12 @@
 {
   "run": "dioxus-frontend-v1-20261001",
   "scope": "100% frontend: all TSX, UI state, theming and responsive/interaction behavior",
-  "status": "Six frontend streams continue. Independently verified candidate frontend-chooser-pcb-navigation-integrated-20261002 is served at http://127.0.0.1:34739/ and /boardstudio/, source a8fd8988f649c70c11393066314095447535dce5. Full22 commands passed;1347 source inputs and145 assets per route verified. Parts chooser search and Browse query handoff observed publicly; PCB mode remains disabled in fresh ready-plan browser journey and is under diagnosis. Layout Inspector, Case live preview and Project name repairs require final review; Parts custom editing and Keycaps markers implementing. All62 parents and RF001\u2013015 remain open/tracked; paired full acceptance is not implied.",
+  "status": "Candidate frontend-candidate-batch-20261003 served at34740 root/subpath, source a201a96a. Full22 commands passed;1354 inputs zero source drift;145 assets per route zero mismatches. Eight joined source slices undergoing consolidated Sol review and paired journeys. Known Parts accepted-refresh draft loss, Keycaps Part Inspector rejection and Layout unrelated-revision draft reset under repair; PCB pin/lock frozen for next batch. Parent acceptance remains1/62; RF001\u2013015 retained.",
   "six_stream_parity": {
     "spec": ".scratch/dioxus-workbench-parity/spec.md",
     "stream_reconciliation": ".scratch/dioxus-workbench-parity/stream-reconciliation.md",
     "confirmed_at": "2026-10-02",
-    "status": "Six frontend streams continue. Independently verified candidate frontend-chooser-pcb-navigation-integrated-20261002 is served at http://127.0.0.1:34739/ and /boardstudio/, source a8fd8988f649c70c11393066314095447535dce5. Full22 commands passed;1347 source inputs and145 assets per route verified. Parts chooser search and Browse query handoff observed publicly; PCB mode remains disabled in fresh ready-plan browser journey and is under diagnosis. Layout Inspector, Case live preview and Project name repairs require final review; Parts custom editing and Keycaps markers implementing. All62 parents and RF001\u2013015 remain open/tracked; paired full acceptance is not implied.",
+    "status": "Candidate frontend-candidate-batch-20261003 served at34740 root/subpath, source a201a96a. Full22 commands passed;1354 inputs zero source drift;145 assets per route zero mismatches. Eight joined source slices undergoing consolidated Sol review and paired journeys. Known Parts accepted-refresh draft loss, Keycaps Part Inspector rejection and Layout unrelated-revision draft reset under repair; PCB pin/lock frozen for next batch. Parent acceptance remains1/62; RF001\u2013015 retained.",
     "active_feature_contracts": {
       "composition": {
         "ticket": ".scratch/dioxus-workbench-parity/issues/01-private-workbench-composition.md",
@@ -724,20 +724,19 @@
     "result": "Fresh React archive has0 local assets: unchecked export0 assets, checked6 assets, each digest verified. Bounded archive-option proof only; STEP/firmware/full export parent remain open."
   },
   "current_served_frontier_20261002": {
-    "url": "http://127.0.0.1:34739/",
-    "root_url": "http://127.0.0.1:34739/",
-    "subpath": "http://127.0.0.1:34739/boardstudio/",
-    "subpath_url": "http://127.0.0.1:34739/boardstudio/",
-    "build": "frontend-chooser-pcb-navigation-integrated-20261002",
-    "source": "a8fd8988f649c70c11393066314095447535dce5",
-    "source_commit": "a8fd8988f649c70c11393066314095447535dce5",
+    "url": "http://127.0.0.1:34740/",
+    "root_url": "http://127.0.0.1:34740/",
+    "subpath": "http://127.0.0.1:34740/boardstudio/",
+    "subpath_url": "http://127.0.0.1:34740/boardstudio/",
+    "build": "frontend-candidate-batch-20261003",
+    "source": "a201a96a76c0d908580793e36e4c7d315155fbb3",
+    "source_commit": "a201a96a76c0d908580793e36e4c7d315155fbb3",
     "commands": 22,
-    "source_hashes": 1347,
+    "source_hashes": 1354,
     "assets_per_route": 145,
-    "elapsed_seconds": 538.159979,
-    "provenance_sha256": "183c7cd7dd133c6cdaf9c423d49877e37b1bfbe0ed2469e85a26fb02dd048c52",
-    "qualification": "Independent full source/package verification CLEAR; bounded public chooser query and mode history checks; initial import-to-PCB controls defect remains open. Full workbench acceptance remains open.",
-    "independent_review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/chooser-pcb-navigation-package-review-a8fd8988-sol-20261002.md"
+    "elapsed_seconds": 517.57779,
+    "provenance_sha256": "a94e2c6989ea98664f31e5dd2f57d62a853b40fcdce348c701f0c80d40eafc7f",
+    "qualification": "Root complete source/package checks passed; independent package review and paired browser acceptance running. Three identified UI defects remain under repair."
   },
   "pending_integration_wave_20261002": {
     "source": "d585492012a60937879e89a8618c1d533fddba4e",
@@ -753,20 +752,19 @@
     ]
   },
   "current_comparison_build": {
-    "url": "http://127.0.0.1:34739/",
-    "root_url": "http://127.0.0.1:34739/",
-    "subpath": "http://127.0.0.1:34739/boardstudio/",
-    "subpath_url": "http://127.0.0.1:34739/boardstudio/",
-    "build": "frontend-chooser-pcb-navigation-integrated-20261002",
-    "source": "a8fd8988f649c70c11393066314095447535dce5",
-    "source_commit": "a8fd8988f649c70c11393066314095447535dce5",
+    "url": "http://127.0.0.1:34740/",
+    "root_url": "http://127.0.0.1:34740/",
+    "subpath": "http://127.0.0.1:34740/boardstudio/",
+    "subpath_url": "http://127.0.0.1:34740/boardstudio/",
+    "build": "frontend-candidate-batch-20261003",
+    "source": "a201a96a76c0d908580793e36e4c7d315155fbb3",
+    "source_commit": "a201a96a76c0d908580793e36e4c7d315155fbb3",
     "commands": 22,
-    "source_hashes": 1347,
+    "source_hashes": 1354,
     "assets_per_route": 145,
-    "elapsed_seconds": 538.159979,
-    "provenance_sha256": "183c7cd7dd133c6cdaf9c423d49877e37b1bfbe0ed2469e85a26fb02dd048c52",
-    "qualification": "Independent full source/package verification CLEAR; bounded public chooser query and mode history checks; initial import-to-PCB controls defect remains open. Full workbench acceptance remains open.",
-    "independent_review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/chooser-pcb-navigation-package-review-a8fd8988-sol-20261002.md"
+    "elapsed_seconds": 517.57779,
+    "provenance_sha256": "a94e2c6989ea98664f31e5dd2f57d62a853b40fcdce348c701f0c80d40eafc7f",
+    "qualification": "Root complete source/package checks passed; independent package review and paired browser acceptance running. Three identified UI defects remain under repair."
   },
   "active_source_freeze": {
     "url": "http://127.0.0.1:34736/",
@@ -977,6 +975,37 @@
       "provenance_sha256": "183c7cd7dd133c6cdaf9c423d49877e37b1bfbe0ed2469e85a26fb02dd048c52",
       "qualification": "Independent full source/package verification CLEAR; bounded public chooser query and mode history checks; initial import-to-PCB controls defect remains open. Full workbench acceptance remains open.",
       "independent_review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/chooser-pcb-navigation-package-review-a8fd8988-sol-20261002.md"
+    },
+    {
+      "build_id": "frontend-candidate-batch-20261003",
+      "source_commit": "a201a96a",
+      "started_at": "2026-10-03T04:21:52.545014+00:00",
+      "status": "complete",
+      "command": "python3 -u scripts/build-m1.py frontend-candidate-batch-20261003",
+      "source_lease": "No root source joins until pipeline completion; isolated streams continue.",
+      "known_open_defects": [
+        "Parts accepted-refresh dirty draft retention",
+        "PCB import-time disabled mode controls"
+      ],
+      "acceptance": "Source integration only; paired candidate journeys pending.",
+      "build": "frontend-candidate-batch-20261003",
+      "source": "a201a96a76c0d908580793e36e4c7d315155fbb3",
+      "commands": 22,
+      "failed_commands": [],
+      "inputs": 1354,
+      "source_drift": [],
+      "asset_counts": {
+        "root": 145,
+        "subpath": 145
+      },
+      "asset_mismatches": {
+        "root": [],
+        "subpath": []
+      },
+      "provenance_sha256": "a94e2c6989ea98664f31e5dd2f57d62a853b40fcdce348c701f0c80d40eafc7f",
+      "url": "http://127.0.0.1:34740/",
+      "subpath_url": "http://127.0.0.1:34740/boardstudio/",
+      "verification": "Root source/asset proof complete; independent package and paired browser review running."
     }
   ],
   "latest_keymap_binding_receipt": ".scratch/dioxus-keymap-layers/evidence/binding-public-34737-20261002/RESULTS.md",
@@ -996,5 +1025,52 @@
     "package_review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/chooser-pcb-navigation-package-review-a8fd8988-sol-20261002.md"
   },
   "review_execution_policy": "2026-10-02 user update: candidate-first batching; routine frontend planning/source/root joins no longer require separate approvals. Authors implement and verify; reviewers assess frozen integrated candidates and paired browser journeys; affected repair rechecks only. All62 parent criteria and explicit public API/cutover gates retained.",
-  "api_design_authority": "2026-10-02 user explicitly authorizes necessary APIs/design changes; update consumers/contracts/tests and document compatibility/refactor reasoning, review in integrated candidate without another permission round."
+  "api_design_authority": "2026-10-02 user explicitly authorizes necessary APIs/design changes; update consumers/contracts/tests and document compatibility/refactor reasoning, review in integrated candidate without another permission round.",
+  "latest_candidate_batch": {
+    "build_id": "frontend-candidate-batch-20261003",
+    "source_commit": "a201a96a",
+    "started_at": "2026-10-03T04:21:52.545014+00:00",
+    "status": "complete",
+    "command": "python3 -u scripts/build-m1.py frontend-candidate-batch-20261003",
+    "source_lease": "No root source joins until pipeline completion; isolated streams continue.",
+    "known_open_defects": [
+      "Parts accepted-refresh dirty draft retention",
+      "PCB import-time disabled mode controls"
+    ],
+    "acceptance": "Source integration only; paired candidate journeys pending.",
+    "build": "frontend-candidate-batch-20261003",
+    "source": "a201a96a76c0d908580793e36e4c7d315155fbb3",
+    "commands": 22,
+    "failed_commands": [],
+    "inputs": 1354,
+    "source_drift": [],
+    "asset_counts": {
+      "root": 145,
+      "subpath": 145
+    },
+    "asset_mismatches": {
+      "root": [],
+      "subpath": []
+    },
+    "provenance_sha256": "a94e2c6989ea98664f31e5dd2f57d62a853b40fcdce348c701f0c80d40eafc7f",
+    "url": "http://127.0.0.1:34740/",
+    "subpath_url": "http://127.0.0.1:34740/boardstudio/",
+    "verification": "Root source/asset proof complete; independent package and paired browser review running."
+  },
+  "comparison_history_before_batch_20261003": {
+    "url": "http://127.0.0.1:34739/",
+    "root_url": "http://127.0.0.1:34739/",
+    "subpath": "http://127.0.0.1:34739/boardstudio/",
+    "subpath_url": "http://127.0.0.1:34739/boardstudio/",
+    "build": "frontend-chooser-pcb-navigation-integrated-20261002",
+    "source": "a8fd8988f649c70c11393066314095447535dce5",
+    "source_commit": "a8fd8988f649c70c11393066314095447535dce5",
+    "commands": 22,
+    "source_hashes": 1347,
+    "assets_per_route": 145,
+    "elapsed_seconds": 538.159979,
+    "provenance_sha256": "183c7cd7dd133c6cdaf9c423d49877e37b1bfbe0ed2469e85a26fb02dd048c52",
+    "qualification": "Independent full source/package verification CLEAR; bounded public chooser query and mode history checks; initial import-to-PCB controls defect remains open. Full workbench acceptance remains open.",
+    "independent_review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/chooser-pcb-navigation-package-review-a8fd8988-sol-20261002.md"
+  }
 }

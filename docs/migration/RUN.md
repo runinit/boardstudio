@@ -1,6 +1,6 @@
 # BoardStudio milestone continuation
 
-Current active checkpoint: [frontend run state](dioxus-frontend-v1-run.json). The served comparison is [Dioxus 34739](http://127.0.0.1:34739/) from `a8fd8988`, including Parts chooser, PCB mode owner and Keycaps navigation joins. Full build22 commands and independent package/source verification passed. Actual paired workbench gates remain open; fresh PCB browser testing found disabled Wiring mode controls under diagnosis. Six streams, all62 parents and RF-001–RF-015 remain tracked. Earlier checkpoints below are retained history.
+Current active checkpoint: [frontend run state](dioxus-frontend-v1-run.json). Candidate frontend-candidate-batch-20261003 served at34740 root/subpath, source a201a96a. Full22 commands passed;1354 inputs zero source drift;145 assets per route zero mismatches. Eight joined source slices undergoing consolidated Sol review and paired journeys. Known Parts accepted-refresh draft loss, Keycaps Part Inspector rejection and Layout unrelated-revision draft reset under repair; PCB pin/lock frozen for next batch. Parent acceptance remains1/62; RF001–015 retained.
 
 ## Active checkpoint — 2026-10-02, combined source freeze
 
