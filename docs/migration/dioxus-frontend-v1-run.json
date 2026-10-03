@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T15:00:16.702724+00:00",
+    "updated_at": "2026-10-03T15:04:11.803308+00:00",
     "parent_counts": {
       "accepted": 10,
       "implementing": 41,
@@ -44,8 +44,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "4b1a44afd0c53dccd0bad69d62e04f134c357bd6",
-      "state": "Expanded source integration continues. First preview compile exposed integration capture/type errors; original authors repair in parallel. Tests, browser qualification and review remain deferred.",
+      "source_commit": "b13983c6",
+      "state": "Larger source batch joined, including complete closure dimensions and Critical fits. Original compiler errors repaired together; next preview package pending. Application tests/browser/review deferred.",
       "packets": [
         {
           "stream": "Layout",
@@ -173,6 +173,22 @@
           "integrated_commit": "0e51d316+840131fd+4b1a44af",
           "change": "Mirror/PCB selection captures, module-profile imports and assembly callback compiler fixes",
           "qualification": "Source repairs; next combined compiler build pending"
+        },
+        {
+          "stream": "Case",
+          "integrated_commit": "7e0b97a4",
+          "change": "Complete closure dimensions/screw choices and Critical fits add/remove, XY points and calculated distance",
+          "receipt": ".scratch/dioxus-case-workspace/issues/05-mechanical-enclosure-fit.md"
+        },
+        {
+          "stream": "Export support",
+          "integrated_commit": "6e536dd4",
+          "change": "Generated/authored Export compiler type and capture repairs"
+        },
+        {
+          "stream": "Layout",
+          "integrated_commit": "b13983c6",
+          "change": "Retain polygon draft compiler captures and document/SVG typing repairs"
         }
       ],
       "qualification": "Joined source is not acceptance. No new application tests or browser qualification were run for this batch."
@@ -199,7 +215,14 @@
     ],
     "heavy_slots": {
       "policy": "Coordinator assigned; maximum 2 heavy jobs / 1 package",
-      "active": [],
+      "active": [
+        {
+          "kind": "package",
+          "build_id": "frontend-source-batch-20261003-2",
+          "source_commit": "pending frozen HEAD",
+          "mode": "fixture refresh and shared-provider reuse; no application tests"
+        }
+      ],
       "check": {
         "source_commit": "3dbcdb38",
         "result": "Failed strict check: two needless Option borrow conversions in Add-object source. Repaired at642d5474; recheck deferred until larger candidate.",
@@ -270,7 +293,7 @@
       {
         "stream": "Layout",
         "priority": "first",
-        "state": "Selection accepted; matrix Add object, linked Inspector and mirror-half workflow source joined. Outline addition/cutout drafts and reference background grid authoring."
+        "state": "Selection accepted; matrix Add object, linked Inspector, mirror-half creation and background dot grid joined. Outline polygon drafts joined; compiler repair and bridge/feature-list editor authoring. Properties/Relations Inspector tabs authoring."
       },
       {
         "stream": "PCB",
@@ -278,19 +301,19 @@
       },
       {
         "stream": "Keymap",
-        "state": "F6K.1/.2/.3 accepted; encoder/firmware-position/export consumers retain F5.2/F8.2 final joins. Global history shortcut source joined."
+        "state": "F6K.1/.2/.3 accepted; encoder/firmware-position/export consumers retain final joins. New source parity pass for genuine remaining GUI gaps; global history shortcut joined."
       },
       {
         "stream": "Keycaps",
-        "state": "F6C.1/.2/.4 accepted; resize/STEP/preview proof retained, F6C.3/.5 joins open. Worker boundary mapped; export-support author resolving authored-only configured STEP path."
+        "state": "F6C.1/.2/.4 accepted; resize/STEP/preview proof retained, F6C.3/.5 joins open. Authored/generated mechanical Export paths joined; remaining Export UI authoring."
       },
       {
         "stream": "Case",
-        "state": "Authored-editor parent accepted; opening controls and closure hardware choices joined. Remaining closure dimensions/critical-fit controls authoring; handle pointer-hit/drag qualification deferred."
+        "state": "Authored-editor parent accepted; access openings, complete closure dimensions and Critical fits editor joined. Contextual source gaps authoring; handle hit/drag qualification deferred."
       },
       {
         "stream": "Parts + Project",
-        "state": "Measured demos and module profiles joined. Saved assembly authoring and component model import/pose/scale editor authoring in independent private modules."
+        "state": "Fifteen measured demos, module profiles and saved assembly recipe/member editor joined. Component model import/pose/scale and advanced assembly model/parameter controls authoring."
       }
     ],
     "pending_join_packets": [],

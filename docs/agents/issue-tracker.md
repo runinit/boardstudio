@@ -131,8 +131,23 @@ Historical issue status and boundary-gap paragraphs can describe the planning ba
 Verify the relevant current source before treating them as a missing capability or
 creating another implementation. The canonical graph owns parent status; the live
 record owns current operations. An assigned source base remains usable across
-coordinator record-only commits: do not create another isolate or rebase merely
-to follow those commits.
+coordinator record-only and unrelated implementation commits. Refresh it only
+when a consumed interface or overlapping owned source changes; do not create
+another isolate, rebase or wait for base/ownership confirmation just to follow HEAD.
+
+After the coordinator joins a packet, its author continues the next real gap in
+the assigned ownership without another dispatch/approval handoff. Publish a shared
+helper's settled signature and source early when other streams consume it; those
+streams continue independent controls while the helper is prepared. Keep one owner
+per overlapping source area and merge narrow mounts serially. Current-source checks
+prevent stale issue prose from generating another implementation of existing code.
+
+A combined compiler failure produces one repair list routed to the original
+owners. Repair the affected captures/types in the existing source; do not reopen
+unchanged specs, create duplicate tickets, repeat reviews or restart unrelated
+work. Later packets retain already joined fixes. Compile/package the larger batch
+for a visible preview; behavioral testing and consolidated review remain deferred
+under the current source-first instruction. A build never counts as acceptance.
 
 This replaces per-slice planning/source/merger approvals and repeated document
 publication for the active frontend run. New tickets are created only for distinct
