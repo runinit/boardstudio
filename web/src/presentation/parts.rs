@@ -7,6 +7,7 @@ mod generator_settings;
 mod mechanical_profile_editor;
 #[cfg(target_arch = "wasm32")]
 mod mechanical_profile_ui;
+mod modules_catalogue;
 #[cfg(all(test, target_arch = "wasm32"))]
 mod physical_setup;
 mod preview;
@@ -726,6 +727,12 @@ pub(super) fn PartsLibraryPanel(
     let mut assembly_orientation = use_context::<PartsAssemblyOrientation>().0;
     let mut selection_generation = use_context::<PartsSelectionGeneration>().0;
     let catalogue = use_catalogue(&snapshot, &scope);
+    let module_id = modules_catalogue::selected_id(selected(), &scope);
+    let module_catalogue = modules_catalogue::use_catalogue(
+        true,
+        snapshot.token,
+        snapshot.document.module_definitions.clone(),
+    );
     let content = if let Some(entries) = catalogue.entries {
         let choices = group_choices(&entries);
         let listed_entries = catalogue_choices(&entries);
@@ -745,6 +752,28 @@ pub(super) fn PartsLibraryPanel(
             .collect::<Vec<_>>();
         let result_count = groups.iter().map(|(_, items)| items.len()).sum::<usize>();
         let selected_id = selected_definition_id(&listed_entries, &search, selected(), &scope);
+        let module_groups = module_catalogue
+            .entries
+            .as_deref()
+            .map(modules_catalogue::group_choices)
+            .unwrap_or_default();
+        let visible_module_groups = module_groups
+            .iter()
+            .filter(|group| group.matches(&search))
+            .cloned()
+            .collect::<Vec<_>>();
+        let module_count = visible_module_groups.len();
+        let matching_assembly = assembly_presets::PRESETS.iter().any(|preset| {
+            search.is_empty()
+                || format!("{} key assembly", preset.name)
+                    .to_lowercase()
+                    .contains(&search)
+        });
+        let no_matches = groups.is_empty()
+            && module_count == 0
+            && !matching_assembly
+            && !module_catalogue.pending
+            && module_catalogue.error.is_none();
 
         rsx! {
             label { class: "m1-parts-search-label", "Search parts"
@@ -847,6 +876,50 @@ pub(super) fn PartsLibraryPanel(
                     }
                 }
             }
+            details { class: "m1-parts-catalogue-scroll", open: true,
+                summary { "VIK modules" small { "{module_count}" } }
+                if let Some(error) = module_catalogue.error.as_ref() {
+                    p { class: "m1-parts-load-error", role: "alert", "Module sources could not be loaded: {error}" }
+                } else if module_catalogue.pending {
+                    p { class: "m1-parts-loading", role: "status", "Loading module sources…" }
+                }
+                div { role: "listbox", "aria-label": "VIK modules",
+                    for group in &visible_module_groups {
+                        { let row = group.row.clone();
+                          let first_id = group.entries[0].definition.id.clone();
+                          let name = group.name.clone();
+                          let duplicate_name = visible_module_groups.iter().any(|other| other.row != row && other.name == name);
+                          let selected_module = module_id.as_deref().is_some_and(|id| group.entries.iter().any(|entry| entry.definition.id == id));
+                          let module_selection_id = format!("module:{first_id}");
+                          let selected = selected;
+                          let scope = scope.clone();
+                          rsx! {
+                            button {
+                                key: "{row}",
+                                class: "m1-parts-catalogue-choice",
+                                r#type: "button",
+                                role: "option",
+                                title: "{row}",
+                                "aria-selected": "{selected_module}",
+                                onclick: move |_| {
+                                    assembly_selection.set(None);
+                                    selected.set(Some((scope.clone(), module_selection_id.clone())));
+                                    view_generation.set(view_generation() + 1);
+                                    generation.with_mut(|value| *value = value.wrapping_add(1));
+                                    preview_activation.with_mut(|value| *value = value.wrapping_add(1));
+                                    on_select.call(());
+                                },
+                                "{name}"
+                                small { if duplicate_name { " · {row}" } if group.entries.len() > 1 { " · {group.entries.len()} variants" } }
+                            }
+                          }
+                        }
+                    }
+                }
+            }
+            if no_matches && !search.is_empty() {
+                p { class: "m1-parts-empty", role: "status", "No parts match this search." }
+            }
         }
     } else if let Some(error) = catalogue.error {
         rsx! {
@@ -906,6 +979,12 @@ pub(super) fn PartsInspectorPanel(
     mut layout_target: Signal<Option<String>>,
 ) -> Element {
     let catalogue = use_catalogue(&snapshot, &scope);
+    let selected_module_id = modules_catalogue::selected_id(selected(), &scope);
+    let module_catalogue = modules_catalogue::use_catalogue(
+        selected_module_id.is_some(),
+        snapshot.token,
+        snapshot.document.module_definitions.clone(),
+    );
     let project_entry =
         crate::parts_new_component::accepted_project_definition(&snapshot, &scope, &selected())
             .map(|definition| CatalogEntry {
@@ -967,6 +1046,17 @@ pub(super) fn PartsInspectorPanel(
 
     rsx! {
         section { class: "m1-parts-inspector", "aria-label": "Selected component details",
+            if let Some(module_id) = selected_module_id.as_deref() {
+                if let Some(module) = module_catalogue.entries.as_deref().and_then(|entries| entries.iter().find(|entry| entry.definition.id == module_id)) {
+                    { let variants = module_catalogue.entries.as_deref().map(|entries| modules_catalogue::variants(entries, &module.row)).unwrap_or_default();
+                      rsx! { modules_catalogue::ModuleInspector { module: module.clone(), variants, scope: scope.clone(), selected } }
+                    }
+                } else if let Some(error) = module_catalogue.error.as_ref() {
+                    p { class: "m1-parts-load-error", role: "alert", "Module sources could not be loaded: {error}" }
+                } else {
+                    p { class: "m1-parts-loading", role: "status", "Loading module sources…" }
+                }
+            } else {
             if let Some(error) = catalogue.error.as_ref() {
                 p { class: "m1-parts-load-error", role: "alert", "Component catalogue could not be loaded: {error}" }
             } else if catalogue.entries.is_none() {
@@ -1029,6 +1119,7 @@ pub(super) fn PartsInspectorPanel(
                         if placement_busy { "Preparing controller…" } else { "Place component" }
                     }
                 }
+            }
             }
         }
         if let Some(message) = placement_error {
