@@ -1,0 +1,37 @@
+{
+  "build_id": "frontend-layout-ready-repair-20261003",
+  "source_commit": "2caace52ee2bd9a813030586bf88a1de7aa88a0c",
+  "provenance": "web/target/builds/frontend-layout-ready-repair-20261003/provenance.json",
+  "provenance_sha256": "656a1f2493d7c3ba092df350068bc976252ddbf16b53d25ec5f83224d608509f",
+  "source_count": 1385,
+  "source_mismatches": [],
+  "source_verification": "Each current frozen source byte checked against manifest before warning-only cleanup.",
+  "routes": {
+    "root": {
+      "http": 200,
+      "headers": {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp"
+      },
+      "asset_count": 190,
+      "mismatches": []
+    },
+    "subpath": {
+      "http": 200,
+      "headers": {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp"
+      },
+      "asset_count": 190,
+      "mismatches": []
+    }
+  },
+  "fresh_commands": 8,
+  "inherited_commands": 22,
+  "duration_seconds": 188.272855,
+  "release_warnings": {
+    "root": 2,
+    "subpath": 2
+  },
+  "qualification": "Compiler/package/source checks; full local and live route assets verified by record-candidate. Focused public journeys recorded separately."
+}

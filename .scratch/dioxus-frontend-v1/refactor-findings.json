@@ -491,6 +491,18 @@
           ".scratch/dioxus-frontend-v1/evidence/candidate-34774-20261003/consolidated-review.md",
           ".scratch/dioxus-layout-authoring/issues/09-layout-command-pill.md"
         ]
+      },
+      "hidden_reference_effect_starvation_20261003": {
+        "observation": "The hidden routed-PCB reference editor mounted in Layout with reference=None; its reset effect tracked request_generation() and immediately wrote the same signal, self-invalidating indefinitely and starving the page.",
+        "evidence": "Fresh Sofle open on candidate34774: completed DOM.enable timeout, direct Runtime.evaluate timeout, captured WASM debugger stack/CPU profile traced to pcb_board_reference::Editor. Focused repair/evidence in .scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/.",
+        "current_mitigation": "Fixed cbce292b with untracked counter read. Production-helper mounted regression fails8vs1 before and passes after; fresh public34775 Sofle and edit/reload journeys remain responsive.",
+        "post_port_proposal": "Give each workbench a clear mounted lifetime and centralize async request invalidation; distinguish reactive dependencies from monotonic cancellation counters. Hidden editors must not perform repeated work when no source exists."
+      },
+      "layout_context_parity_20261003": {
+        "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/journey.md",
+        "observation": "Mounted leaf editors function, but root context composition still diverges: matrix selection does not synchronize the toolbar kind, perimeter mode retains the general pill, and Inspector grouping/handle sizing differ visibly.",
+        "current_mitigation": "Keep concrete follow-ups in existing toolbar/outline criteria; verify paired states before acceptance.",
+        "post_port_proposal": "Define one explicit workbench/selection/edit-mode context projection consumed by toolbar, Objects footer and Inspector, with consistent design tokens for visual sizing."
       }
     },
     {
@@ -1540,6 +1552,11 @@
           "CONSTRAINTS.md"
         ],
         "qualification_tooling_observation": "The first Layout browser verifier discarded exec_command session IDs and mistook yielded calls for timeouts. Its receipt was corrected to unexecuted. Retain the full command result/session ID and await a final exit before assigning a browser verdict; no product failure follows from a tool yield."
+      },
+      "standalone_test_reuse_classification_20261003": {
+        "observation": "Provider-reuse graph covered lib/main cfg(test) modules but omitted standalone Cargo integration tests, so adding an isolated regression blocked packaging before output reservation.",
+        "mitigation": "Discover standalone test roots and exclude release/provider graphs when proving test-only ownership; preserve provider hash validation.",
+        "evidence": "scripts/build-m1.py rejected web/tests/board_reference_effect.rs after cbce292b; focused classifier correction with provider-exclusion regression."
       }
     },
     {

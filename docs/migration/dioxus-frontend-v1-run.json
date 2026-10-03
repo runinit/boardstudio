@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T17:15:30.882183+00:00",
+    "updated_at": "2026-10-03T18:08:14.625788+00:00",
     "parent_counts": {
       "accepted": 10,
       "implementing": 41,
@@ -25,31 +25,31 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-source-batch-20261003-5",
-      "source_commit": "5c8161cf80d2c93c6214cb7caed6dffc4463f64d",
-      "root_url": "http://127.0.0.1:34774/",
-      "subpath_url": "http://127.0.0.1:34774/boardstudio/",
-      "provenance": "web/target/builds/frontend-source-batch-20261003-5/provenance.json",
-      "provenance_sha256": "ef5f71c5086563dfefb6b53ed8e2108485b30d0d7072214a67c47794b86321bd",
-      "fresh_commands": 7,
+      "build_id": "frontend-layout-ready-repair-20261003",
+      "source_commit": "2caace52ee2bd9a813030586bf88a1de7aa88a0c",
+      "root_url": "http://127.0.0.1:34775/",
+      "subpath_url": "http://127.0.0.1:34775/boardstudio/",
+      "provenance": "web/target/builds/frontend-layout-ready-repair-20261003/provenance.json",
+      "provenance_sha256": "656a1f2493d7c3ba092df350068bc976252ddbf16b53d25ec5f83224d608509f",
+      "fresh_commands": 8,
       "inherited_commands": 22,
-      "source_inputs": 1381,
+      "source_inputs": 1385,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 150.27312,
-      "package_qualification": "Package/source/HTTP assets only. No new application tests, browser journeys or review.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34774-20261003/package-proof.json",
+      "command_span_seconds": 188.272855,
+      "package_qualification": "Compiler/package/source checks; full local and live route assets verified by record-candidate. Focused public journeys recorded separately.",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/package-proof.json",
       "release_warnings": {
-        "root": 0,
-        "subpath": 0
+        "root": 2,
+        "subpath": 2
       }
     },
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "5c8161cf80d2c93c6214cb7caed6dffc4463f64d",
-      "state": "Delivery fixes committed067af1be+0943ae9e. Candidate34774 remains served; Layout qualification started and identified a shortcut routing repair. Browser journeys remain unexecuted; source/package success does not accept parents.",
+      "source_commit": "e0e89924",
+      "state": "Candidate34775/2caace52 served and verified. Startup freeze and all three Properties shortcuts repaired; paired key-size and copied-outline edit/Undo/Redo/reopen behaviors pass. Visual/context parity remains open. Source-only warning cleanup e0e89924 compiles clean.",
       "packets": [
         {
           "stream": "Layout",
@@ -297,9 +297,16 @@
           "change": "Exact board-origin Assembly X/Y fields and atomic selected-board placement; accepted-only Layout/Part selection callback",
           "receipt": ".scratch/dioxus-frontend-v1/evidence/f46-assembly-authoring-20261003/RECEIPT.md",
           "qualification": "Combined source compiler passes; larger package and final behavioral evidence pending."
+        },
+        {
+          "stream": "Layout + shared runtime",
+          "integrated_commit": "cbce292b+2caace52+e0e89924",
+          "change": "Properties shortcut routes, missing-reference effect loop, standalone regression packaging classification, warning-only capture cleanup",
+          "receipt": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/journey.md",
+          "qualification": "Paired focused behavior passed on34775; visual/context parity findings remain."
         }
       ],
-      "qualification": "Joined source is not acceptance. No new application tests or browser qualification were run for this batch."
+      "qualification": "Focused red/green regressions plus listed paired public behaviors verified; remaining visual/context and broader parent criteria retained."
     },
     "journeys": [
       {
@@ -431,13 +438,12 @@
     },
     "execution_policy": "docs/agents/issue-tracker.md#frontend-delivery-records",
     "candidate_review": {
-      "candidate": "frontend-source-batch-20261003-5",
-      "review": ".scratch/dioxus-frontend-v1/evidence/candidate-34774-20261003/consolidated-review.md",
-      "review_sha256": "2f94e04b24bb9a6e9da64e34d10b1d1906f7cca04a056d111506376a4a44b4d8",
-      "audit": ".scratch/dioxus-frontend-v1/evidence/candidate-34774-20261003/consolidated-audit.json",
-      "audit_sha256": "fe2c074338dcd5b33f27a6db459cc331a7c1e3ad298dc1b38a82055e85bf12f3",
-      "state": "Finalized single Sol 6.1 High review. Delivery workflow PASS at0943ae9e; Layout source NEEDS_REPAIR; paired browser journeys UNEXECUTED. No acceptance added.",
-      "previous_review": ".scratch/dioxus-frontend-v1/evidence/candidate-34771-20261003/consolidated-review.md"
+      "candidate": "frontend-layout-ready-repair-20261003",
+      "review": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/review.md",
+      "review_sha256": "8d37af10c92f8906f7134bba2d9f9a1245921f15b58f30daf3d5d9a91835e7bf",
+      "state": "Sol6.1High PASS assessed repairs and two focused editing/history/reopen behaviors; visual/context parity and broader parent criteria remain open.",
+      "previous_review": ".scratch/dioxus-frontend-v1/evidence/candidate-34774-20261003/consolidated-review.md",
+      "previous_audit": ".scratch/dioxus-frontend-v1/evidence/candidate-34774-20261003/consolidated-audit.json"
     },
     "parent_acceptances": [
       {
@@ -461,7 +467,7 @@
       {
         "stream": "Layout",
         "priority": "first",
-        "state": "Properties/Relations, outline feature/bridge/gap focus/rectangle positions and generated connection attachment/insert/remove/selection retention served34774. Browser qualification remains."
+        "state": "34775: responsive Sofle, all3 Properties shortcuts and key-size/outline Undo/Redo/reopen verified. Inspector/perimeter toolbar, selection-kind label and handle parity gaps recorded; broader gates remain."
       },
       {
         "stream": "PCB",
@@ -486,9 +492,9 @@
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Repair the source-proven Layout Properties shortcut in existing F3.3 issue09; integrate with the normal next source batch.",
-      "Collect final browser command outcomes with retained execution session IDs, then finish the two focused paired Layout journeys and have Sol reassess only the affected repair.",
-      "Continue six queues and preserve all62 parent criteria and RF history. The delivery workflow fixes are complete; Layout acceptance remains open."
+      "Integrate one Layout parity packet covering tree-to-selection-kind synchronization and the contextual Outline points/grid/Snap/Done toolbar.",
+      "Restore reference Inspector section order/context presentation and perimeter handle sizing using the saved paired screenshots.",
+      "Characterize generated-outline point difference with matched pristine/size-roundtrip inputs; retain all parent criteria and RF history."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
@@ -529,43 +535,86 @@
       "journeys": [
         {
           "id": "layout-selection-inspector",
-          "state": "unexecuted",
+          "state": "partial",
           "scope": "Sofle selection, contextual Objects/Inspector Properties and Relations, matrix/key edits, Undo and reopen",
           "spec": ".scratch/dioxus-layout-authoring/spec.md",
-          "evidence": ".scratch/dioxus-frontend-v1/evidence/candidate-34774-20261003/layout-journey.md",
-          "limitation": "Verifier lost yielded execution session IDs; later command outcomes unknown. This is not evidence of a product defect."
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/journey.md",
+          "verified": "Three Properties shortcut routes and key width1\u21921.25\u2192Undo1\u2192Redo1.25\u2192reload1.25 match reference behavior.",
+          "remaining": "Inspector arrangement/typography/context footer and Objects-to-toolbar selection-kind synchronization; broader authoring criteria unchanged."
         },
         {
           "id": "layout-outline-authoring",
-          "state": "unexecuted",
+          "state": "partial",
           "scope": "Generated outline copy/edit; perimeter/feature controls; snap/grid; Undo and reopen",
           "spec": ".scratch/dioxus-layout-authoring/spec.md",
-          "evidence": ".scratch/dioxus-frontend-v1/evidence/candidate-34774-20261003/layout-journey.md",
-          "limitation": "Verifier lost yielded execution session IDs; later command outcomes unknown. This is not evidence of a product defect."
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/journey.md",
+          "verified": "Generated copy, point coordinate edit, Undo/Redo and reload persistence match reference operations.",
+          "remaining": "Perimeter toolbar/grid/Done surface, handle size and context/scroll parity; pristine coordinate characterization and broader outline criteria unchanged."
         }
       ],
       "review": {
         "profile": "sol-review",
         "state": "completed",
-        "workflow_verdict": "pass",
-        "layout_verdict": "needs_repair",
-        "review": ".scratch/dioxus-frontend-v1/evidence/candidate-34774-20261003/consolidated-review.md",
-        "audit": ".scratch/dioxus-frontend-v1/evidence/candidate-34774-20261003/consolidated-audit.json"
+        "repair_verdict": "pass",
+        "layout_verdict": "partial_parity",
+        "review": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/review.md",
+        "review_sha256": "8d37af10c92f8906f7134bba2d9f9a1245921f15b58f30daf3d5d9a91835e7bf"
       },
       "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
-      "candidate_build_id": "frontend-source-batch-20261003-5",
-      "source_commit": "5c8161cf80d2c93c6214cb7caed6dffc4463f64d",
-      "started_at": "2026-10-03T17:03:19.310659+00:00",
-      "browser_agent": "/root/layout_ready_browser",
+      "candidate_build_id": "frontend-layout-ready-repair-20261003",
+      "source_commit": "2caace52ee2bd9a813030586bf88a1de7aa88a0c",
+      "started_at": "2026-10-03T18:00:41.839083+00:00",
+      "browser_agent": "/root",
       "unmet_acceptance_conditions": [
-        "Repair source-proven Relations-to-Properties toolbar routing (existing F3.3 issue09).",
-        "Complete focused paired Layout journeys; previous attempt unexecuted due tooling-result handling."
+        "Correct remaining contextual toolbar and Inspector visual/behavior gaps captured in the paired journey.",
+        "Characterize initial outline coordinate difference on matched pristine fixtures before geometry equivalence claims.",
+        "Complete broader Layout parent criteria; no new parent accepted by this bounded repair pass."
       ],
       "tool_session_cleanup": {
         "layoutready-react-20261003": "closed",
         "layoutready-dioxus-outline-20261003": "closed",
-        "layoutready-dioxus-20261003": "close command pending; exec session13690 retained; no product verdict inferred"
-      }
+        "layoutready-dioxus-20261003": "close command pending; exec session13690 retained; no product verdict inferred",
+        "layout-shortcut-before-20261003": "closed including owned debug contexts; traces preserved"
+      },
+      "history": [
+        {
+          "candidate_build_id": "frontend-source-batch-20261003-5",
+          "source_commit": "5c8161cf80d2c93c6214cb7caed6dffc4463f64d",
+          "phase": "repairing",
+          "review": {
+            "profile": "sol-review",
+            "state": "completed",
+            "workflow_verdict": "pass",
+            "layout_verdict": "needs_repair",
+            "review": ".scratch/dioxus-frontend-v1/evidence/candidate-34774-20261003/consolidated-review.md",
+            "audit": ".scratch/dioxus-frontend-v1/evidence/candidate-34774-20261003/consolidated-audit.json"
+          },
+          "journeys": [
+            {
+              "id": "layout-selection-inspector",
+              "state": "unexecuted",
+              "scope": "Sofle selection, contextual Objects/Inspector Properties and Relations, matrix/key edits, Undo and reopen",
+              "spec": ".scratch/dioxus-layout-authoring/spec.md",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/candidate-34774-20261003/layout-journey.md",
+              "limitation": "Verifier lost yielded execution session IDs; later command outcomes unknown. This is not evidence of a product defect."
+            },
+            {
+              "id": "layout-outline-authoring",
+              "state": "unexecuted",
+              "scope": "Generated outline copy/edit; perimeter/feature controls; snap/grid; Undo and reopen",
+              "spec": ".scratch/dioxus-layout-authoring/spec.md",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/candidate-34774-20261003/layout-journey.md",
+              "limitation": "Verifier lost yielded execution session IDs; later command outcomes unknown. This is not evidence of a product defect."
+            }
+          ]
+        }
+      ],
+      "completed_behavior_checks": [
+        "Sofle opens and remains interactive",
+        "Relations to each of three Transform Properties routes",
+        "Key width edit, Undo, Redo and reload",
+        "Copied outline point edit, Undo, Redo and reload"
+      ]
     }
   }
 }

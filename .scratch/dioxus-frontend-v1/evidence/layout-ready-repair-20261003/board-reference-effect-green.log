@@ -1,0 +1,9 @@
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.76s
+     Running tests/board_reference_effect.rs (web/target/debug/deps/board_reference_effect-d8a0eaa15cf593c5)
+
+running 1 test
+test mounted_missing_reference_reset_invalidates_once_and_settles ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

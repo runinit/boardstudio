@@ -28,3 +28,7 @@ Proposed ID F3.3d. `start_after=[F3.3a,F3.3b,F3.3c leaf controls ready for compo
 ## Candidate 34774 review follow-up — 2026-10-03
 
 The consolidated candidate review identifies a remaining Properties shortcut route after selecting Relations. Repair and qualify this within the existing F3.3 issue; source finding and exact references live in [the candidate review](../../dioxus-frontend-v1/evidence/candidate-34774-20261003/consolidated-review.md). Browser qualification remains unexecuted; this does not reopen accepted F3.1 selection evidence.
+
+### Repair candidate34775 — 2026-10-03
+
+L1 is repaired at `cbce292b`: all three Relations→Properties shortcuts passed on packaged2caace52/34775, with focused mounted red/green regression. [Paired journey evidence](../../dioxus-frontend-v1/evidence/layout-ready-repair-20261003/journey.md) also identifies retained follow-ups: Objects matrix selection leaves the pill labeled Key, and perimeter editing still uses the general command pill instead of the reference Outline points/grid/Snap/Done surface. Keep these within existing toolbar/outline criteria; no parent acceptance is implied.
