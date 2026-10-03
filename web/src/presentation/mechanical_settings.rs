@@ -4,8 +4,8 @@ pub(crate) use crate::mechanical_feedback::{
     MechanicalSettingsFeedback, MechanicalSettingsFeedbackState, MechanicalSettingsIdentity,
 };
 use boardstudio_core::model::{
-    HardwareTransport, MechanicalBattery, MechanicalBottomStyle, MechanicalMount,
-    MechanicalSwitchFamily, PlateMethod, Severity, Vec2,
+    GasketPlacement, HardwareTransport, MechanicalBattery, MechanicalBottomStyle,
+    MechanicalGasketAnchor, MechanicalMount, MechanicalSwitchFamily, PlateMethod, Severity, Vec2,
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -62,6 +62,35 @@ pub(crate) struct MechanicalLayerRow {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub(crate) struct MechanicalGasketSupportRow {
+    pub(crate) id: String,
+    pub(crate) region_id: String,
+    pub(crate) outline_key: String,
+    pub(crate) anchor: f64,
+    pub(crate) pair_id: Option<String>,
+    pub(crate) length: f64,
+    pub(crate) width: f64,
+    pub(crate) unlinked: bool,
+    pub(crate) fit_error: Option<String>,
+    pub(crate) is_previous: bool,
+}
+
+impl MechanicalGasketSupportRow {
+    fn saved_anchor(&self) -> MechanicalGasketAnchor {
+        MechanicalGasketAnchor {
+            id: self.id.clone(),
+            region_id: self.region_id.clone(),
+            outline_key: self.outline_key.clone(),
+            anchor: self.anchor,
+            length: Some(self.length),
+            width: Some(self.width),
+            placement: Some(GasketPlacement::User),
+            unlinked: self.unlinked,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct MechanicalFindingRow {
     pub(crate) id: String,
     pub(crate) severity: Severity,
@@ -83,6 +112,8 @@ pub(crate) enum MechanicalDimension {
     BottomThickness,
     WallThickness,
     Clearance,
+    GasketSupportLength,
+    GasketSupportWidth,
     OpeningAllowance,
     BatteryWidth,
     BatteryDepth,
@@ -127,6 +158,8 @@ impl MechanicalDimension {
             Self::BottomThickness => "bottom-thickness",
             Self::WallThickness => "wall-thickness",
             Self::Clearance => "clearance",
+            Self::GasketSupportLength => "gasket-support-length",
+            Self::GasketSupportWidth => "gasket-support-width",
             Self::OpeningAllowance => "opening-allowance",
             Self::BatteryWidth => "battery-width",
             Self::BatteryDepth => "battery-depth",
@@ -150,7 +183,17 @@ impl MechanicalDimension {
             | Self::BatteryPositionY
             | Self::BatteryCableExitX
             | Self::BatteryCableExitY => NumberRule::Coordinate,
+            Self::GasketSupportLength => NumberRule::AtLeastFive,
+            Self::GasketSupportWidth => NumberRule::AtLeastHalf,
             _ => NumberRule::Nonnegative,
+        }
+    }
+
+    fn step(self) -> &'static str {
+        match self {
+            Self::GasketSupportLength => "5",
+            Self::GasketSupportWidth => "0.5",
+            _ => "0.1",
         }
     }
 }
@@ -167,6 +210,12 @@ pub(crate) enum MechanicalSettingsPatch {
     SetMiddleFrame(bool),
     SetIntegratedPlateFrame(bool),
     SetDimension {
+        field: MechanicalDimension,
+        value: f64,
+    },
+    SetGasketSupportDimension {
+        support_id: String,
+        anchors: Vec<MechanicalGasketAnchor>,
         field: MechanicalDimension,
         value: f64,
     },
@@ -189,6 +238,16 @@ impl MechanicalSettingsPatch {
             Self::SetMiddleFrame(_) => "middle-frame".to_owned(),
             Self::SetIntegratedPlateFrame(_) => "integrated-plate-frame".to_owned(),
             Self::SetDimension { field, .. } => field.field_id().to_owned(),
+            Self::SetGasketSupportDimension {
+                support_id, field, ..
+            } => format!(
+                "gasket-support:{support_id}:{}",
+                match *field {
+                    MechanicalDimension::GasketSupportLength => "length",
+                    MechanicalDimension::GasketSupportWidth => "width",
+                    _ => "dimension",
+                }
+            ),
             Self::SetSwitchFamily { definition_id, .. } => {
                 format!("switch-family:{definition_id}")
             }
@@ -213,6 +272,7 @@ pub(crate) struct MechanicalSettingsProps {
     pub(crate) values: Option<MechanicalSettingsValues>,
     pub(crate) profiles: Rc<[MechanicalProfileChoice]>,
     pub(crate) layers: Rc<[MechanicalLayerRow]>,
+    pub(crate) gasket_supports: Rc<[MechanicalGasketSupportRow]>,
     pub(crate) findings: Rc<[MechanicalFindingRow]>,
     pub(crate) selected_layer: String,
     pub(crate) mismatch: Option<MechanicalBoardMismatch>,
@@ -279,6 +339,96 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                 on_select_layer: props.on_select_layer,
                 on_show_finding: props.on_show_finding,
                 owner_key: owner_key.clone(),
+            }
+        };
+    }
+
+    if props.values.as_ref().is_some_and(|values| {
+        values.board_id == identity.active_board_id
+            && values.board_id == identity.configuration_board_id
+    }) && let Some(support) = props.gasket_supports.iter().find(|support| {
+        props.selected_layer == format!("gasket:{}:lower", support.id)
+            || props.selected_layer == format!("gasket:{}:upper", support.id)
+    }) {
+        let anchors = props
+            .gasket_supports
+            .iter()
+            .filter(|candidate| {
+                candidate.id == support.id
+                    || (!support.unlinked
+                        && support.pair_id.as_deref() == Some(candidate.id.as_str())
+                        && !candidate.unlinked)
+            })
+            .map(MechanicalGasketSupportRow::saved_anchor)
+            .collect::<Vec<_>>();
+        let index = props
+            .gasket_supports
+            .iter()
+            .position(|candidate| candidate.id == support.id)
+            .unwrap_or_default()
+            + 1;
+        return rsx! {
+            section { class: "m1-mechanical-settings", aria_label: "Mechanical stack settings",
+                button {
+                    r#type: "button",
+                    class: "m1-mechanical-context-return",
+                    onclick: move |_| props.on_select_layer.call(String::new()),
+                    "Assembly settings"
+                }
+                h2 { "Gasket {index}" }
+                if support.is_previous {
+                    p { role: "status", class: "m1-mechanical-previous-result",
+                        "Showing previous generated geometry. Gasket measurements cannot be edited until the current assembly resolves."
+                    }
+                } else {
+                    p { class: "m1-mechanical-help",
+                        if support.unlinked { "This gasket is unlinked from its pair." } else { "Matching upper and lower pads resize together." }
+                    }
+                    if let Some(error) = support.fit_error.as_deref() {
+                        p { role: "alert", "{error} Preview and export stay blocked until it fits." }
+                    } else {
+                        p { class: "m1-mechanical-help", "Fits at this position." }
+                    }
+                    fieldset { class: "m1-mechanical-group", disabled: !props.editable,
+                        DimensionField {
+                            key: "{owner_key}:gasket:{support.id}:length",
+                            identity: props.identity.clone(),
+                            request_sequence,
+                            on_request: props.on_request,
+                            feedback: props.feedback.clone(),
+                            field: MechanicalDimension::GasketSupportLength,
+                            label: "Cut length",
+                            value: support.length,
+                            editable: props.editable,
+                            support_target: Some(GasketSupportDimensionTarget {
+                                support_id: support.id.clone(), anchors: anchors.clone(),
+                            }),
+                        }
+                        DimensionField {
+                            key: "{owner_key}:gasket:{support.id}:width",
+                            identity: props.identity.clone(),
+                            request_sequence,
+                            on_request: props.on_request,
+                            feedback: props.feedback.clone(),
+                            field: MechanicalDimension::GasketSupportWidth,
+                            label: "Pad width",
+                            value: support.width,
+                            editable: props.editable,
+                            support_target: Some(GasketSupportDimensionTarget {
+                                support_id: support.id.clone(), anchors,
+                            }),
+                        }
+                        if !props.editable {
+                            if let Some(reason) = props.disabled_reason.as_deref() {
+                                p { role: "status", "{reason}" }
+                            }
+                        }
+                    }
+                    p { class: "m1-mechanical-help", "Prefer 10 mm cuts; use 5 mm increments for a tighter fit. Foam thickness and compression are shared by the floating stack." }
+                }
+                if !support.is_previous {
+                    {gasket_fit_issues(props.findings.clone(), props.on_show_finding)}
+                }
             }
         };
     }
@@ -721,11 +871,47 @@ fn ContextualLayerInspector(props: ContextualLayerInspectorProps) -> Element {
     }
 }
 
+fn gasket_fit_issues(
+    findings: Rc<[MechanicalFindingRow]>,
+    on_show_finding: EventHandler<String>,
+) -> Element {
+    let errors: Vec<_> = findings
+        .iter()
+        .filter(|finding| finding.severity == Severity::Error)
+        .cloned()
+        .collect();
+    if errors.is_empty() {
+        return rsx! {};
+    }
+    rsx! {
+        section { class: "m1-mechanical-group", aria_label: "Fit issues",
+            h3 { "Fit issues" }
+            ul {
+                for finding in errors {
+                    { let id = finding.id.clone();
+                      let message = finding.message.clone();
+                      rsx! { li { key: "{id}",
+                          span { "{message}" }
+                          button {
+                              r#type: "button",
+                              onclick: move |_| on_show_finding.call(id.clone()),
+                              "Show"
+                          }
+                      } }
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum NumberRule {
     Nonnegative,
     Bounded(i8, i8),
     AtLeastTenth,
+    AtLeastFive,
+    AtLeastHalf,
     Coordinate,
 }
 
@@ -736,6 +922,8 @@ impl NumberRule {
             Self::Bounded(-1, 1) => "-1",
             Self::Bounded(_, _) => "0",
             Self::AtLeastTenth => "0.1",
+            Self::AtLeastFive => "5",
+            Self::AtLeastHalf => "0.5",
             Self::Coordinate => "-1000000",
         }
     }
@@ -744,6 +932,8 @@ impl NumberRule {
         match self {
             Self::Nonnegative => "Enter a finite value of zero or greater.",
             Self::AtLeastTenth => "Enter a finite value of 0.1 mm or greater.",
+            Self::AtLeastFive => "Enter a cut length of at least 5 mm.",
+            Self::AtLeastHalf => "Enter a pad width of at least 0.5 mm.",
             Self::Coordinate => "Enter a finite value of −1,000,000 mm or greater.",
             Self::Bounded(min, max) => {
                 if min == -1 && max == 1 {
@@ -760,6 +950,8 @@ impl NumberRule {
             && match self {
                 Self::Nonnegative => value >= 0.0,
                 Self::AtLeastTenth => value >= 0.1,
+                Self::AtLeastFive => value >= 5.0,
+                Self::AtLeastHalf => value >= 0.5,
                 Self::Coordinate => value >= -1_000_000.0,
                 Self::Bounded(min, max) => value >= f64::from(min) && value <= f64::from(max),
             }
@@ -1022,6 +1214,14 @@ struct DimensionFieldProps {
     label: &'static str,
     value: f64,
     editable: bool,
+    #[props(default)]
+    support_target: Option<GasketSupportDimensionTarget>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct GasketSupportDimensionTarget {
+    support_id: String,
+    anchors: Vec<MechanicalGasketAnchor>,
 }
 
 #[component]
@@ -1101,6 +1301,7 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
     let commit: Rc<dyn Fn()> = Rc::new({
         let identity = props.identity.clone();
         let field = props.field;
+        let support_target = props.support_target.clone();
         let accepted = props.value;
         let sequence = props.request_sequence;
         let on_request = props.on_request;
@@ -1131,7 +1332,16 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                 submitted.set(None);
                 return;
             }
-            let patch = MechanicalSettingsPatch::SetDimension { field, value };
+            let patch = if let Some(target) = support_target.clone() {
+                MechanicalSettingsPatch::SetGasketSupportDimension {
+                    support_id: target.support_id,
+                    anchors: target.anchors,
+                    field,
+                    value,
+                }
+            } else {
+                MechanicalSettingsPatch::SetDimension { field, value }
+            };
             let Some(request_id) = sequence().checked_add(1) else {
                 error.set(Some(
                     "Mechanical request identity is exhausted; reopen the Case inspector."
@@ -1159,7 +1369,7 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
             span { class: "m1-mechanical-number",
                 input {
                     r#type: "number",
-                    step: "0.1",
+                    step: props.field.step(),
                     min: props.field.rule().minimum(),
                     max: if props.field == MechanicalDimension::OpeningAllowance { "1" },
                     value: "{draft}",
@@ -1522,6 +1732,7 @@ mod contextual_layer_tests {
                 values: Some(values),
                 profiles: Rc::from([]),
                 layers,
+                gasket_supports: Rc::from([]),
                 findings,
                 selected_layer: selected_layer(),
                 mismatch: None,
@@ -1551,6 +1762,7 @@ mod contextual_layer_tests {
                     values: Some(test_values(HardwareTransport::Wired, None)),
                     profiles: Rc::from([]),
                     layers: Rc::from([]),
+                    gasket_supports: Rc::from([]),
                     findings: Rc::from([]),
                     selected_layer: String::new(),
                     mismatch: None,
@@ -1581,6 +1793,7 @@ mod contextual_layer_tests {
                     )),
                     profiles: Rc::from([]),
                     layers: Rc::from([]),
+                    gasket_supports: Rc::from([]),
                     findings: Rc::from([]),
                     selected_layer: String::new(),
                     mismatch: None,

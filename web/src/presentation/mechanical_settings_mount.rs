@@ -5,9 +5,9 @@
 //! admits and commits every request against a fresh accepted snapshot.
 use super::case_viewer::CaseSelection;
 use super::mechanical_settings::{
-    MechanicalBoardMismatch, MechanicalFindingRow, MechanicalLayerRow, MechanicalProfileChoice,
-    MechanicalSettingsFeedback, MechanicalSettingsFeedbackState, MechanicalSettingsIdentity,
-    MechanicalSettingsProps, MechanicalSettingsValues,
+    MechanicalBoardMismatch, MechanicalFindingRow, MechanicalGasketSupportRow, MechanicalLayerRow,
+    MechanicalProfileChoice, MechanicalSettingsFeedback, MechanicalSettingsFeedbackState,
+    MechanicalSettingsIdentity, MechanicalSettingsProps, MechanicalSettingsValues,
 };
 use super::mechanical_settings_controller::{
     MechanicalResolution, MechanicalSettingsController, MechanicalSettingsCurrent,
@@ -392,9 +392,16 @@ pub(crate) fn use_mechanical_settings_mount(
         let findings = scene_rows
             .as_ref()
             .map_or_else(|| Rc::from([]), |rows| rows.findings.clone());
+        let gasket_supports = scene_rows
+            .as_ref()
+            .map_or_else(|| Rc::from([]), |rows| rows.gasket_supports.clone());
         drop(scene_rows);
         let mut selected_layer = case_selection.layer_id(&current.identity.scope);
-        if !layers.iter().any(|layer| layer.id == selected_layer) {
+        let selected_gasket_support = gasket_supports.iter().any(|support| {
+            selected_layer == format!("gasket:{}:lower", support.id)
+                || selected_layer == format!("gasket:{}:upper", support.id)
+        });
+        if !layers.iter().any(|layer| layer.id == selected_layer) && !selected_gasket_support {
             selected_layer.clear();
         }
         let enabled = current.editable && !controller.is_busy();
@@ -441,10 +448,13 @@ pub(crate) fn use_mechanical_settings_mount(
                 }) else {
                     return;
                 };
-                let exists = scene
-                    .mechanical
-                    .as_ref()
-                    .is_some_and(|assembly| assembly.stack.iter().any(|layer| layer.id == id));
+                let exists = scene.mechanical.as_ref().is_some_and(|assembly| {
+                    assembly.stack.iter().any(|layer| layer.id == id)
+                        || (assembly.gasket_supports.iter().any(|support| {
+                            id == format!("gasket:{}:lower", support.id)
+                                || id == format!("gasket:{}:upper", support.id)
+                        }) && scene.result.bodies.iter().any(|body| body.id == id))
+                });
                 if !id.is_empty() && !exists {
                     return;
                 }
@@ -502,6 +512,7 @@ pub(crate) fn use_mechanical_settings_mount(
                 .map(|configuration| settings_values(configuration.as_ref(), transport)),
             profiles,
             layers,
+            gasket_supports,
             findings,
             selected_layer,
             mismatch,
@@ -625,6 +636,7 @@ struct MechanicalSettingsSourceProjection {
 #[derive(Clone, PartialEq)]
 struct MechanicalSceneRows {
     layers: Rc<[MechanicalLayerRow]>,
+    gasket_supports: Rc<[MechanicalGasketSupportRow]>,
     findings: Rc<[MechanicalFindingRow]>,
 }
 
@@ -652,6 +664,22 @@ fn project_scene_rows(
             is_previous,
         })
         .collect();
+    let gasket_supports: Vec<_> = display_assembly
+        .gasket_supports
+        .iter()
+        .map(|support| MechanicalGasketSupportRow {
+            id: support.id.clone(),
+            region_id: support.region_id.clone(),
+            outline_key: support.outline_key.clone(),
+            anchor: support.anchor,
+            pair_id: support.pair_id.clone(),
+            length: support.length,
+            width: support.width,
+            unlinked: support.unlinked,
+            fit_error: support.fit_error.clone(),
+            is_previous,
+        })
+        .collect();
     let findings: Vec<_> = current_scene
         .and_then(|scene| scene.mechanical.as_ref())
         .into_iter()
@@ -664,6 +692,7 @@ fn project_scene_rows(
         .collect();
     Some(MechanicalSceneRows {
         layers: Rc::from(layers),
+        gasket_supports: Rc::from(gasket_supports),
         findings: Rc::from(findings),
     })
 }

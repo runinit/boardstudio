@@ -13,11 +13,11 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, Lifecycle, OperationId, Scope, SnapshotToken, TerminalOutcome,
 };
 use boardstudio_core::model::{
-    GasketConstructionVersion, HardwareTransport, InsertInstallation, InternalClosureHardware,
-    InternalGasketConfiguration, MechanicalAssembly, MechanicalBattery, MechanicalBottomStyle,
-    MechanicalConfiguration, MechanicalGasketLayout, MechanicalMount, MechanicalSwitchFamily,
-    Mount, MountKind, Part, PartDefinition, PartGenerator, PartKind, PlateMethod, ProjectDoc,
-    ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Vec2, Vec3,
+    GasketConstructionVersion, GasketPlacement, HardwareTransport, InsertInstallation,
+    InternalClosureHardware, InternalGasketConfiguration, MechanicalAssembly, MechanicalBattery,
+    MechanicalBottomStyle, MechanicalConfiguration, MechanicalGasketLayout, MechanicalMount,
+    MechanicalSwitchFamily, Mount, MountKind, Part, PartDefinition, PartGenerator, PartKind,
+    PlateMethod, ProjectDoc, ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Vec2, Vec3,
 };
 use std::{
     cell::{Cell, RefCell},
@@ -870,8 +870,70 @@ fn apply_patch(
             configuration.integrated_plate_frame = *enabled;
         }
         MechanicalSettingsPatch::SetDimension { field, value } => {
+            if matches!(
+                *field,
+                MechanicalDimension::GasketSupportLength | MechanicalDimension::GasketSupportWidth
+            ) {
+                return Err(
+                    "Gasket support dimensions require a current support selection.".into(),
+                );
+            }
             validate_dimension(*field, *value)?;
             set_dimension(configuration, *field, *value)?;
+        }
+        MechanicalSettingsPatch::SetGasketSupportDimension {
+            support_id,
+            anchors,
+            field,
+            value,
+        } => {
+            if !matches!(
+                *field,
+                MechanicalDimension::GasketSupportLength | MechanicalDimension::GasketSupportWidth
+            ) {
+                return Err("The selected gasket field is unavailable.".into());
+            }
+            validate_dimension(*field, *value)?;
+            if support_id.is_empty()
+                || anchors.is_empty()
+                || anchors.len() > 2
+                || !anchors.iter().any(|anchor| anchor.id == *support_id)
+            {
+                return Err("The selected gasket support is no longer available.".into());
+            }
+            let mut ids = std::collections::HashSet::new();
+            if anchors
+                .iter()
+                .any(|anchor| anchor.id.is_empty() || !ids.insert(&anchor.id))
+            {
+                return Err("The linked gasket support selection is invalid.".into());
+            }
+            if configuration.mount != MechanicalMount::Gasket
+                || configuration.internal_gasket.is_none()
+            {
+                return Err("The current configuration no longer contains gasket supports.".into());
+            }
+            let layout = configuration
+                .gasket_layout
+                .get_or_insert_with(default_gasket_layout);
+            for source in anchors {
+                let mut anchor = source.clone();
+                if *field == MechanicalDimension::GasketSupportLength {
+                    anchor.length = Some(*value);
+                } else {
+                    anchor.width = Some(*value);
+                }
+                anchor.placement = Some(GasketPlacement::User);
+                if let Some(existing) = layout
+                    .supports
+                    .iter_mut()
+                    .find(|entry| entry.id == anchor.id)
+                {
+                    *existing = anchor;
+                } else {
+                    layout.supports.push(anchor);
+                }
+            }
         }
         MechanicalSettingsPatch::SetSwitchFamily {
             definition_id,
@@ -962,6 +1024,9 @@ fn set_dimension(
         MechanicalDimension::WallThickness => configuration.wall_thickness = value,
         MechanicalDimension::Clearance => configuration.clearance = value,
         MechanicalDimension::OpeningAllowance => configuration.opening_allowance = Some(value),
+        MechanicalDimension::GasketSupportLength | MechanicalDimension::GasketSupportWidth => {
+            return Err("Gasket support dimensions require a current support selection.".into());
+        }
         MechanicalDimension::BatteryWidth
         | MechanicalDimension::BatteryDepth
         | MechanicalDimension::BatteryHeight
@@ -997,6 +1062,8 @@ fn validate_dimension(field: MechanicalDimension, value: f64) -> Result<(), Stri
             | MechanicalDimension::BatteryDepth
             | MechanicalDimension::BatteryHeight
             | MechanicalDimension::BatteryCableWidth => value >= 0.1,
+            MechanicalDimension::GasketSupportLength => value >= 5.0,
+            MechanicalDimension::GasketSupportWidth => value >= 0.5,
             MechanicalDimension::BatteryPositionX
             | MechanicalDimension::BatteryPositionY
             | MechanicalDimension::BatteryCableExitX
@@ -1005,6 +1072,10 @@ fn validate_dimension(field: MechanicalDimension, value: f64) -> Result<(), Stri
         };
     if valid {
         Ok(())
+    } else if field == MechanicalDimension::GasketSupportLength {
+        Err("Cut length must be at least 5 mm.".into())
+    } else if field == MechanicalDimension::GasketSupportWidth {
+        Err("Pad width must be at least 0.5 mm.".into())
     } else if field == MechanicalDimension::OpeningAllowance {
         Err("Opening allowance must be between −1 and 1 mm.".into())
     } else if matches!(
@@ -1199,6 +1270,8 @@ fn patch_field_id(patch: &MechanicalSettingsPatch) -> String {
             MechanicalDimension::BottomThickness => "bottom-thickness".into(),
             MechanicalDimension::WallThickness => "wall-thickness".into(),
             MechanicalDimension::Clearance => "clearance".into(),
+            MechanicalDimension::GasketSupportLength => "gasket-support-length".into(),
+            MechanicalDimension::GasketSupportWidth => "gasket-support-width".into(),
             MechanicalDimension::OpeningAllowance => "opening-allowance".into(),
             MechanicalDimension::BatteryWidth => "battery-width".into(),
             MechanicalDimension::BatteryDepth => "battery-depth".into(),
@@ -1209,6 +1282,16 @@ fn patch_field_id(patch: &MechanicalSettingsPatch) -> String {
             MechanicalDimension::BatteryCableExitX => "battery-cable-exit-x".into(),
             MechanicalDimension::BatteryCableExitY => "battery-cable-exit-y".into(),
         },
+        MechanicalSettingsPatch::SetGasketSupportDimension {
+            support_id, field, ..
+        } => format!(
+            "gasket-support:{support_id}:{}",
+            match *field {
+                MechanicalDimension::GasketSupportLength => "length",
+                MechanicalDimension::GasketSupportWidth => "width",
+                _ => "dimension",
+            }
+        ),
         MechanicalSettingsPatch::SetSwitchFamily { definition_id, .. } => {
             format!("switch-family:{definition_id}")
         }
