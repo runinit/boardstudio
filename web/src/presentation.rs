@@ -1391,7 +1391,137 @@ fn pcb_add_outline_select_handler(
     })
 }
 
-fn dispatch_board_reference_action(
+pub(super) fn board_reference_owner_is_current(
+    runtime: &Rc<Runtime>,
+    workspace: Signal<&'static str>,
+    adapter: &SelectionAdapter,
+    owner: &LayoutOwnerIdentity,
+) -> bool {
+    if !matches!(owner.workspace, "Layout" | "Case")
+        || current_layout_owner(runtime, workspace, adapter) != *owner
+    {
+        return false;
+    }
+    let model = runtime.model();
+    let Some(scope) = owner.scope.as_ref() else {
+        return false;
+    };
+    let (Some(token), Some(revision)) = (owner.token, owner.revision) else {
+        return false;
+    };
+    if !active_board_scope_matches(&model, scope)
+        || model.lifecycle != Lifecycle::Ready
+        || model.durability != (Durability::Saved { revision })
+        || model.display_preview.is_some()
+        || model.gesture.is_some()
+    {
+        return false;
+    }
+    model
+        .accepted
+        .as_ref()
+        .is_some_and(|accepted| accepted.token == token && accepted.document.revision == revision)
+}
+
+pub(super) fn board_reference_target_is_current(
+    runtime: &Rc<Runtime>,
+    workspace: Signal<&'static str>,
+    adapter: &SelectionAdapter,
+    owner: &LayoutOwnerIdentity,
+    reference_id: &str,
+    source_asset_id: &str,
+) -> bool {
+    if !board_reference_owner_lineage_is_current(runtime, workspace, adapter, owner) {
+        return false;
+    }
+    let model = runtime.model();
+    let Some(scope) = owner.scope.as_ref() else {
+        return false;
+    };
+    active_board_scope_matches(&model, scope)
+        && model.accepted.as_ref().is_some_and(|accepted| {
+            accepted.document.board_references.iter().any(|reference| {
+                reference.id == reference_id
+                    && reference.board_id == scope.board_id
+                    && reference.asset_id == source_asset_id
+            })
+        })
+}
+
+pub(super) fn board_reference_owner_lineage_is_current(
+    runtime: &Rc<Runtime>,
+    workspace: Signal<&'static str>,
+    adapter: &SelectionAdapter,
+    owner: &LayoutOwnerIdentity,
+) -> bool {
+    if !matches!(owner.workspace, "Layout" | "Case")
+        || workspace() != owner.workspace
+        || (adapter.generation)() != owner.generation
+        || runtime.scope() != owner.scope
+    {
+        return false;
+    }
+    let model = runtime.model();
+    owner
+        .scope
+        .as_ref()
+        .is_some_and(|scope| active_board_scope_matches(&model, scope))
+}
+
+pub(super) fn submit_board_reference_document(
+    runtime: &Rc<Runtime>,
+    workspace: Signal<&'static str>,
+    adapter: &SelectionAdapter,
+    owner: &LayoutOwnerIdentity,
+    proposed: ProjectDoc,
+    transaction_label: &str,
+) -> Result<Option<crate::operation_outcomes::OutcomeSlot>, String> {
+    if !board_reference_owner_is_current(runtime, workspace, adapter, owner) {
+        return Err("The active project or board changed. Retry with the current board.".into());
+    }
+    let model = runtime.model();
+    let Some(scope) = owner.scope.as_ref() else {
+        return Err("The active board is unavailable.".into());
+    };
+    let (Some(token), Some(revision)) = (owner.token, owner.revision) else {
+        return Err("The accepted board identity is unavailable.".into());
+    };
+    let Some(accepted) = model
+        .accepted
+        .as_ref()
+        .filter(|accepted| accepted.token == token && accepted.document.revision == revision)
+    else {
+        return Err("The accepted board changed. Reopen the reference panel and retry.".into());
+    };
+    if proposed.id != accepted.document.id
+        || !proposed
+            .boards
+            .iter()
+            .any(|board| board.id == scope.board_id)
+    {
+        return Err("The routed-board edit no longer matches the accepted project.".into());
+    }
+    if proposed == *accepted.document {
+        return Ok(None);
+    }
+    let operation_id = runtime.operation();
+    let outcome = runtime.observe_operation(operation_id);
+    runtime.submit(Event::Edit {
+        operation_id,
+        command: EditCommand {
+            base_revision: revision,
+            transaction_id: format!("{transaction_label}-{}", operation_id.0),
+            phase: EditPhase::Commit,
+            target_ids: vec![scope.board_id.clone()],
+            operation: EditOperation::ReplaceDocument {
+                document: Box::new(proposed),
+            },
+        },
+    });
+    Ok(Some(outcome))
+}
+
+pub(super) fn dispatch_board_reference_action(
     runtime: &Rc<Runtime>,
     workspace: Signal<&'static str>,
     adapter: &SelectionAdapter,
@@ -1399,9 +1529,7 @@ fn dispatch_board_reference_action(
     reference_id: &str,
     action: pcb_board_reference::Action,
 ) {
-    if !matches!(owner.workspace, "Layout" | "Case")
-        || current_layout_owner(runtime, workspace, adapter) != *owner
-    {
+    if !board_reference_owner_is_current(runtime, workspace, adapter, owner) {
         return;
     }
     let model = runtime.model();
@@ -1411,14 +1539,6 @@ fn dispatch_board_reference_action(
     let (Some(token), Some(revision)) = (owner.token, owner.revision) else {
         return;
     };
-    if !active_board_scope_matches(&model, scope)
-        || model.lifecycle != Lifecycle::Ready
-        || model.durability != (Durability::Saved { revision })
-        || model.display_preview.is_some()
-        || model.gesture.is_some()
-    {
-        return;
-    }
     let Some(accepted) = model
         .accepted
         .as_ref()
@@ -1484,19 +1604,14 @@ fn dispatch_board_reference_action(
     if proposed == *accepted.document {
         return;
     }
-    let operation_id = runtime.operation();
-    runtime.submit(Event::Edit {
-        operation_id,
-        command: EditCommand {
-            base_revision: revision,
-            transaction_id: format!("board-reference-{}-{}", reference_id, operation_id.0),
-            phase: EditPhase::Commit,
-            target_ids: vec![scope.board_id.clone()],
-            operation: EditOperation::ReplaceDocument {
-                document: Box::new(proposed),
-            },
-        },
-    });
+    let _ = submit_board_reference_document(
+        runtime,
+        workspace,
+        adapter,
+        owner,
+        proposed,
+        &format!("board-reference-{reference_id}"),
+    );
 }
 
 fn canvas_owner_is_current(
@@ -7529,43 +7644,28 @@ fn Editor() -> Element {
         )),
     };
     let board_reference_editor = if matches!(active_workspace, "Layout" | "Case") {
-        document
+        let reference = document
             .board_references
             .iter()
             .find(|reference| reference.board_id == render_scope.board_id)
-            .map(|reference| {
-                let owner = LayoutOwnerIdentity {
-                    scope: Some(render_scope.clone()),
-                    token: Some(snapshot.token),
-                    revision: Some(snapshot.document.revision),
-                    generation: render_generation,
-                    workspace: active_workspace,
-                };
-                let reference = reference.clone();
-                let assets = document.assets.clone();
-                let reference_id = reference.id.clone();
-                let runtime = runtime.clone();
-                let adapter = adapter.clone();
-                let on_action = EventHandler::new(move |action| {
-                    dispatch_board_reference_action(
-                        &runtime,
-                        workspace,
-                        &adapter,
-                        &owner,
-                        &reference_id,
-                        action,
-                    )
-                });
-                let editable = model.lifecycle == Lifecycle::Ready
-                    && model.durability
-                        == (Durability::Saved {
-                            revision: snapshot.document.revision,
-                        })
-                    && model.display_preview.is_none()
-                    && model.gesture.is_none()
-                    && active_board_scope_matches(&model, &render_scope);
-                (reference, assets, editable, on_action)
-            })
+            .cloned();
+        let owner = LayoutOwnerIdentity {
+            scope: Some(render_scope.clone()),
+            token: Some(snapshot.token),
+            revision: Some(snapshot.document.revision),
+            generation: render_generation,
+            workspace: active_workspace,
+        };
+        let assets = document.assets.clone();
+        let editable = model.lifecycle == Lifecycle::Ready
+            && model.durability
+                == (Durability::Saved {
+                    revision: snapshot.document.revision,
+                })
+            && model.display_preview.is_none()
+            && model.gesture.is_none()
+            && active_board_scope_matches(&model, &render_scope);
+        Some((reference, assets, editable, owner))
     } else {
         None
     };
@@ -8324,12 +8424,15 @@ fn Editor() -> Element {
                         } else {
                             {workspace_composition::inspector(inspector_input)}
                         }
-                        if let Some((reference, assets, editable, on_action)) = board_reference_editor {
+                        if let Some((reference, assets, editable, owner)) = board_reference_editor {
                             pcb_board_reference::Editor {
                                 reference,
                                 assets,
                                 disabled: !editable,
-                                on_action,
+                                runtime: runtime.clone(),
+                                workspace,
+                                adapter: adapter.clone(),
+                                owner,
                             }
                         }
                     }

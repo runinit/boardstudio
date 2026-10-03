@@ -2745,6 +2745,54 @@ impl Runtime {
         }
     }
 
+    /// Parse a routed KiCad board for the accepted reference editor before its
+    /// bytes and BoardReference are admitted through the normal edit path.
+    pub(crate) async fn preview_routed_board_source(
+        &self,
+        request_id: String,
+        source: String,
+        revision: u64,
+    ) -> Result<PcbPreview, String> {
+        if request_id.is_empty() {
+            return Err("Routed-board preview request identity must not be empty".into());
+        }
+        let executor_epoch = self.session.borrow().core_executor_epoch();
+        let core = self.core.borrow().clone();
+        let request = ArtifactRequest::PreviewBoard {
+            id: request_id.clone(),
+            source,
+            revision,
+        };
+        let reply = core
+            .artifact(&request_id, &executor_epoch.0.to_string(), &request)
+            .await
+            .map_err(|error| format!("Could not preview routed KiCad board: {error}"))?;
+        if self.session.borrow().core_executor_epoch() != executor_epoch
+            || !Rc::ptr_eq(&core, &self.core.borrow())
+        {
+            return Err("Routed-board preview became stale when the Core worker changed".into());
+        }
+        match reply {
+            ArtifactReply::PreviewBoard { id, result } if id == request_id => Ok(result),
+            ArtifactReply::Error { id, error } if id == request_id => {
+                let details = error
+                    .diagnostics
+                    .iter()
+                    .map(|diagnostic| diagnostic.message.as_str())
+                    .collect::<Vec<_>>();
+                if details.is_empty() {
+                    Err(error.message)
+                } else {
+                    Err(format!("{} {}", error.message, details.join(" ")))
+                }
+            }
+            ArtifactReply::PreviewBoard { .. } | ArtifactReply::Error { .. } => {
+                Err("Core returned a routed-board preview for another request".into())
+            }
+            _ => Err("Core returned an unexpected routed-board preview reply".into()),
+        }
+    }
+
     async fn load_layout_document_asset(
         &self,
         asset: &boardstudio_core::model::Asset,
