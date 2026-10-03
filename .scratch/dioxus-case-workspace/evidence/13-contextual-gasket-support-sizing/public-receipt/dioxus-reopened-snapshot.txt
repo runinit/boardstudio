@@ -1,0 +1,301 @@
+- main
+  - sectionheader
+    - heading "BoardStudio" [level=1, ref=e1271]
+      - StaticText "BoardStudio"
+    - group
+      - DisclosureTriangle "Sofle v2" [expanded=false]
+    - StaticText "Saved"
+    - tablist "Board workflow"
+      - tab "Layout" [ref=e1273]
+        - StaticText "Layout"
+      - tab "PCB" [ref=e1274]
+      - tab "Keymap" [ref=e1275]
+      - tab "Keycaps" [ref=e1276]
+      - tab "Case" [selected, ref=e1277]
+        - StaticText "Case"
+      - tab "Parts" [ref=e1278]
+    - button "Export" [ref=e1272]
+    - LabelText
+      - StaticText "Theme"
+      - combobox "Theme" [expanded=false, ref=e1279]: System
+        - MenuListPopup
+          - option "System" [selected, ref=e1284]
+          - option "Light" [ref=e1285]
+          - option "Dark" [ref=e1286]
+  - region "Keyboard editor" [ref=e1270]
+    - generic
+      - generic
+        - sectionheader
+          - heading "Objects" [level=2, ref=e1291]
+          - button "Objects options" [expanded=false, ref=e1292]
+            - StaticText "Options"
+        - complementary "Objects"
+          - LabelText
+            - StaticText "Board"
+            - combobox "Board" [expanded=false, ref=e1386]: Left PCB
+              - MenuListPopup
+                - option "Left PCB" [selected, ref=e1432]
+                - option "Right PCB" [ref=e1433]
+          - group "Physical instance"
+            - StaticText "Physical instance"
+            - button "left half" [ref=e1387]
+          - StaticText "Sofle v2"
+          - StaticText "70 parts"
+          - tree "Case assembly"
+            - treeitem "▰ Left case assembly" [level=1, expanded=true, ref=e1388]
+              - button "Collapse Left case assembly" [expanded=true, ref=e1403]
+                - StaticText "⌄"
+              - button "▰ Left case assembly" [ref=e1404]
+                - StaticText "▰"
+                - StaticText "Left case assembly"
+              - button "Toggle visibility for Left case assembly" [ref=e1405]
+                - StaticText "Visible"
+            - treeitem "▱ Plate" [level=2, ref=e1389]
+              - button "▱ Plate" [ref=e1406]
+                - StaticText "▱"
+                - StaticText "Plate"
+              - button "Toggle visibility for Plate" [ref=e1407]
+                - StaticText "Visible"
+            - treeitem "▱ Plate foam" [level=2, ref=e1390]
+              - button "▱ Plate foam" [ref=e1408]
+                - StaticText "▱"
+                - StaticText "Plate foam"
+              - button "Toggle visibility for Plate foam" [ref=e1409]
+                - StaticText "Visible"
+            - treeitem "▱ Bottom foam" [level=2, ref=e1391]
+              - button "▱ Bottom foam" [ref=e1410]
+                - StaticText "▱"
+                - StaticText "Bottom foam"
+              - button "Toggle visibility for Bottom foam" [ref=e1411]
+                - StaticText "Visible"
+            - treeitem "▱ Bottom case" [level=2, ref=e1392]
+              - button "▱ Bottom case" [ref=e1412]
+                - StaticText "▱"
+                - StaticText "Bottom case"
+              - button "Toggle visibility for Bottom case" [ref=e1413]
+                - StaticText "Visible"
+            - treeitem "▱ Top case" [level=2, ref=e1393]
+              - button "▱ Top case" [ref=e1414]
+                - StaticText "▱"
+                - StaticText "Top case"
+              - button "Toggle visibility for Top case" [ref=e1415]
+                - StaticText "Visible"
+            - treeitem "▱ Gaskets 17 pairs" [level=2, expanded=true, ref=e1394]
+              - button "Collapse Gaskets" [expanded=true, ref=e1416]
+                - StaticText "⌄"
+              - button "▱ Gaskets 17 pairs" [ref=e1417]
+                - StaticText "▱"
+                - StaticText "Gaskets"
+                - StaticText "17 pairs"
+              - button "Toggle visibility for Gaskets" [ref=e1418]
+                - StaticText "Visible"
+            - treeitem "▱ Gasket 1 · Left 75 × 3 mm" [level=3, selected, ref=e1573]
+              - button "▱ Gasket 1 · Left 75 × 3 mm" [ref=e1592]
+                - StaticText "▱"
+                - StaticText "Gasket 1 · Left"
+                - StaticText "75 × 3 mm"
+              - button "Toggle visibility for Gasket 1 · Left" [ref=e1593]
+                - StaticText "Visible"
+            - treeitem "▱ Gasket 2 · Right 20 × 3 mm" [level=3, ref=e1574]
+              - button "▱ Gasket 2 · Right 20 × 3 mm" [ref=e1594]
+                - StaticText "▱"
+                - StaticText "Gasket 2 · Right"
+                - StaticText "20 × 3 mm"
+              - button "Toggle visibility for Gasket 2 · Right" [ref=e1595]
+                - StaticText "Visible"
+            - treeitem "▱ Gasket 3 · Bottom 10 × 3 mm" [level=3, ref=e1575]
+              - button "▱ Gasket 3 · Bottom 10 × 3 mm" [ref=e1596]
+                - StaticText "▱"
+                - StaticText "Gasket 3 · Bottom"
+                - StaticText "10 × 3 mm"
+              - button "Toggle visibility for Gasket 3 · Bottom" [ref=e1597]
+                - StaticText "Visible"
+            - treeitem "▱ Gasket 4 · Top 10 × 3 mm" [level=3, ref=e1576]
+              - button "▱ Gasket 4 · Top 10 × 3 mm" [ref=e1598]
+                - StaticText "▱"
+                - StaticText "Gasket 4 · Top"
+                - StaticText "10 × 3 mm"
+              - button "Toggle visibility for Gasket 4 · Top" [ref=e1599]
+                - StaticText "Visible"
+            - treeitem "▱ Gasket 5 · Top 5 × 3 mm" [level=3, ref=e1577]
+              - button "▱ Gasket 5 · Top 5 × 3 mm" [ref=e1600]
+                - StaticText "▱"
+                - StaticText "Gasket 5 · Top"
+                - StaticText "5 × 3 mm"
+              - button "Toggle visibility for Gasket 5 · Top" [ref=e1601]
+                - StaticText "Visible"
+            - treeitem "▱ Gasket 6 · Right 10 × 3 mm" [level=3, ref=e1578]
+              - button "▱ Gasket 6 · Right 10 × 3 mm" [ref=e1602]
+                - StaticText "▱"
+                - StaticText "Gasket 6 · Right"
+                - StaticText "10 × 3 mm"
+              - button "Toggle visibility for Gasket 6 · Right" [ref=e1603]
+                - StaticText "Visible"
+            - treeitem "▱ Gasket 7 · Bottom 10 × 3 mm" [level=3, ref=e1579]
+              - button "▱ Gasket 7 · Bottom 10 × 3 mm" [ref=e1604]
+                - StaticText "▱"
+                - StaticText "Gasket 7 · Bottom"
+                - StaticText "10 × 3 mm"
+              - button "Toggle visibility for Gasket 7 · Bottom" [ref=e1605]
+                - StaticText "Visible"
+            - treeitem "▱ Gasket 8 · Bottom 5 × 3 mm" [level=3, ref=e1580]
+              - button "▱ Gasket 8 · Bottom 5 × 3 mm" [ref=e1606]
+                - StaticText "▱"
+                - StaticText "Gasket 8 · Bottom"
+                - StaticText "5 × 3 mm"
+              - button "Toggle visibility for Gasket 8 · Bottom" [ref=e1607]
+                - StaticText "Visible"
+            - treeitem "▱ Gasket 9 · Bottom 10 × 3 mm" [level=3, ref=e1581]
+              - button "▱ Gasket 9 · Bottom 10 × 3 mm" [ref=e1608]
+                - StaticText "▱"
+                - StaticText "Gasket 9 · Bottom"
+                - StaticText "10 × 3 mm"
+              - button "Toggle visibility for Gasket 9 · Bottom" [ref=e1609]
+                - StaticText "Visible"
+            - treeitem "▱ Gasket 10 · Top 10 × 3 mm" [level=3, ref=e1582]
+              - button "▱ Gasket 10 · Top 10 × 3 mm" [ref=e1610]
+                - StaticText "▱"
+                - StaticText "Gasket 10 · Top"
+                - StaticText "10 × 3 mm"
+              - button "Toggle visibility for Gasket 10 · Top" [ref=e1611]
+                - StaticText "Visible"
+            - treeitem "▱ Gasket 11 · Bottom 10 × 3 mm" [level=3, ref=e1583]
+              - button "▱ Gasket 11 · Bottom 10 × 3 mm" [ref=e1612]
+                - StaticText "▱"
+                - StaticText "Gasket 11 · Bottom"
+                - StaticText "10 × 3 mm"
+              - button "Toggle visibility for Gasket 11 · Bottom" [ref=e1613]
+                - StaticText "Visible"
+            - treeitem "▱ Gasket 12 · Top 10 × 3 mm" [level=3, ref=e1584]
+              - button "▱ Gasket 12 · Top 10 × 3 mm" [ref=e1614]
+                - StaticText "▱"
+                - StaticText "Gasket 12 · Top"
+                - StaticText "10 × 3 mm"
+              - button "Toggle visibility for Gasket 12 · Top" [ref=e1615]
+                - StaticText "Visible"
+            - treeitem "▱ Gasket 13 · Top 10 × 3 mm" [level=3, ref=e1585]
+              - button "▱ Gasket 13 · Top 10 × 3 mm" [ref=e1616]
+                - StaticText "▱"
+                - StaticText "Gasket 13 · Top"
+                - StaticText "10 × 3 mm"
+              - button "Toggle visibility for Gasket 13 · Top" [ref=e1617]
+                - StaticText "Visible"
+            - treeitem "▱ Gasket 14 · Top 10 × 3 mm" [level=3, ref=e1586]
+              - button "▱ Gasket 14 · Top 10 × 3 mm" [ref=e1618]
+                - StaticText "▱"
+                - StaticText "Gasket 14 · Top"
+                - StaticText "10 × 3 mm"
+              - button "Toggle visibility for Gasket 14 · Top" [ref=e1619]
+                - StaticText "Visible"
+            - treeitem "▱ Gasket 15 · Right 5 × 3 mm" [level=3, ref=e1587]
+              - button "▱ Gasket 15 · Right 5 × 3 mm" [ref=e1620]
+                - StaticText "▱"
+                - StaticText "Gasket 15 · Right"
+                - StaticText "5 × 3 mm"
+              - button "Toggle visibility for Gasket 15 · Right" [ref=e1621]
+                - StaticText "Visible"
+            - treeitem "▱ Gasket 16 · Bottom 5 × 3 mm" [level=3, ref=e1588]
+              - button "▱ Gasket 16 · Bottom 5 × 3 mm" [ref=e1622]
+                - StaticText "▱"
+                - StaticText "Gasket 16 · Bottom"
+                - StaticText "5 × 3 mm"
+              - button "Toggle visibility for Gasket 16 · Bottom" [ref=e1623]
+                - StaticText "Visible"
+            - treeitem "▱ Gasket 17 · Right 5 × 3 mm" [level=3, ref=e1589]
+              - button "▱ Gasket 17 · Right 5 × 3 mm" [ref=e1624]
+                - StaticText "▱"
+                - StaticText "Gasket 17 · Right"
+                - StaticText "5 × 3 mm"
+              - button "Toggle visibility for Gasket 17 · Right" [ref=e1625]
+                - StaticText "Visible"
+            - treeitem "▱ PCB 70 components" [level=2, expanded=false, ref=e1590]
+              - button "Expand PCB" [expanded=false, ref=e1626]
+                - StaticText "›"
+              - button "▱ PCB 70 components" [ref=e1627]
+                - StaticText "▱"
+                - StaticText "PCB"
+                - StaticText "70 components"
+              - button "Toggle visibility for PCB" [ref=e1628]
+                - StaticText "Visible"
+            - treeitem "▰ Right case assembly" [level=1, expanded=false, ref=e1591]
+              - button "Expand Right case assembly" [expanded=false, ref=e1629]
+                - StaticText "›"
+              - button "▰ Right case assembly" [ref=e1630]
+                - StaticText "▰"
+                - StaticText "Right case assembly"
+              - button "Toggle visibility for Right case assembly" [ref=e1631]
+                - StaticText "Visible"
+      - tabpanel "Case"
+        - region "Case assembly" [ref=e1380]
+          - generic
+            - heading "Case assembly" [level=2, ref=e1381]
+            - LabelText
+              - switch "Live preview" [checked=true, ref=e1397]
+              - StaticText "Live preview"
+            - button "Update preview" [ref=e1382]
+            - button "Cancel" [disabled, ref=e1383]
+          - status
+            - StaticText "Exact case geometry ready."
+          - status
+            - StaticText "Accepted PCB preview is ready for the Case viewer."
+          - status
+            - StaticText "90 of 90 board models decoded."
+          - generic
+            - button "Fit case" [ref=e1384]
+            - group
+              - DisclosureTriangle "View controls" [expanded=false]
+                - StaticText "View controls"
+            - generic
+              - image "Interactive 3D Case preview. Click a visible body to select its current mapped item; use the controls to navigate and change display." [ref=e1398] focusable [tabindex]
+              - region "Assembly layers" [ref=e1399]
+                - button "Layers" [expanded=false, ref=e1425]
+            - status
+              - StaticText "3D preview updated."
+            - group
+              - DisclosureTriangle "Case layers and colors" [expanded=false]
+                - StaticText "Case layers and colors"
+      - generic
+        - sectionheader
+          - heading "Inspect" [level=2, ref=e1293]
+          - button "Inspector options" [expanded=false, ref=e1294]
+            - StaticText "Options"
+        - region "Case Inspector" [ref=e1385]
+          - region "Physical assembly" [ref=e1400]
+            - paragraph
+              - StaticText "Mechanical settings and closure hardware apply to all case assemblies. Select an assembly in Objects."
+            - group
+              - DisclosureTriangle "Assembly setup" [expanded=false]
+          - region "Mechanical stack settings" [ref=e1632]
+            - button "Assembly settings" [ref=e1634]
+            - heading "Gasket 1" [level=2, ref=e1635]
+            - paragraph
+              - StaticText "Matching upper and lower pads resize together."
+            - paragraph
+              - StaticText "Fits at this position."
+            - group
+              - LabelText
+                - StaticText "Cut length"
+                - spinbutton "Cut length mm" [ref=e1639]: 75
+                  - StaticText "75"
+                - StaticText "mm"
+              - LabelText
+                - StaticText "Pad width"
+                - spinbutton "Pad width mm" [ref=e1640]: 3
+                  - StaticText "3"
+                - StaticText "mm"
+            - paragraph
+              - StaticText "Prefer 10 mm cuts; use 5 mm increments for a tighter fit. Foam thickness and compression are shared by the floating stack."
+          - region "Part appearance" [ref=e1633]
+            - heading "Display" [level=3, ref=e1636]
+            - LabelText
+              - StaticText "Colour"
+              - ColorWell "Part colour": #b4bac2
+            - button "Reset colour" [ref=e1637]
+            - checkbox "Visible" [checked=true, ref=e1638]
+    - sectionfooter
+      - button "Undo" [ref=e1280]
+      - button "Redo" [ref=e1281]
+      - StaticText "Sofle v2 · Revision 14 · Saved"
+      - StaticText "100%"
+  - status
+    - StaticText "Saved locally."

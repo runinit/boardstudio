@@ -1,0 +1,13 @@
+# Public Case gasket sizing receipt
+
+Candidate: Dioxus `http://127.0.0.1:34745/`, built from source `e4bad4a6f03fd5a76fabdfb1b33809f2cd106840`. Root reported guarded reuse PASS (8 fresh + 22 inherited), 1,359 inputs/0 drift and 145 assets with 0 route mismatch. Browser session: `case-gasket-34745`, isolated from the React profile.
+
+The Dioxus session imported the preserved original5b layered Sofle archive at `.scratch/dioxus-frontend-v1/evidence/case-keymap-current/keymap-layered-public/fixture/layered-sofle-export.boardstudio` (SHA-256 `5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df`), selected Left PCB / `left half`, opened Case, configured the mechanical stack, and set Mount style to Gasket mount. After the live resolver settled, the exact Case scene reported “Exact case geometry ready,” 40 layers, and 17 gasket pairs. Support pair 0 appeared in the resolved stack as `gasket:left keys layout:0:lower` and `gasket:left keys layout:0:upper`.
+
+Selected `Gasket 1 · Left` in the Case Objects tree. Before the edit, the contextual Inspector showed `Cut length mm=70`, `Pad width mm=3`, and “Matching upper and lower pads resize together.” Entered `75` in Cut length and pressed Enter. Once the accepted scene settled, the tree showed `Gasket 1 · Left 75 × 3 mm`; the Inspector retained the linked upper/lower message and showed length 75, width 3. The page footer reported Revision 12, Saved.
+
+Clicked Undo once. During recomputation the old geometry remained visible briefly; after returning to the Case tab it settled to 17 pairs with `Gasket 1 · Left 70 × 3 mm` and contextual dimensions 70/3. Clicked Redo once; after recomputation it settled to 17 pairs with `Gasket 1 · Left 75 × 3 mm` and contextual dimensions 75/3. The footer reported Revision 14, Saved. Reloaded the page, reopened Case, waited for the current result, expanded Gaskets and selected Gasket 1. It again showed 75/3, the linked upper/lower message, 17 pairs, 40 resolved layers, “Exact case geometry ready,” and Saved locally. Browser page errors and console logs were empty.
+
+React reference ran in isolated `case-react-5173` on pinned React source `5a472a9426e6e38993361da402cd4ec730feb369`: Start Sofle v2, Case, Configure mechanical stack, select Gasket mount; the current result showed 17 pairs and `Gasket 1 · Left 70 × 3 mm` with Cut length and Pad width. The React reference values were not changed.
+
+Captured public snapshots and screenshots are in `public-receipt/`: `react-reference-snapshot.txt`, `react-gasket-reference.png`, `dioxus-reopened-snapshot.txt`, and `dioxus-reopened-gasket-75.png`. The original5b archive was read/imported only; it was not modified.
