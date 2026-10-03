@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T16:10:53.883295+00:00",
+    "updated_at": "2026-10-03T16:16:30.669196+00:00",
     "parent_counts": {
       "accepted": 10,
       "implementing": 41,
@@ -44,8 +44,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "c95b3dea",
-      "state": "34773 serves ef087c74. Encoder identity fix joined afterward at a62d4fda+c95b3dea; cached combined source compile passes with zero warnings. Assembly direct board X/Y action continues in its original issue; browser qualification/review deferred.",
+      "source_commit": "9f12d32a",
+      "state": "Exact TS board-origin Assembly X/Y placement plus accepted Part-mode callback and encoder identity fixes joined. Combined source compiler passes with zero warnings; larger candidate packaging next.34773 remains available; behavior/review deferred.",
       "packets": [
         {
           "stream": "Layout",
@@ -285,6 +285,14 @@
           "change": "Effective keyed encoder editor boundaries and cloned iteration captures",
           "receipt": ".scratch/dioxus-keymap-layers/evidence/encoder-mounted-integration/README.md",
           "qualification": "Combined source compile only; next package/browser qualification pending."
+        },
+        {
+          "stream": "Parts + Project",
+          "integrated_commit": "af46b22b+55e7abf2+9f12d32a",
+          "author_commit": "c74138729f3fa1a7fd17690a1477b118d647a1b0",
+          "change": "Exact board-origin Assembly X/Y fields and atomic selected-board placement; accepted-only Layout/Part selection callback",
+          "receipt": ".scratch/dioxus-frontend-v1/evidence/f46-assembly-authoring-20261003/RECEIPT.md",
+          "qualification": "Combined source compiler passes; larger package and final behavioral evidence pending."
         }
       ],
       "qualification": "Joined source is not acceptance. No new application tests or browser qualification were run for this batch."
@@ -311,7 +319,15 @@
     ],
     "heavy_slots": {
       "policy": "Coordinator assigned; maximum 2 heavy jobs / 1 package",
-      "active": [],
+      "active": [
+        {
+          "kind": "preview package",
+          "build_id": "frontend-source-batch-20261003-5",
+          "log": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/frontend-source-batch-20261003-5-package.log",
+          "qualification": "Source/package only; application tests/browser/review deferred.",
+          "source_commit": "9f12d32a"
+        }
+      ],
       "check": {
         "source_commit": "3dbcdb38",
         "result": "Failed strict check: two needless Option borrow conversions in Add-object source. Repaired at642d5474; recheck deferred until larger candidate.",
@@ -379,8 +395,8 @@
         }
       ],
       "source_compile": {
-        "source_commit": "c95b3dea",
-        "result": "PASS: cached combined source compiler; zero warnings. Earlier keyed-iteration ownership errors repaired in one source list.",
+        "source_commit": "9f12d32a",
+        "result": "PASS: Assembly direct-board placement and encoder joins compile with zero warnings.",
         "command": "cargo check --manifest-path web/Cargo.toml --locked --target wasm32-unknown-unknown --no-default-features --features page --bin boardstudio-web",
         "logs": [
           "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003.log",
@@ -398,11 +414,13 @@
           "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-13.log",
           "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-14.log",
           "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-15.log",
-          "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-16.log"
+          "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-16.log",
+          "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-17.log",
+          "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-18.log"
         ],
         "new_tests": 0,
         "exit_code": 0,
-        "latest_log": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-16.log",
+        "latest_log": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-18.log",
         "warnings": 0
       }
     },
@@ -457,14 +475,14 @@
       },
       {
         "stream": "Parts + Project",
-        "state": "Assembly model bindings/Matrix Apply/Layout placement served34773. Exact TS direct board X/Y parts action remains with the original author in the same issue; other Parts source pass found no remaining owned control gap."
+        "state": "Exact TS board-origin Assembly X/Y placement and accepted Part-mode selection callback joined; combined source compile passes. All bounded source passes now return existing pointers; final behavior/cross-workflow joins remain."
       }
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Join the existing Assembly direct board X/Y action when ready; no new planning approval, duplicate ticket or audit receipt.",
-      "Compile next changed joined source before packaging.34773 remains available while authoring continues.",
-      "Later qualify changed public journeys and conduct one consolidated Sol review. Preserve every parent criterion and RF history."
+      "Package the larger compiled Assembly/encoder source; preserve34773 while the new candidate is built.",
+      "Later qualify changed public journeys and conduct one consolidated Sol review, reusing unchanged evidence.",
+      "Preserve every parent criterion, historical blocker and RF finding; source presence/compilation/package are not acceptance."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
