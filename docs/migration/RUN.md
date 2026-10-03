@@ -2,7 +2,7 @@
 
 Current active checkpoint: [frontend run state](dioxus-frontend-v1-run.json), field `current_progress`, is the authoritative source for served build, parent counts, verified journeys and current queues. Layout-first delivery and six workbench streams continue under the reduced verification policy in [CONSTRAINTS.md](../../CONSTRAINTS.md).
 
-Current parent accounting (2026-10-03): **3 accepted / 36 implementing / 23 planned / 62 total**. F7.2 authored Case editing is accepted from the consolidated34763 review and representative paired workflows. Layout-first work and the architecture/refactoring ledger continue; use the authoritative record above for current source and queues.
+Current parent accounting (2026-10-03): **4 accepted / 35 implementing / 23 planned / 62 total**. F7.2 authored Case editing and F6K.3 structured macros are accepted from consolidated reviews and sufficient paired workflows. Layout-first work and the architecture/refactoring ledger continue; use the authoritative record above for current source and queues.
 
 ## Historical checkpoint — 2026-10-02, combined source freeze
 

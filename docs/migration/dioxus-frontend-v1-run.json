@@ -1273,11 +1273,11 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T11:40:12.031449+00:00",
+    "updated_at": "2026-10-03T11:47:14.995948+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
-      "accepted": 3,
-      "implementing": 36,
+      "accepted": 4,
+      "implementing": 35,
       "planned": 23,
       "total": 62
     },
@@ -1299,8 +1299,8 @@
       "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34765-20261003/package-proof.json"
     },
     "integration": {
-      "source_commit": "17ba32b984c13f3621a2145efe1dd478862ab5cd",
-      "state": "34765 served and source/asset proof complete. Freeze released; next isolated source may join serially. Changed Layout findings, PCB module placement, VIK center preview, Case context, Keycaps disclosure and footprint ZIP journeys assigned in parallel.",
+      "source_commit": "7f34359c",
+      "state": "34765 served. Case selection and Keycaps disclosure/finding navigation/VIK preview changed paths GREEN; PCBdraft\u2192Save/reopenGREEN but actualUndoInspectorstale RED underrepair. Nextsourcejoined Board/Geometrylogicaldrafts/header/UUID4f63, LayoutfindingsCSS7f343, Exportworker token47c292. Export Corefilenamecollision regression/fix assigned. No nextsourcepackage claimed.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1958,7 +1958,14 @@
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "heavy_slots": {
       "policy": "Coordinator assigned; maximum2 heavy jobs/1package",
-      "active": [],
+      "active": [
+        {
+          "kind": "focused Core regression",
+          "owner": "keycaps_geometry_repair",
+          "scope": "Standalone footprint filename collision RED/GREEN only",
+          "slot_authorized_at": "2026-10-03T11:47:14.995948+00:00"
+        }
+      ],
       "check": {
         "source_commit": "96ab3eb0",
         "log": ".scratch/dioxus-frontend-v1/evidence/candidate-34765-20261003/frontend-context-findings-footprints-combined-check-green.log",
@@ -2318,6 +2325,19 @@
         "scope": "F7.2 only. F7.4 generated-stack settings, F7.7 physical-instance handoff, full Case and export/provider qualifications remain open. No exhaustive every-field/theme/race matrix claimed.",
         "approved_deviation": "Escape restores the accepted Dioxus numeric draft, correcting the confirmed React retained-draft bug; accepted document data is unchanged in both.",
         "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json"
+      },
+      {
+        "parent": "F6K.3",
+        "at": "2026-10-03T11:47:14.995948+00:00",
+        "candidate_source": "17ba32b984c13f3621a2145efe1dd478862ab5cd",
+        "candidate_url": "http://127.0.0.1:34765/boardstudio/",
+        "review": ".scratch/dioxus-frontend-v1/evidence/keymap-f6k3-acceptance-20261003/REVIEW.md",
+        "review_sha256": "54f57112fe47a6c0ecf4b3f093f6111af8d3c5ee6aa10da5e9b4850306ca19e7",
+        "audit": ".scratch/dioxus-frontend-v1/evidence/keymap-f6k3-acceptance-20261003/AUDIT.json",
+        "audit_sha256": "c50e970508fb29b8e979cec494dc4d1f880b558b6873e248a13206c4ab4d9973",
+        "criteria_accounting": ".scratch/dioxus-keymap-layers/evidence/keymap-frontier-audit-20261003/criterion-accounting.md",
+        "scope": "F6K.3 only; F6K.1/2/4, full F6 and historical child limits remain. No new tests, byte-identical ZIP claim, or cutover.",
+        "decision": "Accepted under unchanged canonical structured-macro criteria; representative paired public/core proof and source qualification sufficient. Parent joins and history preserved."
       }
     ]
   }

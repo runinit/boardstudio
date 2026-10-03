@@ -859,6 +859,13 @@
           "mitigation": "ActiveLayout correction separates logical draft identity from latest render/request capture, scopes Script selection/drafts to document/session and checks entity-ID uniqueness before append. No second document owner.",
           "post_port_follow_up": "Consider small typed admission/draft identity and persistent entity allocation interfaces; characterize refresh versus switch boundaries before centralizing. Preserve workspace semantic target validation.",
           "status": "Confirmedsource defects; correction/changedcandidateGREEN pending, no parent closure."
+        },
+        {
+          "source": "PCBmountedInspector4d8/96ab, consolidated34765 review and actualchangedUndojourney",
+          "observation": "An accepted-instance effect read the draft Signal it resets, creating a self-subscription that can discard edits. Scope-less module mount identity also retained cross-owner drafts. After fixing self-subscription and using completeScope+module key, actual Save/reopen works but Undo leaves a stale visible draft; synchronization must use accepted changes without subscribing to local edits.",
+          "mitigation": "96ab uses peek and completeScope mount key; author repairing reproduced Undo projection mismatch. Existing Core/Session edit and history remains authoritative.",
+          "post_port_follow_up": "Define accepted-baseline synchronization and transient draft ownership explicitly before centralizing form lifecycle helpers. Reuse typed scope and admission instead of independent parameter lists/keys.",
+          "status": "Source finding corrected; actualUndoRED underfocusedrepair, no PCBparentacceptance."
         }
       ]
     },

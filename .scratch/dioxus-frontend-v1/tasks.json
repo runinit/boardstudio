@@ -1523,7 +1523,7 @@
       "acceptance_after": [
         "INT.2"
       ],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
@@ -1545,6 +1545,12 @@
           "from": "planned",
           "to": "implementing",
           "reason": "Reconcile verified mounted source/bounded evidence; preserve all parent acceptance criteria."
+        },
+        {
+          "at": "2026-10-03T11:47:14.995948+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Unchanged canonical criteria covered by sufficient retained paired macro CRUD/history/reopen/ZMK journeys, unchanged source/Core boundary proof and consolidated Sol current34765 readiness decision. INT.2 join accepted; no extra ceiling/race corpus imposed."
         }
       ],
       "progress_evidence": [
@@ -1555,7 +1561,18 @@
           "result": "Macro creation/rename/timings/ordered steps/history/reopen are mounted with retained actual evidence; generated ZMK and remaining error/race criteria remain.",
           "acceptance": "No full-parent acceptance claimed."
         }
-      ]
+      ],
+      "acceptance_record": {
+        "at": "2026-10-03T11:47:14.995948+00:00",
+        "candidate_source": "17ba32b984c13f3621a2145efe1dd478862ab5cd",
+        "candidate_url": "http://127.0.0.1:34765/boardstudio/",
+        "review": ".scratch/dioxus-frontend-v1/evidence/keymap-f6k3-acceptance-20261003/REVIEW.md",
+        "review_sha256": "54f57112fe47a6c0ecf4b3f093f6111af8d3c5ee6aa10da5e9b4850306ca19e7",
+        "audit": ".scratch/dioxus-frontend-v1/evidence/keymap-f6k3-acceptance-20261003/AUDIT.json",
+        "audit_sha256": "c50e970508fb29b8e979cec494dc4d1f880b558b6873e248a13206c4ab4d9973",
+        "criteria_accounting": ".scratch/dioxus-keymap-layers/evidence/keymap-frontier-audit-20261003/criterion-accounting.md",
+        "scope": "F6K.3 only; F6K.1/2/4, full F6 and historical child limits remain. No new tests, byte-identical ZIP claim, or cutover."
+      }
     },
     {
       "id": "F6K.4",
