@@ -152,3 +152,7 @@ review; no self-approval or F7.1 slice acceptance is implied.
 **Parent graph:** Canonical F7.1 `Start after: none`; `Acceptance joins: none`. F7.3 starts after F7.1. Its canonical `Acceptance joins` are INT.2 and BND.1; they do not block fixture-backed F7.3 implementation. All other F7 joins remain unchanged.
 
 **Suggested routing:** Luna High author and verifier; dedicated Astra review because the task establishes a renderer boundary used by several workflows.
+
+### Current implementation reachability — 2026-10-03
+
+On packaged source `733c1da2abede39a617d2eca2e42d9bd437cea41`, `web/src/main.rs` declares private page modules `presentation` and `renderer_host_page`; `presentation/shared_viewer.rs` imports `crate::renderer_host_page::RendererPageHost`. The latter includes the page-owned base/extensions, so this consumer does not attempt to call a library-only `pub(crate)` method. The existing `frontend-module-attachment-repair-20261003` package proof at `.scratch/dioxus-frontend-v1/evidence/frontend-module-attachment-repair-20261003/package-proof.json` records the successful page compiler/package for these inputs. This confirms F7.1-C06's actual same-crate reachability; it does not qualify other viewer behavior or accept F7.1 as a whole.

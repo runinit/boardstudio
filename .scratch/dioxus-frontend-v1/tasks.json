@@ -4280,16 +4280,18 @@
         {
           "id": "F5.6-C02",
           "requirement": "Case Objects lets the user select a physical assembly instance with its associated board scope.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/case_workspace.rs:324",
             "web/src/presentation/case_workspace.rs:340",
             "web/src/presentation/case_workspace.rs:592"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/case/receipt.md"
+          ],
           "blockers": [],
-          "next_action": "Qualify instance switching on a paired split fixture and verify board-scoped state remains attached to the selected physical instance.",
+          "next_action": "Retain paired valid-Sofle keyboard/mouse Left/Right selection and exact associated-board context through reload. Broader retained controller and changed-flip viewer joins remain C04/C05.",
           "finish_condition": "Paired journey selects each assembly by mouse and keyboard and verifies its exact instance and board scope.",
           "owned_files": [
             "web/src/presentation/case_workspace.rs",
@@ -4340,7 +4342,7 @@
             ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/case/receipt.md"
           ],
           "blockers": [],
-          "next_action": "Use the same paired physical-instance journey to qualify identity and retained-state behavior through switching, Undo/Redo and reload.",
+          "next_action": "Reuse C03 association/flip history plus paired valid-Sofle shared CNC method history/reload and retained distinct Left/Right PCB/wired context. Remaining: prove retained controller-specific state and stable physical IDs from accepted archive; shared mechanical setting is not a per-instance edit.",
           "finish_condition": "Paired public evidence confirms stable instance identity and retained board/controller/mechanical state across history and reload.",
           "owned_files": [
             "web/src/physical_setup.rs",
@@ -4355,7 +4357,7 @@
         {
           "id": "F5.6-C05",
           "requirement": "F7 consumes the existing physical instances in the shared viewer as joint integration evidence.",
-          "state": "unassessed",
+          "state": "implemented",
           "classification": "release",
           "sources": [
             "web/src/presentation/pcb_physical_setup.rs"
@@ -4366,7 +4368,7 @@
           "blockers": [
             "F7.7"
           ],
-          "next_action": "The exact left/U1/P2 / LEFT_SW25_ENCODER-PUSH preview error reproduces on the unchanged fixture before any edit at34780 (existing Case receipt); it is not a reassociation regression. Qualify the remaining shared-preview/setup journey on an electrically valid fixture, retaining baseline evidence and broader F7 joins.",
+          "next_action": "Paired valid Sofle shows current geometry for selected Left/Right with corresponding board/unchecked flip controls after reload. Changed-flip geometry and broader F7.7 joins remain; prior fixture preview error is separately explained.",
           "finish_condition": "F7.7 paired evidence shows the accepted selected physical instance and its board/flip in the shared viewer.",
           "owned_files": [
             "web/src/presentation/pcb_physical_setup.rs"
@@ -6259,7 +6261,7 @@
         {
           "id": "F7.1-C06",
           "requirement": "Prove page-binary versus boardstudio_web crate reachability and use a private same-crate placement or already-sufficient public API.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
@@ -6267,10 +6269,11 @@
             "web/src/presentation/shared_viewer.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-shared-viewer/evidence/source-contract-reviewed-20261002/reviewed-contract.md"
+            ".scratch/dioxus-shared-viewer/evidence/source-contract-reviewed-20261002/reviewed-contract.md",
+            ".scratch/dioxus-frontend-v1/evidence/frontend-module-attachment-repair-20261003/package-proof.json"
           ],
           "blockers": [],
-          "next_action": "Confirm the current consumer call path in the next assigned combined compiler/package receipt; do not use compilation as parent acceptance.",
+          "next_action": "Retain actual private page-module import path and current successful compiler/package evidence. Other shared-viewer behavior and F7.1-C04 scope joins remain separate.",
           "finish_condition": "Actual page binary reaches its private adapters without widening a library method.",
           "owned_files": [
             "web/src/renderer_host_page.rs",
