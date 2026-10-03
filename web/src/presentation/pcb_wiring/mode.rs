@@ -30,6 +30,9 @@ pub(in crate::presentation) enum BoardWiringModeFeedback {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::presentation) struct BoardWiringModeFeedbackView {
     pub target: BoardWiringModeFeedbackTarget,
+    /// Pending and failed results stay tied to the accepted plan that requested them.
+    /// Successful save feedback may survive the accepted plan's revision advance.
+    pub request_plan: WiringPlanIdentity,
     pub state: BoardWiringModeFeedback,
 }
 
@@ -127,6 +130,7 @@ pub(in crate::presentation) fn use_board_wiring_mode_edits(
             };
             feedback.set(Some(BoardWiringModeFeedbackView {
                 target: waiting.request.identity.feedback_target(),
+                request_plan: waiting.request.identity.plan.clone(),
                 state,
             }));
         }
@@ -177,6 +181,7 @@ pub(in crate::presentation) fn use_board_wiring_mode_edits(
             }));
             feedback.set(Some(BoardWiringModeFeedbackView {
                 target: request.identity.feedback_target(),
+                request_plan: request.identity.plan.clone(),
                 state: BoardWiringModeFeedback::Pending,
             }));
             runtime.submit(Event::Edit {
@@ -214,7 +219,13 @@ pub(in crate::presentation) fn use_board_wiring_mode_edits(
     let feedback_target = identity
         .as_ref()
         .map(BoardWiringModeIdentity::feedback_target);
-    let feedback = feedback().filter(|item| feedback_target.as_ref() == Some(&item.target));
+    let feedback = feedback().filter(|item| {
+        feedback_target.as_ref() == Some(&item.target)
+            && (matches!(&item.state, BoardWiringModeFeedback::Saved)
+                || identity
+                    .as_ref()
+                    .is_some_and(|identity| identity.plan == item.request_plan))
+    });
     BoardWiringModeActions {
         identity,
         editable,

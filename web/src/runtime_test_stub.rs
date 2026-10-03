@@ -34,6 +34,10 @@ impl Runtime {
         self.scope.borrow().clone()
     }
 
+    pub(crate) fn set_scope(&self, scope: Option<Scope>) {
+        *self.scope.borrow_mut() = scope;
+    }
+
     pub(crate) fn electrical_preview_executor_epoch(&self) -> u64 {
         self.executor_epoch.get()
     }

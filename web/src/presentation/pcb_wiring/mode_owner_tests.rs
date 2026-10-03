@@ -9,7 +9,7 @@ use boardstudio_application::{
 };
 use boardstudio_core::{
     electrical::ElectricalMode,
-    model::{Board, EditOperation, ProjectDoc, Readiness, SceneDelta},
+    model::{Board, EditOperation, Part, Pose2, ProjectDoc, Readiness, SceneDelta, Side, Vec2},
 };
 use dioxus::prelude::*;
 use std::{
@@ -102,6 +102,31 @@ fn document() -> ProjectDoc {
         id: "left".into(),
         name: "Left".into(),
         outline_ids: vec![],
+        part_ids: vec!["switch".into()],
+        net_ids: vec![],
+        thickness: 1.6,
+        traces: vec![],
+        vias: vec![],
+    });
+    document.parts.push(Part {
+        id: "switch".into(),
+        definition_id: "switch-definition".into(),
+        reference: "SW1".into(),
+        pose: Pose2 {
+            at: Vec2 { x: 0.0, y: 0.0 },
+            rotation: 0.0,
+        },
+        side: Side::Front,
+        locked: None,
+        keycap: None,
+        outline: None,
+        properties: None,
+        generator_parameters: None,
+    });
+    document.boards.push(Board {
+        id: "right".into(),
+        name: "Right".into(),
+        outline_ids: vec![],
         part_ids: vec![],
         net_ids: vec![],
         thickness: 1.6,
@@ -116,7 +141,7 @@ fn scope() -> Scope {
         session_epoch: SessionEpoch(3),
         document_id: "project".into(),
         board_id: "left".into(),
-        instance_id: Some("primary".into()),
+        instance_id: None,
     }
 }
 
@@ -126,9 +151,9 @@ fn model(document: ProjectDoc, token: u64) -> ReadModel {
         lifecycle: Lifecycle::Ready,
         durability: Durability::Saved { revision },
         accepted: Some(accepted(document, token)),
-        selected_part_ids: vec!["controller".into()],
+        selected_part_ids: vec![],
         active_board_id: "left".into(),
-        active_instance_id: Some("primary".into()),
+        active_instance_id: None,
         ..Default::default()
     }
 }
@@ -158,11 +183,11 @@ fn source(
 }
 
 fn mounted() -> (Probe, VirtualDom) {
-    let plan_identity = source(1, 0, Some("controller"), 5).identity;
+    let plan_identity = source(1, 0, None, 5).identity;
     let runtime = crate::runtime::Runtime::new(model(document(), 1), scope());
     let probe = Probe {
         runtime,
-        source: Rc::new(RefCell::new(source(1, 0, Some("controller"), 5))),
+        source: Rc::new(RefCell::new(source(1, 0, None, 5))),
         resolution: Rc::new(RefCell::new(PcbWiringResolution::Current {
             identity: plan_identity,
         })),
@@ -238,7 +263,7 @@ fn mounted_owner_submits_one_current_edit_and_retains_saved_feedback_after_revis
 
     proposal.revision = 1;
     *probe.runtime.model.borrow_mut() = model(proposal.clone(), 2);
-    *probe.source.borrow_mut() = source(2, 1, Some("controller"), 5);
+    *probe.source.borrow_mut() = source(2, 1, None, 5);
     *probe.resolution.borrow_mut() = PcbWiringResolution::Current {
         identity: probe.source.borrow().identity.clone(),
     };
@@ -291,6 +316,123 @@ fn mounted_owner_rejects_a_retained_control_after_selection_changes() {
     flush(&mut dom);
     old_actions.on_change.call(old_request);
     assert!(probe.runtime.events.borrow().is_empty());
+}
+
+#[test]
+fn mounted_owner_rejects_retained_controls_after_each_source_identity_change() {
+    // Each iteration starts from the legal, current board-context fixture and then changes
+    // exactly one admission dimension while retaining the old callback.
+    for changed in [
+        "project",
+        "session",
+        "board",
+        "revision",
+        "workspace",
+        "generation",
+    ] {
+        let (probe, mut dom) = mounted();
+        let old_actions = probe.latest.borrow().as_ref().unwrap().clone();
+        let old_request = BoardWiringModeEditRequest {
+            identity: old_actions.identity.clone().unwrap(),
+            mode: ElectricalMode::Direct,
+        };
+        match changed {
+            "project" => {
+                let mut model = probe.runtime.model.borrow_mut();
+                model.accepted.as_mut().unwrap().document = std::sync::Arc::new({
+                    let mut document = document();
+                    document.id = "other-project".into();
+                    document
+                });
+                probe.runtime.set_scope(Some(Scope {
+                    document_id: "other-project".into(),
+                    ..scope()
+                }));
+            }
+            "session" => {
+                probe
+                    .runtime
+                    .model
+                    .borrow_mut()
+                    .accepted
+                    .as_mut()
+                    .unwrap()
+                    .session_epoch = SessionEpoch(4);
+                probe.runtime.set_scope(Some(Scope {
+                    session_epoch: SessionEpoch(4),
+                    ..scope()
+                }));
+            }
+            "board" => {
+                probe.runtime.model.borrow_mut().active_board_id = "right".into();
+                probe.runtime.set_scope(Some(Scope {
+                    board_id: "right".into(),
+                    ..scope()
+                }));
+            }
+            "revision" => {
+                let mut model = probe.runtime.model.borrow_mut();
+                let accepted = model.accepted.as_mut().unwrap();
+                let mut document = (*accepted.document).clone();
+                document.revision = 1;
+                accepted.document = std::sync::Arc::new(document);
+                accepted.token = SnapshotToken(2);
+                model.durability = Durability::Saved { revision: 1 };
+            }
+            "workspace" => probe.workspace.set("Layout"),
+            "generation" => {
+                probe.generation.set(6);
+            }
+            _ => unreachable!(),
+        }
+        flush(&mut dom);
+        old_actions.on_change.call(old_request);
+        assert!(
+            probe.runtime.events.borrow().is_empty(),
+            "retained callback submitted after {changed} changed"
+        );
+    }
+}
+
+#[test]
+fn failed_feedback_is_hidden_after_accepted_plan_identity_advances() {
+    let (probe, mut dom) = mounted();
+    probe
+        .latest
+        .borrow()
+        .as_ref()
+        .unwrap()
+        .on_change
+        .call(request(&probe, ElectricalMode::Direct));
+    let (operation, _) = submitted(&probe);
+    assert!(
+        probe
+            .runtime
+            .settle(operation, TerminalOutcome::Rejected("stale".into()))
+    );
+    tick(&probe, &mut dom);
+    assert!(matches!(
+        probe
+            .latest
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .feedback
+            .as_ref()
+            .unwrap()
+            .state,
+        BoardWiringModeFeedback::Failed(_)
+    ));
+
+    let mut updated = document();
+    updated.revision = 1;
+    *probe.runtime.model.borrow_mut() = model(updated, 2);
+    *probe.source.borrow_mut() = source(2, 1, None, 5);
+    *probe.resolution.borrow_mut() = PcbWiringResolution::Current {
+        identity: probe.source.borrow().identity.clone(),
+    };
+    tick(&probe, &mut dom);
+    assert!(probe.latest.borrow().as_ref().unwrap().feedback.is_none());
 }
 
 #[test]
