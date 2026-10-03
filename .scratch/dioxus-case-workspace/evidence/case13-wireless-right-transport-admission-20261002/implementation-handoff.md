@@ -1,8 +1,8 @@
 # Case13 Right wireless transport admission handoff
 
-Date: 2026-10-02  
-Branch: `codex/case13-wireless-right-20261002`  
-Base: `61a81cc2bbaa7546e6e1452d3bf7b3735cd4f365`  
+Date: 2026-10-02
+Branch: `codex/case13-wireless-right-20261002`
+Base: `61a81cc2bbaa7546e6e1452d3bf7b3735cd4f365`
 Scope: private Case physical-setup action ownership in `web/src/presentation.rs`.
 
 ## Confirmed behavior and diagnosis
@@ -34,7 +34,7 @@ cargo clippy --manifest-path web/Cargo.toml --target wasm32-unknown-unknown --no
 git diff --check
 ```
 
-All three returned success after the final source change. A later repeat of the browser-WASM regression stalled in the shared Chromium runner before producing test output and was interrupted; the previously completed red/green run remains the focused runtime evidence. This isolate has not yet been rebuilt into a fresh public candidate, and the post-fix browser repro, accepted archive persistence, Undo/Redo, and reopen journey remain open for independent review/verification.
+The strict Clippy output is preserved in `clippy-green.log` (SHA-256 `8b1fd2394f7b6f177ede882431154a419bd9f404f00add314c912e91a7fc0ec0`). The focused post-fix browser-WASM output is preserved in `owner-green.log` (SHA-256 `682b639c9757e5712fb883cf89fb20b36e4ed40c2c9ea3aa417e50956e9c6543`); it reports 1 passed, 0 failed. The test result completed, though the shared runner needed an interrupt during cleanup and therefore its shell exit was 130. Rustfmt, JSON parse and diff checks pass. The original red output was observed during implementation but was not preserved to a file, so there is no red-log path/hash to report. This isolate has not yet been rebuilt into a fresh public candidate, and the post-fix browser repro, accepted archive persistence, Undo/Redo, and reopen journey remain open for independent review/verification.
 
 ## Review and RF-006 disposition
 
