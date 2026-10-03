@@ -12,8 +12,6 @@ use wasm_bindgen::JsCast;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LayoutComponentInspectorOwnerKey {
     pub scope: Option<Scope>,
-    pub snapshot_token: Option<SnapshotToken>,
-    pub revision: Option<u64>,
     pub workspace: &'static str,
     pub part_id: Option<String>,
 }
@@ -141,10 +139,21 @@ enum ConstraintKind {
 pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element {
     let projection = props.projection.clone();
     let owner = projection.owner.clone();
-    let identity = format!(
-        "{:?}/{:?}/{}/{}/{}",
-        owner.scope, owner.snapshot_token, owner.revision, owner.context_generation, owner.part_id
+    // Selection lifetime is independent from the accepted snapshot. A newer
+    // accepted revision must refresh action admission without discarding
+    // unrelated dirty fields or the user's selected Inspector tab.
+    let identity = (
+        owner.scope.clone(),
+        owner.context_generation,
+        owner.scope_generation,
+        owner.part_id.clone(),
     );
+    let capture_identity = (identity.clone(), owner.snapshot_token, owner.revision);
+    let mut latest_capture = use_signal(|| owner.clone());
+    use_effect(use_reactive((&capture_identity,), {
+        let owner = owner.clone();
+        move |_| latest_capture.set(owner.clone())
+    }));
     let mut tab = use_signal(|| InspectorTab::Properties);
     let mut constraint_open = use_signal(|| projection.active_constraint.is_some());
     let mut x = use_signal(|| format!("{:.2}", projection.position.x));
@@ -200,27 +209,39 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
     let initial_position = projection.position;
     let initial_outline = projection.outline.clone();
     let initial_constraint = projection.active_constraint.clone();
+    let has_initial_constraint = initial_constraint.is_some();
     let board_parts = projection.board_parts.clone();
     let part_id = owner.part_id.clone();
     use_effect(use_reactive((&identity,), {
         move |_| {
             tab.set(InspectorTab::Properties);
-            constraint_open.set(initial_constraint.is_some());
-            x.set(format!("{:.2}", initial_position.x));
-            y.set(format!("{:.2}", initial_position.y));
-            margin.set(
-                initial_outline
-                    .margin
-                    .map(|value| value.to_string())
-                    .unwrap_or_default(),
-            );
-            let constraint = initial_constraint.as_ref();
+            constraint_open.set(has_initial_constraint);
+            error.set(None);
+        }
+    }));
+    let accepted_x = (identity.clone(), initial_position.x);
+    use_effect(use_reactive((&accepted_x,), move |((_, value),)| {
+        x.set(format!("{value:.2}"));
+    }));
+    let accepted_y = (identity.clone(), initial_position.y);
+    use_effect(use_reactive((&accepted_y,), move |((_, value),)| {
+        y.set(format!("{value:.2}"));
+    }));
+    let accepted_margin = (identity.clone(), initial_outline.margin);
+    use_effect(use_reactive((&accepted_margin,), move |((_, value),)| {
+        margin.set(value.map(|value| value.to_string()).unwrap_or_default());
+    }));
+    let accepted_constraint = (identity.clone(), initial_constraint.clone());
+    use_effect(use_reactive((&accepted_constraint,), {
+        move |((_, constraint),)| {
+            constraint_open.set(constraint.is_some());
             constraint_kind.set(if matches!(constraint, Some(Constraint::Mirror { .. })) {
                 ConstraintKind::Mirror
             } else {
                 ConstraintKind::Offset
             });
             let source = constraint
+                .as_ref()
                 .map(Constraint::source)
                 .filter(|source| board_parts.iter().any(|part| part.id == *source))
                 .map(str::to_owned)
@@ -265,7 +286,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
     }));
 
     let commit_position: Rc<dyn Fn(ComponentPositionAxis)> = {
-        let owner = owner.clone();
+        let latest_capture = latest_capture;
         let position = projection.position;
         let action = props.on_action;
         let error = error;
@@ -286,7 +307,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
             error.set(None);
             if value != current {
                 action.call(LayoutComponentInspectorAction::SetPosition {
-                    owner: owner.clone(),
+                    owner: latest_capture(),
                     axis,
                     value,
                 });
@@ -294,21 +315,22 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         })
     };
     let set_outline: Rc<dyn Fn(PartOutline)> = {
-        let owner = owner.clone();
+        let latest_capture = latest_capture;
         let action = props.on_action;
         Rc::new(move |outline| {
             action.call(LayoutComponentInspectorAction::SetOutline {
-                owner: owner.clone(),
+                owner: latest_capture(),
                 outline,
             })
         })
     };
     let save_constraint = {
-        let owner = owner.clone();
+        let latest_capture = latest_capture;
         let action = props.on_action;
         let mut error = error;
         move |_| {
             let source = source_part_id();
+            let owner = latest_capture();
             if source.is_empty() || source == owner.part_id {
                 error.set(Some("Choose another part on this board.".to_owned()));
                 return;
@@ -360,12 +382,12 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         .as_ref()
         .map(|constraint| constraint.id().to_owned());
     let remove_constraint = {
-        let owner = owner.clone();
+        let latest_capture = latest_capture;
         let action = props.on_action;
         move |_| {
             if let Some(constraint_id) = active_constraint_id.as_ref() {
                 action.call(LayoutComponentInspectorAction::RemoveConstraint {
-                    owner: owner.clone(),
+                    owner: latest_capture(),
                     constraint_id: constraint_id.clone(),
                 });
             }
@@ -404,10 +426,10 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                             aria_label: "Component layout",
                             value: projection.layout_id.as_deref().unwrap_or(""),
                             onchange: {
-                                let owner = owner.clone();
+                                let latest_capture = latest_capture;
                                 let action = props.on_action;
                                 move |event: FormEvent| action.call(LayoutComponentInspectorAction::AssignLayout {
-                                    owner: owner.clone(),
+                                    owner: latest_capture(),
                                     layout_id: (!event.value().is_empty()).then_some(event.value()),
                                 })
                             },
@@ -545,8 +567,8 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                 }
                 if let Some(message) = error() { p { role: "alert", "{message}" } }
                 button { class: "m1-layout-component-electrical", r#type: "button", onclick: {
-                    let owner = owner.clone(); let action = props.on_action;
-                    move |_| action.call(LayoutComponentInspectorAction::NavigateElectrical { owner: owner.clone() })
+                    let latest_capture = latest_capture; let action = props.on_action;
+                    move |_| action.call(LayoutComponentInspectorAction::NavigateElectrical { owner: latest_capture() })
                 }, "Edit electrical connections" }
             } else {
                 h2 { "Relationships" }

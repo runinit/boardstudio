@@ -1145,11 +1145,9 @@ fn layout_component_inspector_owner_key(
     else {
         return None;
     };
-    let snapshot = model.accepted.as_ref()?;
+    model.accepted.as_ref()?;
     Some(inspector::LayoutComponentInspectorOwnerKey {
         scope: Some(selected.scope.clone()),
-        snapshot_token: Some(snapshot.token),
-        revision: Some(snapshot.document.revision),
         workspace,
         part_id: Some(part_id.clone()),
     })

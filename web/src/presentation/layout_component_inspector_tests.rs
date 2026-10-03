@@ -320,6 +320,36 @@ impl MountedProbe {
         self.runtime
             .set_layout_component_inspector_test_state(model.clone(), Some(scope));
     }
+
+    fn accept_unrelated_revision(&self) -> u64 {
+        let mut model = self.model.borrow_mut();
+        let snapshot = model.accepted.as_mut().expect("fixture snapshot");
+        let document = Arc::make_mut(&mut snapshot.document);
+        document.revision += 1;
+        document
+            .parameters
+            .insert("unrelated-inspector-edit".into(), serde_json::json!(42));
+        document
+            .parts
+            .iter_mut()
+            .find(|part| part.id == "selected-part")
+            .expect("selected fixture part")
+            .pose
+            .at
+            .y += 1.0;
+        let revision = document.revision;
+        Arc::make_mut(&mut snapshot.scene).revision = revision;
+        snapshot.token = SnapshotToken(snapshot.token.0 + 1);
+        let scope = Scope {
+            session_epoch: snapshot.session_epoch,
+            document_id: snapshot.document.id.clone(),
+            board_id: model.active_board_id.clone(),
+            instance_id: model.active_instance_id.clone(),
+        };
+        self.runtime
+            .set_layout_component_inspector_test_state(model.clone(), Some(scope));
+        revision
+    }
 }
 
 #[component]
@@ -388,12 +418,14 @@ fn mounted_component_inspector_host() -> Element {
     let restore_probe = probe.clone();
     let component_probe = probe.clone();
     let clear_probe = probe.clone();
+    let refresh_probe = probe.clone();
     rsx! {
         style { {include_str!("../../assets/m1.css")} }
         button { id: "component-inspector-select-source", onclick: { let mut generation = render_generation; move |_| { switch_probe.select(Some("source-part")); generation += 1; } }, "Select source" }
         button { id: "component-inspector-select-original", onclick: { let mut generation = render_generation; move |_| { restore_probe.select(Some("selected-part")); generation += 1; } }, "Select original" }
         button { id: "component-inspector-select-component", onclick: { let mut generation = render_generation; move |_| { component_probe.select_component_from_finding("selected-part"); generation += 1; } }, "Select component from finding" }
         button { id: "component-inspector-clear", onclick: { let mut generation = render_generation; move |_| { clear_probe.select(None); generation += 1; } }, "Clear selection" }
+        button { id: "component-inspector-unrelated-refresh", onclick: { let mut generation = render_generation; move |_| { refresh_probe.accept_unrelated_revision(); generation += 1; } }, "Accept unrelated revision" }
         if let Some(projection) = projection {
             LayoutComponentInspector { projection, on_action: action_handler }
         }
@@ -704,6 +736,134 @@ async fn mounted_component_margin_enter_commits_and_escape_restores_the_accepted
             .runtime
             .take_layout_component_inspector_test_events()
             .is_empty()
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_component_drafts_survive_unrelated_acceptance_and_blur_uses_latest_owner() {
+    let (probe, root) = mounted_probe("layout-component-inspector-refresh-test-root");
+    settle_component_inspector().await;
+    let document = web_sys::window().unwrap().document().unwrap();
+    let input = |label: &str| {
+        document
+            .query_selector(&format!("#{} input[aria-label='{label}']", probe.root_id))
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap()
+    };
+    let type_value = |field: &web_sys::HtmlInputElement, value: &str| {
+        field.focus().unwrap();
+        field.set_value(value);
+        let init = web_sys::EventInit::new();
+        init.set_bubbles(true);
+        field
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap())
+            .unwrap();
+    };
+
+    type_value(&input("X mm"), "7.25");
+    type_value(&input("Y mm"), "99.0");
+    click_component_inspector(probe.root_id, ".m1-layout-component-outline summary");
+    settle_component_inspector().await;
+    type_value(&input("Part edge margin"), "5.5");
+    click_component_inspector(probe.root_id, ".m1-layout-component-constraint summary");
+    settle_component_inspector().await;
+    type_value(&input("Offset X (mm)"), "8.5");
+    click_component_inspector(probe.root_id, "button[role='tab']:nth-child(2)");
+    settle_component_inspector().await;
+
+    let accepted_revision = probe
+        .model
+        .borrow()
+        .accepted
+        .as_ref()
+        .unwrap()
+        .document
+        .revision
+        + 1;
+    let initial_context_generation = probe
+        .projection
+        .borrow()
+        .as_ref()
+        .unwrap()
+        .owner
+        .context_generation;
+    click_component_inspector(probe.root_id, "#component-inspector-unrelated-refresh");
+    settle_component_inspector().await;
+    assert_eq!(
+        probe.projection.borrow().as_ref().unwrap().owner.revision,
+        accepted_revision
+    );
+    assert_eq!(
+        probe
+            .projection
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .owner
+            .context_generation,
+        initial_context_generation,
+        "accepted revision changes refresh the capture without ending the selected component lifetime"
+    );
+    assert_eq!(
+        document
+            .query_selector(&format!(
+                "#{} button[role='tab']:nth-child(2)",
+                probe.root_id
+            ))
+            .unwrap()
+            .unwrap()
+            .get_attribute("aria-selected")
+            .as_deref(),
+        Some("true"),
+        "the selected Relations tab must survive unrelated accepted revisions"
+    );
+    click_component_inspector(probe.root_id, "button[role='tab']:nth-child(1)");
+    settle_component_inspector().await;
+    click_component_inspector(probe.root_id, ".m1-layout-component-outline summary");
+    settle_component_inspector().await;
+    assert_eq!(input("X mm").value(), "7.25");
+    assert_eq!(input("Y mm").value(), "4.00");
+    assert_eq!(input("Part edge margin").value(), "5.5");
+    assert_eq!(input("Offset X (mm)").value(), "8.5");
+    assert!(
+        document
+            .query_selector(&format!(
+                "#{} .m1-layout-component-constraint",
+                probe.root_id
+            ))
+            .unwrap()
+            .unwrap()
+            .has_attribute("open"),
+        "the constraint editor disclosure state must survive an unrelated accepted revision"
+    );
+
+    let _ = probe.runtime.take_layout_component_inspector_test_events();
+    let margin_field = input("Part edge margin");
+    margin_field.focus().unwrap();
+    let enter = web_sys::KeyboardEventInit::new();
+    enter.set_key("Enter");
+    enter.set_bubbles(true);
+    margin_field
+        .dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
+        )
+        .unwrap();
+    settle_component_inspector().await;
+    let events = probe.runtime.take_layout_component_inspector_test_events();
+    assert!(
+        matches!(
+            events.as_slice(),
+            [boardstudio_application::Event::Edit { command, .. }]
+                if command.base_revision == accepted_revision
+                    && matches!(&command.operation, boardstudio_core::model::EditOperation::ReplaceDocument { document }
+                        if document.parts.iter().find(|part| part.id == "selected-part").and_then(|part| part.outline.as_ref()).and_then(|outline| outline.margin) == Some(5.5)
+                            && document.parts.iter().find(|part| part.id == "selected-part").is_some_and(|part| part.pose.at.y == 4.0)
+                            && document.parameters.get("unrelated-inspector-edit") == Some(&serde_json::json!(42)))
+        ),
+        "blur must commit the preserved draft against the latest accepted base and document: {events:?}"
     );
     root.remove();
 }
