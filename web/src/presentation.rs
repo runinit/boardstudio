@@ -410,13 +410,14 @@ pub fn App() -> Element {
     use_context_provider(|| adapter.clone());
     let mut workspace = use_signal(|| "Layout");
     use_context_provider(|| WorkspaceState(workspace));
-    let return_workspace = use_signal(|| "Layout");
+    let mut return_workspace = use_signal(|| "Layout");
     use_context_provider(|| ExportReturnWorkspace(return_workspace));
-    use_effect(use_reactive!(|active = workspace()| {
+    use_effect(move || {
+        let active = workspace();
         if active != "Export" {
             return_workspace.set(active);
         }
-    }));
+    });
     let case_generation = CaseGenerationState {
         live_preview: use_signal(|| true),
         automatic: use_signal(AutomaticCaseGeneration::new),
