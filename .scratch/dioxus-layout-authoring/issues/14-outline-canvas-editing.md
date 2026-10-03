@@ -10,7 +10,9 @@
 
 **Capability boundary:** Existing F3.4c owner and Core `CopyOutline.edit`, `SetOutline`, `SelectOutline`, preview, commit and history operations are reused. No new public contract, schema, renderer or geometry algorithm is needed. Port the existing `outlineSnapping.ts` policy unchanged.
 
-**Status:** source implemented in the isolated candidate; strict page-target WASM Clippy passes. Integrated public browser, history, and save/reopen acceptance remains open.
+**Status:** candidate source and focused public evidence are implemented. The paired Generated-outline journey now covers trusted drag/preview, immediate release, Escape/out-and-back cancellation, one-step history, focused ArrowRight nudge, selected-point Delete, and reload persistence on the pinned layered Sofle fixture. Full F3.4d acceptance remains open for fixed-version edits, additional capture/owner-loss cases, and the parent acceptance joins.
+
+**Focused paired receipt:** [F34d drag, cancel, nudge, delete, and reopen journey](../evidence/f34d-perimeter-paired-20261003/README.md). The 34749 public candidate predates the separate negative-half-grid follow-up; that source policy has its own focused production-seam RED/GREEN receipt in the same evidence packet.
 
 - [ ] Expose point handles only for the same supported first Generated contour or first active fixed Polygon as issue 13. Keep point selection synchronized between Inspector list, numeric fields, and canvas handles.
 - [ ] Drag captures one pointer, uses Layout snap settings and the existing outline snapping policy, streams live Core previews, and commits exactly one captured transaction with the final pointer sample on release.
