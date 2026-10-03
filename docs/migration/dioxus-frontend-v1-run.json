@@ -724,15 +724,16 @@
     "result": "Fresh React archive has0 local assets: unchecked export0 assets, checked6 assets, each digest verified. Bounded archive-option proof only; STEP/firmware/full export parent remain open."
   },
   "current_served_frontier_20261002": {
-    "url": "http://127.0.0.1:34734/",
-    "subpath": "http://127.0.0.1:34734/boardstudio/",
-    "build": "frontend-contextual-case-mirror-keycaps-20261002",
-    "source": "f261a327858f51a1de4928374bc65b669e2792a3",
+    "build": "frontend-authoring-layers-integrated-20261002",
+    "source": "7d09d0a60fbb2cc12e259541614b9483ee618d29",
+    "url": "http://127.0.0.1:34735/",
+    "subpath": "http://127.0.0.1:34735/boardstudio/",
     "commands": 22,
-    "source_hashes": 1331,
+    "source_hashes": 1342,
     "assets_per_route": 145,
-    "mismatches": 0,
-    "qualification": "Bounded paired Case12/Keycaps06 receipts under review; Mirror visual fixes in progress; full workbench acceptance open."
+    "elapsed_seconds": 497.463121,
+    "provenance_sha256": "aabc367a69f40dce0601226a7909a21f71950824534137a2d41a7253d66b7a66",
+    "qualification": "Root package/source/served bytes verified; independent package review and paired public acceptance open."
   },
   "pending_integration_wave_20261002": {
     "source": "d585492012a60937879e89a8618c1d533fddba4e",
@@ -748,26 +749,27 @@
     ]
   },
   "current_comparison_build": {
-    "build_id": "frontend-contextual-case-mirror-keycaps-20261002",
-    "source_commit": "f261a327858f51a1de4928374bc65b669e2792a3",
-    "root_url": "http://127.0.0.1:34734/",
-    "subpath_url": "http://127.0.0.1:34734/boardstudio/",
-    "provenance_sha256": "f77c5920371ae6a69e42ae42e20f0eef2519f7822f1eb404f4b580c17b38e066",
-    "acceptance": "partial comparison; full workbench gates remain open"
+    "build_id": "frontend-authoring-layers-integrated-20261002",
+    "source_commit": "7d09d0a60fbb2cc12e259541614b9483ee618d29",
+    "root_url": "http://127.0.0.1:34735/",
+    "subpath_url": "http://127.0.0.1:34735/boardstudio/",
+    "provenance_sha256": "aabc367a69f40dce0601226a7909a21f71950824534137a2d41a7253d66b7a66",
+    "acceptance": "Root package/source/served bytes verified; independent package review and paired public acceptance open."
   },
   "active_source_freeze": {
-    "commit": "f261a327858f51a1de4928374bc65b669e2792a3",
-    "build": "frontend-contextual-case-mirror-keycaps-20261002",
-    "state": "complete and independently verified; source lease released for next reviewed batch",
-    "url": "http://127.0.0.1:34734/",
-    "subpath_url": "http://127.0.0.1:34734/boardstudio/",
-    "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/full-package-provenance-review-f261a327-20261002.md",
-    "provenance_sha256": "f77c5920371ae6a69e42ae42e20f0eef2519f7822f1eb404f4b580c17b38e066",
-    "source_inputs": 1331,
+    "build": "frontend-authoring-layers-integrated-20261002",
+    "source": "7d09d0a60fbb2cc12e259541614b9483ee618d29",
+    "url": "http://127.0.0.1:34735/",
+    "subpath": "http://127.0.0.1:34735/boardstudio/",
     "commands": 22,
+    "source_hashes": 1342,
     "assets_per_route": 145,
-    "elapsed_seconds": 576.574183,
-    "public_acceptance": "paired journeys in progress; no full parent closure"
+    "elapsed_seconds": 497.463121,
+    "provenance_sha256": "aabc367a69f40dce0601226a7909a21f71950824534137a2d41a7253d66b7a66",
+    "qualification": "Root package/source/served bytes verified; independent package review and paired public acceptance open.",
+    "commit": "7d09d0a60fbb2cc12e259541614b9483ee618d29",
+    "state": "complete; source lease released",
+    "public_acceptance": "paired journeys ongoing; no full parent closure"
   },
   "retained_checkpoint_history": [
     {
@@ -813,6 +815,44 @@
         "subpath_url": "http://127.0.0.1:34731/boardstudio/",
         "receipt": ".scratch/dioxus-frontend-v1/evidence/packaging-reuse-public-20261002.json",
         "acceptance": "partial comparison; full workbench gates remain open"
+      }
+    },
+    {
+      "checkpoint": "34734-before-authoring-layers",
+      "records": {
+        "current_served_frontier_20261002": {
+          "url": "http://127.0.0.1:34734/",
+          "subpath": "http://127.0.0.1:34734/boardstudio/",
+          "build": "frontend-contextual-case-mirror-keycaps-20261002",
+          "source": "f261a327858f51a1de4928374bc65b669e2792a3",
+          "commands": 22,
+          "source_hashes": 1331,
+          "assets_per_route": 145,
+          "mismatches": 0,
+          "qualification": "Bounded paired Case12/Keycaps06 receipts under review; Mirror visual fixes in progress; full workbench acceptance open."
+        },
+        "current_comparison_build": {
+          "build_id": "frontend-contextual-case-mirror-keycaps-20261002",
+          "source_commit": "f261a327858f51a1de4928374bc65b669e2792a3",
+          "root_url": "http://127.0.0.1:34734/",
+          "subpath_url": "http://127.0.0.1:34734/boardstudio/",
+          "provenance_sha256": "f77c5920371ae6a69e42ae42e20f0eef2519f7822f1eb404f4b580c17b38e066",
+          "acceptance": "partial comparison; full workbench gates remain open"
+        },
+        "active_source_freeze": {
+          "commit": "f261a327858f51a1de4928374bc65b669e2792a3",
+          "build": "frontend-contextual-case-mirror-keycaps-20261002",
+          "state": "complete and independently verified; source lease released for next reviewed batch",
+          "url": "http://127.0.0.1:34734/",
+          "subpath_url": "http://127.0.0.1:34734/boardstudio/",
+          "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/full-package-provenance-review-f261a327-20261002.md",
+          "provenance_sha256": "f77c5920371ae6a69e42ae42e20f0eef2519f7822f1eb404f4b580c17b38e066",
+          "source_inputs": 1331,
+          "commands": 22,
+          "assets_per_route": 145,
+          "elapsed_seconds": 576.574183,
+          "public_acceptance": "paired journeys in progress; no full parent closure"
+        }
       }
     }
   ]
