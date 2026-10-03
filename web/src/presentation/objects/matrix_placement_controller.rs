@@ -257,6 +257,7 @@ pub(in crate::presentation) fn use_matrix_placement(
             let runtime = runtime.clone();
             let alive = alive.clone();
             let mut preparing = preparing;
+            let mut placement = placement;
             let mut error = error;
             let canvas_interaction = canvas_interaction.clone();
             spawn_local(async move {
