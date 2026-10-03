@@ -202,6 +202,12 @@
           "evidence": ".scratch/dioxus-keycap-cad-bridge/evidence/source-contract.md",
           "observation": "The page binary and boardstudio_web worker host are separate crates, so a crate-private method cannot carry Core-resolved KeycapSpecs to the already packaged build_keycaps export. The bounded slice adds one specific public CadWorker::request_keycaps_step entry point while keeping its wire types and public CadRequest/CadOperation unchanged.",
           "status": "confirmed crate-boundary constraint and bounded adapter; paired browser/download validation pending; no new RF ID"
+        },
+        {
+          "source": "a76fa2bd/34748; root module label repair b3e020ed",
+          "evidence": ".scratch/dioxus-pcb-view/evidence/14-mounted-module-footprints-20261003/public-receipt.md",
+          "observation": "Source-owned module artwork now renders through the accepted snapshot. Paired VIK fixture geometry matches all373 leaves across26 footprints; independent module and host pad/hole toggles preserve saved ProjectDoc/revision6. Accessibility label correction is queued in34749.",
+          "status": "Bounded geometry/visibility receipt; module-free and board-retention checks, other categories/navigation and fullF5.4 remain open. No new RF ID or broad refactor."
         }
       ],
       "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted.",

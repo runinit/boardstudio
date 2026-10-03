@@ -10,7 +10,7 @@ host visibility and saved project contents.
 resolved module footprint geometry and shared transient layer control are mounted.
 F5.1 and INT.2 remain full F5.4 acceptance joins.
 
-**Status:** implementing
+**Status:** implementing — bounded source geometry/visibility journey passed on34748; remaining checks and label correction remain open
 
 **Spec:** [mounted-module footprint visibility](../drafts/F5.4a-mounted-module-footprints.md).
 
@@ -23,3 +23,5 @@ F5.1 and INT.2 remain full F5.4 acceptance joins.
 Module owning-object navigation and other categories remain parent criteria;
 there are no inert new controls for those unfinished paths. Source presence and
 compilation do not close this ticket or F5.4.
+
+Receipt: [paired mounted-module source geometry and visibility](../evidence/14-mounted-module-footprints-20261003/public-receipt.md). No parent acceptance is claimed.
