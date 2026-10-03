@@ -23,10 +23,14 @@
 
 ## Changed journey
 
-Pending the next page-only repair candidate containing the corrected fit math. Use the same two agent-browser profiles and fixture once:
+Candidate: `http://127.0.0.1:34750/boardstudio/`, frozen source `fe86fa05598dee6ef8ffb02f9f6fcfaa6810f10d`, provenance SHA-256 `3ee7a6c10ba260d41233d5fc1cd1b7f1f518b0bc6b6f029bacae553a59f74740`. The pinned React page remained at `http://127.0.0.1:5173/`. Both named profiles used 1280 × 577 and the same Sofle v2 / Left PCB / Base fixture.
 
-1. In Keymap 2D with no selection, verify both routes expose Fit board and disabled Fit selection; click Fit board in each and compare board centering/scale.
-2. Select `left-keys-SW1`, verify Fit selection enables, click it in each route, and compare selected-key centering/scale.
-3. Verify the camera actions did not change the document revision or Undo/Redo state. Record candidate URL/source, screenshots, and the final observed result here.
+1. With no selection, both routes exposed Fit board and disabled Fit selection. After Fit board, Dioxus showed 89% zoom and React 80%; their visible board bounds aligned to approximately x406–789 and x407–788 respectively, with matching vertical placement.
+2. Selecting `left-keys-SW1` enabled Fit selection in both routes. After Fit selection, Dioxus showed 303% and React 271%; the selected key bounds aligned at approximately x519–678 and x519–677 respectively. The displayed zoom values use each app's own base viewBox and are not a direct measure of the fitted physical extent.
+3. Dioxus remained at Revision 3 / Saved, and Undo/Redo remained disabled in both apps after the camera actions. No project data or history change was observed.
+
+The four changed-journey captures are `dioxus-34750-fit-board.png` (SHA-256 `647b9cfee71dd58a787daeab7c6e77a68039ad652fb0a01bf59d1ac977cdde7e`), `react-34750-fit-board.png` (`c974b5719bf15d6bc12875c10e0ff307c3e28af577e531ae74c51113d9381139`), `dioxus-34750-fit-selection-SW1.png` (`4e7b3b5066c2fd4e8a5af17d699a504428f04002d59c9132801c60dfbc050d41`), and `react-34750-fit-selection-SW1.png` (`fe6a8995c55420f15bd8221b5efc1eef18063336c4fea31dd7988243145259c8`).
+
+This is one paired fit-control journey, not full F6K.1 acceptance. F3.1 shared-selection acceptance and the remaining viewport controls stay open.
 
 This is one paired control journey, not full F6K.1 acceptance. F3.1 shared-selection acceptance and the remaining viewport controls stay open.
