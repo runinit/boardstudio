@@ -1271,7 +1271,7 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T08:59:38.988296+00:00",
+    "updated_at": "2026-10-03T09:20:17.392228+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
       "accepted": 2,
@@ -1281,23 +1281,23 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-keycaps-menu-zoom-repairs-20261003",
-      "source_commit": "d7742d46ad0e4dc05d5eb229c7c7de50e6f7945c",
-      "root_url": "http://127.0.0.1:34757/",
-      "subpath_url": "http://127.0.0.1:34757/boardstudio/",
-      "provenance": "web/target/builds/frontend-keycaps-menu-zoom-repairs-20261003/provenance.json",
-      "provenance_sha256": "f5e98f1b521a06c1b8cc91631e8fcdee550972489d8d5e3830a1a4c9e1c0f2e3",
+      "build_id": "frontend-matrix-pcb-case-keymap-20261003",
+      "source_commit": "37d81320712b16cd6901f8e8ea3c80a0833ce576",
+      "root_url": "http://127.0.0.1:34758/",
+      "subpath_url": "http://127.0.0.1:34758/boardstudio/",
+      "provenance": "web/target/builds/frontend-matrix-pcb-case-keymap-20261003/provenance.json",
+      "provenance_sha256": "540bccd3ef9eab93cdc521191acd918d3ca1b605ec0969ba6a139ec517fa391f",
       "fresh_commands": 8,
       "inherited_commands": 22,
       "source_inputs": 1365,
       "source_mismatches": 0,
       "assets_per_route": 145,
-      "command_span_seconds": 98.041699,
-      "package_qualification": "Guarded page package/source/assets/root+subpath HTTP200 COEP PASS; strict page WASM all-target Clippy PASS17.66s. Actual Keycaps cap/legend3D and layers GREEN, Keymap80/96/25/400 zoom GREEN, Project menu overlay/1px preview outline GREEN. Case unique mount IDs GREEN; edited blocked assembly loses settings suggestions, active source repair. No whole-parent acceptance claimed."
+      "command_span_seconds": 94.921907,
+      "package_qualification": "Guarded page package/source/assets/root+subpath HTTP200 COEP PASS; strict page WASM all-target Clippy PASS15.81s. Matrix gap edit/Undo/Redo/reopen GREEN; blocked Case current suggestions/adopt GREEN; PCB flat inventory/selection/footer/disclosures GREEN. Keymap pending-save Tab focus RED; duplicate navigation/draft-owner findings under repair. Full parent gates stay open."
     },
     "integration": {
-      "source_commit": "38757073",
-      "state": "PCB contextual Objects, Case blocked-resolution projection and Keymap blur/Tab identity repair integrated. Matrix configuration view joined84fbf801; structural controller/mount awaited for the combined check and package. Unfinished parent criteria remain; six stale planned statuses reconciled to implementing from mounted source/evidence.",
+      "source_commit": "0e54657969602cecb20790d7d1b70ff8cc32342d",
+      "state": "Ready packets serially joined: Parts isolated3D, Keymap pending-control focus, Keymap3D cap consumer and PCB Inspector context repair. Matrix duplicate/draft-owner repair awaited for one combined check/package. Paired Matrix settings and Case blocked-resolution receipts retained from34758.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1484,6 +1484,30 @@
           "original_source": "cd6ef00d",
           "integrated_source": "007c7a82+65f32148+e2e88ec6+8c6bca32+4820ff08",
           "state": "34757 mount-ID collision fixed and actual distinct IDs GREEN; ordinary Boss X edit saves but blocked assembly drops current suggestions. Existing mechanical settings resolver projection repair active. Full CRUD/adoption journey remains open."
+        },
+        {
+          "slice": "Parts isolated library3D",
+          "original_source": "9a819a2a",
+          "integrated_source": "05ed9389",
+          "state": "Joined; combined check and changed candidate browser delta awaited."
+        },
+        {
+          "slice": "Keymap controls pending focus",
+          "original_source": "d6e575c3",
+          "integrated_source": "7f8c70b2",
+          "state": "Joined; combined check and changed candidate browser delta awaited."
+        },
+        {
+          "slice": "Keymap3D cap/legend consumer",
+          "original_source": "3ca17919",
+          "integrated_source": "f2ec8239",
+          "state": "Joined; combined check and changed candidate browser delta awaited."
+        },
+        {
+          "slice": "PCB wiring contextual Inspector",
+          "original_source": "6dbfd4c7",
+          "integrated_source": "0e546579",
+          "state": "Joined; combined check and changed candidate browser delta awaited."
         }
       ],
       "checks": {
@@ -1693,6 +1717,27 @@
         "candidate": "d7742d46/34757",
         "receipt": ".scratch/dioxus-keymap-layers/evidence/keymap-fit-controls-20261003/zoom-controls-paired-journey.md",
         "remaining": "Grid/Snap/full footer and complete Keymap parent criteria."
+      },
+      {
+        "journey": "Matrix gap edit/Undo/Redo/reopen",
+        "state": "GREEN; X1->2.5 preview16.6x18.1, Undo1/Redo2.5/reopen2.5",
+        "candidate": "37d81320/34758",
+        "receipt": ".scratch/dioxus-layout-authoring/evidence/f32d-matrix-settings-20261003/README.md",
+        "remaining": "Broader workbench and full parent criteria remain open."
+      },
+      {
+        "journey": "Case blockedX128 current suggestions/adopt",
+        "state": "GREEN; four current suggestions, four suspension mounts adopted, four closure rows preserved; export rev12 SHA127f8de5e3ce57c864b9842f15258a7aad88bde3509f824af5f883fe76b783f5",
+        "candidate": "37d81320/34758",
+        "receipt": ".scratch/dioxus-case-workspace/evidence/15-mounting-controls-20261003/public-receipt.md",
+        "remaining": "Broader workbench and full parent criteria remain open."
+      },
+      {
+        "journey": "PCB34 flat parts/SW3/R1/Outline/Board disclosures",
+        "state": "Inventory/footer/disclosures GREEN Revision7Saved; extra Position Inspector RED repaired0e546579 awaiting next candidate",
+        "candidate": "37d81320/34758",
+        "receipt": ".scratch/dioxus-pcb-view/evidence/18-contextual-objects-20261003/public-34758.json",
+        "remaining": "Broader workbench and full parent criteria remain open."
       }
     ],
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
@@ -1703,12 +1748,12 @@
     },
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "next_work": {
-      "Layout": "Complete one full matrix settings/add row/add column/duplicate/delete mounted workflow; view+controller authors coordinated. Reuse existing selection/history evidence.",
-      "PCB": "Root authors contextual flat board parts/outline Objects inventory and matching footer; controller placement34755 GREEN retained. Broad findings/layers/selection gates stay open.",
-      "Keymap": "Binding/macro/encoder daily workflow parity inventory and one changed integrated journey; no duplicate ordinary UI tests.",
-      "Keycaps": "Next profile/legend/matrix override daily workflow; actual cap/legend3D/layers34757 GREEN and STEP34749 retained.",
-      "Case": "Keep mount settings, findings and suggestions available for the exact current scope even when CAD generation blocks; existing mechanical resolver projection, no CAD kernel redesign.",
-      "Parts_Project": "Freeze34757 menu overlay/1px outline receipt; implement contextual Parts2D/3D preview/header/Back. Metadata three-way rebase source clear, mounted concurrency boundary remains explicit."
+      "Layout": "Finish matrix duplicate navigation/draft-owner and contextual section repairs; qualify normal structural flow on combined candidate. Matrix settings GREEN reused. Next outline/canvas frontier inventory active.",
+      "PCB": "Qualify repaired contextual wiring Inspector; inventory/footer/disclosure34758 GREEN reused. Existing Addobject/Newboard and full PCB gates remain.",
+      "Keymap": "Qualify native Tab continuity during pending save without second edit and shared3D cap/legend consumer.",
+      "Keycaps": "Existing cap resolver/scene reused by Keymap3D source; profile/legend evidence reconciled. Broad criteria remain.",
+      "Case": "Blocked current suggestions/adopt34758 GREEN reused; existing Issue12 supported-layer controls/findings/return inventory active.",
+      "Parts_Project": "Qualify joined isolated Parts3D/header/2Dreturn; Project menu34757 visual receipt retained."
     },
     "execution_policy": "Ordinary reversible UI gets no new tests. Run one required affected compile/check per integrated batch, inspect only changed paired browser journeys, and use one consolidated candidate review. Reuse unchanged history/reopen evidence. Real reproduced bugs retain one focused regression. Parent criteria, blocker history and RF ledger remain explicit.",
     "served_candidate_history": [
@@ -1829,6 +1874,21 @@
         "assets_per_route": 145,
         "command_span_seconds": 101.177424,
         "package_qualification": "Package/source/assets/root+subpath200 COEP PASS. Parts metadata corrections and Case mounting controls served. Keycaps34755 blank preview RED; source effect-loop fix next. Contextual Layout and Keymap changed journeys GREEN34755 reused. Project menu stacking defect and remaining mount owner/ID source corrections retained."
+      },
+      {
+        "build_id": "frontend-keycaps-menu-zoom-repairs-20261003",
+        "source_commit": "d7742d46ad0e4dc05d5eb229c7c7de50e6f7945c",
+        "root_url": "http://127.0.0.1:34757/",
+        "subpath_url": "http://127.0.0.1:34757/boardstudio/",
+        "provenance": "web/target/builds/frontend-keycaps-menu-zoom-repairs-20261003/provenance.json",
+        "provenance_sha256": "f5e98f1b521a06c1b8cc91631e8fcdee550972489d8d5e3830a1a4c9e1c0f2e3",
+        "fresh_commands": 8,
+        "inherited_commands": 22,
+        "source_inputs": 1365,
+        "source_mismatches": 0,
+        "assets_per_route": 145,
+        "command_span_seconds": 98.041699,
+        "package_qualification": "Guarded page package/source/assets/root+subpath HTTP200 COEP PASS; strict page WASM all-target Clippy PASS17.66s. Actual Keycaps cap/legend3D and layers GREEN, Keymap80/96/25/400 zoom GREEN, Project menu overlay/1px preview outline GREEN. Case unique mount IDs GREEN; edited blocked assembly loses settings suggestions, active source repair. No whole-parent acceptance claimed."
       }
     ],
     "consolidated_reviews": [

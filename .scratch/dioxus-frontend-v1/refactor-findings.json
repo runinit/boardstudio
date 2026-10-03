@@ -304,6 +304,13 @@
           "observation": "Missing ordinary controller entry used a hidden guide-only origin; explicit accepted origin now delivers placement/history/reopen. The remaining Parts contextual shell/header, assembly groups and preview framing gaps demonstrate why generic workbench composition source presence is insufficient.",
           "mitigation": "Current ordinary route wired through existing scoped transaction; Parts stream owns one coherent contextual composition continuation. No full visual/parent acceptance claimed.",
           "post_port": "Consolidate action origin/return-context policy and explicit workbench composition contracts; preserve retained paired screenshots and saved projects."
+        },
+        {
+          "date": "2026-10-03",
+          "source": "PCB18 public34758 SW3/R1, pinned usePcbWorkspace.tsx, root0e546579",
+          "observation": "Correct contextual inventory still prepended private Layout position/matrix authoring before reference PCB wiring.",
+          "mitigation": "Remove only wrong PCB Inspector composition and unused private numeric-position path; keep Layout authoring and PCB canvas/wiring owners.",
+          "post_port": "Define explicit workbench Inspector composition separately from shared selection/projection helpers."
         }
       ],
       "case_mechanical_resolution_display_20261003": {
@@ -742,7 +749,16 @@
         "evidence": ".scratch/dioxus-case-workspace/evidence/current-mechanical-resolution-diagnosis-20261003/README.md",
         "status": "Architectural/error-state investigation only. Initial zero-row configured Gasket observation was transient and the completed candidate resize/Undo/Redo/reopen journey succeeds with17 pairs/40 layers. No persistent-zero bug, cache repair, public paired closure or parent acceptance is claimed.",
         "post_port_follow_up": "If a settled blocked-result display failure is reproduced, preserve exact accepted scope/token/revision/executor/lifetime and reuse the existing current mechanical resolver independently from CAD geometry; avoid a second authority or provider change."
-      }
+      },
+      "execution_observations": [
+        {
+          "date": "2026-10-03",
+          "source": "Sol37d81320 matrix owner review; Keymap actual34758 nativeTab RED",
+          "observation": "Duplicate continuation/recovery lacks full navigation identity; preset draft crosses documents reusing matrix IDs/settings. Pending binding edit disables native Tab target despite stable DOM key.",
+          "mitigation": "Matrix captures/revalidates logical clone/draft owner; Keymap retains admitted focus while pending handler rejects additional edit. Changed candidate proof awaited.",
+          "post_port": "Separate durable edit admission from focus availability; standardize captured async and draft lifetimes."
+        }
+      ]
     },
     {
       "id": "RF-007",
