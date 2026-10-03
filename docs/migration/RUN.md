@@ -1,6 +1,6 @@
 # BoardStudio milestone continuation
 
-Current active checkpoint: [frontend run state](dioxus-frontend-v1-run.json). The served comparison is [Dioxus 34737](http://127.0.0.1:34737/) from `b9e74e37`, including integrated Layout model-layer controls and Case wireless-selection repair. Full build, strict WASM checks and independent source/package checks passed. Fresh Case wireless edit/Undo/Redo/durable-reload agrees with the same-fixture React journey. Broader visual and workbench gates remain open. All 62 parents and RF-001–RF-015 remain tracked; older checkpoints below are retained history.
+Current active checkpoint: [frontend run state](dioxus-frontend-v1-run.json). The served comparison is [Dioxus 34739](http://127.0.0.1:34739/) from `a8fd8988`, including Parts chooser, PCB mode owner and Keycaps navigation joins. Full build22 commands and independent package/source verification passed. Actual paired workbench gates remain open; fresh PCB browser testing found disabled Wiring mode controls under diagnosis. Six streams, all62 parents and RF-001–RF-015 remain tracked. Earlier checkpoints below are retained history.
 
 ## Active checkpoint — 2026-10-02, combined source freeze
 
