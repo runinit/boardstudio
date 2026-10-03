@@ -251,6 +251,7 @@ pub(super) fn Objects(
             {
                 AddObjectEntry {
                     menu_open: add_menu_open,
+                    on_select,
                     matrix_setup,
                     mirrored_pair,
                     matrix_inspector,
@@ -469,6 +470,7 @@ pub(super) fn Objects(
 #[component]
 fn AddObjectEntry(
     mut menu_open: Signal<bool>,
+    on_select: EventHandler<TreeSelectRequest>,
     matrix_setup: Option<MatrixSetupMount>,
     mirrored_pair: Option<MirroredPairMount>,
     matrix_inspector: Option<MatrixInspectorMount>,
@@ -570,6 +572,29 @@ fn AddObjectEntry(
                                     on_add_column.call(());
                                 },
                                 "Add column"
+                            }
+                        }
+                    }
+                    if let Some(scope) = scope.as_ref() {
+                        section { "aria-label": "Board geometry",
+                            h3 { "Board geometry" }
+                            button {
+                                r#type: "button",
+                                onclick: {
+                                    let scope = scope.clone();
+                                    move |_| {
+                                        menu_open.set(false);
+                                        on_select.call(TreeSelectRequest {
+                                            scope: scope.clone(),
+                                            context: TreeContext::Outline {
+                                                board_id: scope.board_id.clone(),
+                                            },
+                                            mode: SelectionMode::Replace,
+                                            outline_action: None,
+                                        });
+                                    }
+                                },
+                                "Board outline…"
                             }
                         }
                     }

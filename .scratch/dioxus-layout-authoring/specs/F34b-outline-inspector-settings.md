@@ -11,6 +11,8 @@ The current Dioxus `OutlineVersionInspector` shows an accepted contour preview a
 
 The user can work from the existing Objects → Board → Outline selection. The Inspector displays current accepted board/version data; Generated remains derived and follows current inputs, while settings and geometry for a fixed version come from that accepted version. The Inspector can activate Generated or a saved version, rename a saved version, create a missing automatic `part-envelope` feature, update the applicable settings, and protect/remove accepted Generated gaps. Each change is a normal edit with exact terminal feedback and Undo/Redo support.
 
+The same Inspector is reachable from Add object → Board geometry → Board outline. From PCB, choosing that entry returns to Layout and selects the active Board's Outline context; it must reuse the accepted tree/context and existing Inspector owner.
+
 Match React's details:
 
 - `OutlineInspector.tsx` provides the Active outline selector, version name editor, Copy/Delete actions, Edit perimeter points button, Generate automatic outline action, Generated margin and bridge width, corners/size for Generated or fixed versions, Gap repair/Keep gap, and Advanced cleanup/clearance controls.

@@ -121,7 +121,7 @@ Each slice below delivers a testable user path through the public Dioxus surface
 | F3.7 Integrated Layout parity | Join slices under one Layout composition and prove the end-to-end authoring journey against React. | F3.1–F3.6, F3.8 scripts, F6C.3 shared size controls and F2.3 panels; all public scenario owners available. | P1 / M | Integration seam exists at public session/runtime and Dioxus Layout root; paired runner/production Dioxus gate are missing project-wide enforcement. | Open representative saved project; select, author matrix, transform/constrain, edit outline, navigate finding, switch 2D/3D, save/reload, Undo/redo; paired geometry/history/camera/service outputs; desktop/compact both themes, accessibility and affected performance evidence. |
 
 
-| F3.8 Geometry script editor | New/select/name/source/Enable on Apply/Apply and core findings match the supported React editor; blank source cannot apply. | F3.1 scope and F3.5 findings; can author form independently on saved script fixtures. | P1 / M | Existing script-bearing document plus ReplaceDocument/EditCommand path; Rhai execution stays in core. Missing Dioxus form/draft adapter. | New script starts disabled; selected script resets drafts as reference; apply valid/invalid source, findings, Undo/redo and save/reload; no invented delete/live-run/script-language feature. |
+| F3.8 Geometry script editor | New/select/name/source/Enable on Apply/Apply and core findings match the supported React editor; blank source cannot apply. Reach the real editor from Add object → Board geometry → Geometry scripts. | F3.1 scope and F3.5 findings; can author form independently on saved script fixtures. | P1 / M | Existing script-bearing document plus ReplaceDocument/EditCommand path; Rhai execution stays in core. Missing Dioxus form/draft adapter and Add object route. | New script starts disabled; selected script resets drafts as reference; apply valid/invalid source, findings, Undo/redo and save/reload; no invented delete/live-run/script-language feature. |
 
 ### Parallel ownership and integration seams
 
@@ -147,7 +147,7 @@ The graph in `tasks.json` is the execution authority for exact slice dependencie
 
 Source-confirmed interaction mismatch: `app/src/ui/createCanvasInteractions.ts:218` starts a drag after non-zero world movement and guards stationary release against panel reflow; `web/src/presentation.rs:713` currently waits for squared client displacement 16. F3.3 must characterize small drags and stationary clicks, restore reference behavior through the frontend adapter, and rerun the existing affected pointer/cancel/history and performance checks. Current F3a evidence remains valid only for its recorded traces.
 
-Supported scripting source is `app/src/ui/useScriptEditor.tsx`: New script, selector, Name, Rhai source, Enable on Apply, Apply and Core findings. The plan includes that exact workflow; unsupported scripting expansion remains excluded.
+Supported scripting source is `app/src/ui/useScriptEditor.tsx`: New script, selector, Name, Rhai source, Enable on Apply, Apply and Core findings. The plan includes that exact workflow; unsupported scripting expansion remains excluded. React exposes it through Add object → Board geometry → Geometry scripts. Dioxus must add that entry only with a functioning F3.8 panel route; do not add a disabled or decorative menu item before the panel exists.
 
 ### Independent review reconciliation
 
