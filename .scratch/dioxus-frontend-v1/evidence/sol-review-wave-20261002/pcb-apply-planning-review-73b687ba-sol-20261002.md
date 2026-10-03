@@ -1,0 +1,23 @@
+# PCB current-plan Apply final planning review
+
+Independent Sol6.1 High, Standards and Spec,2026-10-02. Exact frozen docs73b687ba83c6fa6db7685acb809f0b4ca31bd975 after correction65a1d460ce6f48add8495670802a72538095ea7e, preserving originalec9804f7fa8e90988bb7b73ef83e9882957ce328 and its independent HOLD report pcb-apply-planning-review-ec9804f7-sol-20261002.md SHAbcfbb4c53326848a38b8ab89e8ba31e9f5050ba0a3a092b66652f307b46b37cc. Source baseline57829464; current source capabilities independently joined/cleared in root3d1fe8d7. No reviewer application edits or tests added.
+
+Standards: CLEAR. Spec: CLEAR. Both capability-level starts are approved at this exact packet; implementation and public acceptance are separate.
+
+The incorrect persisted-lock defect premise is removed from spec, Core09, Dioxus10, README and readable/machine RF009 handoff. The source audit now correctly distinguishes saved board config locks from request-only overrides: electrical::resolve initializes from current selected-board config.locks before merging request locks. Core09 is a characterization/coverage child expected green on unchanged source. It must execute direct ApplyElectrical with persisted selected-board locks, same-key other-board isolation, existing no-lock/stale/fingerprint/diagnostic/manual-net/history behavior. A contrary observed result must be retained/reviewed before any behavior correction is authorized. No unsupported defect/fix or red is prescribed. The original audit remains in Git history and correction receipt records it truthfully.
+
+Dioxus10/F5.2d can start independently using callable current accepted PcbWiringSource/Current resolver plan and the existing normal edit/outcome owner. The private implementation calls existing public Core electrical::materialize synchronously on a clone of the exact accepted document and immutable current plan, then submits one strict-base-revision target-board ReplaceDocument. Ready/Saved/quiescent PCB, actual plan board/revision/mode and full UI versus selection-independent plan identity, token/worker/generation/current callback validation remain required. The Core helper retains revision, diagnostic and pad validation; no draft/remap/protected-pin bypass or algorithm copy. Session remains accepted-document, durability and undo-history owner. No public API/schema/member widening.
+
+This is an explicit private route difference from React applyWiring, which resolves again then submits ApplyElectrical; it preserves the user action/outcome and existing ownership rather than claiming identical request routing or a workaround for a nonexistent Core defect. Core09 coverage is neither a dependency for the UI slice nor proven by a UI journey. Both existing capabilities are callable, so full F5.1/F5.2/F5.3/F8.2 parent completion is not an implementation wait. All62 canonical dependency/status/acceptance joins are preserved.
+
+Required bounded production mounted action/currentness/terminal/materialization error coverage, accepted exact proposal/new-plan refresh, one history edit, other-board/manual-net preservation and paired exact packaged pointer/keyboard Apply/Undo/Redo/save-reopen remain open. These are planned gates, not results. The source-audit correction adds no new RF identifier; preserve RF001/006/009 and later refactor the private source/operation boundary without creating another document owner. No implementation or public acceptance is claimed by this planning clearance.
+
+Independent docs-only range check confirms no web/core changes; whitespace check passes, machine RF JSON parses, exact hashes verified and Core09 audit link resolves to existing evidence. Final Issue10 no longer calls coverage a fix and keeps its result independently executed. No heavy test job is needed for this docs review.
+
+| Exact artifact | SHA-256 |
+| --- | --- |
+| `.scratch/dioxus-pcb-view/drafts/F5.2d-apply-current-board-wiring.md` | `ce6b11c28b1e32e4b637c2c0a124387c8a566338c28d3ed8b1c4c2ef0c97f7d6` |
+| `.scratch/dioxus-pcb-view/drafts/tickets/09-core-apply-electrical-honors-saved-locks.md` | `9770b9aa7e548fee76f427a3fbc6ff6ca73e93d96bd509ef0fead19fc859c756` |
+| `.scratch/dioxus-pcb-view/drafts/tickets/10-apply-current-board-wiring.md` | `5f248edde00ca2b1323824d872142931269f4509caef1638bbb65662d445007f` |
+| `.scratch/dioxus-pcb-view/evidence/apply-current-plan-20261002/core-apply-lock-audit.md` | `c0ca028d734d3b0dd52eb6819b1215402bd82ff0cb737f94c80ec944f1a45b13` |
+| `.scratch/dioxus-pcb-view/evidence/apply-current-plan-20261002/source-audit-correction.md` | `645b2345ae4e66f07f6370ab8fe3b9f4a503663f2045726f460421144979d572` |

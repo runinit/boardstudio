@@ -25,3 +25,5 @@
 **Ownership and limits:** Parts owns the local drafts and contextual editor. Core/Session own accepted document edits, validation, revision, history and durability. The existing private edit adapter is reused; shared Runtime/shell composition remains coordinator-joined. KiCad source geometry/import, model assets, retained-generator settings, 3D preview and F3 placement stay with their existing child/parent owners.
 
 **Approved defect correction:** Independent review confirmed the Add pad number collision is a bounded defect against the existing unique authored pad-number rule. Preserve `pads.length + 1` when unused; on collision, increment until the next unused positive number. Keep stable pad IDs, all existing net-remap semantics and the one-action history boundary. The defect regression uses existing pad numbers `[1, 3]`, where the old implementation wrongly adds `3` and the correction adds `4`.
+
+**Execution status (2026-10-02):** Implementing from independently reviewed planning commit `e056a8f8`; paired public edit/history/save-reopen acceptance remains open.
