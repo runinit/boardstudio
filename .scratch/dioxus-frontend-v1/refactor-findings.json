@@ -1027,6 +1027,12 @@
           "evidence": ".scratch/dioxus-layout-authoring/evidence/f34d-perimeter-paired-20261003/README.md",
           "observation": "Adding a native-only regression module to the shared lib root triggers the conservative full-provider rebuild proof boundary. The unchanged regression adapter now lives in the existing native binary presentation stand-in, preserving production provider bytes and allowing guarded page reuse. No packaging guard was weakened.",
           "status": "Bounded build-friction mitigation; longer-term feature/test root organization remains a post-port refactoring question."
+        },
+        {
+          "source": "fe86fa05/34750",
+          "evidence": ".scratch/dioxus-pcb-view/evidence/15-mounted-module-layers-20261003/public-receipt.md",
+          "observation": "Module source geometry and all28 corresponding marker contours match, but default/toggle marker visibility differs fromReact (0\u219228 vs47\u219272; three source caveats already visible inReactdefault). Existing general host/focused findings rendering remains unported; counts alone do not identify target-ID/focus/classification cause.",
+          "status": "Confirmed visible parity gap retained for F5.5; no speculative identity-string filter or backend correction."
         }
       ],
       "resumed_wave_20261002": "2026-10-02: Machine top-level status/current integration still cited5944/34697 despite newer reviewed source andbd671ae8 served build. Corrected records explicitly separate current source14d1bfeb, servedbd671ae8/34720 and running successor build. Historical receipts retained; no parent closure.",
