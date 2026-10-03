@@ -1,0 +1,44 @@
+{
+  "cornerSize": "2",
+  "fixedDescription": true,
+  "saved": [
+    {
+      "boardOutlines": [
+        {
+          "activeVersionId": "outline-version-18",
+          "boardId": "left",
+          "versions": [
+            {
+              "id": "outline-version-18",
+              "name": "QA Outline",
+              "settings": {
+                "bridgeWidth": 10,
+                "corners": "chamfer",
+                "size": 2
+              }
+            }
+          ]
+        }
+      ],
+      "id": "m1-sofle-v2-copy",
+      "revision": 12
+    }
+  ],
+  "select": {
+    "options": [
+      {
+        "label": "Generated",
+        "selected": true,
+        "value": ""
+      },
+      {
+        "label": "QA Outline",
+        "selected": false,
+        "value": "outline-version-18"
+      }
+    ],
+    "value": ""
+  },
+  "url": "http://127.0.0.1:34742/",
+  "versionName": "QA Outline"
+}

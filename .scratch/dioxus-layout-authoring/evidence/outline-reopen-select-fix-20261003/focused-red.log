@@ -1,0 +1,85 @@
+   Compiling boardstudio-contracts v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/layout-outline-reopen-fix-20261003/contracts/rust)
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/layout-outline-reopen-fix-20261003/web)
+   Compiling boardstudio_core v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/layout-outline-reopen-fix-20261003/core)
+   Compiling boardstudio-application v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/layout-outline-reopen-fix-20261003/application)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 48.45s
+     Running unittests src/main.rs (/home/chris/.local/share/boardstudio/worktrees/f73b-layout-layer-controls-20261002/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-a36f3b6cfc0e43d3.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:35451/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+Loading Wasm module...
+using deprecated parameters for the initialization function; pass a single object instead
+
+running 1 test
+Invoking test: presentation::outline_lifecycle::browser_tests::mounted_reopened_fixed_outline_selects_its_saved_version
+panicked at src/presentation/outline_lifecycle_browser_tests.rs:260:5:
+assertion `left == right` failed: initially mounted saved fixed version must not display Generated
+  left: Some("")
+ right: Some("saved-outline")
+
+Stack:
+
+Error
+    at http://127.0.0.1:38535/wasm-bindgen-test:1690:25
+    at logError (http://127.0.0.1:38535/wasm-bindgen-test:2868:18)
+    at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:38535/wasm-bindgen-test:1689:57)
+    at boardstudio_web-a36f3b6cfc0e43d3.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:38535/wasm-bindgen-test_bg.wasm:wasm-function[167624]:0x1fb97e1)
+    at boardstudio_web-a36f3b6cfc0e43d3.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:38535/wasm-bindgen-test_bg.wasm:wasm-function[95457]:0x1ca79ab)
+    at boardstudio_web-a36f3b6cfc0e43d3.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:38535/wasm-bindgen-test_bg.wasm:wasm-function[32937]:0x159c344)
+    at boardstudio_web-a36f3b6cfc0e43d3.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:38535/wasm-bindgen-test_bg.wasm:wasm-function[100448]:0x1cf3f31)
+    at boardstudio_web-a36f3b6cfc0e43d3.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:38535/wasm-bindgen-test_bg.wasm:wasm-function[27976]:0x148788c)
+    at boardstudio_web-a36f3b6cfc0e43d3.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:38535/wasm-bindgen-test_bg.wasm:wasm-function[56731]:0x194f1a2)
+    at boardstudio_web-a36f3b6cfc0e43d3.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:38535/wasm-bindgen-test_bg.wasm:wasm-function[169865]:0x1fc0361)
+
+
+test presentation::outline_lifecycle::browser_tests::mounted_reopened_fixed_outline_selects_its_saved_version ... FAIL
+
+failures:
+
+---- presentation::outline_lifecycle::browser_tests::mounted_reopened_fixed_outline_selects_its_saved_version output ----
+    error output:
+        panicked at src/presentation/outline_lifecycle_browser_tests.rs:260:5:
+        assertion `left == right` failed: initially mounted saved fixed version must not display Generated
+          left: Some("")
+         right: Some("saved-outline")
+
+        Stack:
+
+        Error
+            at http://127.0.0.1:38535/wasm-bindgen-test:1690:25
+            at logError (http://127.0.0.1:38535/wasm-bindgen-test:2868:18)
+            at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:38535/wasm-bindgen-test:1689:57)
+            at boardstudio_web-a36f3b6cfc0e43d3.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:38535/wasm-bindgen-test_bg.wasm:wasm-function[167624]:0x1fb97e1)
+            at boardstudio_web-a36f3b6cfc0e43d3.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:38535/wasm-bindgen-test_bg.wasm:wasm-function[95457]:0x1ca79ab)
+            at boardstudio_web-a36f3b6cfc0e43d3.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:38535/wasm-bindgen-test_bg.wasm:wasm-function[32937]:0x159c344)
+            at boardstudio_web-a36f3b6cfc0e43d3.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:38535/wasm-bindgen-test_bg.wasm:wasm-function[100448]:0x1cf3f31)
+            at boardstudio_web-a36f3b6cfc0e43d3.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:38535/wasm-bindgen-test_bg.wasm:wasm-function[27976]:0x148788c)
+            at boardstudio_web-a36f3b6cfc0e43d3.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:38535/wasm-bindgen-test_bg.wasm:wasm-function[56731]:0x194f1a2)
+            at boardstudio_web-a36f3b6cfc0e43d3.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:38535/wasm-bindgen-test_bg.wasm:wasm-function[169865]:0x1fc0361)
+
+
+
+    JS exception that was thrown:
+        RuntimeError: unreachable
+            at boardstudio_web-a36f3b6cfc0e43d3.wasm.__rustc[4b1ee1ef74718a7b]::__rust_abort (http://127.0.0.1:38535/wasm-bindgen-test_bg.wasm:wasm-function[170401]:0x1fc135c)
+            at boardstudio_web-a36f3b6cfc0e43d3.wasm.__rustc[4b1ee1ef74718a7b]::__rust_start_panic (http://127.0.0.1:38535/wasm-bindgen-test_bg.wasm:wasm-function[170310]:0x1fc11c0)
+            at boardstudio_web-a36f3b6cfc0e43d3.wasm.__rustc[4b1ee1ef74718a7b]::rust_panic (http://127.0.0.1:38535/wasm-bindgen-test_bg.wasm:wasm-function[168196]:0x1fbb68d)
+            at boardstudio_web-a36f3b6cfc0e43d3.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:38535/wasm-bindgen-test_bg.wasm:wasm-function[27976]:0x14878ff)
+            at boardstudio_web-a36f3b6cfc0e43d3.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:38535/wasm-bindgen-test_bg.wasm:wasm-function[56731]:0x194f1a2)
+            at boardstudio_web-a36f3b6cfc0e43d3.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:38535/wasm-bindgen-test_bg.wasm:wasm-function[169865]:0x1fc0361)
+            at boardstudio_web-a36f3b6cfc0e43d3.wasm.__rustc[4b1ee1ef74718a7b]::rust_begin_unwind (http://127.0.0.1:38535/wasm-bindgen-test_bg.wasm:wasm-function[130992]:0x1e777b7)
+            at boardstudio_web-a36f3b6cfc0e43d3.wasm.core[f0fd674eaa06beef]::panicking::panic_fmt (http://127.0.0.1:38535/wasm-bindgen-test_bg.wasm:wasm-function[98826]:0x1cdbb43)
+            at boardstudio_web-a36f3b6cfc0e43d3.wasm.core[f0fd674eaa06beef]::panicking::assert_failed_inner (http://127.0.0.1:38535/wasm-bindgen-test_bg.wasm:wasm-function[24375]:0x139cd11)
+            at boardstudio_web-a36f3b6cfc0e43d3.wasm.core[f0fd674eaa06beef]::panicking::assert_failed::<core[f0fd674eaa06beef]::option::Option<&str>, core[f0fd674eaa06beef]::option::Option<&str>> (http://127.0.0.1:38535/wasm-bindgen-test_bg.wasm:wasm-function[75214]:0x1b357de)
+
+failures:
+
+    presentation::outline_lifecycle::browser_tests::mounted_reopened_fixed_outline_selects_its_saved_version
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 165 filtered out; finished in 0.13s
+
+Error: some tests failed
+error: test failed, to rerun pass `--bin boardstudio-web`
+
+Caused by:
+  process didn't exit successfully: `/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner /home/chris/.local/share/boardstudio/worktrees/f73b-layout-layer-controls-20261002/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-a36f3b6cfc0e43d3.wasm mounted_reopened_fixed_outline_selects_its_saved_version --nocapture` (exit status: 1)

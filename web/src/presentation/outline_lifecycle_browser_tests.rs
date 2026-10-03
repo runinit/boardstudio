@@ -149,6 +149,12 @@ fn mounted_outline_inspector_host() -> Element {
 }
 
 fn mounted_outline_inspector() -> (InspectorProbe, web_sys::Element) {
+    mounted_outline_inspector_with_version(None)
+}
+
+fn mounted_outline_inspector_with_version(
+    version: Option<boardstudio_core::model::OutlineVersion>,
+) -> (InspectorProbe, web_sys::Element) {
     let scope = Scope {
         session_epoch: SessionEpoch(5),
         document_id: "outline-inspector-doc".into(),
@@ -167,6 +173,16 @@ fn mounted_outline_inspector() -> (InspectorProbe, web_sys::Element) {
         traces: vec![],
         vias: vec![],
     });
+    if let Some(version) = version {
+        document
+            .board_outlines
+            .push(boardstudio_core::model::BoardOutline {
+                board_id: scope.board_id.clone(),
+                active_version_id: Some(version.id.clone()),
+                versions: vec![version],
+                generated_last_valid: None,
+            });
+    }
     let snapshot = AcceptedSnapshot {
         token: SnapshotToken(13),
         session_epoch: scope.session_epoch,
@@ -392,6 +408,59 @@ fn fixed_perimeter_finds_the_first_polygon_after_primitive_features() {
         .retain(|feature| !matches!(feature, OutlineFeature::Polygon { .. }));
     assert!(
         editable_perimeter(&snapshot, &probe.scope.board_id, Some("fixed-outline-v1")).is_none()
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_reopened_fixed_outline_selects_its_saved_version() {
+    use boardstudio_core::model::{
+        CornerStyle, OutlineProvenance, OutlineSettings, OutlineSnapshot, OutlineVersion,
+    };
+    let (probe, root) = mounted_outline_inspector_with_version(Some(OutlineVersion {
+        id: "saved-outline".into(),
+        name: "QA Outline".into(),
+        source: OutlineProvenance {
+            revision: 3,
+            version_id: None,
+        },
+        geometry: OutlineSnapshot {
+            features: vec![],
+            settings: OutlineSettings {
+                corners: CornerStyle::Chamfer,
+                size: 7.25,
+                ..OutlineSettings::default()
+            },
+            expected_regions: 1,
+            bridges: vec![],
+            protected_gaps: vec![],
+        },
+    }));
+    settle_dimension().await;
+    let select = root
+        .query_selector("select[aria-label='Active outline']")
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        js_sys::Reflect::get(&select, &"value".into())
+            .unwrap()
+            .as_string()
+            .as_deref(),
+        Some("saved-outline"),
+        "initially mounted saved fixed version must not display Generated"
+    );
+    let size = root
+        .query_selector("input[aria-label='Chamfer size']")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlInputElement>()
+        .unwrap();
+    assert_eq!(size.value(), "7.25");
+    assert!(
+        probe
+            .runtime
+            .take_layout_component_inspector_test_events()
+            .is_empty()
     );
     root.remove();
 }

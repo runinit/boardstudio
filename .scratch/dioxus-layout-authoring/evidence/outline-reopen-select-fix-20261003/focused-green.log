@@ -1,0 +1,15 @@
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/layout-outline-reopen-fix-20261003/web)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 10.49s
+     Running unittests src/main.rs (/home/chris/.local/share/boardstudio/worktrees/f73b-layout-layer-controls-20261002/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-a36f3b6cfc0e43d3.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:33935/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+Loading Wasm module...
+using deprecated parameters for the initialization function; pass a single object instead
+
+running 1 test
+Invoking test: presentation::outline_lifecycle::browser_tests::mounted_reopened_fixed_outline_selects_its_saved_version
+test presentation::outline_lifecycle::browser_tests::mounted_reopened_fixed_outline_selects_its_saved_version ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 165 filtered out; finished in 0.09s
+

@@ -8,7 +8,7 @@ This receipt records a manual paired comparison on the pinned React workbench at
 - Dioxus applied a Chamfer size edit and showed the updated accepted value before reload. An Undo followed by Redo restored the changed corner style/value in the Inspector. This was a one-sided history probe, not a paired history acceptance journey.
 - React exposes a real perimeter point editor. The QA copy entered the editor, selected point 2, inserted a point (34 → 35), then Undid the operation (35 → 34). The original saved perimeter remains unchanged.
 - Dioxus 34742 has no perimeter editor; its Board outline Inspector exposes version/settings actions only. The Dioxus point editor is in isolated candidate `a4f51c57a67f55e0fb59c1e5150547cd73869dbf` and was verified with mounted production-hook WASM tests, but was not rebuilt into this public page.
-- On reloading each QA copy, React reopened with QA Outline active. Dioxus retained the copied/renamed QA Outline row, but selecting that row showed Active outline=Generated and Chamfer size 2. Thus Dioxus save/reopen did not preserve the same active outline/settings state in this journey.
+- On reloading each QA copy, React reopened with QA Outline active. Dioxus retained the copied/renamed QA Outline row, but selecting that row showed Active outline=Generated and Chamfer size 2. The displayed Active outline value did not match the active QA Outline; later boundary inspection below distinguishes this control mismatch from persisted data loss.
 
 ## Retained captures
 
@@ -24,4 +24,10 @@ All captures are in `/home/chris/.local/share/boardstudio/retained-tmp/20261003/
 
 ## Gate status
 
-The source-level F3.4c mount tests prove the bounded Generated `CopyOutline.edit` and fixed `SetOutline` routes through the production hook, including coordinate Enter/Escape behavior. They do not prove the public Dioxus point-editor journey. Copy and rename succeeded in both QA copies; the save/reopen comparison exposed the active-outline mismatch above, so durable parity remains open. Settings fidelity, two-sided Undo/Redo, contextual-pane and responsive acceptance also remain open. F3.4 and F3.7 parent criteria remain open; this receipt does not close them.
+The source-level F3.4c mount tests prove the bounded Generated `CopyOutline.edit` and fixed `SetOutline` routes through the production hook, including coordinate Enter/Escape behavior. They do not prove the public Dioxus point-editor journey. Copy and rename succeeded in both QA copies; the save/reopen comparison exposed the Active outline control mismatch above, so that public control parity remains open pending the repaired candidate. Settings fidelity, two-sided Undo/Redo, contextual-pane and responsive acceptance also remain open. F3.4 and F3.7 parent criteria remain open; this receipt does not close them.
+
+## Reopen diagnosis correction — 2026-10-03
+
+Read-only inspection of the same retained Dioxus session confirms the persisted `boardOutlines` row has activeVersionId `outline-version-18`, version name `QA Outline`, and Chamfer size **2** at revision12. The tree labels QA Outline Active; the Inspector describes a fixed outline and its version-name field reads QA Outline. These are projections of the accepted fixed version. Size2 matches the persisted record, so this evidence does **not** establish lost corner settings or a load/persistence reset. The mismatch is the native Active outline select: its value is empty/Generated after dynamic version options mount, despite correct accepted data. The repair explicitly marks the option matching the accepted activeVersionId as selected. Original PNGs and the original receipt are retained; no original browser state was rewritten.
+
+The original receipt is preserved at `/home/chris/.local/share/boardstudio/reviews/outline-settings-perimeter-journey-original-20261003.md`. The precise saved-data and DOM observations are in `outline-reopen-select-fix-20261003/retained-browser-red.json`. Public corrected-candidate reopen remains a focused follow-up; perimeter editing and full F3.4/F3.7 joins remain open.
