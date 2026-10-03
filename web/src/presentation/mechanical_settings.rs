@@ -956,7 +956,7 @@ fn MountRow(props: MountRowProps) -> Element {
                     on_request: props.on_request, feedback: props.feedback.clone(), field: MechanicalDimension::MountBossDiameter,
                     label: "Boss diameter", value: mount.boss_diameter.unwrap_or(5.0), editable: props.editable, mount_target: Some(make_target(&mount.id)),
                 }
-                DimensionField { key: "{field_prefix}:height",
+                DimensionField {
                     identity: props.identity.clone(), request_sequence: props.request_sequence,
                     on_request: props.on_request, feedback: props.feedback.clone(), field: MechanicalDimension::MountBossHeight,
                     label: "Boss height", value: mount.height.unwrap_or(5.0), editable: props.editable, mount_target: Some(make_target(&mount.id)),

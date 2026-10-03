@@ -541,6 +541,24 @@ fn prepare_generator_edit(
     })
 }
 
+fn merge_generator_field<T: Clone + PartialEq>(
+    base: &T,
+    latest: &T,
+    candidate: &T,
+    rebased: &mut T,
+    label: &str,
+) -> Result<(), String> {
+    if candidate != base {
+        if latest != base && latest != candidate {
+            return Err(format!(
+                "The selected generator definition's {label} changed while this draft was open."
+            ));
+        }
+        *rebased = candidate.clone();
+    }
+    Ok(())
+}
+
 fn rebase_generator_candidate(
     base: &PartDefinition,
     latest: &PartDefinition,
@@ -550,34 +568,111 @@ fn rebase_generator_candidate(
         return Err("The selected generator definition changed identity.".into());
     }
     let mut rebased = latest.clone();
-    macro_rules! merge_field {
-        ($field:ident) => {
-            if candidate.$field != base.$field {
-                if latest.$field != base.$field && latest.$field != candidate.$field {
-                    return Err(format!(
-                        "The selected generator definition's {} changed while this draft was open.",
-                        stringify!($field).replace('_', " ")
-                    ));
-                }
-                rebased.$field = candidate.$field.clone();
-            }
-        };
-    }
-    merge_field!(hardware_profile);
-    merge_field!(input_profile);
-    merge_field!(name);
-    merge_field!(kind);
-    merge_field!(keycap);
-    merge_field!(envelope_source);
-    merge_field!(kicad_source);
-    merge_field!(terminals);
-    merge_field!(matrix_terminals);
-    merge_field!(envelope_notice);
-    merge_field!(courtyard);
-    merge_field!(pads);
-    merge_field!(models);
-    merge_field!(generator);
-    merge_field!(mechanical_profile);
+    merge_generator_field(
+        &base.hardware_profile,
+        &latest.hardware_profile,
+        &candidate.hardware_profile,
+        &mut rebased.hardware_profile,
+        "hardware profile",
+    )?;
+    merge_generator_field(
+        &base.input_profile,
+        &latest.input_profile,
+        &candidate.input_profile,
+        &mut rebased.input_profile,
+        "input profile",
+    )?;
+    merge_generator_field(
+        &base.name,
+        &latest.name,
+        &candidate.name,
+        &mut rebased.name,
+        "name",
+    )?;
+    merge_generator_field(
+        &base.kind,
+        &latest.kind,
+        &candidate.kind,
+        &mut rebased.kind,
+        "kind",
+    )?;
+    merge_generator_field(
+        &base.keycap,
+        &latest.keycap,
+        &candidate.keycap,
+        &mut rebased.keycap,
+        "keycap",
+    )?;
+    merge_generator_field(
+        &base.envelope_source,
+        &latest.envelope_source,
+        &candidate.envelope_source,
+        &mut rebased.envelope_source,
+        "envelope source",
+    )?;
+    merge_generator_field(
+        &base.kicad_source,
+        &latest.kicad_source,
+        &candidate.kicad_source,
+        &mut rebased.kicad_source,
+        "kicad source",
+    )?;
+    merge_generator_field(
+        &base.terminals,
+        &latest.terminals,
+        &candidate.terminals,
+        &mut rebased.terminals,
+        "terminals",
+    )?;
+    merge_generator_field(
+        &base.matrix_terminals,
+        &latest.matrix_terminals,
+        &candidate.matrix_terminals,
+        &mut rebased.matrix_terminals,
+        "matrix terminals",
+    )?;
+    merge_generator_field(
+        &base.envelope_notice,
+        &latest.envelope_notice,
+        &candidate.envelope_notice,
+        &mut rebased.envelope_notice,
+        "envelope notice",
+    )?;
+    merge_generator_field(
+        &base.courtyard,
+        &latest.courtyard,
+        &candidate.courtyard,
+        &mut rebased.courtyard,
+        "courtyard",
+    )?;
+    merge_generator_field(
+        &base.pads,
+        &latest.pads,
+        &candidate.pads,
+        &mut rebased.pads,
+        "pads",
+    )?;
+    merge_generator_field(
+        &base.models,
+        &latest.models,
+        &candidate.models,
+        &mut rebased.models,
+        "models",
+    )?;
+    merge_generator_field(
+        &base.generator,
+        &latest.generator,
+        &candidate.generator,
+        &mut rebased.generator,
+        "generator",
+    )?;
+    merge_generator_field(
+        &base.mechanical_profile,
+        &latest.mechanical_profile,
+        &candidate.mechanical_profile,
+        &mut rebased.mechanical_profile,
+        "mechanical profile",
+    )?;
     Ok(rebased)
 }
 

@@ -1223,6 +1223,13 @@ fn set_dimension(
         MechanicalDimension::WallThickness => configuration.wall_thickness = value,
         MechanicalDimension::Clearance => configuration.clearance = value,
         MechanicalDimension::OpeningAllowance => configuration.opening_allowance = Some(value),
+        MechanicalDimension::MountPositionX
+        | MechanicalDimension::MountPositionY
+        | MechanicalDimension::MountHoleDiameter
+        | MechanicalDimension::MountBossDiameter
+        | MechanicalDimension::MountBossHeight => {
+            return Err("Mount dimensions require a current mount selection.".into());
+        }
         MechanicalDimension::GasketSupportLength | MechanicalDimension::GasketSupportWidth => {
             return Err("Gasket support dimensions require a current support selection.".into());
         }
