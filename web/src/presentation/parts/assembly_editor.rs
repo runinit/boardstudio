@@ -321,10 +321,10 @@ pub(super) fn SavedAssembliesEditor(
 #[allow(clippy::too_many_arguments)]
 fn begin_apply_assembly_to_matrix(
     runtime: Rc<crate::runtime::Runtime>,
-    mut workspace: Signal<&'static str>,
+    workspace: Signal<&'static str>,
     scope: Option<Scope>,
     source: AcceptedSnapshot,
-    mut selected_context: Signal<Option<super::super::objects::ScopedTreeContext>>,
+    selected_context: Signal<Option<super::super::objects::ScopedTreeContext>>,
     catalogue_definitions: Vec<PartDefinition>,
     assembly: AssemblyDefinition,
     mut preparing: Signal<bool>,
@@ -796,7 +796,7 @@ fn AssemblyMemberFields(
         let draft = draft.clone();
         let definition = definition.clone();
         let member = member.clone();
-        let mut value = value;
+        let value = value;
         let assets = assets;
         let mut import_pending = import_pending;
         let mut import_feedback = import_feedback;

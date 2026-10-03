@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T15:48:01.279431+00:00",
+    "updated_at": "2026-10-03T15:56:16.875371+00:00",
     "parent_counts": {
       "accepted": 10,
       "implementing": 41,
@@ -45,7 +45,7 @@
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
       "source_commit": "d5f915b7",
-      "state": "34772 remains served. PCB/Outline follow-ups and integration key/visibility cleanup joined; combined source compiles atd5f915b7 with4 Assembly warnings. Awaiting remaining Assembly source before next package; tests/browser/review deferred.",
+      "state": "Assembly bindings/matrix Apply/Layout placement joined and combined source compile passes. Packaging next larger candidate with PCB/Outline follow-ups. Direct board X/Y placement remains active; tests/browser/review deferred.",
       "packets": [
         {
           "stream": "Layout",
@@ -270,6 +270,14 @@
           "integrated_commit": "749961f5+56a0459d+d5f915b7",
           "change": "In-place PCB/Outline compiler fixes; mechanical scoped keys, private helper visibility and unused-code warnings",
           "qualification": "Combined source compiles; later behavioral/strict qualification remains."
+        },
+        {
+          "stream": "Parts",
+          "integrated_commit": "667846d9+25ed4ac8+6ae8e609",
+          "author_commit": "a7373cf8a3f2630a81aa3b6f4691ebd825a69d3d",
+          "change": "Ergogen model defaults, saved assembly Matrix Apply and existing Layout drag placement; coherent private workspace mount",
+          "receipt": ".scratch/dioxus-frontend-v1/evidence/f46-assembly-authoring-20261003/RECEIPT.md",
+          "qualification": "Combined source compile passes; package pending. Separate TS board X/Y action remains open."
         }
       ],
       "qualification": "Joined source is not acceptance. No new application tests or browser qualification were run for this batch."
@@ -296,7 +304,14 @@
     ],
     "heavy_slots": {
       "policy": "Coordinator assigned; maximum 2 heavy jobs / 1 package",
-      "active": [],
+      "active": [
+        {
+          "kind": "preview package",
+          "build_id": "frontend-source-batch-20261003-4",
+          "log": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/frontend-source-batch-20261003-4-package.log",
+          "qualification": "Source/package only; application tests/browser/review deferred."
+        }
+      ],
       "check": {
         "source_commit": "3dbcdb38",
         "result": "Failed strict check: two needless Option borrow conversions in Add-object source. Repaired at642d5474; recheck deferred until larger candidate.",
@@ -355,8 +370,8 @@
         }
       ],
       "source_compile": {
-        "source_commit": "d5f915b7",
-        "result": "PASS: combined page source compiles;4 remaining Assembly warnings are assigned to its active author.",
+        "source_commit": "6ae8e609",
+        "result": "PASS: Assembly joins compile; three unused-mut warnings mechanically removed immediately afterward.",
         "command": "cargo check --manifest-path web/Cargo.toml --locked --target wasm32-unknown-unknown --no-default-features --features page --bin boardstudio-web",
         "logs": [
           "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003.log",
@@ -370,12 +385,14 @@
           "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-9.log",
           "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-10.log",
           "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-11.log",
-          "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-12.log"
+          "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-12.log",
+          "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-13.log",
+          "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-14.log"
         ],
         "new_tests": 0,
         "exit_code": 0,
-        "latest_log": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-12.log",
-        "warnings": 4
+        "latest_log": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-14.log",
+        "warnings": 3
       }
     },
     "execution_policy": "docs/agents/issue-tracker.md#frontend-delivery-records",
@@ -429,7 +446,7 @@
       },
       {
         "stream": "Parts + Project",
-        "state": "Demos, profiles, component/generator model import and advanced saved assembly controls joined. Author finishing dynamic bindings and saved assembly Place/Apply using existing Core edits."
+        "state": "Advanced assembly model-binding/Matrix Apply/Layout placement source joined and compiling. Exact TS direct board X/Y parts action is authoring in same issue; other Parts source pass found no remaining owned control gap."
       }
     ],
     "pending_join_packets": [],

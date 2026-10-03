@@ -477,6 +477,12 @@
         "current_mitigation": "Preserve unrelated accepted changes with a narrowly scoped conflict check; edit recipes through the existing Session/history/persistence path.",
         "post_port_follow_up": "Evaluate a dedicated assembly recipe transaction and stable editor callback interface after parity; retain existing placement identity and model-asset ownership.",
         "validation": "Source integrated only; compiler repairs and later paired acceptance remain open."
+      },
+      "assembly_placement_source_20261003": {
+        "evidence": "a7373cf8 author packet; web/src/presentation/objects/matrix_setup.rs MatrixPlacementSource; existing F4.6 receipt",
+        "observation": "The placement callback accepted only preset IDs, so saved assembly recipes could not use the same projection/drag/commit owner. A separate Parts writer would duplicate accepted-scope and transaction policy.",
+        "current_mitigation": "Private MatrixPlacementSource carries preset or assembly plus definition snapshots through the existing placement lifecycle and Core SetMatrix. Shared workspace mount propagated the same payload. No public schema or wire change.",
+        "post_port_follow_up": "Retain one accepted edit owner and deepen its typed placement interface instead of adding workflow-specific document writers. Direct board placement remains a distinct real TS user action to port."
       }
     },
     {
