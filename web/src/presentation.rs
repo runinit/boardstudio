@@ -1886,21 +1886,30 @@ fn layout_relationship_summary(
     driven.unwrap_or_else(|| "No saved placement relationship on this selection.".to_owned())
 }
 
+fn layout_selection_kind_for_tree_context(
+    context: &objects::TreeContext,
+) -> Option<objects::LayoutSelectionKind> {
+    match context {
+        objects::TreeContext::Matrix { .. } => Some(objects::LayoutSelectionKind::Matrix),
+        objects::TreeContext::Row { .. } => Some(objects::LayoutSelectionKind::Row),
+        objects::TreeContext::Column { .. } => Some(objects::LayoutSelectionKind::Column),
+        objects::TreeContext::Key { .. } => Some(objects::LayoutSelectionKind::Key),
+        objects::TreeContext::Component { .. } => Some(objects::LayoutSelectionKind::Part),
+        objects::TreeContext::Outline { .. }
+        | objects::TreeContext::OutlineVersion { .. }
+        | objects::TreeContext::Bridge { .. }
+        | objects::TreeContext::MountedModule { .. }
+        | objects::TreeContext::Board { .. }
+        | objects::TreeContext::LayoutGroup { .. } => None,
+    }
+}
+
 fn update_layout_selection_kind_for_tree_context(
     mut selection_kind: Signal<objects::LayoutSelectionKind>,
     context: &objects::TreeContext,
 ) {
-    if matches!(
-        context,
-        objects::TreeContext::Component {
-            part_id: Some(_),
-            matrix_id: None,
-            row: None,
-            column: None,
-            assembly_id: None,
-        }
-    ) {
-        selection_kind.set(objects::LayoutSelectionKind::Part);
+    if let Some(kind) = layout_selection_kind_for_tree_context(context) {
+        selection_kind.set(kind);
     }
 }
 

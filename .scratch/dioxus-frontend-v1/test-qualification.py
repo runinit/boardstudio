@@ -56,5 +56,98 @@ class QualificationTests(unittest.TestCase):
         self.progress['pending_join_packets']=[{'stream':'Layout'}]
         self.assertFalse(self.refresh())
         self.assertEqual(self.progress['qualification']['journeys'][0]['state'],'passed')
+    def test_functional_scope_uses_its_pin_and_ignores_layout_packet(self):
+        state = self.progress['qualification']
+        state.update(candidate_build_id='layout-candidate', source_commit='a'*40,
+                     phase='repairing', review={'state':'completed'},
+                     journeys=[{'id':'old-layout', 'state':'partial', 'verified':'retained'}],
+                     history=[{'candidate_build_id':'earlier-layout'}],
+                     next_scope={'id':'keymap-functional', 'source_commit':'c'*40,
+                                 'streams':['Keymap'],
+                                 'journeys':[{'id':'encoder-edit', 'scope':'Edit and persist encoder',
+                                              'state':'partial', 'verified':'stale result',
+                                              'remaining':'stale gap', 'evidence':'old receipt'}]})
+        self.progress['pending_join_packets']=[{'stream':'Layout'}]
+        with patch.object(q, 'git', return_value='') as git:
+            self.assertTrue(q.refresh(self.progress, self.proof, self.provenance, Path('/unused')))
+        git.assert_called_with(Path('/unused'), 'merge-base', '--is-ancestor', 'c'*40, 'b'*40)
+        active = self.progress['qualification']
+        self.assertEqual(active['phase'], 'qualifying')
+        self.assertEqual(active['active_scope']['id'], 'keymap-functional')
+        self.assertEqual(active['journeys'], [{'id':'encoder-edit', 'scope':'Edit and persist encoder', 'state':'pending'}])
+        self.assertEqual(active['history'][0], {'candidate_build_id':'earlier-layout'})
+        self.assertEqual(active['history'][1]['journeys'], [{'id':'old-layout', 'state':'partial', 'verified':'retained'}])
+        self.assertEqual(active['history'][1]['review'], {'state':'completed'})
+        self.assertEqual(active['active_scope']['journeys'], [
+            {'id':'encoder-edit', 'scope':'Edit and persist encoder'}])
+        active['journeys'][0].update(state='passed', verified='new candidate result')
+        self.assertFalse(q.refresh(self.progress, self.proof, self.provenance, Path('/unused')))
+        self.assertEqual(active['journeys'][0]['state'], 'passed')
+
+    def test_functional_scope_waits_only_for_its_stream_packets(self):
+        state = self.progress['qualification']
+        state['next_scope']={'id':'keymap-functional', 'source_commit':'c'*40,
+                             'streams':['Keymap'], 'journeys':[{'id':'encoder-edit'}]}
+        self.progress['pending_join_packets']=[{'stream':'Keymap'}]
+        self.refresh()
+        active = self.progress['qualification']
+        self.assertEqual(active['phase'], 'integrating')
+        self.assertTrue(any('Keymap' in reason for reason in active['unmet_start_conditions']))
+
+    def test_new_candidate_resets_active_functional_journey_results(self):
+        state = self.progress['qualification']
+        scope = {'id':'keymap-functional', 'source_commit':'c'*40,
+                 'streams':['Keymap'],
+                 'journeys':[{'id':'encoder-edit', 'state':'partial',
+                              'verified':'old candidate result', 'remaining':'old gap',
+                              'evidence':'old-candidate.json'}]}
+        state['next_scope'] = scope
+        self.refresh()
+        state = self.progress['qualification']
+        state['journeys'][0].update(state='passed', verified='candidate result', evidence='receipt.json')
+        self.proof = {'build_id':'candidate-2', 'source_commit':'d'*40}
+        with patch.object(q, 'git', return_value=''):
+            self.assertTrue(q.refresh(self.progress, self.proof, self.provenance, Path('/unused')))
+        active = self.progress['qualification']
+        self.assertEqual(active['journeys'], [{'id':'encoder-edit', 'state':'pending'}])
+        self.assertEqual(active['history'][-1]['journeys'][0]['state'], 'passed')
+
+    def test_new_candidate_with_unmet_scope_gate_still_archives_old_journey_verdict(self):
+        self.progress['qualification']['next_scope']={
+            'id':'keymap-functional', 'source_commit':'c'*40, 'streams':['Keymap'],
+            'journeys':[{'id':'encoder-edit'}],
+        }
+        self.refresh()
+        state = self.progress['qualification']
+        state['journeys'][0].update(state='passed', verified='old result', evidence='old.json')
+        self.proof = {'build_id':'candidate-2', 'source_commit':'d'*40}
+        self.progress['pending_join_packets']=[{'stream':'Keymap'}]
+        with patch.object(q, 'git', return_value=''):
+            self.assertTrue(q.refresh(self.progress, self.proof, self.provenance, Path('/unused')))
+        active = self.progress['qualification']
+        self.assertEqual(active['phase'], 'integrating')
+        self.assertEqual(active['candidate_build_id'], 'candidate-2')
+        self.assertEqual(active['journeys'], [{'id':'encoder-edit', 'state':'pending'}])
+        self.assertEqual(active['history'][-1]['journeys'][0]['verified'], 'old result')
+
+    def test_functional_scope_requires_nonempty_stream_names_and_journey_ids(self):
+        self.progress['qualification']['next_scope']={
+            'id':'invalid-scope', 'source_commit':'c'*40, 'streams':[''],
+            'journeys':[{'scope':'No journey ID'}],
+        }
+        self.refresh()
+        active = self.progress['qualification']
+        self.assertEqual(active['phase'], 'integrating')
+        self.assertTrue(any('stream scope' in reason for reason in active['unmet_start_conditions']))
+        self.assertTrue(any('journey scope' in reason for reason in active['unmet_start_conditions']))
+
+    def test_functional_scope_requires_an_id(self):
+        self.progress['qualification']['next_scope']={
+            'source_commit':'c'*40, 'streams':['Keymap'], 'journeys':[{'id':'encoder-edit'}],
+        }
+        self.refresh()
+        active = self.progress['qualification']
+        self.assertEqual(active['phase'], 'integrating')
+        self.assertTrue(any('scope ID' in reason for reason in active['unmet_start_conditions']))
 
 if __name__ == '__main__': unittest.main()

@@ -15,6 +15,88 @@ use wasm_bindgen_test::wasm_bindgen_test;
 
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
+#[wasm_bindgen_test]
+fn object_tree_context_projects_the_matching_layout_selection_mode() {
+    use objects::{LayoutSelectionKind as Kind, TreeContext};
+
+    let cases = [
+        (
+            TreeContext::Matrix {
+                matrix_id: "matrix".into(),
+            },
+            Kind::Matrix,
+        ),
+        (
+            TreeContext::Row {
+                matrix_id: "matrix".into(),
+                row: 1,
+            },
+            Kind::Row,
+        ),
+        (
+            TreeContext::Column {
+                matrix_id: "matrix".into(),
+                column: 2,
+            },
+            Kind::Column,
+        ),
+        (
+            TreeContext::Key {
+                matrix_id: "matrix".into(),
+                row: 1,
+                column: 2,
+            },
+            Kind::Key,
+        ),
+        (
+            TreeContext::Component {
+                part_id: Some("matrix-part".into()),
+                matrix_id: Some("matrix".into()),
+                row: Some(1),
+                column: Some(2),
+                assembly_id: None,
+            },
+            Kind::Part,
+        ),
+        (
+            TreeContext::Component {
+                part_id: Some("standalone-part".into()),
+                matrix_id: None,
+                row: None,
+                column: None,
+                assembly_id: None,
+            },
+            Kind::Part,
+        ),
+    ];
+
+    for (context, expected) in cases {
+        assert_eq!(
+            super::layout_selection_kind_for_tree_context(&context),
+            Some(expected),
+            "{context:?} must synchronize the Select mode"
+        );
+    }
+    for context in [
+        TreeContext::Board {
+            board_id: "board".into(),
+        },
+        TreeContext::Outline {
+            board_id: "board".into(),
+        },
+        TreeContext::LayoutGroup {
+            board_id: "board".into(),
+            layout_ids: vec!["layout".into()],
+        },
+    ] {
+        assert_eq!(
+            super::layout_selection_kind_for_tree_context(&context),
+            None,
+            "non-selection tree contexts leave Select mode unchanged"
+        );
+    }
+}
+
 fn fixture() -> (ReadModel, objects::ScopedTreeContext) {
     let scope = Scope {
         session_epoch: SessionEpoch(5),
