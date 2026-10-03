@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T18:08:14.625788+00:00",
+    "updated_at": "2026-10-03T18:16:29.338204+00:00",
     "parent_counts": {
       "accepted": 10,
       "implementing": 41,
@@ -466,7 +466,7 @@
     "active_streams": [
       {
         "stream": "Layout",
-        "priority": "first",
+        "priority": "Functional gaps alongside other streams; exact visual parity deferred",
         "state": "34775: responsive Sofle, all3 Properties shortcuts and key-size/outline Undo/Redo/reopen verified. Inspector/perimeter toolbar, selection-kind label and handle parity gaps recorded; broader gates remain."
       },
       {
@@ -492,9 +492,10 @@
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Integrate one Layout parity packet covering tree-to-selection-kind synchronization and the contextual Outline points/grid/Snap/Done toolbar.",
-      "Restore reference Inspector section order/context presentation and perimeter handle sizing using the saved paired screenshots.",
-      "Characterize generated-outline point difference with matched pristine/size-roundtrip inputs; retain all parent criteria and RF history."
+      "Use existing six-stream source and evidence to identify the highest-impact missing or broken functional journeys; avoid repeating completed source audits.",
+      "Integrate coherent functional batches across workbenches, then compile/package and qualify the affected behaviors with one consolidated candidate review.",
+      "Keep Layout authoring and geometry correctness active; defer cosmetic Inspector order, typography, exact toolbar placement and reference handle appearance until design refinement.",
+      "Preserve parent criteria, blocker history and the architecture/refactoring ledger; record intentional UI changes in existing specs."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
@@ -615,6 +616,21 @@
         "Key width edit, Undo, Redo and reload",
         "Copied outline point edit, Undo, Redo and reload"
       ]
+    },
+    "delivery_priority": {
+      "authority": "User on 2026-10-03: make the app work; layout parity last; improve UI along the way because the design will change.",
+      "order": [
+        "Missing or broken functional workflows across all six streams",
+        "Integrated editing, history, persistence and export behavior",
+        "Visual layout/design refinement after functional coverage"
+      ],
+      "deferred_visual_work": [
+        "Integrate one Layout parity packet covering tree-to-selection-kind synchronization and the contextual Outline points/grid/Snap/Done toolbar.",
+        "Restore reference Inspector section order/context presentation and perimeter handle sizing using the saved paired screenshots."
+      ],
+      "retained_functional_work": "Layout authoring, actual selection semantics, outline geometry correctness, usable snapping/grid controls and all other workbench capabilities remain in scope.",
+      "acceptance": "Retain all 62 parent criteria, statuses and prior evidence. Functional progress is reported separately from unfinished visual/design criteria; no parent is accepted by reprioritization.",
+      "previous_priority": "Layout-first closure and contextual visual parity packet."
     }
   }
 }

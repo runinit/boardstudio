@@ -31,7 +31,8 @@ Use `python3 .scratch/dioxus-frontend-v1/progress.py --help` for commands:
 - `set-status`: preserve status history; acceptance requires a decision, final joins
   and pinned consolidated review/audit. Never copy that review per parent.
 
-Qualification starts at the operating contract's Layout-ready boundary. Read phase and
+Qualification follows the operating contract's functional candidate boundary; exact
+visual Layout parity is deferred by the user's 2026-10-03 direction. Read phase and
 unmet start conditions from the progress command instead of inventing another approval.
 The generated [refactoring report](../migration/POST-PORT-REFACTOR.md) renders the full
 ledger; edit JSON once and sync. Preserve stable IDs, uncertainty, failed attempts and

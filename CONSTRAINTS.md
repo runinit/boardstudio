@@ -6,8 +6,13 @@ rationale remain in [Git history](docs/migration/history/OPERATING-RULES-before-
 
 ## Scope and authority
 
-Port the complete React/TSX interface and UI-owned behavior to Dioxus: theming,
-control placement, menus, contextual Objects/Inspector panes and interactions.
+Port the complete React/TSX capabilities and UI-owned behavior to Dioxus: theming,
+menus, contextual Objects/Inspector panes and interactions. The user reprioritized
+delivery on 2026-10-03: working application workflows first; exact visual layout
+parity comes last, with UI improvements allowed along the way because the design
+will change. Control placement, typography and cosmetic matching must not block
+functional integration. Missing actions, incorrect edits and unusable controls
+remain functional work. Retain earlier visual findings as deferred design inputs.
 Use functioning Rust engines and existing providers. Backend/kernel replacement
 and the major structural refactor remain separate phases. Deliberate necessary UX
 changes get a reason and comparison evidence; placeholders do not establish parity.
@@ -21,7 +26,8 @@ production cutover and React removal retain their separate authorization/gates.
 ## Delivery loop
 
 1. Keep six workbench queues: Layout, PCB, Keymap, Keycaps, Case/shared 3D, and
-   Parts/Project. Prioritize Layout closure. Each stream has at most one implemented
+   Parts/Project. Prioritize missing or broken end-to-end functionality across all
+   six queues, rather than Layout visual closure. Each stream has at most one implemented
    packet waiting for integration or validation; help finish/repair that packet.
 2. Pin the relevant settled TypeScript journey, inspect current Rust code and refine
    the existing spec/ticket. Start when the capabilities actually consumed are proven.
@@ -39,10 +45,11 @@ production cutover and React removal retain their separate authorization/gates.
    then retry; preserve existing fixes, specs and failed logs. Reuse verified unchanged
    providers and warm caches. Coordinator assigns heavy slots; at most two heavy jobs,
    including one package, run at once.
-6. When the queued Layout implementation is integrated and its candidate compile/package
-   passes, automatically enter focused Layout qualification and one consolidated
+6. When a coherent functional batch is integrated and its candidate compile/package
+   passes, qualify its affected working journeys and use one consolidated
    Sol 6.1 High candidate review. Other streams continue. Reuse unchanged paired evidence;
-   check changed journeys and affected repairs. Do not wait for all six workbenches.
+   check changed behavior and affected repairs. Do not wait for visual Layout closure
+   or all six workbenches. Earlier Layout-ready qualification remains historical evidence.
 7. Accept a parent only from its actual criterion verdict and final joins. The
    [acceptance requirements](docs/migration/ACCEPTANCE-REQUIREMENTS.md) retain behavior,
    compatibility, accessibility, performance and retirement gates. Report parents,
