@@ -450,7 +450,7 @@ pub(crate) fn use_mechanical_settings_mount(
                     && projection.key.token == current.identity.snapshot_token
                     && projection.key.revision == current.identity.revision
             })
-            .map(|projection| projection.resolution.clone())
+            .cloned()
     });
     let scene_rows = use_memo(use_reactive(
         (
@@ -464,7 +464,7 @@ pub(crate) fn use_mechanical_settings_mount(
             project_scene_rows(
                 display.as_ref(),
                 current.as_ref(),
-                resolved.as_ref(),
+                resolved.as_ref().map(|projection| &projection.resolution),
                 gasket,
                 is_previous,
             )
@@ -758,6 +758,14 @@ struct MechanicalSettingsResolvedProjection {
     key: SettingsSourceKey,
     identity: MechanicalSettingsIdentity,
     resolution: Rc<MechanicalResolution>,
+}
+
+impl PartialEq for MechanicalSettingsResolvedProjection {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+            && self.identity == other.identity
+            && Rc::ptr_eq(&self.resolution, &other.resolution)
+    }
 }
 
 #[derive(Clone, PartialEq)]
