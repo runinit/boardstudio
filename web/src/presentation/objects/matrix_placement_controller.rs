@@ -343,8 +343,6 @@ pub(in crate::presentation) fn use_matrix_placement(
 
     let on_move = use_callback({
         let runtime = runtime.clone();
-        let workspace = workspace;
-        let scope_generation = scope_generation;
         let canvas_interaction = canvas_interaction.clone();
         let mut placement = placement;
         move |movement: MatrixPlacementMove| {
@@ -393,13 +391,10 @@ pub(in crate::presentation) fn use_matrix_placement(
 
     let on_commit = use_callback({
         let runtime = runtime.clone();
-        let workspace = workspace;
-        let scope_generation = scope_generation;
         let canvas_interaction = canvas_interaction.clone();
         let mut placement = placement;
         let mut pending = pending;
         let mut error = error;
-        let selected_context = selected_context;
         move |movement: MatrixPlacementMove| {
             if !canvas_interaction.is_owner(CanvasInteractionOwner::MatrixPlacement)
                 || pending.read().is_some()
