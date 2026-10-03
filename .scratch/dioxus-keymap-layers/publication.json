@@ -2,7 +2,7 @@
   "parent": "F6K.1",
   "authority": "../dioxus-frontend-tranche-1/AUTHORITY.md",
   "shared_acceptance": "../dioxus-frontend-tranche-1/ACCEPTANCE.md",
-  "status": "published automatically; concrete feature contract required before implementation",
+  "status": "child tickets published automatically; parent acceptance remains open",
   "parent_completion": "unchanged; original acceptance and joins remain open",
   "tickets": [
     {
@@ -16,6 +16,13 @@
       "issue": "issues/02-layer-operations.md",
       "status": "ready-for-agent",
       "profile": "luna-high"
+    },
+    {
+      "id": "F6K.1c",
+      "issue": "issues/10-layers-disclosure.md",
+      "status": "implementing",
+      "profile": "luna-medium",
+      "planning_review": "clear at ac474b4175c7d013b5cd73aa59ad5fe1309073c3"
     }
   ]
 }
