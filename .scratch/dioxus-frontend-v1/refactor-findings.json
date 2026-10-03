@@ -1499,7 +1499,7 @@
         "observation": "Packaging ran fixture preparation before discovering basic Rust/RSX types; the existing CI check command covers React/Core/renderer but omits the Dioxus page. Blanket source-base/isolated-worktree wording also produced needless confirmation waits and a proposed document-only isolate. These are concrete process delays, not a reason to repeat accepted user journeys.",
         "current_mitigation": "Wire the existing locked WASM page cargo check into CI and use the cached command once per joined batch before package retry. Authors advance within unchanged ownership, publish shared helper signatures early, and report no-gap source audits through existing pointers. Preserve original failed package outputs and unrelated work.",
         "post_port_follow_up": "Keep compilation, immutable candidate packaging and behavioral qualification as separate stages with one typed progress/evidence index; evaluate stable scoped callback/view interfaces to reduce RSX capture boilerplate.",
-        "validation": "Source/CI/workflow changes applied. Source compiler loop remains in progress; application tests, browser journeys and consolidated review are deferred."
+        "validation": "Combined WASM page cargo check passes at985f214f (source-batch-typecheck-20261003-8.log). CI uses the same existing compiler command. Operative PLAN/routing policy points to current source-first rules. Original package/compiler failures retained; new application tests, browser journeys and consolidated review deferred."
       }
     },
     {

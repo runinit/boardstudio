@@ -1,6 +1,6 @@
 # Agent models and dispatch policy
 
-**Operative update2026-10-03:** Layout first; six persistent queues; one waiting packet per stream. The user requests less testing and more implementation. Reuse passing evidence, run required affected checks on the combined source, add focused regressions for actual bugs, and review the integrated candidate once. Broaden only for a failure or identified risk. Root assigns heavy build/test slots. CONSTRAINTS.md governs; the current progress record is `docs/migration/dioxus-frontend-v1-run.json:current_progress`. Historical tranche allocations are not new dispatch gates.
+**Operative update 2026-10-03 — integrate now, test later:** Layout first; six queues; serial root source joins; cached combined compiler before packaging. No new per-packet application tests, browser journeys, review or source-base confirmation. Authors automatically continue real gaps within their unchanged ownership; no-gap audits return pointers without new artifacts/worktrees. One consolidated Sol 6.1 High review and changed paired journeys remain later candidate gates. Root assigns heavy slots and owns the [live progress record](../../docs/migration/dioxus-frontend-v1-run.json). [Delivery rules](../../docs/agents/issue-tracker.md#frontend-delivery-records) and CONSTRAINTS.md govern over historical allocations and handoffs below. All parent criteria and RF history remain.
 
 ## Necessary API and design changes — user authorization 2026-10-02
 

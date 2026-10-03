@@ -3,7 +3,7 @@
   "date": "2026-10-03",
   "baseline": "7b7b004e717ce9976d60cc8c0326627b64caa04b",
   "authority": "User confirmed Layout-first, six queues, one waiting packet per stream, journey/criterion reporting; final direction: less testing and more moving.",
-  "status": "Effective: candidate-level review batching supersedes per-child planning/source/composition approval queues; historical reviews and known defects retained.",
+  "status": "Effective source-first phase: serial source integration, cached combined compile before package; application tests/browser qualification/consolidated Sol review later. No per-child approval chain or base-confirmation wait.",
   "profiles": {
     "luna-low": {
       "model": "gpt-6-luna",
@@ -960,5 +960,13 @@
     "implementation": "Existing integration branch; direct serial coordinator joins; ordinary UI has no TDD or separate merger requirement.",
     "review": "One finalized candidate review; parent decisions reference it.",
     "records": "Coordinator owns parent/live/RF updates; derived views refresh through progress.py sync."
+  },
+  "execution_phase": {
+    "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
+    "source_base": "Reuse assigned relevant base unless consumed interfaces or overlapping source change; no confirmation wait.",
+    "continuation": "Original author automatically continues distinct real gaps in its ownership after joining.",
+    "no_gap_audit": "Return existing source pointers by message; no new receipt, commit or worktree.",
+    "compiler": "One combined diagnostic list; fix existing source without duplicating specs/tickets/reviews; compile before package retry.",
+    "qualification": "No new application tests/browser/reviews in current integration phase. Source presence and compilation are not acceptance."
   }
 }

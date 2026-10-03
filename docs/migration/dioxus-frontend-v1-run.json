@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T15:13:56.031909+00:00",
+    "updated_at": "2026-10-03T15:32:27.759310+00:00",
     "parent_counts": {
       "accepted": 10,
       "implementing": 41,
@@ -44,8 +44,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "46cfebd7df924dbb6669c99e93d2c540b24e3a03",
-      "state": "Source-first integration continues. Full bridge/feature editor and component model controls joined. Cached source compilation clears type errors before packaging; behavioral tests/review deferred.",
+      "source_commit": "985f214f86afa17807ef05a4b154e318eeb36638",
+      "state": "Larger source batch integrated and combined WASM page source compiles. Preparing fresh preview package; application tests/browser qualification/consolidated review deferred.",
       "packets": [
         {
           "stream": "Layout",
@@ -207,6 +207,48 @@
           "stream": "Export support",
           "integrated_commit": "bdcff5bd",
           "change": "Selected-board authored readiness and aggregate outline fallback"
+        },
+        {
+          "stream": "Layout",
+          "integrated_commit": "d4b04387+0507f3b2+b9238d66",
+          "change": "Matrix/component Properties and Relations with owned target navigation",
+          "qualification": "Source integrated; behavioral qualification deferred."
+        },
+        {
+          "stream": "Case",
+          "integrated_commit": "d947d8d6",
+          "change": "Closure hardware CRUD and part/mount associations",
+          "qualification": "Source integrated; behavioral qualification deferred."
+        },
+        {
+          "stream": "PCB",
+          "integrated_commit": "2c770f25+992b12dd+eab894e0",
+          "change": "Routed KiCad import/replace, model discovery/attachments and compiler captures",
+          "qualification": "Source integrated; behavioral qualification deferred."
+        },
+        {
+          "stream": "Parts",
+          "integrated_commit": "dcab8777",
+          "change": "Generator model file parameter import/replace",
+          "qualification": "Source integrated; behavioral qualification deferred."
+        },
+        {
+          "stream": "Parts",
+          "integrated_commit": "ee917418",
+          "change": "Advanced saved assembly member/model editing and isolated 3D preview",
+          "qualification": "Source integrated; behavioral qualification deferred."
+        },
+        {
+          "stream": "Layout",
+          "integrated_commit": "76669679+6d54f61e",
+          "change": "Gap camera focus, bound editor selection signals and anchored rectangle center fields",
+          "qualification": "Source integrated; behavioral qualification deferred."
+        },
+        {
+          "stream": "Shared integration",
+          "integrated_commit": "3ec8b36f+211f960e+5bb7e67a+985f214f",
+          "change": "Joined module type/RSX/ownership fixes without new tickets or reviews",
+          "qualification": "Source integrated; behavioral qualification deferred."
         }
       ],
       "qualification": "Joined source is not acceptance. No new application tests or browser qualification were run for this batch."
@@ -283,14 +325,22 @@
         }
       ],
       "source_compile": {
-        "source_commit": "3dccf2a2",
-        "result": "Compile-only passes exposed RSX declaration/capture errors. Direct repairs joined, plus model/outline source; next combined compile pending.",
+        "source_commit": "985f214f86afa17807ef05a4b154e318eeb36638",
+        "result": "PASS: combined page source compiles at985f214f; 27 warnings retained. No application tests/browser/review; strict Clippy remains later qualification.",
         "command": "cargo check --manifest-path web/Cargo.toml --locked --target wasm32-unknown-unknown --no-default-features --features page --bin boardstudio-web",
         "logs": [
           "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003.log",
-          "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-2.log"
+          "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-2.log",
+          "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-3.log",
+          "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-4.log",
+          "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-5.log",
+          "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-6.log",
+          "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-7.log",
+          "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-8.log"
         ],
-        "new_tests": 0
+        "new_tests": 0,
+        "exit_code": 0,
+        "latest_log": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-8.log"
       }
     },
     "execution_policy": "docs/agents/issue-tracker.md#frontend-delivery-records",
@@ -323,11 +373,11 @@
       {
         "stream": "Layout",
         "priority": "first",
-        "state": "Selection accepted. Matrix authoring/linked Inspector/mirror-half/grid and full polygon/bridge/feature controls joined. Properties/Relations tabs awaiting source join; further real outline source gaps checked."
+        "state": "Properties/Relations and full outline feature/bridge/gap focus/rectangle position controls joined. Author finishing actual attachment/connection gaps; later paired qualification remains."
       },
       {
         "stream": "PCB",
-        "state": "Board geometry routes and reference Inspector joined; physical setup is already mounted. Routed-board import/replace and model-path discovery/attachment authoring."
+        "state": "Routed-board import/replace and model discovery/attachment joined. Author adding manual-net conflict/release control from pinned TS source."
       },
       {
         "stream": "Keymap",
@@ -335,22 +385,22 @@
       },
       {
         "stream": "Keycaps",
-        "state": "F6C.1/.2/.4 accepted; resize/STEP/preview proof retained, F6C.3/.5 joins open. Authored/generated mechanical Export paths joined; remaining Export UI authoring."
+        "state": "F6C.1/.2/.4 accepted; F6C.3/.5 joins open. Authored/generated Export controls joined; source audit found no further Export-owned control gap."
       },
       {
         "stream": "Case",
-        "state": "Authored-editor parent accepted; access openings, complete closure dimensions and Critical fits editor joined. Contextual source gaps authoring; handle hit/drag qualification deferred."
+        "state": "Openings, full closure/Critical fits/hardware controls joined. Source audit found no additional Case/shared-viewer owned control gap; later behavioral/handle qualification remains."
       },
       {
         "stream": "Parts + Project",
-        "state": "Demos/module profiles/saved assembly/component models joined. Shared file helper unblocks PCB/Assembly. Generator file-parameter attachment and advanced Assembly controls authoring."
+        "state": "Demos, profiles, component/generator model import and advanced saved assembly controls joined. Author finishing dynamic bindings and saved assembly Place/Apply using existing Core edits."
       }
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Join ready outline drafts/grid, routed-board import, remaining mechanical settings, assembly authoring and component model controls without per-packet tests or reviews.",
-      "Freeze the larger candidate, compile/package once, then qualify changed public journeys and review once; retain unchanged proof.",
-      "Use assigned relevant source bases across record-only commits. Publish only this live record and new RF deltas; preserve all final criteria and joins."
+      "Clear combined source compiler errors before a fresh preview package; preserve failed logs and source pins.",
+      "Join actual Outline, PCB conflict-release and Assembly placement/binding gaps from original authors without per-packet review/test waits.",
+      "Package frozen larger source then show preview; defer changed public qualification and one consolidated Sol review. Keep one live record and RF deltas."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
