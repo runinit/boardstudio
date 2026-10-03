@@ -2,7 +2,8 @@
 use crate::runtime::Runtime;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{
-    Finding, KeycapResolution, ProjectDoc, Scope as FindingScope, Severity,
+    Contour, Finding, KeycapResolution, Matrix, Part, Pose2, ProjectDoc, SceneDelta,
+    Scope as FindingScope, Severity, Side, Vec2,
 };
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
@@ -40,6 +41,7 @@ pub(super) struct KeycapsFitState {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum FindingNavigationTarget {
+    MechanicalLayer { board_id: String, layer_id: String },
     Outline { board_id: String },
     Part { board_id: String, part_id: String },
     Matrix { board_id: String, matrix_id: String },
@@ -187,6 +189,7 @@ pub(super) fn use_keycaps_fit(
 pub(super) fn KeycapsFitInspector(
     document: Rc<ProjectDoc>,
     state: Option<KeycapsFitState>,
+    mechanical_layer_ids: Rc<[String]>,
     on_retry: EventHandler<()>,
     on_navigate: EventHandler<FindingNavigationRequest>,
 ) -> Element {
@@ -257,6 +260,7 @@ pub(super) fn KeycapsFitInspector(
                                         finding,
                                         document: document.clone(),
                                         source: accepted.unwrap().source.clone(),
+                                        mechanical_layer_ids: mechanical_layer_ids.clone(),
                                         on_navigate,
                                     }
                                 }
@@ -275,6 +279,7 @@ fn KeycapsFitFinding(
     finding: Finding,
     document: Rc<ProjectDoc>,
     source: KeycapsFitSource,
+    mechanical_layer_ids: Rc<[String]>,
     on_navigate: EventHandler<FindingNavigationRequest>,
 ) -> Element {
     let (severity, severity_class) = match &finding.severity {
@@ -283,8 +288,18 @@ fn KeycapsFitFinding(
         Severity::Info => ("Information", "info"),
     };
     let fitted = finding.id.ends_with("outline:corners:fitted");
-    let navigation_target = finding_navigation_target(&finding, &document);
-    let action_label = finding_action_label(&finding, &document, &source.scope.board_id);
+    let navigation_target = finding_navigation_target_with_layers(
+        &finding,
+        &document,
+        &source.scope.board_id,
+        &mechanical_layer_ids,
+    );
+    let action_label = finding_action_label(
+        &finding,
+        &document,
+        &source.scope.board_id,
+        &mechanical_layer_ids,
+    );
     let request = navigation_target.map(|target| FindingNavigationRequest {
         source,
         finding: finding.clone(),
@@ -569,79 +584,254 @@ pub(super) fn finding_navigation_target(
         })
 }
 
-pub(super) fn navigation_bounds(
+/// Match the pinned workbench's current mechanical-layer precedence before the
+/// document target resolver. The assembly is supplied only by the root after
+/// its accepted scope/token/revision check.
+pub(super) fn finding_navigation_target_with_layers(
+    finding: &Finding,
     document: &ProjectDoc,
-    view: Option<&super::keycaps_scene::KeycapsView>,
-    contours: &[boardstudio_core::model::Contour],
+    board_id: &str,
+    mechanical_layer_ids: &[String],
+) -> Option<FindingNavigationTarget> {
+    if let Some(layer_id) = mechanical_layer_ids
+        .iter()
+        .find(|layer_id| finding.target_ids.contains(layer_id))
+    {
+        return Some(FindingNavigationTarget::MechanicalLayer {
+            board_id: board_id.to_owned(),
+            layer_id: layer_id.clone(),
+        });
+    }
+    finding_navigation_target(finding, document)
+}
+
+pub(super) fn accepted_navigation_target(
+    state: &KeycapsFitState,
+    request: &FindingNavigationRequest,
+    document: &ProjectDoc,
+    mechanical_layer_ids: &[String],
+) -> Option<FindingNavigationTarget> {
+    if !state.accepts_navigation(request, document) {
+        return None;
+    }
+    let target = finding_navigation_target_with_layers(
+        &request.finding,
+        document,
+        &request.source.scope.board_id,
+        mechanical_layer_ids,
+    )?;
+    (target_board_id(&target) == request.source.scope.board_id).then_some(target)
+}
+
+pub(super) fn layout_navigation_bounds(
+    document: &ProjectDoc,
+    scene: &SceneDelta,
     target: &FindingNavigationTarget,
 ) -> Option<(f64, f64, f64, f64)> {
-    let view = view?;
     let mut bounds: Option<(f64, f64, f64, f64)> = None;
-    let mut include = |x: f64, y: f64| {
-        bounds = Some(bounds.map_or((x, x, y, y), |(min_x, max_x, min_y, max_y)| {
-            (min_x.min(x), max_x.max(x), min_y.min(y), max_y.max(y))
-        }));
-    };
-    let key_ids: Vec<&str> = match target {
-        FindingNavigationTarget::Part { part_id, .. } => vec![part_id],
-        FindingNavigationTarget::Matrix { matrix_id, .. } => document
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == *matrix_id)?
-            .part_ids
-            .iter()
-            .map(String::as_str)
-            .collect(),
-        FindingNavigationTarget::Outline { .. } | FindingNavigationTarget::Board { .. } => {
-            view.keys.iter().map(|key| key.id.as_ref()).collect()
-        }
-        FindingNavigationTarget::Body { .. } => return None,
-    };
-    for key in view
-        .keys
-        .iter()
-        .filter(|key| key_ids.iter().any(|id| *id == key.id.as_ref()))
-    {
-        let angle = key.pose.rotation.to_radians();
-        let (sin, cos) = angle.sin_cos();
-        for (local_x, local_y) in [
-            (-key.size.x / 2.0, -key.size.y / 2.0),
-            (-key.size.x / 2.0, key.size.y / 2.0),
-            (key.size.x / 2.0, -key.size.y / 2.0),
-            (key.size.x / 2.0, key.size.y / 2.0),
-        ] {
-            include(
-                key.pose.at.x + local_x * cos - local_y * sin,
-                key.pose.at.y + local_x * sin + local_y * cos,
-            );
-        }
-    }
-    if matches!(
-        target,
-        FindingNavigationTarget::Outline { .. } | FindingNavigationTarget::Board { .. }
-    ) {
-        for contour in contours {
-            for point in &contour.points {
-                include(point.x, point.y);
+    match target {
+        FindingNavigationTarget::Part { part_id, board_id } => {
+            let board = document.boards.iter().find(|board| board.id == *board_id)?;
+            if !board.part_ids.contains(part_id) {
+                return None;
             }
+            let part = document.parts.iter().find(|part| part.id == *part_id)?;
+            include_layout_part_bounds(document, scene, part, &mut bounds);
+        }
+        FindingNavigationTarget::Matrix {
+            matrix_id,
+            board_id,
+        } => {
+            let board = document.boards.iter().find(|board| board.id == *board_id)?;
+            let matrix = document.matrices.iter().find(|matrix| {
+                matrix.id == *matrix_id
+                    && matrix.part_ids.iter().any(|id| board.part_ids.contains(id))
+            })?;
+            for part in document.parts.iter().filter(|part| {
+                board.part_ids.contains(&part.id) && matrix.part_ids.contains(&part.id)
+            }) {
+                include_layout_part_bounds(document, scene, part, &mut bounds);
+            }
+            include_matrix_cell_bounds(document, scene, matrix, &mut bounds);
+        }
+        FindingNavigationTarget::Outline { board_id }
+        | FindingNavigationTarget::Board { board_id } => {
+            include_board_contours(document, scene, board_id, &mut bounds);
+        }
+        FindingNavigationTarget::MechanicalLayer { .. } | FindingNavigationTarget::Body { .. } => {
+            return None;
         }
     }
     let (min_x, max_x, min_y, max_y) = bounds?;
     Some((min_x - 12.0, max_x + 12.0, min_y - 12.0, max_y + 12.0))
 }
 
+fn include_layout_part_bounds(
+    document: &ProjectDoc,
+    scene: &SceneDelta,
+    part: &Part,
+    bounds: &mut Option<(f64, f64, f64, f64)>,
+) {
+    let pose = scene
+        .transforms
+        .iter()
+        .find(|transform| transform.id == part.id)
+        .map_or(part.pose, |transform| transform.pose);
+    let definition = document
+        .definitions
+        .iter()
+        .find(|definition| definition.id == part.definition_id);
+    if let Some(definition) = definition.filter(|definition| !definition.courtyard.is_empty()) {
+        for point in &definition.courtyard {
+            include_local_point(bounds, pose, matches!(part.side, Side::Back), *point);
+        }
+    } else {
+        include_point(bounds, pose.at);
+    }
+    if let Some(size) = part
+        .keycap
+        .or_else(|| definition.and_then(|definition| definition.keycap))
+    {
+        include_rotated_rect(bounds, pose, size);
+    }
+}
+
+fn include_matrix_cell_bounds(
+    document: &ProjectDoc,
+    scene: &SceneDelta,
+    matrix: &Matrix,
+    bounds: &mut Option<(f64, f64, f64, f64)>,
+) {
+    let Some(projected) = scene
+        .matrix_scenes
+        .iter()
+        .find(|projected| projected.matrix_id == matrix.id)
+    else {
+        return;
+    };
+    for cell in projected.cells.iter().filter(|cell| cell.enabled) {
+        let part = cell
+            .member_id
+            .as_deref()
+            .and_then(|id| document.parts.iter().find(|part| part.id == id));
+        let definition = part
+            .and_then(|part| {
+                document
+                    .definitions
+                    .iter()
+                    .find(|definition| definition.id == part.definition_id)
+            })
+            .or_else(|| {
+                document
+                    .definitions
+                    .iter()
+                    .find(|definition| definition.id == matrix.definition_id)
+            });
+        let size = part
+            .and_then(|part| part.keycap)
+            .or_else(|| definition.and_then(|definition| definition.keycap))
+            .unwrap_or(Vec2 {
+                x: (matrix.pitch.x - matrix.edge_gap.map_or(1.0, |gap| gap.x)).max(1.0),
+                y: (matrix.pitch.y - matrix.edge_gap.map_or(1.0, |gap| gap.y)).max(1.0),
+            });
+        include_rotated_rect(bounds, cell.pose, size);
+    }
+}
+
+fn include_board_contours(
+    document: &ProjectDoc,
+    scene: &SceneDelta,
+    board_id: &str,
+    bounds: &mut Option<(f64, f64, f64, f64)>,
+) {
+    if let Some(board) = scene
+        .board_contours
+        .iter()
+        .find(|board| board.board_id == board_id)
+    {
+        for point in board
+            .contours
+            .iter()
+            .flat_map(|contour: &Contour| &contour.points)
+        {
+            include_point(bounds, *point);
+        }
+    } else if document.boards.len() == 1 {
+        for point in scene.contours.iter().flat_map(|contour| &contour.points) {
+            include_point(bounds, *point);
+        }
+    }
+}
+
+fn include_rotated_rect(bounds: &mut Option<(f64, f64, f64, f64)>, pose: Pose2, size: Vec2) {
+    for point in [
+        Vec2 {
+            x: -size.x / 2.0,
+            y: -size.y / 2.0,
+        },
+        Vec2 {
+            x: -size.x / 2.0,
+            y: size.y / 2.0,
+        },
+        Vec2 {
+            x: size.x / 2.0,
+            y: -size.y / 2.0,
+        },
+        Vec2 {
+            x: size.x / 2.0,
+            y: size.y / 2.0,
+        },
+    ] {
+        include_local_point(bounds, pose, false, point);
+    }
+}
+
+fn include_local_point(
+    bounds: &mut Option<(f64, f64, f64, f64)>,
+    pose: Pose2,
+    mirrored: bool,
+    point: Vec2,
+) {
+    let local_x = if mirrored { -point.x } else { point.x };
+    let angle = pose.rotation.to_radians();
+    let (sin, cos) = angle.sin_cos();
+    include_point(
+        bounds,
+        Vec2 {
+            x: pose.at.x + local_x * cos - point.y * sin,
+            y: pose.at.y + local_x * sin + point.y * cos,
+        },
+    );
+}
+
+fn include_point(bounds: &mut Option<(f64, f64, f64, f64)>, point: Vec2) {
+    *bounds = Some(bounds.map_or(
+        (point.x, point.x, point.y, point.y),
+        |(min_x, max_x, min_y, max_y)| {
+            (
+                min_x.min(point.x),
+                max_x.max(point.x),
+                min_y.min(point.y),
+                max_y.max(point.y),
+            )
+        },
+    ));
+}
+
 fn finding_action_label(
     finding: &Finding,
     document: &ProjectDoc,
     active_board_id: &str,
+    mechanical_layer_ids: &[String],
 ) -> Option<&'static str> {
-    finding_navigation_target(finding, document)
+    finding_navigation_target_with_layers(finding, document, active_board_id, mechanical_layer_ids)
         .filter(|target| target_board_id(target) == active_board_id)
         .map(|target| match target {
             FindingNavigationTarget::Outline { .. } => "Show outline",
             FindingNavigationTarget::Part { .. }
             | FindingNavigationTarget::Matrix { .. }
             | FindingNavigationTarget::Body { .. }
+            | FindingNavigationTarget::MechanicalLayer { .. }
             | FindingNavigationTarget::Board { .. } => "Select affected geometry",
         })
 }
@@ -649,6 +839,7 @@ fn finding_action_label(
 fn target_board_id(target: &FindingNavigationTarget) -> &str {
     match target {
         FindingNavigationTarget::Outline { board_id }
+        | FindingNavigationTarget::MechanicalLayer { board_id, .. }
         | FindingNavigationTarget::Part { board_id, .. }
         | FindingNavigationTarget::Matrix { board_id, .. }
         | FindingNavigationTarget::Body { board_id, .. }
@@ -660,7 +851,9 @@ fn target_board_id(target: &FindingNavigationTarget) -> &str {
 mod tests {
     use super::*;
     use boardstudio_application::{SessionEpoch, SnapshotToken};
-    use boardstudio_core::model::{Board, KeycapResolution};
+    use boardstudio_core::model::{
+        Board, KeycapResolution, Part, Pose2, Readiness, SceneDelta, Side, Transform, Vec2,
+    };
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
 
@@ -767,18 +960,209 @@ mod tests {
             target_ids: vec!["board".into()],
         };
         assert_eq!(
-            finding_action_label(&finding, &document, "board"),
+            finding_action_label(&finding, &document, "board", &[]),
             Some("Select affected geometry")
         );
         assert_eq!(
-            finding_action_label(&finding, &document, "other-board"),
+            finding_action_label(&finding, &document, "other-board", &[]),
             None
         );
         let targetless = Finding {
             target_ids: vec![],
             ..finding
         };
-        assert_eq!(finding_action_label(&targetless, &document, "board"), None);
+        assert_eq!(
+            finding_action_label(&targetless, &document, "board", &[]),
+            None
+        );
+    }
+
+    #[wasm_bindgen_test]
+    fn current_case_stack_target_precedes_companion_part_target() {
+        let mut document = ProjectDoc::empty("doc", "Project");
+        document.boards.push(Board {
+            id: "board".into(),
+            name: "Left PCB".into(),
+            outline_ids: vec![],
+            part_ids: vec!["matrix/keys/diode-1".into()],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        document.parts.push(Part {
+            id: "matrix/keys/diode-1".into(),
+            definition_id: "diode".into(),
+            reference: "D1".into(),
+            pose: Pose2 {
+                at: Vec2 { x: 0.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            locked: None,
+            properties: None,
+            generator_parameters: None,
+            keycap: None,
+            outline: None,
+        });
+        let finding = Finding {
+            id: "case:collision".into(),
+            severity: Severity::Warning,
+            scope: FindingScope::Case,
+            message: "Mechanical collision".into(),
+            target_ids: vec!["matrix/keys/diode-1".into(), "case:plate".into()],
+        };
+        let layer_ids = vec!["case:plate".to_owned()];
+        assert_eq!(
+            finding_navigation_target_with_layers(&finding, &document, "board", &layer_ids),
+            Some(FindingNavigationTarget::MechanicalLayer {
+                board_id: "board".into(),
+                layer_id: "case:plate".into(),
+            })
+        );
+        assert!(matches!(
+            finding_navigation_target(&finding, &document),
+            Some(FindingNavigationTarget::Part { .. })
+        ));
+    }
+
+    #[wasm_bindgen_test]
+    fn production_navigation_admission_rejects_stale_results_and_removed_targets() {
+        let mut document = ProjectDoc::empty("document", "Project");
+        document.boards.push(Board {
+            id: "board".into(),
+            name: "Left PCB".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        let finding = Finding {
+            id: "board:board:invalid-settings".into(),
+            severity: Severity::Warning,
+            scope: FindingScope::Layout,
+            message: "Board needs review".into(),
+            target_ids: vec!["board".into()],
+        };
+        let current_source = source(1);
+        let mut accepted = KeycapsFitState::begin(current_source.clone(), None);
+        accepted.finish(Ok(KeycapResolution {
+            revision: 1,
+            specs: vec![],
+            findings: vec![finding.clone()],
+        }));
+        let request = FindingNavigationRequest {
+            source: current_source.clone(),
+            finding: finding.clone(),
+            target: FindingNavigationTarget::Board {
+                board_id: "board".into(),
+            },
+        };
+        assert_eq!(
+            accepted_navigation_target(&accepted, &request, &document, &[]),
+            Some(request.target.clone()),
+            "the production owner receives the live target through its admission seam"
+        );
+
+        let pending = KeycapsFitState::begin(source(2), Some(&accepted));
+        assert_eq!(
+            accepted_navigation_target(&pending, &request, &document, &[]),
+            None,
+            "an older displayed result cannot navigate after a same-board revision change"
+        );
+
+        let deleted = Finding {
+            target_ids: vec!["deleted-part".into()],
+            ..finding
+        };
+        let mut old_result = KeycapsFitState::begin(current_source.clone(), None);
+        old_result.finish(Ok(KeycapResolution {
+            revision: 1,
+            specs: vec![],
+            findings: vec![deleted.clone()],
+        }));
+        let removed_request = FindingNavigationRequest {
+            source: current_source,
+            finding: deleted,
+            target: FindingNavigationTarget::Part {
+                board_id: "board".into(),
+                part_id: "deleted-part".into(),
+            },
+        };
+        assert_eq!(
+            accepted_navigation_target(&old_result, &removed_request, &document, &[]),
+            None,
+            "a retained finding whose target was removed safely declines navigation"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    fn layout_target_bounds_include_non_keycap_matrix_companions() {
+        let mut document = ProjectDoc::empty("doc", "Project");
+        document.boards.push(Board {
+            id: "board".into(),
+            name: "Left PCB".into(),
+            outline_ids: vec![],
+            part_ids: vec!["matrix/keys/diode-1".into()],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        document.parts.push(Part {
+            id: "matrix/keys/diode-1".into(),
+            definition_id: "diode".into(),
+            reference: "D1".into(),
+            pose: Pose2 {
+                at: Vec2 { x: 0.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            locked: None,
+            properties: None,
+            generator_parameters: None,
+            keycap: None,
+            outline: None,
+        });
+        let scene = SceneDelta {
+            module_scenes: vec![],
+            revision: document.revision,
+            transaction_id: "accepted".into(),
+            changed_ids: vec![],
+            transforms: vec![Transform {
+                id: "matrix/keys/diode-1".into(),
+                pose: Pose2 {
+                    at: Vec2 { x: 40.0, y: 70.0 },
+                    rotation: 0.0,
+                },
+            }],
+            matrix_scenes: vec![],
+            contours: vec![],
+            board_contours: vec![],
+            board_readiness: vec![],
+            board_outline_scenes: vec![],
+            finding_markers: vec![],
+            findings: vec![],
+            readiness: Readiness {
+                layout: true,
+                outline: false,
+                pcb: false,
+                case_ready: false,
+            },
+        };
+        assert_eq!(
+            layout_navigation_bounds(
+                &document,
+                &scene,
+                &FindingNavigationTarget::Part {
+                    board_id: "board".into(),
+                    part_id: "matrix/keys/diode-1".into(),
+                },
+            ),
+            Some((28.0, 52.0, 58.0, 82.0))
+        );
     }
 
     fn mounted_action() -> Element {
@@ -821,6 +1205,7 @@ mod tests {
                 KeycapsFitInspector {
                     document: Rc::new(document),
                     state: Some(accepted),
+                    mechanical_layer_ids: Rc::from([]),
                     on_retry: EventHandler::new(|()| {}),
                     on_navigate,
                 }

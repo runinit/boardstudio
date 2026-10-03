@@ -763,6 +763,34 @@ fn accepted_board_contours(snapshot: &AcceptedSnapshot, board_id: &str) -> Rc<[C
     Rc::<[Contour]>::from(contours.to_vec())
 }
 
+fn current_case_layer_ids(
+    runtime: &Runtime,
+    scope: &Scope,
+    snapshot: &AcceptedSnapshot,
+) -> Option<Rc<[String]>> {
+    let scene = runtime.cad_scene()?;
+    if !scene.exact
+        || scene.scope != *scope
+        || scene.token != snapshot.token
+        || scene.prepared.revision != snapshot.document.revision
+    {
+        return None;
+    }
+    Some(Rc::from(
+        scene
+            .mechanical
+            .as_ref()
+            .map(|assembly| {
+                assembly
+                    .stack
+                    .iter()
+                    .map(|layer| layer.id.clone())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default(),
+    ))
+}
+
 fn keymap_bounds(view: &keymap::KeymapView, contours: &[Contour]) -> Option<(f64, f64, f64, f64)> {
     let mut bounds: Option<(f64, f64, f64, f64)> = None;
     let mut include = |x: f64, y: f64| {
@@ -1422,6 +1450,8 @@ fn Editor() -> Element {
     let instance_selection = use_context_provider(|| InstanceSelection(instance_preference));
     let case_body_selection = use_signal(|| None::<case_viewer::BodySelection>);
     let case_layer_selection = use_signal(|| None::<case_viewer::LayerSelection>);
+    let pending_keycaps_navigation_fit =
+        use_signal(|| None::<keycaps_fit::FindingNavigationRequest>);
     let case_display = use_signal(std::collections::BTreeMap::new);
     let case_selection = case_viewer::CaseSelection {
         body: case_body_selection,
@@ -3025,10 +3055,8 @@ fn Editor() -> Element {
         let mut inspect_open = inspect_open;
         let mut body_selection = case_body_selection;
         let fit_state = keycaps_fit_state.state.clone();
+        let mut pending_camera_fit = pending_keycaps_navigation_fit;
         let select_tree = workspace_callbacks.select_tree;
-        let camera_surface = svg.clone();
-        let camera_view = keycaps_view.clone();
-        let camera_contours = keycaps_contours.clone();
         move |request: keycaps_fit::FindingNavigationRequest| {
             if workspace() != "Keycaps"
                 || runtime.scope().as_ref() != Some(&scope)
@@ -3047,19 +3075,32 @@ fn Editor() -> Element {
             }) else {
                 return;
             };
-            if !fit_state
-                .as_ref()
-                .is_some_and(|state| state.accepts_navigation(&request, &snapshot.document))
+            let live_mechanical_layers = current_case_layer_ids(&runtime, &scope, snapshot);
+            if live_mechanical_layers.is_none() && request.source.case_preview_current {
+                return;
+            }
+            let live_mechanical_layers = live_mechanical_layers.unwrap_or_else(|| Rc::from([]));
+            let Some(state) = fit_state.as_ref() else {
+                return;
+            };
+            let Some(target) = keycaps_fit::accepted_navigation_target(
+                state,
+                &request,
+                &snapshot.document,
+                &live_mechanical_layers,
+            ) else {
+                return;
+            };
+            if matches!(
+                &request.target,
+                keycaps_fit::FindingNavigationTarget::MechanicalLayer { .. }
+            ) && target != request.target
             {
                 return;
             }
-            if keycaps_fit::finding_navigation_target(&request.finding, &snapshot.document).as_ref()
-                != Some(&request.target)
-            {
-                return;
-            }
-            let target_board = match &request.target {
-                keycaps_fit::FindingNavigationTarget::Outline { board_id }
+            let target_board = match &target {
+                keycaps_fit::FindingNavigationTarget::MechanicalLayer { board_id, .. }
+                | keycaps_fit::FindingNavigationTarget::Outline { board_id }
                 | keycaps_fit::FindingNavigationTarget::Part { board_id, .. }
                 | keycaps_fit::FindingNavigationTarget::Matrix { board_id, .. }
                 | keycaps_fit::FindingNavigationTarget::Body { board_id, .. }
@@ -3071,7 +3112,18 @@ fn Editor() -> Element {
             if target_board != &request.source.scope.board_id {
                 return;
             }
-            match &request.target {
+            pending_camera_fit.set(None);
+            match &target {
+                keycaps_fit::FindingNavigationTarget::MechanicalLayer { layer_id, .. } => {
+                    let Some(layers) = current_case_layer_ids(&runtime, &scope, snapshot) else {
+                        return;
+                    };
+                    if !layers.iter().any(|id| id == layer_id) {
+                        return;
+                    }
+                    case_selection.select_layer(scope.clone(), layer_id.clone());
+                    workspace.set("Case");
+                }
                 keycaps_fit::FindingNavigationTarget::Body { board_id, body_id } => {
                     if !snapshot
                         .document
@@ -3098,6 +3150,10 @@ fn Editor() -> Element {
                         mode: SelectionMode::Replace,
                         outline_action: None,
                     });
+                    pending_camera_fit.set(Some(keycaps_fit::FindingNavigationRequest {
+                        target: target.clone(),
+                        ..request.clone()
+                    }));
                 }
                 keycaps_fit::FindingNavigationTarget::Matrix { matrix_id, .. } => {
                     if !snapshot.document.matrices.iter().any(|matrix| {
@@ -3120,6 +3176,10 @@ fn Editor() -> Element {
                         mode: SelectionMode::Replace,
                         outline_action: None,
                     });
+                    pending_camera_fit.set(Some(keycaps_fit::FindingNavigationRequest {
+                        target: target.clone(),
+                        ..request.clone()
+                    }));
                 }
                 keycaps_fit::FindingNavigationTarget::Outline { board_id }
                 | keycaps_fit::FindingNavigationTarget::Board { board_id } => {
@@ -3140,26 +3200,99 @@ fn Editor() -> Element {
                         mode: SelectionMode::Replace,
                         outline_action: None,
                     });
+                    pending_camera_fit.set(Some(keycaps_fit::FindingNavigationRequest {
+                        target: target.clone(),
+                        ..request.clone()
+                    }));
                 }
             }
-            if let Some((target_min_x, target_max_x, target_min_y, target_max_y)) =
-                keycaps_fit::navigation_bounds(
+            objects_open.set(false);
+            inspect_open.set(true);
+            runtime.report(request.finding.message);
+            if pending_camera_fit.read().is_none() {
+                focus_first_inspector_control_on_next_frame();
+            }
+        }
+    };
+    use_effect(use_reactive(
+        (&workspace, &pending_keycaps_navigation_fit),
+        {
+            let runtime = runtime.clone();
+            let adapter = adapter.clone();
+            let scope = render_scope.clone();
+            let generation = render_generation;
+            let state = keycaps_fit_state.state.clone();
+            let surface = svg.clone();
+            let mut pending = pending_keycaps_navigation_fit;
+            move |_| {
+                if workspace() != "Layout" {
+                    return;
+                }
+                let Some(request) = pending.read().clone() else {
+                    return;
+                };
+                if runtime.scope().as_ref() != Some(&scope)
+                    || (adapter.generation)() != generation
+                    || request.source.scope != scope
+                {
+                    pending.set(None);
+                    return;
+                }
+                let model = runtime.model();
+                let Some(snapshot) = model.accepted.as_ref().filter(|snapshot| {
+                    snapshot.token == request.source.token
+                        && snapshot.document.id == request.source.scope.document_id
+                        && snapshot.document.revision == request.source.revision
+                        && snapshot.session_epoch == request.source.scope.session_epoch
+                        && model.active_board_id == request.source.scope.board_id
+                }) else {
+                    pending.set(None);
+                    return;
+                };
+                let live_layers = current_case_layer_ids(&runtime, &scope, snapshot);
+                if live_layers.is_none() && request.source.case_preview_current {
+                    pending.set(None);
+                    return;
+                }
+                let live_layers = live_layers.unwrap_or_else(|| Rc::from([]));
+                let Some(state) = state.as_ref() else {
+                    pending.set(None);
+                    return;
+                };
+                if keycaps_fit::accepted_navigation_target(
+                    state,
+                    &request,
                     &snapshot.document,
-                    camera_view.as_deref(),
-                    camera_contours.as_deref().unwrap_or(&[]),
-                    &request.target,
-                )
-                && let Some(surface) = camera_surface.borrow().as_ref()
-            {
+                    &live_layers,
+                ) != Some(request.target.clone())
+                {
+                    pending.set(None);
+                    return;
+                }
+                let Some((target_min_x, target_max_x, target_min_y, target_max_y)) =
+                    keycaps_fit::layout_navigation_bounds(
+                        &snapshot.document,
+                        &snapshot.scene,
+                        &request.target,
+                    )
+                else {
+                    pending.set(None);
+                    return;
+                };
+                let Some(surface) = surface.borrow().clone() else {
+                    pending.set(None);
+                    return;
+                };
                 let rect = surface.get_bounding_client_rect();
                 let surface_width = rect.width().max(1.0);
                 let surface_height = rect.height().max(1.0);
+                // These bounds are recomputed from the destination Layout scene on
+                // the render that follows the workbench switch.
                 let base_width = (max_x - min_x).max(50.0);
                 let base_height = (max_y - min_y).max(50.0);
                 let target_width = (target_max_x - target_min_x).max(1.0);
                 let target_height = (target_max_y - target_min_y).max(1.0);
-                let toolbar_height = 48.0;
-                let top = toolbar_height + 24.0;
+                let top = 48.0 + 24.0;
                 let bottom = 24.0;
                 let usable_width = (surface_width - 32.0).max(1.0);
                 let usable_height = (surface_height - top - bottom).max(1.0);
@@ -3176,13 +3309,11 @@ fn Editor() -> Element {
                     center,
                     zoom,
                 });
+                pending.set(None);
+                focus_first_inspector_control_on_next_frame();
             }
-            objects_open.set(false);
-            inspect_open.set(true);
-            runtime.report(request.finding.message);
-            focus_first_inspector_control_on_next_frame();
-        }
-    };
+        },
+    ));
     let preference_version = instance_preference();
     use_effect(use_reactive(
         (
@@ -4479,6 +4610,11 @@ fn Editor() -> Element {
         }
         "Keycaps" => {
             let selected_key_id = model.selected_part_ids.first().cloned();
+            let mechanical_layer_ids = current_scope
+                .as_ref()
+                .zip(model.accepted.as_ref())
+                .and_then(|(scope, snapshot)| current_case_layer_ids(&runtime, scope, snapshot))
+                .unwrap_or_else(|| Rc::from([]));
             let settings_editor = keycaps_view.as_deref().and_then(|view| {
                 let selected = keycaps_settings::project_selected_key(
                     &document,
@@ -4498,6 +4634,7 @@ fn Editor() -> Element {
                     settings_editor,
                     settings_actions: keycaps_settings_actions.clone(),
                     fit_state: keycaps_fit_state.state.clone(),
+                    mechanical_layer_ids,
                     fit_retry: keycaps_fit_state.on_retry,
                     fit_navigate: workspace_callbacks.keycaps_finding,
                 },

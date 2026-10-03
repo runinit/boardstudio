@@ -28,6 +28,7 @@ pub(super) struct InspectorInput {
     pub(super) settings_editor: Option<(SelectedKeySettings, KeycapsSettingsActions)>,
     pub(super) settings_actions: Option<KeycapsSettingsActions>,
     pub(super) fit_state: Option<KeycapsFitState>,
+    pub(super) mechanical_layer_ids: Rc<[String]>,
     pub(super) fit_retry: EventHandler<()>,
     pub(super) fit_navigate: EventHandler<FindingNavigationRequest>,
 }
@@ -136,6 +137,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                 KeycapsFitInspector {
                     document: input.document,
                     state: input.fit_state,
+                    mechanical_layer_ids: input.mechanical_layer_ids,
                     on_retry: input.fit_retry,
                     on_navigate: input.fit_navigate,
                 }
