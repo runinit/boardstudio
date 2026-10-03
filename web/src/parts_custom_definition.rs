@@ -29,6 +29,7 @@ mod ui {
         let runtime = use_context::<Rc<Runtime>>();
         let error = use_signal(String::new);
         let capture = DefinitionFieldsCapture::new(&snapshot, scope.clone(), &definition);
+        let owner_identity = (scope.clone(), selection(), definition.id.clone());
         let submit = use_callback({
             let runtime = runtime.clone();
             let mut error = error;
@@ -61,9 +62,23 @@ mod ui {
         let initial_height = courtyard.1.clone();
         let mut width = use_signal(move || initial_width);
         let mut height = use_signal(move || initial_height);
-        use_effect(use_reactive((&courtyard,), move |(size,)| {
-            width.set(size.0);
-            height.set(size.1);
+        let accepted_width = courtyard.0.clone();
+        use_effect(use_reactive((&accepted_width,), move |(value,)| {
+            width.set(value.clone());
+        }));
+        let accepted_height = courtyard.1.clone();
+        use_effect(use_reactive((&accepted_height,), move |(value,)| {
+            height.set(value.clone());
+        }));
+        use_effect(use_reactive((&owner_identity,), {
+            let accepted_width = courtyard.0.clone();
+            let accepted_height = courtyard.1.clone();
+            let mut error = error;
+            move |_| {
+                width.set(accepted_width.clone());
+                height.set(accepted_height.clone());
+                error.set(String::new());
+            }
         }));
 
         let kind = kind_name(&definition.kind);
@@ -80,13 +95,26 @@ mod ui {
             move |_| submit.call(DefinitionEdit::AddPad)
         };
         let submit_width = submit;
-        let on_width_blur = move |_| submit_width.call(DefinitionEdit::CourtyardWidth(width()));
+        let committed_width = courtyard.0.clone();
+        let on_width_blur = move |_| {
+            let draft = width();
+            if draft != committed_width {
+                submit_width.call(DefinitionEdit::CourtyardWidth(draft));
+            }
+        };
         let submit_height = submit;
-        let on_height_blur = move |_| submit_height.call(DefinitionEdit::CourtyardHeight(height()));
+        let committed_height = courtyard.1.clone();
+        let on_height_blur = move |_| {
+            let draft = height();
+            if draft != committed_height {
+                submit_height.call(DefinitionEdit::CourtyardHeight(draft));
+            }
+        };
         let committed_width = courtyard.0.clone();
         let width_keydown = move |event| draft_keydown(event, width, committed_width.clone());
         let committed_height = courtyard.1.clone();
         let height_keydown = move |event| draft_keydown(event, height, committed_height.clone());
+        let owner_key = format!("{:?}:{}", scope, definition.id);
 
         rsx! {
             div { class: "m1-definition-fields",
@@ -130,7 +158,7 @@ mod ui {
                 }
                 for (index, pad) in definition.pads.iter().enumerate() {
                     PadFields {
-                        key: "{pad.id}", index, pad: pad.clone(), locked: kicad_locked,
+                        key: "{owner_key}:{pad.id}", owner_key: owner_key.clone(), index, pad: pad.clone(), locked: kicad_locked,
                         submit: submit.clone(),
                     }
                 }
@@ -146,11 +174,13 @@ mod ui {
 
     #[component]
     fn PadFields(
+        owner_key: String,
         index: usize,
         pad: Pad,
         locked: bool,
         submit: EventHandler<DefinitionEdit>,
     ) -> Element {
+        let _owner_key = owner_key;
         let mut id = use_signal(|| pad.id.clone());
         let mut number = use_signal(|| pad.number.clone());
         let mut x = use_signal(|| pad.at.x.to_string());
@@ -158,23 +188,33 @@ mod ui {
         let mut size_x = use_signal(|| pad.size.x.to_string());
         let mut size_y = use_signal(|| pad.size.y.to_string());
         let mut drill = use_signal(|| pad.drill.map(|value| value.to_string()).unwrap_or_default());
-        let identity = (
-            pad.id.clone(),
-            pad.number.clone(),
-            pad.at.x,
-            pad.at.y,
-            pad.size.x,
-            pad.size.y,
-            pad.drill,
-        );
-        use_effect(use_reactive((&identity,), move |(value,)| {
-            id.set(value.0.clone());
-            number.set(value.1.clone());
-            x.set(value.2.to_string());
-            y.set(value.3.to_string());
-            size_x.set(value.4.to_string());
-            size_y.set(value.5.to_string());
-            drill.set(value.6.map(|number| number.to_string()).unwrap_or_default());
+        let accepted_id = pad.id.clone();
+        use_effect(use_reactive((&accepted_id,), move |(value,)| {
+            id.set(value.clone())
+        }));
+        let accepted_number = pad.number.clone();
+        use_effect(use_reactive((&accepted_number,), move |(value,)| {
+            number.set(value.clone())
+        }));
+        let accepted_x = pad.at.x;
+        use_effect(use_reactive((&accepted_x,), move |(value,)| {
+            x.set(value.to_string())
+        }));
+        let accepted_y = pad.at.y;
+        use_effect(use_reactive((&accepted_y,), move |(value,)| {
+            y.set(value.to_string())
+        }));
+        let accepted_size_x = pad.size.x;
+        use_effect(use_reactive((&accepted_size_x,), move |(value,)| {
+            size_x.set(value.to_string())
+        }));
+        let accepted_size_y = pad.size.y;
+        use_effect(use_reactive((&accepted_size_y,), move |(value,)| {
+            size_y.set(value.to_string())
+        }));
+        let accepted_drill = pad.drill;
+        use_effect(use_reactive((&accepted_drill,), move |(value,)| {
+            drill.set(value.map(|number| number.to_string()).unwrap_or_default())
         }));
         let submit_id = submit;
         let old_id = pad.id.clone();

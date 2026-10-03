@@ -788,6 +788,253 @@ mod mounted_tests {
             .unwrap()
     }
 
+    fn courtyard_width_input() -> HtmlInputElement {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector("#parts-name-mounted-regression input[aria-label='Courtyard width']")
+            .unwrap()
+            .unwrap()
+            .dyn_into()
+            .unwrap()
+    }
+
+    fn courtyard_height_input() -> HtmlInputElement {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector("#parts-name-mounted-regression input[aria-label='Courtyard height']")
+            .unwrap()
+            .unwrap()
+            .dyn_into()
+            .unwrap()
+    }
+
+    fn pad_x_input() -> HtmlInputElement {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector("#parts-name-mounted-regression input[aria-label='Pad 1 X']")
+            .unwrap()
+            .unwrap()
+            .dyn_into()
+            .unwrap()
+    }
+
+    fn pad_y_input() -> HtmlInputElement {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector("#parts-name-mounted-regression input[aria-label='Pad 1 Y']")
+            .unwrap()
+            .unwrap()
+            .dyn_into()
+            .unwrap()
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_definition_owner_switch_retires_dirty_courtyard_pad_and_error_state() {
+        let mut document = ProjectDoc::empty("parts-name-mounted", "Parts name mounted");
+        let mut first = definition("first", "First");
+        let mut second = definition("second", "Second");
+        for definition in [&mut first, &mut second] {
+            definition.courtyard = vec![
+                boardstudio_core::model::Vec2 { x: -5.0, y: -3.0 },
+                boardstudio_core::model::Vec2 { x: 5.0, y: -3.0 },
+                boardstudio_core::model::Vec2 { x: 5.0, y: 3.0 },
+                boardstudio_core::model::Vec2 { x: -5.0, y: 3.0 },
+            ];
+            definition.pads = serde_json::from_value(serde_json::json!([
+                {"id":"shared-pad","number":"1","at":{"x":0.0,"y":0.0},"size":{"x":2.0,"y":2.0},"shape":"circle"}
+            ])).unwrap();
+        }
+        document.definitions = vec![first, second];
+        let runtime = Runtime::new().unwrap();
+        let (session, _core) = open_document(document);
+        let snapshot = session.read_model().accepted.as_ref().unwrap().clone();
+        let scope = session.scope();
+        runtime.set_definition_name_test_state(snapshot.clone(), scope.clone());
+        let state = Rc::new(RefCell::new(None));
+        let seed = Rc::new(Seed {
+            snapshot: snapshot.clone(),
+            scope: scope.clone(),
+            selection: Some((scope.clone(), "first".into())),
+            definition: snapshot.document.definitions[0].clone(),
+            state: state.clone(),
+        });
+        let root = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .create_element("div")
+            .unwrap();
+        root.set_id("parts-name-mounted-regression");
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .body()
+            .unwrap()
+            .append_child(&root)
+            .unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(seed);
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        settle().await;
+        root.query_selector("details summary")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        settle().await;
+        let pad_id = pad_id_input();
+        type_value(&pad_id, "");
+        settle().await;
+        let _ = courtyard_width_input().focus();
+        settle().await;
+        assert!(root.query_selector("[role='alert']").unwrap().is_some());
+        type_value(&courtyard_width_input(), "12");
+        settle().await;
+
+        let mut controls = state.borrow().as_ref().unwrap().clone();
+        controls
+            .selection
+            .set(Some((scope.clone(), "second".into())));
+        controls
+            .definition
+            .set(snapshot.document.definitions[1].clone());
+        settle().await;
+
+        assert_eq!(courtyard_width_input().value(), "10");
+        assert!(root.query_selector("[role='alert']").unwrap().is_none());
+
+        // Accepted sibling fields synchronize independently. A refreshed
+        // height must not discard the local width draft.
+        type_value(&courtyard_width_input(), "12");
+        settle().await;
+        let mut refreshed_second = snapshot.document.definitions[1].clone();
+        refreshed_second.courtyard = vec![
+            boardstudio_core::model::Vec2 { x: -5.0, y: -4.0 },
+            boardstudio_core::model::Vec2 { x: 5.0, y: -4.0 },
+            boardstudio_core::model::Vec2 { x: 5.0, y: 4.0 },
+            boardstudio_core::model::Vec2 { x: -5.0, y: 4.0 },
+        ];
+        controls.definition.set(refreshed_second.clone());
+        settle().await;
+        assert_eq!(courtyard_width_input().value(), "12");
+        assert_eq!(courtyard_height_input().value(), "8");
+
+        // A different definition may reuse the same pad ID. Its local draft
+        // must reset when the owner changes, even though the pad identity is
+        // otherwise identical.
+        type_value(&pad_x_input(), "9");
+        settle().await;
+        let _ = runtime.take_definition_name_test_event();
+        let mut refreshed_second_pad = refreshed_second;
+        refreshed_second_pad.pads[0].at.y = 4.0;
+        controls.definition.set(refreshed_second_pad);
+        settle().await;
+        assert_eq!(pad_x_input().value(), "9");
+        assert_eq!(pad_y_input().value(), "4");
+
+        controls
+            .selection
+            .set(Some((scope.clone(), "first".into())));
+        controls
+            .definition
+            .set(snapshot.document.definitions[0].clone());
+        settle().await;
+        assert_eq!(courtyard_width_input().value(), "10");
+        assert_eq!(pad_x_input().value(), "0");
+        let _ = courtyard_width_input().blur();
+        let _ = pad_x_input().blur();
+        settle().await;
+        assert!(
+            runtime.take_definition_name_test_event().is_none(),
+            "dirty values owned by the prior definition cannot commit into the next owner"
+        );
+        let _ = root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_unchanged_blur_does_not_rewrite_empty_courtyard_or_create_history() {
+        let mut document = ProjectDoc::empty("parts-name-mounted", "Parts name mounted");
+        document.definitions = vec![definition("selected", "Empty courtyard")];
+        let runtime = Runtime::new().unwrap();
+        let (session, _core) = open_document(document);
+        let snapshot = session.read_model().accepted.as_ref().unwrap().clone();
+        let scope = session.scope();
+        runtime.set_definition_name_test_state(snapshot.clone(), scope.clone());
+        let state = Rc::new(RefCell::new(None));
+        let seed = Rc::new(Seed {
+            snapshot: snapshot.clone(),
+            scope: scope.clone(),
+            selection: Some((scope.clone(), "selected".into())),
+            definition: snapshot.document.definitions[0].clone(),
+            state,
+        });
+        let root = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .create_element("div")
+            .unwrap();
+        root.set_id("parts-name-mounted-regression");
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .body()
+            .unwrap()
+            .append_child(&root)
+            .unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(seed);
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        settle().await;
+        root.query_selector("details summary")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        settle().await;
+        let width = courtyard_width_input();
+        assert_eq!(width.value(), "10");
+        let _ = width.focus();
+        let _ = width.blur();
+        settle().await;
+        assert!(
+            runtime.take_definition_name_test_event().is_none(),
+            "unchanged DraftInput blur must not turn an empty courtyard into an authored rectangle"
+        );
+        assert!(
+            session
+                .read_model()
+                .accepted
+                .as_ref()
+                .unwrap()
+                .document
+                .definitions[0]
+                .courtyard
+                .is_empty()
+        );
+        let _ = root.remove();
+    }
+
     #[wasm_bindgen_test]
     async fn mounted_pad_id_action_remaps_every_matching_instance_through_the_runtime_edit() {
         let mut document = ProjectDoc::empty("parts-name-mounted", "Parts name mounted");
