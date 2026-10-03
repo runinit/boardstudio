@@ -1979,6 +1979,7 @@ async fn duplicate_design_variant(
         .scope()
         .ok_or_else(|| "The duplicated project has no active scope.".to_owned())?;
     *report_scope.borrow_mut() = Some(clone_scope);
+    let reversible = is_reversible(&accepted.document);
     let result = async {
         let accepted =
             exact_variant_snapshot(&runtime, &accepted, &variant_id, &request.owner.scope)?;
@@ -1991,7 +1992,6 @@ async fn duplicate_design_variant(
             .ok_or_else(|| {
                 "The copied project no longer contains the selected matrix.".to_owned()
             })?;
-        let reversible = is_reversible(&accepted.document);
         let (replacement, definitions) = prepare_preset_matrix(
             &accepted.document,
             &matrix,
