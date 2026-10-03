@@ -1424,6 +1424,14 @@
           "observation": "The build inventories ignored source inputs but classified its own core/pkg generatedWASM as maintainedsource. A valid Core source change regenerated that output and made the final guard reject all22successfulsteps. This adds waste and obscures true source drift.",
           "mitigation": "Explicitgeneratedcore/pkg prefix matchesexistingcad/renderer outputclassification; maintainedRust/generator/config/lock and finalpackagedassetguards remain. FocusedRED/GREEN regression includes changedRustsource rejection; originalfailedprovenance retained, freshcandidate required.",
           "post_port_follow_up": "Derive generated output ownership and source inventories from one build manifest; assess per-provider immutable build caches without weakening freshness or asset provenance."
+        },
+        {
+          "source": "F6K.1/F3.1 reconciliation and compact Keymap receipt, 2026-10-03",
+          "evidence": ".scratch/dioxus-keymap-layers/evidence/keymap-frontier-audit-20261003/criterion-accounting.md; .scratch/dioxus-keymap-layers/evidence/keymap-compact-inspector-20261003/paired-receipt.md; .scratch/dioxus-frontend-v1/evidence/layout-f31-acceptance-20261003/DECISION.json",
+          "observation": "Accepted F3.1 closes the previously open Keymap selection/read-model join. Existing paired Keymap receipts cover the remaining projection and camera controls; the changed 720px compact Export selector now tracks the active workspace after root repair 5d2b4a98. The drawer journey retains a 4px topbar-height visual difference. No additional Keymap control gap or distinct architectural issue was established.",
+          "mitigation": "Reuse retained criterion receipts and the changed 34771 selector leg; leave F6K.1 canonical status for consolidated review and preserve shared panel visibility/focus routing in RF-001. No duplicate Keymap state owner or ticket introduced.",
+          "post_port_follow_up": "Keep one indexed criterion-to-journey map and explicit source/build identity; review shared-shell ownership after parity rather than extracting another Keymap-specific panel owner.",
+          "status": "evidence/ownership reconciliation only; no new RF finding or production change"
         }
       ]
     },
