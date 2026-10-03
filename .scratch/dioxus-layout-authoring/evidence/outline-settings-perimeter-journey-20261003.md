@@ -24,4 +24,4 @@ All captures are in `/home/chris/.local/share/boardstudio/retained-tmp/20261003/
 
 ## Gate status
 
-The source-level F3.4c mount tests prove the bounded Generated `CopyOutline.edit` and fixed `SetOutline` routes through the production hook, including coordinate Enter/Escape behavior. They do not prove the public Dioxus point-editor journey. Paired Copy/rename, settings fidelity, two-sided Undo/Redo, durable save/reopen, contextual-pane and responsive acceptance remain open. F3.4 and F3.7 parent criteria remain open; this receipt does not close them.
+The source-level F3.4c mount tests prove the bounded Generated `CopyOutline.edit` and fixed `SetOutline` routes through the production hook, including coordinate Enter/Escape behavior. They do not prove the public Dioxus point-editor journey. Copy and rename succeeded in both QA copies; the save/reopen comparison exposed the active-outline mismatch above, so durable parity remains open. Settings fidelity, two-sided Undo/Redo, contextual-pane and responsive acceptance also remain open. F3.4 and F3.7 parent criteria remain open; this receipt does not close them.
