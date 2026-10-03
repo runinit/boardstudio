@@ -1,6 +1,7 @@
 //! Private presentation and navigation for the reference Export workspace.
 use super::{
     PanelSettings, RuntimeReportBanner, pin_inspector_on_desktop,
+    selection::SelectionAdapter,
     zmk_firmware_export::{ZmkFirmwareExportPanelInput, ZmkFirmwareExportRow},
 };
 use crate::runtime::Runtime;
@@ -19,6 +20,7 @@ pub(super) fn ExportWorkspace(
     inspector_settings: Signal<PanelSettings>,
 ) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
+    let selection = use_context::<SelectionAdapter>();
     let model = runtime.model();
     let board_name = selected_board_name(&model);
     let rows = export_rows(
@@ -71,8 +73,12 @@ pub(super) fn ExportWorkspace(
         let mut inspect_open = inspect_open;
         let inspector_settings = inspector_settings;
         move |_| {
+            let mut selected_context = selection.selected_context;
+            selected_context.set(None);
+            let mut anchor_scope = selection.anchor_scope;
+            anchor_scope.set(None);
             let model = runtime.model();
-            if !model.selected_part_ids.is_empty() {
+            if !model.selected_part_ids.is_empty() || model.selection_anchor_id.is_some() {
                 runtime.submit(boardstudio_application::Event::SelectParts {
                     operation_id: runtime.operation(),
                     part_ids: vec![],
