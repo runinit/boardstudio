@@ -11,6 +11,7 @@ use dioxus::prelude::*;
 use std::{rc::Rc, sync::Arc};
 
 mod controller;
+mod mode;
 mod part_connections;
 mod part_input_settings;
 mod part_net_admission;
@@ -21,6 +22,10 @@ pub(in crate::presentation) use crate::firmware_position_projection::{
 };
 pub(in crate::presentation) use controller::{
     use_firmware_position_edits, use_pcb_part_net_edits, use_pcb_wiring_controller,
+};
+pub(in crate::presentation) use mode::{
+    BoardWiringModeActions, BoardWiringModeEditRequest, BoardWiringModeFeedback,
+    use_board_wiring_mode_edits,
 };
 pub(in crate::presentation) use part_input_settings::PartInputActions;
 
@@ -246,6 +251,7 @@ pub(in crate::presentation) struct PcbWiringInspectorProps {
     pub on_firmware_edit: EventHandler<FirmwarePositionEditRequest>,
     pub on_resolve: EventHandler<()>,
     pub on_edit_board_wiring: EventHandler<()>,
+    pub mode_actions: BoardWiringModeActions,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -795,7 +801,6 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
             .find(|choice| choice.id == id)
             .map_or(id, |choice| choice.label.as_str())
     });
-    let mode = matching_plan.map_or(display.mode, |plan| plan.mode);
     let used_pins = matching_plan.map(used_pins).unwrap_or_default();
     let free_pins = matching_plan
         .map(|plan| plan.free_pins.as_slice())
@@ -806,7 +811,15 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
             .iter()
             .any(|diagnostic| diagnostic.severity == "error")
     });
+    let mode = matching_plan.map_or(display.mode, |plan| plan.mode);
     let on_resolve = props.on_resolve;
+    let mode_actions = props.mode_actions.clone();
+    let selected_mode = match display.mode {
+        ElectricalMode::Matrix => "matrix",
+        ElectricalMode::Direct => "direct",
+    };
+    let change_mode = mode_actions.on_change;
+    let mode_identity = mode_actions.identity.clone();
     rsx! {
         section { class: "m1-pcb-wiring",
             p { class: "m1-pcb-wiring-breadcrumb", "{display.board_name} / PCB" }
@@ -815,7 +828,34 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                 strong { "Controller" }
                 span { "{controller_name}" }
             }
-            p { class: "m1-pcb-wiring-mode", "Mode: {mode_label(mode)}" }
+            label { class: "m1-pcb-wiring-mode-control",
+                span { "Wiring mode" }
+                select {
+                    "aria-label": "Wiring mode",
+                    value: "{selected_mode}",
+                    disabled: !mode_actions.editable,
+                    onchange: move |event| {
+                        let Some(identity) = mode_identity.clone() else { return; };
+                        let mode = match event.value().as_str() {
+                            "matrix" => ElectricalMode::Matrix,
+                            "direct" => ElectricalMode::Direct,
+                            _ => return,
+                        };
+                        change_mode.call(BoardWiringModeEditRequest { identity, mode });
+                    },
+                    option { value: "matrix", "Matrix" }
+                    option { value: "direct", "Direct GPIO" }
+                }
+            }
+            if let Some(feedback) = &mode_actions.feedback {
+                if matches!(feedback.state, BoardWiringModeFeedback::Pending) {
+                    p { role: "status", "Saving wiring mode…" }
+                } else if matches!(feedback.state, BoardWiringModeFeedback::Saved) {
+                    p { role: "status", "Wiring mode saved." }
+                } else if let BoardWiringModeFeedback::Failed(message) = &feedback.state {
+                    p { role: "alert", "{message}" }
+                }
+            }
             if pending {
                 p { role: "status", "Resolving wiring…" }
             } else if let Some(error) = error {
@@ -891,13 +931,6 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                 }
             }
         }
-    }
-}
-
-fn mode_label(mode: ElectricalMode) -> &'static str {
-    match mode {
-        ElectricalMode::Matrix => "Matrix",
-        ElectricalMode::Direct => "Direct",
     }
 }
 

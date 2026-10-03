@@ -22,6 +22,8 @@ mod parts_new_component;
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod parts_view_generation;
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
+mod pcb_wiring_mode_operation;
+#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod physical_setup;
 #[cfg(feature = "page")]
 mod portable_archive;

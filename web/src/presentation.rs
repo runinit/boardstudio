@@ -3905,6 +3905,18 @@ fn Editor() -> Element {
                 (adapter.generation)(),
             )
         });
+    let pcb_wiring_mode_actions = pcb_wiring::use_board_wiring_mode_edits(
+        runtime.clone(),
+        version,
+        workspace,
+        adapter.generation,
+        {
+            let runtime = runtime.clone();
+            Rc::new(move || instance_selection.is_current(&runtime.model()))
+        },
+        pcb_wiring_source.clone(),
+        pcb_wiring_mount.resolution_signal,
+    );
     let zmk_firmware_export_panel = use_export_panel_input(
         runtime.clone(),
         workspace,
@@ -4267,6 +4279,7 @@ fn Editor() -> Element {
                     on_firmware_edit: firmware_position_actions.on_edit,
                     on_resolve: pcb_wiring_mount.on_resolve,
                     on_edit_board_wiring: workspace_callbacks.pcb_wiring_edit_board,
+                    mode_actions: pcb_wiring_mode_actions.clone(),
                 })
             }))
         }
