@@ -6743,7 +6743,7 @@ fn Editor() -> Element {
                     {
                         div { class: "m1-canvas-placement-hint", role: "status",
                             "Place {placement.pending.definition.name}"
-                            if let Some(layout_name) = placement.pending.part.layout_id.as_ref()
+                            if let Some(layout_name) = placement.owner.layout_id.as_ref()
                                 .and_then(|id| document.layouts.iter().find(|layout| &layout.id == id))
                                 .map(|layout| layout.name.as_str())
                             {
