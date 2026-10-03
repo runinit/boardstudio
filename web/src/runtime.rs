@@ -340,6 +340,10 @@ pub struct Runtime {
     #[cfg(test)]
     definition_name_test_state: RefCell<Option<(AcceptedSnapshot, Option<Scope>)>>,
     #[cfg(test)]
+    layout_component_inspector_test_state: RefCell<Option<(ReadModel, Option<Scope>)>>,
+    #[cfg(test)]
+    layout_component_inspector_test_events: RefCell<Vec<Event>>,
+    #[cfg(test)]
     definition_name_test_events: RefCell<Vec<Event>>,
     #[cfg(test)]
     definition_name_test_generation: RefCell<Option<GenerationStatus>>,
@@ -405,6 +409,10 @@ impl Runtime {
             #[cfg(test)]
             definition_name_test_state: RefCell::new(None),
             #[cfg(test)]
+            layout_component_inspector_test_state: RefCell::new(None),
+            #[cfg(test)]
+            layout_component_inspector_test_events: RefCell::new(Vec::new()),
+            #[cfg(test)]
             definition_name_test_events: RefCell::new(Vec::new()),
             #[cfg(test)]
             definition_name_test_generation: RefCell::new(None),
@@ -462,6 +470,10 @@ impl Runtime {
         if let Some((_, scope)) = self.definition_name_test_state.borrow().as_ref() {
             return scope.clone();
         }
+        #[cfg(test)]
+        if let Some((_, scope)) = self.layout_component_inspector_test_state.borrow().as_ref() {
+            return scope.clone();
+        }
         self.session.borrow().scope()
     }
     pub(crate) fn electrical_preview_executor_epoch(&self) -> u64 {
@@ -504,6 +516,10 @@ impl Runtime {
                     .unwrap_or(GenerationStatus::Idle),
                 ..ReadModel::default()
             };
+        }
+        #[cfg(test)]
+        if let Some((model, _)) = self.layout_component_inspector_test_state.borrow().as_ref() {
+            return model.clone();
         }
         self.session.borrow().read_model().clone()
     }
@@ -1027,6 +1043,17 @@ impl Runtime {
         #[cfg(test)]
         let test_event = event.clone();
         #[cfg(test)]
+        if self
+            .layout_component_inspector_test_state
+            .borrow()
+            .is_some()
+        {
+            self.layout_component_inspector_test_events
+                .borrow_mut()
+                .push(event);
+            return;
+        }
+        #[cfg(test)]
         if self.definition_name_test_state.borrow().is_some() {
             self.definition_name_test_events.borrow_mut().push(event);
             return;
@@ -1084,6 +1111,20 @@ impl Runtime {
     #[cfg(test)]
     pub(crate) fn set_definition_name_test_generation(&self, generation: GenerationStatus) {
         *self.definition_name_test_generation.borrow_mut() = Some(generation);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_layout_component_inspector_test_state(
+        &self,
+        model: ReadModel,
+        scope: Option<Scope>,
+    ) {
+        *self.layout_component_inspector_test_state.borrow_mut() = Some((model, scope));
+    }
+
+    #[cfg(test)]
+    pub(crate) fn take_layout_component_inspector_test_events(&self) -> Vec<Event> {
+        std::mem::take(&mut *self.layout_component_inspector_test_events.borrow_mut())
     }
 
     #[cfg(test)]

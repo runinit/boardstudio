@@ -2,7 +2,42 @@
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{Constraint, MirrorAxis, PartOutline, Vec2};
 use dioxus::prelude::*;
-use std::rc::Rc;
+use dioxus_web::WebEventExt;
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
+use wasm_bindgen::JsCast;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LayoutComponentInspectorOwnerKey {
+    pub scope: Option<Scope>,
+    pub snapshot_token: Option<SnapshotToken>,
+    pub revision: Option<u64>,
+    pub workspace: &'static str,
+    pub part_id: Option<String>,
+}
+
+#[derive(Default)]
+pub struct LayoutComponentInspectorLifetime {
+    current: Cell<u64>,
+    key: RefCell<Option<LayoutComponentInspectorOwnerKey>>,
+}
+
+impl LayoutComponentInspectorLifetime {
+    pub fn update(&self, key: Option<LayoutComponentInspectorOwnerKey>) -> u64 {
+        let mut current_key = self.key.borrow_mut();
+        if *current_key != key {
+            self.current.set(self.current.get().wrapping_add(1).max(1));
+            *current_key = key;
+        }
+        self.current.get()
+    }
+
+    pub fn current_generation(&self) -> u64 {
+        self.current.get()
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LayoutComponentInspectorOwner {
@@ -439,7 +474,26 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                                         }
                                     }
                                 },
-                                onkeydown: move |event: KeyboardEvent| if event.data().key().to_string() == "Enter" { event.prevent_default(); },
+                                onkeydown: {
+                                    let accepted_margin = outline.margin.unwrap_or_default().to_string();
+                                    move |event: KeyboardEvent| match event.data().key().to_string().as_str() {
+                                        "Enter" => {
+                                            event.prevent_default();
+                                            if let Some(input) = event.data().try_as_web_event()
+                                                .and_then(|event| event.target())
+                                                .and_then(|target| target.dyn_into::<web_sys::HtmlInputElement>().ok())
+                                            {
+                                                let _ = input.blur();
+                                            }
+                                        }
+                                        "Escape" => {
+                                            event.prevent_default();
+                                            margin.set(accepted_margin.clone());
+                                            error.set(None);
+                                        }
+                                        _ => {}
+                                    }
+                                },
                             } }
                         }
                     }

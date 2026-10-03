@@ -9,7 +9,8 @@ use web_sys::HtmlInputElement;
 mod layout_component_inspector;
 pub(super) use layout_component_inspector::{
     BoardPartChoice, ComponentPositionAxis, LayoutChoice, LayoutComponentInspector,
-    LayoutComponentInspectorAction, LayoutComponentInspectorOwner,
+    LayoutComponentInspectorAction, LayoutComponentInspectorLifetime,
+    LayoutComponentInspectorOwner, LayoutComponentInspectorOwnerKey,
     LayoutComponentInspectorProjection, LayoutConstraintValues,
 };
 

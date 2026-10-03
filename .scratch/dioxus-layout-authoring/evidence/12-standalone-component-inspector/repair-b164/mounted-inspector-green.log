@@ -1,0 +1,17 @@
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/f3-layout-inspector-context-20261002/web)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 10.84s
+     Running unittests src/main.rs (/home/chris/.local/share/boardstudio/worktrees/f73b-layout-layer-controls-20261002/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-252113e0527edbbe.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:42795/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+Loading Wasm module...
+
+running 5 tests
+test presentation::layout_component_inspector_tests::standalone_component_projection_preserves_accepted_owner_and_metadata ... ok
+test presentation::layout_component_inspector_tests::relations_summary_uses_layout_membership_before_constraint_source ... ok
+test presentation::layout_component_inspector_tests::mounted_component_margin_enter_commits_and_escape_restores_the_accepted_value ... ok
+test presentation::layout_component_inspector_tests::mounted_component_inspector_production_handler_rejects_selection_aba_and_unmount ... ok
+test presentation::layout_component_inspector_tests::component_projection_rejects_ambiguous_and_non_standalone_selection ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 116 filtered out; finished in 0.44s
+

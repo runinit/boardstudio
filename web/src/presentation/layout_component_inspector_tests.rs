@@ -1,11 +1,19 @@
+use super::inspector::{
+    ComponentPositionAxis, LayoutComponentInspector, LayoutComponentInspectorAction,
+    LayoutComponentInspectorLifetime, LayoutComponentInspectorProjection,
+};
 use super::*;
 use boardstudio_application::{AcceptedSnapshot, ReadModel, Scope, SessionEpoch};
 use boardstudio_core::model::{
     Board, Constraint, Layout, LayoutMirrorLink, PartDefinition, PartKind, PartOutline, Pose2,
     ProjectDoc, Readiness, SceneDelta, Side,
 };
+use std::cell::RefCell;
 use std::sync::Arc;
+use wasm_bindgen::JsCast;
 use wasm_bindgen_test::wasm_bindgen_test;
+
+wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
 fn fixture() -> (ReadModel, objects::ScopedTreeContext) {
     let scope = Scope {
@@ -188,4 +196,316 @@ fn relations_summary_uses_layout_membership_before_constraint_source() {
     let unassigned = layout_component_inspector_projection(&model, Some(&selected), 7, 3)
         .expect("unassigned component should project");
     assert!(unassigned.relationship_summary.contains("U2 drives U1"));
+}
+
+#[derive(Clone)]
+struct MountedProbe {
+    runtime: std::rc::Rc<crate::runtime::Runtime>,
+    model: std::rc::Rc<RefCell<ReadModel>>,
+    selected_part: std::rc::Rc<RefCell<Option<String>>>,
+    projection: std::rc::Rc<RefCell<Option<LayoutComponentInspectorProjection>>>,
+    action: std::rc::Rc<RefCell<Option<EventHandler<LayoutComponentInspectorAction>>>>,
+    root_id: &'static str,
+}
+
+impl MountedProbe {
+    fn select(&self, part_id: Option<&str>) {
+        *self.selected_part.borrow_mut() = part_id.map(str::to_owned);
+        let mut model = self.model.borrow_mut();
+        model.selected_part_ids = part_id.into_iter().map(str::to_owned).collect();
+        model.selection_anchor_id = part_id.map(str::to_owned);
+        self.runtime.set_layout_component_inspector_test_state(
+            model.clone(),
+            model.accepted.as_ref().map(|snapshot| Scope {
+                session_epoch: snapshot.session_epoch,
+                document_id: snapshot.document.id.clone(),
+                board_id: model.active_board_id.clone(),
+                instance_id: model.active_instance_id.clone(),
+            }),
+        );
+    }
+}
+
+#[component]
+fn mounted_component_inspector_host() -> Element {
+    let probe = use_context::<MountedProbe>();
+    let render_generation = use_signal(|| 0u64);
+    let _ = render_generation();
+    let workspace = use_signal(|| "Layout");
+    let inspect_open = use_signal(|| true);
+    let mut selected_context = use_signal(|| None::<objects::ScopedTreeContext>);
+    let anchor_scope = use_signal(|| None::<Scope>);
+    let scope_generation = use_signal(|| 1u64);
+    let adapter =
+        use_hook(|| SelectionAdapter::new(selected_context, anchor_scope, scope_generation));
+    let lifetime = use_hook(|| std::rc::Rc::new(LayoutComponentInspectorLifetime::default()));
+    let runtime = probe.runtime.clone();
+    let model = runtime.model();
+    let next_context = probe.selected_part.borrow().as_deref().and_then(|part_id| {
+        let scope = runtime.scope()?;
+        let context = objects::context_for_part(&model, part_id)?;
+        Some(objects::ScopedTreeContext { scope, context })
+    });
+    if selected_context.peek().clone() != next_context {
+        selected_context.set(next_context.clone());
+    }
+    let owner_key =
+        layout_component_inspector_owner_key(&model, workspace(), next_context.as_ref());
+    let generation = lifetime.update(owner_key);
+    let projection = layout_component_inspector_projection(
+        &model,
+        next_context.as_ref(),
+        generation,
+        scope_generation(),
+    );
+    let layout_owner = current_layout_owner(&runtime, workspace, &adapter);
+    let action_runtime = runtime.clone();
+    let action_adapter = adapter.clone();
+    let action_lifetime = lifetime.clone();
+    let action_workspace = workspace;
+    let action_handler = EventHandler::new(move |action| {
+        dispatch_layout_component_inspector_action(
+            &action_runtime,
+            &action_adapter,
+            &layout_owner,
+            &action_lifetime,
+            action_workspace,
+            inspect_open,
+            action,
+        )
+    });
+    *probe.projection.borrow_mut() = projection.clone();
+    *probe.action.borrow_mut() = Some(action_handler);
+    let switch_probe = probe.clone();
+    let restore_probe = probe.clone();
+    let clear_probe = probe.clone();
+    rsx! {
+        style { {include_str!("../../assets/m1.css")} }
+        button { id: "component-inspector-select-source", onclick: { let mut generation = render_generation; move |_| { switch_probe.select(Some("source-part")); generation += 1; } }, "Select source" }
+        button { id: "component-inspector-select-original", onclick: { let mut generation = render_generation; move |_| { restore_probe.select(Some("selected-part")); generation += 1; } }, "Select original" }
+        button { id: "component-inspector-clear", onclick: { let mut generation = render_generation; move |_| { clear_probe.select(None); generation += 1; } }, "Clear selection" }
+        if let Some(projection) = projection {
+            LayoutComponentInspector { projection, on_action: action_handler }
+        }
+    }
+}
+
+fn mounted_probe(root_id: &'static str) -> (MountedProbe, web_sys::Element) {
+    let runtime = crate::runtime::Runtime::new().expect("browser runtime fixture initializes");
+    let (mut model, context) = fixture();
+    Arc::make_mut(&mut model.accepted.as_mut().unwrap().document)
+        .parts
+        .iter_mut()
+        .find(|part| part.id == "selected-part")
+        .unwrap()
+        .locked = Some(false);
+    model.selected_part_ids = vec!["selected-part".into()];
+    let scope = context.scope.clone();
+    runtime.set_layout_component_inspector_test_state(model.clone(), Some(scope));
+    let probe = MountedProbe {
+        runtime,
+        model: std::rc::Rc::new(RefCell::new(model)),
+        selected_part: std::rc::Rc::new(RefCell::new(Some("selected-part".into()))),
+        projection: std::rc::Rc::default(),
+        action: std::rc::Rc::default(),
+        root_id,
+    };
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    root.set_id(probe.root_id);
+    document.body().unwrap().append_child(&root).unwrap();
+    let dom = VirtualDom::new(mounted_component_inspector_host);
+    dom.provide_root_context(probe.clone());
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    (probe, root)
+}
+
+async fn settle_component_inspector() {
+    gloo_timers::future::TimeoutFuture::new(40).await;
+}
+
+fn click_component_inspector(root_id: &str, selector: &str) {
+    web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
+        .query_selector(&format!("#{root_id} {selector}"))
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap()
+        .click();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_component_inspector_production_handler_rejects_selection_aba_and_unmount() {
+    let (probe, root) = mounted_probe("layout-component-inspector-aba-test-root");
+    settle_component_inspector().await;
+    let old_projection = probe.projection.borrow().clone().unwrap();
+    let old_action = *probe.action.borrow().as_ref().unwrap();
+    click_component_inspector(probe.root_id, "#component-inspector-select-source");
+    settle_component_inspector().await;
+    assert_eq!(*probe.selected_part.borrow(), Some("source-part".into()));
+    assert_eq!(
+        probe.projection.borrow().as_ref().unwrap().reference,
+        "U2",
+        "component selection changes must rerender the mounted Inspector"
+    );
+    click_component_inspector(probe.root_id, "#component-inspector-select-original");
+    settle_component_inspector().await;
+    assert_ne!(
+        old_projection.owner.context_generation,
+        probe
+            .projection
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .owner
+            .context_generation,
+        "the production owner lifetime must advance through the selection ABA"
+    );
+    let _ = probe.runtime.take_layout_component_inspector_test_events();
+    old_action.call(LayoutComponentInspectorAction::SetPosition {
+        owner: old_projection.owner.clone(),
+        axis: ComponentPositionAxis::X,
+        value: 42.0,
+    });
+    let stale_events = probe.runtime.take_layout_component_inspector_test_events();
+    assert!(
+        stale_events.is_empty(),
+        "stale action emitted {stale_events:?}"
+    );
+
+    let current = probe.projection.borrow().clone().unwrap();
+    probe
+        .action
+        .borrow()
+        .as_ref()
+        .unwrap()
+        .call(LayoutComponentInspectorAction::SetPosition {
+            owner: current.owner,
+            axis: ComponentPositionAxis::X,
+            value: 42.0,
+        });
+    assert!(matches!(
+        probe.runtime.take_layout_component_inspector_test_events().as_slice(),
+        [boardstudio_application::Event::Edit { command, .. }]
+            if matches!(&command.operation, boardstudio_core::model::EditOperation::MoveParts { positions }
+                if positions.len() == 1 && positions[0].at.x == 42.0)
+    ));
+
+    let stale = probe.projection.borrow().clone().unwrap();
+    let stale_action = *probe.action.borrow().as_ref().unwrap();
+    click_component_inspector(probe.root_id, "#component-inspector-clear");
+    settle_component_inspector().await;
+    stale_action.call(LayoutComponentInspectorAction::SetPosition {
+        owner: stale.owner,
+        axis: ComponentPositionAxis::X,
+        value: 43.0,
+    });
+    assert!(
+        probe
+            .runtime
+            .take_layout_component_inspector_test_events()
+            .is_empty()
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_component_margin_enter_commits_and_escape_restores_the_accepted_value() {
+    let (probe, root) = mounted_probe("layout-component-inspector-margin-test-root");
+    settle_component_inspector().await;
+    let _ = probe.runtime.take_layout_component_inspector_test_events();
+    click_component_inspector(probe.root_id, ".m1-layout-component-outline summary");
+    settle_component_inspector().await;
+    assert!(
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector(&format!("#{} .m1-layout-component-outline", probe.root_id))
+            .unwrap()
+            .unwrap()
+            .has_attribute("open"),
+        "the margin field must be in the expanded outline section"
+    );
+    let document = web_sys::window().unwrap().document().unwrap();
+    let input = document
+        .query_selector(&format!(
+            "#{} input[aria-label='Part edge margin']",
+            probe.root_id
+        ))
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlInputElement>()
+        .unwrap();
+    input.focus().unwrap();
+    assert_eq!(
+        document
+            .active_element()
+            .and_then(|active| active.get_attribute("aria-label"))
+            .as_deref(),
+        Some("Part edge margin"),
+        "the visible margin field should receive focus before keyboard input"
+    );
+    input.set_value("4.25");
+    let input_init = web_sys::EventInit::new();
+    input_init.set_bubbles(true);
+    input
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &input_init).unwrap())
+        .unwrap();
+    let enter = web_sys::KeyboardEventInit::new();
+    enter.set_key("Enter");
+    enter.set_bubbles(true);
+    input
+        .dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
+        )
+        .unwrap();
+    assert_ne!(
+        document
+            .active_element()
+            .and_then(|active| active.get_attribute("aria-label"))
+            .as_deref(),
+        Some("Part edge margin"),
+        "Enter must blur the margin field so the normal commit runs"
+    );
+    settle_component_inspector().await;
+    let margin_events = probe.runtime.take_layout_component_inspector_test_events();
+    assert!(
+        matches!(
+            margin_events.as_slice(),
+            [boardstudio_application::Event::Edit { command, .. }]
+                if matches!(&command.operation, boardstudio_core::model::EditOperation::ReplaceDocument { document }
+                    if document.parts.iter().find(|part| part.id == "selected-part").and_then(|part| part.outline.as_ref()).and_then(|outline| outline.margin) == Some(4.25))
+        ),
+        "margin Enter emitted {margin_events:?}"
+    );
+
+    input.focus().unwrap();
+    input.set_value("8.0");
+    input
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &input_init).unwrap())
+        .unwrap();
+    let escape = web_sys::KeyboardEventInit::new();
+    escape.set_key("Escape");
+    escape.set_bubbles(true);
+    input
+        .dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape).unwrap(),
+        )
+        .unwrap();
+    settle_component_inspector().await;
+    assert_eq!(input.value(), "2.5");
+    assert!(
+        probe
+            .runtime
+            .take_layout_component_inspector_test_events()
+            .is_empty()
+    );
+    root.remove();
 }
