@@ -171,7 +171,6 @@ pub(in crate::presentation) fn use_matrix_placement(
         let canvas_interaction = canvas_interaction.clone();
         let mut request_id = request_id;
         let mut preparing = preparing;
-        let placement = placement;
         let mut error = error;
         let assembly_orientation = assembly_orientation.0;
         move |preset: crate::presentation::parts::MatrixPresetId| {
@@ -316,8 +315,6 @@ pub(in crate::presentation) fn use_matrix_placement(
 
     let on_move = use_callback({
         let runtime = runtime.clone();
-        let workspace = workspace;
-        let scope_generation = scope_generation;
         let canvas_interaction = canvas_interaction.clone();
         let mut placement = placement;
         move |movement: MatrixPlacementMove| {
@@ -343,7 +340,6 @@ pub(in crate::presentation) fn use_matrix_placement(
         let mut preparing = preparing;
         let mut placement = placement;
         let mut error = error;
-        let pending = pending;
         let canvas_interaction = canvas_interaction.clone();
         move |owner: MatrixPlacementOwner| {
             if pending.read().is_some()
@@ -367,8 +363,6 @@ pub(in crate::presentation) fn use_matrix_placement(
 
     let on_commit = use_callback({
         let runtime = runtime.clone();
-        let workspace = workspace;
-        let scope_generation = scope_generation;
         let canvas_interaction = canvas_interaction.clone();
         let mut placement = placement;
         let mut pending = pending;
