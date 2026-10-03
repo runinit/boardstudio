@@ -1244,9 +1244,9 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
                                 on_action.call(action_context.activate_action((!value.is_empty()).then_some(value)));
                             }
                         },
-                        option { value: "", "Generated" }
+                        option { value: "", selected: active_value.is_empty(), "Generated" }
                         for item in projection.versions.iter() {
-                            option { key: "{item.id}", value: "{item.id}", "{item.name}" }
+                            option { key: "{item.id}", value: "{item.id}", selected: item.id == active_value, "{item.name}" }
                         }
                     }
                 }
