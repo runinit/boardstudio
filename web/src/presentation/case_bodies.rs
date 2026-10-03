@@ -1,6 +1,6 @@
 //! Private authored Case body list and editor. Root owns the scoped edit adapter.
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::{CaseBody, CaseKind, Gasket, MountKind};
+use boardstudio_core::model::{CaseBody, CaseKind, Gasket, MountKind, Vec2};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -10,6 +10,7 @@ pub(crate) struct CaseBodiesProps {
     pub bodies: Vec<CaseBody>,
     pub scope: Scope,
     pub editor_instance_id: u64,
+    pub request_sequence: Signal<u64>,
     pub snapshot_token: SnapshotToken,
     pub revision: u64,
     pub generated_stack: bool,
@@ -110,6 +111,11 @@ pub(crate) enum CaseBodyEdit {
         mount_id: String,
         value: f64,
     },
+    SetMountPosition {
+        body_id: String,
+        mount_id: String,
+        at: Vec2,
+    },
     SetMountHoleDiameter {
         body_id: String,
         mount_id: String,
@@ -171,7 +177,7 @@ struct CaseBodyDisclosureState {
 
 #[component]
 pub(crate) fn CaseBodies(props: CaseBodiesProps) -> Element {
-    let request_sequence = use_signal(|| 0_u64);
+    let request_sequence = props.request_sequence;
     let pending_request = use_signal(|| None::<RequestIdentity>);
     let submission_busy = use_signal(|| false);
     let disclosures = use_signal(CaseBodyDisclosureState::default);

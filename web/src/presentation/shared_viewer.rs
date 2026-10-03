@@ -1013,6 +1013,10 @@ pub(super) enum ViewerHandleTarget {
         collection: super::mechanical_settings::MechanicalMountCollection,
         mount_id: String,
     },
+    AuthoredMount {
+        body_id: String,
+        mount_id: String,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2074,13 +2078,17 @@ fn SharedViewer(
             && settings.editable
     });
     let can_edit_mounts = mechanical_settings.as_ref().is_some_and(|settings| {
-        handles
-            .iter()
-            .any(|handle| matches!(&handle.target, ViewerHandleTarget::Mount { .. }))
-            && settings.identity.scope == projection.identity.scope
+        handles.iter().any(|handle| {
+            matches!(
+                &handle.target,
+                ViewerHandleTarget::Mount { .. } | ViewerHandleTarget::AuthoredMount { .. }
+            )
+        }) && settings.identity.scope == projection.identity.scope
             && settings.identity.snapshot_token == projection.identity.snapshot_token
             && settings.editable
-    });
+    }) || handles
+        .iter()
+        .any(|handle| matches!(&handle.target, ViewerHandleTarget::AuthoredMount { .. }));
     let unlink_request = selected_support.and_then(|support| {
         mechanical_settings.as_ref().map(|settings| {
             let anchors = settings
@@ -2206,7 +2214,6 @@ fn SharedViewer(
                     button {
                         r#type: "button",
                         aria_pressed: editing_mounts(),
-                        disabled: mechanical_settings.as_ref().is_none_or(|settings| !settings.editable),
                         onclick: move |_| {
                             let enable = !editing_mounts();
                             editing_mounts.set(enable);
@@ -2599,7 +2606,10 @@ fn active_case_handles(
         .iter()
         .filter(|handle| {
             matches!(&handle.target, ViewerHandleTarget::Gasket { .. }) && edit_gaskets
-                || matches!(&handle.target, ViewerHandleTarget::Mount { .. }) && edit_mounts
+                || matches!(
+                    &handle.target,
+                    ViewerHandleTarget::Mount { .. } | ViewerHandleTarget::AuthoredMount { .. }
+                ) && edit_mounts
         })
         .cloned()
         .collect()

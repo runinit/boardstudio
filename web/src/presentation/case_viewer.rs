@@ -1,11 +1,12 @@
 //! Case owns display persistence and domain selection; the viewer owns GPU state.
+use super::case_bodies::CaseBodyEdit;
 use super::shared_viewer::{
     CaseDisplay, CaseSharedViewer, HandleGesturePhase, ScopedDisplayChange, ScopedViewerSignal,
     ViewerHandle, ViewerHandleTarget, ViewerIdentity, ViewerSignalKind,
 };
 use super::{InstanceSelection, ResolvedTheme, selection::SelectionAdapter};
 use crate::runtime::{CadScene, Runtime};
-use boardstudio_application::Scope;
+use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{
     CaseKind, GasketPlacement, MechanicalGasketAnchor, MechanicalGasketSupport,
     MechanicalGasketTrack, MechanicalMount, Mount, MountKind, Vec2,
@@ -31,7 +32,16 @@ pub(super) struct CaseSelection {
     pub(super) body: Signal<Option<BodySelection>>,
     pub(super) layer: Signal<Option<LayerSelection>>,
     pub(super) display: Signal<BTreeMap<String, CaseDisplay>>,
+    pub(super) body_edit_portal: CaseBodyEditPortal,
 }
+
+#[derive(Clone, Copy)]
+pub(super) struct CaseBodyEditPortal {
+    pub(super) dispatch: Signal<Option<CaseBodyEditDispatch>>,
+    pub(super) editable: Signal<bool>,
+}
+
+pub(super) type CaseBodyEditDispatch = Rc<dyn Fn(CaseBodyEdit, Scope, SnapshotToken, u64)>;
 
 impl CaseSelection {
     pub(super) fn layer_id(self, scope: &Scope) -> String {
@@ -126,7 +136,11 @@ pub(crate) fn CaseViewer(
                 .map(|selected| selected.body_id.clone())
         })
         .unwrap_or_default();
-    let direct_handles = case_viewer_handles(&scene, mechanical_settings.as_ref());
+    let direct_handles = case_viewer_handles(
+        &scene,
+        mechanical_settings.as_ref(),
+        selection.body_edit_portal.editable(),
+    );
     let gesture = use_hook(|| Rc::new(RefCell::new(None::<CaseGestureDraft>)));
     let handle_preview = use_signal(|| None::<Vec<ViewerHandle>>);
     let gesture_field = use_signal(|| None::<String>);
@@ -389,12 +403,18 @@ enum CaseGestureDraft {
         tracks: Vec<MechanicalGasketTrack>,
     },
     Mount {
-        collection: super::mechanical_settings::MechanicalMountCollection,
+        target: CaseMountTarget,
         mount_id: String,
         before: Vec<Mount>,
         pending: Vec<Mount>,
         constraints: MountMoveConstraints,
     },
+}
+
+#[derive(Clone)]
+enum CaseMountTarget {
+    Mechanical(super::mechanical_settings::MechanicalMountCollection),
+    Authored { body_id: String },
 }
 
 #[derive(Clone)]
@@ -406,21 +426,22 @@ struct MountMoveConstraints {
 fn case_viewer_handles(
     scene: &CadScene,
     settings: Option<&super::mechanical_settings::MechanicalSettingsProps>,
+    authored_mounts_editable: bool,
 ) -> Vec<ViewerHandle> {
-    let Some(settings) = settings.filter(|settings| {
+    let settings = settings.filter(|settings| {
         settings.editable
             && settings.identity.scope == scene.scope
             && settings.identity.snapshot_token == scene.token
             && settings.identity.revision == scene.snapshot.document.revision
-    }) else {
-        return Vec::new();
-    };
+    });
     if !scene.exact || scene.prepared.revision != scene.snapshot.document.revision {
         return Vec::new();
     }
 
     let mut handles = Vec::new();
-    if let Some(assembly) = scene.mechanical.as_ref() {
+    if settings.is_some()
+        && let Some(assembly) = scene.mechanical.as_ref()
+    {
         let z = assembly
             .stack
             .iter()
@@ -444,69 +465,108 @@ fn case_viewer_handles(
         }));
     }
 
-    let Some(values) = settings.values.as_ref() else {
-        return handles;
-    };
-    let Some(assembly) = scene.mechanical.as_ref() else {
-        return handles;
-    };
-    if values.mount != MechanicalMount::Gasket {
-        let target_body = if values.mount == MechanicalMount::Rigid {
-            "plate"
-        } else {
-            "bottom"
-        };
-        if let Some(constraints) = mount_constraints(scene, target_body) {
+    if let (Some(settings), Some(assembly)) = (settings, scene.mechanical.as_ref())
+        && let Some(values) = settings.values.as_ref()
+    {
+        if values.mount != MechanicalMount::Gasket {
+            let target_body = if values.mount == MechanicalMount::Rigid {
+                "plate"
+            } else {
+                "bottom"
+            };
+            if mount_constraints(scene, target_body).is_some() {
+                let z = assembly
+                    .stack
+                    .iter()
+                    .find(|layer| layer.id == target_body)
+                    .map(|layer| layer.z + 0.8)
+                    .unwrap_or(0.8);
+                handles.extend(values.suspension_mounts.iter().map(|mount| {
+                    mount_handle(
+                        mount,
+                        z,
+                        CaseMountTarget::Mechanical(
+                            super::mechanical_settings::MechanicalMountCollection::Suspension,
+                        ),
+                    )
+                }));
+            }
+        }
+        if let Some(mounts) = values.closure_mounts.as_ref()
+            && let Some(_constraints) = mount_constraints(scene, "bottom")
+        {
             let z = assembly
                 .stack
                 .iter()
-                .find(|layer| layer.id == target_body)
+                .find(|layer| layer.id == "bottom")
                 .map(|layer| layer.z + 0.8)
                 .unwrap_or(0.8);
-            handles.extend(values.suspension_mounts.iter().map(|mount| {
+            handles.extend(mounts.iter().map(|mount| {
                 mount_handle(
                     mount,
                     z,
-                    super::mechanical_settings::MechanicalMountCollection::Suspension,
+                    CaseMountTarget::Mechanical(
+                        super::mechanical_settings::MechanicalMountCollection::Closure,
+                    ),
                 )
             }));
-            let _ = constraints;
         }
     }
-    if let Some(mounts) = values.closure_mounts.as_ref()
-        && let Some(_constraints) = mount_constraints(scene, "bottom")
+    if authored_mounts_editable
+        && let Ok(document) = captured_case_document(&scene.snapshot, &scene.scope)
     {
-        let z = assembly
-            .stack
+        for body in document
+            .case_bodies
             .iter()
-            .find(|layer| layer.id == "bottom")
-            .map(|layer| layer.z + 0.8)
-            .unwrap_or(0.8);
-        handles.extend(mounts.iter().map(|mount| {
-            mount_handle(
-                mount,
-                z,
-                super::mechanical_settings::MechanicalMountCollection::Closure,
-            )
-        }));
+            .filter(|body| body.board_id == scene.scope.board_id)
+        {
+            let Some(mounts) = body.mounts.as_ref() else {
+                continue;
+            };
+            let Some(_constraints) = mount_constraints(scene, &body.id) else {
+                continue;
+            };
+            let z = body.z.unwrap_or(0.0) + 0.8;
+            handles.extend(mounts.iter().map(|mount| {
+                mount_handle(
+                    mount,
+                    z,
+                    CaseMountTarget::Authored {
+                        body_id: body.id.clone(),
+                    },
+                )
+            }));
+        }
     }
     handles
 }
 
-fn mount_handle(
-    mount: &Mount,
-    z: f64,
-    collection: super::mechanical_settings::MechanicalMountCollection,
-) -> ViewerHandle {
-    ViewerHandle {
-        id: format!(
-            "case-mount:{}/{}",
+fn mount_handle(mount: &Mount, z: f64, target: CaseMountTarget) -> ViewerHandle {
+    let (target_id, target) = match target {
+        CaseMountTarget::Mechanical(collection) => (
             match collection {
-                super::mechanical_settings::MechanicalMountCollection::Suspension => "suspension",
-                super::mechanical_settings::MechanicalMountCollection::Closure => "closure",
+                super::mechanical_settings::MechanicalMountCollection::Suspension => {
+                    "suspension".to_owned()
+                }
+                super::mechanical_settings::MechanicalMountCollection::Closure => {
+                    "closure".to_owned()
+                }
             },
-            mount.id
+            ViewerHandleTarget::Mount {
+                collection,
+                mount_id: mount.id.clone(),
+            },
         ),
+        CaseMountTarget::Authored { body_id } => (
+            body_id.clone(),
+            ViewerHandleTarget::AuthoredMount {
+                body_id,
+                mount_id: mount.id.clone(),
+            },
+        ),
+    };
+    ViewerHandle {
+        id: format!("case-mount:{target_id}/{}", mount.id),
         x: mount.at.x as f32,
         y: mount.at.y as f32,
         z: z as f32,
@@ -516,10 +576,7 @@ fn mount_handle(
         normal_y: 1.0,
         length: (mount_radius(mount) * 2.0 + 3.0) as f32,
         invalid: false,
-        target: ViewerHandleTarget::Mount {
-            collection,
-            mount_id: mount.id.clone(),
-        },
+        target,
     }
 }
 
@@ -552,23 +609,28 @@ fn handle_case_gesture(
         message,
         mut selection,
     } = context;
+    let identity_current = scene.exact
+        && scene.scope == identity.scope
+        && scene.token == identity.snapshot_token
+        && scene.snapshot.document.revision == identity.revision
+        && scene.prepared.revision == scene.snapshot.document.revision;
     let settings = settings.filter(|settings| {
         settings.editable
             && settings.identity.scope == identity.scope
             && settings.identity.snapshot_token == identity.snapshot_token
             && settings.identity.revision == scene.snapshot.document.revision
-            && scene.exact
-            && scene.scope == identity.scope
-            && scene.token == identity.snapshot_token
+            && identity_current
     });
     match phase {
         HandleGesturePhase::Start => {
-            let Some(settings) = settings else { return };
             let Some(handle) = handles.iter().find(|handle| handle.id == handle_id) else {
                 return;
             };
             *gesture.borrow_mut() = match &handle.target {
                 ViewerHandleTarget::Gasket { support_id } => {
+                    if settings.is_none() {
+                        return;
+                    }
                     let Some(assembly) = scene.mechanical.as_ref() else {
                         return;
                     };
@@ -576,10 +638,8 @@ fn handle_case_gesture(
                     if !before.iter().any(|support| support.id == *support_id) {
                         return;
                     }
-                    selection.layer.set(Some(LayerSelection {
-                        scope: scene.scope.clone(),
-                        id: format!("gasket:{support_id}:lower"),
-                    }));
+                    selection
+                        .select_layer(scene.scope.clone(), format!("gasket:{support_id}:lower"));
                     Some(CaseGestureDraft::Gasket {
                         support_id: support_id.clone(),
                         before: before.clone(),
@@ -591,6 +651,7 @@ fn handle_case_gesture(
                     collection,
                     mount_id,
                 } => {
+                    let Some(settings) = settings else { return };
                     let Some(values) = settings.values.as_ref() else {
                         return;
                     };
@@ -617,7 +678,38 @@ fn handle_case_gesture(
                         return;
                     };
                     Some(CaseGestureDraft::Mount {
-                        collection: *collection,
+                        target: CaseMountTarget::Mechanical(*collection),
+                        mount_id: mount_id.clone(),
+                        before: before.clone(),
+                        pending: before,
+                        constraints,
+                    })
+                }
+                ViewerHandleTarget::AuthoredMount { body_id, mount_id } => {
+                    if !identity_current || !selection.body_edit_portal.editable() {
+                        return;
+                    }
+                    let Ok(document) = captured_case_document(&scene.snapshot, &scene.scope) else {
+                        return;
+                    };
+                    let Some(body) = document
+                        .case_bodies
+                        .iter()
+                        .find(|body| body.id == *body_id && body.board_id == scene.scope.board_id)
+                    else {
+                        return;
+                    };
+                    let before = body.mounts.clone().unwrap_or_default();
+                    if !before.iter().any(|mount| mount.id == *mount_id) {
+                        return;
+                    }
+                    let Some(constraints) = mount_constraints(scene, body_id) else {
+                        return;
+                    };
+                    Some(CaseGestureDraft::Mount {
+                        target: CaseMountTarget::Authored {
+                            body_id: body_id.clone(),
+                        },
                         mount_id: mount_id.clone(),
                         before: before.clone(),
                         pending: before,
@@ -663,7 +755,7 @@ fn handle_case_gesture(
                     }
                 }
                 CaseGestureDraft::Mount {
-                    collection,
+                    target,
                     mount_id,
                     before,
                     pending,
@@ -671,16 +763,21 @@ fn handle_case_gesture(
                 } => {
                     if let Some(next) = move_case_mount(point, &mount_id, &before, &constraints) {
                         *gesture.borrow_mut() = Some(CaseGestureDraft::Mount {
-                            collection,
+                            target: target.clone(),
                             mount_id,
                             before,
                             pending: next.clone(),
                             constraints,
                         });
-                        preview.set(Some(mount_handles(handles, &next, None)));
+                        preview.set(Some(mount_handles(handles, &target, &next, None)));
                         message.set(Some("Release to save mount position.".into()));
                     } else {
-                        preview.set(Some(mount_handles(handles, &pending, Some(&mount_id))));
+                        preview.set(Some(mount_handles(
+                            handles,
+                            &target,
+                            &pending,
+                            Some(&mount_id),
+                        )));
                         message.set(Some(
                             "Placement blocked by the case edge, openings, or another mount."
                                 .into(),
@@ -690,7 +787,7 @@ fn handle_case_gesture(
             }
         }
         HandleGesturePhase::End => {
-            let Some(settings) = settings else {
+            if !identity_current {
                 *gesture.borrow_mut() = None;
                 preview.set(None);
                 message.set(None);
@@ -715,14 +812,14 @@ fn handle_case_gesture(
                         }
                     }),
                     CaseGestureDraft::Mount {
-                        collection,
+                        target,
                         mount_id,
                         before,
                         constraints,
                         ..
                     } => move_case_mount(point, &mount_id, &before, &constraints).map(|pending| {
                         CaseGestureDraft::Mount {
-                            collection,
+                            target,
                             mount_id,
                             before,
                             pending,
@@ -739,6 +836,7 @@ fn handle_case_gesture(
                 message.set(Some("Blocked move was not saved.".into()));
                 return;
             };
+            let mut body_edit = None;
             let patch = match current {
                 CaseGestureDraft::Gasket {
                     support_id,
@@ -768,7 +866,7 @@ fn handle_case_gesture(
                     }
                 }
                 CaseGestureDraft::Mount {
-                    collection,
+                    target,
                     mount_id,
                     before,
                     pending,
@@ -780,21 +878,43 @@ fn handle_case_gesture(
                     .filter(|(next, old)| {
                         (next.at.x - old.at.x).abs() > 1e-7 || (next.at.y - old.at.y).abs() > 1e-7
                     })
-                    .map(|(mount, _)| {
-                        super::mechanical_settings::MechanicalSettingsPatch::SetMountPosition {
-                            collection,
-                            mount_id,
-                            at: mount.at,
+                    .and_then(|(mount, _)| match target {
+                        CaseMountTarget::Mechanical(collection) => Some(
+                            super::mechanical_settings::MechanicalSettingsPatch::SetMountPosition {
+                                collection,
+                                mount_id,
+                                at: mount.at,
+                            },
+                        ),
+                        CaseMountTarget::Authored { body_id } => {
+                            body_edit = Some(CaseBodyEdit::SetMountPosition {
+                                body_id,
+                                mount_id,
+                                at: mount.at,
+                            });
+                            None
                         }
                     }),
             };
             if let Some(patch) = patch {
                 let field_id = patch.field_id();
-                if submit_settings_patch(settings, patch) {
+                if settings.is_some_and(|settings| submit_settings_patch(settings, patch)) {
                     feedback_field.set(Some(field_id));
                     message.set(Some("Saving position…".into()));
                 } else {
                     message.set(Some("Position could not be submitted.".into()));
+                }
+            } else if let Some(edit) = body_edit {
+                if let Some(dispatch) = selection.body_edit_portal.dispatch.read().clone() {
+                    dispatch(
+                        edit,
+                        identity.scope.clone(),
+                        identity.snapshot_token,
+                        identity.revision,
+                    );
+                    message.set(Some("Saving body mount position…".into()));
+                } else {
+                    message.set(Some("The Case body edit owner is unavailable.".into()));
                 }
             } else {
                 message.set(None);
@@ -914,14 +1034,28 @@ fn gasket_handles(
 
 fn mount_handles(
     original_handles: &[ViewerHandle],
+    target: &CaseMountTarget,
     mounts: &[Mount],
     invalid: Option<&str>,
 ) -> Vec<ViewerHandle> {
     let mut result = original_handles.to_vec();
     for handle in &mut result {
-        let ViewerHandleTarget::Mount { mount_id, .. } = &handle.target else {
-            continue;
+        let (handle_target, mount_id) = match &handle.target {
+            ViewerHandleTarget::Mount {
+                collection,
+                mount_id,
+            } => (CaseMountTarget::Mechanical(*collection), mount_id),
+            ViewerHandleTarget::AuthoredMount { body_id, mount_id } => (
+                CaseMountTarget::Authored {
+                    body_id: body_id.clone(),
+                },
+                mount_id,
+            ),
+            ViewerHandleTarget::Gasket { .. } => continue,
         };
+        if !same_mount_target(&handle_target, target) {
+            continue;
+        }
         if let Some(mount) = mounts.iter().find(|mount| mount.id == *mount_id) {
             handle.x = mount.at.x as f32;
             handle.y = mount.at.y as f32;
@@ -929,6 +1063,17 @@ fn mount_handles(
         }
     }
     result
+}
+
+fn same_mount_target(left: &CaseMountTarget, right: &CaseMountTarget) -> bool {
+    match (left, right) {
+        (CaseMountTarget::Mechanical(left), CaseMountTarget::Mechanical(right)) => left == right,
+        (
+            CaseMountTarget::Authored { body_id: left },
+            CaseMountTarget::Authored { body_id: right },
+        ) => left == right,
+        _ => false,
+    }
 }
 
 fn move_gasket_support(

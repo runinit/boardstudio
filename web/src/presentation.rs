@@ -2428,10 +2428,16 @@ fn Editor() -> Element {
         use_signal(|| None::<keycaps_navigation::PendingLayoutFit>);
     let keycaps_navigation_alive = keycaps_navigation::use_navigation_lifetime();
     let case_display = use_signal(std::collections::BTreeMap::new);
+    let case_body_edit_dispatch = use_signal(|| None::<case_viewer::CaseBodyEditDispatch>);
+    let case_body_editable = use_signal(|| false);
     let case_selection = case_viewer::CaseSelection {
         body: case_body_selection,
         layer: case_layer_selection,
         display: case_display,
+        body_edit_portal: case_viewer::CaseBodyEditPortal {
+            dispatch: case_body_edit_dispatch,
+            editable: case_body_editable,
+        },
     };
     use_context_provider(|| case_selection);
     let case_tree_expanded = use_signal(BTreeSet::<String>::new);
@@ -2992,6 +2998,10 @@ fn Editor() -> Element {
             body: case_body_selection,
             layer: case_layer_selection,
             display: case_display,
+            body_edit_portal: case_viewer::CaseBodyEditPortal {
+                dispatch: case_body_edit_dispatch,
+                editable: case_body_editable,
+            },
         };
         let captured_revision = model
             .accepted
@@ -3100,6 +3110,10 @@ fn Editor() -> Element {
             body: case_body_selection,
             layer: case_layer_selection,
             display: case_display,
+            body_edit_portal: case_viewer::CaseBodyEditPortal {
+                dispatch: case_body_edit_dispatch,
+                editable: case_body_editable,
+            },
         },
         on_show_mechanical_finding,
     );

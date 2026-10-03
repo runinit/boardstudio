@@ -32,8 +32,84 @@ pub(super) fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) 
         let runtime = runtime.clone();
         move || runtime.operation().0
     });
+    let body_edit_portal = use_context::<super::case_viewer::CaseSelection>().body_edit_portal;
+    let request_sequence = use_signal(|| 0_u64);
     let pending = use_signal(|| None::<PendingBodyEdit>);
     let feedback = use_signal(|| None::<CaseBodyEditFeedback>);
+    let body_edit_dispatch = use_hook({
+        let runtime = runtime.clone();
+        move || {
+            let mut request_sequence = request_sequence;
+            let mut pending = pending;
+            let mut feedback = feedback;
+            let portal = body_edit_portal;
+            let runtime = runtime.clone();
+            let dispatch = Rc::new(
+                move |edit: CaseBodyEdit,
+                      scope: boardstudio_application::Scope,
+                      snapshot_token: boardstudio_application::SnapshotToken,
+                      revision: u64| {
+                    if !portal.editable() {
+                        return;
+                    }
+                    let Some(request_id) = request_sequence().checked_add(1) else {
+                        return;
+                    };
+                    request_sequence.set(request_id);
+                    let body_id = edit.body_id();
+                    let mount_id = match &edit {
+                        CaseBodyEdit::SetMountPosition { mount_id, .. } => Some(mount_id.as_str()),
+                        _ => None,
+                    };
+                    submit_body_edit(
+                        &runtime,
+                        instance_selection,
+                        editor_instance_id,
+                        &mut pending,
+                        &mut feedback,
+                        CaseBodyRequest {
+                            editor_instance_id,
+                            request_id,
+                            field_id: body_id.zip(mount_id).map(|(body, mount)| {
+                                format!("case-body:{body}:mount:{mount}:position")
+                            }),
+                            scope,
+                            snapshot_token,
+                            revision,
+                            edit,
+                        },
+                    );
+                },
+            ) as super::case_viewer::CaseBodyEditDispatch;
+            dispatch
+        }
+    });
+    {
+        let current = body_edit_portal.dispatch.read().clone();
+        if current
+            .as_ref()
+            .is_none_or(|current| !Rc::ptr_eq(current, &body_edit_dispatch))
+        {
+            body_edit_portal
+                .dispatch
+                .set(Some(body_edit_dispatch.clone()));
+        }
+    }
+    use_drop({
+        let portal = body_edit_portal;
+        let dispatch = body_edit_dispatch.clone();
+        move || {
+            if portal
+                .dispatch
+                .read()
+                .as_ref()
+                .is_some_and(|current| Rc::ptr_eq(current, &dispatch))
+            {
+                portal.dispatch.set(None);
+                portal.editable.set(false);
+            }
+        }
+    });
 
     let model = runtime.model();
     let snapshot_token = model.accepted.as_ref().map(|snapshot| snapshot.token);
@@ -161,20 +237,25 @@ pub(super) fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) 
     };
 
     let Some(snapshot) = model.accepted.as_ref() else {
+        body_edit_portal.editable.set(false);
         return rsx! { p { role: "status", "Open a saved keyboard to edit its case bodies." } };
     };
     let Some(scope) = scope else {
+        body_edit_portal.editable.set(false);
         return rsx! { p { role: "alert", "The active Case scope is unavailable." } };
     };
     if scope.board_id != model.active_board_id || scope.document_id != snapshot.document.id {
+        body_edit_portal.editable.set(false);
         return rsx! { p { role: "alert", "The active Case scope changed. Reopen the inspector to continue." } };
     }
     let Some(projected_case) = projected_case.read().clone() else {
+        body_edit_portal.editable.set(false);
         return rsx! { p { role: "alert", "The active Case projection is not current." } };
     };
     let effective = match projected_case {
         Ok(document) => document,
         Err(error) => {
+            body_edit_portal.editable.set(false);
             return rsx! { p { role: "alert", "Could not read the active Case projection: {error}" } };
         }
     };
@@ -221,6 +302,9 @@ pub(super) fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) 
         && model.gesture.is_none()
         && pending.read().is_none()
         && !generated_stack;
+    if body_edit_portal.editable() != editable {
+        body_edit_portal.editable.set(editable);
+    }
     let editor_scope_key = format!(
         "{}:{}:{}:{}:{:?}",
         editor_instance_id,
@@ -237,6 +321,7 @@ pub(super) fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) 
             bodies,
             scope,
             editor_instance_id,
+            request_sequence,
             snapshot_token: snapshot.token,
             revision: snapshot.document.revision,
             generated_stack,
@@ -515,6 +600,15 @@ fn apply_body_edit(
             require_finite(*value, "Mount Y position")?;
             find_mount_mut(body, mount_id)?.at.y = *value;
         }
+        Edit::SetMountPosition {
+            body_id,
+            mount_id,
+            at,
+        } if body.id == *body_id => {
+            require_finite(at.x, "Mount X position")?;
+            require_finite(at.y, "Mount Y position")?;
+            find_mount_mut(body, mount_id)?.at = *at;
+        }
         Edit::SetMountHoleDiameter {
             body_id,
             mount_id,
@@ -617,6 +711,7 @@ impl CaseBodyEdit {
             | Edit::SetMountKind { body_id, .. }
             | Edit::SetMountX { body_id, .. }
             | Edit::SetMountY { body_id, .. }
+            | Edit::SetMountPosition { body_id, .. }
             | Edit::SetMountHoleDiameter { body_id, .. }
             | Edit::SetMountBossDiameter { body_id, .. }
             | Edit::SetMountHeight { body_id, .. }
