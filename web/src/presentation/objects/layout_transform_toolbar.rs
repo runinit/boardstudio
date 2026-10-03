@@ -1,8 +1,9 @@
 //! Transform-property navigation for the Layout command pill.
 use super::layout_toolbar::LayoutSelectionKind;
 use super::layout_toolbar::{LayoutCommandMenu, close_layout_command_menu};
-use super::{
-    LayoutOwnerIdentity, ScopedTreeContext, TreeContext,
+use super::{ScopedTreeContext, TreeContext};
+use crate::presentation::{
+    LayoutOwnerIdentity,
     canvas_interaction::{CanvasInteractionArbiter, CanvasInteractionOwner},
 };
 use crate::runtime::Runtime;
@@ -137,22 +138,25 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
     let runtime_for_owner = runtime.0.clone();
     let arbiter_for_owner = arbiter.clone();
     let mut guide_for_owner = snap_guide;
-    use_effect(use_reactive!((&active_owner, &active_context, &active_tool), {
-        move |_| {
-            if drag_for_owner.borrow().as_ref().is_some_and(|active| {
-                active.owner != active_owner
-                    || active.context != active_context
-                    || active.tool != active_tool
-            }) {
-                cancel_transform_drag(
-                    &runtime_for_owner,
-                    &drag_for_owner,
-                    &arbiter_for_owner,
-                    &mut guide_for_owner,
-                );
+    use_effect(use_reactive!(
+        (&active_owner, &active_context, &active_tool),
+        {
+            move |_| {
+                if drag_for_owner.borrow().as_ref().is_some_and(|active| {
+                    active.owner != active_owner
+                        || active.context != active_context
+                        || active.tool != active_tool
+                }) {
+                    cancel_transform_drag(
+                        &runtime_for_owner,
+                        &drag_for_owner,
+                        &arbiter_for_owner,
+                        &mut guide_for_owner,
+                    );
+                }
             }
         }
-    }));
+    ));
 
     let (handle_point, handle_scale, selected_column) = {
         let selected_column = context_column(&context).unwrap_or(0);
@@ -276,7 +280,9 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
             TransformGesture::Splay { origin, .. } => origin,
             _ => Vec2::default(),
         };
-        let Some(start_point) = super::coordinates(&svg_for_start, &pointer, view_x, view_y, width, height) else {
+        let Some(start_point) =
+            super::coordinates(&svg_for_start, &pointer, view_x, view_y, width, height)
+        else {
             let _ = capture.release_pointer_capture(pointer.pointer_id());
             arbiter_for_start.release(CanvasInteractionOwner::MatrixTransform);
             return;
@@ -333,7 +339,8 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
             selected_context,
             &active.owner,
             &active.context,
-        ) || active.tool != tool {
+        ) || active.tool != tool
+        {
             cancel_transform_drag(
                 &runtime_for_move,
                 &drag_for_move,
@@ -399,7 +406,8 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
             selected_context,
             &active.owner,
             &active.context,
-        ) || active.tool != tool {
+        ) || active.tool != tool
+        {
             cancel_transform_drag(
                 &runtime_for_end,
                 &drag_for_end,
@@ -418,18 +426,22 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
             return;
         }
         let point = super::coordinates(&svg_for_end, &pointer, view_x, view_y, width, height);
-        let operation = point.and_then(|point| sample_transform(
-                &active,
-                &pointer,
-                point,
-                width,
-                height,
-                &snap_settings,
-                &snap_origins,
-                splay_affect(),
-                &svg_for_end,
-                &mut guide_for_end,
-            )).or_else(|| active.pending.clone());
+        let operation = point
+            .and_then(|point| {
+                sample_transform(
+                    &active,
+                    &pointer,
+                    point,
+                    width,
+                    height,
+                    &snap_settings,
+                    &snap_origins,
+                    splay_affect(),
+                    &svg_for_end,
+                    &mut guide_for_end,
+                )
+            })
+            .or_else(|| active.pending.clone());
         if let Some(operation) = operation {
             if active.pending.as_ref() != Some(&operation) {
                 submit_transform_edit(
