@@ -954,17 +954,15 @@
         {
           "id": "F2.4-C05",
           "requirement": "Unavailable browser preference storage leaves work usable with a clear in-memory fallback.",
-          "state": "missing",
+          "state": "implemented",
           "classification": "functional",
           "sources": [
-            "web/src/presentation/panels.rs:124",
-            "web/src/presentation/panels.rs:143",
-            "web/src/presentation.rs:681",
-            "web/src/presentation.rs:735"
+            "web/src/presentation/panels.rs",
+            "web/src/presentation.rs"
           ],
           "evidence": [],
           "blockers": [],
-          "next_action": "Add a visible session-only fallback notice when preference storage is unavailable.",
+          "next_action": "Qualify actual unavailable/quota-limited preference storage: one session-only notice, theme/panel controls remain usable in memory; project storage stays separate.",
           "finish_condition": "With storage blocked, work remains usable and the UI clearly says preferences are session-only.",
           "owned_files": [
             "web/src/presentation/panels.rs",
@@ -1317,19 +1315,19 @@
         {
           "id": "F3.3-C02",
           "requirement": "Characterize and fix the reference non-zero-world-movement versus current Dioxus 4 CSS px drag threshold mismatch using paired small-drag and stationary-click/panel-reflow regressions; preserve existing pointer budgets, capture, modifiers, cancellation and Undo gates.",
-          "state": "unassessed",
+          "state": "implemented",
           "classification": "functional",
           "sources": [
-            "web/src/presentation/objects/layout_transform_toolbar.rs",
-            "web/src/presentation/canvas_interaction.rs"
+            "web/src/presentation/canvas_interaction.rs",
+            "web/src/presentation.rs"
           ],
           "evidence": [],
           "blockers": [],
-          "next_action": "Inspect current drag threshold and pointer lifecycle against the pinned React source and any existing current-HEAD paired regression receipts; do not carry the historical mismatch forward as current truth.",
+          "next_action": "Qualify paired one-pixel Alt drag, stationary click with Inspector reflow, modified selection, and one-step Undo; retain broader cancellation gates.",
           "finish_condition": "Paired small-drag and stationary-click/panel-reflow regressions establish matching behavior and preserve pointer, modifier, cancellation and Undo gates.",
           "owned_files": [
-            "web/src/presentation/objects/layout_transform_toolbar.rs",
-            "web/src/presentation/canvas_interaction.rs"
+            "web/src/presentation/canvas_interaction.rs",
+            "web/src/presentation.rs"
           ],
           "capabilities": [
             "transform-pointer-gesture"
@@ -4086,22 +4084,23 @@
         {
           "id": "F5.5-C02",
           "requirement": "Inspector exposes connection, circuit joins and individual-component actions.",
-          "state": "missing",
+          "state": "implemented",
           "classification": "functional",
           "sources": [
-            "web/src/presentation/pcb_module_inspector.rs"
+            "web/src/presentation/pcb_module_inspector.rs",
+            "web/src/presentation/part_placement.rs",
+            "web/src/presentation.rs"
           ],
           "evidence": [
             ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md"
           ],
           "blockers": [],
-          "next_action": "Implement and qualify the remaining VIK connection, embedded-circuit and individual-component actions using existing typed Core edits.",
+          "next_action": "Qualify VIK connection Save, explicit circuit net join/copy/remove, and exact nested constituent footprint placement; Undo/Redo/reopen and stale scope.",
           "finish_condition": "Each action matches React, is correctly scoped, undoable where existing Core semantics allow, and retains unrelated project data.",
           "owned_files": [
             "web/src/presentation/pcb_module_inspector.rs",
-            "web/src/presentation/pcb_physical_setup/controller.rs",
-            "web/src/presentation.rs",
-            "web/src/presentation/workspace_composition.rs"
+            "web/src/presentation/part_placement.rs",
+            "web/src/presentation.rs"
           ],
           "capabilities": [
             "module connection edits",
@@ -4269,18 +4268,17 @@
         {
           "id": "F5.6-C03",
           "requirement": "Case exposes controls to change an instance\u2019s associated PCB design and flip that PCB.",
-          "state": "missing",
+          "state": "implemented",
           "classification": "functional",
           "sources": [
-            "web/src/presentation/case_workspace.rs:1036",
-            "web/src/presentation/case_workspace.rs:1046",
-            "web/src/presentation/case_workspace.rs:1051"
+            "web/src/presentation/case_workspace.rs",
+            "web/src/presentation/pcb_physical_setup/controller.rs"
           ],
           "evidence": [
             ".scratch/dioxus-pcb-view/issues/06-editor-owned-physical-setup-intents.md"
           ],
           "blockers": [],
-          "next_action": "Add the parent-required board-association and per-instance flip actions to the current Case assembly context, then qualify their saved edits and history behavior.",
+          "next_action": "Qualify selected Case instance PCB reassignment and flip, accepted navigation, Undo/Redo/reopen, and unrelated-instance preservation.",
           "finish_condition": "Case controls change the selected instance\u2019s board and flip state as React does, with correct scope, Undo/Redo, and reload behavior.",
           "owned_files": [
             "web/src/presentation/case_workspace.rs",

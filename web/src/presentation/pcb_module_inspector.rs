@@ -3,9 +3,11 @@
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Event, Lifecycle, Scope};
 use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, ModuleAttachment, ModuleSupport, Side,
+    EditCommand, EditOperation, EditPhase, ModuleAttachment, ModuleConnection, ModuleSupport,
+    PartDefinition, PartModel, Side, Vec3, VikRole, VikSignal,
 };
 use dioxus::prelude::*;
+use std::collections::BTreeMap;
 use std::rc::Rc;
 
 #[derive(Clone)]
@@ -23,6 +25,7 @@ pub(super) struct InspectorInput {
     pub(super) scope: Scope,
     pub(super) module_id: String,
     pub(super) selected_context: Signal<Option<super::objects::ScopedTreeContext>>,
+    pub(super) on_place_component: EventHandler<super::part_placement::ComponentPlacementAction>,
 }
 
 #[derive(Clone, Default)]
@@ -32,6 +35,17 @@ struct SupportDraft {
     hole_diameter: String,
     z: String,
     height: String,
+}
+
+#[derive(Clone)]
+struct ConstituentAction {
+    index: usize,
+    reference: String,
+    name: String,
+    footprint: String,
+    purchased: bool,
+    module_definition_id: String,
+    source_definition: Option<PartDefinition>,
 }
 
 pub(super) fn inspector(input: InspectorInput) -> Element {
@@ -44,6 +58,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
             scope: input.scope,
             module_id: input.module_id,
             selected_context: input.selected_context,
+            on_place_component: input.on_place_component,
         }
     }
 }
@@ -55,6 +70,7 @@ fn PcbMountedModuleInspector(
     scope: Scope,
     module_id: String,
     selected_context: Signal<Option<super::objects::ScopedTreeContext>>,
+    on_place_component: EventHandler<super::part_placement::ComponentPlacementAction>,
 ) -> Element {
     let input = InspectorInput {
         runtime: runtime.0,
@@ -62,6 +78,7 @@ fn PcbMountedModuleInspector(
         scope,
         module_id,
         selected_context,
+        on_place_component,
     };
     let document = &input.snapshot.document;
     let Some(instance) = document.modules.iter().find(|module| {
@@ -79,6 +96,7 @@ fn PcbMountedModuleInspector(
     let mut draft = use_signal(|| instance.clone());
     let mut feedback = use_signal(String::new);
     let mut support_draft = use_signal(SupportDraft::default);
+    let mut joins = use_signal(BTreeMap::<String, String>::new);
     let accepted_instance = instance.clone();
     use_effect(use_reactive!(|accepted_instance| {
         if *draft.peek() != accepted_instance {
@@ -87,12 +105,15 @@ fn PcbMountedModuleInspector(
         }
     }));
     let module_name = definition.name.clone();
+    let automatic_connector_id = format!("{}/vik-host-connector", instance.id);
+    let automatic_connector_definition = source_vik_host_connector(definition);
     let scope = input.scope.clone();
     let module_id = input.module_id.clone();
     let owner_token = input.snapshot.token;
     let owner_revision = input.snapshot.document.revision;
     let runtime = input.runtime.clone();
     let selected_context = input.selected_context;
+    let save_connector_definition = automatic_connector_definition.clone();
     let save = move |_| {
         let Some(snapshot) = mounted_owner_current(
             &runtime,
@@ -106,6 +127,28 @@ fn PcbMountedModuleInspector(
             return;
         };
         let value = draft();
+        let connector_definition = value
+            .connection
+            .as_ref()
+            .filter(|connection| {
+                connection.host_connector_part_id == format!("{}/vik-host-connector", value.id)
+                    && !snapshot
+                        .document
+                        .parts
+                        .iter()
+                        .any(|part| part.id == connection.host_connector_part_id)
+            })
+            .and(save_connector_definition.clone());
+        if value.connection.as_ref().is_some_and(|connection| {
+            connection.host_connector_part_id == format!("{}/vik-host-connector", value.id)
+        }) && connector_definition.is_none()
+        {
+            feedback.set(
+                "This module has no source-backed horizontal VIK connector definition to place."
+                    .into(),
+            );
+            return;
+        }
         let operation_id = runtime.operation();
         runtime.submit(Event::Edit {
             operation_id,
@@ -117,7 +160,7 @@ fn PcbMountedModuleInspector(
                 operation: EditOperation::SetMountedModule {
                     instance: Box::new(value),
                     definition: None,
-                    host_connector_definition: None,
+                    host_connector_definition: connector_definition.map(Box::new),
                 },
             },
         });
@@ -191,6 +234,129 @@ fn PcbMountedModuleInspector(
     };
     let editable = input.snapshot.document.id == input.scope.document_id
         && input.snapshot.session_epoch == input.scope.session_epoch;
+    let connectors = document
+        .parts
+        .iter()
+        .filter(|part| {
+            document
+                .boards
+                .iter()
+                .find(|board| board.id == board_id)
+                .is_some_and(|board| board.part_ids.contains(&part.id))
+                && document
+                    .definitions
+                    .iter()
+                    .find(|definition| definition.id == part.definition_id)
+                    .and_then(|definition| definition.hardware_profile.as_ref())
+                    .is_some_and(|profile| profile.vik_role == Some(VikRole::Host))
+        })
+        .map(|part| (part.id.clone(), part.reference.clone()))
+        .collect::<Vec<_>>();
+    let available_connectors = connectors.clone();
+    let automatic_connector_id_for_toggle = automatic_connector_id.clone();
+    let default_module_port_id = definition
+        .interfaces
+        .iter()
+        .find(|port| port.role == VikRole::Module)
+        .map(|port| port.id.clone())
+        .unwrap_or_default();
+    let embedded_circuits = document
+        .embedded_circuits
+        .iter()
+        .filter(|circuit| {
+            circuit.definition_id == definition.id && circuit.host_board_id == board_id
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let circuit_nets = definition
+        .circuit
+        .as_ref()
+        .map(|circuit| circuit.ports.keys().cloned().collect::<Vec<_>>())
+        .unwrap_or_default();
+    let constituent_actions = definition
+        .constituents
+        .iter()
+        .enumerate()
+        .map(|(index, constituent)| ConstituentAction {
+            index,
+            reference: constituent.reference.clone(),
+            name: constituent.name.clone(),
+            footprint: constituent.footprint.clone(),
+            purchased: constituent.purchased,
+            module_definition_id: definition.id.clone(),
+            source_definition: constituent.definition_id.as_ref().and_then(|id| {
+                definition
+                    .circuit
+                    .as_ref()?
+                    .definitions
+                    .iter()
+                    .find(|source| &source.id == id)
+                    .cloned()
+            }),
+        })
+        .collect::<Vec<_>>();
+    let host_nets = document
+        .boards
+        .iter()
+        .find(|board| board.id == board_id)
+        .map(|board| {
+            board
+                .net_ids
+                .iter()
+                .filter_map(|id| document.nets.iter().find(|net| &net.id == id))
+                .map(|net| (net.id.clone(), net.name.clone()))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let embed_source = definition.clone();
+    let embed_runtime = input.runtime.clone();
+    let embed_scope = input.scope.clone();
+    let embed_module_id = input.module_id.clone();
+    let embed_context = input.selected_context;
+    let embed_token = input.snapshot.token;
+    let embed_revision = input.snapshot.document.revision;
+    let embed_joins = joins;
+    let embed = move |_| {
+        let Some(snapshot) = mounted_owner_current(
+            &embed_runtime,
+            embed_context,
+            &embed_scope,
+            &embed_module_id,
+            embed_token,
+            embed_revision,
+        ) else {
+            feedback.set("The selected module or accepted project changed. Reopen its placement before copying the circuit.".into());
+            return;
+        };
+        if embed_source.circuit.is_none() {
+            feedback.set("This module has no editable circuit source.".into());
+            return;
+        }
+        let operation_id = embed_runtime.operation();
+        let id = format!("circuit/embedded-{}", operation_id.0);
+        let placement = draft();
+        embed_runtime.submit(Event::Edit {
+            operation_id,
+            command: EditCommand {
+                base_revision: snapshot.document.revision,
+                transaction_id: format!("embed-module-circuit-{}", operation_id.0),
+                phase: EditPhase::Commit,
+                target_ids: vec![id.clone()],
+                operation: EditOperation::EmbedModuleCircuit {
+                    id,
+                    definition: embed_source.clone(),
+                    host_board_id: placement.host_board_id,
+                    pose: boardstudio_core::model::Pose2 {
+                        at: placement.at,
+                        rotation: placement.rotation,
+                    },
+                    side: placement.host_face,
+                    joins: embed_joins.read().clone(),
+                },
+            },
+        });
+        feedback.set("Circuit copy submitted for save.".into());
+    };
 
     rsx! {
         section { class: "m1-pcb-module-inspector", "aria-label": "Mounted module placement",
@@ -384,8 +550,186 @@ fn PcbMountedModuleInspector(
             label { input { r#type: "checkbox", checked: draft().detached, disabled: !editable,
                 onchange: move |event| draft.with_mut(|value| value.detached = event.checked())
             } "Detached" }
+            section { class: "m1-pcb-module-connection", "aria-label": "VIK connection",
+                h3 { "VIK connection" }
+                label { input {
+                    r#type: "checkbox",
+                    checked: draft().connection.is_some(),
+                    disabled: !editable,
+                    onchange: move |event| {
+                        if event.checked() {
+                            draft.with_mut(|value| value.connection = Some(ModuleConnection {
+                                host_connector_part_id: if available_connectors.is_empty() { automatic_connector_id_for_toggle.clone() } else { String::new() },
+                                module_port_id: default_module_port_id.clone(),
+                                bus_id: format!("vik/{}", value.id),
+                                assignments: BTreeMap::new(),
+                                cable_type: "type-a-12-0.5".into(),
+                                supply_current_ma: None,
+                                rail_voltages: BTreeMap::new(),
+                                upstream_module_id: None,
+                                upstream_port_id: None,
+                            }));
+                        } else {
+                            draft.with_mut(|value| value.connection = None);
+                        }
+                    }
+                } "Assign host connection" }
+                if let Some(connection) = draft().connection {
+                    label { "Host connector"
+                        select {
+                            aria_label: "Module host connector",
+                            value: "{connection.host_connector_part_id}",
+                            disabled: !editable,
+                            onchange: move |event| draft.with_mut(|value| if let Some(connection) = &mut value.connection { connection.host_connector_part_id = event.value(); }),
+                            option { value: "", "Select VIK host connector" }
+                            if connectors.is_empty() && automatic_connector_definition.is_some() {
+                                option { value: "{automatic_connector_id}", "Add source-backed horizontal VIK connector beside module" }
+                            }
+                            for (id, reference) in &connectors { option { value: "{id}", "{reference}" } }
+                        }
+                    }
+                    if connectors.is_empty() {
+                        p { "No source-backed host-role VIK connector is present on this board. Add one before saving a connected placement." }
+                    }
+                    label { "Module port"
+                        select {
+                            aria_label: "Module input port",
+                            value: "{connection.module_port_id}",
+                            disabled: !editable,
+                            onchange: move |event| draft.with_mut(|value| if let Some(connection) = &mut value.connection { connection.module_port_id = event.value(); }),
+                            for port in definition.interfaces.iter().filter(|port| port.role == VikRole::Module) {
+                                option { value: "{port.id}", "{port.id}" }
+                            }
+                        }
+                    }
+                    label { "Bus name"
+                        input { r#type: "text", aria_label: "Module bus name", value: "{connection.bus_id}", disabled: !editable,
+                            oninput: move |event| draft.with_mut(|value| if let Some(connection) = &mut value.connection { connection.bus_id = event.value(); })
+                        }
+                    }
+                    p { "12 contacts · 0.5 mm pitch · Type A cable · 3.3 V logic. Enter actual MCU terminals; shared buses are checked by their wiring." }
+                    div { class: "m1-pcb-module-signals",
+                        for (signal, label) in vik_signals() {
+                            label { key: "{label}", "{label}"
+                                input { r#type: "text", aria_label: "VIK {label} terminal", value: "{connection.assignments.get(&signal).cloned().unwrap_or_default()}", disabled: !editable,
+                                    oninput: move |event| {
+                                        let terminal = event.value().trim().to_owned();
+                                        draft.with_mut(|value| if let Some(connection) = &mut value.connection {
+                                            if terminal.is_empty() { connection.assignments.remove(&signal); }
+                                            else { connection.assignments.insert(signal, terminal); }
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    div { class: "m1-pcb-module-rail-values",
+                        for (signal, label) in [(VikSignal::V3v3, "3.3V supply"), (VikSignal::V5, "5V supply"), (VikSignal::Gnd, "Ground") ] {
+                            label { key: "{label}", "{label} · V"
+                                input { r#type: "number", step: "0.1", aria_label: "VIK {label} voltage", value: "{connection.rail_voltages.get(&signal).map(ToString::to_string).unwrap_or_default()}", disabled: !editable,
+                                    oninput: move |event| {
+                                        let raw = event.value();
+                                        draft.with_mut(|value| if let Some(connection) = &mut value.connection {
+                                            if raw.trim().is_empty() { connection.rail_voltages.remove(&signal); }
+                                            else if let Ok(voltage) = raw.parse::<f64>() && voltage.is_finite() { connection.rail_voltages.insert(signal, voltage); }
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    label { "Supply budget · mA"
+                        input { r#type: "number", min: "0", aria_label: "VIK supply current budget", value: "{connection.supply_current_ma.map(|value| value.to_string()).unwrap_or_default()}", disabled: !editable,
+                            oninput: move |event| {
+                                let raw = event.value();
+                                draft.with_mut(|value| if let Some(connection) = &mut value.connection {
+                                    connection.supply_current_ma = if raw.trim().is_empty() { None } else { raw.parse::<f64>().ok().filter(|number| number.is_finite() && *number >= 0.0) };
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            if definition.circuit.is_some() {
+                section { class: "m1-pcb-module-circuit", "aria-label": "Use circuit on PCB",
+                    h3 { "Use circuit on PCB" }
+                    p { "Creates an independent, editable copy. Choose host nets for explicit joins; other nets remain local to this copy." }
+                    for port in circuit_nets.clone() {
+                        label { key: "{port}", "{port.to_uppercase()} joins"
+                            select {
+                                aria_label: "Circuit {port} host net",
+                                value: "{joins.read().get(&port).cloned().unwrap_or_default()}",
+                                disabled: !editable,
+                                onchange: move |event| {
+                                    let net_id = event.value();
+                                    joins.with_mut(|value| {
+                                        if net_id.is_empty() { value.remove(&port); }
+                                        else { value.insert(port.clone(), net_id); }
+                                    });
+                                },
+                                option { value: "", "Separate local net" }
+                                for (id, name) in &host_nets { option { value: "{id}", "{name}" } }
+                            }
+                        }
+                    }
+                    button { class: "m1-primary-button", r#type: "button", disabled: !editable, onclick: embed, "Copy circuit to PCB" }
+                    for circuit in &embedded_circuits {
+                        div { class: "m1-pcb-module-circuit-copy", key: "{circuit.id}",
+                            span { "{circuit.part_ids.len()} components · {circuit.id.rsplit('/').next().unwrap_or(&circuit.id)}" }
+                            button { r#type: "button", disabled: !editable, onclick: {
+                                let circuit_id = circuit.id.clone();
+                                let remove_runtime = input.runtime.clone();
+                                let remove_scope = input.scope.clone();
+                                let remove_module_id = input.module_id.clone();
+                                let remove_context = input.selected_context;
+                                let remove_token = input.snapshot.token;
+                                let remove_revision = input.snapshot.document.revision;
+                                move |_| {
+                                    let Some(snapshot) = mounted_owner_current(&remove_runtime, remove_context, &remove_scope, &remove_module_id, remove_token, remove_revision) else {
+                                        feedback.set("The selected module or accepted project changed. Reopen its placement before removing the circuit copy.".into());
+                                        return;
+                                    };
+                                    let operation_id = remove_runtime.operation();
+                                    remove_runtime.submit(Event::Edit {
+                                        operation_id,
+                                        command: EditCommand {
+                                            base_revision: snapshot.document.revision,
+                                            transaction_id: format!("remove-embedded-circuit-{}", operation_id.0),
+                                            phase: EditPhase::Commit,
+                                            target_ids: vec![circuit_id.clone()],
+                                            operation: EditOperation::RemoveEmbeddedCircuit { id: circuit_id.clone() },
+                                        },
+                                    });
+                                    feedback.set("Circuit copy removal submitted for save.".into());
+                                }
+                            }, "Remove copy" }
+                        }
+                    }
+                }
+            }
+            section { class: "m1-pcb-module-components", "aria-label": "Individual components",
+                h3 { "Individual components" }
+                p { "Place available source footprints independently. Component heights and assembly completeness need separate review." }
+                if definition.circuit.is_some() {
+                    for constituent in constituent_actions.clone() {
+                        div { class: "m1-pcb-module-constituent", key: "{constituent.reference}-{constituent.index}",
+                            div { strong { "{constituent.reference} · {constituent.name}" } small { if constituent.purchased { "Purchased assembly · footprint and external contacts only" } else { "{constituent.footprint}" } } }
+                            button { r#type: "button", disabled: !editable || constituent.source_definition.is_none(), onclick: move |_| {
+                                if let Some(definition) = constituent.source_definition.clone() {
+                                    on_place_component.call(super::part_placement::ComponentPlacementAction::AddSourceObject {
+                                        module_definition_id: constituent.module_definition_id.clone(),
+                                        definition,
+                                    });
+                                }
+                            }, "Place" }
+                        }
+                    }
+                } else {
+                    p { "This module has no editable component circuit source." }
+                }
+            }
             div { class: "m1-pcb-module-actions",
-                button { class: "m1-primary-button", r#type: "button", disabled: !editable, onclick: save, "Save placement" }
+                button { class: "m1-primary-button", r#type: "button", disabled: !editable || draft().connection.as_ref().is_some_and(|connection| connection.host_connector_part_id.is_empty()), onclick: save, "Save placement" }
                 button { class: "m1-danger-button", r#type: "button", disabled: !editable, onclick: remove, "Remove module" }
             }
             if !feedback().is_empty() { p { role: "status", "{feedback()}" } }
@@ -399,6 +743,98 @@ fn side(value: &str) -> Side {
     } else {
         Side::Front
     }
+}
+
+fn vik_signals() -> [(VikSignal, &'static str); 12] {
+    [
+        (VikSignal::Sclk, "SPI clock"),
+        (VikSignal::Miso, "SPI MISO"),
+        (VikSignal::Cs, "Chip select"),
+        (VikSignal::Gpio2, "GPIO 2"),
+        (VikSignal::Mosi, "SPI MOSI"),
+        (VikSignal::Gpio1, "GPIO 1"),
+        (VikSignal::V5, "5V supply"),
+        (VikSignal::Rgb, "RGB data"),
+        (VikSignal::Scl, "I²C clock"),
+        (VikSignal::Sda, "I²C data"),
+        (VikSignal::Gnd, "Ground"),
+        (VikSignal::V3v3, "3.3V supply"),
+    ]
+}
+
+fn source_vik_host_connector(
+    module: &boardstudio_core::model::ModuleDefinition,
+) -> Option<PartDefinition> {
+    const MODEL_ASSET: &str =
+        "ergogen:model:vik/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal.stp";
+    let mut definition = module
+        .circuit
+        .as_ref()?
+        .definitions
+        .iter()
+        .find(|definition| {
+            definition
+                .hardware_profile
+                .as_ref()
+                .is_some_and(|profile| profile.vik_role == Some(VikRole::Host))
+                && definition.name.to_ascii_lowercase().contains("horizontal")
+        })?
+        .clone();
+    definition.id = "vik:source:horizontal-host-connector".into();
+    definition.name = "VIK horizontal host connector".into();
+    definition.models = Some(vec![PartModel {
+        asset_id: MODEL_ASSET.into(),
+        offset: Vec3 {
+            x: -2.75,
+            y: 2.3,
+            z: 0.0,
+        },
+        rotation: Vec3::default(),
+        scale: Vec3 {
+            x: 1.0,
+            y: 1.0,
+            z: 1.0,
+        },
+    }]);
+    if let Some(source) = &mut definition.kicad_source {
+        source.source = without_embedded_connector_model(&source.source)?;
+    }
+    Some(definition)
+}
+
+fn without_embedded_connector_model(source: &str) -> Option<String> {
+    const MARKER: &str = "(model \"../../kicad/3dmodels/vik-connector-horizontal.stp\"";
+    let Some(start) = source.find(MARKER) else {
+        return Some(source.to_owned());
+    };
+    let mut depth = 0usize;
+    let mut quoted = false;
+    let mut escaped = false;
+    for (offset, character) in source[start..].char_indices() {
+        if quoted {
+            if escaped {
+                escaped = false;
+            } else if character == '\\' {
+                escaped = true;
+            } else if character == '"' {
+                quoted = false;
+            }
+            continue;
+        }
+        match character {
+            '"' => quoted = true,
+            '(' => depth += 1,
+            ')' => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    let end = start + offset + character.len_utf8();
+                    return Some(format!("{}{}", &source[..start], &source[end..]));
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 fn mounted_owner_current(

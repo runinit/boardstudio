@@ -50,6 +50,18 @@ impl CanvasInteractionArbiter {
     }
 }
 
+/// Whether a pending Layout part drag has real client-pointer movement.
+/// Keep this tied to pointer coordinates so a canvas
+/// resize after pointer-down cannot manufacture movement in world space.
+pub(super) fn pending_part_drag_threshold_reached(
+    start_client: (f64, f64),
+    current_client: (f64, f64),
+) -> bool {
+    let dx = current_client.0 - start_client.0;
+    let dy = current_client.1 - start_client.1;
+    dx != 0.0 || dy != 0.0
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -83,5 +95,18 @@ mod tests {
             arbiter.release(first);
             assert_eq!(arbiter.current(), None);
         }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn pending_part_drag_requires_real_client_motion() {
+        let start = (100.0, 200.0);
+
+        // Even a one-pixel movement must be admitted, matching the reference.
+        assert!(pending_part_drag_threshold_reached(start, (101.0, 200.0)));
+        assert!(pending_part_drag_threshold_reached(start, (104.0, 200.0)));
+
+        // If panel reflow changes the SVG/world mapping while the pointer stays
+        // at the same client coordinates, the pending click must remain still.
+        assert!(!pending_part_drag_threshold_reached(start, start));
     }
 }

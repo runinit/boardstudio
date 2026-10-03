@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T20:19:25.871997+00:00",
+    "updated_at": "2026-10-03T21:25:57.510765+00:00",
     "parent_counts": {
       "accepted": 10,
       "implementing": 41,
@@ -49,7 +49,7 @@
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
       "source_commit": "9548c3f06153008da68400b6fc566e35101a20dd",
-      "state": "Application candidate 34777 passed the real-plan encoder/ZMK journey. Five delivery fixes are implemented; the later host-only publication rollback repair passed focused checks. Remaining lifecycle qualification is explicit in criteria.",
+      "state": "Integrating concrete criterion implementations: preference fallback, module connection/circuit/constituent actions, Case association/flip, and confirmed Layout small-drag repair. Combined regression/compiler pass underway; no new acceptance claimed.",
       "packets": [
         {
           "stream": "Layout",
@@ -504,10 +504,39 @@
         "state": "34775: create/import, assembly placement and footprint import survive project switch/reopen. Absolute fixture paths required for browser upload tool. Remaining parent criteria retained."
       }
     ],
-    "pending_join_packets": [],
+    "pending_join_packets": [
+      {
+        "stream": "Parts/Project",
+        "criteria": [
+          "F2.4-C05"
+        ],
+        "state": "integrated source; compiler/regression then combined candidate pending"
+      },
+      {
+        "stream": "PCB",
+        "criteria": [
+          "F5.5-C02"
+        ],
+        "state": "integrated source; compiler/regression then combined candidate pending"
+      },
+      {
+        "stream": "Case",
+        "criteria": [
+          "F5.6-C03"
+        ],
+        "state": "integrated source; compiler/regression then combined candidate pending"
+      },
+      {
+        "stream": "Layout",
+        "criteria": [
+          "F3.3-C02"
+        ],
+        "state": "integrated source; compiler/regression then combined candidate pending"
+      }
+    ],
     "next_work": [
-      "Use progress.py ready --kind implement for F2.4-C05, F5.5-C02 and F5.6-C03; keep six workbench queues and one waiting packet per stream.",
-      "Use ready --kind qualify for implemented criteria and ready --kind investigate for unassessed criteria. Reuse this candidate evidence and qualify only the named remaining branches."
+      "Finish the focused Layout regression and combined source compile, preserving integrated author corrections.",
+      "Publish one combined functional-controls candidate; qualify only the four affected criterion journeys and use one consolidated Sol 6.1 High review."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
@@ -776,7 +805,39 @@
       "unmet_acceptance_conditions": [
         "Finish the explicitly remaining preview/export lifecycle criteria; the bounded in-flight revision attempt settled before mutation.",
         "Complete remaining parent criteria and final joins; this scoped candidate does not accept additional parents."
-      ]
+      ],
+      "next_scope": {
+        "id": "functional-controls-20261003",
+        "source_commit": "f410ce9902a9b0c3b1a3467ff33c6a3dd85b5f7d",
+        "streams": [
+          "Layout",
+          "PCB",
+          "Case",
+          "Parts/Project"
+        ],
+        "journeys": [
+          {
+            "id": "layout-small-drag",
+            "scope": "F3.3-C02 one-pixel Alt drag, stationary click/reflow, modified selection and Undo",
+            "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md"
+          },
+          {
+            "id": "module-actions",
+            "scope": "F5.5-C02 VIK connection, circuit joins/copy/remove and exact constituent placement",
+            "spec": ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md"
+          },
+          {
+            "id": "case-instance-controls",
+            "scope": "F5.6-C03 Case PCB association/flip, selected-instance navigation, history and reopen",
+            "spec": ".scratch/dioxus-pcb-view/issues/06-editor-owned-physical-setup-intents.md"
+          },
+          {
+            "id": "preference-fallback",
+            "scope": "F2.4-C05 storage failure notice and usable in-memory theme/panel controls",
+            "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md"
+          }
+        ]
+      }
     },
     "delivery_priority": {
       "authority": "User on 2026-10-03: make the app work; layout parity last; improve UI along the way because the design will change.",
@@ -826,6 +887,17 @@
           "remaining": "Broader parent criteria and final joins remain; cosmetic layout parity deferred."
         }
       ]
+    },
+    "functional_controls_checks": {
+      "red": {
+        "log": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/functional-controls-red.log",
+        "result": "Expected one-pixel assertion failure with original 4px threshold; compilation succeeded."
+      },
+      "green": {
+        "log": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/functional-controls-green.log",
+        "result": "2 Canvas interaction WASM Chrome tests passed; changed application source compiled without warnings."
+      },
+      "qualification": "pending combined package"
     }
   }
 }

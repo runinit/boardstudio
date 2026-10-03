@@ -62,6 +62,10 @@ pub(super) enum ComponentPlacementAction {
         definition_id: String,
         kind: PartKind,
     },
+    AddSourceObject {
+        module_definition_id: String,
+        definition: PartDefinition,
+    },
     PartsInspector {
         definition_id: String,
         kind: PartKind,
@@ -548,7 +552,8 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
             move |definition_id: String,
                   kind: PartKind,
                   workflow: PlacementWorkflow,
-                  apply_to_key: bool| {
+                  apply_to_key: bool,
+                  source_definition: Option<(String, PartDefinition)>| {
                 let source_workspace = workspace();
                 if match workflow {
                     PlacementWorkflow::WiringController | PlacementWorkflow::PcbController => {
@@ -606,6 +611,23 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
                 let Some(scope) = runtime.scope() else {
                     return;
                 };
+                if apply_to_key && source_definition.is_some() {
+                    error.set(Some(
+                        "A module source component cannot be applied to a matrix key.".into(),
+                    ));
+                    return;
+                }
+                let source_definition = source_definition.map(|(module_id, definition)| {
+                    placement_source_definition(&snapshot.document, &module_id, definition)
+                });
+                let definition_id = source_definition
+                    .as_ref()
+                    .map(|definition| definition.id.clone())
+                    .unwrap_or(definition_id);
+                let kind = source_definition
+                    .as_ref()
+                    .map(|definition| definition.kind.clone())
+                    .unwrap_or(kind);
                 let guide_is_live = guide_preferences().as_ref().is_some_and(|preferences| {
                     preferences.open
                         && preferences.current_stage == SetupGuideStage::Wiring
@@ -826,8 +848,12 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
                 let mut query = query;
                 let mut preparing = preparing;
                 let load_definition = load_definition.clone();
+                let source_definition = source_definition.clone();
                 spawn_local(async move {
-                    let definition = load_definition(reversible_document, definition_id).await;
+                    let definition = match source_definition {
+                        Some(definition) => Ok(definition),
+                        None => load_definition(reversible_document, definition_id).await,
+                    };
                     if !alive.get() {
                         return;
                     }
@@ -980,7 +1006,7 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
             {
                 return;
             }
-            start.borrow_mut()(definition_id, PartKind::Controller, workflow, false);
+            start.borrow_mut()(definition_id, PartKind::Controller, workflow, false, None);
         }
     };
     let controller_back =
@@ -1005,7 +1031,8 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
         let selected_context = adapter.selected_context;
         move |action: ComponentPlacementAction| {
             let expected_workspace = match action {
-                ComponentPlacementAction::AddObject { .. } => {
+                ComponentPlacementAction::AddObject { .. }
+                | ComponentPlacementAction::AddSourceObject { .. } => {
                     let Some(owner) = action_owner
                         .as_ref()
                         .filter(|owner| matches!(owner.workspace, "Layout" | "PCB"))
@@ -1036,6 +1063,17 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
                     kind,
                     PlacementWorkflow::GeneralComponent,
                     false,
+                    None,
+                ),
+                ComponentPlacementAction::AddSourceObject {
+                    module_definition_id,
+                    definition,
+                } => start.borrow_mut()(
+                    definition.id.clone(),
+                    definition.kind.clone(),
+                    PlacementWorkflow::GeneralComponent,
+                    false,
+                    Some((module_definition_id, definition)),
                 ),
                 ComponentPlacementAction::PartsInspector {
                     definition_id,
@@ -1045,6 +1083,7 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
                     kind,
                     PlacementWorkflow::GeneralComponent,
                     true,
+                    None,
                 ),
             }
         }
@@ -1543,6 +1582,50 @@ pub(super) fn component_part(
         definition,
         at,
     }
+}
+
+fn placement_source_definition(
+    accepted: &ProjectDoc,
+    module_definition_id: &str,
+    source: PartDefinition,
+) -> PartDefinition {
+    if !accepted
+        .definitions
+        .iter()
+        .any(|definition| definition.id == source.id && definition != &source)
+    {
+        return source;
+    }
+
+    let base_id = format!(
+        "module-source/{}/{}:{}/{}",
+        module_definition_id.len(),
+        module_definition_id,
+        source.id.len(),
+        source.id
+    );
+    for suffix in 0u32.. {
+        let id = if suffix == 0 {
+            base_id.clone()
+        } else {
+            format!("{base_id}/{suffix}")
+        };
+        let mut candidate = source.clone();
+        candidate.id = id;
+        if let Some(profile) = &mut candidate.mechanical_profile {
+            profile.definition_id = candidate.id.clone();
+        }
+        match accepted
+            .definitions
+            .iter()
+            .find(|definition| definition.id == candidate.id)
+        {
+            Some(existing) if existing == &candidate => return candidate,
+            Some(_) => continue,
+            None => return candidate,
+        }
+    }
+    unreachable!("A finite project cannot exhaust component definition identities")
 }
 
 pub(super) fn update_pending_part(pending: &mut PendingPart, at: Vec2) {

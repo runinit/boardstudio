@@ -233,6 +233,8 @@ pub(crate) fn use_test_case_generation_state() {
 
 #[derive(Clone, Copy)]
 struct ThemeState(Signal<&'static str>);
+#[derive(Clone, Copy)]
+struct PreferenceStorageWarning(Signal<bool>);
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum ProjectMenuPage {
     Project,
@@ -515,7 +517,9 @@ pub fn App() -> Element {
         footprints: use_signal(|| false),
     };
     use_context_provider(|| layer_visibility);
-    let theme = use_signal(read_theme_preference);
+    let preference_warning = use_signal(|| false);
+    use_context_provider(|| PreferenceStorageWarning(preference_warning));
+    let theme = use_signal(move || panels::read_theme_preference(preference_warning));
     let system_theme = use_signal(read_system_theme);
     use_context_provider(|| ThemeState(theme));
     let resolved_theme = use_memo(move || {
@@ -652,6 +656,11 @@ pub fn App() -> Element {
             if runtime.model().accepted.is_some() { Editor {} }
             else { LibraryLanding {} }
                 RuntimeReportBanner {}
+            if preference_warning() {
+                p { role: "status", "aria-live": "polite", class: "m1-status",
+                    "Preferences are session-only because browser storage is unavailable."
+                }
+            }
             if !new_keyboard_error().is_empty() {
                 p { role: "alert", class: "m1-status", "{new_keyboard_error()}" }
             }
@@ -676,15 +685,6 @@ fn RuntimeReportBanner() -> Element {
             }
         }
     }
-}
-
-fn read_theme_preference() -> &'static str {
-    web_sys::window()
-        .and_then(|window| window.local_storage().ok().flatten())
-        .and_then(|storage| storage.get_item("boardstudio:v2:theme").ok().flatten())
-        .filter(|value| value == "light" || value == "dark")
-        .map(|value| if value == "dark" { "dark" } else { "light" })
-        .unwrap_or("system")
 }
 
 fn close_project_menu() {
@@ -728,12 +728,11 @@ fn read_system_theme() -> &'static str {
 #[component]
 pub(super) fn ThemePicker() -> Element {
     let mut theme = use_context::<ThemeState>().0;
+    let preference_warning = use_context::<PreferenceStorageWarning>().0;
     rsx! { label { class: "m1-theme-picker", "Appearance"
         select { "aria-label": "Color theme", value: "{theme()}", onchange: move |event: FormEvent| {
             let preference = match event.value().as_str() { "light" => "light", "dark" => "dark", _ => "system" };
-            if let Some(storage) = web_sys::window().and_then(|window| window.local_storage().ok().flatten()) {
-                let _ = storage.set_item("boardstudio:v2:theme", preference);
-            }
+            panels::write_theme_preference(preference_warning, preference);
             theme.set(preference);
         },
             option { value: "system", "System" }
@@ -2747,8 +2746,9 @@ fn Editor() -> Element {
     let mut objects_open = compact_panel_state.objects_open;
     let mut inspect_open = compact_panel_state.inspector_open;
     let mut geometry_scripts_open = use_signal(|| false);
-    let objects_panel_settings = use_panel_settings(PanelSide::Objects);
-    let inspector_panel_settings = use_panel_settings(PanelSide::Inspector);
+    let preference_warning = use_context::<PreferenceStorageWarning>().0;
+    let objects_panel_settings = use_panel_settings(PanelSide::Objects, preference_warning);
+    let inspector_panel_settings = use_panel_settings(PanelSide::Inspector, preference_warning);
     let created_request_signal = use_context::<Signal<Option<SetupGuideRequest>>>();
     let created_request = created_request_signal();
     let mut guide_preferences = use_signal(|| None::<SetupGuidePreferences>);
@@ -5774,9 +5774,10 @@ fn Editor() -> Element {
                 return;
             };
             if !current.active {
-                let dx = f64::from(pointer.client_x()) - current.client_x;
-                let dy = f64::from(pointer.client_y()) - current.client_y;
-                if dx * dx + dy * dy < 16.0 {
+                if !canvas_interaction::pending_part_drag_threshold_reached(
+                    (current.client_x, current.client_y),
+                    (f64::from(pointer.client_x()), f64::from(pointer.client_y())),
+                ) {
                     return;
                 }
                 if runtime.model().gesture.is_some() {
@@ -6484,6 +6485,10 @@ fn Editor() -> Element {
                     scope: scope.clone(),
                     context: context.clone(),
                 }));
+            }
+            // Modified hits change selection only, matching the reference.
+            if mode != SelectionMode::Replace {
+                return;
             }
             if runtime.scope().as_ref() != Some(&scope) || (adapter.generation)() != generation {
                 return;
@@ -7516,6 +7521,7 @@ fn Editor() -> Element {
                         scope: render_scope.clone(),
                         module_id,
                         selected_context: adapter.selected_context,
+                        on_place_component: part_placement.on_place_component,
                     },
                 ))
             } else {

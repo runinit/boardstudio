@@ -1048,29 +1048,65 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                     if input.selected_part_summary.is_none() {
                         p { "Mechanical settings and closure hardware apply to all case assemblies. Select an assembly in Objects." }
                     }
-                    if input.physical_setup.projection.topology == boardstudio_core::model::HardwareTopology::Split {
+                    if let Some(instance) = input.physical_setup.projection.case_instance.clone() {
                         details {
                             summary { "Assembly setup" }
-                            label { "Half connection"
+                            if input.physical_setup.projection.topology == boardstudio_core::model::HardwareTopology::Split {
+                                label { "Half connection"
+                                    select {
+                                        "aria-label": "Half connection",
+                                        value: match input.physical_setup.projection.transport { boardstudio_core::model::HardwareTransport::Wired => "wired", _ => "wireless" },
+                                        disabled: input.physical_setup.projection.busy,
+                                        onchange: {
+                                            let mount = input.physical_setup.clone();
+                                            move |event: FormEvent| {
+                                                let next = if event.value() == "wired" { boardstudio_core::model::HardwareTransport::Wired } else { boardstudio_core::model::HardwareTransport::Wireless };
+                                                mount.submit(super::pcb_physical_setup::PhysicalSetupIntent::CaseTransport(next));
+                                            }
+                                        },
+                                        option { value: "wireless", "Wireless · local battery on each half" }
+                                        option { value: "wired", "Wired serial · local power on each half" }
+                                    }
+                                }
+                                if input.physical_setup.projection.transport == boardstudio_core::model::HardwareTransport::Wired {
+                                    p { "Use a straight TRRS cable: tip and ring 2 carry crossed TX/RX, sleeve is ground, ring 1 is unused. Power both halves locally and unplug power before connecting." }
+                                }
+                            }
+                            p { "{instance.name} · {instance.board_label} · {instance.role}" }
+                            label { "PCB design"
                                 select {
-                                    "aria-label": "Half connection",
-                                    value: match input.physical_setup.projection.transport { boardstudio_core::model::HardwareTransport::Wired => "wired", _ => "wireless" },
+                                    "aria-label": "PCB design",
+                                    value: "{instance.board_id}",
                                     disabled: input.physical_setup.projection.busy,
                                     onchange: {
                                         let mount = input.physical_setup.clone();
-                                        move |event: FormEvent| {
-                                            let next = if event.value() == "wired" { boardstudio_core::model::HardwareTransport::Wired } else { boardstudio_core::model::HardwareTransport::Wireless };
-                                            mount.submit(super::pcb_physical_setup::PhysicalSetupIntent::CaseTransport(next));
-                                        }
+                                        move |event: FormEvent| mount.submit(super::pcb_physical_setup::PhysicalSetupIntent::CasePcbDesign(event.value()))
                                     },
-                                    option { value: "wireless", "Wireless · local battery on each half" }
-                                    option { value: "wired", "Wired serial · local power on each half" }
+                                    for board in input.physical_setup.projection.case_boards.iter() {
+                                        option { value: "{board.id}", "{board.name}" }
+                                    }
                                 }
                             }
-                            if input.physical_setup.projection.transport == boardstudio_core::model::HardwareTransport::Wired {
-                                p { "Use a straight TRRS cable: tip and ring 2 carry crossed TX/RX, sleeve is ground, ring 1 is unused. Power both halves locally and unplug power before connecting." }
+                            label {
+                                input {
+                                    r#type: "checkbox",
+                                    "aria-label": "Turn PCB over for this half",
+                                    checked: instance.flipped,
+                                    disabled: input.physical_setup.projection.busy,
+                                    onchange: {
+                                        let mount = input.physical_setup.clone();
+                                        move |event: FormEvent| mount.submit(super::pcb_physical_setup::PhysicalSetupIntent::CaseFlip(event.checked()))
+                                    }
+                                }
+                                "Turn PCB over for this half"
+                            }
+                            if instance.has_board_reference {
+                                p { "Imported routing is a reference. Review it after changing the assembly." }
                             }
                         }
+                    }
+                    if input.selected_part_summary.is_some() && input.physical_setup.projection.case_instance.is_none() {
+                        p { "Select a physical assembly in Objects to edit its PCB design and flip state." }
                     }
                     if let Some(feedback) = input.physical_setup.projection.feedback.clone() {
                         p { role: "status", "{feedback}" }

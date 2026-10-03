@@ -33,12 +33,30 @@ pub(in crate::presentation) struct OwnerIdentity {
     pub generation: u64,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::presentation) enum PhysicalSetupIntent {
     ProjectTopology(bool),
     ProjectTransport(HardwareTransport),
     ProjectReversibleLayout(bool),
     CaseTransport(HardwareTransport),
+    CasePcbDesign(String),
+    CaseFlip(bool),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::presentation) struct CaseInstanceProjection {
+    pub name: String,
+    pub role: String,
+    pub board_id: String,
+    pub board_label: String,
+    pub flipped: bool,
+    pub has_board_reference: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::presentation) struct CaseBoardProjection {
+    pub id: String,
+    pub name: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -46,6 +64,8 @@ pub(in crate::presentation) struct PhysicalSetupProjection {
     pub topology: HardwareTopology,
     pub transport: HardwareTransport,
     pub reversible: bool,
+    pub case_instance: Option<CaseInstanceProjection>,
+    pub case_boards: Vec<CaseBoardProjection>,
     pub feedback: Option<String>,
     pub project_feedback: Option<String>,
     pub busy: bool,
@@ -68,7 +88,9 @@ struct PhysicalSetupRequest {
 impl PhysicalSetupMount {
     pub(in crate::presentation) fn submit(&self, intent: PhysicalSetupIntent) {
         let owner = match intent {
-            PhysicalSetupIntent::CaseTransport(_) => &self.case_owner,
+            PhysicalSetupIntent::CaseTransport(_)
+            | PhysicalSetupIntent::CasePcbDesign(_)
+            | PhysicalSetupIntent::CaseFlip(_) => &self.case_owner,
             _ => &self.project_owner,
         };
         if let Some(owner) = owner {
@@ -129,7 +151,7 @@ struct SubmittedSetup {
     operation_id: OperationId,
     owner: OwnerIdentity,
     proposal: ProjectDoc,
-    reconcile_primary: bool,
+    navigate_to: Option<(String, String)>,
 }
 
 pub(in crate::presentation) fn use_controller(
@@ -173,6 +195,7 @@ pub(in crate::presentation) fn use_controller(
     };
     let projection = project_setup(
         &runtime,
+        case_owner.as_ref(),
         visible_feedback(OwnerContext::CaseInspector),
         visible_feedback(OwnerContext::ProjectGuide),
         pending.is_some(),
@@ -198,33 +221,60 @@ pub(in crate::presentation) fn use_controller(
                 return;
             }
             let operation_id = runtime.operation();
-            let setup_intent = match request.intent {
-                PhysicalSetupIntent::ProjectTopology(split) => SetupIntent::Topology {
-                    board_id,
-                    selected_instance_id,
-                    split,
-                    new_primary_id: fresh_id(
+            let (proposal_future, navigate_to) = match request.intent {
+                PhysicalSetupIntent::CasePcbDesign(board_id) => {
+                    let proposal = propose_case_instance_edit(
                         &accepted.document,
-                        "physical-primary",
-                        operation_id.0,
-                    ),
-                    new_secondary_id: fresh_id(
-                        &accepted.document,
-                        "physical-secondary",
-                        operation_id.0,
-                    ),
-                },
-                PhysicalSetupIntent::ProjectTransport(transport)
-                | PhysicalSetupIntent::CaseTransport(transport) => {
-                    SetupIntent::Transport(transport)
+                        &identity,
+                        CaseInstanceEdit::PcbDesign(board_id.clone()),
+                    );
+                    (
+                        Box::pin(async move { proposal }) as ProposalFuture,
+                        Some((board_id, identity.instance_id.clone().unwrap_or_default())),
+                    )
                 }
-                PhysicalSetupIntent::ProjectReversibleLayout(enabled) => {
-                    SetupIntent::ReversibleLayout(enabled)
+                PhysicalSetupIntent::CaseFlip(flipped) => {
+                    let proposal = propose_case_instance_edit(
+                        &accepted.document,
+                        &identity,
+                        CaseInstanceEdit::Flip(flipped),
+                    );
+                    (Box::pin(async move { proposal }) as ProposalFuture, None)
+                }
+                intent => {
+                    let setup_intent = match intent {
+                        PhysicalSetupIntent::ProjectTopology(split) => SetupIntent::Topology {
+                            board_id,
+                            selected_instance_id,
+                            split,
+                            new_primary_id: fresh_id(
+                                &accepted.document,
+                                "physical-primary",
+                                operation_id.0,
+                            ),
+                            new_secondary_id: fresh_id(
+                                &accepted.document,
+                                "physical-secondary",
+                                operation_id.0,
+                            ),
+                        },
+                        PhysicalSetupIntent::ProjectTransport(transport)
+                        | PhysicalSetupIntent::CaseTransport(transport) => {
+                            SetupIntent::Transport(transport)
+                        }
+                        PhysicalSetupIntent::ProjectReversibleLayout(enabled) => {
+                            SetupIntent::ReversibleLayout(enabled)
+                        }
+                        PhysicalSetupIntent::CasePcbDesign(_)
+                        | PhysicalSetupIntent::CaseFlip(_) => unreachable!(),
+                    };
+                    let navigate_to = matches!(setup_intent, SetupIntent::Topology { .. })
+                        .then(|| (identity.board_id.clone(), String::new()));
+                    let future = prepare((*accepted.document).clone(), setup_intent.clone());
+                    (future, navigate_to)
                 }
             };
-            let reconcile_primary = matches!(setup_intent, SetupIntent::Topology { .. });
             let runtime = runtime.clone();
-            let prepare = prepare.clone();
             let activity = activity.clone();
             ui.busy.set(Some(operation_id));
             ui.publish(
@@ -235,7 +285,7 @@ pub(in crate::presentation) fn use_controller(
             );
             let mut ui = ui.clone();
             spawn_local(async move {
-                let proposed = match prepare((*accepted.document).clone(), setup_intent).await {
+                let proposed = match proposal_future.await {
                     Ok(proposed) => proposed,
                     Err(message) => {
                         ui.publish(
@@ -285,11 +335,24 @@ pub(in crate::presentation) fn use_controller(
                     "Physical setup submitted; waiting for save…".into(),
                     false,
                 );
+                let navigate_to = navigate_to.and_then(|(board_id, instance_id)| {
+                    if instance_id.is_empty() {
+                        proposed
+                            .hardware
+                            .as_ref()?
+                            .instances
+                            .iter()
+                            .find(|instance| instance.board_id == board_id)
+                            .map(|instance| (board_id, instance.id.clone()))
+                    } else {
+                        Some((board_id, instance_id))
+                    }
+                });
                 let submitted = SubmittedSetup {
                     operation_id,
                     owner: identity,
                     proposal: proposed,
-                    reconcile_primary,
+                    navigate_to,
                 };
                 loop {
                     if let Some(outcome) = outcome.borrow_mut().take() {
@@ -374,6 +437,49 @@ pub(in crate::presentation) fn project_setup_controls(mount: PhysicalSetupMount)
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum CaseInstanceEdit {
+    PcbDesign(String),
+    Flip(bool),
+}
+
+fn propose_case_instance_edit(
+    accepted: &ProjectDoc,
+    owner: &OwnerIdentity,
+    edit: CaseInstanceEdit,
+) -> Result<ProjectDoc, String> {
+    if owner.context != OwnerContext::CaseInspector {
+        return Err("Case assembly controls are unavailable in this workspace".into());
+    }
+    let instance_id = owner
+        .instance_id
+        .as_deref()
+        .ok_or_else(|| "Select a physical assembly before editing its PCB setup".to_string())?;
+    let mut proposed = accepted.clone();
+    let hardware = proposed
+        .hardware
+        .as_mut()
+        .ok_or_else(|| "Physical assembly setup is unavailable".to_string())?;
+    let instance = hardware
+        .instances
+        .iter_mut()
+        .find(|instance| instance.id == instance_id && instance.board_id == owner.board_id)
+        .ok_or_else(|| "The selected physical assembly changed; select it again".to_string())?;
+    match edit {
+        CaseInstanceEdit::PcbDesign(board_id) => {
+            if !proposed.boards.iter().any(|board| board.id == board_id) {
+                return Err("Choose an existing PCB design".into());
+            }
+            instance.board_id = board_id.clone();
+            if let Some(mechanical) = instance.mechanical.as_mut() {
+                mechanical.board_id = board_id;
+            }
+        }
+        CaseInstanceEdit::Flip(flipped) => instance.flipped = flipped,
+    }
+    Ok(proposed)
+}
+
 fn current_source(
     runtime: &Runtime,
     generation: u64,
@@ -424,6 +530,7 @@ fn current_source(
 
 fn project_setup(
     runtime: &Runtime,
+    case_owner: Option<&OwnerIdentity>,
     feedback: Option<String>,
     project_feedback: Option<String>,
     busy: bool,
@@ -432,6 +539,39 @@ fn project_setup(
     let hardware = document
         .as_ref()
         .and_then(|document| document.hardware.as_ref());
+    let case_instance = case_owner.and_then(|owner| {
+        let id = owner.instance_id.as_deref()?;
+        let document = document.as_ref()?;
+        let hardware = hardware?;
+        let instance = hardware
+            .instances
+            .iter()
+            .find(|instance| instance.id == id && instance.board_id == owner.board_id)?;
+        Some(CaseInstanceProjection {
+            name: instance.name.clone(),
+            role: instance.role.clone(),
+            board_id: instance.board_id.clone(),
+            board_label: if hardware
+                .instances
+                .iter()
+                .any(|other| other.id != instance.id && other.board_id == instance.board_id)
+            {
+                "Shared PCB".into()
+            } else {
+                document
+                    .boards
+                    .iter()
+                    .find(|board| board.id == instance.board_id)
+                    .map(|board| board.name.clone())
+                    .unwrap_or_else(|| instance.board_id.clone())
+            },
+            flipped: instance.flipped,
+            has_board_reference: document
+                .board_references
+                .iter()
+                .any(|reference| reference.board_id == instance.board_id),
+        })
+    });
     PhysicalSetupProjection {
         topology: hardware
             .map(|hardware| hardware.topology)
@@ -444,6 +584,20 @@ fn project_setup(
             .and_then(|document| document.parameters.get("reversibleLayout"))
             .and_then(serde_json::Value::as_bool)
             .unwrap_or(false),
+        case_instance,
+        case_boards: document
+            .as_ref()
+            .map(|document| {
+                document
+                    .boards
+                    .iter()
+                    .map(|board| CaseBoardProjection {
+                        id: board.id.clone(),
+                        name: board.name.clone(),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default(),
         feedback,
         project_feedback,
         busy,
@@ -482,16 +636,16 @@ fn finish_operation(
         let accepted = accepted.expect("accepted proposal checked above");
         feedback_owner.token = accepted.token;
         feedback_owner.revision = accepted.document.revision;
+        if let Some((board_id, _)) = &submitted.navigate_to {
+            feedback_owner.board_id = board_id.clone();
+        }
     }
     let message = match outcome {
         TerminalOutcome::Completed if accepted_proposal => {
             let accepted = accepted.expect("accepted proposal checked above");
-            if current_owner && submitted.reconcile_primary
-                && let Some(explicit_id) = proposal.hardware.as_ref().and_then(|hardware| {
-                    hardware.instances.iter().find(|instance| instance.board_id == identity.board_id).map(|instance| instance.id.clone())
-                }) {
+            if current_owner && let Some((board_id, explicit_id)) = &submitted.navigate_to {
                     instance_selection.reconcile(accepted.session_epoch, accepted.document.id.clone(), explicit_id.clone());
-                    runtime.submit(Event::Navigate { operation_id: runtime.operation(), board_id: identity.board_id.clone(), instance_id: Some(explicit_id) });
+                    runtime.submit(Event::Navigate { operation_id: runtime.operation(), board_id: board_id.clone(), instance_id: Some(explicit_id.clone()) });
             }
             "Physical setup saved.".into()
         }

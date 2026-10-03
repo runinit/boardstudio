@@ -322,6 +322,12 @@
           "evidence": ".scratch/dioxus-frontend-v1/evidence/export-workspace-20261003/authored-case-step-source-map.md",
           "observation": "Pinned React keeps authored Case STEP available with generated mechanics active: it exports canonical saved caseBodies while the generated ZIP uses the selected-instance mechanical projection. Dioxus now has two mounted Runtime paths over the same export owner; their geometry inputs remain explicitly separate. This confirms the shared Runtime is an integration hotspot, while the private owner guards and existing Core/CAD providers are the bounded mitigation. No performance or parity qualification is claimed.",
           "status": "source-backed behavior implemented; public authored/generated output qualification remains open; retain canonical-versus-instance separation and defer broader Runtime extraction until post-port review"
+        },
+        {
+          "source": "functional-controls batch based on f410ce99",
+          "evidence": "web/src/presentation/panels.rs",
+          "observation": "Panel/theme preference access previously duplicated storage calls and swallowed failures. A shared private helper now reports failure through one root notice while controls retain in-memory state; project storage remains separately owned.",
+          "status": "bounded mitigation implemented; real storage-failure qualification pending"
         }
       ],
       "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted.",
@@ -992,6 +998,12 @@
           "evidence": ".scratch/dioxus-pcb-view/issues/23-mounted-module-supports-and-clearance.md; web/src/presentation/pcb_module_inspector.rs",
           "observation": "Support-hole identities are source-local to the selected ModuleDefinition; resolved support coordinates are read-only data from the accepted module scene. The edit remains scoped to the selected project/document/session/board/module and does not persist a displayed physical-instance projection.",
           "status": "private UI implementation reuses the accepted scoped owner; changed paired save/history/reopen evidence pending"
+        },
+        {
+          "source": "functional-controls batch based on f410ce99",
+          "evidence": "web/src/presentation/pcb_physical_setup/controller.rs",
+          "observation": "Case board reassignment/flip uses a scoped private proposal over the accepted ProjectDoc and existing ReplaceDocument because dedicated physical-instance field edits are absent. Reassignment must update mechanical board ownership and navigate only after exact acceptance. Module constituent placement also requires carrying the nested source definition, with collision-safe materialization, rather than resolving by global catalogue ID.",
+          "status": "bounded behavior implemented; browser qualification pending; typed domain edits and definition identity policy remain post-port design topics"
         }
       ],
       "resumed_wave_20261002": "2026-10-02: Physical setup controls need rendered identity envelopes and live guide-stage predicates across asynchronous normalization; stale handlers and bare feedback can retarget/leak across scopes. Astra production regression repair active; public guide join remains open.",

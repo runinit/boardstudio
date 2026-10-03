@@ -5,7 +5,7 @@ use policy::decode_settings;
 pub(super) use policy::{PanelMode, PanelSettings, PanelSide};
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::{JsCast, closure::Closure};
-use web_sys::{Document, HtmlElement, MediaQueryList, Node, PointerEvent};
+use web_sys::{Document, HtmlElement, MediaQueryList, Node, PointerEvent, Storage};
 
 mod policy;
 
@@ -115,24 +115,30 @@ type OutsideListener = Rc<RefCell<Option<(Document, Closure<dyn FnMut(PointerEve
 type MediaChangeListener =
     Rc<RefCell<Option<(MediaQueryList, Closure<dyn FnMut(web_sys::Event)>)>>>;
 
-pub(super) fn use_panel_settings(side: PanelSide) -> Signal<PanelSettings> {
-    let settings = use_signal(|| read_settings(side));
+pub(super) fn use_panel_settings(
+    side: PanelSide,
+    storage_warning: Signal<bool>,
+) -> Signal<PanelSettings> {
+    let settings = use_signal(|| read_settings(side, storage_warning));
     use_effect(use_reactive((&settings(),), {
-        move |(value,)| write_settings(side, value)
+        move |(value,)| write_settings(side, value, storage_warning)
     }));
     settings
 }
 
-fn read_settings(side: PanelSide) -> PanelSettings {
-    let Some(value) = web_sys::window()
-        .and_then(|window| window.local_storage().ok().flatten())
-        .and_then(|storage| {
-            storage
-                .get_item(&format!("boardstudio:v2:panel:{}", side.storage_side()))
-                .ok()
-                .flatten()
-        })
-        .and_then(|value| serde_json::from_str::<serde_json::Value>(&value).ok())
+fn read_settings(side: PanelSide, mut storage_warning: Signal<bool>) -> PanelSettings {
+    let Some(storage) = preference_storage(&mut storage_warning) else {
+        return PanelSettings::default_pinned();
+    };
+    let stored = match storage.get_item(&format!("boardstudio:v2:panel:{}", side.storage_side())) {
+        Ok(stored) => stored,
+        Err(_) => {
+            storage_warning.set(true);
+            None
+        }
+    };
+    let Some(value) =
+        stored.and_then(|value| serde_json::from_str::<serde_json::Value>(&value).ok())
     else {
         return PanelSettings::default_pinned();
     };
@@ -141,20 +147,64 @@ fn read_settings(side: PanelSide) -> PanelSettings {
     decode_settings(side, mode, width)
 }
 
-fn write_settings(side: PanelSide, value: PanelSettings) {
+fn write_settings(side: PanelSide, value: PanelSettings, mut storage_warning: Signal<bool>) {
     let Ok(json) = serde_json::to_string(&serde_json::json!({
         "mode": value.mode.as_str(),
         "width": value.width,
     })) else {
         return;
     };
-    if let Some(storage) =
-        web_sys::window().and_then(|window| window.local_storage().ok().flatten())
+    if let Some(storage) = preference_storage(&mut storage_warning) {
+        if storage
+            .set_item(
+                &format!("boardstudio:v2:panel:{}", side.storage_side()),
+                &json,
+            )
+            .is_err()
+        {
+            storage_warning.set(true);
+        }
+    }
+}
+
+fn preference_storage(storage_warning: &mut Signal<bool>) -> Option<Storage> {
+    let Some(window) = web_sys::window() else {
+        storage_warning.set(true);
+        return None;
+    };
+    match window.local_storage() {
+        Ok(Some(storage)) => Some(storage),
+        Ok(None) | Err(_) => {
+            storage_warning.set(true);
+            None
+        }
+    }
+}
+
+pub(super) fn read_theme_preference(mut storage_warning: Signal<bool>) -> &'static str {
+    let stored = preference_storage(&mut storage_warning).and_then(|storage| {
+        match storage.get_item("boardstudio:v2:theme") {
+            Ok(value) => value,
+            Err(_) => {
+                storage_warning.set(true);
+                None
+            }
+        }
+    });
+    match stored.as_deref() {
+        Some("light") => "light",
+        Some("dark") => "dark",
+        _ => "system",
+    }
+}
+
+pub(super) fn write_theme_preference(mut storage_warning: Signal<bool>, preference: &'static str) {
+    if let Some(storage) = preference_storage(&mut storage_warning)
+        && storage
+            .set_item("boardstudio:v2:theme", preference)
+            .is_err()
     {
-        let _ = storage.set_item(
-            &format!("boardstudio:v2:panel:{}", side.storage_side()),
-            &json,
-        );
+        storage_warning.set(true);
     }
 }
 

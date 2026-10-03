@@ -18,3 +18,7 @@
 - [ ] The primary board/instance preference is reconciled only after the matching proposal is accepted and its captured scope remains current; no second document or selection authority is introduced.
 - [ ] Supply owner/operation traces, accepted proposal assertions, and controls needed for the one existing F5.6a paired browser journey, including its Case-context, Undo/Redo, and save/reopen evidence. Do not duplicate the paired suite; F5.6a remains the sole user-visible acceptance join and stays open until its full criteria pass.
 - [ ] Record root integration ownership, exact operation traces, evidence references, checks not run, and RF-001/RF-006/RF-009 handoff; F5.6a records the shared browser/build/fixture identity and paired screenshots once.
+
+## F5.6-C03 Case instance controls extension (2026-10-03)
+
+Add private Case PCB-design and flip intents to the existing Editor owner. Build the proposal from its accepted snapshot, change only the selected instance (including its mechanical board association), and use the ordinary edit/history path. Reconcile navigation to the same instance on its new board only after exact proposal acceptance. Retain scope/operation guards and all original acceptance; paired reassignment/flip, Undo/Redo/reopen and unrelated-instance preservation remain the finish condition.
