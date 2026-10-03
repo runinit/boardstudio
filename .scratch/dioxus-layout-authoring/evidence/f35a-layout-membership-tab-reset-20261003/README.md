@@ -22,7 +22,25 @@ Repair: each native option now renders an explicit selected state from the
 accepted `projection.layout_id`, so remounting Properties restores the current
 membership without changing the accepted document or edit path.
 
-GREEN: pending the next integrated candidate. Required focused check is the same
-mounted Properties → Relations → Properties journey on that candidate; no helper
-test substitutes for it. This repair adds no history entry and leaves the
-existing membership edit owner unchanged. No new refactoring takeaway observed.
+GREEN: integrated candidate `b3c6909b01b04ef16533c57fc19e2cad608e7218`, served
+at `http://127.0.0.1:34752/boardstudio/` with provider provenance
+`defc203721c7bedffca414fc32871258dff82c8f2f2a0c6e20d4c86a0be48a19`. Repeating
+the same mounted tab switch leaves `[aria-label="Component layout"]` at
+`left-keys-layout`, with the `keys` option selected. The paired React value is
+unchanged. See `dioxus-green-after-tabs.png`.
+
+The same return journey exposed a second draft-state discrepancy. With no
+accepted constraint, choose Mirror / source `left/SW25` / Horizontal without
+saving, then switch Relations → Properties. Pinned React resets this draft to
+the accepted default Offset / first source when its Properties editor remounts.
+On candidate `b3c6909b`, Dioxus kept the Mirror and Horizontal signals but its
+native source select displayed the first source `matrix/left-keys/r0c0`; saving
+could therefore submit a different source than the displayed draft. The repair
+resets all local Properties drafts to accepted values when returning from
+Relations, and renders explicit selected option state so accepted non-default
+constraint values rehydrate accurately. See `dioxus-constraint-source-reset-red.png`
+and `react-constraint-tab-return.png`.
+
+Constraint remount GREEN on the repaired candidate remains pending. The fix
+adds no history entry on tab navigation and leaves existing edit ownership
+unchanged. No new refactoring takeaway observed.

@@ -284,6 +284,71 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
             error.set(None);
         }
     }));
+    let reset_properties_drafts = {
+        let mut x = x;
+        let mut y = y;
+        let mut margin = margin;
+        let mut constraint_open = constraint_open;
+        let mut constraint_kind = constraint_kind;
+        let mut source_part_id = source_part_id;
+        let mut offset_x = offset_x;
+        let mut offset_y = offset_y;
+        let mut rotation = rotation;
+        let mut mirror_axis = mirror_axis;
+        let mut mirror_coordinate = mirror_coordinate;
+        let mut error = error;
+        let initial_position = initial_position;
+        let initial_margin = initial_outline.margin;
+        let initial_constraint = initial_constraint.clone();
+        let initial_source = initial_source.clone();
+        move || {
+            x.set(format!("{:.2}", initial_position.x));
+            y.set(format!("{:.2}", initial_position.y));
+            margin.set(
+                initial_margin
+                    .map(|value| value.to_string())
+                    .unwrap_or_default(),
+            );
+            constraint_open.set(initial_constraint.is_some());
+            constraint_kind.set(
+                if matches!(initial_constraint.as_ref(), Some(Constraint::Mirror { .. })) {
+                    ConstraintKind::Mirror
+                } else {
+                    ConstraintKind::Offset
+                },
+            );
+            source_part_id.set(initial_source.clone());
+            match initial_constraint.as_ref() {
+                Some(Constraint::Offset {
+                    offset,
+                    rotation: degrees,
+                    ..
+                }) => {
+                    offset_x.set(offset.x.to_string());
+                    offset_y.set(offset.y.to_string());
+                    rotation.set(degrees.to_string());
+                }
+                _ => {
+                    offset_x.set("0".to_owned());
+                    offset_y.set("0".to_owned());
+                    rotation.set("0".to_owned());
+                }
+            }
+            match initial_constraint.as_ref() {
+                Some(Constraint::Mirror {
+                    axis, coordinate, ..
+                }) => {
+                    mirror_axis.set(axis.clone());
+                    mirror_coordinate.set(coordinate.to_string());
+                }
+                _ => {
+                    mirror_axis.set(MirrorAxis::Vertical);
+                    mirror_coordinate.set("0".to_owned());
+                }
+            }
+            error.set(None);
+        }
+    };
 
     let commit_position: Rc<dyn Fn(ComponentPositionAxis)> = {
         let latest_capture = latest_capture;
@@ -414,7 +479,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                 if projection.locked { span { class: "m1-inspector-lock", "Locked" } }
             }
             div { role: "tablist", aria_label: "Inspector details", class: "m1-layout-component-tabs",
-                button { r#type: "button", role: "tab", aria_selected: "{tab() == InspectorTab::Properties}", onclick: move |_| tab.set(InspectorTab::Properties), "Properties" }
+                button { r#type: "button", role: "tab", aria_selected: "{tab() == InspectorTab::Properties}", onclick: { let reset = reset_properties_drafts; move |_| { reset(); tab.set(InspectorTab::Properties); } }, "Properties" }
                 button { r#type: "button", role: "tab", aria_selected: "{tab() == InspectorTab::Relations}", onclick: move |_| tab.set(InspectorTab::Relations), "Relations" }
             }
             if tab() == InspectorTab::Properties {
@@ -537,13 +602,19 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                     if board_parts.iter().filter(|part| part.id != owner.part_id).count() > 0 {
                         label { "Relationship"
                             select { aria_label: "Constraint type", value: if constraint_kind() == ConstraintKind::Offset { "offset" } else { "mirror" }, onchange: move |event| constraint_kind.set(if event.value() == "mirror" { ConstraintKind::Mirror } else { ConstraintKind::Offset }),
-                                option { value: "offset", "Offset from part" }
-                                option { value: "mirror", "Mirror placement across axis" }
+                                option { value: "offset", selected: constraint_kind() == ConstraintKind::Offset, "Offset from part" }
+                                option { value: "mirror", selected: constraint_kind() == ConstraintKind::Mirror, "Mirror placement across axis" }
                             }
                         }
                         label { "Source part"
                             select { aria_label: "Constraint source part", value: "{source_part_id}", onchange: move |event| source_part_id.set(event.value()),
-                                for part in board_parts.iter().filter(|part| part.id != owner.part_id) { option { value: "{part.id}", "{part.reference}" } }
+                                for part in board_parts.iter().filter(|part| part.id != owner.part_id) {
+                                    option {
+                                        value: "{part.id}",
+                                        selected: source_part_id().as_str() == part.id.as_str(),
+                                        "{part.reference}"
+                                    }
+                                }
                             }
                         }
                         if constraint_kind() == ConstraintKind::Offset {
@@ -555,8 +626,8 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                         } else {
                             label { "Axis"
                                 select { aria_label: "Mirror axis", value: if mirror_axis() == MirrorAxis::Vertical { "vertical" } else { "horizontal" }, onchange: move |event| mirror_axis.set(if event.value() == "horizontal" { MirrorAxis::Horizontal } else { MirrorAxis::Vertical }),
-                                    option { value: "vertical", "Vertical" }
-                                    option { value: "horizontal", "Horizontal" }
+                                    option { value: "vertical", selected: mirror_axis() == MirrorAxis::Vertical, "Vertical" }
+                                    option { value: "horizontal", selected: mirror_axis() == MirrorAxis::Horizontal, "Horizontal" }
                                 }
                             }
                             label { "Axis coordinate (mm)" input { r#type: "number", step: "any", aria_label: "Axis coordinate (mm)", value: "{mirror_coordinate}", oninput: move |event| mirror_coordinate.set(event.value()) } }
