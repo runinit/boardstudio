@@ -225,8 +225,8 @@ def publish(root, build_id, root_url, subpath_url, proof_relative=None, *, inven
 
     run_path = root / progress.RUN
     previous_run = run_path.read_bytes()
-    _atomic_bytes(proof_target, proof_bytes)
     try:
+        _atomic_bytes(proof_target, proof_bytes)
         # Reuse the canonical writer and all of its route, record, and
         # qualification logic. Restore both files if validation fails.
         changed = progress.record_candidate(proof_relative.as_posix(), root_url, subpath_url)

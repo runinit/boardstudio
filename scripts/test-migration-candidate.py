@@ -182,6 +182,35 @@ class PublishCandidateTests(unittest.TestCase):
                                   inventory=self.inventory, progress_module=progress)
         self.assertEqual(self.run_path.read_bytes(), before)
 
+    def test_initial_proof_write_failure_after_replace_rolls_back_proof_and_run(self):
+        for existing in (False, True):
+            with self.subTest(existing_proof=existing):
+                if existing:
+                    with self.mock_routes():
+                        self.publish()
+                proof_path = self.root / self.proof_relative
+                previous_proof = proof_path.read_bytes() if proof_path.exists() else None
+                previous_run = self.run_path.read_bytes()
+                real_atomic_write = candidate._atomic_bytes
+                calls = 0
+
+                def fail_after_replace(path, content):
+                    nonlocal calls
+                    calls += 1
+                    real_atomic_write(path, content)
+                    if calls == 1:
+                        raise OSError("directory fsync failed after replace")
+
+                with self.mock_routes(), patch.object(candidate, "_atomic_bytes", side_effect=fail_after_replace):
+                    with self.assertRaisesRegex(OSError, "after replace"):
+                        self.publish()
+                self.assertEqual(self.run_path.read_bytes(), previous_run)
+                if previous_proof is None:
+                    self.assertFalse(proof_path.exists(), "new proof must be removed after write failure")
+                else:
+                    self.assertEqual(proof_path.read_bytes(), previous_proof)
+                    self.assertEqual(calls, 2, "existing proof must be restored after post-replace failure")
+
     def test_bad_local_asset_hash_and_bad_server_health_preserve_old_candidate(self):
         site = self.root / self.provenance["root"]["site"]
         (site / "assets/app.js").write_bytes(b"tampered")
