@@ -7244,15 +7244,17 @@ fn Editor() -> Element {
                         }
                         if !(layer_visibility.hidden)().contains("Keys") {
                             if let Some(active) = matrix_placement.placement.as_ref() {
-                                let cells = crate::mirrored_pair_geometry::preview_cells(&active.scene, &active.matrix);
-                                rsx! {
-                                    g {
-                                        class: "m1-mirrored-pair-preview m1-matrix-placement-preview",
-                                        "aria-label": "Matrix placement preview",
-                                        transform: "translate({active.matrix.origin.x} {active.matrix.origin.y})",
-                                        for cell in cells {
-                                            g { key: "{cell.row}-{cell.column}", transform: "translate({cell.center.x} {cell.center.y}) rotate({cell.rotation})",
-                                                rect { class: "m1-mirrored-pair-cell", x: "{-cell.size.x / 2.0}", y: "{-cell.size.y / 2.0}", width: "{cell.size.x}", height: "{cell.size.y}", rx: "1" }
+                                {
+                                    let cells = crate::mirrored_pair_geometry::preview_cells(&active.scene, &active.matrix);
+                                    rsx! {
+                                        g {
+                                            class: "m1-mirrored-pair-preview m1-matrix-placement-preview",
+                                            "aria-label": "Matrix placement preview",
+                                            transform: "translate({active.matrix.origin.x} {active.matrix.origin.y})",
+                                            for cell in cells {
+                                                g { key: "{cell.row}-{cell.column}", transform: "translate({cell.center.x} {cell.center.y}) rotate({cell.rotation})",
+                                                    rect { class: "m1-mirrored-pair-cell", x: "{-cell.size.x / 2.0}", y: "{-cell.size.y / 2.0}", width: "{cell.size.x}", height: "{cell.size.y}", rx: "1" }
+                                                }
                                             }
                                         }
                                     }

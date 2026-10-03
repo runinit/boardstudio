@@ -11,7 +11,7 @@ use crate::{
     runtime::Runtime,
 };
 use boardstudio_application::{
-    AcceptedSnapshot, Durability, Event, Lifecycle, OperationId, Scope, TerminalOutcome,
+    AcceptedSnapshot, Durability, Event, Lifecycle, Scope, TerminalOutcome,
 };
 use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
 use dioxus::prelude::*;
@@ -152,8 +152,8 @@ pub(in crate::presentation) fn use_matrix_placement(
                     && let Some(owner) = active_owner
                     && (current_workspace != "Layout"
                         || current_generation != owner.scope_generation
-                        || !same_session_scope(&runtime, owner)
-                        || !same_accepted_source(&runtime, owner))
+                        || !same_session_scope(&runtime, &owner)
+                        || !same_accepted_source(&runtime, &owner))
                 {
                     preparing.set(None);
                     placement.set(None);
@@ -462,7 +462,7 @@ pub(in crate::presentation) fn use_matrix_placement(
     }
 }
 
-fn placement_source(runtime: &Runtime) -> Option<(&AcceptedSnapshot, Scope, String)> {
+fn placement_source(runtime: &Runtime) -> Option<(AcceptedSnapshot, Scope, String)> {
     let model = runtime.model();
     let scope = runtime.scope()?;
     let snapshot = model.accepted.as_ref()?;
@@ -485,12 +485,13 @@ fn placement_source(runtime: &Runtime) -> Option<(&AcceptedSnapshot, Scope, Stri
     {
         return None;
     }
-    Some((snapshot, scope.clone(), scope.board_id))
+    Some((snapshot.clone(), scope.clone(), scope.board_id))
 }
 
 fn same_session_scope(runtime: &Runtime, owner: &MatrixPlacementOwner) -> bool {
+    let model = runtime.model();
     runtime.scope().as_ref() == Some(&owner.scope)
-        && runtime.model().accepted.as_ref().is_some_and(|snapshot| {
+        && model.accepted.as_ref().is_some_and(|snapshot| {
             snapshot.document.id == owner.scope.document_id
                 && snapshot.session_epoch == owner.scope.session_epoch
         })

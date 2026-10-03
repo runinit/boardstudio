@@ -43,7 +43,7 @@ pub(in crate::presentation) use matrix_inspector_controller::{
 };
 pub(in crate::presentation) use matrix_placement_controller::use_matrix_placement;
 pub(in crate::presentation) use matrix_setup::{
-    MatrixPlacementInput, MatrixSetup, MatrixSetupMount,
+    MatrixPlacementInput, MatrixPlacementMount, MatrixPlacementMove, MatrixSetup, MatrixSetupMount,
 };
 pub(in crate::presentation) use matrix_setup_controller::use_matrix_setup;
 pub(in crate::presentation) use matrix_transform_controller::{

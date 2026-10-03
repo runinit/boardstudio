@@ -2203,12 +2203,25 @@ mod tests {
         let assembly_3d_read = assembly_3d;
         let mut assembly_3d_write = assembly_3d;
         *probe.assembly_3d.borrow_mut() = Some(assembly_3d);
+        let matrix_placement = objects::MatrixPlacementMount {
+            cancel_owner: None,
+            placement: None,
+            busy: false,
+            error: None,
+            on_place: EventHandler::new(|_| {}),
+            on_move: EventHandler::new(|_| {}),
+            on_commit: EventHandler::new(|_| {}),
+            on_cancel: EventHandler::new(|_| {}),
+        };
         *probe.view_mode.borrow_mut() = Some(crate::presentation::layout_view_mode_handler(
             || true,
             assembly_3d_read,
             move |value| assembly_3d_write.set(value),
-            mount,
-            probe.canvas_interaction.clone(),
+            crate::presentation::LayoutPlacementCancellation {
+                parts: mount,
+                matrices: matrix_placement,
+                interactions: probe.canvas_interaction.clone(),
+            },
             || {},
             || {},
         ));
