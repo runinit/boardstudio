@@ -1,0 +1,3 @@
+Paired Layout Transform and encoder disclosure evidence
+
+Trusted Stagger, Splay and Origin gestures in candidate34770 match the settled TypeScript accepted values and each single Undo restores its initial field. The original34769 Stagger capture failure and34770desktop scrim workaround are recorded explicitly. Final compact/geometry/Escape/Arrow repairs await34771. Flat encoder disclosure border/padding/margin matches; broader Inspector placement remains outside this delta. See `receipt-34770.json` for source, fixture, limits and image hashes. Existing shared edit/history qualification is reused; no new ordinary UI tests.

@@ -1,0 +1,226 @@
+{
+  "reference": {
+    "reference_source": "5a472a9426e6e38993361da402cd4ec730feb369",
+    "reference_url": "http://127.0.0.1:5173/",
+    "session": "root-pcb-module-20261003",
+    "tab": "t12",
+    "fixture_sha256": "5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df",
+    "viewport": [
+      1280,
+      940
+    ],
+    "scope": "Left PCB / Layout / keys",
+    "journeys": [
+      {
+        "tool": "Stagger",
+        "selection": "Row1",
+        "trusted_pointer_start": [
+          340,
+          518
+        ],
+        "trusted_pointer_end": [
+          364,
+          518
+        ],
+        "before_offsets": [
+          0,
+          0
+        ],
+        "after_offsets": [
+          4.7625,
+          0
+        ],
+        "undo_offsets": [
+          0,
+          0
+        ],
+        "escape_exits": true,
+        "screenshot": "root-transform-react-stagger-settled.png",
+        "screenshot_sha256": "0a96057913522525e18e9392d1deae9741bf2826ef544dfa06c3853bc9041ae3"
+      },
+      {
+        "tool": "Splay",
+        "selection": "Column1",
+        "affect": "This and following",
+        "trusted_pointer_start": [
+          355,
+          258
+        ],
+        "trusted_pointer_end": [
+          395,
+          258
+        ],
+        "before_splay": 0,
+        "after_splay": -7,
+        "undo_splay": 0,
+        "escape_exits": true,
+        "screenshot": "root-transform-react-splay-settled.png",
+        "screenshot_sha256": "0267dac715c764b76377a437c1297d58c70c341ee40da95a1894b3507c4c71d8"
+      },
+      {
+        "tool": "Origin",
+        "selection": "Column1",
+        "trusted_pointer_start": [
+          340,
+          569
+        ],
+        "trusted_pointer_end": [
+          364,
+          569
+        ],
+        "before_origin": [
+          9.18,
+          -78.048
+        ],
+        "after_origin": [
+          15.98,
+          -77.448
+        ],
+        "undo_origin": [
+          9.18,
+          -78.048
+        ],
+        "keys_pose_preserved": "left-keys-SW1 translate(9.18 -78.048) rotate(0)",
+        "escape_exits": true,
+        "screenshot": "root-transform-react-origin-settled.png",
+        "screenshot_sha256": "5fa65595dcb54dd6b8c815102bc5d7ddb9ff86e00663723263b9f84f046fc281"
+      }
+    ],
+    "limits": "Settled field reads after asynchronous completion; reference-only leg. Archive/reopen not repeated; existing SetMatrix history/persistence proof remains reusable and candidate guards/changed commit must be assessed."
+  },
+  "candidate": {
+    "source": "47623521afaf96fb54690e2eaf873c1f0e7d2db5",
+    "url": "http://127.0.0.1:34770/boardstudio/",
+    "provenance_sha256": "a4677af663c0e8286ae5e923bf1884b0230bcc6dc852a3030cc35a68d453365c"
+  },
+  "fixture_sha256": "5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df",
+  "viewport": [
+    1280,
+    940
+  ],
+  "theme": "light",
+  "observations": [
+    {
+      "tool": "Stagger",
+      "before": [
+        0,
+        0
+      ],
+      "after": [
+        4.7625,
+        0
+      ],
+      "single_undo": [
+        0,
+        0
+      ],
+      "pointer": {
+        "start": [
+          268,
+          568
+        ],
+        "end": [
+          292,
+          568
+        ],
+        "trusted": true
+      },
+      "capture_observed": true
+    },
+    {
+      "tool": "Splay",
+      "before": 0,
+      "after": -7,
+      "single_undo": 0,
+      "pointer": {
+        "start": [
+          340,
+          257
+        ],
+        "end": [
+          380,
+          257
+        ],
+        "trusted": true
+      }
+    },
+    {
+      "tool": "Origin",
+      "before": [
+        9.18,
+        -78.048
+      ],
+      "after": [
+        15.979999999999977,
+        -77.44800000000001
+      ],
+      "single_undo": [
+        9.179999999999978,
+        -78.048
+      ],
+      "pointer": {
+        "start": [
+          340,
+          568
+        ],
+        "end": [
+          364,
+          568
+        ],
+        "trusted": true
+      }
+    }
+  ],
+  "regressions": [
+    {
+      "candidate": 34769,
+      "actual": "Trusted Stagger pointerdown delivered, OffsetX stayed0 and no pointer capture/up edit; React4.7625.",
+      "repair": "aa33bc80",
+      "green": "34770 trusted capture and4.7625 plus singleUndo0"
+    },
+    {
+      "candidate": 34770,
+      "actual": "Desktop1280scrim covered the canvas after selecting a matrix scope; clicked real Close panels before gesture. Compact Export selector displayedLayout while Export active.",
+      "repair": "d4870a1b+5d2b4a98",
+      "green": "Pending34771"
+    },
+    {
+      "candidate": 34770,
+      "actual": "Transform glyph positions differ from TS active-part geometry; Escape after Undo button focus did not exit tool. Source also lacked reference Arrow editing.",
+      "repair": "4b517045+ee7321d6+b0935c29",
+      "green": "Pending34771"
+    }
+  ],
+  "encoder_css": {
+    "candidate": 34769,
+    "reference": "5173 same layeredSofle",
+    "details": [
+      "Clockwise",
+      "Counterclockwise",
+      "Push button"
+    ],
+    "computed_style_both": {
+      "border": "0px",
+      "padding": "0px",
+      "summary_margin_block": "9.6px"
+    },
+    "open_both": [
+      true,
+      true,
+      false
+    ],
+    "scope": "Flat nested disclosure styling only; root snapshots observe residual body/control spacing outside this delta, no fullInspector geometry claim."
+  },
+  "screenshots_sha256": {
+    "root-transform-react-stagger-settled.png": "0a96057913522525e18e9392d1deae9741bf2826ef544dfa06c3853bc9041ae3",
+    "root-transform-react-splay-settled.png": "0267dac715c764b76377a437c1297d58c70c341ee40da95a1894b3507c4c71d8",
+    "root-transform-react-origin-settled.png": "5fa65595dcb54dd6b8c815102bc5d7ddb9ff86e00663723263b9f84f046fc281",
+    "root-transform-dioxus-stagger-settled.png": "8a0360011407d1e50aa1707940d05623b294cad1a77fdea1da6bda708a7fe331",
+    "root-transform-dioxus-34770-stagger-settled.png": "b4eed942c5ef8e4ed69de0d44dbc8053c1b69318f6c8b340bf95025ab5d65b1a",
+    "root-transform-dioxus-34770-splay-settled.png": "cc749080ddee76f49cdf3445474de50f1fa4eeba019a0d05f13abcb8bbc6669d",
+    "root-transform-dioxus-34770-origin-settled.png": "bae520eb0bf6b12d60ee874e72de12e6b9aabafb06330c429c5b7854d41d8abf",
+    "root-encoder-react-34769-reference.png": "183e59f64fc44c724dfa7525af61d6c676e712b55448b67b1cf652b86b3ad3e2",
+    "root-encoder-dioxus-34769.png": "ef68189ea7f1aa20d24c5f78c0cd35669ff6763b12c61f4b52dbdee58c48d90c"
+  },
+  "limits": "Actual settled field reads and Undo after asynchronous Session completion; current34770desktop Close panels workaround explicit. Save/reopen not repeated; unchanged existing SetMatrix/SetMatrixSplay authority/history reused. CandidateOrigin per-key pose invariance not separately measured in this34770leg; existing Core operation source reused. Final handlegeometry/Arrow/Escape/compact fix requires changed34771public leg."
+}
