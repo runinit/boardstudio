@@ -247,6 +247,15 @@
           "evidence": ".scratch/dioxus-frontend-v1/evidence/f24-shell-parity-20261003/receipt.md",
           "observation": "The bounded Project/save-status/tabs/Export and Appearance route keeps existing Runtime/session/theme preference authorities and closes a measured topbar displacement: on the 1280px Sofle fixture, Project/status/tabs/Export x positions differ by at most1.47px from pinned React after replacing the fixed260px Project slot and boxed Export button. No new architectural takeaway; the source-visible shared composition hotspot remains covered by RF-001.",
           "status": "Changed desktop shell/menu/Appearance paired journey verified on34763; responsive/compact and wider parent qualification remain open; no new RF ID or broad refactor."
+        },
+        {
+          "source": "F31 Board Inspector private projection/controller packet based on b93fc0ee",
+          "evidence": ".scratch/dioxus-layout-authoring/specs/F31-board-inspector.md; .scratch/dioxus-layout-authoring/issues/15-board-inspector.md",
+          "observation": "The board-level Layout context adds another projection/action mount to shared Editor composition. The feature leaf keeps board readiness, accepted live parts and exact session/token/revision/tree generation admission private, then reuses the existing ReplaceDocument path; no second document owner or public Core API is introduced.",
+          "current_mitigation": "Keep Board projection and rename action in a private Layout module and add only the minimum root mount; preserve the existing component, matrix and outline inspector precedence.",
+          "post_port_follow_up": "After parity, measure presentation cross-workflow file intersections and evaluate stable workspace composition boundaries while retaining one accepted Session owner.",
+          "validation": "Compare affected files changed across a representative Layout contextual Inspector slice; after parity, show independent leaf work can be verified without widening unrelated composition and preserves the exact accepted owner.",
+          "status": "bounded source implementation; combined check, paired browser journey and review pending; no parent closure"
         }
       ],
       "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted.",

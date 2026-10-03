@@ -149,6 +149,8 @@ Source-confirmed interaction mismatch: `app/src/ui/createCanvasInteractions.ts:2
 
 Supported scripting source is `app/src/ui/useScriptEditor.tsx`: New script, selector, Name, Rhai source, Enable on Apply, Apply and Core findings. The exact current-source journey and implementation boundary are in [F3.8 Geometry scripts](../../dioxus-layout-authoring/specs/F38-geometry-scripts.md). React exposes it through Add object → Board geometry → Geometry scripts. Keep the route mounted only alongside a functioning editor; unsupported scripting expansion remains excluded.
 
+The focused F3.1/F3.7 Board Inspector child is tracked in [Issue 15](../../dioxus-layout-authoring/issues/15-board-inspector.md) and [its spec](../../dioxus-layout-authoring/specs/F31-board-inspector.md). The board-context projection and rename callback remain private to Layout and use the existing accepted Session snapshot and ReplaceDocument history. This bounded child does not close F3.1/F3.7 or other Layout criteria.
+
 ### Independent review reconciliation
 
 The normalized task graph removes the whole-F2 dependency. Layout qualification joins only F2.3 shared panels and its actual authoring/view/size-control slices. Shared menu/control behavior is also checked at final F9 qualification.

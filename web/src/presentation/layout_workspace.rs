@@ -49,6 +49,8 @@ pub(super) struct InspectorInput {
     pub(super) key_size: objects::KeySizeMount,
     pub(super) matrix_transform_inspector: objects::MatrixTransformInspectorMount,
     pub(super) outline_inspector: Option<Box<super::outline_lifecycle::OutlineInspectorProjection>>,
+    pub(super) board_inspector: Option<super::board_inspector::BoardInspectorProjection>,
+    pub(super) on_board_rename: EventHandler<super::board_inspector::BoardRenameAction>,
 }
 
 pub(super) fn objects(input: ObjectsInput) -> Element {
@@ -177,6 +179,12 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
         }
         if let Some(projection) = input.outline_inspector {
             super::outline_lifecycle::OutlineVersionInspector { projection: *projection }
+        }
+        if let Some(projection) = input.board_inspector {
+            super::board_inspector::BoardInspector {
+                projection,
+                on_rename: input.on_board_rename,
+            }
         }
     }
 }

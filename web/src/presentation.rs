@@ -1,4 +1,5 @@
 //! Presentation drafts and DOM input are separate from the durable session state.
+mod board_inspector;
 mod canvas_interaction;
 mod canvas_layers;
 mod canvas_status_footer;
@@ -2174,6 +2175,12 @@ fn Editor() -> Element {
     let matrix_inspector = objects::use_matrix_inspector(
         runtime.clone(),
         version,
+        adapter.selected_context,
+        workspace,
+        adapter.generation,
+    );
+    let board_inspector = board_inspector::use_board_inspector(
+        runtime.clone(),
         adapter.selected_context,
         workspace,
         adapter.generation,
@@ -4403,7 +4410,15 @@ fn Editor() -> Element {
             )
         })
         .flatten();
-    let show_position_inspector = component_inspector.is_none()
+    let board_inspector_projection = board_inspector.projection.clone().filter(|_| {
+        component_inspector.is_none()
+            && matrix_inspector.projection.is_none()
+            && key_size.projection.is_none()
+            && matrix_transform_inspector.projection.is_none()
+            && outline_inspector.is_none()
+    });
+    let show_position_inspector = board_inspector_projection.is_none()
+        && component_inspector.is_none()
         && selected_tree_context.as_ref().is_none_or(|selected| {
             let resolved = selection::resolve_context(&model, &selected.context);
             resolved.is_some_and(|ids| {
@@ -6139,6 +6154,8 @@ fn Editor() -> Element {
                 key_size,
                 matrix_transform_inspector,
                 outline_inspector: outline_inspector.clone().map(Box::new),
+                board_inspector: board_inspector_projection,
+                on_board_rename: board_inspector.on_rename,
             },
         )),
     };
