@@ -196,6 +196,12 @@
           "evidence": ".scratch/dioxus-pcb-view/issues/14-mounted-module-footprints.md",
           "observation": "The PCB scene already carried authentic module footprints, but the shell had only host-layer and Layout Footprints state. A separate transient module owner and read-only source consumer now connect the Footprints row; daughterboard pads remain source-owned. Other module categories/navigation stay explicit F5.4 work.",
           "status": "bounded implementation; no new RF ID or broad structural refactor"
+        },
+        {
+          "source": "0a19f622859c8997cff322a90b47c6f92ff8d33b; accepted Keycaps STEP export source freeze",
+          "evidence": ".scratch/dioxus-keycap-cad-bridge/evidence/source-contract.md",
+          "observation": "The page binary and boardstudio_web worker host are separate crates, so a crate-private method cannot carry Core-resolved KeycapSpecs to the already packaged build_keycaps export. The bounded slice adds one specific public CadWorker::request_keycaps_step entry point while keeping its wire types and public CadRequest/CadOperation unchanged.",
+          "status": "confirmed crate-boundary constraint and bounded adapter; paired browser/download validation pending; no new RF ID"
         }
       ],
       "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted.",
