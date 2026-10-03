@@ -343,6 +343,60 @@ fn mounted_polygon_outline_inspector(fixed: bool) -> (InspectorProbe, web_sys::E
 }
 
 #[wasm_bindgen_test]
+fn fixed_perimeter_finds_the_first_polygon_after_primitive_features() {
+    let (probe, root) = mounted_polygon_outline_inspector(true);
+    let mut snapshot = probe.runtime.model().accepted.unwrap();
+    let document = Arc::make_mut(&mut snapshot.document);
+    let features = &mut document.board_outlines[0].versions[0].geometry.features;
+    let polygon = features[0].clone();
+    features.insert(
+        0,
+        OutlineFeature::Rect {
+            id: "fixed-rectangle".into(),
+            rotation: None,
+            anchor_part_id: None,
+            center: Vec2 { x: 10.0, y: 10.0 },
+            size: Vec2 { x: 2.0, y: 2.0 },
+            radius: 0.0,
+            operation: Operation::Add,
+        },
+    );
+    features.insert(
+        1,
+        OutlineFeature::PartEnvelope {
+            id: "fixed-envelope".into(),
+            connections: vec![],
+            settings: OutlineSettings::default(),
+            part_ids: vec![],
+            margin: 4.0,
+            operation: Operation::Add,
+        },
+    );
+    let mut later_polygon = polygon.clone();
+    if let OutlineFeature::Polygon { id, .. } = &mut later_polygon {
+        *id = "later-polygon".into();
+    }
+    features.push(later_polygon);
+    let perimeter = editable_perimeter(&snapshot, &probe.scope.board_id, Some("fixed-outline-v1"))
+        .expect("primitive features must not hide the first editable polygon");
+    assert!(
+        matches!(perimeter.target, OutlinePointTarget::Fixed { feature_id, .. } if feature_id == "fixed-contour")
+    );
+    let OutlineFeature::Polygon { points, .. } = polygon else {
+        unreachable!()
+    };
+    assert_eq!(perimeter.points, points);
+    Arc::make_mut(&mut snapshot.document).board_outlines[0].versions[0]
+        .geometry
+        .features
+        .retain(|feature| !matches!(feature, OutlineFeature::Polygon { .. }));
+    assert!(
+        editable_perimeter(&snapshot, &probe.scope.board_id, Some("fixed-outline-v1")).is_none()
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
 async fn mounted_outline_inspector_generates_through_the_production_owner() {
     let (probe, root) = mounted_outline_inspector();
     settle_dimension().await;

@@ -679,7 +679,8 @@ fn editable_perimeter(
             .find(|version| version.id == version_id)?
             .geometry
             .features
-            .first()?;
+            .iter()
+            .find(|feature| matches!(feature, OutlineFeature::Polygon { .. }))?;
         let OutlineFeature::Polygon {
             id,
             points,
