@@ -754,8 +754,8 @@ fn MountingControls(props: MountingControlsProps) -> Element {
                 mounts: closure_mounts.to_vec(),
                 allow_add: !values.internal_gasket,
             }
-            section { class: "m1-mechanical-group", aria_label: "Suggested mount locations",
-                h4 { "Suggested mount locations · {suggestions.len()} candidates" }
+            details { class: "m1-mechanical-group", aria_label: "Suggested mount locations",
+                summary { "Suggested mount locations · {suggestions.len()} candidates" }
                 if suggestions.is_empty() {
                     p { class: "m1-mechanical-help", "Resolve the current geometry to see clearance-tested mounting locations." }
                 } else if values.internal_gasket {
@@ -838,8 +838,8 @@ struct MountCollectionControlsProps {
 fn MountCollectionControls(props: MountCollectionControlsProps) -> Element {
     let mounts = props.mounts.clone();
     rsx! {
-        section { class: "m1-mechanical-group", aria_label: "{props.label}",
-            h4 { "{props.label} · {mounts.len()}" }
+        details { class: "m1-mechanical-group", aria_label: "{props.label}",
+            summary { "{props.label} · {mounts.len()}" }
             for (index, mount) in mounts.iter().enumerate() {
                 MountRow {
                     key: "{mount.id}",
