@@ -1,0 +1,22 @@
+# F3.5a: Inspect and edit a standalone Layout component
+
+**Parent:** F3.5 — Inspector, relationships and findings.
+
+**What to build:** Selecting one standalone component in Layout opens a contextual Inspector with the reference Properties and Relations views. The designer can edit the component’s position, layout membership, board-outline contribution and placement constraint, or continue to PCB electrical connections, using the existing accepted document, Runtime and history authorities.
+
+**Blocked by:** Canonical F3.1 remains the parent dependency. This child is startable when the accepted selected standalone-part identity, current document/scope/token/revision owner and existing edit/navigation ports are available; it does not wait for full F3.1 qualification or another F3.5 child.
+
+**Status:** ready-for-agent
+
+- [ ] A single live standalone component selected in the active Layout board shows a component reference heading, definition name/kind, and accessible Properties and Relations tabs. Stale scope, missing identity, matrix-attached parts, non-Layout workspaces and ambiguous multi-selection do not expose these controls.
+- [ ] Properties show Position X/Y in millimetres; when board layouts exist, a standalone component can be assigned to a named layout or Board / ungrouped. Position and membership changes preserve unrelated parts/layouts and commit through the existing MoveParts or accepted-document edit path.
+- [ ] The component’s Board outline contribution exposes Include in outline, Use board margin / explicit margin, and Allow body overhang, subject to the same applicable/locked behavior as the pinned React surface. These controls change only the selected part’s existing outline contribution fields; they do not edit board outline geometry.
+- [ ] Layout constraint exposes the existing Offset and Mirror relationships against another part on the selected board, with source part, applicable values, save and remove. An existing target relationship is shown as the selected part being driven by its source. Reject invalid, self, absent, cross-board or stale targets without changing accepted state.
+- [ ] Relations shows the current selected component’s saved placement relationship (or the reference empty state) and its Edit placement relationship action returns to that component’s Properties. Edit electrical connections switches to the existing PCB workspace path while preserving normal selection/navigation behavior.
+- [ ] Each accepted edit participates in normal Undo/Redo and project save/reopen. Invalid form input remains local/correctable; target or owner changes discard/reset draft values and stale callbacks cannot mutate a different selection or document.
+- [ ] Verify the production mounted Layout Inspector against pinned React with one existing standalone component and a fixture containing layouts, outline contribution and multiple board parts. Cover layout assignment, position, Include in outline and margin/overhang, add/update/remove Offset and Mirror, empty/active Relations, PCB navigation, validation, scope/selection changes, Undo/Redo and save/reopen. Compare resulting document fields and history behavior, not implementation shape.
+- [ ] Keep matrix, row, column and key selection inspectors in their existing F3.2/F3.3 children; keep keycap dimensions/reflow in F6C.3; board-outline geometry/version editing in F3.4; mirrored-component substitution, part-definition editing, generic multi-selection, findings routing and full F3.5/F3.7 acceptance out of this child.
+- [ ] Reuse the current accepted Layout selection owner and existing MoveParts, SetConstraint, RemoveConstraint and ReplaceDocument paths. Add no public Rust API/type/member visibility, edit operation, schema, geometry/constraint algorithm, secondary document store or copied selection authority. Shared composition/mount wiring remains coordinator-owned and serially integrated.
+- [ ] Record the scoped refactoring observation in the existing RF ledger or state “No new refactoring takeaway observed.”
+
+**Parent acceptance:** F3.5’s broader contextual Inspector, relationships, findings navigation, geometry actions, and keyboard return-path criteria remain open. F3.1 remains the only canonical parent dependency; this child creates no canonical task or acceptance edge and does not change the 62-parent graph.
