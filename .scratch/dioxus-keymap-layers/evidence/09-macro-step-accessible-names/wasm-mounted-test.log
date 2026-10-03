@@ -1,0 +1,14 @@
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/keymap-macro-labels-20261002/web)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.88s
+     Running unittests src/main.rs (web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-86b232d4ddd6ef3f.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:42899/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+Loading Wasm module...
+using deprecated parameters for the initialization function; pass a single object instead
+
+running 1 test
+Invoking test: presentation::keymap::macro_editor::mounted_accessible_name_tests::mounted_macro_editor_uses_display_and_visible_field_names
+test presentation::keymap::macro_editor::mounted_accessible_name_tests::mounted_macro_editor_uses_display_and_visible_field_names ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 84 filtered out; finished in 0.08s

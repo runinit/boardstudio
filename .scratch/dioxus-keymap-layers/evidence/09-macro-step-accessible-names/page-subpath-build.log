@@ -1,0 +1,28 @@
+  0.00s  INFO Building project...
+  0.74s  INFO Compiled [223/228]: dioxus_cli_config
+  0.88s  INFO Compiled [224/228]: dioxus_devtools
+  1.09s  INFO Compiled [225/228]: dioxus
+  1.22s  INFO Compiled [226/228]: dioxus_web
+  4.76s  INFO Compiled [227/228]: boardstudio_web
+  9.47s  INFO  [1m[33mwarning[0m[1m: unused variable: `clockwise_component_key`[0m
+  [1m[94m--> [0msrc/presentation/keymap/encoder_editor.rs:61:29
+   [1m[94m|[0m
+[1m[94m61[0m [1m[94m|[0m                         let clockwise_component_key = format!("{editor_instance_id}-{clockwise_key}");
+   [1m[94m|[0m                             [1m[33m^^^^^^^^^^^^^^^^^^^^^^^[0m [1m[33mhelp: if this is intentional, prefix it with an underscore: `_clockwise_component_key`[0m
+   [1m[94m|[0m
+   [1m[94m= [0m[1mnote[0m: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+
+  9.47s  INFO  [1m[33mwarning[0m[1m: unused variable: `counterclockwise_component_key`[0m
+  [1m[94m--> [0msrc/presentation/keymap/encoder_editor.rs:62:29
+   [1m[94m|[0m
+[1m[94m62[0m [1m[94m|[0m                         let counterclockwise_component_key = format!("{editor_instance_id}-{counterclockwise_key}");
+   [1m[94m|[0m                             [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [1m[33mhelp: if this is intentional, prefix it with an underscore: `_counterclockwise_component_key`[0m
+
+
+ 25.51s  INFO Compiled [228/228]: boardstudio-web
+ 25.54s  INFO Bundling app...
+ 25.80s  INFO Running wasm-bindgen...
+ 35.85s  INFO Copying asset (1/2): /home/chris/.local/share/boardstudio/worktrees/keymap-macro-labels-20261002/web/target/dx/boardstudio-web/release/web/public/wasm/boardstudio-web_bg.wasm
+ 35.86s  INFO Copying asset (2/2): /home/chris/.local/share/boardstudio/worktrees/keymap-macro-labels-20261002/web/target/dx/boardstudio-web/release/web/public/wasm/boardstudio-web.js
+ 35.86s  INFO Client build completed successfully! 🚀 path="/home/chris/.local/share/boardstudio/worktrees/keymap-macro-labels-20261002/web/target/dx/boardstudio-web/release/web/public"
