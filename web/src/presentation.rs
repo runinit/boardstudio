@@ -1097,24 +1097,45 @@ fn source_matches_layout_owner(
         && (allow_board_hop || owner.generation == source.generation)
 }
 
-fn perform_layout_finding_navigation(
+struct LayoutFindingNavigationContext {
     runtime: Rc<Runtime>,
     adapter: SelectionAdapter,
     owner: LayoutOwnerIdentity,
-    request: layout_findings::Request,
     workspace: Signal<&'static str>,
-    mut objects_open: Signal<bool>,
-    mut inspect_open: Signal<bool>,
-    mut findings_open: Signal<bool>,
+    objects_open: Signal<bool>,
+    inspect_open: Signal<bool>,
+    findings_open: Signal<bool>,
     inspector_settings: Signal<PanelSettings>,
-    mut focused_finding: Signal<Option<keycaps_finding_marker::FocusedFinding>>,
+    focused_finding: Signal<Option<keycaps_finding_marker::FocusedFinding>>,
     svg: Rc<RefCell<Option<SvgElement>>>,
     alive: Rc<Cell<bool>>,
     body_selection: Signal<Option<case_viewer::BodySelection>>,
     case_selection: case_viewer::CaseSelection,
     select_tree: EventHandler<objects::TreeSelectRequest>,
     resumed_after_board_navigation: bool,
+}
+
+fn perform_layout_finding_navigation(
+    context: LayoutFindingNavigationContext,
+    request: layout_findings::Request,
 ) {
+    let LayoutFindingNavigationContext {
+        runtime,
+        adapter,
+        owner,
+        workspace,
+        mut objects_open,
+        mut inspect_open,
+        mut findings_open,
+        inspector_settings,
+        mut focused_finding,
+        svg,
+        alive,
+        body_selection,
+        case_selection,
+        select_tree,
+        resumed_after_board_navigation,
+    } = context;
     if !layout_owner_is_current(&runtime, workspace, &adapter, &owner)
         || !source_matches_layout_owner(&request.source, &owner, resumed_after_board_navigation)
     {
@@ -4465,7 +4486,6 @@ fn Editor() -> Element {
         let runtime = runtime.clone();
         let adapter = adapter.clone();
         let owner = layout_owner.clone();
-        let workspace = workspace;
         let objects_open = objects_open;
         let inspect_open = inspect_open;
         let findings_open = layout_findings_open;
@@ -4475,7 +4495,6 @@ fn Editor() -> Element {
         let svg = svg.clone();
         let alive = keycaps_navigation_alive.clone();
         let body_selection = case_body_selection;
-        let case_selection = case_selection;
         let select_tree = workspace_callbacks.select_tree;
         let navigate = workspace_callbacks.navigate;
         move |request: layout_findings::Request| {
@@ -4511,22 +4530,24 @@ fn Editor() -> Element {
                 return;
             }
             perform_layout_finding_navigation(
-                runtime.clone(),
-                adapter.clone(),
-                owner.clone(),
+                LayoutFindingNavigationContext {
+                    runtime: runtime.clone(),
+                    adapter: adapter.clone(),
+                    owner: owner.clone(),
+                    workspace,
+                    objects_open,
+                    inspect_open,
+                    findings_open,
+                    inspector_settings,
+                    focused_finding,
+                    svg: svg.clone(),
+                    alive: alive.clone(),
+                    body_selection,
+                    case_selection,
+                    select_tree,
+                    resumed_after_board_navigation: false,
+                },
                 request,
-                workspace,
-                objects_open,
-                inspect_open,
-                findings_open,
-                inspector_settings,
-                focused_finding,
-                svg.clone(),
-                alive.clone(),
-                body_selection,
-                case_selection,
-                select_tree,
-                false,
             );
         }
     });
@@ -4544,7 +4565,6 @@ fn Editor() -> Element {
             let svg = svg.clone();
             let alive = keycaps_navigation_alive.clone();
             let body_selection = case_body_selection;
-            let case_selection = case_selection;
             let select_tree = workspace_callbacks.select_tree;
             move |(request, owner, active_workspace)| {
                 let Some(request) = request else {
@@ -4577,22 +4597,24 @@ fn Editor() -> Element {
                 }
                 pending.set(None);
                 perform_layout_finding_navigation(
-                    runtime.clone(),
-                    adapter.clone(),
-                    owner,
+                    LayoutFindingNavigationContext {
+                        runtime: runtime.clone(),
+                        adapter: adapter.clone(),
+                        owner,
+                        workspace,
+                        objects_open,
+                        inspect_open,
+                        findings_open,
+                        inspector_settings,
+                        focused_finding,
+                        svg: svg.clone(),
+                        alive: alive.clone(),
+                        body_selection,
+                        case_selection,
+                        select_tree,
+                        resumed_after_board_navigation: true,
+                    },
                     request,
-                    workspace,
-                    objects_open,
-                    inspect_open,
-                    findings_open,
-                    inspector_settings,
-                    focused_finding,
-                    svg.clone(),
-                    alive.clone(),
-                    body_selection,
-                    case_selection,
-                    select_tree,
-                    true,
                 );
             }
         },
