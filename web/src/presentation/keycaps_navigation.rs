@@ -6,7 +6,7 @@
 
 use super::{keycaps_fit, objects};
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::Vec2;
+use boardstudio_core::model::{ProjectDoc, Vec2};
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
 
@@ -28,6 +28,34 @@ pub(super) struct RouteEffects {
     pub pin_inspector: bool,
     pub fit_after_layout: bool,
     pub focus_inspector_now: bool,
+}
+
+/// Accepted authority passed by the root at request time. This keeps the shared admission seam
+/// explicit without transferring snapshot or workspace ownership out of the root.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct AcceptedNavigationSource {
+    pub scope: Scope,
+    pub token: SnapshotToken,
+    pub revision: u64,
+    pub active_board_id: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct AdmittedNavigation {
+    pub target: keycaps_fit::FindingNavigationTarget,
+    pub effects: RouteEffects,
+    pub owner: NavigationOwner,
+}
+
+pub(super) struct NavigationAdmission<'a> {
+    pub current_workspace: &'a str,
+    pub owner: OwnerIdentity<'a>,
+    pub live_scope: Option<&'a Scope>,
+    pub live_generation: u64,
+    pub accepted: &'a AcceptedNavigationSource,
+    pub fit_state: &'a keycaps_fit::KeycapsFitState,
+    pub document: &'a ProjectDoc,
+    pub live_mechanical_layers: Option<&'a [String]>,
 }
 
 /// Identity retained by post-navigation work. Scope/generation alone are insufficient: a
@@ -59,6 +87,61 @@ pub(super) struct PendingLayoutFit {
     pub owner: NavigationOwner,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct DestinationFitGeometry {
+    pub base: (f64, f64, f64, f64),
+    pub target: (f64, f64, f64, f64),
+    pub surface: (f64, f64),
+}
+
+/// Shared reactive owner for the post-route destination fit. Editor and the mounted production
+/// probe use this same hook, including pending-request settlement and owner revalidation.
+pub(super) fn use_pending_layout_fit<T>(
+    mut pending: Signal<Option<PendingLayoutFit>>,
+    observed_owner: T,
+    alive: Rc<Cell<bool>>,
+    current_owner: impl Fn() -> LiveNavigationOwner + 'static,
+    resolve_geometry: impl Fn(&PendingLayoutFit) -> Option<DestinationFitGeometry> + 'static,
+    perform: impl Fn(FitAction, NavigationOwner) + 'static,
+) where
+    T: Clone + PartialEq + 'static,
+{
+    use_effect(use_reactive(
+        (&pending(), &observed_owner),
+        move |(pending_fit, _)| {
+            if !alive.get() {
+                return;
+            }
+            let Some(pending_fit) = pending_fit.clone() else {
+                return;
+            };
+            let live = current_owner();
+            if !navigation_owner_is_current(&pending_fit.owner, &live) {
+                pending.set(None);
+                return;
+            }
+            let Some(geometry) = resolve_geometry(&pending_fit) else {
+                pending.set(None);
+                return;
+            };
+            let live = current_owner();
+            let did_fit = finish_destination_fit(
+                &pending_fit.owner,
+                &live,
+                geometry.base,
+                geometry.target,
+                geometry.surface,
+                |action| perform(action, pending_fit.owner.clone()),
+            );
+            if !did_fit {
+                pending.set(None);
+                return;
+            }
+            pending.set(None);
+        },
+    ));
+}
+
 pub(super) fn owner_for_request(
     request: &keycaps_fit::FindingNavigationRequest,
     destination: Destination,
@@ -88,6 +171,17 @@ pub(super) fn navigation_owner_is_current(
         && live.token == Some(expected.token)
         && live.revision == Some(expected.revision)
         && live.destinations.contains(&expected.destination)
+}
+
+pub(super) fn active_case_destination(
+    selected_layer_id: &str,
+    selected_body_id: Option<&str>,
+) -> Option<Destination> {
+    if !selected_layer_id.is_empty() {
+        Some(Destination::CaseLayer(selected_layer_id.to_owned()))
+    } else {
+        selected_body_id.map(|body_id| Destination::CaseBody(body_id.to_owned()))
+    }
 }
 
 /// Owner lifetime shared by the production Editor and the mounted lifecycle probe.
@@ -211,6 +305,112 @@ pub(super) fn route_effects(
     })
 }
 
+/// Admit a Keycaps finding against the root's live scope and accepted snapshot, then resolve its
+/// route through the same production path used by the Editor. The caller supplies the already
+/// resolved part context because the root's selection adapter owns that projection.
+pub(super) fn admit_accepted_request(
+    request: &keycaps_fit::FindingNavigationRequest,
+    admission: NavigationAdmission<'_>,
+    part_context_for_target: impl FnOnce(
+        &keycaps_fit::FindingNavigationTarget,
+    ) -> Option<objects::TreeContext>,
+) -> Option<AdmittedNavigation> {
+    if !request_owner_is_current(
+        admission.current_workspace,
+        admission.owner,
+        admission.live_scope,
+        admission.live_generation,
+        &request.source.scope,
+    ) || request.source.scope != admission.accepted.scope
+        || request.source.token != admission.accepted.token
+        || request.source.revision != admission.accepted.revision
+        || request.source.scope.document_id != admission.document.id
+        || request.source.scope.board_id != admission.accepted.active_board_id
+    {
+        return None;
+    }
+    let live_mechanical_layers =
+        if admission.live_mechanical_layers.is_none() && request.source.case_preview_current {
+            return None;
+        } else {
+            admission.live_mechanical_layers.unwrap_or(&[])
+        };
+    let target = keycaps_fit::accepted_navigation_target(
+        admission.fit_state,
+        request,
+        admission.document,
+        live_mechanical_layers,
+    )?;
+    if matches!(
+        &request.target,
+        keycaps_fit::FindingNavigationTarget::MechanicalLayer { .. }
+    ) && target != request.target
+    {
+        return None;
+    }
+    let target_board = match &target {
+        keycaps_fit::FindingNavigationTarget::MechanicalLayer { board_id, .. }
+        | keycaps_fit::FindingNavigationTarget::Outline { board_id }
+        | keycaps_fit::FindingNavigationTarget::Part { board_id, .. }
+        | keycaps_fit::FindingNavigationTarget::Matrix { board_id, .. }
+        | keycaps_fit::FindingNavigationTarget::Body { board_id, .. }
+        | keycaps_fit::FindingNavigationTarget::Board { board_id } => board_id,
+    };
+    if target_board != &request.source.scope.board_id
+        || !target_exists(admission.document, &target, live_mechanical_layers)
+    {
+        return None;
+    }
+    let part_context = part_context_for_target(&target);
+    let effects = route_effects(request, &target, part_context, admission.live_generation)?;
+    let destination = effects.destination.clone();
+    let owner = owner_for_request(request, destination, admission.live_generation);
+    Some(AdmittedNavigation {
+        target,
+        effects,
+        owner,
+    })
+}
+
+fn target_exists(
+    document: &ProjectDoc,
+    target: &keycaps_fit::FindingNavigationTarget,
+    live_mechanical_layers: &[String],
+) -> bool {
+    use keycaps_fit::FindingNavigationTarget as Target;
+    match target {
+        Target::MechanicalLayer { layer_id, .. } => {
+            live_mechanical_layers.iter().any(|id| id == layer_id)
+        }
+        Target::Body { board_id, body_id } => document
+            .case_bodies
+            .iter()
+            .any(|body| body.id == *body_id && body.board_id == *board_id),
+        Target::Part { board_id, part_id } => {
+            document
+                .boards
+                .iter()
+                .any(|board| board.id == *board_id && board.part_ids.contains(part_id))
+                && document.parts.iter().any(|part| part.id == *part_id)
+        }
+        Target::Matrix {
+            board_id,
+            matrix_id,
+        } => document.matrices.iter().any(|matrix| {
+            matrix.id == *matrix_id
+                && matrix.part_ids.iter().all(|id| {
+                    document
+                        .boards
+                        .iter()
+                        .any(|board| board.id == *board_id && board.part_ids.contains(id))
+                })
+        }),
+        Target::Outline { board_id } | Target::Board { board_id } => {
+            document.boards.iter().any(|board| board.id == *board_id)
+        }
+    }
+}
+
 pub(super) fn dispatch_route(
     effects: RouteEffects,
     request: &keycaps_fit::FindingNavigationRequest,
@@ -326,18 +526,6 @@ pub(super) fn finish_destination_fit(
     true
 }
 
-pub(super) fn apply_destination_fit(
-    expected: &NavigationOwner,
-    current_owner: impl FnOnce() -> LiveNavigationOwner,
-    base: (f64, f64, f64, f64),
-    target: (f64, f64, f64, f64),
-    surface: (f64, f64),
-    perform: impl FnMut(FitAction),
-) -> bool {
-    let live = current_owner();
-    finish_destination_fit(expected, &live, base, target, surface, perform)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -396,8 +584,9 @@ mod tests {
         initial_live: LiveNavigationOwner,
         live: Rc<RefCell<Option<Signal<LiveNavigationOwner>>>>,
         schedule: Rc<RefCell<Option<EventHandler<()>>>>,
-        fit_effects: Rc<RefCell<Vec<Deferred>>>,
+        pending: Rc<RefCell<Option<Signal<Option<PendingLayoutFit>>>>>,
         frame_effects: Rc<RefCell<Vec<Deferred>>>,
+        route_actions: Rc<RefCell<Vec<RouteAction>>>,
         effects: Rc<RefCell<Vec<FitAction>>>,
         focus_count: Rc<Cell<usize>>,
     }
@@ -406,62 +595,78 @@ mod tests {
         let probe = use_context::<MountedProbe>();
         let live = use_signal(|| probe.initial_live.clone());
         *probe.live.borrow_mut() = Some(live);
+        let pending = use_signal(|| None::<PendingLayoutFit>);
+        *probe.pending.borrow_mut() = Some(pending);
         let alive = use_navigation_lifetime();
+        use_pending_layout_fit(
+            pending,
+            live(),
+            alive.clone(),
+            move || live.read().clone(),
+            |_| {
+                Some(DestinationFitGeometry {
+                    base: (-100.0, 100.0, -60.0, 60.0),
+                    target: (20.0, 40.0, 10.0, 30.0),
+                    surface: (900.0, 600.0),
+                })
+            },
+            {
+                let probe = probe.clone();
+                move |action, expected| match action {
+                    FitAction::SetCamera(fit) => {
+                        probe.effects.borrow_mut().push(FitAction::SetCamera(fit))
+                    }
+                    FitAction::FocusInspector => {
+                        let focus_probe = probe.clone();
+                        let focus_live = focus_probe.live.borrow().expect("mounted owner signal");
+                        let current_focus_owner = move || focus_live.read().clone();
+                        let scheduled_probe = focus_probe.clone();
+                        queue_owner_focus(
+                            alive.clone(),
+                            expected,
+                            current_focus_owner,
+                            move || {
+                                scheduled_probe
+                                    .focus_count
+                                    .set(scheduled_probe.focus_count.get() + 1);
+                            },
+                            move |frame| {
+                                scheduled_probe.frame_effects.borrow_mut().push(frame);
+                            },
+                        );
+                        probe.effects.borrow_mut().push(FitAction::FocusInspector);
+                    }
+                }
+            },
+        );
         let on_schedule = use_callback({
             let probe = probe.clone();
             move |_: ()| {
-                let expected = probe.expected.clone();
-                let fit_probe = probe.clone();
-                let fit_alive = alive.clone();
-                probe.fit_effects.borrow_mut().push(Box::new(move || {
-                    if !fit_alive.get() {
-                        return;
+                let request = request(keycaps_fit::FindingNavigationTarget::Part {
+                    board_id: "left".into(),
+                    part_id: "part-a".into(),
+                });
+                let target = request.target.clone();
+                let effects = route_effects(
+                    &request,
+                    &target,
+                    Some(objects::TreeContext::Component {
+                        part_id: Some("part-a".into()),
+                        matrix_id: None,
+                        row: None,
+                        column: None,
+                        assembly_id: None,
+                    }),
+                    probe.expected.generation,
+                )
+                .expect("mounted route fixture is valid");
+                let mut pending = probe.pending.borrow().expect("mounted pending fit");
+                dispatch_route(effects, &request, |action| {
+                    if let RouteAction::QueueLayoutFit(fit) = &action {
+                        pending.set(Some(fit.clone()));
                     }
-                    let owner_signal = fit_probe.live.borrow().expect("mounted owner signal");
-                    let current_owner = move || owner_signal.read().clone();
-                    let frame_probe = fit_probe.clone();
-                    let frame_alive = fit_alive.clone();
-                    let focus_expected = expected.clone();
-                    apply_destination_fit(
-                        &expected,
-                        current_owner,
-                        (-100.0, 100.0, -60.0, 60.0),
-                        (20.0, 40.0, 10.0, 30.0),
-                        (900.0, 600.0),
-                        move |effect| match effect {
-                            FitAction::SetCamera(fit) => {
-                                frame_probe
-                                    .effects
-                                    .borrow_mut()
-                                    .push(FitAction::SetCamera(fit));
-                            }
-                            FitAction::FocusInspector => {
-                                let focus_probe = frame_probe.clone();
-                                let focus_signal =
-                                    focus_probe.live.borrow().expect("mounted owner signal");
-                                let current_focus_owner = move || focus_signal.read().clone();
-                                let scheduled_probe = focus_probe.clone();
-                                queue_owner_focus(
-                                    frame_alive.clone(),
-                                    focus_expected.clone(),
-                                    current_focus_owner,
-                                    move || {
-                                        scheduled_probe
-                                            .focus_count
-                                            .set(scheduled_probe.focus_count.get() + 1);
-                                    },
-                                    move |frame| {
-                                        scheduled_probe.frame_effects.borrow_mut().push(frame);
-                                    },
-                                );
-                                frame_probe
-                                    .effects
-                                    .borrow_mut()
-                                    .push(FitAction::FocusInspector);
-                            }
-                        },
-                    );
-                }));
+                    probe.route_actions.borrow_mut().push(action);
+                });
             }
         });
         *probe.schedule.borrow_mut() = Some(on_schedule);
@@ -474,8 +679,9 @@ mod tests {
             expected: owner,
             live: Rc::default(),
             schedule: Rc::default(),
-            fit_effects: Rc::default(),
+            pending: Rc::default(),
             frame_effects: Rc::default(),
+            route_actions: Rc::default(),
             effects: Rc::default(),
             focus_count: Rc::new(Cell::new(0)),
         };
@@ -626,6 +832,34 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
+    fn active_case_layer_replaces_retained_body_as_inspector_owner() {
+        let body_request = request(keycaps_fit::FindingNavigationTarget::Body {
+            board_id: "left".into(),
+            body_id: "body-a".into(),
+        });
+        let body_owner =
+            owner_for_request(&body_request, Destination::CaseBody("body-a".into()), 4);
+        let layer_request = request(keycaps_fit::FindingNavigationTarget::MechanicalLayer {
+            board_id: "left".into(),
+            layer_id: "generated/plate".into(),
+        });
+        let layer_owner = owner_for_request(
+            &layer_request,
+            Destination::CaseLayer("generated/plate".into()),
+            4,
+        );
+        let live_layer = LiveNavigationOwner {
+            destinations: active_case_destination("generated/plate", Some("body-a"))
+                .into_iter()
+                .collect(),
+            ..live(&layer_owner)
+        };
+
+        assert!(!navigation_owner_is_current(&body_owner, &live_layer));
+        assert!(navigation_owner_is_current(&layer_owner, &live_layer));
+    }
+
+    #[wasm_bindgen_test]
     fn generated_layer_uses_case_early_route_without_desktop_pin() {
         let target = keycaps_fit::FindingNavigationTarget::MechanicalLayer {
             board_id: "left".into(),
@@ -702,17 +936,17 @@ mod tests {
         };
         probe.live.borrow().unwrap().set(replacement);
         flush(&mut dom);
-        probe.fit_effects.borrow_mut().pop().unwrap()();
         assert!(probe.effects.borrow().is_empty());
         assert!(probe.frame_effects.borrow().is_empty());
+        assert!(probe.pending.borrow().unwrap()().is_none());
     }
 
     #[wasm_bindgen_test]
     fn mounted_delayed_focus_rechecks_same_scope_selection_before_focusing() {
         let owner = owner_fixture();
-        let (probe, dom) = mounted_probe(owner.clone());
+        let (probe, mut dom) = mounted_probe(owner.clone());
         probe.schedule.borrow().as_ref().unwrap().call(());
-        probe.fit_effects.borrow_mut().pop().unwrap()();
+        flush(&mut dom);
         assert!(matches!(probe.effects.borrow()[0], FitAction::SetCamera(_)));
         assert_eq!(probe.effects.borrow()[1], FitAction::FocusInspector);
         assert_eq!(probe.frame_effects.borrow().len(), 1);
@@ -734,16 +968,16 @@ mod tests {
     #[wasm_bindgen_test]
     fn mounted_delayed_focus_runs_for_current_owner_and_stops_after_unmount() {
         let owner = owner_fixture();
-        let (probe, dom) = mounted_probe(owner);
+        let (probe, mut dom) = mounted_probe(owner);
         probe.schedule.borrow().as_ref().unwrap().call(());
-        probe.fit_effects.borrow_mut().pop().unwrap()();
+        flush(&mut dom);
         probe.frame_effects.borrow_mut().pop().unwrap()();
         assert_eq!(probe.focus_count.get(), 1);
 
         // A second queued callback from this mounted owner must stop before reading its scoped
         // live-owner Signal when the component is removed.
         probe.schedule.borrow().as_ref().unwrap().call(());
-        probe.fit_effects.borrow_mut().pop().unwrap()();
+        flush(&mut dom);
         assert_eq!(probe.frame_effects.borrow().len(), 1);
         drop(dom);
         probe.frame_effects.borrow_mut().pop().unwrap()();

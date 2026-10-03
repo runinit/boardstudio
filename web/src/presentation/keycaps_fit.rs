@@ -1060,13 +1060,62 @@ mod tests {
                 board_id: "board".into(),
             },
         };
+        let owner = super::super::keycaps_navigation::OwnerIdentity {
+            scope: &current_source.scope,
+            generation: 4,
+        };
+        let accepted_source = super::super::keycaps_navigation::AcceptedNavigationSource {
+            scope: current_source.scope.clone(),
+            token: current_source.token,
+            revision: current_source.revision,
+            active_board_id: "board".into(),
+        };
+        let admitted = super::super::keycaps_navigation::admit_accepted_request(
+            &request,
+            super::super::keycaps_navigation::NavigationAdmission {
+                current_workspace: "Keycaps",
+                owner,
+                live_scope: Some(&current_source.scope),
+                live_generation: 4,
+                accepted: &accepted_source,
+                fit_state: &accepted,
+                document: &document,
+                live_mechanical_layers: Some(&[]),
+            },
+            |_| None,
+        )
+        .expect("the production admission seam accepts current source and target");
         assert_eq!(
-            accepted_navigation_target(&accepted, &request, &document, &[]),
-            Some(request.target.clone()),
-            "the production owner receives the live target through its admission seam"
+            admitted.target, request.target,
+            "the production admission seam retains the accepted target"
+        );
+        assert_eq!(
+            admitted.owner.destination,
+            super::super::keycaps_navigation::Destination::Layout(
+                super::super::objects::TreeContext::Outline {
+                    board_id: "board".into()
+                }
+            )
         );
 
         let pending = KeycapsFitState::begin(source(2), Some(&accepted));
+        assert!(
+            super::super::keycaps_navigation::admit_accepted_request(
+                &request,
+                super::super::keycaps_navigation::NavigationAdmission {
+                    current_workspace: "Keycaps",
+                    owner,
+                    live_scope: Some(&current_source.scope),
+                    live_generation: 4,
+                    accepted: &accepted_source,
+                    fit_state: &pending,
+                    document: &document,
+                    live_mechanical_layers: Some(&[]),
+                },
+                |_| None,
+            )
+            .is_none()
+        );
         assert_eq!(
             accepted_navigation_target(&pending, &request, &document, &[]),
             None,

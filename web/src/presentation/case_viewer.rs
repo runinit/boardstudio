@@ -43,6 +43,17 @@ impl CaseSelection {
         self.layer.set(Some(LayerSelection { scope, id }));
     }
 
+    pub(super) fn clear_layer_for_scope(mut self, scope: &Scope) {
+        if self
+            .layer
+            .read()
+            .as_ref()
+            .is_some_and(|selection| &selection.scope == scope)
+        {
+            self.layer.set(None);
+        }
+    }
+
     pub(super) fn display_value(self, scope: &Scope) -> CaseDisplay {
         let key = display_key(scope);
         self.display
