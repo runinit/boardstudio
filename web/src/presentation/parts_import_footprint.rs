@@ -20,9 +20,38 @@ pub(crate) struct ImportCapture {
 struct ImportOwner {
     scope: Option<Scope>,
     selection: Option<(Option<Scope>, String)>,
+    session_epoch: boardstudio_application::SessionEpoch,
+    document_id: String,
     view_generation: u64,
     scope_generation: u64,
     workspace: &'static str,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ScopedMessage {
+    owner: ImportOwner,
+    message: String,
+}
+
+impl ImportOwner {
+    fn new(
+        current: &AcceptedSnapshot,
+        scope: Option<Scope>,
+        selection: Option<(Option<Scope>, String)>,
+        view_generation: u64,
+        scope_generation: u64,
+        workspace: &'static str,
+    ) -> Self {
+        Self {
+            scope,
+            selection,
+            session_epoch: current.session_epoch,
+            document_id: current.document.id.clone(),
+            view_generation,
+            scope_generation,
+            workspace,
+        }
+    }
 }
 
 impl ImportCapture {
@@ -48,22 +77,26 @@ impl ImportCapture {
     }
 }
 
-fn capture_matches(
-    capture: &ImportCapture,
-    current: &AcceptedSnapshot,
-    owner: &ImportOwner,
-) -> bool {
+fn owner_matches(capture: &ImportCapture, owner: &ImportOwner) -> bool {
     owner.scope.as_ref() == Some(&capture.scope)
         && owner.selection == capture.selection
-        && current.session_epoch == capture.session_epoch
-        && current.document.id == capture.document_id
-        && current.token == capture.snapshot_token
-        && current.document.revision == capture.revision
+        && owner.session_epoch == capture.session_epoch
+        && owner.document_id == capture.document_id
         && capture.scope.document_id == capture.document_id
         && capture.scope.session_epoch == capture.session_epoch
         && owner.view_generation == capture.view_generation
         && owner.scope_generation == capture.scope_generation
         && owner.workspace == "Parts"
+}
+
+fn capture_matches(
+    capture: &ImportCapture,
+    current: &AcceptedSnapshot,
+    owner: &ImportOwner,
+) -> bool {
+    owner_matches(capture, owner)
+        && current.token == capture.snapshot_token
+        && current.document.revision == capture.revision
 }
 
 fn prepare_import_edit(
@@ -120,14 +153,8 @@ fn accepted_import_is_current(
     current: &AcceptedSnapshot,
     owner: &ImportOwner,
 ) -> bool {
-    owner.scope.as_ref() == Some(&capture.scope)
-        && owner.selection == capture.selection
-        && current.session_epoch == capture.session_epoch
-        && current.document.id == capture.document_id
+    owner_matches(capture, owner)
         && current.document.revision > capture.revision
-        && owner.view_generation == capture.view_generation
-        && owner.scope_generation == capture.scope_generation
-        && owner.workspace == "Parts"
         && current
             .document
             .definitions
@@ -135,9 +162,58 @@ fn accepted_import_is_current(
             .any(|definition| definition.id == capture.definition_id)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::{ImportCapture, ImportOwner, owner_matches};
+    use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
+
+    #[test]
+    fn import_feedback_is_limited_to_the_captured_owner_but_survives_revision_advance() {
+        let scope = Scope {
+            session_epoch: SessionEpoch(4),
+            document_id: "project-1".into(),
+            board_id: "board-1".into(),
+            instance_id: None,
+        };
+        let capture = ImportCapture {
+            scope: scope.clone(),
+            session_epoch: SessionEpoch(4),
+            document_id: "project-1".into(),
+            snapshot_token: SnapshotToken(8),
+            revision: 12,
+            view_generation: 3,
+            scope_generation: 5,
+            selection: Some((Some(scope.clone()), "existing-footprint".into())),
+            definition_id: "imported-1".into(),
+        };
+        let owner = ImportOwner {
+            scope: Some(scope.clone()),
+            selection: capture.selection.clone(),
+            session_epoch: SessionEpoch(4),
+            document_id: "project-1".into(),
+            view_generation: 3,
+            scope_generation: 5,
+            workspace: "Parts",
+        };
+
+        // Persistence may advance the accepted revision before its failure is reported.
+        // Feedback still belongs to this selection as long as the project/view owner holds.
+        assert!(owner_matches(&capture, &owner));
+
+        let replacement_selection = ImportOwner {
+            selection: Some((Some(scope), "replacement-footprint".into())),
+            ..owner
+        };
+        assert!(!owner_matches(&capture, &replacement_selection));
+    }
+}
+
 #[cfg(target_arch = "wasm32")]
 mod ui {
-    use super::{ImportCapture, ImportOwner, accepted_import_is_current, prepare_import_edit};
+    use super::{
+        ImportCapture, ImportOwner, ScopedMessage, accepted_import_is_current, owner_matches,
+        prepare_import_edit,
+    };
     use crate::{operation_outcomes::OutcomeSlot, runtime::Runtime};
     use boardstudio_application::{AcceptedSnapshot, Scope, TerminalOutcome};
     use dioxus::prelude::*;
@@ -156,6 +232,37 @@ mod ui {
         outcome: Option<OutcomeSlot>,
     }
 
+    fn current_owner(
+        runtime: &Runtime,
+        selected: Signal<Option<(Option<Scope>, String)>>,
+        view_generation: Signal<u64>,
+        scope_generation: Signal<u64>,
+        workspace: Signal<&'static str>,
+    ) -> Option<ImportOwner> {
+        let snapshot = runtime.model().accepted?;
+        Some(ImportOwner::new(
+            &snapshot,
+            runtime.scope(),
+            selected(),
+            view_generation(),
+            scope_generation(),
+            workspace(),
+        ))
+    }
+
+    fn publish_message(
+        target: &mut Signal<Option<ScopedMessage>>,
+        owner: Option<ImportOwner>,
+        message: impl Into<String>,
+    ) {
+        if let Some(owner) = owner {
+            target.set(Some(ScopedMessage {
+                owner,
+                message: message.into(),
+            }));
+        }
+    }
+
     /// The upload action stays mounted independently from catalogue success/loading state.
     #[component]
     pub(crate) fn ImportKiCadFootprintAction(
@@ -170,8 +277,8 @@ mod ui {
         let runtime = use_context::<Rc<Runtime>>();
         let version = use_context::<Signal<u64>>();
         let pending = use_signal(|| None::<PendingImport>);
-        let mut error = use_signal(|| None::<String>);
-        let mut notice = use_signal(|| None::<String>);
+        let mut error = use_signal(|| None::<ScopedMessage>);
+        let mut notice = use_signal(|| None::<ScopedMessage>);
         let owner_is_mounted = use_hook(|| Rc::new(Cell::new(true)));
         let request_epoch = use_hook(|| Rc::new(Cell::new(0_u64)));
         use_drop({
@@ -204,37 +311,42 @@ mod ui {
                 if !owner_is_mounted.get() {
                     return;
                 }
+                let model = runtime.model();
+                let Some(snapshot) = model.accepted.as_ref() else {
+                    return;
+                };
+                let owner = ImportOwner::new(
+                    snapshot,
+                    runtime.scope(),
+                    selected(),
+                    view_generation(),
+                    scope_generation(),
+                    workspace(),
+                );
+                if !owner_matches(&waiting.capture, &owner) {
+                    return;
+                }
                 match outcome {
                     TerminalOutcome::Completed => {}
                     TerminalOutcome::Rejected(reason)
                     | TerminalOutcome::PersistenceFailed(reason)
                     | TerminalOutcome::BlockedByRecovery(reason)
                     | TerminalOutcome::ExecutorFailed(reason) => {
-                        error.set(Some(reason));
+                        publish_message(&mut error, Some(owner), reason);
                         return;
                     }
                     TerminalOutcome::Cancelled => {
-                        error.set(Some("The KiCad footprint edit was cancelled.".into()));
+                        publish_message(
+                            &mut error,
+                            Some(owner),
+                            "The KiCad footprint edit was cancelled.",
+                        );
                         return;
                     }
                     TerminalOutcome::Closed | TerminalOutcome::Superseded => return,
                 }
 
-                let model = runtime.model();
-                let Some(snapshot) = model.accepted.as_ref() else {
-                    return;
-                };
-                if !accepted_import_is_current(
-                    &waiting.capture,
-                    snapshot,
-                    &ImportOwner {
-                        scope: runtime.scope(),
-                        selection: selected(),
-                        view_generation: view_generation(),
-                        scope_generation: scope_generation(),
-                        workspace: workspace(),
-                    },
-                ) {
+                if !accepted_import_is_current(&waiting.capture, snapshot, &owner) {
                     return;
                 }
                 selected.set(Some((
@@ -243,10 +355,17 @@ mod ui {
                 )));
                 query.set(String::new());
                 error.set(None);
-                notice
-                    .set((!waiting.diagnostics.is_empty()).then(|| {
-                        format!("Imported with notes: {}", waiting.diagnostics.join(" "))
-                    }));
+                notice.set((!waiting.diagnostics.is_empty()).then(|| ScopedMessage {
+                    owner: ImportOwner::new(
+                        snapshot,
+                        runtime.scope(),
+                        selected(),
+                        view_generation(),
+                        scope_generation(),
+                        workspace(),
+                    ),
+                    message: format!("Imported with notes: {}", waiting.diagnostics.join(" ")),
+                }));
                 on_select.call(());
             }
         }));
@@ -288,7 +407,17 @@ mod ui {
                 error.set(None);
                 notice.set(None);
                 if !file.name().to_lowercase().ends_with(".kicad_mod") {
-                    error.set(Some("Select a .kicad_mod footprint.".into()));
+                    publish_message(
+                        &mut error,
+                        current_owner(
+                            &runtime,
+                            selected,
+                            view_generation,
+                            scope_generation,
+                            workspace,
+                        ),
+                        "Select a .kicad_mod footprint.",
+                    );
                     return;
                 }
                 if pending.read().is_some() || !owner_is_mounted.get() || workspace() != "Parts" {
@@ -297,26 +426,43 @@ mod ui {
 
                 let model = runtime.model();
                 let Some(snapshot) = model.accepted.as_ref().cloned() else {
-                    error.set(Some("Open a keyboard before importing a footprint.".into()));
                     return;
                 };
                 let Some(current_scope) = runtime.scope() else {
-                    error.set(Some("The active keyboard scope is unavailable.".into()));
                     return;
                 };
                 if scope.as_ref() != Some(&current_scope)
                     || snapshot.document.id != current_scope.document_id
                     || snapshot.session_epoch != current_scope.session_epoch
                 {
-                    error.set(Some(
-                        "The active Parts project changed. Choose the file again.".into(),
-                    ));
+                    publish_message(
+                        &mut error,
+                        Some(ImportOwner::new(
+                            &snapshot,
+                            Some(current_scope),
+                            selected(),
+                            view_generation(),
+                            scope_generation(),
+                            workspace(),
+                        )),
+                        "The active Parts project changed. Choose the file again.",
+                    );
                     return;
                 }
                 let definition_id = match unique_definition_id(&snapshot) {
                     Ok(id) => id,
                     Err(message) => {
-                        error.set(Some(message));
+                        publish_message(
+                            &mut error,
+                            current_owner(
+                                &runtime,
+                                selected,
+                                view_generation,
+                                scope_generation,
+                                workspace,
+                            ),
+                            message,
+                        );
                         return;
                     }
                 };
@@ -346,18 +492,29 @@ mod ui {
                 let scope = scope.clone();
                 spawn_local(async move {
                     let still_owned = || owner_is_mounted.get() && request_epoch.get() == epoch;
+                    let feedback_is_current = || {
+                        current_owner(
+                            &runtime,
+                            selected,
+                            view_generation,
+                            scope_generation,
+                            workspace,
+                        )
+                        .is_some_and(|owner| owner_matches(&capture, &owner))
+                    };
                     let source_is_current = || {
                         runtime.model().accepted.as_ref().is_some_and(|current| {
                             super::capture_matches(
                                 &capture,
                                 current,
-                                &ImportOwner {
-                                    scope: runtime.scope(),
-                                    selection: selected(),
-                                    view_generation: view_generation(),
-                                    scope_generation: scope_generation(),
-                                    workspace: workspace(),
-                                },
+                                &ImportOwner::new(
+                                    current,
+                                    runtime.scope(),
+                                    selected(),
+                                    view_generation(),
+                                    scope_generation(),
+                                    workspace(),
+                                ),
                             )
                         })
                     };
@@ -367,9 +524,19 @@ mod ui {
                             None => {
                                 if still_owned() {
                                     pending.set(None);
-                                    error.set(Some(
-                                        "The selected footprint could not be read as text.".into(),
-                                    ));
+                                    if feedback_is_current() {
+                                        publish_message(
+                                            &mut error,
+                                            current_owner(
+                                                &runtime,
+                                                selected,
+                                                view_generation,
+                                                scope_generation,
+                                                workspace,
+                                            ),
+                                            "The selected footprint could not be read as text.",
+                                        );
+                                    }
                                 }
                                 return;
                             }
@@ -377,9 +544,19 @@ mod ui {
                         Err(cause) => {
                             if still_owned() {
                                 pending.set(None);
-                                error.set(Some(format!(
-                                    "Could not read the selected footprint: {cause:?}"
-                                )));
+                                if feedback_is_current() {
+                                    publish_message(
+                                        &mut error,
+                                        current_owner(
+                                            &runtime,
+                                            selected,
+                                            view_generation,
+                                            scope_generation,
+                                            workspace,
+                                        ),
+                                        format!("Could not read the selected footprint: {cause:?}"),
+                                    );
+                                }
                             }
                             return;
                         }
@@ -389,7 +566,19 @@ mod ui {
                     }
                     if !source_is_current() {
                         pending.set(None);
-                        error.set(Some("The Parts project or selection changed during file reading. Choose the file again.".into()));
+                        if feedback_is_current() {
+                            publish_message(
+                                &mut error,
+                                current_owner(
+                                    &runtime,
+                                    selected,
+                                    view_generation,
+                                    scope_generation,
+                                    workspace,
+                                ),
+                                "The Parts project or selection changed during file reading. Choose the file again.",
+                            );
+                        }
                         return;
                     }
                     let request_id = format!("parts-import-footprint-{}", runtime.operation().0);
@@ -401,11 +590,19 @@ mod ui {
                         Err(message) => {
                             if still_owned() {
                                 pending.set(None);
-                                error.set(Some(if source_is_current() {
-                                    message
-                                } else {
-                                    "The Parts project or selection changed during import. Choose the file again.".into()
-                                }));
+                                if feedback_is_current() {
+                                    publish_message(
+                                        &mut error,
+                                        current_owner(
+                                            &runtime,
+                                            selected,
+                                            view_generation,
+                                            scope_generation,
+                                            workspace,
+                                        ),
+                                        message,
+                                    );
+                                }
                             }
                             return;
                         }
@@ -415,13 +612,24 @@ mod ui {
                     }
                     if !source_is_current() {
                         pending.set(None);
-                        error.set(Some("The Parts project or selection changed during import. Choose the file again.".into()));
+                        if feedback_is_current() {
+                            publish_message(
+                                &mut error,
+                                current_owner(
+                                    &runtime,
+                                    selected,
+                                    view_generation,
+                                    scope_generation,
+                                    workspace,
+                                ),
+                                "The Parts project or selection changed during import. Choose the file again.",
+                            );
+                        }
                         return;
                     }
                     let current = runtime.model().accepted;
                     let Some(current) = current else {
                         pending.set(None);
-                        error.set(Some("The accepted keyboard closed during import.".into()));
                         return;
                     };
                     let diagnostics = compiled
@@ -431,13 +639,14 @@ mod ui {
                         .collect::<Vec<_>>();
                     let event = match prepare_import_edit(
                         &current,
-                        &ImportOwner {
-                            scope: runtime.scope(),
-                            selection: selected(),
-                            view_generation: view_generation(),
-                            scope_generation: scope_generation(),
-                            workspace: workspace(),
-                        },
+                        &ImportOwner::new(
+                            &current,
+                            runtime.scope(),
+                            selected(),
+                            view_generation(),
+                            scope_generation(),
+                            workspace(),
+                        ),
                         &capture,
                         compiled,
                         runtime.operation(),
@@ -445,16 +654,37 @@ mod ui {
                         Ok(event) => event,
                         Err(message) => {
                             pending.set(None);
-                            error.set(Some(format!("{message} Choose the file again.")));
+                            if feedback_is_current() {
+                                publish_message(
+                                    &mut error,
+                                    current_owner(
+                                        &runtime,
+                                        selected,
+                                        view_generation,
+                                        scope_generation,
+                                        workspace,
+                                    ),
+                                    format!("{message} Choose the file again."),
+                                );
+                            }
                             return;
                         }
                     };
                     if scope.as_ref() != runtime.scope().as_ref() || !still_owned() {
                         pending.set(None);
-                        error.set(Some(
-                            "The Parts project changed during import. Choose the file again."
-                                .into(),
-                        ));
+                        if feedback_is_current() {
+                            publish_message(
+                                &mut error,
+                                current_owner(
+                                    &runtime,
+                                    selected,
+                                    view_generation,
+                                    scope_generation,
+                                    workspace,
+                                ),
+                                "The Parts project changed during import. Choose the file again.",
+                            );
+                        }
                         return;
                     }
                     let operation_id = match &event {
@@ -474,6 +704,19 @@ mod ui {
         };
 
         let busy = pending.read().is_some();
+        let current_owner = current_owner(
+            &runtime,
+            selected,
+            view_generation,
+            scope_generation,
+            workspace,
+        );
+        let visible_error = error()
+            .filter(|feedback| current_owner.as_ref() == Some(&feedback.owner))
+            .map(|feedback| feedback.message);
+        let visible_notice = notice()
+            .filter(|feedback| current_owner.as_ref() == Some(&feedback.owner))
+            .map(|feedback| feedback.message);
         rsx! {
             div { class: "m1-parts-import-control",
                 label {
@@ -493,10 +736,10 @@ mod ui {
                     if waiting.outcome.is_none() { button { type: "button", onclick: cancel, "Cancel import" } }
                 }
             }
-            if let Some(message) = error() {
+            if let Some(message) = visible_error {
                 p { class: "m1-parts-load-error", role: "alert", "{message}" }
             }
-            if let Some(message) = notice() {
+            if let Some(message) = visible_notice {
                 p { class: "m1-parts-import-notice", role: "status", "{message}" }
             }
         }
