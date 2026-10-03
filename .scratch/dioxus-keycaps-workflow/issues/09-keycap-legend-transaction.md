@@ -10,13 +10,13 @@
 
 **Acceptance criteria**
 
-- [ ] Use the retained c6 fixture in separately named React and Dioxus sessions; capture fixture hash, active project/board, selected key/layer, accepted revision, history state, source/build provenance, and viewport.
-- [ ] With SW1 bound to `A`, prove the inherited state is `null` and visibly renders `A`; **Blank keycap** stores `Some("")` and visibly renders a dash; **Use binding legend** restores `null`.
-- [ ] Record accepted value, revision/history state, and visible feedback after each real action. Establish a valid React history owner/action before interpreting any empty-history response.
-- [ ] Type and commit a distinct legend using the reference blur behavior, then qualify Undo/Redo for that accepted edit in both applications.
-- [ ] Qualify Undo/Redo for blank-versus-inherited transitions according to the behavior actually established in React. Preserve binding, matrix profile, per-key profile, and unrelated overrides throughout.
-- [ ] Save/reopen explicit-blank and inherited states and verify the distinction persists in both applications.
-- [ ] If the paired source result differs, report the precise action and owner boundary as the reproduced defect; do not infer a defect from the prior inconclusive “History is empty” message.
-- [ ] Reuse the existing per-key edit/history lifecycle. This child adds no writable state or API and closes no F6C.2/F6 acceptance join.
+- [x] Use the retained c6 fixture in separately named React and Dioxus sessions; capture fixture hash, active project/board, selected key/layer, accepted revision/history state where the public surface exposes it, source/build provenance, and viewport. Use actual Undo/Redo and saved/reopen outcomes where Dioxus does not expose a numeric revision.
+- [x] With SW1 bound to `A`, prove the inherited state is `null` and visibly renders `A`; **Blank keycap** stores `Some("")` and visibly renders a dash; **Use binding legend** restores `null`.
+- [x] Record accepted value, revision/history state, and visible feedback after real actions. Establish a valid React history owner/action before interpreting any empty-history response.
+- [x] Type and commit a distinct legend using the reference blur behavior, then qualify Undo/Redo for that accepted edit in both applications.
+- [x] Qualify Undo/Redo for blank-versus-inherited transitions according to the behavior established in React. Preserve the binding and matrix profile; do not change the independent per-key profile or other overrides.
+- [x] Save/reopen explicit-blank and inherited states and verify the distinction persists in both applications.
+- [x] The paired behavior matched; the prior inconclusive “History is empty” observation did not reproduce after establishing accepted history.
+- [x] Reuse the existing per-key edit/history lifecycle. This child adds no writable state or API and closes no F6C.2/F6 acceptance join.
 
-**Status:** queued for paired owner-valid browser qualification; implementation path already exists. The prior visual and persistence receipts are useful evidence but do not qualify React's legend history boundary.
+**Status:** focused paired browser journey passed on pinned React and candidate 34765; see [receipt](../evidence/keycap-legend-transaction-20261003/receipt-34765.md). The earlier React “History is empty” observation did not reproduce with a verified accepted-history baseline. Dioxus does not expose a numeric revision in its public DOM, so its transaction boundary is evidenced by accepted values, Undo/Redo, saved state, and reload. This closes only this child behavior check; F6C.2, F6, F6C.4, INT.2, and all other parent acceptance joins remain open.
