@@ -23,6 +23,14 @@ pub(super) struct Context {
     pub(super) neighbor: Option<Vec2>,
 }
 
+#[derive(Clone, Copy)]
+pub(super) struct Options {
+    pub(super) grid: Vec2,
+    pub(super) tolerance: f64,
+    pub(super) enabled: bool,
+    pub(super) free: bool,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct Origin {
     pub(super) reference: String,
@@ -135,36 +143,32 @@ fn landmarks(candidates: &mut Vec<Guide>, point: Vec2, excluded: Option<Vec2>) {
 
 /// Screen-distance acquisition/release avoids zoom-dependent magnetic strength.
 /// Kept in step with `app/src/ui/outlineSnapping.ts` at the pinned reference.
-#[allow(clippy::too_many_arguments)]
 pub(super) fn snap_outline_point(
     point: Vec2,
     context: Context,
     paths: &[Vec<Vec2>],
-    grid: Vec2,
-    tolerance: f64,
-    enabled: bool,
-    free: bool,
+    options: Options,
     previous: Option<&Snap>,
 ) -> Snap {
-    if free {
+    if options.free {
         return Snap {
             at: point,
             guides: Vec::new(),
         };
     }
     let mut at = Vec2 {
-        x: if grid.x > 0.0 {
-            rounded((point.x / grid.x).round() * grid.x)
+        x: if options.grid.x > 0.0 {
+            rounded((point.x / options.grid.x).round() * options.grid.x)
         } else {
             point.x
         },
-        y: if grid.y > 0.0 {
-            rounded((point.y / grid.y).round() * grid.y)
+        y: if options.grid.y > 0.0 {
+            rounded((point.y / options.grid.y).round() * options.grid.y)
         } else {
             point.y
         },
     };
-    if !enabled {
+    if !options.enabled {
         return Snap {
             at,
             guides: Vec::new(),
@@ -191,7 +195,7 @@ pub(super) fn snap_outline_point(
                 continue;
             }
             let t = ((point.x - a.x) * dx + (point.y - a.y) * dy) / length;
-            if (0.0..=1.0).contains(&t) && distance(a, b) > tolerance * 2.0 {
+            if (0.0..=1.0).contains(&t) && distance(a, b) > options.tolerance * 2.0 {
                 add(&mut candidates, a, Vec2 { x: dx, y: dy }, "On edge");
             }
             if let Some(anchor) = context.anchor {
@@ -263,7 +267,8 @@ pub(super) fn snap_outline_point(
             let d = distance(point, projected);
             let held = previous
                 .is_some_and(|last| last.guides.iter().any(|candidate| candidate.id == guide.id));
-            (d <= tolerance * if held { 1.8 } else { 1.0 }).then_some((guide, projected, d, held))
+            (d <= options.tolerance * if held { 1.8 } else { 1.0 })
+                .then_some((guide, projected, d, held))
         })
         .collect::<Vec<_>>();
     ranked.sort_by(|a, b| b.3.cmp(&a.3).then_with(|| a.2.total_cmp(&b.2)));
@@ -295,7 +300,7 @@ pub(super) fn snap_outline_point(
             x: first.from.x + t * first.direction.x,
             y: first.from.y + t * first.direction.y,
         };
-        if distance(intersection, point) <= tolerance * 2.6 {
+        if distance(intersection, point) <= options.tolerance * 2.6 {
             at = intersection;
             guides.push(second.clone());
         }

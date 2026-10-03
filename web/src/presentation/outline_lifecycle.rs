@@ -321,6 +321,15 @@ impl OutlineAction {
     pub(super) fn is_current(&self, runtime: &Runtime, generation: u64) -> bool {
         let (scope, token, revision, captured_generation, board_id) = self.envelope();
         let model = runtime.model();
+        let perimeter_edit = matches!(
+            self,
+            OutlineAction::EditPerimeter {
+                phase: EditPhase::Preview | EditPhase::Commit,
+                ..
+            }
+        );
+        let lifecycle_current = model.lifecycle == Lifecycle::Ready
+            || (perimeter_edit && model.lifecycle == Lifecycle::Applying);
         generation == captured_generation
             && runtime.scope().as_ref() == Some(scope)
             && model.accepted.as_ref().is_some_and(|snapshot| {
@@ -330,7 +339,7 @@ impl OutlineAction {
                     && snapshot.session_epoch == scope.session_epoch
             })
             && scope.board_id == *board_id
-            && model.lifecycle == Lifecycle::Ready
+            && lifecycle_current
             && model.durability == (Durability::Saved { revision })
             && (model.display_preview.is_none()
                 || matches!(
@@ -1639,13 +1648,25 @@ struct PointDrag {
     points: Vec<Vec2>,
     pending: Vec<Vec2>,
     preview_points: Vec<Vec2>,
+    original_world: Vec2,
     target: OutlinePointTarget,
     anchor: Option<PerimeterAnchor>,
     action_context: Rc<OutlineActionContext>,
     transaction_id: String,
     capture: SvgElement,
     snap: Option<crate::presentation::outline_snapping::Snap>,
+    preview_submitted: bool,
     moved: bool,
+}
+
+#[derive(Clone)]
+struct PointSnapInputs {
+    paths: Vec<Vec<Vec2>>,
+    origins: Rc<Vec<crate::presentation::outline_snapping::Origin>>,
+    grid: Vec2,
+    geometry_snap: bool,
+    svg: Rc<RefCell<Option<SvgElement>>>,
+    width: f64,
 }
 
 #[derive(Clone)]
@@ -1693,7 +1714,7 @@ pub(super) fn OutlinePointCanvasOverlay(
             if active.capture.has_pointer_capture(active.pointer_id) {
                 let _ = active.capture.release_pointer_capture(active.pointer_id);
             }
-            if active.moved {
+            if active.preview_submitted {
                 drop_runtime.submit(Event::ClearPreview {
                     operation_id: drop_runtime.operation(),
                     token,
@@ -1726,33 +1747,26 @@ pub(super) fn OutlinePointCanvasOverlay(
     let grid = outline_grid(snap_settings.snap_fraction, pitch);
     let geometry_snap = snap_settings.geometry_snap;
     let enabled = projection.enabled;
+    let snap_inputs = PointSnapInputs {
+        paths: snap_paths.clone(),
+        origins: origins.clone(),
+        grid,
+        geometry_snap,
+        svg: svg.clone(),
+        width,
+    };
 
     let finish_drag = {
         let drag = drag.clone();
         let runtime = runtime.0.clone();
-        let svg = svg.clone();
         let arbiter = arbiter.clone();
-        let origins = origins.clone();
-        let snap_paths = snap_paths.clone();
+        let snap_inputs = snap_inputs.clone();
         move |commit: bool, final_at: Option<Vec2>, free: bool| {
             let Some(mut active) = drag.borrow_mut().take() else {
                 return;
             };
             if let Some(at) = final_at {
-                apply_point_sample(
-                    &mut active,
-                    at,
-                    &snap_paths,
-                    &origins,
-                    grid,
-                    geometry_snap,
-                    &svg,
-                    view_x,
-                    view_y,
-                    width,
-                    height,
-                    free,
-                );
+                apply_point_sample(&mut active, at, &snap_inputs, free);
             }
             preview.set(None);
             guides.set(None);
@@ -1760,23 +1774,21 @@ pub(super) fn OutlinePointCanvasOverlay(
             if active.capture.has_pointer_capture(active.pointer_id) {
                 let _ = active.capture.release_pointer_capture(active.pointer_id);
             }
-            if active.moved {
-                if commit {
-                    on_action.call(active.action_context.edit_perimeter(
-                        active.target,
-                        active.pending,
-                        EditPhase::Commit,
-                        active.transaction_id,
-                    ));
-                } else {
-                    runtime.submit(Event::ClearPreview {
-                        operation_id: runtime.operation(),
-                        token,
-                        revision,
-                        board_id: clear_board_id.clone(),
-                        transaction_id: active.transaction_id,
-                    });
-                }
+            if commit && active.moved {
+                on_action.call(active.action_context.edit_perimeter(
+                    active.target,
+                    active.pending,
+                    EditPhase::Commit,
+                    active.transaction_id,
+                ));
+            } else if active.preview_submitted {
+                runtime.submit(Event::ClearPreview {
+                    operation_id: runtime.operation(),
+                    token,
+                    revision,
+                    board_id: clear_board_id.clone(),
+                    transaction_id: active.transaction_id,
+                });
             }
         }
     };
@@ -1836,10 +1848,8 @@ pub(super) fn OutlinePointCanvasOverlay(
                     let point_points = saved_points.clone();
                     let point_canvas_points = canvas_points.clone();
                     let point_anchor = anchor;
-                    let point_paths = snap_paths.clone();
-                    let point_origins = origins.clone();
+                    let point_snap_inputs = snap_inputs.clone();
                     let point_svg = svg.clone();
-                    let point_snap = snap_settings.clone();
                     let mut point_selected = selected_point;
                     let point_id = format!("outline-point-{index}");
                     let point_label = format!("Outline point {}", index + 1);
@@ -1860,9 +1870,7 @@ pub(super) fn OutlinePointCanvasOverlay(
                     let down_context = point_context.clone();
                     let move_drag = point_drag.clone();
                     let move_svg = point_svg.clone();
-                    let move_paths = point_paths.clone();
-                    let move_origins = point_origins.clone();
-                    let move_snap = point_snap;
+                    let move_snap_inputs = point_snap_inputs.clone();
                     let mut move_preview = point_preview;
                     let mut move_guides = point_guides;
                     let move_action = point_action;
@@ -1888,17 +1896,21 @@ pub(super) fn OutlinePointCanvasOverlay(
                             onfocus: move |_| point_selected.set(index),
                             onpointerdown: move |event: PointerEvent| {
                                 let Some(pointer) = event.data().try_as_web_event() else { return; };
+                                pointer.stop_propagation();
                                 if !enabled || pointer.button() != 0 || !down_arbiter.try_acquire(CanvasInteractionOwner::OutlinePerimeter) { return; }
-                                let Some(capture) = pointer.current_target().and_then(|target| target.dyn_into::<SvgElement>().ok()) else { down_arbiter.release(CanvasInteractionOwner::OutlinePerimeter); return; };
-                                pointer.prevent_default(); pointer.stop_propagation();
+                                let Some(capture) = pointer.target().and_then(|target| target.dyn_into::<SvgElement>().ok()).filter(|target| target.get_attribute("class").is_some_and(|classes| classes.split_whitespace().any(|class| class == "m1-outline-point-handle"))) else { down_arbiter.release(CanvasInteractionOwner::OutlinePerimeter); return; };
+                                if capture.set_pointer_capture(pointer.pointer_id()).is_err() || !capture.has_pointer_capture(pointer.pointer_id()) {
+                                    down_arbiter.release(CanvasInteractionOwner::OutlinePerimeter);
+                                    return;
+                                }
+                                pointer.prevent_default();
                                 down_selected.set(index);
-                                let _ = capture.set_pointer_capture(pointer.pointer_id());
                                 let transaction_id = format!("outline-drag-{}", down_runtime.operation().0);
                                 *down_drag.borrow_mut() = Some(PointDrag {
                                     pointer_id: pointer.pointer_id(), point_index: index,
-                                    points: down_points.clone(), pending: down_points.clone(), preview_points: down_canvas_points.clone(),
+                                    points: down_points.clone(), pending: down_points.clone(), preview_points: down_canvas_points.clone(), original_world: down_canvas_points[index],
                                     target: down_target.clone(), anchor: point_anchor, action_context: down_context.clone(), transaction_id,
-                                    capture, snap: None, moved: false,
+                                    capture, snap: None, preview_submitted: false, moved: false,
                                 });
                             },
                             onpointermove: move |event: PointerEvent| {
@@ -1907,13 +1919,16 @@ pub(super) fn OutlinePointCanvasOverlay(
                                 let Some(active) = active.as_mut().filter(|active| active.pointer_id == pointer.pointer_id()) else { return; };
                                 pointer.stop_propagation();
                                 let Some(at) = super::coordinates(&move_svg, &pointer, view_x, view_y, width, height) else { return; };
-                                apply_point_sample(active, at, &move_paths, &move_origins, outline_grid(move_snap.snap_fraction, pitch), move_snap.geometry_snap, &move_svg, view_x, view_y, width, height, pointer.alt_key());
+                                apply_point_sample(active, at, &move_snap_inputs, pointer.alt_key());
                                 let preview_world = active.preview_points.clone();
                                 let pending = active.pending.clone();
                                 let context = active.action_context.clone();
                                 let target = active.target.clone();
                                 let transaction = active.transaction_id.clone();
                                 let changed = active.moved;
+                                if changed {
+                                    active.preview_submitted = true;
+                                }
                                 let snap = active.snap.clone();
                                 let _ = active;
                                 move_preview.set(Some(preview_world)); move_guides.set(snap);
@@ -1982,52 +1997,40 @@ fn outline_grid(fraction: f64, pitch: Vec2) -> Vec2 {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn apply_point_sample(
-    drag: &mut PointDrag,
-    world: Vec2,
-    paths: &[Vec<Vec2>],
-    origins: &[crate::presentation::outline_snapping::Origin],
-    grid: Vec2,
-    geometry_snap: bool,
-    svg: &Rc<RefCell<Option<SvgElement>>>,
-    _view_x: f64,
-    _view_y: f64,
-    width: f64,
-    _height: f64,
-    free: bool,
-) {
+fn apply_point_sample(drag: &mut PointDrag, world: Vec2, inputs: &PointSnapInputs, free: bool) {
     let count = drag.points.len();
     let index = drag.point_index;
-    let original_world = drag.preview_points[index];
     let context = crate::presentation::outline_snapping::Context {
         anchor: Some(drag.preview_points[(index + count - 1) % count]),
-        previous: Some(original_world),
-        exclude: Some(original_world),
+        previous: Some(drag.original_world),
+        exclude: Some(drag.original_world),
         neighbor: Some(drag.preview_points[(index + 1) % count]),
     };
-    let pixel_width = svg
+    let pixel_width = inputs
+        .svg
         .borrow()
         .as_ref()
         .map(|surface| surface.get_bounding_client_rect().width())
         .unwrap_or(1.0)
         .max(1.0);
-    let tolerance = width / pixel_width * 7.0;
+    let tolerance = inputs.width / pixel_width * 7.0;
     let mut result = crate::presentation::outline_snapping::snap_outline_point(
         world,
         context,
-        paths,
-        grid,
-        tolerance,
-        geometry_snap,
-        free,
+        &inputs.paths,
+        crate::presentation::outline_snapping::Options {
+            grid: inputs.grid,
+            tolerance,
+            enabled: inputs.geometry_snap,
+            free,
+        },
         drag.snap.as_ref(),
     );
     if !free
-        && geometry_snap
+        && inputs.geometry_snap
         && result.guides.is_empty()
         && let Some((at, _)) =
-            crate::presentation::outline_snapping::snap_origin(world, origins, tolerance)
+            crate::presentation::outline_snapping::snap_origin(world, &inputs.origins, tolerance)
     {
         result.at = at;
     }
