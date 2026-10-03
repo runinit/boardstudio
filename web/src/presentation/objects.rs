@@ -264,7 +264,7 @@ pub(super) fn Objects(
         .as_ref()
         .and_then(|selected| matrix_id_for_context(&selected.context));
     let selected_matrix_action = current_context.as_ref().and_then(|selected| {
-        let matrix_id = selected_matrix_id.as_deref()?;
+        let matrix_id = selected_matrix_id?;
         let matrix = document
             .matrices
             .iter()
@@ -283,7 +283,7 @@ pub(super) fn Objects(
             }),
         ))
     });
-    let selected_layout_target = selected_matrix_id.as_deref().and_then(|matrix_id| {
+    let selected_layout_target = selected_matrix_id.and_then(|matrix_id| {
         document
             .layouts
             .iter()
