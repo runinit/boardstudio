@@ -55,6 +55,7 @@ mod selection;
 mod setup_guide;
 mod shared_viewer;
 mod workspace_composition;
+mod workbench_shortcuts;
 mod zmk_firmware_export;
 
 use crate::case_generation_lifecycle::AutomaticCaseGeneration;
@@ -594,6 +595,12 @@ pub fn App() -> Element {
         link { rel: "stylesheet", href: "assets/m1.css" }
         link { rel: "stylesheet", href: "assets/firmware-keymap-panel.css" }
         main { class: "m1-workbench",
+            onkeydown: {
+                let runtime = runtime.clone();
+                move |event: KeyboardEvent| {
+                    workbench_shortcuts::handle_history_shortcut(runtime.clone(), event);
+                }
+            },
             header { class: "m1-topbar",
                 details { class: "m1-project-menu", onkeydown: move |event: KeyboardEvent| {
                     if event.data().key().to_string() == "Escape" {
