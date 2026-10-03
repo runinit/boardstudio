@@ -2693,9 +2693,9 @@ fn Editor() -> Element {
         generation: render_generation,
         workspace: active_workspace,
     };
-    use_effect(use_reactive!((&active_workspace,), {
+    use_effect(use_reactive((&active_workspace,), {
         let mut active_tool = layout_transform_tool;
-        move |_| {
+        move |(active_workspace,)| {
             if active_workspace != "Layout" {
                 active_tool.set(None);
             }
@@ -5062,10 +5062,10 @@ fn Editor() -> Element {
         active_workspace,
         layout_assembly_3d(),
     );
-    use_effect(use_reactive!((&transform_tool_owner,), {
+    use_effect(use_reactive((&transform_tool_owner,), {
         let mut owner_state = layout_transform_tool_owner;
         let mut active_tool = layout_transform_tool;
-        move |_| {
+        move |(transform_tool_owner,)| {
             if owner_state()
                 .as_ref()
                 .is_some_and(|previous| previous != &transform_tool_owner)
@@ -7681,7 +7681,6 @@ fn Editor() -> Element {
                             && let Some(tool) = layout_transform_tool()
                             && let Some((matrix, projection, context)) = layout_transform_target.clone()
                         {
-                            let mut active_tool = layout_transform_tool;
                             objects::LayoutTransformToolOverlay {
                                 runtime: objects::LayoutTransformRuntime(runtime.clone()),
                                 svg: objects::LayoutTransformSvg(svg.clone()),
@@ -7701,7 +7700,7 @@ fn Editor() -> Element {
                                 view_y,
                                 width,
                                 height,
-                                on_finish: EventHandler::new(move |_| active_tool.set(None)),
+                                on_finish: EventHandler::new(move |_| layout_transform_tool.set(None)),
                             }
                         }
                         if let Some(placement) = part_placement.projection.as_ref() {

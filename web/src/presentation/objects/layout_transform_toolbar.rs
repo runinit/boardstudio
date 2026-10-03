@@ -138,10 +138,10 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
     let runtime_for_owner = runtime.0.clone();
     let arbiter_for_owner = arbiter.clone();
     let mut guide_for_owner = snap_guide;
-    use_effect(use_reactive!(
+    use_effect(use_reactive(
         (&active_owner, &active_context, &active_tool),
         {
-            move |_| {
+            move |(active_owner, active_context, active_tool)| {
                 if drag_for_owner.borrow().as_ref().is_some_and(|active| {
                     active.owner != active_owner
                         || active.context != active_context
@@ -155,7 +155,7 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
                     );
                 }
             }
-        }
+        },
     ));
 
     let (handle_point, handle_scale, selected_column) = {
