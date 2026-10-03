@@ -1,0 +1,25 @@
+# PCB Apply current plan / Core lock planning review
+
+Independent Sol6.1 High, both Standards and Spec,2026-10-02. Exact frozen docs ec9804f7fa8e90988bb7b73ef83e9882957ce328 in pcb-wiring-mode-apply-20261002, source baseline57829464369f40556c57e2de7520e7109950793b. No reviewer source edits, implementation, public acceptance or new tests.
+
+Standards: HOLD on unsupported source-to-defect accounting in Issue09/audit/RF handoff. Spec: HOLD on the same concrete false premise across the packet. The bounded UI route itself has no additional architectural finding in this review; correction does not create a Core/full-parent dependency.
+
+P2: persisted saved-lock loss is not established and the source contradicts it. core/src/lib.rs ApplyElectrical reconstructs a request with empty request.locks, but electrical::resolve core/src/electrical.rs:1001–1005 first clones config.locks from the exact selected board's persisted configuration, then extends with request.locks and module connection locks. Empty request.locks leaves that saved map intact. The fingerprint hashes assignments, but saved-lock assignments remain locked in both resolutions, so the audit's claimed unchanged-input fingerprint mismatch does not follow.
+
+The cited resolver_scopes_board_and_honors_controller_and_locks test passes row/0=P1 directly in ElectricalPlanRequest.locks. It does not demonstrate a persisted config lock. Request-only overrides absent from the authoritative document are a distinct input class, and authoritative Apply re-resolution may correctly reject them. Do not rename that case a saved-lock bug or prescribe a failing red for a behavior the source already implements.
+
+Withdraw the unsupported defect/fix requirement from Core Issue09, audit, F5.2d spec and readable/machine RF claim. A bounded direct Apply test with persisted selected-board locks and second-board same-key isolation is useful characterization coverage: expect green on current source, preserve actual observed results, and change implementation only if a separately evidenced defect appears. The author acknowledged this correction and is preserving ec9804 as historical evidence while freezing a replacement packet. Source-audit inference was explicitly unexecuted in the original receipt; that honesty is retained, but does not make its incorrect conclusion usable.
+
+Positive boundary assessment: existing public Core electrical::materialize delegates to non-draft materialize_reviewed, checks exact revision, blocking diagnostics, board/pad eligibility, scopes removal of generated electrical nets to the target board, synchronizes terminal parameters and projects assignments/mode/controller. A private Editor owner may call this existing helper synchronously on a clone of its exact immutable current Core plan's accepted document, then submit one strict-base-revision ReplaceDocument through existing Session/outcome ownership. No algorithm copy, optimistic accepted state, public API/schema widening or new history authority is required. Revalidate actual plan board/revision/mode and accepted UI/plan/token/generation/worker identity; retain existing manual/protected diagnostics as blocking, exact terminal feedback and old-plan invalidation. This can start after a corrected exact packet is cleared using already callable mode/source/plan/edit capabilities; no full F5.1/F5.2/F5.3 or independently invented Core bug completion wait.
+
+React WiringPanel uses Apply wiring in the board action group; useElectricalPlanning.applyWiring currently resolves again then issues ApplyElectrical. The proposed Dioxus direct current-plan materializer is an explicit private implementation-route difference preserving the existing accepted user outcome, not a claim of identical request routing or a remedy for the unsupported lock defect. Required production-owner/currentness/error and paired exact mode/result/Undo/Redo/save-reopen/other-board preservation gates remain. All62 canonical parent dependencies/statuses/acceptance joins remain unchanged. Preserve RF-001/RF-006/RF-009 with truthful source facts; no new confirmed lock defect RF is established.
+
+| Exact artifact | SHA-256 |
+| --- | --- |
+| `.scratch/dioxus-pcb-view/drafts/F5.2d-apply-current-board-wiring.md` | `c300b948a49e4fa1c59094daebb95909a34e8416133b1df4d223645a284aceac` |
+| `.scratch/dioxus-pcb-view/drafts/tickets/09-core-apply-electrical-honors-saved-locks.md` | `b9986a89298fb146c632a4e069aa515100f99ada85cab250991614d9d8f23156` |
+| `.scratch/dioxus-pcb-view/drafts/tickets/10-apply-current-board-wiring.md` | `63667a984f46f2671063e4c0a4472fecd2faca4b0e4e25464b0426d110d065a7` |
+| `.scratch/dioxus-pcb-view/evidence/apply-current-plan-20261002/core-apply-lock-audit.md` | `dbf06f10141f2fed3201b75d574e6614bc210842089af001a9831e513008939a` |
+| `core/src/lib.rs` | `aa99802bfa8464ca4aa0481b46e3873960b5d4a155e4cdbcec4a367b499f66c8` |
+| `core/src/electrical.rs` | `51c733b17d38d58a4d473d880fecc80ab76b9ce9c395007c6c3aff46973c1404` |
+| `core/tests/electrical_wiring.rs` | `0b7318409e4ce759d9afe92a1143f0ccf46ff8a0889a78c78ad8a9a45dae5f83` |
