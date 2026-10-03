@@ -19,4 +19,6 @@
 
 **Parent acceptance:** F3.2's full matrix/component workflow remains the acceptance scope. Canonical F3.1 start and F3.2/F3.7 relations are unchanged; this ticket neither closes F3.2 nor F3.3/F6C.3.
 
+**Structural browser receipt:** [Candidate 34760 Right PCB duplicate context](../evidence/f32d-matrix-settings-20261003/structural-context-candidate34760.md).
+
 **Suggested routing:** Luna High author and separate Luna verifier; Astra independent Spec/Standards review.
