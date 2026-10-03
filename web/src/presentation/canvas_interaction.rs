@@ -8,11 +8,18 @@ use std::{cell::Cell, rc::Rc};
 pub(super) enum CanvasInteractionOwner {
     MirroredPair,
     PartPlacement,
+    OutlinePerimeter,
 }
 
 #[derive(Clone, Default)]
 pub(super) struct CanvasInteractionArbiter {
     owner: Rc<Cell<Option<CanvasInteractionOwner>>>,
+}
+
+impl PartialEq for CanvasInteractionArbiter {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.owner, &other.owner)
+    }
 }
 
 impl CanvasInteractionArbiter {

@@ -1,3 +1,4 @@
+use super::canvas_interaction::{CanvasInteractionArbiter, CanvasInteractionOwner};
 use crate::outline_settings::{
     OutlineEdit, OutlineExpectation, apply_outline_edit, expectation_applied, generated_feature,
     generated_margin, generated_settings,
@@ -8,12 +9,14 @@ use boardstudio_application::{
 };
 use boardstudio_core::model::{
     Contour, CornerStyle, EditCommand, EditOperation, EditPhase, Operation, OutlineContourEdit,
-    OutlineFeature, OutlineGap, OutlineRepairSettings, OutlineSettings, Vec2,
+    OutlineFeature, OutlineGap, OutlineRepairSettings, OutlineSettings, Side, Vec2,
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
+use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
+use web_sys::SvgElement;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum OutlineAction {
@@ -59,6 +62,8 @@ pub(super) enum OutlineAction {
         context: super::objects::TreeContext,
         target: OutlinePointTarget,
         points: Vec<Vec2>,
+        phase: EditPhase,
+        transaction_id: String,
     },
 }
 
@@ -79,6 +84,36 @@ pub(super) enum OutlinePointTarget {
 struct EditablePerimeter {
     target: OutlinePointTarget,
     points: Vec<Vec2>,
+    canvas_points: Vec<Vec2>,
+    anchor: Option<PerimeterAnchor>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct PerimeterAnchor {
+    at: Vec2,
+    rotation: f64,
+    back: bool,
+}
+
+impl PerimeterAnchor {
+    fn world(self, point: Vec2) -> Vec2 {
+        let x = point.x * if self.back { -1.0 } else { 1.0 };
+        let (sin, cos) = self.rotation.to_radians().sin_cos();
+        Vec2 {
+            x: self.at.x + x * cos - point.y * sin,
+            y: self.at.y + x * sin + point.y * cos,
+        }
+    }
+
+    fn local(self, point: Vec2) -> Vec2 {
+        let (sin, cos) = (-self.rotation).to_radians().sin_cos();
+        let x = point.x - self.at.x;
+        let y = point.y - self.at.y;
+        Vec2 {
+            x: (x * cos - y * sin) * if self.back { -1.0 } else { 1.0 },
+            y: x * sin + y * cos,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -109,6 +144,8 @@ struct Pending {
 struct ActionState {
     pending: Signal<Option<Pending>>,
     feedback: Signal<Option<OutlineFeedback>>,
+    selected_point: Signal<usize>,
+    editing_points: Signal<bool>,
     selected_context: Signal<Option<super::objects::ScopedTreeContext>>,
     workspace: Signal<&'static str>,
     scope_generation: Signal<u64>,
@@ -117,7 +154,7 @@ struct ActionState {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct OutlineFeedback {
-    pub(super) scope: Scope,
+    scope: Scope,
     pub(super) generation: u64,
     pub(super) board_id: String,
     pub(super) state: &'static str,
@@ -132,6 +169,9 @@ pub(super) struct OutlineInspectorProjection {
     pub(super) active_version_id: Option<String>,
     pub(super) contours: Vec<Contour>,
     perimeter: Option<EditablePerimeter>,
+    snap_paths: Vec<Vec<Vec2>>,
+    pub(super) selected_point: Signal<usize>,
+    pub(super) editing_points: Signal<bool>,
     pub(super) versions: Vec<OutlineVersionChoice>,
     pub(super) settings: OutlineSettings,
     pub(super) repair: OutlineRepairSettings,
@@ -142,10 +182,24 @@ pub(super) struct OutlineInspectorProjection {
     pub(super) enabled: bool,
     pub(super) feedback: Option<OutlineFeedback>,
     pub(super) on_action: EventHandler<OutlineAction>,
-    scope: Scope,
+    pub(super) scope: Scope,
     token: boardstudio_application::SnapshotToken,
     revision: u64,
     generation: u64,
+}
+
+impl OutlineInspectorProjection {
+    pub(super) fn canvas_edit_key(&self) -> String {
+        format!(
+            "{:?}-{}-{:?}-{}-{}-{}",
+            self.scope,
+            self.board_id,
+            self.active_version_id,
+            self.token.0,
+            self.revision,
+            self.generation
+        )
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -183,7 +237,13 @@ impl OutlineActionContext {
         }
     }
 
-    fn edit_perimeter(&self, target: OutlinePointTarget, points: Vec<Vec2>) -> OutlineAction {
+    fn edit_perimeter(
+        &self,
+        target: OutlinePointTarget,
+        points: Vec<Vec2>,
+        phase: EditPhase,
+        transaction_id: String,
+    ) -> OutlineAction {
         OutlineAction::EditPerimeter {
             scope: self.scope.clone(),
             token: self.token,
@@ -193,6 +253,8 @@ impl OutlineActionContext {
             context: self.selection_context.clone(),
             target,
             points,
+            phase,
+            transaction_id,
         }
     }
 }
@@ -270,7 +332,14 @@ impl OutlineAction {
             && scope.board_id == *board_id
             && model.lifecycle == Lifecycle::Ready
             && model.durability == (Durability::Saved { revision })
-            && model.display_preview.is_none()
+            && (model.display_preview.is_none()
+                || matches!(
+                    self,
+                    OutlineAction::EditPerimeter {
+                        phase: EditPhase::Preview | EditPhase::Commit,
+                        ..
+                    }
+                ))
             && model.gesture.is_none()
     }
 
@@ -313,9 +382,13 @@ pub(super) fn use_outline_lifecycle(
     let captured_generation = scope_generation();
     let pending = use_signal(|| None::<Pending>);
     let feedback = use_signal(|| None::<OutlineFeedback>);
+    let selected_point = use_signal(|| 0usize);
+    let editing_points = use_signal(|| false);
     let action_state = ActionState {
         pending,
         feedback,
+        selected_point,
+        editing_points,
         selected_context,
         workspace,
         scope_generation,
@@ -513,6 +586,8 @@ fn project_inspector(
     let ActionState {
         pending,
         feedback,
+        selected_point,
+        editing_points,
         selected_context,
         workspace,
         scope_generation,
@@ -604,6 +679,19 @@ fn project_inspector(
         .find(|board| board.board_id == board_id)
         .map_or_else(Vec::new, |board| board.contours.clone());
     let perimeter = editable_perimeter(snapshot, &board_id, active_version_id.as_deref());
+    let snap_paths = snapshot
+        .scene
+        .board_outline_scenes
+        .iter()
+        .find(|scene| scene.board_id == board_id)
+        .map(|scene| {
+            scene
+                .source_contours
+                .iter()
+                .map(|contour| contour.points.clone())
+                .collect()
+        })
+        .unwrap_or_default();
     let editable = model.durability
         == Durability::Saved {
             revision: snapshot.document.revision,
@@ -639,6 +727,9 @@ fn project_inspector(
         active_version_id,
         contours,
         perimeter,
+        snap_paths,
+        selected_point,
+        editing_points,
         versions,
         settings,
         repair,
@@ -698,6 +789,28 @@ fn editable_perimeter(
                 operation: *operation,
             },
             points: points.clone(),
+            canvas_points: points
+                .iter()
+                .map(|point| {
+                    anchor_part_id
+                        .as_deref()
+                        .and_then(|id| snapshot.document.parts.iter().find(|part| part.id == id))
+                        .map(|part| PerimeterAnchor {
+                            at: part.pose.at,
+                            rotation: part.pose.rotation,
+                            back: part.side == Side::Back,
+                        })
+                        .map_or(*point, |anchor| anchor.world(*point))
+                })
+                .collect(),
+            anchor: anchor_part_id
+                .as_deref()
+                .and_then(|id| snapshot.document.parts.iter().find(|part| part.id == id))
+                .map(|part| PerimeterAnchor {
+                    at: part.pose.at,
+                    rotation: part.pose.rotation,
+                    back: part.side == Side::Back,
+                }),
         });
     }
 
@@ -711,6 +824,8 @@ fn editable_perimeter(
     Some(EditablePerimeter {
         target: OutlinePointTarget::Generated { contour: 0 },
         points: source.points.clone(),
+        canvas_points: source.points.clone(),
+        anchor: None,
     })
 }
 
@@ -1006,6 +1121,30 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
             }
         }
     };
+    let (phase, transaction_id) = match &action {
+        OutlineAction::EditPerimeter {
+            phase,
+            transaction_id,
+            ..
+        } => (*phase, transaction_id.clone()),
+        _ => (
+            EditPhase::Commit,
+            format!("outline-lifecycle-{}", operation_id.0),
+        ),
+    };
+    if phase == EditPhase::Preview {
+        runtime.submit(Event::Edit {
+            operation_id,
+            command: EditCommand {
+                base_revision: expected_revision,
+                transaction_id,
+                phase,
+                target_ids,
+                operation,
+            },
+        });
+        return;
+    }
     let outcome = runtime.observe_operation(operation_id);
     pending.set(Some(Pending {
         scope: action_scope.clone(),
@@ -1025,8 +1164,8 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
         operation_id,
         command: EditCommand {
             base_revision: expected_revision,
-            transaction_id: format!("outline-lifecycle-{}", operation_id.0),
-            phase: EditPhase::Commit,
+            transaction_id,
+            phase,
             target_ids,
             operation,
         },
@@ -1073,8 +1212,8 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
     let copy_handler = projection.on_action;
     let delete_handler = projection.on_action;
     let mut version_name = use_signal(|| None::<(String, String, String)>);
-    let mut perimeter_open = use_signal(|| false);
-    let mut selected_point = use_signal(|| 0usize);
+    let mut perimeter_open = projection.editing_points;
+    let mut selected_point = projection.selected_point;
     let name_draft = version_name()
         .filter(|(id, baseline, _)| {
             Some(id) == projection.active_version_id.as_ref()
@@ -1103,7 +1242,7 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
         .unwrap_or_default();
     let point = perimeter
         .as_ref()
-        .and_then(|perimeter| perimeter.points.get(point_index).copied())
+        .and_then(|perimeter| perimeter.canvas_points.get(point_index).copied())
         .unwrap_or(Vec2 { x: 0.0, y: 0.0 });
     let point_count = perimeter
         .as_ref()
@@ -1129,9 +1268,14 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
                                 let action_context = action_context.clone();
                                 let target = perimeter.target.clone();
                                 let mut points = perimeter.points.clone();
+                                let world_points = perimeter.canvas_points.clone();
+                                let anchor = perimeter.anchor;
                                 move |value| {
-                                    if let Some(point) = points.get_mut(point_index) { point.x = value; }
-                                    on_action.call(action_context.edit_perimeter(target.clone(), points.clone()));
+                                    if let (Some(point), Some(world)) = (points.get_mut(point_index), world_points.get(point_index)) {
+                                        let next = Vec2 { x: value, y: world.y };
+                                        *point = anchor.map_or(next, |anchor| anchor.local(next));
+                                    }
+                                    on_action.call(action_context.edit_perimeter(target.clone(), points.clone(), EditPhase::Commit, format!("outline-point-{}-{point_index}", action_context.revision)));
                                 }
                             },
                         }
@@ -1144,9 +1288,14 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
                                 let action_context = action_context.clone();
                                 let target = perimeter.target.clone();
                                 let mut points = perimeter.points.clone();
+                                let world_points = perimeter.canvas_points.clone();
+                                let anchor = perimeter.anchor;
                                 move |value| {
-                                    if let Some(point) = points.get_mut(point_index) { point.y = value; }
-                                    on_action.call(action_context.edit_perimeter(target.clone(), points.clone()));
+                                    if let (Some(point), Some(world)) = (points.get_mut(point_index), world_points.get(point_index)) {
+                                        let next = Vec2 { x: world.x, y: value };
+                                        *point = anchor.map_or(next, |anchor| anchor.local(next));
+                                    }
+                                    on_action.call(action_context.edit_perimeter(target.clone(), points.clone(), EditPhase::Commit, format!("outline-point-{}-{point_index}", action_context.revision)));
                                 }
                             },
                         }
@@ -1168,7 +1317,7 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
                                     let b = points[next];
                                     points.insert(point_index + 1, Vec2 { x: (a.x + b.x) / 2.0, y: (a.y + b.y) / 2.0 });
                                     selected_point.set(point_index + 1);
-                                    on_action.call(action_context.edit_perimeter(target.clone(), points.clone()));
+                                    on_action.call(action_context.edit_perimeter(target.clone(), points.clone(), EditPhase::Commit, format!("outline-point-{}-{point_index}", action_context.revision)));
                                 }
                             },
                             "Insert after"
@@ -1187,7 +1336,7 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
                                     if point_count <= 3 { return; }
                                     points.remove(point_index);
                                     selected_point.set(point_index.saturating_sub(1));
-                                    on_action.call(action_context.edit_perimeter(target.clone(), points.clone()));
+                                        on_action.call(action_context.edit_perimeter(target.clone(), points.clone(), EditPhase::Commit, format!("outline-point-{}-{point_index}", action_context.revision)));
                                 }
                             },
                             "Remove point"
@@ -1197,7 +1346,7 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
                         div { class: "m1-outline-point-columns", aria_hidden: "true",
                             span { "Point" } span { "X · mm" } span { "Y · mm" }
                         }
-                        for (index, point) in perimeter.points.iter().enumerate() {
+                        for (index, point) in perimeter.canvas_points.iter().enumerate() {
                             button {
                                 key: "outline-point-{index}",
                                 r#type: "button",
@@ -1481,6 +1630,417 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
         }
         }
     }
+}
+
+#[derive(Clone)]
+struct PointDrag {
+    pointer_id: i32,
+    point_index: usize,
+    points: Vec<Vec2>,
+    pending: Vec<Vec2>,
+    preview_points: Vec<Vec2>,
+    target: OutlinePointTarget,
+    anchor: Option<PerimeterAnchor>,
+    action_context: Rc<OutlineActionContext>,
+    transaction_id: String,
+    capture: SvgElement,
+    snap: Option<crate::presentation::outline_snapping::Snap>,
+    moved: bool,
+}
+
+#[derive(Clone)]
+pub(super) struct OutlineRuntimeHandle(Rc<Runtime>);
+
+impl OutlineRuntimeHandle {
+    pub(super) fn new(runtime: Rc<Runtime>) -> Self {
+        Self(runtime)
+    }
+}
+
+impl PartialEq for OutlineRuntimeHandle {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+#[component]
+pub(super) fn OutlinePointCanvasOverlay(
+    projection: OutlineInspectorProjection,
+    runtime: OutlineRuntimeHandle,
+    arbiter: CanvasInteractionArbiter,
+    svg: Rc<RefCell<Option<SvgElement>>>,
+    view_x: f64,
+    view_y: f64,
+    width: f64,
+    height: f64,
+    snap_settings: super::objects::LayoutSnapSettings,
+    pitch: Vec2,
+    origins: Vec<crate::presentation::outline_snapping::Origin>,
+) -> Element {
+    let drag = use_hook(|| Rc::new(RefCell::new(None::<PointDrag>)));
+    let mut preview = use_signal(|| None::<Vec<Vec2>>);
+    let mut guides = use_signal(|| None::<crate::presentation::outline_snapping::Snap>);
+    let token = projection.token;
+    let revision = projection.revision;
+    let clear_board_id = projection.board_id.clone();
+    let drop_drag = drag.clone();
+    let drop_runtime = runtime.0.clone();
+    let drop_arbiter = arbiter.clone();
+    let drop_board_id = clear_board_id.clone();
+    use_drop(move || {
+        if let Some(active) = drop_drag.borrow_mut().take() {
+            drop_arbiter.release(CanvasInteractionOwner::OutlinePerimeter);
+            if active.capture.has_pointer_capture(active.pointer_id) {
+                let _ = active.capture.release_pointer_capture(active.pointer_id);
+            }
+            if active.moved {
+                drop_runtime.submit(Event::ClearPreview {
+                    operation_id: drop_runtime.operation(),
+                    token,
+                    revision,
+                    board_id: drop_board_id,
+                    transaction_id: active.transaction_id,
+                });
+            }
+        }
+    });
+    let Some(perimeter) = projection
+        .perimeter
+        .as_ref()
+        .filter(|_| (projection.editing_points)())
+    else {
+        return rsx! {};
+    };
+    if perimeter.canvas_points.len() < 3 {
+        return rsx! {};
+    }
+    let on_action = projection.on_action;
+    let action_context = projection.action_context.clone();
+    let selected_point = projection.selected_point;
+    let saved_points = perimeter.points.clone();
+    let canvas_points = perimeter.canvas_points.clone();
+    let target = perimeter.target.clone();
+    let anchor = perimeter.anchor;
+    let snap_paths = projection.snap_paths.clone();
+    let origins = Rc::new(origins);
+    let grid = outline_grid(snap_settings.snap_fraction, pitch);
+    let geometry_snap = snap_settings.geometry_snap;
+    let enabled = projection.enabled;
+
+    let finish_drag = {
+        let drag = drag.clone();
+        let runtime = runtime.0.clone();
+        let svg = svg.clone();
+        let arbiter = arbiter.clone();
+        let origins = origins.clone();
+        let snap_paths = snap_paths.clone();
+        move |commit: bool, final_at: Option<Vec2>, free: bool| {
+            let Some(mut active) = drag.borrow_mut().take() else {
+                return;
+            };
+            if let Some(at) = final_at {
+                apply_point_sample(
+                    &mut active,
+                    at,
+                    &snap_paths,
+                    &origins,
+                    grid,
+                    geometry_snap,
+                    &svg,
+                    view_x,
+                    view_y,
+                    width,
+                    height,
+                    free,
+                );
+            }
+            preview.set(None);
+            guides.set(None);
+            arbiter.release(CanvasInteractionOwner::OutlinePerimeter);
+            if active.capture.has_pointer_capture(active.pointer_id) {
+                let _ = active.capture.release_pointer_capture(active.pointer_id);
+            }
+            if active.moved {
+                if commit {
+                    on_action.call(active.action_context.edit_perimeter(
+                        active.target,
+                        active.pending,
+                        EditPhase::Commit,
+                        active.transaction_id,
+                    ));
+                } else {
+                    runtime.submit(Event::ClearPreview {
+                        operation_id: runtime.operation(),
+                        token,
+                        revision,
+                        board_id: clear_board_id.clone(),
+                        transaction_id: active.transaction_id,
+                    });
+                }
+            }
+        }
+    };
+
+    let rendered_points = preview().unwrap_or(canvas_points.clone());
+    let screen_width = svg
+        .borrow()
+        .as_ref()
+        .map(|surface| surface.get_bounding_client_rect().width())
+        .filter(|value| *value > 0.0)
+        .unwrap_or(800.0);
+    let handle_radius = width / screen_width * 12.0;
+    let rendered_point_string = rendered_points
+        .iter()
+        .chain(rendered_points.first())
+        .map(|point| format!("{},{}", point.x, point.y))
+        .collect::<Vec<_>>()
+        .join(" ");
+    rsx! {
+        g { class: "m1-outline-point-controls", "aria-label": "Outline perimeter points",
+            if let Some(snap) = guides().as_ref().filter(|snap| !snap.guides.is_empty()) {
+                g { class: "m1-outline-snap-guides", "aria-label": "Outline alignment guides",
+                    for (index, guide) in snap.guides.iter().enumerate() {
+                        line {
+                            key: "guide-{index}-{guide.id}",
+                            class: "m1-outline-snap-guide",
+                            x1: "{guide.from.x - guide.direction.x * width * 2.0}",
+                            y1: "{guide.from.y - guide.direction.y * width * 2.0}",
+                            x2: "{guide.from.x + guide.direction.x * width * 2.0}",
+                            y2: "{guide.from.y + guide.direction.y * width * 2.0}",
+                            "data-guide": "{guide.label}"
+                        }
+                        text {
+                            class: "m1-outline-snap-label",
+                            transform: "translate({snap.at.x - handle_radius} {snap.at.y - handle_radius * (2.0 + index as f64)}) scale(1,-1)",
+                            text_anchor: "end",
+                            "{guide.label}"
+                        }
+                    }
+                }
+            }
+            polyline {
+                class: "m1-outline-control-path",
+                points: "{rendered_point_string}",
+            }
+            for (index, point) in rendered_points.iter().copied().enumerate() {
+                {
+                    let is_selected = selected_point() == index;
+                    let point_drag = drag.clone();
+                    let point_preview = preview;
+                    let point_guides = guides;
+                    let point_action = on_action;
+                    let point_context = action_context.clone();
+                    let point_runtime = runtime.0.clone();
+                    let point_arbiter = arbiter.clone();
+                    let point_target = target.clone();
+                    let point_points = saved_points.clone();
+                    let point_canvas_points = canvas_points.clone();
+                    let point_anchor = anchor;
+                    let point_paths = snap_paths.clone();
+                    let point_origins = origins.clone();
+                    let point_svg = svg.clone();
+                    let point_snap = snap_settings.clone();
+                    let mut point_selected = selected_point;
+                    let point_id = format!("outline-point-{index}");
+                    let point_label = format!("Outline point {}", index + 1);
+                    let point_x = point.x;
+                    let point_y = point.y;
+                    let point_commit = finish_drag.clone();
+                    let mut pointerup_commit = point_commit.clone();
+                    let mut key_commit = point_commit.clone();
+                    let mut cancel_commit = point_commit.clone();
+                    let mut lost_capture_commit = point_commit.clone();
+                    let down_drag = point_drag.clone();
+                    let down_arbiter = point_arbiter.clone();
+                    let mut down_selected = point_selected;
+                    let down_runtime = point_runtime.clone();
+                    let down_points = point_points.clone();
+                    let down_canvas_points = point_canvas_points.clone();
+                    let down_target = point_target.clone();
+                    let down_context = point_context.clone();
+                    let move_drag = point_drag.clone();
+                    let move_svg = point_svg.clone();
+                    let move_paths = point_paths.clone();
+                    let move_origins = point_origins.clone();
+                    let move_snap = point_snap;
+                    let mut move_preview = point_preview;
+                    let mut move_guides = point_guides;
+                    let move_action = point_action;
+                    let up_drag = point_drag.clone();
+                    let up_svg = point_svg.clone();
+                    let key_drag = point_drag.clone();
+                    let key_points = point_points.clone();
+                    let key_anchor = point_anchor;
+                    let key_context = point_context.clone();
+                    let key_target = point_target.clone();
+                    let key_runtime = point_runtime.clone();
+                    let mut key_selected = point_selected;
+                    let key_action = point_action;
+                    rsx! {
+                        circle {
+                            key: "{point_id}",
+                            class: if is_selected { "m1-outline-point-handle is-selected" } else { "m1-outline-point-handle" },
+                            role: "button",
+                            tabindex: "0",
+                            "aria-label": "{point_label}",
+                            "aria-pressed": "{is_selected}",
+                            cx: "{point_x}", cy: "{point_y}", r: "{handle_radius}",
+                            onfocus: move |_| point_selected.set(index),
+                            onpointerdown: move |event: PointerEvent| {
+                                let Some(pointer) = event.data().try_as_web_event() else { return; };
+                                if !enabled || pointer.button() != 0 || !down_arbiter.try_acquire(CanvasInteractionOwner::OutlinePerimeter) { return; }
+                                let Some(capture) = pointer.current_target().and_then(|target| target.dyn_into::<SvgElement>().ok()) else { down_arbiter.release(CanvasInteractionOwner::OutlinePerimeter); return; };
+                                pointer.prevent_default(); pointer.stop_propagation();
+                                down_selected.set(index);
+                                let _ = capture.set_pointer_capture(pointer.pointer_id());
+                                let transaction_id = format!("outline-drag-{}", down_runtime.operation().0);
+                                *down_drag.borrow_mut() = Some(PointDrag {
+                                    pointer_id: pointer.pointer_id(), point_index: index,
+                                    points: down_points.clone(), pending: down_points.clone(), preview_points: down_canvas_points.clone(),
+                                    target: down_target.clone(), anchor: point_anchor, action_context: down_context.clone(), transaction_id,
+                                    capture, snap: None, moved: false,
+                                });
+                            },
+                            onpointermove: move |event: PointerEvent| {
+                                let Some(pointer) = event.data().try_as_web_event() else { return; };
+                                let mut active = move_drag.borrow_mut();
+                                let Some(active) = active.as_mut().filter(|active| active.pointer_id == pointer.pointer_id()) else { return; };
+                                pointer.stop_propagation();
+                                let Some(at) = super::coordinates(&move_svg, &pointer, view_x, view_y, width, height) else { return; };
+                                apply_point_sample(active, at, &move_paths, &move_origins, outline_grid(move_snap.snap_fraction, pitch), move_snap.geometry_snap, &move_svg, view_x, view_y, width, height, pointer.alt_key());
+                                let preview_world = active.preview_points.clone();
+                                let pending = active.pending.clone();
+                                let context = active.action_context.clone();
+                                let target = active.target.clone();
+                                let transaction = active.transaction_id.clone();
+                                let changed = active.moved;
+                                let snap = active.snap.clone();
+                                let _ = active;
+                                move_preview.set(Some(preview_world)); move_guides.set(snap);
+                                if changed {
+                                    move_action.call(context.edit_perimeter(target, pending, EditPhase::Preview, transaction));
+                                }
+                            },
+                            onpointerup: move |event: PointerEvent| {
+                                let Some(pointer) = event.data().try_as_web_event() else { return; };
+                                if !up_drag.borrow().as_ref().is_some_and(|drag| drag.pointer_id == pointer.pointer_id()) { return; }
+                                pointer.stop_propagation();
+                                let at = super::coordinates(&up_svg, &pointer, view_x, view_y, width, height);
+                                pointerup_commit(true, at, pointer.alt_key());
+                            },
+                            onpointercancel: move |_| cancel_commit(false, None, false),
+                            onlostpointercapture: move |_| lost_capture_commit(false, None, false),
+                            onkeydown: move |event: KeyboardEvent| {
+                                let Some(key) = event.data().try_as_web_event() else { return; };
+                                if key.key() == "Escape" && key_drag.borrow().is_some() {
+                                    key.prevent_default(); key.stop_propagation(); key_commit(false, None, false); return;
+                                }
+                                if key_drag.borrow().is_some() || !enabled { return; }
+                                let mut points = key_points.clone();
+                                let step_x = grid.x.max(0.1) * if key.shift_key() { 10.0 } else { 1.0 };
+                                let step_y = grid.y.max(0.1) * if key.shift_key() { 10.0 } else { 1.0 };
+                                let world = key_anchor.map_or(Vec2 { x: point_x, y: point_y }, |a| a.world(key_points[index]));
+                                let (dx, dy) = match key.key().as_str() {
+                                    "ArrowLeft" => (-step_x, 0.0), "ArrowRight" => (step_x, 0.0),
+                                    "ArrowUp" => (0.0, step_y), "ArrowDown" => (0.0, -step_y),
+                                    _ if key.key() == "Delete" || key.key() == "Backspace" => {
+                                        key.prevent_default(); key.stop_propagation();
+                                        if points.len() <= 3 { return; }
+                                        points.remove(index); key_selected.set(index.saturating_sub(1));
+                                        key_action.call(key_context.edit_perimeter(key_target.clone(), points, EditPhase::Commit, format!("outline-delete-{}-{}", key_runtime.operation().0, index)));
+                                        return;
+                                    },
+                                    _ => return,
+                                };
+                                key.prevent_default(); key.stop_propagation();
+                                let next = Vec2 { x: world.x + dx, y: world.y + dy };
+                                points[index] = key_anchor.map_or(next, |a| a.local(next));
+                                key_action.call(key_context.edit_perimeter(key_target.clone(), points, EditPhase::Commit, format!("outline-nudge-{}-{}", key_runtime.operation().0, index)));
+                            }
+                        }
+                        text { class: "m1-outline-point-label", x: "{point_x + 2.0}", y: "{point_y + 2.0}", "aria-hidden": "true", "{index + 1}" }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn outline_grid(fraction: f64, pitch: Vec2) -> Vec2 {
+    let spacing = |axis: f64| {
+        if fraction > 0.0 {
+            axis * fraction
+        } else if fraction < 0.0 {
+            -fraction
+        } else {
+            0.0
+        }
+    };
+    Vec2 {
+        x: spacing(pitch.x),
+        y: spacing(pitch.y),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn apply_point_sample(
+    drag: &mut PointDrag,
+    world: Vec2,
+    paths: &[Vec<Vec2>],
+    origins: &[crate::presentation::outline_snapping::Origin],
+    grid: Vec2,
+    geometry_snap: bool,
+    svg: &Rc<RefCell<Option<SvgElement>>>,
+    _view_x: f64,
+    _view_y: f64,
+    width: f64,
+    _height: f64,
+    free: bool,
+) {
+    let count = drag.points.len();
+    let index = drag.point_index;
+    let original_world = drag.preview_points[index];
+    let context = crate::presentation::outline_snapping::Context {
+        anchor: Some(drag.preview_points[(index + count - 1) % count]),
+        previous: Some(original_world),
+        exclude: Some(original_world),
+        neighbor: Some(drag.preview_points[(index + 1) % count]),
+    };
+    let pixel_width = svg
+        .borrow()
+        .as_ref()
+        .map(|surface| surface.get_bounding_client_rect().width())
+        .unwrap_or(1.0)
+        .max(1.0);
+    let tolerance = width / pixel_width * 7.0;
+    let mut result = crate::presentation::outline_snapping::snap_outline_point(
+        world,
+        context,
+        paths,
+        grid,
+        tolerance,
+        geometry_snap,
+        free,
+        drag.snap.as_ref(),
+    );
+    if !free
+        && geometry_snap
+        && result.guides.is_empty()
+        && let Some((at, _)) =
+            crate::presentation::outline_snapping::snap_origin(world, origins, tolerance)
+    {
+        result.at = at;
+    }
+    let mut preview_points = drag.preview_points.clone();
+    preview_points[index] = result.at;
+    let mut pending = drag.points.clone();
+    pending[index] = drag
+        .anchor
+        .map_or(result.at, |anchor| anchor.local(result.at));
+    drag.moved = pending != drag.points;
+    drag.pending = pending;
+    drag.preview_points = preview_points;
+    drag.snap = Some(result);
 }
 
 #[component]

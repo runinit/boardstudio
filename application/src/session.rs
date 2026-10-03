@@ -169,6 +169,14 @@ pub enum Event {
         operation_id: OperationId,
         command: EditCommand,
     },
+    /// Retire a transient Core preview only while its captured accepted source is current.
+    ClearPreview {
+        operation_id: OperationId,
+        token: SnapshotToken,
+        revision: u64,
+        board_id: String,
+        transaction_id: String,
+    },
     /// Explicitly review a protected PCB handoff before starting a remap revision.
     ReviewElectricalRemap {
         operation_id: OperationId,
@@ -367,6 +375,12 @@ pub enum Effect {
 enum IntentKind {
     Open(Box<ProjectDoc>),
     Edit(EditCommand),
+    ClearPreview {
+        token: SnapshotToken,
+        revision: u64,
+        board_id: String,
+        transaction_id: String,
+    },
     ReviewElectricalRemap {
         base_revision: u64,
         board_id: String,
@@ -403,6 +417,8 @@ struct ActiveCore {
     operation_id: OperationId,
     kind: ActiveKind,
     gesture_generation: Option<u64>,
+    preview_transaction_id: Option<String>,
+    preview_cancelled: bool,
 }
 #[derive(Clone, Debug)]
 struct PendingSave {
@@ -440,6 +456,7 @@ pub struct Session {
     model: ReadModel,
     queue: VecDeque<Intent>,
     active_core: Option<ActiveCore>,
+    display_preview_transaction_id: Option<String>,
     pending_save: Option<PendingSave>,
     next_request: u64,
     next_save: u64,
@@ -464,6 +481,7 @@ impl Session {
             model: ReadModel::default(),
             queue: VecDeque::new(),
             active_core: None,
+            display_preview_transaction_id: None,
             pending_save: None,
             next_request: 1,
             next_save: 1,
@@ -565,6 +583,30 @@ impl Session {
                 operation_id,
                 command,
             } => self.enqueue(operation_id, IntentKind::Edit(command), false, &mut effects),
+            Event::ClearPreview {
+                operation_id,
+                token,
+                revision,
+                board_id,
+                transaction_id,
+            } => {
+                if let Some(active) = self.active_core.as_mut().filter(|active| {
+                    active.preview_transaction_id.as_deref() == Some(transaction_id.as_str())
+                }) {
+                    active.preview_cancelled = true;
+                }
+                self.enqueue(
+                    operation_id,
+                    IntentKind::ClearPreview {
+                        token,
+                        revision,
+                        board_id,
+                        transaction_id,
+                    },
+                    false,
+                    &mut effects,
+                )
+            }
             Event::ReviewElectricalRemap {
                 operation_id,
                 base_revision,
@@ -1083,6 +1125,32 @@ impl Session {
                 self.start_export_now(intent.operation_id, scope.clone(), effects);
                 continue;
             }
+            if let IntentKind::ClearPreview {
+                token,
+                revision,
+                board_id,
+                transaction_id,
+            } = &intent.kind
+            {
+                let current = self.model.accepted.as_ref().is_some_and(|snapshot| {
+                    snapshot.token == *token
+                        && snapshot.document.revision == *revision
+                        && self.model.active_board_id == *board_id
+                });
+                if current {
+                    if self.display_preview_transaction_id.as_deref()
+                        == Some(transaction_id.as_str())
+                    {
+                        self.model.display_preview = None;
+                        self.model.snap_guide = None;
+                        self.display_preview_transaction_id = None;
+                    }
+                    self.settle(intent.operation_id, TerminalOutcome::Completed, effects);
+                } else {
+                    self.settle(intent.operation_id, TerminalOutcome::Superseded, effects);
+                }
+                continue;
+            }
             let captured_revision = match &intent.kind {
                 IntentKind::Edit(command)
                 | IntentKind::GesturePreview(command)
@@ -1115,6 +1183,13 @@ impl Session {
             let request_id = RequestId(self.next_request);
             self.next_request += 1;
             let request_wire_id = format!("m1-{}", request_id.0);
+            let preview_transaction_id = match &intent.kind {
+                IntentKind::Edit(command) if command.phase == EditPhase::Preview => {
+                    Some(command.transaction_id.clone())
+                }
+                IntentKind::GesturePreview(command) => Some(command.transaction_id.clone()),
+                _ => None,
+            };
             let (request, kind, gesture_generation) = match intent.kind {
                 IntentKind::Open(document) => (
                     CoreRequest::Open {
@@ -1181,6 +1256,7 @@ impl Session {
                     self.gesture.as_ref().map(|g| g.generation),
                 ),
                 IntentKind::Generate(_) | IntentKind::Export(_) => return,
+                IntentKind::ClearPreview { .. } => return,
                 IntentKind::GestureCommit(mut command) => {
                     if let Some(g) = &self.gesture {
                         command.base_revision = g.base_revision;
@@ -1207,6 +1283,8 @@ impl Session {
                 operation_id: intent.operation_id,
                 kind,
                 gesture_generation,
+                preview_transaction_id,
+                preview_cancelled: false,
             });
             effects.push(Effect::Core {
                 operation_id: intent.operation_id,
@@ -1254,12 +1332,15 @@ impl Session {
         }
         match (active.kind, reply) {
             (ActiveKind::Preview, CoreReply::Preview { scene, .. }) => {
-                if active.gesture_generation.is_none_or(|generation| {
-                    self.gesture
-                        .as_ref()
-                        .is_some_and(|g| g.generation == generation)
-                }) {
+                if !active.preview_cancelled
+                    && active.gesture_generation.is_none_or(|generation| {
+                        self.gesture
+                            .as_ref()
+                            .is_some_and(|g| g.generation == generation)
+                    })
+                {
                     self.model.display_preview = Some(Arc::new(scene));
+                    self.display_preview_transaction_id = active.preview_transaction_id.clone();
                 }
                 if active.gesture_generation.is_none() {
                     self.settle(active.operation_id, TerminalOutcome::Completed, effects);
@@ -1403,6 +1484,7 @@ impl Session {
                     scene: pending.scene.clone(),
                 });
                 self.model.display_preview = None;
+                self.display_preview_transaction_id = None;
                 self.model.durability = Durability::Saved {
                     revision: pending.document.revision,
                 };
@@ -1708,6 +1790,7 @@ impl Session {
             });
             self.model.gesture = None;
             self.model.display_preview = None;
+            self.display_preview_transaction_id = None;
             self.model.snap_guide = None;
             if self.model.lifecycle == Lifecycle::Applying
                 && self
@@ -1883,6 +1966,7 @@ impl Session {
     fn finish_close(&mut self, operation_id: OperationId, effects: &mut Vec<Effect>) {
         self.model.lifecycle = Lifecycle::Closed;
         self.model.display_preview = None;
+        self.display_preview_transaction_id = None;
         self.active_job = None;
         self.settle(operation_id, TerminalOutcome::Completed, effects);
     }
@@ -1911,6 +1995,7 @@ fn event_operation(event: &Event) -> Option<OperationId> {
         | Event::GestureBegin { operation_id, .. }
         | Event::RecoverWithDocument { operation_id, .. }
         | Event::Edit { operation_id, .. }
+        | Event::ClearPreview { operation_id, .. }
         | Event::ReviewElectricalRemap { operation_id, .. }
         | Event::Undo { operation_id }
         | Event::Redo { operation_id }

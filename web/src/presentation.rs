@@ -32,6 +32,7 @@ mod mechanical_settings_mount;
 pub(crate) mod model_delivery;
 mod objects;
 mod outline_lifecycle;
+mod outline_snapping;
 mod panels;
 mod part_placement;
 mod parts;
@@ -1492,6 +1493,9 @@ fn layout_view_mode_handler(
             match canvas_interaction.current() {
                 Some(CanvasInteractionOwner::PartPlacement) => {
                     canvas_interaction.release(CanvasInteractionOwner::PartPlacement);
+                }
+                Some(CanvasInteractionOwner::OutlinePerimeter) => {
+                    canvas_interaction.release(CanvasInteractionOwner::OutlinePerimeter);
                 }
                 Some(CanvasInteractionOwner::MirroredPair) | None => {}
             }
@@ -4676,6 +4680,7 @@ fn Editor() -> Element {
                     }
                     return;
                 }
+                Some(CanvasInteractionOwner::OutlinePerimeter) => return,
                 None => {}
             }
             let pointer_id = event
@@ -5953,7 +5958,7 @@ fn Editor() -> Element {
                 matrix_inspector,
                 key_size,
                 matrix_transform_inspector,
-                outline_inspector: outline_inspector.map(Box::new),
+                outline_inspector: outline_inspector.clone().map(Box::new),
             },
         )),
     };
@@ -6003,6 +6008,60 @@ fn Editor() -> Element {
                     || mirrored_pair.placement.is_some()))
             && !controller_guide_hidden
     });
+    let outline_pitch = {
+        let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &layout_owner);
+        matrix_snap_parameters(&model, &render_scope, &adapter, retained.as_ref())
+            .0
+            .unwrap_or(Vec2 { x: 19.05, y: 19.05 })
+    };
+    let outline_snap_origins = visible
+        .iter()
+        .map(|part| {
+            let definition = definitions.get(part.definition_id.as_str()).copied();
+            let keycap = definition
+                .filter(|definition| definition.kind == PartKind::Switch)
+                .and_then(|definition| part.keycap.or(definition.keycap));
+            let local = if let Some(size) = keycap {
+                vec![
+                    Vec2 {
+                        x: -size.x / 2.0,
+                        y: -size.y / 2.0,
+                    },
+                    Vec2 {
+                        x: size.x / 2.0,
+                        y: -size.y / 2.0,
+                    },
+                    Vec2 {
+                        x: size.x / 2.0,
+                        y: size.y / 2.0,
+                    },
+                    Vec2 {
+                        x: -size.x / 2.0,
+                        y: size.y / 2.0,
+                    },
+                ]
+            } else {
+                definition.map_or_else(Vec::new, |definition| definition.courtyard.clone())
+            };
+            let (sin, cos) = part.pose.rotation.to_radians().sin_cos();
+            let world = local
+                .into_iter()
+                .map(|point| Vec2 {
+                    x: part.pose.at.x + point.x * cos - point.y * sin,
+                    y: part.pose.at.y + point.x * sin + point.y * cos,
+                })
+                .collect();
+            crate::presentation::outline_snapping::Origin {
+                reference: part.reference.clone(),
+                center: part.pose.at,
+                polygon: crate::presentation::outline_snapping::convex_hull(world),
+            }
+        })
+        .collect::<Vec<_>>();
+    let outline_snap_settings = layout_snap_settings.read().clone();
+    let outline_overlay_key = outline_inspector
+        .as_ref()
+        .map(outline_lifecycle::OutlineInspectorProjection::canvas_edit_key);
     let name_value = guide_name_draft()
         .filter(|(project_id, _)| project_id == &document.id)
         .map(|(_, name)| name)
@@ -6211,6 +6270,24 @@ fn Editor() -> Element {
                         if !(layer_visibility.hidden)().contains("Board") {
                             for contour in scene.board_contours.iter().filter(|b| b.board_id == model.active_board_id).flat_map(|b| &b.contours) {
                                 polygon { points: polygon_points(&contour.points), class: if contour.hole { "m1-outline is-hole" } else { "m1-outline" } }
+                            }
+                        }
+                        if let Some(projection) = outline_inspector.clone().filter(|projection| (projection.editing_points)()) {
+                            outline_lifecycle::OutlinePointCanvasOverlay {
+                                key: "{outline_overlay_key.as_deref().unwrap_or_default()}",
+                                projection,
+                                runtime: outline_lifecycle::OutlineRuntimeHandle::new(
+                                    runtime.clone(),
+                                ),
+                                arbiter: canvas_interaction.clone(),
+                                svg: svg.clone(),
+                                view_x,
+                                view_y,
+                                width,
+                                height,
+                                snap_settings: outline_snap_settings.clone(),
+                                pitch: outline_pitch,
+                                origins: outline_snap_origins.clone(),
                             }
                         }
                         if let Some(bridge) = selected_bridge {

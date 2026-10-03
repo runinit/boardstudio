@@ -84,6 +84,22 @@ project discards captured work without replaying it into the new document.
 pair placement using the normal edit path. `createWorkbenchEditActions` holds pure
 terminal-assignment, definition-replacement, and constraint builders.
 
+The Dioxus `outline_lifecycle` owner projects accepted Board outline state, admits
+Inspector and perimeter point edits against the current scope/revision, and
+confirms committed geometry after durable save. Its Layout canvas overlay owns
+only transient point selection and pointer samples. Pointer coordinates use the
+existing SVG viewport conversion; Core worker `EditPhase::Preview` renders drag
+feedback, and one captured `Event::Edit` commit creates the history entry. Escape,
+pointer cancellation, lost capture and overlay teardown queue `Event::ClearPreview`,
+scoped to the accepted token, revision, active board and drag transaction. The
+session suppresses a matching late reply and clears a displayed preview only while
+that transaction still owns it, so a delayed cancellation cannot erase a later
+gesture on the same accepted source. `outline_snapping` is
+a private port of the pinned React grid, guide and origin-snap policy. The legacy
+React overlay remains the parity reference until the F3.4/F3.7 browser history
+and save/reopen gates pass; retirement conditions are recorded in the linked
+slice ticket.
+
 Keymap and firmware-position controls submit `set-key-binding`, `set-keycap-board`,
 `set-matrix-keycaps`, and `set-keycap-key` operations. Rust merges those field edits
 into the current document, validates targets and dimensions, and preserves other
