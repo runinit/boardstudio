@@ -44,6 +44,7 @@ mod part_placement;
 mod parts;
 mod parts_import_footprint;
 mod parts_workspace;
+mod pcb_board_reference;
 mod pcb_layers;
 mod pcb_module_footprints;
 mod pcb_module_inspector;
@@ -1387,6 +1388,114 @@ fn pcb_add_outline_select_handler(
         assembly_3d.set(false);
         on_select.call(request);
     })
+}
+
+fn dispatch_board_reference_action(
+    runtime: &Rc<Runtime>,
+    workspace: Signal<&'static str>,
+    adapter: &SelectionAdapter,
+    owner: &LayoutOwnerIdentity,
+    reference_id: &str,
+    action: pcb_board_reference::Action,
+) {
+    if !matches!(owner.workspace, "Layout" | "Case")
+        || current_layout_owner(runtime, workspace, adapter) != *owner
+    {
+        return;
+    }
+    let model = runtime.model();
+    let Some(scope) = owner.scope.as_ref() else {
+        return;
+    };
+    let (Some(token), Some(revision)) = (owner.token, owner.revision) else {
+        return;
+    };
+    if !active_board_scope_matches(&model, scope)
+        || model.lifecycle != Lifecycle::Ready
+        || model.durability != (Durability::Saved { revision })
+        || model.display_preview.is_some()
+        || model.gesture.is_some()
+    {
+        return;
+    }
+    let Some(accepted) = model
+        .accepted
+        .as_ref()
+        .filter(|accepted| accepted.token == token && accepted.document.revision == revision)
+    else {
+        return;
+    };
+    let mut proposed = accepted.document.as_ref().clone();
+    if matches!(&action, pcb_board_reference::Action::Remove) {
+        let count = proposed.board_references.len();
+        proposed.board_references.retain(|reference| {
+            reference.id != reference_id || reference.board_id != scope.board_id
+        });
+        if proposed.board_references.len() == count {
+            return;
+        }
+    } else {
+        let Some(reference) = proposed
+            .board_references
+            .iter_mut()
+            .find(|reference| reference.id == reference_id && reference.board_id == scope.board_id)
+        else {
+            return;
+        };
+        match action {
+            pcb_board_reference::Action::SetEnabled(enabled) => reference.enabled = enabled,
+            pcb_board_reference::Action::SetPositionX(value) if value.is_finite() => {
+                reference.pose.at.x = value;
+            }
+            pcb_board_reference::Action::SetPositionY(value) if value.is_finite() => {
+                reference.pose.at.y = value;
+            }
+            pcb_board_reference::Action::SetRotation(value) if value.is_finite() => {
+                reference.pose.rotation = value;
+            }
+            pcb_board_reference::Action::SetElevation(value) if value.is_finite() => {
+                reference.elevation = value;
+            }
+            pcb_board_reference::Action::SetModelAsset { path, asset_id } => {
+                if asset_id.as_ref().is_some_and(|asset_id| {
+                    !proposed.assets.iter().any(|asset| {
+                        asset.id == *asset_id
+                            && [".step", ".stp", ".stl", ".wrl"].iter().any(|extension| {
+                                asset.name.to_ascii_lowercase().ends_with(extension)
+                            })
+                    })
+                }) {
+                    return;
+                }
+                if let Some(asset_id) = asset_id {
+                    reference.model_assets.insert(path, asset_id);
+                } else {
+                    reference.model_assets.remove(&path);
+                }
+            }
+            pcb_board_reference::Action::Remove
+            | pcb_board_reference::Action::SetPositionX(_)
+            | pcb_board_reference::Action::SetPositionY(_)
+            | pcb_board_reference::Action::SetRotation(_)
+            | pcb_board_reference::Action::SetElevation(_) => return,
+        }
+    }
+    if proposed == *accepted.document {
+        return;
+    }
+    let operation_id = runtime.operation();
+    runtime.submit(Event::Edit {
+        operation_id,
+        command: EditCommand {
+            base_revision: revision,
+            transaction_id: format!("board-reference-{}-{}", reference_id, operation_id.0),
+            phase: EditPhase::Commit,
+            target_ids: vec![scope.board_id.clone()],
+            operation: EditOperation::ReplaceDocument {
+                document: Box::new(proposed),
+            },
+        },
+    });
 }
 
 fn canvas_owner_is_current(
@@ -7281,6 +7390,47 @@ fn Editor() -> Element {
             },
         )),
     };
+    let board_reference_editor = if matches!(active_workspace, "Layout" | "Case") {
+        document
+            .board_references
+            .iter()
+            .find(|reference| reference.board_id == render_scope.board_id)
+            .map(|reference| {
+                let owner = LayoutOwnerIdentity {
+                    scope: Some(render_scope.clone()),
+                    token: Some(snapshot.token),
+                    revision: Some(snapshot.document.revision),
+                    generation: render_generation,
+                    workspace: active_workspace,
+                };
+                let reference = reference.clone();
+                let assets = document.assets.clone();
+                let reference_id = reference.id.clone();
+                let runtime = runtime.clone();
+                let adapter = adapter.clone();
+                let on_action = EventHandler::new(move |action| {
+                    dispatch_board_reference_action(
+                        &runtime,
+                        workspace,
+                        &adapter,
+                        &owner,
+                        &reference_id,
+                        action,
+                    )
+                });
+                let editable = model.lifecycle == Lifecycle::Ready
+                    && model.durability
+                        == (Durability::Saved {
+                            revision: snapshot.document.revision,
+                        })
+                    && model.display_preview.is_none()
+                    && model.gesture.is_none()
+                    && active_board_scope_matches(&model, &render_scope);
+                (reference, assets, editable, on_action)
+            })
+    } else {
+        None
+    };
     let selected_bridge = selected_tree_context.as_ref().and_then(|selected| {
         let objects::TreeContext::Bridge {
             board_id,
@@ -8003,6 +8153,14 @@ fn Editor() -> Element {
                             }
                         } else {
                             {workspace_composition::inspector(inspector_input)}
+                        }
+                        if let Some((reference, assets, editable, on_action)) = board_reference_editor {
+                            pcb_board_reference::Editor {
+                                reference,
+                                assets,
+                                disabled: !editable,
+                                on_action,
+                            }
                         }
                     }
                 }
