@@ -183,6 +183,13 @@
           "post_port_follow_up": "Keep normalized pointer gestures and activation routing under one explicit host lifecycle owner; do not infer empty hits from capture-retargeted compatibility clicks.",
           "validation": "Run trusted native Ctrl-click browser regression on the integrated package; review focused toggle/plain/range/empty/keyboard/movement/cancel/history behavior. Native selection tests cannot reproduce browser capture retargeting.",
           "status": "Expected RED retained; integrated browser GREEN and consolidated repair review open at source freeze. No parent acceptance or broad refactor claim."
+        },
+        {
+          "source": "f2d70ea627d851ea461033b44052bbf3740d37a1",
+          "evidence": ".scratch/dioxus-pcb-view/evidence/pcb-modifier-click-repair-20261003/final-green.json",
+          "observation": "Trusted Ctrl-add then Ctrl-remove and directly affected plain/empty/keyboard selection pass with revision12. Second RED distinguished native DOM propagation from Dioxus synthetic bubbling; both must stop before part pointer-down can own selection.",
+          "current_mitigation": "PCB pointer-down owns pointer selection; compatibility clicks cannot clear or toggle again, and Dioxus synthetic propagation cannot invoke the empty-space down path. Keyboard/click-only activation retains scoped admission.",
+          "status": "Bounded reproduced defect GREEN; complete PCB13/F5 criteria and cutover remain open. Existing capture/move/end/cancel/history evidence reused; no broad author suite/build."
         }
       ],
       "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted.",

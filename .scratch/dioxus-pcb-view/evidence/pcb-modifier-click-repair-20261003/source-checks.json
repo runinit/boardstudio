@@ -24,10 +24,9 @@
       "result": "Original Ctrl-add GREEN. Ctrl-remove expected RED actual=[]; Dioxus synthetic pointerdown propagation identified."
     }
   ],
-  "pending": [
-    "Trusted regression GREEN on next integrated frozen package",
-    "Consolidated reviewer targeted repair assessment"
-  ],
+  "pending": [],
   "limits": "No additional package build or broad test matrix. No new public API, document schema or history policy. All parent acceptance/cutover gates retained.",
-  "followup": "PCB part primary pointerdown now stops Dioxus propagation before dispatch, retaining native stop. Focused integrated GREEN and affected selection checks pending next package."
+  "followup": "PCB part primary pointerdown now stops Dioxus propagation before dispatch, retaining native stop. Focused integrated GREEN and affected selection checks pending next package.",
+  "final_public_candidate": "f2d70ea627d851ea461033b44052bbf3740d37a1",
+  "final_public_result": "Strengthened Ctrl-add/Ctrl-remove and directly affected plain/empty/keyboard selection GREEN; revision12 unchanged. Full PCB13 and parent criteria remain open."
 }
