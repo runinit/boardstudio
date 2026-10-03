@@ -169,7 +169,7 @@
         "status": "bounded implementation handoff with reviewed source/effect repairs; paired public browser acceptance and parent joins remain open"
       },
       "case13_battery_patch_20261002": {
-        "source": "Case Issue13 battery envelope controls; implementation based on f261a327858f51a1de4928374bc65b669e2792a3",
+        "source": "Case Issue13 battery envelope controls; implementation commit e3fdb7ee13bb6ab64cf9c033b6889405f4916e64 based on f261a327858f51a1de4928374bc65b669e2792a3",
         "evidence": ".scratch/dioxus-case-workspace/evidence/battery-envelope-issue13-20261002/implementation-handoff.md",
         "observation": "The shared private mechanical-settings patch path unconditionally ran manufacturing-process normalization. A production-seam battery-removal regression reproduced an unrelated mutation: `partProcesses` changed from absent to an empty vector. The bounded correction skips this process normalization for battery-only toggles/fields, preserving construction/process propagation on the patches that own it and retaining the existing canonical/physical target policy.",
         "certainty": "confirmed incidental mutation in the battery-only path; no claim that other unrelated patch families are free of the same side effect",
