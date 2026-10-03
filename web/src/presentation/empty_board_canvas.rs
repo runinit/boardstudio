@@ -19,7 +19,7 @@ pub(super) fn EmptyBoardCanvas(
             button { type: "button", class: "m1-empty-primary", disabled: !editable,
                 onclick: move |_| on_matrix.call(()),
                 "Add key matrix",
-                svg { view_box: "0 0 24 24", aria_hidden: "true",
+                svg { view_box: "0 0 24 24", "aria-hidden": "true",
                     path { d: "M5 12h14m-6-6 6 6-6 6" }
                 }
             }
