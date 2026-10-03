@@ -1271,7 +1271,7 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T10:40:07.951052+00:00",
+    "updated_at": "2026-10-03T10:49:50.921391+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
       "accepted": 2,
@@ -1296,8 +1296,8 @@
       "package_qualification": "Strict page WASM all-target17.54s;1370sources/145assets-route0mismatch,root/subpath200COOP/COEP. Changed Boardoutline route, empty entry/cancel/Browse and placementhintGREEN. Sharedshell/footer/Parts receipts active; visual corrections staged. No parent closure."
     },
     "integration": {
-      "source_commit": "12449589fbf8e792df87af68c0f181ce8079c569",
-      "state": "34762 served and fresh-source proof retained. Next small corrections: one Case configured-board action8da5e360, unboxed Project/Export6d799257, empty action typographybd971126; footer placement correction authoring. Export/Geometry scripts continue in isolation.",
+      "source_commit": "65d49442",
+      "state": "Shared header/footer/empty-action/Case corrections and mounted Export route joined. Combined strict page check repairing actual compile/lint failures; next frozen candidate34763.34762 stays served.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1898,16 +1898,16 @@
     ],
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "heavy_slots": {
-      "root_target": "No package active;34762alive. Nextcoherentcorrectionbatch staging.",
+      "root_target": "Combined strict page all-target check assigned cached case-current-result-status-repair target; package next on the same slot.",
       "secondary_target": "No agent compiler assigned.",
       "dispatch": "Max2heavyjobs/1package; ordinaryUI nonewtests; changedjourneys only."
     },
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "next_work": [
-      "Join pending footer placement/source and Parts/Case receipts, then serve small sharedUI correctioncandidate.",
-      "Only changed shell/menu/actionsize/Caseonebutton journey; reuse34762/olderpassing behavior.",
-      "One consolidatedSol candidate report, exactF7.2criterion reconciliation using existingrepresentativeproof, retainunmetparents/RF.",
-      "Qualify coordinatorpacket then nextLayoutboardInspector child15; isolatedExport andGeometryscripts implement realexistingproviders."
+      "Package joined UI/Export corrections as34763; preserve34762 and exact provenance.",
+      "Changed shell/footer/empty button/Case one-action-uppercase/Export route browser legs only; reuse existing action/history/reopen proof.",
+      "One consolidated Sol report; F7.2 readiness depends only on two staged visible corrections, not new field/theme/race matrices.",
+      "Layout Board Inspector next; Geometry scripts and Parts VIK module catalogue implementing in isolation."
     ],
     "execution_policy": "Ordinary reversible UI gets no new tests. Run one required affected compile/check per integrated batch, inspect only changed paired browser journeys, and use one consolidated candidate review. Reuse unchanged history/reopen evidence. Real reproduced bugs retain one focused regression. Parent criteria, blocker history and RF ledger remain explicit.",
     "served_candidate_history": [
@@ -2151,6 +2151,16 @@
         "build_id": "next-footer-emptyboard-Parts-source-check",
         "source_commit": "40f891a8",
         "result": "Combined source check failed Parts mechanical visibility/types/moves/oldfixture signatures and root nonexistentready_saved helper. RootReadModelguard correctionef80062e joined; Parts compiler corrections active. Failure retained; no public artifact claimed."
+      },
+      {
+        "build_id": "frontend-ui-corrections-export-source-check",
+        "source_commit": "2c2574c3",
+        "result": "Unsupported use_reactive macro expression correctedb22fb9eb; explicitKeyboardEvent/PartialEq props corrected25abbf19; mutableEscape capture corrected6968719e. No package produced."
+      },
+      {
+        "build_id": "frontend-ui-corrections-export-lint-check",
+        "source_commit": "6968719e",
+        "result": "Strict Clippy caught ZMK collapsible_if and now-unreferenced productionexport_step.65d49442 wires existing ordinary authored Case STEP path rather than suppressing dead code; generated-stack authored-only export remains a separate provider gap."
       }
     ]
   }
