@@ -6,7 +6,7 @@ Date: 2026-10-03
 
 - Served application: `http://127.0.0.1:34765/boardstudio/`
 - Served source: `17ba32b984c13f3621a2145efe1dd478862ab5cd`
-- Build: combined candidate `frontend-board-geometry-vik-20261003` follow-up
+- Build: `frontend-context-findings-footprints-20261003`
 - Provenance SHA-256: `273ca2fa2315b32fec91b0490d2f70fb03b5426d759310bced6e934ad73947d5`
 - Browser session: `parts-vik-preview-34765-2318ea1a1376`
 - Prior Inspector proof reused: [34764 receipt](../issue02-vik-modules-34764/RESULTS.md)
