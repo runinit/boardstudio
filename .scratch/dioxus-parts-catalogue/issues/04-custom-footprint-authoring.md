@@ -6,7 +6,7 @@
 
 **Blocked by:** None among local F4 child tickets. The current source already has a callable New custom component action that inserts an accepted empty definition and selects it, plus a scoped selected-definition Name editor using the existing accepted edit path. Reuse those feature capabilities. This is not F4.1 catalogue completion or F4.2 acceptance.
 
-**Status:** planning-review-pending; not dispatch-ready until independent Spec and Standards review clear this packet.
+**Status:** implementation source integrated; representative matched field-edit/Undo/reopen journey passed on candidate 34768. Broader field, validation, coupled-net, responsive/accessibility and inherited acceptance remain open.
 
 - [ ] The visible New custom component action works independently of catalogue-source loading/error presentation. It immediately inserts and selects the reference default definition through one ordinary accepted edit; no extra Save/Apply action is added.
 - [ ] Keep the editor in the Parts Inspector's `Edit footprint` / `Custom geometry` context for selected project-owned, non-generator definitions. Preserve the current Name editor's raw-string draft behavior, Enter-to-blur, Escape reset, accepted Name synchronization, scope guard, disclosure default and per-field history behavior.
@@ -19,7 +19,8 @@
 - [ ] For a definition used by multiple placed parts, changing a pad ID remaps each matching instance's net pin from the old ID to the new one. Removing a pad removes only references to that ID on instances of that definition. Preserve unrelated pins/nets, definitions, assets and placements. Confirm pad number edits do not change identity-based net references.
 - [ ] At each action, admit edits only for the still-selected definition in the current accepted project/session scope. Resolve the target from the current accepted document and preserve all unrelated latest accepted data; an old selection/project action cannot redirect or replace a same-ID definition in another scope. Rejected stale actions leave document, revision, history and durability unchanged.
 - [ ] Use the existing private Parts edit capability and normal Core/Session `ReplaceDocument` path. No new public operation, Runtime API/visibility, schema, saved format, generator/parser behavior or second writable document is introduced.
-- [ ] Verify creation and representative field edits on a matched React/Dioxus project: accepted values, exactly one revision/history unit per action, Undo/Redo, normal saved durability at the accepted revision, and save/reopen preservation. Use an additional fixture with multiple placed instances and nets for ID rename/removal; unrelated document collections must remain equivalent.
+- [x] Verify creation, one representative courtyard field edit, one-step Undo/Redo and saved-project reopen on matched React/Dioxus Sofle v2 copies; see the bounded 34768 candidate receipt. The custom definition, 12 × 6 mm courtyard and one default pad survive in the accepted saved document.
+- [ ] Use a separate fixture with multiple placed instances and nets for pad-ID rename/removal; prove unrelated document collections remain equivalent. Continue representative kind/pad-field validation and failed-input recovery.
 - [ ] Pair desktop and compact browser journeys in light/dark themes with keyboard/focus and error-recovery checks. Record the exact selected project/definition/instance fixture identities and persisted post-edit artifact; no page errors.
 - [ ] Record observations under existing RF-001/RF-002/RF-006/RF-009 as applicable, or state “No new refactoring takeaway observed” after review. Keep the F4.2 INT.2 and shared F4/F9 acceptance gates open.
 
@@ -27,4 +28,4 @@
 
 **Approved defect correction:** Independent review confirmed the Add pad number collision is a bounded defect against the existing unique authored pad-number rule. Preserve `pads.length + 1` when unused; on collision, increment until the next unused positive number. Keep stable pad IDs, all existing net-remap semantics and the one-action history boundary. The defect regression uses existing pad numbers `[1, 3]`, where the old implementation wrongly adds `3` and the correction adds `4`.
 
-**Execution status (2026-10-02):** Implementing from independently reviewed planning commit `e056a8f8`; paired public edit/history/save-reopen acceptance remains open.
+**Execution status (2026-10-03):** The Parts action, scoped Name editor and native geometry fields are present in integrated source (`a66e3502` plus the later pad-row/current-owner corrections). The matched Sofle v2 field/Undo/Redo/reopen journey on candidate `9e6f9b62e33d7dc22412cf5793a3f4b857e219c3` is recorded in `evidence/04-custom-footprint-candidate-34768/RESULTS.md`. This bounded receipt does not close the remaining authoring rules or F4.2/F4/F9 acceptance joins.

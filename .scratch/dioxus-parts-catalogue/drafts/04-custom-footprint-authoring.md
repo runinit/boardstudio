@@ -8,7 +8,7 @@
 
 **Blocked by:** None among the local F4 child tickets. Reuse the existing New custom component and scoped Definition Name capabilities; their presence is an implementation start proof, not a claim that their full paired-browser acceptance or the F4.1 parent is complete. No separate Rust service or F3 placement behavior is needed for custom definition authoring.
 
-**Status:** source-refined; independent Spec and Standards re-review pending before dispatch.
+**Status:** implementation source is integrated; the representative field/Undo/reopen path is publicly verified on the served candidate. Remaining authoring and inherited acceptance stays open.
 
 - [ ] The reference Create action immediately inserts and selects the same default custom definition; do not require a separate Save/Apply action before it exists in the document.
 - [ ] Edit the reference-visible supported fields (name, Definition kind, courtyard, pad identity/number/shape/dimensions/position and drills); the kind control offers the reference's Switch/Controller/Connector/Encoder/Passive/Custom values. Do not add a per-pad rotation control that React does not expose. Preserve DraftInput local text state, Escape reset, Enter-to-blur, validation and commit-on-blur/action boundaries. Name remains a raw-string commit as in React; its “Name is required” definition issue is displayed but is not silently converted into a new name-trimming or commit-rejection rule.
