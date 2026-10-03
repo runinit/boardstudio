@@ -904,7 +904,11 @@ pub(super) fn GeneratorSettingsEditor(
     let preview_ready = active_draft.as_ref().is_some_and(|draft| {
         draft.status == GeneratorPreviewStatus::Ready && draft.definition.is_some()
     });
+    let model_import_runtime = runtime.clone();
+    let model_import_owner = owner.clone();
     let import_generator_model = use_callback(move |(parameter, file): (String, web_sys::File)| {
+        let runtime = model_import_runtime.clone();
+        let owner = model_import_owner.clone();
         if model_uploading()
             || pending_apply().is_some()
             || !parameter.ends_with("3dmodel_filename")

@@ -149,7 +149,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
     }
 }
 
-pub(super) fn inspector(input: InspectorInput) -> Element {
+pub(super) fn inspector(mut input: InspectorInput) -> Element {
     if let Some(page) = input.findings_page.filter(|page| page.open) {
         return rsx! {
             super::layout_findings::LayoutFindingsInspector {
@@ -205,7 +205,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
             section { class: "m1-layout-component-inspector", aria_label: "Relationships",
                 h2 { "Relationships" }
                 p { class: "m1-layout-component-relation-summary", "{input.matrix_relationship_summary.as_deref().unwrap_or(\"No saved placement relationship on this selection.\")}" }
-                if let Some(target) = input.matrix_relationship_target.as_ref() {
+                if let Some(target) = input.matrix_relationship_target.clone() {
                     button {
                         r#type: "button",
                         onclick: move |_| {

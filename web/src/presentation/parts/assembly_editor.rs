@@ -5,6 +5,7 @@ use boardstudio_core::model::{
     PartDefinition, PartKind, PartModel, Pose2, ProjectDoc, Side, Vec2, Vec3,
 };
 use dioxus::prelude::*;
+use dioxus_web::WebEventExt;
 use js_sys::{Date, Function, Reflect};
 use std::{collections::BTreeSet, rc::Rc};
 use wasm_bindgen::{JsCast, JsValue};
@@ -683,7 +684,7 @@ fn AssemblyModelFields(
             }
             ModelVectorFields { model: model.clone(), member_id: member_id.clone(), index, field: ModelVector::Offset, draft: offset_draft, value, assets, disabled, on_change: offset_change }
             ModelVectorFields { model: model.clone(), member_id: member_id.clone(), index, field: ModelVector::Rotation, draft: rotation_draft, value, assets, disabled, on_change: rotation_change }
-            ModelVectorFields { model, member_id: member_id.clone(), index, field: ModelVector::Scale, draft: scale_draft, value, assets, disabled, on_change: scale_change }
+            ModelVectorFields { model: model.clone(), member_id: member_id.clone(), index, field: ModelVector::Scale, draft: scale_draft, value, assets, disabled, on_change: scale_change }
             button { r#type: "button", disabled, onclick: move |_| update_member(value, assets, remove_draft.clone(), remove_change.clone(), remove_id.clone(), MemberPatch::RemoveModel(index)), "Remove model" }
         }
     }
@@ -876,7 +877,7 @@ impl MemberPatch {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 enum ModelVector {
     Offset,
     Rotation,
@@ -897,7 +898,7 @@ fn model_vector(model: &PartModel, field: ModelVector) -> Vec3 {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 struct ModelOption {
     id: String,
     name: String,

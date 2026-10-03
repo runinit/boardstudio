@@ -462,6 +462,7 @@ pub(super) fn ComponentModelEditor(
     let selected_for_upload = selected;
     let runtime_for_upload = runtime.clone();
     let owner_for_upload = owner.clone();
+    let upload_generation = request_generation.clone();
     let upload_model = move |event: FormEvent| {
         let Some(input) = event
             .data()
