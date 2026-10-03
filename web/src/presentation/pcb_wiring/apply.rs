@@ -31,6 +31,7 @@ pub(in crate::presentation) struct BoardWiringApplyActions {
     pub editable: bool,
     pub feedback: Option<BoardWiringApplyFeedbackView>,
     pub on_apply: EventHandler<BoardWiringModeIdentity>,
+    pub on_release_reviewed_connections: EventHandler<BoardWiringModeIdentity>,
 }
 
 #[derive(Clone)]
@@ -185,6 +186,50 @@ pub(in crate::presentation) fn use_board_wiring_apply(
         }
     });
 
+    let on_release_reviewed_connections = use_callback({
+        let runtime = runtime.clone();
+        let instance_is_current = instance_is_current.clone();
+        move |identity: BoardWiringModeIdentity| {
+            let Some(snapshot) = current_snapshot(
+                &runtime,
+                &identity,
+                workspace(),
+                scope_generation(),
+                instance_is_current(),
+            ) else {
+                return;
+            };
+            let Some(plan) =
+                current_review_plan(&identity.plan, &resolution.read(), &snapshot.document)
+            else {
+                return;
+            };
+            let Some(review) =
+                super::connections::existing_connection_review(&snapshot.document, &plan)
+            else {
+                return;
+            };
+            let proposal =
+                super::connections::release_reviewed_connections(&snapshot.document, &review);
+            if proposal == *snapshot.document {
+                return;
+            }
+            let operation_id = runtime.operation();
+            runtime.submit(Event::Edit {
+                operation_id,
+                command: EditCommand {
+                    base_revision: snapshot.document.revision,
+                    transaction_id: format!("pcb-review-connections-{}", operation_id.0),
+                    phase: EditPhase::Commit,
+                    target_ids: vec![identity.plan.scope.board_id.clone()],
+                    operation: EditOperation::ReplaceDocument {
+                        document: Box::new(proposal),
+                    },
+                },
+            });
+        }
+    });
+
     let identity = source.as_ref().map(mode_identity);
     let editable = identity.as_ref().is_some_and(|identity| {
         workspace() == "PCB"
@@ -215,10 +260,24 @@ pub(in crate::presentation) fn use_board_wiring_apply(
         editable,
         feedback,
         on_apply,
+        on_release_reviewed_connections,
     }
 }
 
 fn current_plan(
+    identity: &WiringPlanIdentity,
+    resolution: &PcbWiringResolution,
+    document: &ProjectDoc,
+) -> Option<Rc<ElectricalPlan>> {
+    current_review_plan(identity, resolution, document).filter(|plan| {
+        !plan
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity == "error")
+    })
+}
+
+fn current_review_plan(
     identity: &WiringPlanIdentity,
     resolution: &PcbWiringResolution,
     document: &ProjectDoc,
@@ -235,10 +294,6 @@ fn current_plan(
         || plan.board_id.as_deref() != Some(identity.scope.board_id.as_str())
         || plan.instance_id.is_some()
         || plan.mode != board_mode(document, &identity.scope.board_id)
-        || plan
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.severity == "error")
     {
         return None;
     }

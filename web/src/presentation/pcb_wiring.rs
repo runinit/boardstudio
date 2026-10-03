@@ -11,6 +11,7 @@ use dioxus::prelude::*;
 use std::{rc::Rc, sync::Arc};
 
 mod apply;
+mod connections;
 mod controller;
 mod mode;
 mod part_connections;
@@ -847,6 +848,10 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
     let protected_remap_actions = props.protected_remap_actions.clone();
     let protected_remap_identity = protected_remap_actions.identity.clone();
     let on_review_remap = protected_remap_actions.on_review;
+    let existing_connections = matching_plan
+        .and_then(|plan| connections::existing_connection_review(&props.source.document, plan));
+    let on_release_reviewed_connections = apply_actions.on_release_reviewed_connections;
+    let review_connections_identity = mode_identity.clone();
     rsx! {
         section { class: "m1-pcb-wiring m1-pcb-board-wiring", aria_label: "Electrical wiring",
             p { class: "m1-pcb-wiring-breadcrumb", "{display.board_name} / PCB" }
@@ -968,6 +973,22 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                     strong { "Review before handoff" }
                     for (index, diagnostic) in plan.diagnostics.iter().enumerate() {
                         p { key: "{index}", "{diagnostic.severity}: {diagnostic.message}" }
+                    }
+                }
+            }
+            if let Some(review) = existing_connections.as_ref() {
+                let connection_names = review.names();
+                p { class: "m1-pcb-wiring-protected",
+                    strong { "Review existing connections" }
+                    p { "{review.pin_count} pin connections already belong to {connection_names.join(\", \")}. Switching them to automatic wiring removes these assignments so the board plan can replace them. Other connections stay in place. You can undo this change." }
+                    button {
+                        type: "button",
+                        disabled: !mode_actions.editable || review_connections_identity.is_none(),
+                        onclick: move |_| {
+                            let Some(identity) = review_connections_identity.clone() else { return; };
+                            on_release_reviewed_connections.call(identity);
+                        },
+                        "Use automatic wiring for these connections"
                     }
                 }
             }
