@@ -326,6 +326,8 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
     let drag_for_move = drag.clone();
     let arbiter_for_move = arbiter.clone();
     let guide_for_move = snap_guide;
+    let snap_settings_for_move = snap_settings.clone();
+    let snap_origins_for_move = snap_origins.clone();
     let move_drag = Rc::new(move |event: PointerEvent| {
         let mut guide_for_move = guide_for_move;
         let Some(pointer) = event.data().try_as_web_event() else {
@@ -373,8 +375,8 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
             point,
             width,
             height,
-            &snap_settings,
-            &snap_origins,
+            &snap_settings_for_move,
+            &snap_origins_for_move,
             splay_affect(),
             &svg_for_move,
             &mut guide_for_move,

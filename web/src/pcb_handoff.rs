@@ -24,7 +24,7 @@ pub(crate) async fn build_handoff(
     operation_id: OperationId,
     snapshot: &AcceptedSnapshot,
     scope: &Scope,
-    plan: ElectricalPlan,
+    electrical_plan: ElectricalPlan,
     populations: Vec<(String, ElectricalPlan)>,
     core: &CoreWorker,
     store: &BrowserStore,
@@ -214,13 +214,13 @@ pub(crate) async fn build_handoff(
     let mut handoff = vec![(format!("{}-kicad.zip", board.name), board_archive)];
     let report = serde_json::to_vec_pretty(&json!({
         "draft": draft,
-        "plan": plan,
+        "plan": electrical_plan,
         "populations": populations.iter().map(|(name, plan)| json!({ "name": name, "plan": plan })).collect::<Vec<_>>(),
     }))
     .map_err(|error| format!("Could not encode the wiring report: {error}"))?;
     push_file(&mut handoff, "wiring-report.json".into(), report)?;
     let assemblies = if populations.is_empty() {
-        vec![("PCB assembly", &plan)]
+        vec![("PCB assembly", &electrical_plan)]
     } else {
         populations
             .iter()
