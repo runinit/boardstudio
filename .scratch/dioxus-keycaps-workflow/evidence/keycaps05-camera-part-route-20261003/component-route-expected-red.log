@@ -1,0 +1,91 @@
+[INFO]: 🎯  Checking for the Wasm target...
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/keycaps-navigation-mounted-owner-20261002/web)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 7.54s
+[INFO]: ⬇️  Installing wasm-bindgen...
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.15s
+     Running unittests src/main.rs (target/wasm32-unknown-unknown/debug/deps/boardstudio_web-104ce8f672267721.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:44837/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+Loading Wasm module...
+
+running 1 test
+test presentation::objects::tree::tests::explicit_finding_part_route_uses_component_context_without_changing_key_hit_context ... FAIL
+
+failures:
+
+---- presentation::objects::tree::tests::explicit_finding_part_route_uses_component_context_without_changing_key_hit_context output ----
+    error output:
+        panicked at src/presentation/objects/tree_tests.rs:69:5:
+        assertion `left == right` failed: an explicit Part finding action enters the component Inspector for that part
+          left: Some(Key { matrix_id: "left-keys", row: 0, column: 0 })
+         right: Some(Component { part_id: Some("left-keys-SW1"), matrix_id: None, row: None, column: None, assembly_id: None })
+        
+        Stack:
+        
+        Error
+            at http://127.0.0.1:32835/wasm-bindgen-test:1392:25
+            at logError (http://127.0.0.1:32835/wasm-bindgen-test:2300:18)
+            at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:32835/wasm-bindgen-test:1391:57)
+            at boardstudio_web-104ce8f672267721.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:32835/wasm-bindgen-test_bg.wasm:wasm-function[105964]:0x156852f)
+            at boardstudio_web-104ce8f672267721.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:32835/wasm-bindgen-test_bg.wasm:wasm-function[61039]:0x137e1f3)
+            at boardstudio_web-104ce8f672267721.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:32835/wasm-bindgen-test_bg.wasm:wasm-function[23192]:0xf2e4a1)
+            at boardstudio_web-104ce8f672267721.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:32835/wasm-bindgen-test_bg.wasm:wasm-function[64112]:0x13acf8d)
+            at boardstudio_web-104ce8f672267721.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:32835/wasm-bindgen-test_bg.wasm:wasm-function[19734]:0xe6d758)
+            at boardstudio_web-104ce8f672267721.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:32835/wasm-bindgen-test_bg.wasm:wasm-function[38084]:0x118280a)
+            at boardstudio_web-104ce8f672267721.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:32835/wasm-bindgen-test_bg.wasm:wasm-function[107460]:0x156cca7)
+        
+        
+    
+    JS exception that was thrown:
+        RuntimeError: unreachable
+            at boardstudio_web-104ce8f672267721.wasm.__rustc[4b1ee1ef74718a7b]::__rust_abort (http://127.0.0.1:32835/wasm-bindgen-test_bg.wasm:wasm-function[107848]:0x156d839)
+            at boardstudio_web-104ce8f672267721.wasm.__rustc[4b1ee1ef74718a7b]::__rust_start_panic (http://127.0.0.1:32835/wasm-bindgen-test_bg.wasm:wasm-function[107786]:0x156d715)
+            at boardstudio_web-104ce8f672267721.wasm.__rustc[4b1ee1ef74718a7b]::rust_panic (http://127.0.0.1:32835/wasm-bindgen-test_bg.wasm:wasm-function[106259]:0x15695bc)
+            at boardstudio_web-104ce8f672267721.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:32835/wasm-bindgen-test_bg.wasm:wasm-function[19734]:0xe6d7cb)
+            at boardstudio_web-104ce8f672267721.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:32835/wasm-bindgen-test_bg.wasm:wasm-function[38084]:0x118280a)
+            at boardstudio_web-104ce8f672267721.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:32835/wasm-bindgen-test_bg.wasm:wasm-function[107460]:0x156cca7)
+            at boardstudio_web-104ce8f672267721.wasm.__rustc[4b1ee1ef74718a7b]::rust_begin_unwind (http://127.0.0.1:32835/wasm-bindgen-test_bg.wasm:wasm-function[82897]:0x149b45d)
+            at boardstudio_web-104ce8f672267721.wasm.core[f0fd674eaa06beef]::panicking::panic_fmt (http://127.0.0.1:32835/wasm-bindgen-test_bg.wasm:wasm-function[63497]:0x13a3ea5)
+            at boardstudio_web-104ce8f672267721.wasm.core[f0fd674eaa06beef]::panicking::assert_failed_inner (http://127.0.0.1:32835/wasm-bindgen-test_bg.wasm:wasm-function[17118]:0xdc3794)
+            at boardstudio_web-104ce8f672267721.wasm.core[f0fd674eaa06beef]::panicking::assert_failed::<core[f0fd674eaa06beef]::option::Option<boardstudio_web[d9fbbd91a84c69ca]::presentation::objects::tree::TreeContext>, core[f0fd674eaa06beef]::option::Option<boardstudio_web[d9fbbd91a84c69ca]::presentation::objects::tree::TreeContext>> (http://127.0.0.1:32835/wasm-bindgen-test_bg.wasm:wasm-function[49160]:0x12a4d83)
+
+failures:
+
+    presentation::objects::tree::tests::explicit_finding_part_route_uses_component_context_without_changing_key_hit_context
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 34 filtered out; finished in 0.02s
+
+console output:
+    using deprecated parameters for the initialization function; pass a single object instead
+    Invoking test: presentation::objects::tree::tests::explicit_finding_part_route_uses_component_context_without_changing_key_hit_context
+    panicked at src/presentation/objects/tree_tests.rs:69:5:
+    assertion `left == right` failed: an explicit Part finding action enters the component Inspector for that part
+      left: Some(Key { matrix_id: "left-keys", row: 0, column: 0 })
+     right: Some(Component { part_id: Some("left-keys-SW1"), matrix_id: None, row: None, column: None, assembly_id: None })
+    
+    Stack:
+    
+    Error
+        at http://127.0.0.1:32835/wasm-bindgen-test:1392:25
+        at logError (http://127.0.0.1:32835/wasm-bindgen-test:2300:18)
+        at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:32835/wasm-bindgen-test:1391:57)
+        at boardstudio_web-104ce8f672267721.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:32835/wasm-bindgen-test_bg.wasm:wasm-function[105964]:0x156852f)
+        at boardstudio_web-104ce8f672267721.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:32835/wasm-bindgen-test_bg.wasm:wasm-function[61039]:0x137e1f3)
+        at boardstudio_web-104ce8f672267721.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:32835/wasm-bindgen-test_bg.wasm:wasm-function[23192]:0xf2e4a1)
+        at boardstudio_web-104ce8f672267721.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:32835/wasm-bindgen-test_bg.wasm:wasm-function[64112]:0x13acf8d)
+        at boardstudio_web-104ce8f672267721.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:32835/wasm-bindgen-test_bg.wasm:wasm-function[19734]:0xe6d758)
+        at boardstudio_web-104ce8f672267721.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:32835/wasm-bindgen-test_bg.wasm:wasm-function[38084]:0x118280a)
+        at boardstudio_web-104ce8f672267721.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:32835/wasm-bindgen-test_bg.wasm:wasm-function[107460]:0x156cca7)
+    
+    
+Error: some tests failed
+error: test failed, to rerun pass `--bin boardstudio-web`
+
+Caused by:
+  process didn't exit successfully: `/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner /home/chris/.local/share/boardstudio/worktrees/keycaps-navigation-mounted-owner-20261002/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-104ce8f672267721.wasm 'presentation::objects::tree::tests::explicit_finding_part_route_uses_component_context_without_changing_key_hit_context'` (exit status: 1)
+note: test exited abnormally; to see the full output pass --no-capture to the harness.
+Error: Running Wasm tests with wasm-bindgen-test failed
+Caused by: Running Wasm tests with wasm-bindgen-test failed
+Caused by: failed to execute `cargo test`: exited with exit status: 1
+  full command: cd "." && CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER="/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner" CHROMEDRIVER="/usr/bin/chromedriver" WASM_BINDGEN_TEST_ONLY_WEB="1" "cargo" "test" "--target" "wasm32-unknown-unknown" "--no-default-features" "--features" "page" "--bin" "boardstudio-web" "--" "presentation::objects::tree::tests::explicit_finding_part_route_uses_component_context_without_changing_key_hit_context"

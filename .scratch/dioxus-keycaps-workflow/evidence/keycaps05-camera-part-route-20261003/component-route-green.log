@@ -1,0 +1,16 @@
+[INFO]: 🎯  Checking for the Wasm target...
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/keycaps-navigation-mounted-owner-20261002/web)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 7.20s
+[INFO]: ⬇️  Installing wasm-bindgen...
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.27s
+     Running unittests src/main.rs (target/wasm32-unknown-unknown/debug/deps/boardstudio_web-104ce8f672267721.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:34807/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+Loading Wasm module...
+
+running 1 test
+test presentation::objects::tree::tests::explicit_finding_part_route_uses_component_context_without_changing_key_hit_context ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 34 filtered out; finished in 0.00s
+
