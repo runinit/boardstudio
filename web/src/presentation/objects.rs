@@ -137,6 +137,20 @@ pub(super) fn context_for_cell(
     tree::context_for_cell(model, matrix_id, row, column)
 }
 
+fn matrix_id_for_context(context: &TreeContext) -> Option<&str> {
+    match context {
+        TreeContext::Matrix { matrix_id }
+        | TreeContext::Row { matrix_id, .. }
+        | TreeContext::Column { matrix_id, .. }
+        | TreeContext::Key { matrix_id, .. } => Some(matrix_id),
+        TreeContext::Component {
+            matrix_id: Some(matrix_id),
+            ..
+        } => Some(matrix_id),
+        _ => None,
+    }
+}
+
 pub(super) fn matrix_visible_on_board(
     document: &boardstudio_core::model::ProjectDoc,
     board_id: &str,
@@ -246,6 +260,45 @@ pub(super) fn Objects(
         active_scope.as_ref() == Some(&selected.scope)
             && tree::resolve_selection(&model, &selected.context).is_some()
     });
+    let selected_matrix_id = current_context
+        .as_ref()
+        .and_then(|selected| matrix_id_for_context(&selected.context));
+    let selected_matrix_action = current_context.as_ref().and_then(|selected| {
+        let matrix_id = selected_matrix_id.as_deref()?;
+        let matrix = document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == matrix_id)?;
+        let matrix_context = TreeContext::Matrix {
+            matrix_id: matrix.id.clone(),
+        };
+        Some((
+            selected.scope.clone(),
+            matrix.id.clone(),
+            tree::context_label(&model, &matrix_context).unwrap_or_else(|| {
+                matrix
+                    .name
+                    .clone()
+                    .unwrap_or_else(|| "Selected matrix".into())
+            }),
+        ))
+    });
+    let selected_layout_target = selected_matrix_id.as_deref().and_then(|matrix_id| {
+        document
+            .layouts
+            .iter()
+            .find(|layout| layout.board_id == board_id && layout.matrix_id == matrix_id)
+            .map(|layout| layout.id.clone())
+    });
+    let layout_target_for_effect = layout_target;
+    use_effect(use_reactive(
+        (&selected_layout_target,),
+        move |(selected_layout_target,)| {
+            if let Some(mut layout_target) = layout_target_for_effect {
+                layout_target.set(selected_layout_target);
+            }
+        },
+    ));
     let mut add_menu_open = use_signal(|| false);
     let add_menu_owner = (
         snapshot.session_epoch,
@@ -283,6 +336,7 @@ pub(super) fn Objects(
                     matrix_inspector,
                     snapshot: snapshot.clone(),
                     scope: active_scope.clone(),
+                    selected_matrix_action: selected_matrix_action.clone(),
                     on_place_component,
                     layout_target,
                     parts_query,
@@ -474,6 +528,7 @@ fn AddObjectEntry(
     matrix_inspector: Option<MatrixInspectorMount>,
     snapshot: AcceptedSnapshot,
     scope: Option<Scope>,
+    selected_matrix_action: Option<(Scope, String, String)>,
     on_place_component: EventHandler<super::part_placement::ComponentPlacementAction>,
     layout_target: Signal<Option<String>>,
     parts_query: super::parts::PartsQuery,
@@ -486,15 +541,28 @@ fn AddObjectEntry(
     let matrix_open = matrix_setup
         .as_ref()
         .map(|mount| (mount.can_open, mount.on_open));
-    let matrix_actions = matrix_inspector.as_ref().and_then(|mount| {
-        mount.projection.as_ref().map(|projection| {
-            (
-                projection.matrix_label.clone(),
+    let matrix_actions = matrix_inspector
+        .as_ref()
+        .and_then(|mount| {
+            mount.projection.as_ref().map(|projection| {
+                (
+                    projection.matrix_label.clone(),
+                    mount.on_add_row,
+                    mount.on_add_column,
+                    None,
+                )
+            })
+        })
+        .or_else(|| {
+            let (scope, matrix_id, label) = selected_matrix_action?;
+            let mount = matrix_inspector.as_ref()?;
+            Some((
+                label,
                 mount.on_add_row,
                 mount.on_add_column,
-            )
-        })
-    });
+                Some((scope, matrix_id)),
+            ))
+        });
     rsx! {
         div { class: "m1-layout-add-object",
             button {
@@ -552,24 +620,48 @@ fn AddObjectEntry(
                         }
                     }
                     }
-                    if let Some((matrix_label, on_add_row, on_add_column)) = matrix_actions {
-                        section { "aria-label": "Selected matrix",
-                            h3 { "{matrix_label}" }
-                            button {
-                                r#type: "button",
-                                onclick: move |_| {
-                                    menu_open.set(false);
-                                    on_add_row.call(());
-                                },
-                                "Add row"
-                            }
-                            button {
-                                r#type: "button",
-                                onclick: move |_| {
-                                    menu_open.set(false);
-                                    on_add_column.call(());
-                                },
-                                "Add column"
+                    if let Some((matrix_label, on_add_row, on_add_column, selection)) = matrix_actions {
+                        {
+                            let add_row_selection = selection.clone();
+                            let add_column_selection = selection.clone();
+                            let select_matrix_for_row = on_select;
+                            let select_matrix_for_column = on_select;
+                            rsx! {
+                                section { "aria-label": "Selected matrix",
+                                    h3 { "{matrix_label}" }
+                                    button {
+                                        r#type: "button",
+                                        onclick: move |_| {
+                                            menu_open.set(false);
+                                            if let Some((scope, matrix_id)) = add_row_selection.clone() {
+                                                select_matrix_for_row.call(TreeSelectRequest {
+                                                    scope,
+                                                    context: TreeContext::Matrix { matrix_id },
+                                                    mode: SelectionMode::Replace,
+                                                    outline_action: None,
+                                                });
+                                            }
+                                            on_add_row.call(());
+                                        },
+                                        "Add row"
+                                    }
+                                    button {
+                                        r#type: "button",
+                                        onclick: move |_| {
+                                            menu_open.set(false);
+                                            if let Some((scope, matrix_id)) = add_column_selection.clone() {
+                                                select_matrix_for_column.call(TreeSelectRequest {
+                                                    scope,
+                                                    context: TreeContext::Matrix { matrix_id },
+                                                    mode: SelectionMode::Replace,
+                                                    outline_action: None,
+                                                });
+                                            }
+                                            on_add_column.call(());
+                                        },
+                                        "Add column"
+                                    }
+                                }
                             }
                         }
                     }
