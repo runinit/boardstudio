@@ -4,7 +4,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, Event, Lifecycle, Scope, SnapshotToken, TerminalOutcome,
 };
 use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, Layout, LayoutMirrorLink, PartKind, ProjectDoc,
+    EditCommand, EditOperation, EditPhase, Layout, LayoutMirrorLink, PartKind, ProjectDoc, Vec2,
 };
 use dioxus::prelude::*;
 use std::rc::Rc;
@@ -394,6 +394,12 @@ fn prepare_existing_half(
         target_matrix.id = target_matrix_id.clone();
         target_matrix.name = Some(target_name.clone());
         target_matrix.part_ids.clear();
+        for cell in &mut target_matrix.cells {
+            for assembly in &mut cell.assemblies {
+                assembly.offset.x = -assembly.offset.x;
+                assembly.rotation = assembly.rotation.map(|rotation| -rotation);
+            }
+        }
         next.matrices.push(target_matrix);
         next.layouts.push(Layout {
             id: target_layout_id.clone(),
@@ -642,15 +648,29 @@ fn settle_pending(
                     .iter()
                     .any(|layout| layout.id == *id)
             });
+            let current_owner = workspace == "Layout"
+                && scope_generation == waiting.owner.scope_generation
+                && runtime.scope().as_ref() == Some(&waiting.owner.scope)
+                && model.active_board_id == waiting.owner.scope.board_id
+                && model.active_instance_id == waiting.owner.scope.instance_id
+                && model.lifecycle == Lifecycle::Ready
+                && model.display_preview.is_none()
+                && model.gesture.is_none();
             if saved
                 && created
                 && snapshot.token != waiting.owner.snapshot_token
                 && snapshot.document.revision == waiting.owner.revision.saturating_add(1)
+                && current_owner
             {
                 pending.set(None);
                 open.set(None);
                 error.set(None);
                 status.set(None);
+                runtime.submit(Event::SetCamera {
+                    operation_id: runtime.operation(),
+                    center: Vec2::default(),
+                    zoom: 1.0,
+                });
             } else if snapshot.document.revision > waiting.owner.revision.saturating_add(1)
                 || workspace != "Layout"
                 || scope_generation != waiting.owner.scope_generation
