@@ -48,6 +48,23 @@ pub(super) struct AdmittedNavigation {
     pub owner: NavigationOwner,
 }
 
+/// Publish a finding identity only for a route that was admitted to the Layout workspace.
+/// Editor and the mounted navigation probe use this shared projection so marker state follows
+/// the same accepted request that owns selection and destination fitting.
+pub(super) fn focused_finding_for_admitted_route(
+    request: &keycaps_fit::FindingNavigationRequest,
+    admitted: &AdmittedNavigation,
+) -> Option<super::keycaps_finding_marker::FocusedFinding> {
+    matches!(&admitted.owner.destination, Destination::Layout(_)).then(|| {
+        super::keycaps_finding_marker::FocusedFinding {
+            scope: request.source.scope.clone(),
+            token: request.source.token,
+            revision: request.source.revision,
+            finding_id: request.finding.id.clone(),
+        }
+    })
+}
+
 pub(super) struct NavigationAdmission<'a> {
     pub current_workspace: &'a str,
     pub owner: OwnerIdentity<'a>,
@@ -530,14 +547,19 @@ pub(super) fn finish_destination_fit(
 
 #[cfg(test)]
 mod tests {
+    use super::super::keycaps_finding_marker::{FocusedFindingMarker, use_retire_stale_finding};
     use super::*;
     use boardstudio_application::{SessionEpoch, SnapshotToken};
-    use boardstudio_core::model::{Finding, Scope as FindingScope, Severity};
+    use boardstudio_core::model::{
+        Contour, Finding, FindingMarker, Scope as FindingScope, Severity, Vec2,
+    };
     use std::{
         cell::RefCell,
         task::{Context, Waker},
     };
+    use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
+    use web_sys::{Element as DomElement, HtmlElement};
 
     wasm_bindgen_test_configure!(run_in_browser);
 
@@ -587,6 +609,11 @@ mod tests {
         fit_state: keycaps_fit::KeycapsFitState,
         document: boardstudio_core::model::ProjectDoc,
         initial_live: LiveNavigationOwner,
+        workspace: Rc<RefCell<Option<Signal<&'static str>>>>,
+        focused: Rc<
+            RefCell<Option<Signal<Option<super::super::keycaps_finding_marker::FocusedFinding>>>>,
+        >,
+        markers: Rc<[FindingMarker]>,
         live: Rc<RefCell<Option<Signal<LiveNavigationOwner>>>>,
         schedule: Rc<RefCell<Option<EventHandler<()>>>>,
         pending: Rc<RefCell<Option<Signal<Option<PendingLayoutFit>>>>>,
@@ -598,8 +625,21 @@ mod tests {
 
     fn mounted_owner_host() -> Element {
         let probe = use_context::<MountedProbe>();
-        let live = use_signal(|| probe.initial_live.clone());
+        let mut live = use_signal(|| probe.initial_live.clone());
         *probe.live.borrow_mut() = Some(live);
+        let mut workspace = use_signal(|| probe.initial_live.workspace);
+        *probe.workspace.borrow_mut() = Some(workspace);
+        let mut focused =
+            use_signal(|| None::<super::super::keycaps_finding_marker::FocusedFinding>);
+        *probe.focused.borrow_mut() = Some(focused);
+        use_retire_stale_finding(
+            focused,
+            workspace(),
+            Some(probe.request.source.scope.clone()),
+            Some(probe.request.source.token),
+            Some(probe.request.source.revision),
+            "left".into(),
+        );
         let pending = use_signal(|| None::<PendingLayoutFit>);
         *probe.pending.borrow_mut() = Some(pending);
         let alive = use_navigation_lifetime();
@@ -648,6 +688,8 @@ mod tests {
             let probe = probe.clone();
             move |_: ()| {
                 let request = probe.request.clone();
+                let live_now = live.read().clone();
+                let current_workspace = workspace();
                 let accepted = AcceptedNavigationSource {
                     scope: request.source.scope.clone(),
                     session_epoch: request.source.scope.session_epoch,
@@ -658,13 +700,13 @@ mod tests {
                 let admitted = admit_accepted_request(
                     &request,
                     NavigationAdmission {
-                        current_workspace: "Keycaps",
+                        current_workspace,
                         owner: OwnerIdentity {
                             scope: &request.source.scope,
                             generation: probe.expected.generation,
                         },
-                        live_scope: Some(&request.source.scope),
-                        live_generation: probe.expected.generation,
+                        live_scope: live_now.scope.as_ref(),
+                        live_generation: live_now.generation,
                         accepted: &accepted,
                         fit_state: &probe.fit_state,
                         document: &probe.document,
@@ -673,27 +715,82 @@ mod tests {
                     |_| None,
                 )
                 .expect("mounted production admission accepts the current fixture");
+                focused.set(focused_finding_for_admitted_route(&request, &admitted));
                 let mut pending = probe.pending.borrow().expect("mounted pending fit");
                 dispatch_route(admitted.effects, &request, |action| {
-                    if let RouteAction::QueueLayoutFit(fit) = &action {
-                        pending.set(Some(fit.clone()));
+                    match &action {
+                        RouteAction::SetWorkspace(name) => {
+                            workspace.set(*name);
+                            let mut owner = live.read().clone();
+                            owner.workspace = *name;
+                            live.set(owner);
+                        }
+                        RouteAction::SelectTree { scope, context } => {
+                            let mut owner = live.read().clone();
+                            owner.workspace = "Layout";
+                            owner.scope = Some(scope.clone());
+                            owner.destinations = vec![Destination::Layout(context.clone())];
+                            live.set(owner);
+                        }
+                        RouteAction::QueueLayoutFit(fit) => pending.set(Some(fit.clone())),
+                        _ => {}
                     }
                     probe.route_actions.borrow_mut().push(action);
                 });
             }
         });
         *probe.schedule.borrow_mut() = Some(on_schedule);
-        rsx! { button { onclick: move |_| on_schedule.call(()), "Schedule destination fit" } }
+        let clear_route = move |_| {
+            workspace.set("Keycaps");
+            let mut owner = live.read().clone();
+            owner.workspace = "Keycaps";
+            owner.destinations.clear();
+            live.set(owner);
+        };
+        let marker_scope = probe.request.source.scope.clone();
+        let marker_token = probe.request.source.token;
+        let marker_revision = probe.request.source.revision;
+        rsx! {
+            button { id: "schedule-navigation", onclick: move |_| on_schedule.call(()), "Schedule destination fit" }
+            button { id: "leave-layout", onclick: clear_route, "Leave Layout" }
+            FocusedFindingMarker {
+                workspace: workspace().to_owned(),
+                scope: Some(marker_scope),
+                token: Some(marker_token),
+                revision: Some(marker_revision),
+                active_board_id: "left".to_owned(),
+                finding: focused(),
+                markers: probe.markers.clone(),
+            }
+        }
     }
 
-    fn mounted_probe(owner: NavigationOwner) -> (MountedProbe, VirtualDom) {
+    fn make_mounted_probe(owner: NavigationOwner) -> MountedProbe {
         let (request, fit_state, document) = keycaps_fit::browser_navigation_fixture();
-        let probe = MountedProbe {
+        let markers = Rc::from([FindingMarker {
+            finding_id: request.finding.id.clone(),
+            board_id: "left".into(),
+            contours: vec![Contour {
+                points: vec![
+                    Vec2 { x: 1.0, y: 2.0 },
+                    Vec2 { x: 4.0, y: 2.0 },
+                    Vec2 { x: 4.0, y: 5.0 },
+                ],
+                hole: false,
+            }],
+        }]);
+        let mut initial_live = live(&owner);
+        initial_live.workspace = "Keycaps";
+        initial_live.destinations.clear();
+        MountedProbe {
             request,
             fit_state,
             document,
-            initial_live: live(&owner),
+            initial_live,
             expected: owner,
+            workspace: Rc::default(),
+            focused: Rc::default(),
+            markers,
             live: Rc::default(),
             schedule: Rc::default(),
             pending: Rc::default(),
@@ -701,7 +798,11 @@ mod tests {
             route_actions: Rc::default(),
             effects: Rc::default(),
             focus_count: Rc::new(Cell::new(0)),
-        };
+        }
+    }
+
+    fn mounted_probe(owner: NavigationOwner) -> (MountedProbe, VirtualDom) {
+        let probe = make_mounted_probe(owner);
         let mut dom = VirtualDom::new(mounted_owner_host);
         dom.provide_root_context(probe.clone());
         dom.rebuild_to_vec();
@@ -993,5 +1094,84 @@ mod tests {
         drop(dom);
         probe.frame_effects.borrow_mut().pop().unwrap()();
         assert_eq!(probe.focus_count.get(), 1);
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_accepted_route_publishes_layout_marker_then_retires_it_on_workspace_change() {
+        let probe = make_mounted_probe(owner_fixture());
+        let root = mount_navigation_probe(probe.clone());
+        settle_navigation_probe().await;
+
+        click_probe("schedule-navigation");
+        settle_navigation_probe().await;
+
+        let marker = navigation_marker().expect("accepted Layout route renders its finding marker");
+        assert_eq!(
+            marker.get_attribute("data-finding-id").as_deref(),
+            Some("board:left:invalid-settings")
+        );
+        assert!(matches!(
+            probe.focused.borrow().unwrap().read().as_ref(),
+            Some(finding) if finding.finding_id == "board:left:invalid-settings"
+        ));
+        assert_eq!(*probe.workspace.borrow().unwrap().read(), "Layout");
+        assert!(probe.route_actions.borrow().iter().any(|action| matches!(
+            action,
+            RouteAction::SelectTree {
+                context: objects::TreeContext::Outline { board_id },
+                ..
+            } if board_id == "left"
+        )));
+        assert!(matches!(
+            probe.effects.borrow().first(),
+            Some(FitAction::SetCamera(_))
+        ));
+        assert!(probe.pending.borrow().unwrap()().is_none());
+
+        click_probe("leave-layout");
+        settle_navigation_probe().await;
+        assert!(probe.focused.borrow().unwrap().read().is_none());
+        assert!(navigation_marker().is_none());
+
+        root.remove();
+    }
+
+    fn mount_navigation_probe(probe: MountedProbe) -> DomElement {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("keycaps-navigation-marker-test-root");
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(mounted_owner_host);
+        dom.provide_root_context(probe);
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        root
+    }
+
+    fn navigation_marker() -> Option<DomElement> {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector("#keycaps-navigation-marker-test-root g.wb-outline-finding.is-focused")
+            .unwrap()
+    }
+
+    fn click_probe(id: &str) {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id(id)
+            .unwrap()
+            .dyn_into::<HtmlElement>()
+            .unwrap()
+            .click();
+    }
+
+    async fn settle_navigation_probe() {
+        gloo_timers::future::TimeoutFuture::new(40).await;
     }
 }

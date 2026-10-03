@@ -13,6 +13,37 @@ pub(super) struct FocusedFinding {
     pub finding_id: String,
 }
 
+/// Retire marker state when its accepted Layout owner is no longer current. The Editor and the
+/// mounted navigation probe share this effect so a route cannot leave a hidden, stale finding
+/// identity behind when switching workspaces or accepted documents.
+pub(super) fn use_retire_stale_finding(
+    mut finding: Signal<Option<FocusedFinding>>,
+    workspace: &'static str,
+    scope: Option<Scope>,
+    token: Option<SnapshotToken>,
+    revision: Option<u64>,
+    active_board_id: String,
+) {
+    use_effect(use_reactive(
+        (&workspace, &scope, &token, &revision, &active_board_id),
+        move |(workspace, scope, token, revision, active_board_id)| {
+            let current = finding.peek().as_ref().is_some_and(|focused| {
+                is_current_finding(
+                    focused,
+                    workspace,
+                    scope.as_ref(),
+                    token,
+                    revision,
+                    &active_board_id,
+                )
+            });
+            if !current {
+                finding.set(None);
+            }
+        },
+    ));
+}
+
 #[component]
 pub(super) fn FocusedFindingMarker(
     workspace: String,

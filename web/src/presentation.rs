@@ -1543,7 +1543,7 @@ fn Editor() -> Element {
     let instance_selection = use_context_provider(|| InstanceSelection(instance_preference));
     let case_body_selection = use_signal(|| None::<case_viewer::BodySelection>);
     let case_layer_selection = use_signal(|| None::<case_viewer::LayerSelection>);
-    let mut focused_keycaps_finding = use_signal(|| None::<keycaps_finding_marker::FocusedFinding>);
+    let focused_keycaps_finding = use_signal(|| None::<keycaps_finding_marker::FocusedFinding>);
     let pending_keycaps_navigation_fit =
         use_signal(|| None::<keycaps_navigation::PendingLayoutFit>);
     let keycaps_navigation_alive = keycaps_navigation::use_navigation_lifetime();
@@ -1776,27 +1776,14 @@ fn Editor() -> Element {
         }
     }));
     let active_board_id = model.active_board_id.clone();
-    use_effect(use_reactive(
-        (&layout_owner, &active_board_id),
-        move |(owner, active_board_id)| {
-            let current = focused_keycaps_finding
-                .peek()
-                .as_ref()
-                .is_some_and(|finding| {
-                    keycaps_finding_marker::is_current_finding(
-                        finding,
-                        owner.workspace,
-                        owner.scope.as_ref(),
-                        owner.token,
-                        owner.revision,
-                        &active_board_id,
-                    )
-                });
-            if !current {
-                focused_keycaps_finding.set(None);
-            }
-        },
-    ));
+    keycaps_finding_marker::use_retire_stale_finding(
+        focused_keycaps_finding,
+        layout_owner.workspace,
+        layout_owner.scope.clone(),
+        layout_owner.token,
+        layout_owner.revision,
+        active_board_id.clone(),
+    );
     let layer_source =
         current_scope
             .clone()
@@ -3221,18 +3208,10 @@ fn Editor() -> Element {
             ) else {
                 return;
             };
+            let focused =
+                keycaps_navigation::focused_finding_for_admitted_route(&request, &admitted);
             let effects = admitted.effects;
             let navigation_owner = admitted.owner;
-            let focused = matches!(
-                &navigation_owner.destination,
-                keycaps_navigation::Destination::Layout(_)
-            )
-            .then(|| keycaps_finding_marker::FocusedFinding {
-                scope: request.source.scope.clone(),
-                token: request.source.token,
-                revision: request.source.revision,
-                finding_id: request.finding.id.clone(),
-            });
             focused_finding.set(focused);
             let focus_runtime = runtime.clone();
             let focus_adapter = adapter.clone();
