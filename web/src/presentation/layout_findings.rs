@@ -8,6 +8,7 @@ use wasm_bindgen::JsCast;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct Source {
+    pub workspace: &'static str,
     pub scope: Scope,
     pub token: SnapshotToken,
     pub revision: u64,

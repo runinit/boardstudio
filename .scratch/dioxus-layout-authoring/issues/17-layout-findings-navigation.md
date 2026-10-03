@@ -6,16 +6,16 @@ Spec: [F3.5b Layout findings navigation](../drafts/17-layout-findings-navigation
 
 **Status:** source is integrated in candidate `17ba32b984c13f3621a2145efe1dd478862ab5cd`; combined strict check passed. The 34765 paired route journey passed for the available same-board Outline finding. A source-backed footer icon/label alignment correction is queued; verify its rendered appearance on the next candidate.
 
-**Scope note:** The pinned shared React footer also exposes `Layout findings` in PCB and Case contexts. This child qualifies the Layout route only; other workspace finding navigation stays with its consumers and must not be presented as complete or routed through the Layout owner.
+**Scope note:** The pinned React footer exposes the same `Layout findings` entry across its non-Export workspaces. This child shares the accepted scene page and preserves the selected workspace when opening it; activating a supported target uses the existing Layout route. Unsupported Case-body/mechanical targets remain without an action, and this does not claim broader workspace-specific finding navigation is complete.
 
-- [x] Add the real Layout findings count/action to the shared canvas footer in both Layout 2D and 3D, derived from the current accepted scene and document.
+- [x] Add the real Layout findings count/action to the shared canvas footer in all enabled non-Export workspaces, derived from the current accepted scene and document; opening preserves the selected workspace.
 - [x] Add the contextual `Layout findings` Inspector page with React grouping/severity/messages/action labels, Back/Escape, opening-heading focus and footer-trigger focus restoration.
 - [x] Reuse existing finding target/group/bounds presentation helpers without making Layout depend on `KeycapsFitSource` or Keycaps fit lifecycle.
 - [x] Route same-board Outline/Part/Matrix/Board actions through existing selection/tree and fit callbacks, with exact current Layout owner validation and focus.
 - [x] Retain cross-board requests through the existing board-navigation callback; resume only for the same accepted document/session/token/revision and expected board.
-- [x] Missing, unsupported and stale targets remain readable without an action; other workspace/Case/mechanical findings remain owned by their current consumers.
+- [x] Missing, unsupported and stale targets remain readable without an action; unsupported body/mechanical targets remain readable without being routed through the Layout owner.
 - [ ] Keep F3.5 and all 62 canonical parent statuses/acceptance criteria unchanged. Preserve broader contextual Inspector, relation, numeric draft, history and compact/keyboard gates.
-- [ ] Verify the footer icon and label render inline on the CSS follow-up candidate. The route journey is retained in [public 34765 receipt](../evidence/17-layout-findings-navigation/public-34765.md); the available fixture has one same-board Outline finding and exposes no cross-board action. Root owns combined checks; do not run a new local suite for reversible UI.
+- [ ] Verify the footer icon and label render inline on the CSS follow-up candidate, then verify the shared entry in Keymap remains on the Keymap tab until a target action is activated. The 34765 Layout route journey is retained in [public receipt](../evidence/17-layout-findings-navigation/public-34765.md); its fixture has one same-board Outline finding and exposes no cross-board action. Root owns combined checks; do not run a new local suite for reversible UI.
 - [ ] Preserve RF-001–015 and record a scoped refactoring takeaway or “No new refactoring takeaway observed.”
 
 **Existing parent acceptance:** All F3.5 criteria remain open, including broader empty/single/multiple selection Inspector behavior, drafts, relation state, target navigation, focus/keyboard/compact behavior and paired history journey. This child adds no canonical task, dependency or parent acceptance edge.

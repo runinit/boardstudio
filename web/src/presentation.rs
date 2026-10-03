@@ -1086,7 +1086,12 @@ fn source_matches_layout_owner(
     owner: &LayoutOwnerIdentity,
     allow_board_hop: bool,
 ) -> bool {
-    owner.workspace == "Layout"
+    owner.workspace
+        == if allow_board_hop {
+            "Layout"
+        } else {
+            source.workspace
+        }
         && owner.token == Some(source.token)
         && owner.revision == Some(source.revision)
         && owner.scope.as_ref().is_some_and(|scope| {
@@ -1095,6 +1100,21 @@ fn source_matches_layout_owner(
                 && (allow_board_hop || scope.board_id == source.scope.board_id)
         })
         && (allow_board_hop || owner.generation == source.generation)
+}
+
+fn findings_owner_is_current(
+    runtime: &Runtime,
+    workspace: Signal<&'static str>,
+    adapter: &SelectionAdapter,
+    owner: &LayoutOwnerIdentity,
+) -> bool {
+    let model = runtime.model();
+    owner.workspace != "Export"
+        && current_layout_owner(runtime, workspace, adapter) == *owner
+        && owner
+            .scope
+            .as_ref()
+            .is_some_and(|scope| active_board_scope_matches(&model, scope))
 }
 
 struct LayoutFindingNavigationContext {
@@ -4507,7 +4527,7 @@ fn Editor() -> Element {
         let mut objects_open = objects_open;
         let inspector_settings = inspector_panel_settings;
         move |()| {
-            if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
+            if !findings_owner_is_current(&runtime, workspace, &adapter, &owner) {
                 return;
             }
             findings_open.set(!findings_open());
@@ -4523,7 +4543,7 @@ fn Editor() -> Element {
         let mut findings_open = layout_findings_open;
         let mut scripts_open = geometry_scripts_open;
         move |()| {
-            if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
+            if !findings_owner_is_current(&runtime, workspace, &adapter, &owner) {
                 return;
             }
             findings_open.set(false);
@@ -4552,8 +4572,9 @@ fn Editor() -> Element {
         let body_selection = case_body_selection;
         let select_tree = workspace_callbacks.select_tree;
         let navigate = workspace_callbacks.navigate;
+        let mut active_workspace = workspace;
         move |request: layout_findings::Request| {
-            if !layout_owner_is_current(&runtime, workspace, &adapter, &owner)
+            if !findings_owner_is_current(&runtime, workspace, &adapter, &owner)
                 || !source_matches_layout_owner(&request.source, &owner, false)
             {
                 return;
@@ -4581,7 +4602,13 @@ fn Editor() -> Element {
             };
             if target_board != scope.board_id {
                 pending.set(Some(request));
+                active_workspace.set("Layout");
                 navigate.call((scope.clone(), target_board, None));
+                return;
+            }
+            if owner.workspace != "Layout" {
+                pending.set(Some(request));
+                active_workspace.set("Layout");
                 return;
             }
             perform_layout_finding_navigation(
@@ -4626,7 +4653,9 @@ fn Editor() -> Element {
                     return;
                 };
                 if active_workspace != "Layout" {
-                    pending.set(None);
+                    if active_workspace != request.source.workspace {
+                        pending.set(None);
+                    }
                     return;
                 }
                 if !source_matches_layout_owner(&request.source, &owner, true) {
@@ -4638,11 +4667,15 @@ fn Editor() -> Element {
                     return;
                 };
                 let target_board = keycaps_fit::target_board_id(&request.target);
-                if scope.board_id == request.source.scope.board_id {
+                if scope.board_id != target_board {
+                    if scope.board_id != request.source.scope.board_id {
+                        pending.set(None);
+                    }
                     return;
                 }
-                if scope.board_id != target_board {
-                    pending.set(None);
+                if request.source.workspace == "Layout"
+                    && scope.board_id == request.source.scope.board_id
+                {
                     return;
                 }
                 let model = runtime.model();
@@ -6843,6 +6876,7 @@ fn Editor() -> Element {
                     document: Rc::new(document.as_ref().clone()),
                     findings: snapshot.scene.findings.clone(),
                     source: layout_findings::Source {
+                        workspace: active_workspace,
                         scope: render_scope.clone(),
                         token: snapshot.token,
                         revision: snapshot.document.revision,
@@ -7499,7 +7533,24 @@ fn Editor() -> Element {
                 }
                 if has_inspector {
                     InspectorPanel { compact_open: inspect_open, settings: inspector_panel_settings,
-                        {workspace_composition::inspector(inspector_input)}
+                        if active_workspace != "Layout" && layout_findings_open() {
+                            layout_findings::LayoutFindingsInspector {
+                                open: true,
+                                document: Rc::new(document.as_ref().clone()),
+                                findings: snapshot.scene.findings.clone(),
+                                source: layout_findings::Source {
+                                    workspace: active_workspace,
+                                    scope: render_scope.clone(),
+                                    token: snapshot.token,
+                                    revision: snapshot.document.revision,
+                                    generation: render_generation,
+                                },
+                                on_close: on_close_layout_findings,
+                                on_navigate: on_layout_finding,
+                            }
+                        } else {
+                            {workspace_composition::inspector(inspector_input)}
+                        }
                     }
                 }
             }
@@ -7515,13 +7566,10 @@ fn Editor() -> Element {
                         board_available: true,
                         selection_available: footer_selection_available,
                         zoom_percent,
-                        findings_count: (active_workspace == "Layout").then(|| {
-                            keycaps_fit::presented_findings(
-                                &snapshot.scene.findings,
-                                &snapshot.document,
-                            )
-                            .len()
-                        }),
+                        findings_count: Some(keycaps_fit::presented_findings(
+                            &snapshot.scene.findings,
+                            &snapshot.document,
+                        ).len()),
                         on_toggle_findings: on_toggle_layout_findings,
                         on_fit_board: on_fit_keymap_board,
                         on_fit_selection: on_fit_keymap_selection,
@@ -7534,7 +7582,10 @@ fn Editor() -> Element {
                 } else {
                     span { "{model.camera.zoom * 100.0:.0}%" }
                 }
-                if active_workspace == "Layout" && layout_assembly_3d() {
+                if active_workspace != "Export"
+                    && !(matches!(active_workspace, "Layout" | "PCB" | "Keymap" | "Keycaps")
+                        && !layout_assembly_3d())
+                {
                     layout_findings::LayoutFindingsFooterButton {
                         count: keycaps_fit::presented_findings(
                             &snapshot.scene.findings,
