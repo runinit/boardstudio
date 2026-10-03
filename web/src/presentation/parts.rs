@@ -1114,6 +1114,11 @@ pub(super) fn PartsPreviewWorkspace(
         && lead.definition.id == preview_definition.id
     {
         lead.definition = preview_definition.clone();
+        if let Some(generator) = lead.definition.generator.as_mut() {
+            generator
+                .parameters
+                .extend(lead.generator_parameters.clone());
+        }
     }
     let source = match entry.source {
         catalogue::CatalogueSource::Project => ProfileDefinitionSource::Project,
