@@ -368,6 +368,7 @@ fn PartsSampleViewer(preview: Rc<crate::parts_preview::PartsPreviewSnapshot>) ->
                 scene: None,
                 preview: None,
                 layout_preview: None,
+                keycaps_preview: None,
                 parts_preview: Some(preview.clone()),
                 model_rows: None,
                 selected_layer: "pcb".to_owned(),
@@ -375,6 +376,7 @@ fn PartsSampleViewer(preview: Rc<crate::parts_preview::PartsPreviewSnapshot>) ->
                 resolved_theme: theme().to_owned(),
                 on_signal,
                 on_display_change,
+                mechanical_settings: None,
             }
         }
     }
