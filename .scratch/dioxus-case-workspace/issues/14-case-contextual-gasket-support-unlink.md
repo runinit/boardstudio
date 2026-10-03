@@ -8,7 +8,7 @@
 
 **Capability start condition:** Current generated support rows, exact MechanicalSettings owner identity, and the mounted Case shared viewer are available for the same accepted Scope.
 
-**Status:** source implemented on isolated branch `codex/case-contextual-support-linking-20261003`; pending one assigned affected compile and the integrated candidate's unlink journey. See the [implementation handoff](../evidence/14-case-contextual-gasket-support-unlink/implementation-handoff.md). This ticket does not close Issue07, F7.5, F7.2/F7.4, F7.3, F7.8, or any canonical parent gate.
+**Status:** isolated source implementation and the assigned page-only strict Clippy check passed; the integrated candidate's unlink journey remains with the coordinator. See the [implementation handoff](../evidence/14-case-contextual-gasket-support-unlink/implementation-handoff.md). This ticket does not close Issue07, F7.5, F7.2/F7.4, F7.3, F7.8, or any canonical parent gate.
 
 **Reviewed draft:** [Case contextual gasket support unlink](../drafts/14-case-contextual-gasket-support-unlink.md).
 

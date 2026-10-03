@@ -280,7 +280,6 @@ pub(crate) fn CaseSharedViewer(
     let runtime = use_context::<Rc<crate::runtime::Runtime>>();
     let _ = use_context::<Signal<u64>>()();
     let theme = resolved_theme;
-    let mut editing_gaskets = use_signal(|| false);
     let owner = match use_hook(ViewerOwner::new) {
         Ok(owner) => owner,
         Err(error) => {
@@ -435,6 +434,7 @@ pub(crate) fn CaseSharedViewer(
             current_source,
             on_signal,
             on_display_change,
+            mechanical_settings,
         }
     }
 }
@@ -917,8 +917,10 @@ fn SharedViewer(
     current_source: SourceGuard,
     on_signal: EventHandler<ScopedViewerSignal>,
     on_display_change: EventHandler<ScopedDisplayChange>,
+    mechanical_settings: Option<super::MechanicalSettingsProps>,
 ) -> Element {
     let runtime = use_context::<Rc<crate::runtime::Runtime>>();
+    let mut editing_gaskets = use_signal(|| false);
     let host = use_hook(|| Rc::new(RefCell::new(None::<RendererPageHost>)));
     let canvas = use_hook(|| Rc::new(RefCell::new(None::<HtmlCanvasElement>)));
     let live_projection = use_hook(|| Rc::new(RefCell::new(projection.clone())));
@@ -1822,6 +1824,23 @@ fn SharedViewer(
                 .cloned()
         })
     });
+    let unlink_message = unlink_feedback
+        .as_ref()
+        .map(|feedback| match feedback.state {
+            super::mechanical_settings::MechanicalSettingsFeedbackState::Pending => {
+                (false, "Unlinking selected support…".to_owned())
+            }
+            super::mechanical_settings::MechanicalSettingsFeedbackState::Saved => {
+                (false, "Selected support unlinked.".to_owned())
+            }
+            super::mechanical_settings::MechanicalSettingsFeedbackState::Failed => (
+                true,
+                feedback
+                    .message
+                    .clone()
+                    .unwrap_or_else(|| "The support could not be unlinked.".to_owned()),
+            ),
+        });
     let unlink_source = current_source.clone();
     let unlink_owner = owner.clone();
     let unlink_projection = projection.clone();
@@ -1866,12 +1885,8 @@ fn SharedViewer(
                             },
                             "Unlink selected support"
                         }
-                        if let Some(feedback) = unlink_feedback.as_ref() {
-                            match feedback.state {
-                                super::mechanical_settings::MechanicalSettingsFeedbackState::Pending => p { role: "status", "Unlinking selected support…" },
-                                super::mechanical_settings::MechanicalSettingsFeedbackState::Saved => p { role: "status", "Selected support unlinked." },
-                                super::mechanical_settings::MechanicalSettingsFeedbackState::Failed => p { role: "alert", "{feedback.message.as_deref().unwrap_or("The support could not be unlinked.")}" },
-                            }
+                        if let Some((alert, message)) = unlink_message {
+                            p { role: if alert { "alert" } else { "status" }, "{message}" }
                         }
                         if selected_support.is_some_and(|support| support.unlinked) {
                             p { class: "m1-case-edit-hint", "This gasket is unlinked from its pair." }

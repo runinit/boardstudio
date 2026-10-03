@@ -14,7 +14,7 @@ browser_pin: New own agent-browser session `case-link-react-webgpu-20261003`, Re
 mount: Case shared viewer toolbar; current generated support selected through existing Case layer selection. MechanicalSettingsProps is passed from the editor's existing mount.
 edit_owner: MechanicalSettingsPatch::SetGasketSupportUnlinked through the existing scoped request/controller and canonical/instance mapping.
 checks_before_freeze: rustfmt --edition 2024 on changed Rust files; git diff --check (pass).
-compile: pending coordinator-assigned page-only affected compile lease; do not start an unassigned Cargo build.
+compile: cargo clippy --locked --manifest-path web/Cargo.toml --no-default-features --features page --target wasm32-unknown-unknown --all-targets -- -D warnings; pass, exit 0, using coordinator-assigned shared target `/home/chris/.local/share/boardstudio/worktrees/case-current-result-status-repair-20261003/web/target`.
 review: consolidated Sol review on the integrated candidate; no separate source-review handoff.
 rf_disposition: No new refactoring takeaway observed in this bounded packet; preserve RF-001 shared presentation composition and RF-006 physical-instance/canonical scope history.
 parent_gates: F7.2/F7.4/F7.3/F7.5/F7.8 and canonical 62-parent graph remain open; Issue07 retains full gesture acceptance and consumes this action.
