@@ -2,7 +2,7 @@
 
 **Parent:** F3.3 — Transforms, constraints and snapping. **Reference:** React pin `5a472a9426e6e38993361da402cd4ec730feb369`; behavior inventory and review requests are under `evidence/transform-align/`.
 
-**Focused paired receipt:** [Selected Column/Key transform journey](../evidence/f33b-matrix-transform-paired-20261003/README.md). The paired edit/Undo/Redo/reopen path matched for a Column offset and Key-local X. The receipt also records a candidate-only generic world-position inspector on Key context; the isolated composition correction still needs a rebuilt public candidate check.
+**Focused paired receipt:** [Selected Column/Key transform journey](../evidence/f33b-matrix-transform-paired-20261003/README.md). The paired edit/Undo/Redo/reopen path matched for a Column offset and Key-local X. The receipt records and resolves the candidate-only generic world-position inspector on Key context, while retaining generic Position X/Y for standalone components. Wider F3.3b criteria remain open.
 
 ## Goal
 
