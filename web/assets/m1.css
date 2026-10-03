@@ -1108,3 +1108,8 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 
 .m1-pcb-object-footer { flex: none; display: flex; flex-direction: column; gap: 5px; padding: 16px 20px; border-top: 1px solid var(--wb-rule); font-size: 12px; }
 .m1-pcb-object-footer span { color: var(--wb-muted); }
+
+.m1-board-picker-actions { display: flex; gap: 6px; }
+.m1-board-picker-actions select { flex: 1; min-width: 0; }
+.m1-board-picker-actions button { flex: none; width: 32px; padding: 6px; }
+.m1-tree-row .m1-pcb-part-reference { flex: none; overflow: visible; font-weight: 650; }

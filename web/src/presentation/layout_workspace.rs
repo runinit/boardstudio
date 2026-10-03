@@ -56,6 +56,7 @@ pub(super) fn objects(input: ObjectsInput) -> Element {
                 on_select: input.shared.on_select,
                 on_navigate: input.shared.on_navigate,
                 on_nudge: input.shared.on_nudge,
+            board_setup: Some(input.shared.board_setup),
                 matrix_setup: Some(input.matrix_setup),
                 matrix_inspector: Some(input.matrix_inspector),
                 mirrored_pair: Some(input.mirrored_pair),

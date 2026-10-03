@@ -5468,11 +5468,19 @@ fn Editor() -> Element {
     workspace_callbacks
         .canvas_wheel
         .replace(Box::new(wheel.clone()));
+    let board_setup = objects::use_board_setup(
+        runtime.clone(),
+        version,
+        workspace,
+        adapter.generation,
+        workspace_callbacks.navigate,
+    );
     let shared_objects = workspace_composition::SharedObjectsInput {
         selected_context: adapter.selected_context,
         on_select: workspace_callbacks.select_tree,
         on_navigate: workspace_callbacks.navigate,
         on_nudge: workspace_callbacks.nudge_tree,
+        board_setup,
     };
     let case_scene = case_workspace::workspace_display_scene(runtime.cad_scene(), &render_scope);
     let pcb_wiring_source = current_scope

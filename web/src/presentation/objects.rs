@@ -3,6 +3,7 @@ use boardstudio_application::{AcceptedSnapshot, ReadModel, Scope, SelectionMode}
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
 
+mod board_setup_controller;
 mod keycap_resize;
 mod keycap_size;
 mod keycap_size_controller;
@@ -20,6 +21,7 @@ mod matrix_transform_inspector;
 mod mirrored_pair;
 mod mirrored_pair_controller;
 mod tree;
+pub(in crate::presentation) use board_setup_controller::{BoardSetupMount, use_board_setup};
 pub(in crate::presentation) use keycap_size::KeySizeControls;
 pub(in crate::presentation) use keycap_size_controller::{KeySizeMount, use_key_size};
 pub(in crate::presentation) use layout_align::{
@@ -121,6 +123,7 @@ pub(super) fn Objects(
     on_select: EventHandler<TreeSelectRequest>,
     on_navigate: EventHandler<(Scope, String, Option<String>)>,
     on_nudge: EventHandler<TreeNudgeRequest>,
+    board_setup: Option<BoardSetupMount>,
     matrix_setup: Option<MatrixSetupMount>,
     mirrored_pair: Option<MirroredPairMount>,
     pair_created: Option<Signal<Option<MirroredPairCreated>>>,
@@ -253,12 +256,19 @@ pub(super) fn Objects(
             }
             div { class: "m1-object-navigation",
                 label { "Board"
+                    div { class: "m1-board-picker-actions",
                     select { "aria-label": "Board", value: "{board_id}", onchange: move |event: FormEvent| {
                         if let Some(scope) = board_scope.clone() {
                             navigate_board.call((scope, event.value(), None));
                         }
                     },
                         for board in &document.boards { option { key: "{board.id}", value: "{board.id}", "{board.name}" } }
+                    }
+                    if let Some(mount) = board_setup {
+                        button { type: "button", aria_label: "New board", disabled: mount.owner.is_none(), onclick: move |_| { if let Some(owner) = mount.owner.clone() { mount.on_add.call(owner); } },
+                            svg { class: "m1-add-icon", "aria-hidden": "true", view_box: "0 0 16 16", path { d: "M8 3v10M3 8h10" } }
+                        }
+                    }
                     }
                 }
                 if !pcb_workspace && !instances.is_empty() && case_workspace {
@@ -423,7 +433,7 @@ pub(super) fn Objects(
                                             }
                                         },
                                         span { class: "m1-tree-glyph", {tree_glyph(item.kind)} }
-                                        span { class: "m1-tree-label", "{item.label}" }
+                                        span { class: if pcb_workspace { "m1-tree-label m1-pcb-part-reference" } else { "m1-tree-label" }, "{item.label}" }
                                         if let Some(detail) = item.detail { span { class: "m1-object-kind", "{detail}" } }
                                     }
                                 }

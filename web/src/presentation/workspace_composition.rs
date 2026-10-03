@@ -8,6 +8,7 @@ pub(super) struct SharedObjectsInput {
     pub(super) on_select: EventHandler<objects::TreeSelectRequest>,
     pub(super) on_navigate: EventHandler<(Scope, String, Option<String>)>,
     pub(super) on_nudge: EventHandler<objects::TreeNudgeRequest>,
+    pub(super) board_setup: objects::BoardSetupMount,
 }
 
 pub(super) enum WorkspaceObjectsInput<'a> {
