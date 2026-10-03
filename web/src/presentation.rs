@@ -4454,9 +4454,9 @@ fn Editor() -> Element {
                 return;
             }
             perform_layout_finding_navigation(
-                runtime,
-                adapter,
-                owner,
+                runtime.clone(),
+                adapter.clone(),
+                owner.clone(),
                 request,
                 workspace,
                 objects_open,
@@ -4464,8 +4464,8 @@ fn Editor() -> Element {
                 findings_open,
                 inspector_settings,
                 focused_finding,
-                svg,
-                alive,
+                svg.clone(),
+                alive.clone(),
                 body_selection,
                 case_selection,
                 select_tree,
