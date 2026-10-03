@@ -24,9 +24,10 @@ pub(super) struct InspectorInput {
 }
 
 pub(super) fn inspector(input: InspectorInput) -> Element {
+    let owner_key = format!("{:?}:{}", input.scope, input.module_id);
     rsx! {
         PcbMountedModuleInspector {
-            key: "{input.module_id}",
+            key: "{owner_key}",
             runtime: RuntimeHandle(input.runtime),
             snapshot: input.snapshot,
             scope: input.scope,
@@ -68,7 +69,7 @@ fn PcbMountedModuleInspector(
     let mut feedback = use_signal(String::new);
     let accepted_instance = instance.clone();
     use_effect(use_reactive!(|accepted_instance| {
-        if draft() != accepted_instance {
+        if *draft.peek() != accepted_instance {
             draft.set(accepted_instance);
             feedback.set(String::new());
         }
@@ -214,22 +215,22 @@ fn PcbMountedModuleInspector(
             }
             label { "X (mm)"
                 input { r#type: "number", step: "any", value: "{draft().at.x}", disabled: !editable,
-                    oninput: move |event| if let Ok(number) = event.value().parse::<f64>() { if number.is_finite() { draft.with_mut(|value| value.at.x = number); } }
+                    oninput: move |event| if let Ok(number) = event.value().parse::<f64>() && number.is_finite() { draft.with_mut(|value| value.at.x = number); }
                 }
             }
             label { "Y (mm)"
                 input { r#type: "number", step: "any", value: "{draft().at.y}", disabled: !editable,
-                    oninput: move |event| if let Ok(number) = event.value().parse::<f64>() { if number.is_finite() { draft.with_mut(|value| value.at.y = number); } }
+                    oninput: move |event| if let Ok(number) = event.value().parse::<f64>() && number.is_finite() { draft.with_mut(|value| value.at.y = number); }
                 }
             }
             label { "Yaw (degrees)"
                 input { r#type: "number", step: "any", value: "{draft().rotation}", disabled: !editable,
-                    oninput: move |event| if let Ok(number) = event.value().parse::<f64>() { if number.is_finite() { draft.with_mut(|value| value.rotation = number); } }
+                    oninput: move |event| if let Ok(number) = event.value().parse::<f64>() && number.is_finite() { draft.with_mut(|value| value.rotation = number); }
                 }
             }
             label { "Gap (mm)"
                 input { r#type: "number", min: "0", step: "any", value: "{draft().gap}", disabled: !editable,
-                    oninput: move |event| if let Ok(number) = event.value().parse::<f64>() { if number.is_finite() && number >= 0.0 { draft.with_mut(|value| value.gap = number); } }
+                    oninput: move |event| if let Ok(number) = event.value().parse::<f64>() && number.is_finite() && number >= 0.0 { draft.with_mut(|value| value.gap = number); }
                 }
             }
             label { "Attachment"
