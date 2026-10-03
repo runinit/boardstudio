@@ -70,47 +70,49 @@ pub(in crate::presentation) fn KeymapPanel(
                 h2 { "Keymap" }
                 span { "{layer_count} layers · {key_count} keys" }
             }
-            section { class: "m1-keymap-layers", "aria-label": "Layers",
-                h3 { "Layers" }
-                div { role: "group", "aria-label": "Keymap layers",
-                    for (index, layer) in view.layers.iter().enumerate() {
-                        {
-                            let id = layer.id.clone();
-                            let selected_layer = active_layer.is_some_and(|active| active.id.as_ref() == layer.id.as_ref());
-                            rsx! {
-                                button {
-                                    key: "{id}",
-                                    class: if selected_layer { "m1-keymap-layer is-active" } else { "m1-keymap-layer" },
-                                    type: "button",
-                                    "aria-pressed": "{selected_layer}",
-                                    onclick: move |_| on_layer.call(id.to_string()),
-                                    span { class: "m1-keymap-layer-index", "{index}" }
-                                    "{layer.name}"
+            details { class: "m1-keymap-layers", open: true,
+                summary { span { "Layers" } }
+                div { class: "m1-keymap-layers-content",
+                    div { role: "group", "aria-label": "Keymap layers",
+                        for (index, layer) in view.layers.iter().enumerate() {
+                            {
+                                let id = layer.id.clone();
+                                let selected_layer = active_layer.is_some_and(|active| active.id.as_ref() == layer.id.as_ref());
+                                rsx! {
+                                    button {
+                                        key: "{id}",
+                                        class: if selected_layer { "m1-keymap-layer is-active" } else { "m1-keymap-layer" },
+                                        type: "button",
+                                        "aria-pressed": "{selected_layer}",
+                                        onclick: move |_| on_layer.call(id.to_string()),
+                                        span { class: "m1-keymap-layer-index", "{index}" }
+                                        "{layer.name}"
+                                    }
                                 }
                             }
                         }
                     }
-                }
-                if let (Some(layer), Some(layer_controls_key)) = (active_layer, layer_controls_key) {
-                    {
-                        let layer_id = layer.id.to_string();
-                        let layer_name = layer.name.to_string();
-                        let is_base = view.layers.first().is_some_and(|base| base.id == layer.id);
-                        rsx! {
-                            KeymapLayerControls {
-                                key: "{layer_controls_key}",
-                                layer_id,
-                                layer_name,
-                                is_base,
-                                layer_count,
-                                enabled: layer_operations_enabled,
-                                feedback: layer_feedback.clone(),
-                                on_operation: on_layer_operation,
+                    if let (Some(layer), Some(layer_controls_key)) = (active_layer, layer_controls_key) {
+                        {
+                            let layer_id = layer.id.to_string();
+                            let layer_name = layer.name.to_string();
+                            let is_base = view.layers.first().is_some_and(|base| base.id == layer.id);
+                            rsx! {
+                                KeymapLayerControls {
+                                    key: "{layer_controls_key}",
+                                    layer_id,
+                                    layer_name,
+                                    is_base,
+                                    layer_count,
+                                    enabled: layer_operations_enabled,
+                                    feedback: layer_feedback.clone(),
+                                    on_operation: on_layer_operation,
+                                }
                             }
                         }
                     }
+                    p { class: "m1-keymap-empty", "Higher layers take precedence. Transparent keys fall through to the layer below." }
                 }
-                p { class: "m1-keymap-empty", "Higher layers take precedence. Transparent keys fall through to the layer below." }
             }
             div { class: "m1-keymap-actions", role: "group", "aria-label": "Keymap editors",
                 for (editor, label) in [
@@ -271,8 +273,6 @@ fn KeymapLayerControls(props: KeymapLayerControlsProps) -> Element {
                     },
                     "Remove layer"
                 }
-            } else {
-                p { class: "m1-keymap-layer-protected", role: "status", "The first layer cannot be removed." }
             }
             if !props.enabled && props.feedback.is_none() {
                 p { class: "m1-keymap-layer-paused", role: "status", "Layer changes are paused while another edit or save is in progress." }
@@ -281,5 +281,192 @@ fn KeymapLayerControls(props: KeymapLayerControlsProps) -> Element {
             if feedback_saved { p { role: "status", "Layer changes saved." } }
             if let Some(message) = feedback_error { p { role: "alert", "{message}" } }
         }
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod disclosure_mounted_tests {
+    use super::super::view::KeymapLayerLabel;
+    use super::*;
+    use boardstudio_application::{Scope, SessionEpoch};
+    use std::{cell::RefCell, rc::Rc};
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::*;
+    use web_sys::{Element as WebElement, HtmlElement, HtmlInputElement};
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    #[derive(Clone)]
+    struct Probe {
+        active_layer: Rc<RefCell<String>>,
+        render: Rc<RefCell<Option<Signal<u64>>>>,
+        operations: Rc<RefCell<Vec<KeymapLayerOperation>>>,
+    }
+
+    #[component]
+    fn fixture() -> Element {
+        let probe = use_context::<Probe>();
+        let version = use_signal(|| 0_u64);
+        *probe.render.borrow_mut() = Some(version);
+        let _ = version();
+        let active_layer_id = probe.active_layer.borrow().clone();
+        let scope = Scope {
+            session_epoch: SessionEpoch(1),
+            document_id: "keymap-disclosure-fixture".into(),
+            board_id: "board".into(),
+            instance_id: None,
+        };
+        let view = Rc::new(KeymapView {
+            layers: vec![
+                KeymapLayerLabel {
+                    id: Rc::from("base"),
+                    name: Rc::from("Main"),
+                },
+                KeymapLayerLabel {
+                    id: Rc::from("fn"),
+                    name: Rc::from("Function"),
+                },
+            ],
+            keys: Vec::new(),
+        });
+        let layer = probe.active_layer.clone();
+        let operations = probe.operations.clone();
+        rsx! {
+            style { {include_str!("../../../assets/m1.css")} }
+            KeymapPanel {
+                view,
+                scope,
+                active_layer_id,
+                selected_key_id: None,
+                layer_operations_enabled: true,
+                layer_feedback: None,
+                on_layer: move |id| *layer.borrow_mut() = id,
+                on_layer_operation: move |operation| operations.borrow_mut().push(operation),
+                on_select_key: |_| {},
+                on_export: |_| {},
+                firmware_export_enabled: true,
+                keys_editor: rsx! { div { "Key editor" } },
+                macros_editor: rsx! { div { "Macro editor" } },
+                encoders_editor: rsx! { div { "Encoder editor" } },
+            }
+        }
+    }
+
+    fn mount() -> (Probe, WebElement) {
+        let probe = Probe {
+            active_layer: Rc::new(RefCell::new("base".into())),
+            render: Rc::new(RefCell::new(None)),
+            operations: Rc::new(RefCell::new(Vec::new())),
+        };
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("keymap-layers-disclosure-test");
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(fixture);
+        dom.provide_root_context(probe.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        (probe, root)
+    }
+
+    async fn rendered() {
+        gloo_timers::future::TimeoutFuture::new(40).await;
+    }
+
+    fn layers(root: &WebElement) -> WebElement {
+        root.query_selector("details.m1-keymap-layers")
+            .unwrap()
+            .expect("the Keymap Layers section is a native details disclosure")
+    }
+
+    fn click(element: WebElement) {
+        element.dyn_into::<HtmlElement>().unwrap().click();
+    }
+
+    fn rerender(probe: &Probe) {
+        let mut signal = probe
+            .render
+            .borrow_mut()
+            .as_mut()
+            .copied()
+            .expect("fixture exposes its production render signal");
+        signal.set(signal() + 1);
+    }
+
+    fn contains_button(root: &WebElement, expected: &str) -> bool {
+        let buttons = root.query_selector_all("button").unwrap();
+        (0..buttons.length()).any(|index| {
+            buttons
+                .item(index)
+                .and_then(|button| button.text_content())
+                .is_some_and(|label| label.trim() == expected)
+        })
+    }
+
+    #[wasm_bindgen_test]
+    async fn layers_disclosure_is_open_accessible_persistent_and_view_only() {
+        let (probe, root) = mount();
+        rendered().await;
+
+        let disclosure = layers(&root);
+        assert!(disclosure.has_attribute("open"), "Layers starts expanded");
+        let summary = disclosure.query_selector("summary").unwrap().unwrap();
+        assert_eq!(summary.text_content().unwrap().trim(), "Layers");
+        assert!(!contains_button(&disclosure, "Remove layer"));
+        assert!(
+            disclosure
+                .query_selector(".m1-keymap-layer-protected")
+                .unwrap()
+                .is_none(),
+            "Base has no Dioxus-only protection sentence"
+        );
+
+        click(summary.clone());
+        rendered().await;
+        assert!(!layers(&root).has_attribute("open"));
+        *probe.active_layer.borrow_mut() = "fn".into();
+        rerender(&probe);
+        rendered().await;
+        let collapsed = layers(&root);
+        assert!(
+            !collapsed.has_attribute("open"),
+            "rerender retains disclosure choice"
+        );
+        assert_eq!(
+            collapsed
+                .query_selector("input[aria-label='Layer name']")
+                .unwrap()
+                .unwrap()
+                .dyn_into::<HtmlInputElement>()
+                .unwrap()
+                .value(),
+            "Function"
+        );
+
+        click(collapsed.query_selector("summary").unwrap().unwrap());
+        rendered().await;
+        let expanded = layers(&root);
+        assert!(expanded.has_attribute("open"));
+        assert!(contains_button(&expanded, "Remove layer"));
+        assert!(
+            expanded
+                .query_selector(".m1-keymap-layer-protected")
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            probe.operations.borrow().is_empty(),
+            "disclosure interaction is view-only"
+        );
+
+        let _ = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .body()
+            .unwrap()
+            .remove_child(&root);
     }
 }
