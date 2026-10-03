@@ -19,8 +19,19 @@ pub(crate) struct PartsPreviewOwnerIdentity {
     pub(crate) accepted_revision: u64,
     pub(crate) accepted_document_identity: usize,
     pub(crate) definition_id: String,
+    pub(crate) recipe_identity: String,
     pub(crate) source_generation: u64,
     pub(crate) request_token: String,
+}
+
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+pub(crate) struct PartsPreviewRecipeMember {
+    pub(crate) id: String,
+    pub(crate) definition: PartDefinition,
+    pub(crate) at: Vec2,
+    pub(crate) rotation: f64,
+    pub(crate) side: Side,
+    pub(crate) generator_parameters: BTreeMap<String, serde_json::Value>,
 }
 
 #[derive(Debug)]
@@ -110,9 +121,9 @@ impl PartsPreviewCapture {
         scope: &Scope,
         source_generation: u64,
         request_token: String,
-        definition: &PartDefinition,
+        members: &[PartsPreviewRecipeMember],
     ) -> Result<Self, String> {
-        if request_token.is_empty() || source_generation == 0 {
+        if request_token.is_empty() || source_generation == 0 || members.is_empty() {
             return Err("Parts preview needs a current request identity".into());
         }
         if snapshot.session_epoch != scope.session_epoch
@@ -122,47 +133,68 @@ impl PartsPreviewCapture {
             return Err("Parts preview scope does not match its accepted source".into());
         }
 
+        let recipe_identity = serde_json::to_string(members)
+            .map_err(|error| format!("Could not identify the Parts preview recipe: {error}"))?;
+        let definition = &members[0].definition;
         let owner = PartsPreviewOwnerIdentity {
             scope: scope.clone(),
             snapshot_token: snapshot.token,
             accepted_revision: snapshot.document.revision,
             accepted_document_identity: Arc::as_ptr(&snapshot.document) as usize,
             definition_id: definition.id.clone(),
+            recipe_identity,
             source_generation,
             request_token: request_token.clone(),
         };
         let mut sample_document = ProjectDoc::empty("parts-library-sample", "Parts sample");
         sample_document.revision = snapshot.document.revision;
         sample_document.assets.clone_from(&snapshot.document.assets);
-        sample_document.definitions.push(definition.clone());
-        let sample_part = Part {
-            keycap: definition.keycap,
-            outline: None,
-            id: "parts-sample-0".into(),
-            definition_id: definition.id.clone(),
-            reference: "P1".into(),
-            pose: Pose2 {
-                at: Vec2 { x: 0.0, y: 0.0 },
-                rotation: 0.0,
-            },
-            side: Side::Front,
-            locked: None,
-            properties: None,
-            generator_parameters: Some(
-                definition
-                    .terminals
-                    .keys()
-                    .map(|terminal| (terminal.clone(), serde_json::Value::String(String::new())))
-                    .collect(),
-            ),
-        };
-        sample_document.parts.push(sample_part);
-        let contours = sample_contour(definition);
+        let mut contours_points = Vec::new();
+        for (index, member) in members.iter().enumerate() {
+            if !sample_document
+                .definitions
+                .iter()
+                .any(|entry| entry.id == member.definition.id)
+            {
+                sample_document.definitions.push(member.definition.clone());
+            }
+            let part_id = format!("parts-sample-{index}");
+            sample_document.parts.push(Part {
+                keycap: member.definition.keycap,
+                outline: None,
+                id: part_id,
+                definition_id: member.definition.id.clone(),
+                reference: format!("P{}", index + 1),
+                pose: Pose2 {
+                    at: member.at,
+                    rotation: member.rotation,
+                },
+                side: member.side.clone(),
+                locked: None,
+                properties: None,
+                generator_parameters: Some(
+                    member
+                        .definition
+                        .terminals
+                        .keys()
+                        .map(|terminal| {
+                            (terminal.clone(), serde_json::Value::String(String::new()))
+                        })
+                        .collect(),
+                ),
+            });
+            contours_points.extend(sample_envelope_points(member));
+        }
+        let contours = sample_contour(contours_points);
         sample_document.boards.push(Board {
             id: "sample-board".into(),
             name: "Sample PCB".into(),
             outline_ids: Vec::new(),
-            part_ids: vec!["parts-sample-0".into()],
+            part_ids: sample_document
+                .parts
+                .iter()
+                .map(|part| part.id.clone())
+                .collect(),
             net_ids: Vec::new(),
             thickness: 1.6,
             traces: Vec::new(),
@@ -223,8 +255,9 @@ impl PartsPreviewCapture {
     }
 }
 
-fn sample_contour(definition: &PartDefinition) -> Vec<Contour> {
-    let keycap_points = definition
+fn sample_envelope_points(member: &PartsPreviewRecipeMember) -> Vec<Vec2> {
+    let keycap_points = member
+        .definition
         .keycap
         .filter(|size| size.x.is_finite() && size.y.is_finite() && size.x > 0.0 && size.y > 0.0)
         .map(|size| {
@@ -235,16 +268,36 @@ fn sample_contour(definition: &PartDefinition) -> Vec<Contour> {
                 },
                 Vec2 {
                     x: size.x / 2.0,
+                    y: -size.y / 2.0,
+                },
+                Vec2 {
+                    x: size.x / 2.0,
+                    y: size.y / 2.0,
+                },
+                Vec2 {
+                    x: -size.x / 2.0,
                     y: size.y / 2.0,
                 },
             ]
         })
         .unwrap_or_default();
-    let points = definition
+    let points = member
+        .definition
         .courtyard
         .iter()
         .chain(&keycap_points)
         .collect::<Vec<_>>();
+    let rotation = member.rotation.to_radians();
+    points
+        .iter()
+        .map(|point| Vec2 {
+            x: member.at.x + point.x * rotation.cos() - point.y * rotation.sin(),
+            y: member.at.y + point.x * rotation.sin() + point.y * rotation.cos(),
+        })
+        .collect()
+}
+
+fn sample_contour(points: Vec<Vec2>) -> Vec<Contour> {
     let (min_x, max_x, min_y, max_y) = if points.is_empty() {
         (-10.0, 10.0, -10.0, 10.0)
     } else {

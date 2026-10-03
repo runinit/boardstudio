@@ -2284,6 +2284,10 @@ fn Editor() -> Element {
     let layer_visibility = use_context::<LayerVisibility>();
     let parts_query: PartsQuery = use_signal(String::new);
     let parts_selection: PartsSelection = use_signal(|| None);
+    let parts_assembly_selection = use_signal(|| None);
+    use_context_provider(|| parts::PartsAssemblySelection(parts_assembly_selection));
+    let parts_assembly_orientation = use_signal(|| parts::SwitchOrientation::South);
+    use_context_provider(|| parts::PartsAssemblyOrientation(parts_assembly_orientation));
     let parts_selection_generation = use_signal(|| 0u64);
     use_context_provider(|| parts::PartsSelectionGeneration(parts_selection_generation));
     let parts_preview_activation = use_signal(|| 0u64);

@@ -19,6 +19,7 @@ struct PreviewInput {
     snapshot_token: SnapshotToken,
     definition_id: String,
     definition_json: String,
+    recipe_identity: String,
     selection_generation: u64,
 }
 
@@ -49,10 +50,19 @@ enum PreviewFailure {
 
 #[derive(Clone, Debug)]
 struct PreviewContent {
-    drawings: Drawings,
-    outline: Option<PreviewOutline>,
+    members: Vec<PreviewGeometry>,
     layers: Vec<PreviewLayer>,
     view_box: String,
+}
+
+#[derive(Clone, Debug)]
+struct PreviewGeometry {
+    definition: PartDefinition,
+    drawings: Drawings,
+    outline: Option<PreviewOutline>,
+    at: Vec2,
+    rotation: f64,
+    side: Side,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -66,6 +76,9 @@ struct Visibility {
 #[component]
 pub(in crate::presentation) fn PartsPreviewPanel(
     definition: Option<Rc<PartDefinition>>,
+    recipe: Vec<crate::parts_preview::PartsPreviewRecipeMember>,
+    recipe_error: Option<String>,
+    preview_title: Option<String>,
     scope: Option<Scope>,
     snapshot_token: SnapshotToken,
     generator_draft: Option<GeneratorPreviewDraft>,
@@ -73,6 +86,25 @@ pub(in crate::presentation) fn PartsPreviewPanel(
     let runtime = use_context::<Rc<crate::runtime::Runtime>>();
     let selection_generation = use_context::<super::PartsSelectionGeneration>().0;
     let preview_activation = use_context::<super::PartsPreviewActivation>().0;
+    let recipe = if recipe.is_empty() && recipe_error.is_none() {
+        definition
+            .as_ref()
+            .map(
+                |definition| crate::parts_preview::PartsPreviewRecipeMember {
+                    id: "switch".into(),
+                    definition: (**definition).clone(),
+                    at: Vec2 { x: 0.0, y: 0.0 },
+                    rotation: 0.0,
+                    side: Side::Front,
+                    generator_parameters: Default::default(),
+                },
+            )
+            .into_iter()
+            .collect::<Vec<_>>()
+    } else {
+        recipe
+    };
+    let recipe_identity = serde_json::to_string(&recipe).unwrap_or_default();
     let input = PreviewInput {
         scope: scope.clone(),
         snapshot_token,
@@ -83,6 +115,7 @@ pub(in crate::presentation) fn PartsPreviewPanel(
             .as_ref()
             .and_then(|definition| serde_json::to_string(definition.as_ref()).ok())
             .unwrap_or_default(),
+        recipe_identity,
         selection_generation: selection_generation(),
     };
     let last_input = use_hook(|| Rc::new(RefCell::new(None::<PreviewInput>)));
@@ -124,32 +157,49 @@ pub(in crate::presentation) fn PartsPreviewPanel(
         }
     }));
     let source = use_resource(use_reactive(
-        (&definition, &input, &generation),
-        |(definition, input, generation)| async move {
-            let result = match definition {
-                Some(definition) => load_preview(definition).await,
-                None => Err(PreviewFailure::Unsupported),
+        (&definition, &input, &generation, &recipe, &recipe_error),
+        |(definition, input, generation, recipe, recipe_error)| async move {
+            let result = if let Some(error) = recipe_error {
+                Err(PreviewFailure::Failed(error))
+            } else {
+                match definition {
+                    Some(_) if !recipe.is_empty() => load_recipe_preview(recipe).await,
+                    None => Err(PreviewFailure::Unsupported),
+                    _ => Err(PreviewFailure::Unsupported),
+                }
             };
             (PreviewOwner { input, generation }, result)
         },
     ));
     let sample_source = use_resource(use_reactive(
-        (&definition, &input, &generation, &scope, &show_3d()),
+        (
+            &definition,
+            &input,
+            &generation,
+            &scope,
+            &show_3d(),
+            &recipe,
+            &recipe_error,
+        ),
         {
             let runtime = runtime.clone();
             let lease_slot = lease_slot.clone();
-            move |(definition, input, generation, scope, show_3d)| {
+            move |(definition, input, generation, scope, show_3d, recipe, recipe_error)| {
                 let runtime = runtime.clone();
                 let lease_slot = lease_slot.clone();
+                let recipe_error = recipe_error.clone();
                 async move {
                     if !show_3d {
                         return (PreviewOwner { input, generation }, None);
+                    }
+                    if let Some(error) = recipe_error {
+                        return (PreviewOwner { input, generation }, Some(Err(error)));
                     }
                     let result = async {
                         let scope = scope.ok_or_else(|| {
                             "Open a project before preparing the Parts sample.".to_owned()
                         })?;
-                        let definition = definition.ok_or_else(|| {
+                        let _definition = definition.ok_or_else(|| {
                             "Select a component before preparing the Parts sample.".to_owned()
                         })?;
                         let accepted = runtime
@@ -173,7 +223,7 @@ pub(in crate::presentation) fn PartsPreviewPanel(
                             &scope,
                             generation,
                             request_token,
-                            &definition,
+                            &recipe,
                         )?;
                         lease_slot.replace(capture.lease.clone());
                         runtime
@@ -223,7 +273,7 @@ pub(in crate::presentation) fn PartsPreviewPanel(
 
     rsx! {
         section { class: "m1-workspace-content m1-parts-preview", "aria-label": "Parts footprint preview",
-            h2 { class: "m1-library-workspace-title", "{super::catalogue::preferred_label(&definition)}" }
+            h2 { class: "m1-library-workspace-title", "{preview_title.as_deref().map(str::to_owned).unwrap_or_else(|| super::catalogue::preferred_label(&definition))}" }
             div { class: "m1-design-view-group", role: "group", aria_label: "Part preview view",
                 button {
                     r#type: "button",
@@ -276,38 +326,47 @@ pub(in crate::presentation) fn PartsPreviewPanel(
                         role: "img",
                         "aria-label": "{definition.name} footprint preview",
                         g { transform: "scale(1,-1)",
-                            if !hidden.contains("part:0") {
-                                if let Some(outline) = &content.outline
-                                    && !hidden.contains(&format!("outline:{}", outline.label)) {
-                                    if outline.label == "Keycap" {
-                                        if let Some((x, y, width, height)) = outline_bounds(&outline.points) {
-                                            g { class: "m1-keycap-overlay", "data-layer": "Keycap",
-                                                rect { x: "{x}", y: "{y}", width: "{width}", height: "{height}", rx: "0.9" }
+                            for (part_index, member) in content.members.iter().enumerate() {
+                                { let part_hidden = hidden.contains(&format!("part:{part_index}"));
+                                  let transform = format!("translate({} {}) rotate({})", member.at.x, member.at.y, member.rotation);
+                                  rsx! {
+                                    g { transform: "{transform}",
+                                        if !part_hidden {
+                                            if let Some(outline) = &member.outline
+                                                && !hidden.contains(&format!("outline:{}", outline.label)) {
+                                                if outline.label == "Keycap" {
+                                                    if let Some((x, y, width, height)) = outline_bounds(&outline.points) {
+                                                        g { class: "m1-keycap-overlay", "data-layer": "Keycap",
+                                                            rect { x: "{x}", y: "{y}", width: "{width}", height: "{height}", rx: "0.9" }
+                                                        }
+                                                    }
+                                                } else {
+                                                    polygon { class: "m1-outline", "data-layer": "{outline.label}", points: polygon_points(&outline.points) }
+                                                }
+                                            }
+                                            for pad in &member.definition.pads {
+                                                { let pad_copper = copper_id(pad, &member.definition, &member.side);
+                                                  let pad_visible = !hidden.contains(&pad_copper);
+                                                  rsx! {
+                                                    if pad_visible {
+                                                        { render_pad(
+                                                            pad,
+                                                            pad_copper.trim_start_matches("copper:"),
+                                                            hidden.contains("drills"),
+                                                            hidden.contains("pad-labels"),
+                                                        ) }
+                                                    }
+                                                  }
+                                                }
+                                            }
+                                            for (index, graphic) in member.drawings.iter().enumerate() {
+                                                { let graphic_hidden = hidden.contains(&format!("graphics:{}", graphic.layer));
+                                                  rsx! { GraphicElement { key: "{part_index}-{index}", graphic: graphic.clone(), hidden: graphic_hidden } }
+                                                }
                                             }
                                         }
-                                    } else {
-                                        polygon { class: "m1-outline", "data-layer": "{outline.label}", points: polygon_points(&outline.points) }
                                     }
-                                }
-                                for pad in &definition.pads {
-                                    { let pad_copper = copper_id(pad, &definition);
-                                      let pad_visible = !hidden.contains(&pad_copper);
-                                      rsx! {
-                                        if pad_visible {
-                                            { render_pad(
-                                                pad,
-                                                pad_copper.trim_start_matches("copper:"),
-                                                hidden.contains("drills"),
-                                                hidden.contains("pad-labels"),
-                                            ) }
-                                        }
-                                      }
-                                    }
-                                }
-                                for (index, graphic) in content.drawings.iter().enumerate() {
-                                    { let graphic_hidden = hidden.contains(&format!("graphics:{}", graphic.layer));
-                                      rsx! { GraphicElement { key: "{index}", graphic: graphic.clone(), hidden: graphic_hidden } }
-                                    }
+                                  }
                                 }
                             }
                         }
@@ -382,7 +441,44 @@ fn PartsSampleViewer(preview: Rc<crate::parts_preview::PartsPreviewSnapshot>) ->
     }
 }
 
-async fn load_preview(definition: Rc<PartDefinition>) -> Result<PreviewContent, PreviewFailure> {
+async fn load_recipe_preview(
+    recipe: Vec<crate::parts_preview::PartsPreviewRecipeMember>,
+) -> Result<PreviewContent, PreviewFailure> {
+    let mut members = Vec::with_capacity(recipe.len());
+    let mut layers = Vec::new();
+    for (index, source) in recipe.into_iter().enumerate() {
+        let content = load_single_preview(&source.definition).await?;
+        let mut member = content.members.into_iter().next().ok_or_else(|| {
+            PreviewFailure::Failed("The footprint preview returned no member.".into())
+        })?;
+        member.at = source.at;
+        member.rotation = source.rotation;
+        member.side = source.side;
+        for mut layer in content.layers {
+            if layer.id == "part:0" {
+                layer.id = format!("part:{index}");
+                layer.label = super::catalogue::preferred_label(&source.definition);
+            }
+            if !layers
+                .iter()
+                .any(|existing: &PreviewLayer| existing.id == layer.id)
+            {
+                layers.push(layer);
+            }
+        }
+        members.push(member);
+    }
+    let view_box = recipe_view_box(&members).unwrap_or_else(|| "0 0 0 0".into());
+    Ok(PreviewContent {
+        members,
+        layers,
+        view_box,
+    })
+}
+
+async fn load_single_preview(
+    definition: &PartDefinition,
+) -> Result<PreviewContent, PreviewFailure> {
     if definition.kicad_source.is_some() {
         return source_backed_preview(&definition);
     }
@@ -416,13 +512,19 @@ async fn load_preview(definition: Rc<PartDefinition>) -> Result<PreviewContent, 
     } else {
         None
     };
-    let view_box = view_box(&definition, &drawings, outline.as_ref()).ok_or_else(|| {
-        PreviewFailure::Failed("The selected definition contains no 2D footprint geometry.".into())
-    })?;
+    let member = PreviewGeometry {
+        definition: definition.clone(),
+        drawings,
+        outline: outline.clone(),
+        at: Vec2 { x: 0.0, y: 0.0 },
+        rotation: 0.0,
+        side: Side::Front,
+    };
+    let view_box =
+        recipe_view_box(std::slice::from_ref(&member)).unwrap_or_else(|| "0 0 0 0".into());
     let layers = preview_layers(&definition, &drawings, outline.as_ref());
     Ok(PreviewContent {
-        drawings,
-        outline,
+        members: vec![member],
         layers,
         view_box,
     })
@@ -434,13 +536,19 @@ fn source_backed_preview(definition: &PartDefinition) -> Result<PreviewContent, 
         label: "Courtyard",
         points: definition.courtyard.clone(),
     });
-    let view_box = view_box(definition, &drawings, outline.as_ref()).ok_or_else(|| {
-        PreviewFailure::Failed("The imported footprint contains no projected 2D geometry.".into())
-    })?;
+    let member = PreviewGeometry {
+        definition: definition.clone(),
+        drawings,
+        outline: outline.clone(),
+        at: Vec2 { x: 0.0, y: 0.0 },
+        rotation: 0.0,
+        side: Side::Front,
+    };
+    let view_box =
+        recipe_view_box(std::slice::from_ref(&member)).unwrap_or_else(|| "0 0 0 0".into());
     let layers = preview_layers(definition, &drawings, outline.as_ref());
     Ok(PreviewContent {
-        drawings,
-        outline,
+        members: vec![member],
         layers,
         view_box,
     })
@@ -595,7 +703,7 @@ fn preview_layers(
     layers
 }
 
-fn copper_id(pad: &Pad, definition: &PartDefinition) -> String {
+fn copper_id(pad: &Pad, definition: &PartDefinition, part_side: &Side) -> String {
     let side = pad.side.as_ref().map_or_else(
         || {
             let configured_back = definition
@@ -607,7 +715,10 @@ fn copper_id(pad: &Pad, definition: &PartDefinition) -> String {
             if configured_back {
                 "copper:B.Cu"
             } else {
-                "copper:F.Cu"
+                match part_side {
+                    Side::Back => "copper:B.Cu",
+                    Side::Front => "copper:F.Cu",
+                }
             }
         },
         |side| match side {
@@ -630,37 +741,57 @@ fn visible_hidden(definition_id: &str, visibility: &Visibility) -> BTreeSet<Stri
     }
 }
 
-fn view_box(
-    definition: &PartDefinition,
-    drawings: &[Graphic],
-    outline: Option<&PreviewOutline>,
-) -> Option<String> {
-    let mut bounds = Bounds::default();
-    for point in &definition.courtyard {
-        if outline.is_some_and(|outline| outline.label == "Courtyard") {
-            bounds.include(point.x, point.y);
+fn recipe_view_box(members: &[PreviewGeometry]) -> Option<String> {
+    let mut complete = Bounds::default();
+    for member in members {
+        let mut local = Bounds::default();
+        if member
+            .outline
+            .as_ref()
+            .is_some_and(|outline| outline.label == "Courtyard")
+        {
+            for point in &member.definition.courtyard {
+                local.include(point.x, point.y);
+            }
         }
-    }
-    for point in outline.into_iter().flat_map(|outline| &outline.points) {
-        bounds.include(point.x, point.y);
-    }
-    for pad in &definition.pads {
-        let angle = pad.rotation.unwrap_or(0.0).to_radians();
-        let (sin, cos) = angle.sin_cos();
-        for x in [-pad.size.x / 2.0, pad.size.x / 2.0] {
-            for y in [-pad.size.y / 2.0, pad.size.y / 2.0] {
-                bounds.include(pad.at.x + x * cos - y * sin, pad.at.y + x * sin + y * cos);
+        if let Some(outline) = member.outline.as_ref() {
+            for point in &outline.points {
+                local.include(point.x, point.y);
+            }
+        }
+        for pad in &member.definition.pads {
+            let angle = pad.rotation.unwrap_or(0.0).to_radians();
+            let (sin, cos) = angle.sin_cos();
+            for x in [-pad.size.x / 2.0, pad.size.x / 2.0] {
+                for y in [-pad.size.y / 2.0, pad.size.y / 2.0] {
+                    local.include(pad.at.x + x * cos - y * sin, pad.at.y + x * sin + y * cos);
+                }
+            }
+        }
+        for graphic in member.drawings.iter() {
+            include_graphic_bounds(&mut local, graphic);
+        }
+        let Some((min_x, min_y, max_x, max_y)) = local.finish() else {
+            continue;
+        };
+        let rotation = member.rotation.to_radians();
+        let (sin, cos) = rotation.sin_cos();
+        for x in [min_x, max_x] {
+            for y in [min_y, max_y] {
+                complete.include(
+                    member.at.x + x * cos - y * sin,
+                    member.at.y + x * sin + y * cos,
+                );
             }
         }
     }
-    for graphic in drawings {
-        include_graphic_bounds(&mut bounds, graphic);
-    }
-    // The React library preview includes its origin even when every source
-    // coordinate lies on one side of it. Keep empty geometry an error first.
-    bounds.finish()?;
-    bounds.include(0.0, 0.0);
-    let (min_x, min_y, max_x, max_y) = bounds.finish()?;
+    // Match the reference's empty source-backed library surface. A zero-size
+    // viewBox represents no geometry and deliberately adds no synthetic point.
+    let Some(_) = complete.finish() else {
+        return Some("0 0 0 0".into());
+    };
+    complete.include(0.0, 0.0);
+    let (min_x, min_y, max_x, max_y) = complete.finish()?;
     let margin = 3.0;
     Some(format!(
         "{:.3} {:.3} {:.3} {:.3}",

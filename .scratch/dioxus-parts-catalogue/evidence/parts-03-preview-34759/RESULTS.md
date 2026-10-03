@@ -4,7 +4,7 @@ This is the changed selected-definition 3D/header/readiness/return journey only.
 
 ## Candidate, reference, and fixture
 
-- Candidate: `http://127.0.0.1:34759/`, exact served source `04c85b88eae2894b416979f785a1f0060d2eb27`.
+- Candidate: `http://127.0.0.1:34759/`, exact served source `04c85b88eae2894b416979f785a1f0060d2eb27d`.
 - React reference: `http://127.0.0.1:5173/`, pinned source `5a472a9426e6e38993361da402cd4ec730feb369`.
 - Both origins opened the existing `layered-sofle-export.boardstudio`, SHA-256 `5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df`.
 - Candidate browser session: `parts-preview-936481b4b15c`; React session: `parts-preview-react-20261003`.

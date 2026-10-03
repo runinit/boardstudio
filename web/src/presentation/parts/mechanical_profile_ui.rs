@@ -25,6 +25,9 @@ pub(crate) fn PartsMechanicalProfileWorkspace(
     definition: PartDefinition,
     preview_definition: Option<PartDefinition>,
     generator_draft: Option<GeneratorPreviewDraft>,
+    recipe: Vec<crate::parts_preview::PartsPreviewRecipeMember>,
+    recipe_error: Option<String>,
+    preview_title: Option<String>,
     source: ProfileDefinitionSource,
 ) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
@@ -192,6 +195,9 @@ pub(crate) fn PartsMechanicalProfileWorkspace(
         }
         PartsPreviewPanel {
             definition: Some(Rc::new(preview_definition.unwrap_or_else(|| definition.clone()))),
+            recipe,
+            recipe_error,
+            preview_title,
             scope,
             snapshot_token: snapshot.token,
             generator_draft,

@@ -232,6 +232,15 @@
           "evidence": ".scratch/dioxus-pcb-view/issues/18-pcb-contextual-objects.md",
           "observation": "Confirmed frontend composition gap: PCB mounted the generic Layout matrix/physical-instance/grouping inventory although the reference PCB shows flat actual board parts. Bounded current correction uses an accepted-board PCB tree and existing explicit part contexts/Inspector, hiding Layout controls and adding PCB footer. Outline rows currently reuse and filter the generic tree; this avoids duplicating outline lifecycle but still computes unused Layout rows.",
           "status": "Source integrated; changed public qualification pending. Later assess a shared outline projection plus workspace-specific inventory queries, without adding a second selection authority."
+        },
+        {
+          "source": "Parts assembly preview packet based on 7b6057e6",
+          "evidence": ".scratch/dioxus-parts-catalogue/issues/02-assembly-presets-modules.md; .scratch/dioxus-parts-catalogue/issues/03-isolated-library-preview.md",
+          "observation": "One logical library choice is represented by the existing selected-definition signal plus a Parts-private preset signal. The single activation updates both; serialized ordered recipe identity and selection generation gate asynchronous sample publication. More library target kinds could desynchronize these owners if evolved independently.",
+          "current_mitigation": "Keep preset activation atomic and recipe identity complete; clear the preset when an ordinary definition is selected. Do not write active project state from preview composition.",
+          "post_port_follow_up": "After parity, assess a typed Parts library choice union for definitions, assembly presets and module variants under one accepted scope owner.",
+          "validation": "Compare all mounted selection paths and ensure no stale sample is published after definition/preset/orientation changes; active document/revision/history/assets remain unchanged.",
+          "status": "bounded mitigation; typed-owner redesign deferred under RF-001; source review/public journey pending"
         }
       ],
       "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted.",

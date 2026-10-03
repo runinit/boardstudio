@@ -1,4 +1,5 @@
 //! Read-only Parts catalogue and selected-definition presentation slots.
+mod assembly_presets;
 mod catalogue;
 mod details;
 mod generator_settings;
@@ -10,6 +11,7 @@ mod mechanical_profile_ui;
 mod physical_setup;
 mod preview;
 mod standard_profile_lifetime;
+pub(super) use assembly_presets::SwitchOrientation;
 pub(super) use generator_settings::GeneratorPreviewStatus;
 
 #[cfg(any(target_arch = "wasm32", test))]
@@ -36,6 +38,14 @@ use std::{cell::RefCell, rc::Rc, sync::Arc};
 /// alive while the editor switches between workspaces.
 pub(super) type PartsQuery = Signal<String>;
 pub(super) type PartsSelection = Signal<Option<(Option<Scope>, String)>>;
+
+#[derive(Clone, Copy)]
+pub(super) struct PartsAssemblySelection(
+    pub(super) Signal<Option<assembly_presets::MatrixPresetId>>,
+);
+
+#[derive(Clone, Copy)]
+pub(super) struct PartsAssemblyOrientation(pub(super) Signal<assembly_presets::SwitchOrientation>);
 
 #[derive(Clone, Copy)]
 pub(super) struct PartsSelectionGeneration(pub(super) Signal<u64>);
@@ -669,6 +679,9 @@ pub(super) fn PartsLibraryPanel(
     let mut view_generation = use_signal(|| 0_u64);
     let mut generation = use_context::<PartsSelectionGeneration>().0;
     let mut preview_activation = use_context::<PartsPreviewActivation>().0;
+    let mut assembly_selection = use_context::<PartsAssemblySelection>().0;
+    let mut assembly_orientation = use_context::<PartsAssemblyOrientation>().0;
+    let mut selection_generation = use_context::<PartsSelectionGeneration>().0;
     let catalogue = use_catalogue(&snapshot, &scope);
     let content = if let Some(entries) = catalogue.entries {
         let choices = group_choices(&entries);
@@ -705,6 +718,51 @@ pub(super) fn PartsLibraryPanel(
                     },
                 }
             }
+            details { class: "m1-parts-catalogue-scroll m1-parts-assembly-list", open: true,
+                summary { "Key assemblies" small { "8" } }
+                if assembly_selection().is_some() {
+                    label { class: "m1-parts-search-label", "Switch orientation"
+                        select {
+                            "aria-label": "Switch orientation",
+                            value: if assembly_orientation() == assembly_presets::SwitchOrientation::North { "north" } else { "south" },
+                            onchange: move |event| {
+                                assembly_orientation.set(if event.value() == "north" { assembly_presets::SwitchOrientation::North } else { assembly_presets::SwitchOrientation::South });
+                                selection_generation.with_mut(|value| *value = value.wrapping_add(1));
+                            },
+                            option { value: "south", "South-facing LED" }
+                            option { value: "north", "North-facing LED" }
+                        }
+                        small { "Viewed from the keycap side; rotates the switch and attached parts together." }
+                    }
+                }
+                div { role: "listbox", "aria-label": "Key assemblies",
+                    for preset in assembly_presets::PRESETS {
+                        { let is_selected = assembly_selection() == Some(preset.id);
+                          let preset_id = preset.id;
+                          let definition_id = preset.definition_id.to_owned();
+                          let scope = scope.clone();
+                          rsx! {
+                            button {
+                                key: "{preset.id}",
+                                class: "m1-parts-catalogue-choice",
+                                type: "button",
+                                role: "option",
+                                "aria-selected": "{is_selected}",
+                                onclick: move |_| {
+                                    assembly_selection.set(Some(preset_id));
+                                    selected.set(Some((scope.clone(), definition_id.clone())));
+                                    view_generation.set(view_generation() + 1);
+                                    generation.with_mut(|value| *value = value.wrapping_add(1));
+                                    preview_activation.with_mut(|value| *value = value.wrapping_add(1));
+                                    on_select.call(());
+                                },
+                                "{preset.name}"
+                            }
+                          }
+                        }
+                    }
+                }
+            }
             if entries.is_empty() {
                 p { class: "m1-parts-empty", role: "status", "No component definitions are available." }
             } else if groups.is_empty() {
@@ -717,7 +775,7 @@ pub(super) fn PartsLibraryPanel(
                             section { key: "{group.label}", class: "m1-parts-category", "aria-label": "{group.label}",
                                 h3 { "{group.label}" }
                                 for entry in items {
-                                    { let is_selected = selected_id.as_deref() == Some(entry.definition.id.as_str());
+                                    { let is_selected = assembly_selection().is_none() && selected_id.as_deref() == Some(entry.definition.id.as_str());
                                       let id = entry.definition.id.clone();
                                       let scope = scope.clone();
                                       rsx! {
@@ -729,6 +787,7 @@ pub(super) fn PartsLibraryPanel(
                                             "aria-selected": "{is_selected}",
                                             title: entry.definition.generator.as_ref().map(|generator| generator.source.as_str()).unwrap_or(""),
                                             onclick: move |_| {
+                                                assembly_selection.set(None);
                                                 selected.set(Some((scope.clone(), id.clone())));
                                                 view_generation.set(view_generation() + 1);
                                                 generation.with_mut(|value| *value = value.wrapping_add(1));
@@ -992,6 +1051,26 @@ pub(super) fn PartsPreviewWorkspace(
         };
     };
     let listed_entries = catalogue_choices(&entries);
+    let assembly_preset = use_context::<PartsAssemblySelection>().0();
+    let active_assembly = assembly_preset();
+    let assembly_orientation = use_context::<PartsAssemblyOrientation>().0();
+    let preview_title = active_assembly.map(|preset| assembly_presets::name(preset).to_owned());
+    let assembly_result = active_assembly.map(|preset| {
+        assembly_presets::resolve(
+            preset,
+            &listed_entries,
+            reversible_layout(&snapshot.document),
+            assembly_orientation(),
+        )
+    });
+    let recipe_error = assembly_result
+        .as_ref()
+        .and_then(|result| result.as_ref().err().cloned());
+    let recipe = assembly_result
+        .as_ref()
+        .and_then(|result| result.as_ref().ok())
+        .cloned()
+        .unwrap_or_default();
     let search = query().trim().to_lowercase();
     let selected_id = selected_definition_id(&listed_entries, &search, selected(), &scope);
     let entry = selected_id.as_deref().and_then(|id| {
@@ -1005,6 +1084,9 @@ pub(super) fn PartsPreviewWorkspace(
         return rsx! {
             PartsPreviewPanel {
                 definition: None,
+                recipe,
+                recipe_error,
+                preview_title,
                 scope,
                 snapshot_token: snapshot.token,
                 generator_draft: None,
@@ -1026,6 +1108,13 @@ pub(super) fn PartsPreviewWorkspace(
         .filter(|draft| draft.status == generator_settings::GeneratorPreviewStatus::Ready)
         .and_then(|draft| draft.definition.as_ref())
         .cloned();
+    let mut recipe = recipe;
+    if let Some(preview_definition) = preview_definition.as_ref()
+        && let Some(lead) = recipe.first_mut()
+        && lead.definition.id == preview_definition.id
+    {
+        lead.definition = preview_definition.clone();
+    }
     let source = match entry.source {
         catalogue::CatalogueSource::Project => ProfileDefinitionSource::Project,
         catalogue::CatalogueSource::Ergogen => ProfileDefinitionSource::Ergogen,
@@ -1040,6 +1129,9 @@ pub(super) fn PartsPreviewWorkspace(
             definition: (*entry.definition).clone(),
             preview_definition,
             generator_draft,
+            recipe,
+            recipe_error,
+            preview_title,
             source,
         }
     }

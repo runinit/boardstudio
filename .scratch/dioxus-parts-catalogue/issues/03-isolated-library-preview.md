@@ -55,6 +55,12 @@ The current Dioxus Parts selection owner supplies only one selected accepted cat
 
 The selected-definition 3D route has a changed-only public receipt at `../evidence/parts-03-preview-34759/RESULTS.md`. The MX ready → 2D return and missing-model sample paths passed. The same receipt retains a separate `utility_text` empty-geometry 2D parity failure for the next Issue 03 packet; it is not reported as green and remains outside the frozen 3D source slice.
 
+## Current assembly and empty-surface slice
+
+Consume the mounted Issue 02 key-assembly preset selection as an ordered, read-only recipe. Resolve the preset's lead switch, optional diode and optional LED from the same construction-normalized bundled/project-override catalogue used by Parts; merge each member's preset parameters into its source generator definition and retain its pose and side. Both 2D and the isolated 3D sample use the same recipe identity and source members. The sample remains a separate disposable document, borrows accepted project assets, clears terminal-net overrides, frames every member envelope, and never changes active project state. Preset activation resets to 2D; changing the mounted South/North orientation keeps the current view while retiring stale preview work.
+
+For a successfully loaded non-Ergogen/source-backed definition with no projected geometry, preserve the React empty-surface behavior: render an empty 0×0 SVG view box and keep the selected definition/preset context. Do not add a point, fallback courtyard or other synthetic geometry. Genuine generator/service errors remain visible as errors. The changed-only candidate journey covers one LED preset with its actual companion members in 2D and 3D, return to 2D, and `utility_text` blank-surface behavior; it does not close all eight preset acceptance, VIK modules, or F4.4/F7.3/INT.2 parent joins.
+
 ## RF handoff
 
 No new refactoring takeaway observed during this ticket draft. Keep existing RF-006 (canonical versus isolated sample scope), RF-009 (parity/acceptance accounting) and RF-012 (renderer-host capability wrapper) as relevant evidence/owners; do not add a new RF item based only on this planning pass.
