@@ -5,7 +5,7 @@
 //! request after status notifications.
 #[cfg(feature = "page")]
 use boardstudio_application::AcceptedSnapshot;
-use boardstudio_application::{Scope, SnapshotToken};
+use boardstudio_application::{GenerationStatus, Scope, SnapshotToken};
 use boardstudio_core::model::{ProjectDoc, SceneDelta};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -261,6 +261,44 @@ pub(crate) fn same_owner_completed_scene_for_display(
     exact && scene_scope == current_scope
 }
 
+#[derive(Clone, Copy)]
+pub(crate) enum CaseGeometryStatus {
+    Missing,
+    Previous,
+    Preview,
+    CurrentExact,
+}
+
+pub(crate) fn case_generation_title(
+    generation: &GenerationStatus,
+    geometry: CaseGeometryStatus,
+) -> String {
+    match generation {
+        GenerationStatus::Preparing { .. } | GenerationStatus::Running { .. } => {
+            "Generating case…".to_owned()
+        }
+        // Completed output can be rebound after Undo restores the same physical
+        // inputs. The last request's terminal status then describes an older
+        // edit, while strict current-owner output describes what is ready now.
+        _ if matches!(geometry, CaseGeometryStatus::CurrentExact) => {
+            "Exact case geometry ready.".to_owned()
+        }
+        GenerationStatus::Blocked { reason, .. } => format!("Case generation blocked: {reason}"),
+        GenerationStatus::Failed { reason, .. } => format!("Case generation failed: {reason}"),
+        GenerationStatus::Cancelled { .. } => "Case generation cancelled.".to_owned(),
+        _ => match geometry {
+            CaseGeometryStatus::Previous => {
+                "Previous case geometry — regenerate for current changes.".to_owned()
+            }
+            CaseGeometryStatus::CurrentExact => "Exact case geometry ready.".to_owned(),
+            CaseGeometryStatus::Preview => {
+                "Case preview ready; exact assembly is still being built.".to_owned()
+            }
+            CaseGeometryStatus::Missing => "Generate a case from the saved keyboard.".to_owned(),
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -277,6 +315,46 @@ mod tests {
             },
             token: SnapshotToken(token),
             revision,
+        }
+    }
+
+    #[test]
+    fn undo_to_reusable_current_exact_geometry_supersedes_prior_block() {
+        let prior_block = GenerationStatus::Blocked {
+            job_id: boardstudio_application::JobId(3),
+            reason: "mechanical findings block case generation".into(),
+        };
+        assert_eq!(
+            case_generation_title(&prior_block, CaseGeometryStatus::CurrentExact),
+            "Exact case geometry ready.",
+        );
+    }
+
+    #[test]
+    fn active_generation_and_current_blocks_keep_their_status() {
+        let job_id = boardstudio_application::JobId(3);
+        for status in [
+            GenerationStatus::Preparing { job_id },
+            GenerationStatus::Running { job_id },
+        ] {
+            assert_eq!(
+                case_generation_title(&status, CaseGeometryStatus::CurrentExact),
+                "Generating case…",
+            );
+        }
+        let block = GenerationStatus::Blocked {
+            job_id,
+            reason: "mechanical findings block case generation".into(),
+        };
+        for geometry in [
+            CaseGeometryStatus::Missing,
+            CaseGeometryStatus::Previous,
+            CaseGeometryStatus::Preview,
+        ] {
+            assert_eq!(
+                case_generation_title(&block, geometry),
+                "Case generation blocked: mechanical findings block case generation",
+            );
         }
     }
 

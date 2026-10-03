@@ -5,7 +5,9 @@ use dioxus::prelude::*;
 use std::rc::Rc;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::case_generation_lifecycle::CaseGenerationOwner;
+use crate::case_generation_lifecycle::{
+    CaseGenerationOwner, CaseGeometryStatus, case_generation_title,
+};
 
 #[component]
 pub fn CasePanel(generation_ready: bool) -> Element {
@@ -104,20 +106,16 @@ pub fn CasePanel(generation_ready: bool) -> Element {
     let stale = scene
         .as_ref()
         .is_some_and(|scene| scene.token != snapshot.token);
-    let title = match &model.generation {
-        GenerationStatus::Preparing { .. } | GenerationStatus::Running { .. } => {
-            "Generating case…".to_owned()
-        }
-        GenerationStatus::Blocked { reason, .. } => format!("Case generation blocked: {reason}"),
-        GenerationStatus::Failed { reason, .. } => format!("Case generation failed: {reason}"),
-        GenerationStatus::Cancelled { .. } => "Case generation cancelled.".to_owned(),
-        _ if stale => "Previous case geometry — regenerate for current changes.".to_owned(),
-        _ if scene.as_ref().is_some_and(|s| s.exact) => "Exact case geometry ready.".to_owned(),
-        _ if scene.is_some() => {
-            "Case preview ready; exact assembly is still being built.".to_owned()
-        }
-        _ => "Generate a case from the saved keyboard.".to_owned(),
+    let geometry = if has_reusable_result {
+        CaseGeometryStatus::CurrentExact
+    } else if stale {
+        CaseGeometryStatus::Previous
+    } else if scene.is_some() {
+        CaseGeometryStatus::Preview
+    } else {
+        CaseGeometryStatus::Missing
     };
+    let title = case_generation_title(&model.generation, geometry);
     rsx! {
         section { class: "m1-case-panel", "aria-label": "Case assembly",
             div { class: "m1-case-header",
