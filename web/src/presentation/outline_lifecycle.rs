@@ -2494,9 +2494,59 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
                     }
                 }
                 if let Some(feature) = projection.geometry_features.iter().find(|feature| Some(feature.id()) == selected_feature_id().as_deref()) {
-                    if let OutlineFeature::Rect { size, .. } = feature {
+                    if let OutlineFeature::Rect { center, size, anchor_part_id, .. } = feature {
                         fieldset { class: "m1-outline-feature-editor", disabled: !enabled,
                             legend { "Selected rectangle" }
+                            div { class: "m1-outline-coordinate-fields",
+                                OutlineCoordinate {
+                                    key: "rectangle-{feature.id()}-center-x",
+                                    label: "Rectangle center X mm",
+                                    value: anchor_part_id.as_deref()
+                                        .and_then(|id| projection.outline_parts.iter().find(|part| part.id == id))
+                                        .map(|part| PerimeterAnchor { at: part.pose.at, rotation: part.pose.rotation, back: part.side == Side::Back }.world(*center))
+                                        .unwrap_or(*center).x,
+                                    editable: enabled,
+                                    on_commit: {
+                                        let action_context = action_context.clone();
+                                        let before = feature.clone();
+                                        let version_id = active_version.clone();
+                                        let anchor = anchor_part_id.as_deref()
+                                            .and_then(|id| projection.outline_parts.iter().find(|part| part.id == id))
+                                            .map(|part| PerimeterAnchor { at: part.pose.at, rotation: part.pose.rotation, back: part.side == Side::Back });
+                                        let world_center = anchor.map_or(*center, |anchor| anchor.world(*center));
+                                        move |value| {
+                                            let local = anchor.map_or(Vec2 { x: value, y: world_center.y }, |anchor| anchor.local(Vec2 { x: value, y: world_center.y }));
+                                            let mut after = before.clone();
+                                            if let OutlineFeature::Rect { center, .. } = &mut after { *center = local; }
+                                            on_action.call(action_context.set_feature(version_id.clone(), before.clone(), after));
+                                        }
+                                    },
+                                }
+                                OutlineCoordinate {
+                                    key: "rectangle-{feature.id()}-center-y",
+                                    label: "Rectangle center Y mm",
+                                    value: anchor_part_id.as_deref()
+                                        .and_then(|id| projection.outline_parts.iter().find(|part| part.id == id))
+                                        .map(|part| PerimeterAnchor { at: part.pose.at, rotation: part.pose.rotation, back: part.side == Side::Back }.world(*center))
+                                        .unwrap_or(*center).y,
+                                    editable: enabled,
+                                    on_commit: {
+                                        let action_context = action_context.clone();
+                                        let before = feature.clone();
+                                        let version_id = active_version.clone();
+                                        let anchor = anchor_part_id.as_deref()
+                                            .and_then(|id| projection.outline_parts.iter().find(|part| part.id == id))
+                                            .map(|part| PerimeterAnchor { at: part.pose.at, rotation: part.pose.rotation, back: part.side == Side::Back });
+                                        let world_center = anchor.map_or(*center, |anchor| anchor.world(*center));
+                                        move |value| {
+                                            let local = anchor.map_or(Vec2 { x: world_center.x, y: value }, |anchor| anchor.local(Vec2 { x: world_center.x, y: value }));
+                                            let mut after = before.clone();
+                                            if let OutlineFeature::Rect { center, .. } = &mut after { *center = local; }
+                                            on_action.call(action_context.set_feature(version_id.clone(), before.clone(), after));
+                                        }
+                                    },
+                                }
+                            }
                             OutlineDimension {
                                 label: "Rectangle width",
                                 value: size.x,
