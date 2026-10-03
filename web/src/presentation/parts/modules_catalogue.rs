@@ -11,6 +11,8 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 
+pub(in crate::presentation) mod module_attachment;
+
 const MODULES_ASSET: &str = "assets/imported-modules.json";
 
 #[derive(Clone, Debug, PartialEq)]
@@ -502,6 +504,7 @@ pub(super) fn ModuleInspector(
     mut selected: super::PartsSelection,
     placement_id: Option<String>,
     on_open_placement: EventHandler<String>,
+    on_attached: EventHandler<module_attachment::AttachedModuleNavigation>,
 ) -> Element {
     let definition = &module.definition;
     let mut selection_generation = use_context::<super::PartsSelectionGeneration>().0;
@@ -593,11 +596,21 @@ pub(super) fn ModuleInspector(
         a { href: "{source_url}", target: "_blank", rel: "noreferrer", "Pinned source ↗" }
         p { class: "m1-parts-empty", "{source_summary}" }
         ModuleProfileEditor {
-            snapshot,
+            snapshot: snapshot.clone(),
             definition: (*module.definition).clone(),
             project_owned,
             scope: scope.clone(),
             selected,
+        }
+        for owner_key in [format!("{:?}:{}:{}", scope, definition.id, selection_generation())] {
+            module_attachment::ModuleAttachment {
+                key: "{owner_key}",
+                snapshot: snapshot.clone(),
+                module: module.clone(),
+                scope: scope.clone(),
+                selected,
+                on_attached,
+            }
         }
     }
 }

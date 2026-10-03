@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T22:26:15.777640+00:00",
+    "updated_at": "2026-10-03T22:41:02.631986+00:00",
     "parent_counts": {
       "accepted": 10,
       "implementing": 41,
@@ -49,7 +49,7 @@
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
       "source_commit": "7ddd10e32d24b474366d995171dde89e1577d7fe",
-      "state": "Requested retrospective fixes and concrete application deliveries integrated, packaged and reviewed. Final foreign-connector rejection/clear journey passed; no waiting implementation packets. Broader parent qualification remains explicit.",
+      "state": "Attachment route integrated and locked Dioxus page compiler passes; packaging next. Baseline Case error characterized; Apply history qualification running.",
       "packets": [
         {
           "stream": "Layout",
@@ -506,9 +506,8 @@
     ],
     "pending_join_packets": [],
     "next_work": [
-      "F5.5-C03: locate or implement the missing public Parts-to-mounted-module attachment seam using the demonstrated TypeScript Haptic 3V3 journey; preserve F4.7 scope.",
-      "Qualify unresolved encoder negative/compact scenarios and provider/preview lifecycle branches using existing criteria; repair only reproduced failures.",
-      "Close parents only after their remaining criteria and joins are satisfied; preserve architecture ledger and reuse unchanged evidence."
+      "Integrate F5.5-C03 attachment source from disjoint Parts module lease; compile/package and qualify new attach, automatic connector, history and reopen.",
+      "Finish focused F5.2-C03 Apply single-history-step qualification using existing fixture/evidence."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
@@ -1063,6 +1062,21 @@
         "source_commit": "7ddd10e32d24b474366d995171dde89e1577d7fe",
         "review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/consolidated-review.md",
         "review_sha256": "b148f7fafa9a2ba04c1242f3d88ce972e4c808a7ca3046090f2c30e72bbb553a"
+      },
+      "next_scope": {
+        "id": "module-attachment-20261003",
+        "source_commit": "7ddd10e32d24b474366d995171dde89e1577d7fe",
+        "streams": [
+          "PCB",
+          "Parts/Project"
+        ],
+        "journeys": [
+          {
+            "id": "fresh-module-attachment",
+            "scope": "Haptic3V3 empty-board attach, automatic connector, accepted navigation, repeat Save, Undo/Redo and reopen.",
+            "spec": ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md"
+          }
+        ]
       }
     },
     "delivery_priority": {

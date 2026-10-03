@@ -4320,6 +4320,68 @@ fn Editor() -> Element {
             inspect_open.set(true);
         })
     };
+    let on_module_attached = {
+        let runtime = runtime.clone();
+        let mut adapter = adapter.clone();
+        let mut workspace = workspace;
+        let mut objects_open = objects_open;
+        let mut inspect_open = inspect_open;
+        EventHandler::new(move |request: parts::AttachedModuleNavigation| {
+            if workspace() != "Parts"
+                || runtime.scope().as_ref() != Some(&request.scope)
+                || parts_selection_generation() != request.selection_generation
+                || parts_selection()
+                    != Some((
+                        Some(request.scope.clone()),
+                        format!("module:{}", request.definition_id),
+                    ))
+            {
+                return;
+            }
+            let model = runtime.model();
+            if !active_board_scope_matches(&model, &request.scope)
+                || !instance_selection.is_current(&model)
+            {
+                return;
+            }
+            let Some(accepted) = model.accepted.as_ref().filter(|snapshot| {
+                snapshot.token == request.snapshot_token
+                    && snapshot.document.revision == request.revision
+            }) else {
+                return;
+            };
+            if !accepted.document.modules.iter().any(|module| {
+                module.id == request.module_id
+                    && module.definition_id == request.definition_id
+                    && module.host_board_id == request.scope.board_id
+            }) {
+                return;
+            }
+            let context = objects::TreeContext::MountedModule {
+                board_id: request.scope.board_id.clone(),
+                module_id: request.module_id,
+            };
+            if !selection::context_is_current(&model, &request.scope, &context) {
+                return;
+            }
+            adapter
+                .selected_context
+                .set(Some(objects::ScopedTreeContext {
+                    scope: request.scope,
+                    context,
+                }));
+            adapter.anchor_scope.set(None);
+            runtime.submit(Event::SelectParts {
+                operation_id: runtime.operation(),
+                part_ids: Vec::new(),
+                range_part_ids: Vec::new(),
+                mode: SelectionMode::Replace,
+            });
+            workspace.set("PCB");
+            objects_open.set(false);
+            inspect_open.set(true);
+        })
+    };
     let on_pcb_wiring_edit_board = {
         let runtime = runtime.clone();
         let adapter = adapter.clone();
@@ -7543,6 +7605,7 @@ fn Editor() -> Element {
                     selection_kind.set(objects::LayoutSelectionKind::Part);
                 }),
                 on_open_module_placement,
+                on_module_attached,
             },
         )),
         "PCB" => {

@@ -1,4 +1,4 @@
-//! Read-only Parts catalogue and selected-definition presentation slots.
+//! Parts catalogue, selected-definition editing and placement presentation.
 mod assembly_editor;
 mod assembly_presets;
 mod catalogue;
@@ -11,6 +11,7 @@ mod mechanical_profile_editor;
 mod mechanical_profile_ui;
 mod module_profile_editor;
 mod modules_catalogue;
+pub(super) use modules_catalogue::module_attachment::AttachedModuleNavigation;
 #[cfg(all(test, target_arch = "wasm32"))]
 mod physical_setup;
 mod preview;
@@ -1007,6 +1008,7 @@ pub(super) fn PartsInspectorPanel(
     on_place_assembly: EventHandler<super::objects::MatrixPlacementSource>,
     on_board_placed: EventHandler<()>,
     on_open_module_placement: EventHandler<String>,
+    on_module_attached: EventHandler<AttachedModuleNavigation>,
 ) -> Element {
     let active_assembly = use_context::<PartsAssemblySelection>().0();
     let catalogue = use_catalogue(&snapshot, &scope);
@@ -1113,7 +1115,7 @@ pub(super) fn PartsInspectorPanel(
             if let Some(module_id) = selected_module_id.as_deref() {
                 if let Some(module) = module_catalogue.entries.as_deref().and_then(|entries| entries.iter().find(|entry| entry.definition.id == module_id)) {
                     { let variants = module_catalogue.entries.as_deref().map(|entries| modules_catalogue::variants(entries, &module.row)).unwrap_or_default();
-                      rsx! { modules_catalogue::ModuleInspector { snapshot: snapshot.clone(), module: module.clone(), variants, scope: scope.clone(), selected, placement_id: selected_module_placement.clone(), on_open_placement: on_open_module_placement } }
+                      rsx! { modules_catalogue::ModuleInspector { snapshot: snapshot.clone(), module: module.clone(), variants, scope: scope.clone(), selected, placement_id: selected_module_placement.clone(), on_open_placement: on_open_module_placement, on_attached: on_module_attached } }
                     }
                 } else if let Some(error) = module_catalogue.error.as_ref() {
                     p { class: "m1-parts-load-error", role: "alert", "Module sources could not be loaded: {error}" }

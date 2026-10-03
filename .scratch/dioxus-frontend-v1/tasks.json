@@ -4118,20 +4118,23 @@
         {
           "id": "F5.5-C03",
           "requirement": "Reuse F4-owned definition selection, source readiness/profile editing and asset/model presentation.",
-          "state": "unassessed",
+          "state": "implemented",
           "classification": "functional",
           "sources": [
             "web/src/presentation/parts/modules_catalogue.rs",
             "web/src/presentation/parts/module_profile_editor.rs",
-            "web/src/presentation/pcb_module_inspector.rs"
+            "web/src/presentation/pcb_module_inspector.rs",
+            "web/src/presentation/parts/modules_catalogue/module_attachment.rs",
+            "web/src/presentation/parts_workspace.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md"
+            ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md",
+            ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/modules/vik-splitter-gnd-join-ad26b07a.md"
           ],
           "blockers": [
             "F4.7"
           ],
-          "next_action": "Bounded investigation: on 177f990b, Parts > Haptic DRV2605L > 3V3 shows source/profile but no TS Attach module or host assignment route; Layout Add object also did not expose it. Locate the intended F5 attachment entry and qualify it, or implement the missing consumed Parts-to-placement seam. Do not widen F4.7, which explicitly excludes mounted placements.",
+          "next_action": "Qualify genuinely new Haptic3V3 attachment on empty Board2, automatic connector and repeat Save, attach Undo/Redo and reopen. Reuse source/profile/readiness evidence; accepted-only navigation and stale selection/scope admission remain explicit.",
           "finish_condition": "Integrated PCB placement selection reuses exact F4 definition/readiness/profile/asset controls and reflects their accepted state.",
           "owned_files": [
             "web/src/presentation/pcb_module_inspector.rs",
@@ -4338,7 +4341,7 @@
           "blockers": [
             "F7.7"
           ],
-          "next_action": "Qualify the physical-instance shared-viewer join. First characterize the recorded left/U1/P2 \u2192 LEFT_SW25_ENCODER-PUSH preview validation error on the retained fixture before/after PCB reassignment; baseline versus edit causality is unassessed. Ordinary control edits/history passed; preview did not.",
+          "next_action": "The exact left/U1/P2 / LEFT_SW25_ENCODER-PUSH preview error reproduces on the unchanged fixture before any edit at34780 (existing Case receipt); it is not a reassociation regression. Qualify the remaining shared-preview/setup journey on an electrically valid fixture, retaining baseline evidence and broader F7 joins.",
           "finish_condition": "F7.7 paired evidence shows the accepted selected physical instance and its board/flip in the shared viewer.",
           "owned_files": [
             "web/src/presentation/pcb_physical_setup.rs"

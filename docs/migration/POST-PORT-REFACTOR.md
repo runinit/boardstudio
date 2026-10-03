@@ -1039,6 +1039,13 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
       "observation": "Public exported project confirms an existing automatic module connector remains on Main after its module moves to Board2; global part-ID existence alone admitted the connection despite foreign board ownership. The retained fixture already contained that automatic connector, so the initial empty-board attempt was not a fresh-creation test.",
       "status": "Confirmed connection ownership gap; bounded Inspector admission repair in progress. Preserve existing host part rather than silently moving/deleting it.",
       "post_port_proposal": "Evaluate domain-owned mounted-module connection validation and explicit cross-board move semantics so every consumer shares the board-membership invariant instead of duplicating it in UI admission."
+    },
+    {
+      "source": "Attachment continuation after 05f96412",
+      "evidence": "web/src/presentation/parts/modules_catalogue/module_attachment.rs; web/src/presentation.rs",
+      "observation": "Creating a placement from a Parts definition requires different accepted-result admission from reopening an already-selected placement. Reusing the latter callback would reject a valid new instance because no MountedModule tree context exists yet. The narrow creation callback explicitly validates scope, accepted token/revision and Parts selection generation before selecting the new instance. Existing ID generation is exposed through a project-named UUID helper, while entity collision checks remain per consumer.",
+      "status": "Private attachment boundary being implemented; the prior cross-board connector guard is now qualified on34780.",
+      "post_port_proposal": "Consider shared typed accepted-result navigation and entity identity allocation, keeping logical selection lifetime separate from accepted document freshness. Avoid broad unguarded navigation callbacks or a second document owner."
     }
   ],
   "resumed_wave_20261002": "2026-10-02: Physical setup controls need rendered identity envelopes and live guide-stage predicates across asynchronous normalization; stale handlers and bare feedback can retarget/leak across scopes. Astra production regression repair active; public guide join remains open.",

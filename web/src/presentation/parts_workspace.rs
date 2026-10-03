@@ -30,6 +30,7 @@ pub(super) struct InspectorInput {
     pub(super) on_place_assembly: EventHandler<super::objects::MatrixPlacementSource>,
     pub(super) on_board_placed: EventHandler<()>,
     pub(super) on_open_module_placement: EventHandler<String>,
+    pub(super) on_module_attached: EventHandler<super::parts::AttachedModuleNavigation>,
 }
 
 pub(super) struct CanvasInput {
@@ -99,6 +100,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
             on_place_assembly: input.on_place_assembly,
             on_board_placed: input.on_board_placed,
             on_open_module_placement: input.on_open_module_placement,
+            on_module_attached: input.on_module_attached,
         }
     }
 }
