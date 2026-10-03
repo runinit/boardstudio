@@ -828,9 +828,9 @@
           "task": "PCB Core ApplyElectrical lock revalidation audit",
           "baseline": "57829464369f40556c57e2de7520e7109950793b",
           "evidence": ".scratch/dioxus-pcb-view/evidence/apply-current-plan-20261002/core-apply-lock-audit.md",
-          "observation": "React/Dioxus Resolve supplies saved board locks, but Core ApplyElectrical re-resolves the same revision with an empty lock map; assignment locked-state enters the plan fingerprint, so a valid lock-bearing plan is rejected as changed inputs. This is source-derived pending a direct Core request red/green regression.",
-          "current_mitigation": "F5.2d uses the existing Core materializer on its exact accepted Current plan and submits one strict-revision Session ReplaceDocument edit. Separate Core issue 09 fixes the existing direct ApplyElectrical request for its callers.",
-          "status": "Core defect ticket drafted; independent review and direct request regression required before calling the correction verified."
+          "observation": "Exact-source review showed the empty request lock map passed during Core ApplyElectrical re-resolution does not drop persisted target-board locks: electrical::resolve initializes from the selected board configuration and then extends request locks. The gap is direct ApplyElectrical request-level coverage for persisted locks, not a confirmed behavior defect.",
+          "current_mitigation": "The F5.2d draft consumes the exact accepted Current plan through the existing Core materializer and one strict-revision Session ReplaceDocument edit; Issue 09 adds direct request-level lock coverage. No Core defect or workaround is claimed.",
+          "status": "Exact-source review corrected the initial audit assumption; direct persisted-lock ApplyElectrical coverage remains drafted and unexecuted."
         }
       ],
       "handoff_evidence": [

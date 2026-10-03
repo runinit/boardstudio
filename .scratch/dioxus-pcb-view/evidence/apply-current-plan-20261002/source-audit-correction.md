@@ -1,0 +1,7 @@
+# ApplyElectrical lock audit correction
+
+Frozen planning commit `ec9804f7fa8e90988bb7b73ef83e9882957ce328` stated that Core ApplyElectrical dropped saved board locks because its reconstructed request used `locks: Default::default()`. Sol's independent exact-source review found that claim unsupported: `electrical::resolve` loads the selected board's persisted locks from the document at lines 1001-1003, then extends with request locks at lines 1004-1005. The empty request map therefore leaves the saved board locks in the review plan. The full original planning audit remains in Git history and the exact review is `/home/chris/.local/share/boardstudio/reviews/pcb-apply-planning-review-ec9804f7-sol-20261002.md`, SHA-256 `bcfbb4c53326848a38b8ab89e8ba31e9f5050ba0a3a092b66652f307b46b37cc`.
+
+This docs-only correction updates F5.2d, Issue 09, README, and the RF-009 readable/machine entries. Issue 09 is now a direct Core ApplyElectrical persisted-lock characterization/coverage ticket with expected-green current behavior and no claimed defect or required regression red. F5.2d still uses the exact accepted `Current` plan, existing Core materializer, and one strict-revision Session edit; its route is independent of Issue 09.
+
+The source-derived replacement still requires its own independent review before publication or implementation dispatch. No Core test was added or run, no behavior fix was made, and no parent/public acceptance status changed.
