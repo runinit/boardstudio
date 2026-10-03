@@ -6498,7 +6498,7 @@ fn Editor() -> Element {
                         && layout_assembly_3d()
                     {
                         layout_viewer::LayoutCanonicalViewer {
-                            keycaps_fit: if active_workspace == "Keycaps" {
+                            keycaps_fit: if matches!(active_workspace, "Keymap" | "Keycaps") {
                                 keycaps_fit_state.state.clone()
                             } else {
                                 None

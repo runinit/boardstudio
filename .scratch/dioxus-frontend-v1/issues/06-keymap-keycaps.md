@@ -164,6 +164,10 @@ The Keycaps route now passes its current `KeycapsFitState` to the existing canon
 
 The isolated source check used strict page WASM all-target Clippy with `-D warnings`. This packet is not an integrated/browser acceptance: Keymap's 3D consumer, paired changed-preview journey, cancellation/error browser branches, and F7.3/F8.2/BND.1 joins remain open. No F6C.5/F7.3/BND.1 completion or dependency waiver is claimed. The only API boundary addition is the dedicated `CadWorker::request_keycaps_preview` method required because the page binary and `boardstudio_web` are separate crates; its wire remains private and generic CAD request/operation types are unchanged. Root authorized this narrow exception for this work.
 
+#### Keymap shared 3D consumer follow-up
+
+The pinned React Keymap→3D journey on the retained c6 fixture showed generated keycaps in the shared assembly viewer: the layer list contains the global Keycaps group, individual cap rows, and a separate SW1 legend row after its base binding is `A`. The Dioxus Keymap 3D mount now passes the same accepted `KeycapsFitState` used by Keycaps to `LayoutCanonicalViewer`, reusing accepted specs and the existing independent CAD worker. It does not issue another Core resolution or change the shared viewer, scene, camera, or worker owner. This source follow-up is not yet compiled or replayed on an integrated candidate. Keymap-route paired browser proof and the existing cancellation/error/F7.3/F8.2/BND.1 acceptance joins remain open.
+
 ### Refactoring observation handoff
 
 Update the [living RF register](../refactor-findings.json) and [post-port takeaways](../../../docs/migration/POST-PORT-REFACTOR.md) for architectural, design, theoretical or quality issues discovered in this slice, or record “No new refactoring takeaway observed” with reviewed scope. Distinguish confirmed findings from hypotheses; include evidence, impact, current mitigation, later proposal and validation. This does not authorize unrelated refactoring or defer required parity fixes.
