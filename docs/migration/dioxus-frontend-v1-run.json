@@ -1271,7 +1271,7 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T07:19:57.072517+00:00",
+    "updated_at": "2026-10-03T07:38:29.068242+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet/stream, journey/criterion reporting, less testing/more implementation.",
     "parent_counts": {
       "accepted": 2,
@@ -1281,23 +1281,23 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-outline-module-case-delivery-20261003",
-      "source_commit": "a76fa2bdee3379be1d9d2c2133f9428a87a75fb0",
-      "root_url": "http://127.0.0.1:34748/",
-      "subpath_url": "http://127.0.0.1:34748/boardstudio/",
-      "provenance": "web/target/builds/frontend-outline-module-case-delivery-20261003/provenance.json",
-      "provenance_sha256": "7e764747832a5ce20ba2c9091938eeeaee06283583a9071a89d8321c6dc88299",
+      "build_id": "frontend-fit-step-outline-repair-20261003",
+      "source_commit": "dd7697ed99864040697c905b3d0e28209301d11b",
+      "root_url": "http://127.0.0.1:34749/",
+      "subpath_url": "http://127.0.0.1:34749/boardstudio/",
+      "provenance": "web/target/builds/frontend-fit-step-outline-repair-20261003/provenance.json",
+      "provenance_sha256": "1f3584f7b41b9c2d912381a302657ccf202abc7ebcbf04622ef68bf62c0f932e",
       "fresh_commands": 22,
       "inherited_commands": 0,
-      "source_inputs": 1362,
+      "source_inputs": 1363,
       "source_mismatches": 0,
       "assets_per_route": 145,
-      "command_span_seconds": 512.218666,
-      "package_qualification": "Full22 commands pass; source and both route assets match; root/subpath200 COEP. Changed Parts preview and Case unlink journeys pass. Module source geometry/toggle pass; Layout old delegated capture RED recorded and repair joined for34749."
+      "command_span_seconds": 450.712861,
+      "package_qualification": "Full build passed. Root/subpath sources and assets match, HTTP200 with COEP. Trusted perimeter drag/history/reopen and successful Keycaps STEP export passed paired journeys. Keymap fit framing mismatch was found and repaired for the next candidate."
     },
     "integration": {
-      "source_commit": "0c03f18e",
-      "state": "Keymap board/selection fit, accepted Keycaps STEP export, module accessible label and focused Layout capture/fast release/cancel/snapping repair joined. Combined strict page WASM all-targetcheck passes; full worker/page candidate34749 starting.",
+      "source_commit": "b5da3d7d",
+      "state": "PCB ten-layer inventory, scoped Case Reset, corrected Keymap fit framing and negative-half outline grid policy joined. One combined strict page WASM all-target Clippy passed in17.91seconds. Next page-only candidate starting with verified34749 providers.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1387,13 +1387,13 @@
           "slice": "Layout canvas perimeter editing",
           "original_source": "9cfc261f",
           "integrated_source": "47bce953",
-          "state": "Source served34748; trusted fastdrag expectedRED confirmed delegatedcurrentTarget cast failure. Capture/fastCommit/out-backpreviewretirement/originalsnap/lint repaira449eac1 joined; affectedcheckpass;34749GREEN pending."
+          "state": "Trusted34749 fast release, out-and-back/Escape cancellation, single Undo/Redo and reopen passed. Negative-half grid helper/source follow-up joined927bdd0e+12708937+4ac8a848, with unchanged focused RED/GREEN reused; test adapter relocationb5da3d7d preserves provider root."
         },
         {
           "slice": "PCB mounted-module source footprints",
           "original_source": "root coordinator",
           "integrated_source": "429bd6f7+7e099116",
-          "state": "Paired actualVIK fixture34748 shows3modules/26footprints/373geometryleaves equal after numeric/whitespace normalization; toggles preserve host geometry/documentrevision6. Modulefree/board-scopedretention and remainingcategories/navigation open; labelrepairb3e020ed pending34749."
+          "state": "Paired34748 source geometry and host-independent visibility/document preservation passed; changed34749 accessible label confirmed Hide Footprints. Ten-row module Layers inventory and accepted outline/clearance/mount/support/fabrication/findings overlays joined156f41e1 for34750."
         },
         {
           "slice": "Case support unlink",
@@ -1411,13 +1411,25 @@
           "slice": "Keymap footer fit board and selected keys",
           "original_source": "89bedddd",
           "integrated_source": "76c24a04",
-          "state": "Sourcejoined; combinedaffectedcheckpass; actualchangedjourney34749pending."
+          "state": "34749 paired journey exposed React80% versus Dioxus100% framing. Exact React margins/toolbar clearance correction joined2039fd20; changed34750 framing pending."
         },
         {
           "slice": "Keycaps accepted STEP export",
           "original_source": "9e6e8f26+0a19f622+0299a403",
           "integrated_source": "a13a1fd8+16857bb1+bc1cd027+0c03f18e",
-          "state": "Sourcejoined. NarrownecessarypublicCadWorkermethodcrossesexistingcrateboundary; existingCADalgorithm reused. Combinedaffectedcheckpass afterunusedimport/existingtestfixturecorrection; worker/pagepackaging andactualdownload34749pending."
+          "state": "34749 visible enabled export returned byte-identical6,246,504-byte ISO STEP against pinned React, SHA8ba23e97. Sol reviewed source and independently checked retained artifacts; bounded success accepted, broader preview and unexercised error/cancel branches remain open."
+        },
+        {
+          "slice": "PCB complete mounted-module Layers inventory",
+          "original_source": "f99ec6ef",
+          "integrated_source": "156f41e1",
+          "state": "All ten React labels/order and accepted geometry mounted; focused author Clippy passed24.27seconds; changed public journey34750 pending."
+        },
+        {
+          "slice": "Case Reset gasket placement",
+          "original_source": "a89162f7",
+          "integrated_source": "b1f14340",
+          "state": "Scoped reset clears only gasket supports and preserves closure positions; combined check passed; paired Reset/history/reopen34750 pending."
         }
       ],
       "checks": {
@@ -1453,13 +1465,19 @@
           "source_commit": "0c03f18e",
           "command": "cargo clippy --locked --manifest-path web/Cargo.toml --no-default-features --features page --target wasm32-unknown-unknown --all-targets -- -D warnings",
           "result": "Pass16.75seconds. Initialcombinedcheckcaught unusedKeycapSpec import and existingInspectorfixture missingnewcallback; fixedcoherently. No newtests/broadsuite. Rooteditedfilesrustfmt/diffcheckpass."
+        },
+        "combined_pcb_layers_case_reset_keymap_fit_outline_grid": {
+          "source_commit": "b5da3d7d",
+          "command": "cargo clippy --locked --manifest-path web/Cargo.toml --no-default-features --features page --target wasm32-unknown-unknown --all-targets -- -D warnings",
+          "result": "Pass17.91seconds. No new ordinary-UI tests or broad suite; reused existing focused bug regressions and browser receipts."
         }
       },
       "candidate_build": {
         "state": "starting",
-        "build_id": "frontend-fit-step-outline-repair-20261003",
-        "source_commit": "capturedbybuilderafterdocumentationcheckpoint",
-        "reason": "CADworkerkeycapinput/exportpathchanged; newfullprovider/pagebaselinewithoutreuseguardbypass."
+        "build_id": "frontend-module-layers-case-reset-keymap-fit-20261003",
+        "source_commit": "captured by builder after this checkpoint",
+        "baseline": "frontend-fit-step-outline-repair-20261003",
+        "reason": "Provider root preserved; guarded page-only ownership/reuse requested for this UI batch."
       }
     },
     "journeys": [
@@ -1532,24 +1550,63 @@
         "state": "Bounded paired geometry/visibility pass:3 modules,26 footprints,373 normalized geometry leaves match; host pad/hole visibility intersects; saved ProjectDoc/revision6 unchanged.",
         "candidate": "a76fa2bd/34748",
         "receipt": ".scratch/dioxus-pcb-view/evidence/14-mounted-module-footprints-20261003/public-receipt.md",
-        "remaining": "Changed accessible-label replay34749; module-free/board-retention checks, other categories/navigation and fullF5.4 remain."
+        "remaining": "Module-free/board retention, remaining categories/navigation and fullF5.4 remain.34749 changed accessible label confirmed."
+      },
+      {
+        "journey": "Perimeter trusted fast drag -> cancellation -> Undo/Redo -> reopen",
+        "state": "Bounded paired verified; canceled/out-and-back gestures add no durable history.",
+        "candidate": "dd7697ed/34749",
+        "receipt": ".scratch/dioxus-layout-authoring/evidence/f34d-perimeter-paired-20261003/README.md",
+        "remaining": "Negative-half source follow-up separately covered by focused regression; broader drawing/keyboard/fullF3.4 criteria remain."
+      },
+      {
+        "journey": "Keycaps visible Export keycap STEP -> actual download",
+        "state": "Bounded paired verified; byte-identical6,246,504-byte ISO STEP against React,24 assembly occurrences.",
+        "candidate": "dd7697ed/34749",
+        "receipt": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/candidate-dd7697ed/STEP-PUBLIC-RECEIPT.json",
+        "remaining": "Unexercised error/empty/cancel paths and broader shared3D/preview/fullF6C.5 remain."
       }
     ],
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "heavy_slots": {
-      "root_target": "Full34749worker/page/root/subpathpackageafterjoinedsourcefreezes.",
-      "secondary_target": "Free: previousLayout/Keymapcheckscomplete; rootcombinedcheckcomplete.",
-      "dispatch": "Onecombinedaffectedcheckpass; unchangedjourneysevidence reused; focusedsourcerepairgets34749changedGREEN."
+      "root_target": "One guarded page-only package34750; full34749 provider baseline reused only if actual guard accepts.",
+      "secondary_target": "Free after combined17.91second check. Case owns next CAD browser lease.",
+      "dispatch": "No duplicate suites/review handoffs. Authors implement next cohesive UI packets while this candidate packages."
     },
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "next_work": {
-      "Layout": "34749focuseddrag/fastrelease/out-back/cancel/history/reopen; thennextLayoutauthoringfrontier.",
-      "PCB": "Closeboundedsourcegeometry/togglereceipt34748; checkchangedaria34749; actualothermodulecategories/navigationnext.",
-      "Keymap": "34749Fitboard/selectionchangedjourney; thenexistingcontextualInspectordisclosuresfrontier.",
-      "Keycaps": "34749actualSTEPdownload fromacceptedCore-resolvedprofiles; broaderCAD/3D and cameraresidualretained.",
-      "Case": "34748unlinkboundedGREEN; nextcontextualCaseaction automatically.",
-      "Parts_Project": "34748importedpreviewGREEN; authorpinsnextmodelattachment/generatorfrontier automatically."
+      "Layout": "Next daily-workflow authoring leaf; trusted drag/history/reopen accepted as bounded evidence.",
+      "PCB": "34750 paired full ten-row Layers journey, accepted geometry and independent visibility.",
+      "Keymap": "34750 final Fit board/selection framing; then contextual Inspector disclosure packet.",
+      "Keycaps": "Next cohesive empty-state/contextual UI packet; successful STEP receipt accepted.",
+      "Case": "34750 Reset gasket placement/history/reopen; Plate contextual Inspector already mounted.",
+      "Parts_Project": "Existing Issue07 generator settings/preview/Apply packet implementing; imported footprint history/preview evidence reused."
     },
-    "execution_policy": "One required affected compile, one changed paired browser journey and one consolidated candidate review; reuse unchanged evidence. Ordinary reversible UI gets no new tests. Real bugs keep focused regressions and remaining acceptance gates explicit."
+    "execution_policy": "One required affected compile, one changed paired browser journey and one consolidated candidate review; reuse unchanged evidence. Ordinary reversible UI gets no new tests. Real bugs keep focused regressions and remaining acceptance gates explicit.",
+    "served_candidate_history": [
+      {
+        "build_id": "frontend-outline-module-case-delivery-20261003",
+        "source_commit": "a76fa2bdee3379be1d9d2c2133f9428a87a75fb0",
+        "root_url": "http://127.0.0.1:34748/",
+        "subpath_url": "http://127.0.0.1:34748/boardstudio/",
+        "provenance": "web/target/builds/frontend-outline-module-case-delivery-20261003/provenance.json",
+        "provenance_sha256": "7e764747832a5ce20ba2c9091938eeeaee06283583a9071a89d8321c6dc88299",
+        "fresh_commands": 22,
+        "inherited_commands": 0,
+        "source_inputs": 1362,
+        "source_mismatches": 0,
+        "assets_per_route": 145,
+        "command_span_seconds": 512.218666,
+        "package_qualification": "Full22 commands pass; source and both route assets match; root/subpath200 COEP. Changed Parts preview and Case unlink journeys pass. Module source geometry/toggle pass; Layout old delegated capture RED recorded and repair joined for34749."
+      }
+    ],
+    "consolidated_reviews": [
+      {
+        "scope": "34749 Keycaps STEP and module accessible label",
+        "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/candidate-dd7697ed/REVIEW.md",
+        "audit": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/candidate-dd7697ed/AUDIT.json",
+        "result": "No outstanding actionable finding in owned deltas; broader parent gates remain."
+      }
+    ]
   }
 }

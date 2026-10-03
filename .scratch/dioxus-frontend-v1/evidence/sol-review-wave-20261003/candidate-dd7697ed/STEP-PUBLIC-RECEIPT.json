@@ -1,0 +1,64 @@
+{
+  "candidate": {
+    "url": "http://127.0.0.1:34749/",
+    "source": "dd7697ed99864040697c905b3d0e28209301d11b",
+    "provenance_sha256": "1f3584f7b41b9c2d912381a302657ccf202abc7ebcbf04622ef68bf62c0f932e",
+    "build": "22 commands passed; 1363 source hashes, 0 drift; 145 assets, 0 route mismatch; root and /boardstudio/ returned 200 with COEP",
+    "viewport": "1280x577",
+    "browser_session": "keycaps-dioxus-step-20261003",
+    "screenshot": "dioxus-keycaps-tab.png",
+    "screenshot_sha256": "ac7bf61c8dfa602f625b47efb7973c15cf02fd94c24cc8bc5a67c9eca87f5d47"
+  },
+  "reference": {
+    "url": "http://127.0.0.1:5173/",
+    "source": "5a472a9426e6e38993361da402cd4ec730feb369",
+    "browser_session": "keycaps-react-step-20261003",
+    "screenshot": "react-keycaps-tab.png",
+    "screenshot_sha256": "5bcb04b812dda8fc89e27795bdc2d57d01c0e1f58b85dc683447944a1cd1fc27"
+  },
+  "fixture": {
+    "path": "/home/chris/.local/share/boardstudio/retained-tmp/20261002/keycaps-findings-f6c4-c6.boardstudio",
+    "sha256": "9027125846d2878176f127ec39b60c9ab605a0eb2a4b9019e10dbba846fe87a6",
+    "project": "Sofle v2",
+    "revision": 12,
+    "board": "Left PCB (left physical half)",
+    "journey": "import retained fixture; open Keycaps; export with existing profile settings"
+  },
+  "readiness": {
+    "react": {
+      "button": "Export keycap STEP",
+      "enabled": true,
+      "keys_profile": "SA",
+      "thumbs_profile": "No generated keycap",
+      "key_assignment_status": "0/29 assigned"
+    },
+    "dioxus": {
+      "button": "Export keycap STEP",
+      "enabled": true,
+      "keys_profile": "SA",
+      "thumbs_profile": "No generated keycap",
+      "key_assignment_status": "0/29 assigned"
+    },
+    "messages": "No export error appeared; agent-browser page-error output was empty for both sessions. Existing saved-state labels remained visible."
+  },
+  "download": {
+    "action": "Clicked the visible Export keycap STEP button in both apps; agent-browser reported a completed download for both clicks.",
+    "configured_filename": "Sofle v2-keycaps.step",
+    "media_type": "model/step (confirmed in the React callback and Dioxus delivery source)",
+    "react_local_capture": "react-keycaps-step.step",
+    "dioxus_local_capture": "dioxus-keycaps-step.step",
+    "bytes_each": 6246504,
+    "sha256_each": "8ba23e9753f07e3a74e869a5f7eedbdd67b7d7b8500f4b76cf10e179f4ce52e0",
+    "byte_identical": true,
+    "step_signature": "ISO-10303-21;",
+    "end_marker": "END-ISO-10303-21;",
+    "product_records": 25,
+    "assembly_occurrences": 24,
+    "react_file": "react-keycaps-step.step",
+    "dioxus_file": "dioxus-keycaps-step.step"
+  },
+  "assessment": {
+    "result": "The candidate presents the enabled React-equivalent export control and returns a structurally complete STEP file from the current keycap configuration. The candidate and reference downloads are byte-identical.",
+    "limits": "Browser evidence covers the successful export path for this retained fixture. Core error-message, empty-keycap, and in-flight supersede/cancellation branches were not exercised here. The broader F6C.5 shared 3D preview, layer visibility, and preview worker criteria remain open."
+  }
+}

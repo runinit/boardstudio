@@ -1021,6 +1021,12 @@
           "current_mitigation": "Expansion remains unintegrated; repair fail-closed token handling with production negative regressions and fresh independent review. Existing narrow helper remains in use.",
           "post_port_follow_up": "Evaluate a maintained Rust syntax/dependency audit seam instead of ad hoc Python syntax approximations; retain exact source/provider lineage.",
           "status": "confirmed tooling correctness gap under repair; no actual worker/provider output corruption inferred"
+        },
+        {
+          "source": "b5da3d7d",
+          "evidence": ".scratch/dioxus-layout-authoring/evidence/f34d-perimeter-paired-20261003/README.md",
+          "observation": "Adding a native-only regression module to the shared lib root triggers the conservative full-provider rebuild proof boundary. The unchanged regression adapter now lives in the existing native binary presentation stand-in, preserving production provider bytes and allowing guarded page reuse. No packaging guard was weakened.",
+          "status": "Bounded build-friction mitigation; longer-term feature/test root organization remains a post-port refactoring question."
         }
       ],
       "resumed_wave_20261002": "2026-10-02: Machine top-level status/current integration still cited5944/34697 despite newer reviewed source andbd671ae8 served build. Corrected records explicitly separate current source14d1bfeb, servedbd671ae8/34720 and running successor build. Historical receipts retained; no parent closure.",

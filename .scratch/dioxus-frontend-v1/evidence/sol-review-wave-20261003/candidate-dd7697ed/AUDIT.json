@@ -1,0 +1,75 @@
+{
+  "source": "dd7697ed99864040697c905b3d0e28209301d11b",
+  "owned_scope": [
+    "KeycapsSTEP a13a1fd8+16857bb1+bc1cd027+0c03f18e",
+    "module accessible-name correctionb3e020ed"
+  ],
+  "source_sha256": {
+    "web/src/runtime.rs": "31ce7bfe0730aa284b65f5bb1b5fc10321133d77370b6d5248d249a288eb9eb5",
+    "web/src/cad_worker.rs": "8caeaac11d64243523b0dba7e76e8fd987c28e799a7a47e831c096c440dc87ac",
+    "web/src/presentation/keycaps_workspace.rs": "0fc803a2b6eb52cf70b0e0e1aac5a9eb10d383fe36ce6a53960745198a89db7c",
+    "web/src/presentation.rs": "bc40e98b13f63a7e87149dffb8a418782e882ef7729d743c30bb2fe9f2b91364",
+    "web/src/presentation/canvas_layers.rs": "913ae5bf19a4d02279ea4fec04f920048a58f5ccc91668280223fc55df0a21e0",
+    ".scratch/dioxus-keycap-cad-bridge/issues/01-private-keycap-cad-bridge.md": "028e8cefc7b2f8fc3f16e66d8087e88cf12b708d04168e1ed4b1b4d00802c5cc",
+    ".scratch/dioxus-keycap-cad-bridge/evidence/source-contract.md": "ff5d2546ba4f19ffb916e1a458f1b264e686d6fb8caa9cf204724fe869f60c8c"
+  },
+  "source_findings": [],
+  "source_assessment": "No concrete defect identified in the owned exact source. Public worker entry is an authorized necessary crate-boundary method; request wire stays private.",
+  "awaiting": [],
+  "checks": {
+    "reviewer_compiler_jobs": 0,
+    "reviewer_browser_journeys": 0,
+    "owned_source_whitespace": "pass a76..dd owned paths"
+  },
+  "open_joins": [
+    "BND.1 preview chunk/yield cancellation proof",
+    "F6C.5 shared3D/preview criteria",
+    "F7.3/F8.4 widerconsumercriteria",
+    "PCB14/F5.4 modulefree/boardswitch/othercategories/nav/fullvisualcriteria"
+  ],
+  "canonical_status_edits": [],
+  "public_receipts": {
+    "STEP": {
+      "file": "STEP-PUBLIC-RECEIPT.json",
+      "sha256": "2ce7237d5d9777b3eca0e4f281d2667beac465fc7dcf94203e26eea4dd0b5db5",
+      "checks": {
+        "react-keycaps-step.step": {
+          "path": "/home/chris/.local/share/boardstudio/reviews/layout-batch-32a57ed3-sol-20261003/keycaps-step-34749/react-keycaps-step.step",
+          "bytes": 6246504,
+          "sha256": "8ba23e9753f07e3a74e869a5f7eedbdd67b7d7b8500f4b76cf10e179f4ce52e0",
+          "signature": true,
+          "end_marker": true
+        },
+        "dioxus-keycaps-step.step": {
+          "path": "/home/chris/.local/share/boardstudio/reviews/layout-batch-32a57ed3-sol-20261003/keycaps-step-34749/dioxus-keycaps-step.step",
+          "bytes": 6246504,
+          "sha256": "8ba23e9753f07e3a74e869a5f7eedbdd67b7d7b8500f4b76cf10e179f4ce52e0",
+          "signature": true,
+          "end_marker": true
+        },
+        "byte_identical": true
+      },
+      "boundary": "Actual successful download and artifact identity verified; filename/MIME source-confirmed, not separately captured browser headers. Core reply spec count/findings/request message not separately retained; product/assembly counts not substituted for Core spec count."
+    },
+    "module_aria": {
+      "file": "MODULE-ARIA-RECEIPT.json",
+      "sha256": "800bbd32cad2f507121376435f6451ec54ad8620d1129de31a012f4e3c1c8b54",
+      "url": "http://127.0.0.1:34749/",
+      "result": "Hide Footprints; visible text Footprints; aria-pressed true"
+    }
+  },
+  "source_decision": "No outstanding actionable Standards or Spec finding in the owned completed-candidate deltas. Earlier module aria P3 closed by exact source+served label replay.",
+  "previous_candidate_evidence": {
+    "directory": "/home/chris/.local/share/boardstudio/reviews/candidate-a76fa2bd-20261003",
+    "review_sha256": "210eb600ca0f9ac87c882985abbc5216747be1ed6e4f6a01508d308abfcd81e4",
+    "audit_sha256": "94b68bab1ac1989e1d325545c0125d311b202968b0bbecfb39e5c1798eb34736",
+    "boundary": "Parts20pad preview and module373leaf geometry/visibility/doc identity passed34748; unchanged evidence reused in34749."
+  },
+  "acceptance_limits": [
+    "Successful STEP path only: Core-error/empty-spec/in-flight cancel/current-replacement branches not newly exercised",
+    "Actual Core findings/spec-count/worker message not independently captured by receipt; output product/assembly counts are not Core spec count",
+    "BND.1 preview chunk/yield cancellation, F6C.5 shared3D and F7.3/F8.4 acceptance remain open",
+    "Parts fullchild compact/Redo and remaining required joins not newly established",
+    "PCB14 modulefree/boardswitch/othercategories/nav/fullvisualparent criteria remain open"
+  ]
+}
