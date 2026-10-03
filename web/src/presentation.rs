@@ -8,6 +8,7 @@ mod case_display;
 mod case_viewer;
 mod case_workspace;
 mod context_summary;
+mod empty_board_canvas;
 mod firmware_positions;
 mod inspector;
 mod instance_selection;
@@ -5575,6 +5576,32 @@ fn Editor() -> Element {
             is_compact_viewport(),
         );
     });
+    let on_empty_board_matrix = use_callback({
+        let runtime = runtime.clone();
+        let owner_scope = render_scope.clone();
+        let owner_token = snapshot.token;
+        let owner_revision = snapshot.document.revision;
+        let generation = adapter.generation;
+        let mut workspace = workspace;
+        let on_open = matrix_setup.on_open;
+        move |_| {
+            let model = runtime.model();
+            if workspace() != active_workspace
+                || generation() != render_generation
+                || runtime.scope().as_ref() != Some(&owner_scope)
+                || !runtime.ready_saved()
+                || !model.accepted.as_ref().is_some_and(|accepted| {
+                    accepted.token == owner_token && accepted.document.revision == owner_revision
+                })
+            {
+                return;
+            }
+            workspace.set("Layout");
+            let mut layout_assembly_3d = layout_assembly_3d;
+            layout_assembly_3d.set(false);
+            on_open.call(());
+        }
+    });
     let objects_input = match active_workspace {
         "PCB" => workspace_composition::WorkspaceObjectsInput::Pcb(Box::new(
             pcb_workspace::ObjectsInput {
@@ -6145,6 +6172,17 @@ fn Editor() -> Element {
                     || mirrored_pair.placement.is_some()))
             && !controller_guide_hidden
     });
+    let show_empty_board = guide.is_none()
+        && matches!(active_workspace, "Layout" | "PCB" | "Keymap" | "Keycaps")
+        && !layout_assembly_3d()
+        && visible.is_empty()
+        && matrices.is_empty()
+        && !scene.board_contours.iter().any(|contours| {
+            contours.board_id == model.active_board_id && !contours.contours.is_empty()
+        })
+        && mirrored_pair.placement.is_none()
+        && part_placement.projection.is_none()
+        && !part_placement.busy;
     let outline_pitch = {
         let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &layout_owner);
         matrix_snap_parameters(&model, &render_scope, &adapter, retained.as_ref())
@@ -6678,6 +6716,13 @@ fn Editor() -> Element {
                         {workspace_composition::canvas(input)}
                     } else {
                         span {}
+                    }
+                    if show_empty_board {
+                        empty_board_canvas::EmptyBoardCanvas {
+                            editable: runtime.ready_saved(),
+                            on_matrix: on_empty_board_matrix,
+                            on_parts: on_browse_parts,
+                        }
                     }
                 }
                 if has_inspector {
