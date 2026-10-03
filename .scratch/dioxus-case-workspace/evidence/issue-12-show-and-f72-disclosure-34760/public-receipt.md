@@ -2,6 +2,8 @@
 
 Candidate `9718ea4aa3b29f1ae2f53d049a411928e65656bc` was served at `http://127.0.0.1:34760/`. Browser journey used a fresh import of the preserved `layered-sofle-export.boardstudio` fixture (SHA-256 `5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df`).
 
+**RF disposition:** No new refactoring takeaway was observed in the private authored-body editor/field interaction. Existing RF-001 and RF-006 findings remain unchanged; the canonical parent graph remains unchanged.
+
 For the finding-navigation delta, the fixture already had four closure bosses. I set the first boss's X position to `128`, waited for “Mechanical settings saved,” and observed the current CAD generation blocked by `Mount auto-closure/mount-proposal-1 does not leave material for its full hole/boss and clearance envelope`. Mechanical diagnostics showed 76 findings. Clicking the last finding's “Show” selected the `Plate` tree row and opened the `Plate` Inspector with the same current error under Fit issues. The previous generated layers remained explicitly marked previous geometry. This is the bounded GREEN for the blocked-resolution navigation repair.
 
 For the authored body delta, I disabled the generated stack and added one body. The accepted editor showed the default Plate dimensions (thickness `3`, clearance `0.5`, z offset `0`) and both `Mounting` (`0 mounts`) and `Gasket channel` (`Optional`) disclosures closed. I opened both summaries and observed both disclosure elements open. After entering thickness `3.2`, the rendered value updated and both disclosures remained open. At that first browser close, a transient “Another Case edit is saving” message remained, so I did not claim the operation settled at that point.
