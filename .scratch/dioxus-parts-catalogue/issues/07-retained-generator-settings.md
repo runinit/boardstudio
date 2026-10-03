@@ -6,7 +6,7 @@
 
 **Blocked by:** None among local F4 children. The Parts catalogue already loads supported Ergogen definitions and their parameter schemas, the center preview already calls the retained packaged generator for 2D artwork, and Runtime exposes the accepted snapshot and normal Session edit path. This child wires those existing capabilities together; it does not implement a generator or a second preview engine.
 
-**Status:** implementation candidate; affected page WASM all-target Clippy passes; paired browser acceptance remains open.
+**Status:** implementation candidate; affected page WASM all-target Clippy and the bounded numeric draft/preview/apply/Undo/reopen journey pass. Malformed structured input and preview-failure recovery remain open.
 
 - [ ] Mount supported non-model settings in the Parts Inspector only for a selected retained Ergogen definition. Preserve the reference grouping, labels, default disclosure, boolean/number/string/net/structured input semantics, and values including `false`, `0`, and empty strings. Do not coerce structured values through display text when they are unchanged. File-backed `3dmodel_filename` editing remains in the separate model-attachment owner.
 - [ ] Keep form edits local. Build a candidate from the selected definition and all supported parameter values, validate finite numeric and JSON array/object/anchor fields, then normalize through the existing packaged Ergogen service. Never mutate the accepted definition or create a history item while editing or previewing.
