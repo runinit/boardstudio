@@ -1,0 +1,52 @@
+{
+  "alerts": [],
+  "anchorsAfter": 0,
+  "status": "Saved locally.",
+  "trace": {
+    "anchors": [
+      {
+        "connected": true,
+        "download": "Sofle v2-zmk.zip",
+        "href": "blob:http://127.0.0.1:34740/c2354670-6e02-4b19-8271-b4a73debd88c"
+      },
+      {
+        "connected": true,
+        "download": "Sofle v2-zmk.zip",
+        "href": "blob:http://127.0.0.1:34740/0e110bad-f3e1-4798-8843-3cb9e837ed7c"
+      },
+      {
+        "connected": true,
+        "download": "Sofle v2.boardstudio",
+        "href": "blob:http://127.0.0.1:34740/86af0098-ea4b-446a-9a99-283dd54cf95f"
+      }
+    ],
+    "created": [
+      {
+        "size": 12175,
+        "type": "application/zip",
+        "url": "blob:http://127.0.0.1:34740/c2354670-6e02-4b19-8271-b4a73debd88c"
+      },
+      {
+        "size": 12175,
+        "type": "application/zip",
+        "url": "blob:http://127.0.0.1:34740/5bc660a6-7516-4d28-a7f6-fd413b2cc8ac"
+      },
+      {
+        "size": 12175,
+        "type": "application/zip",
+        "url": "blob:http://127.0.0.1:34740/0e110bad-f3e1-4798-8843-3cb9e837ed7c"
+      },
+      {
+        "size": 1585879,
+        "type": "",
+        "url": "blob:http://127.0.0.1:34740/86af0098-ea4b-446a-9a99-283dd54cf95f"
+      }
+    ],
+    "revoked": [
+      "blob:http://127.0.0.1:34740/c2354670-6e02-4b19-8271-b4a73debd88c",
+      "blob:http://127.0.0.1:34740/5bc660a6-7516-4d28-a7f6-fd413b2cc8ac",
+      "blob:http://127.0.0.1:34740/0e110bad-f3e1-4798-8843-3cb9e837ed7c",
+      "blob:http://127.0.0.1:34740/86af0098-ea4b-446a-9a99-283dd54cf95f"
+    ]
+  }
+}

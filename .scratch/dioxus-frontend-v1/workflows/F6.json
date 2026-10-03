@@ -1,6 +1,6 @@
 {
   "workflow": "F6",
-  "status": "planned",
+  "status": "implementing",
   "dependency_semantics": "start_after gates implementation; acceptance_after gates completion; depends_on is their union. Existing F1/F3a baseline assumed.",
   "tasks": [
     {
@@ -22,7 +22,7 @@
       "acceptance_after": [
         "F3.1"
       ],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
@@ -38,6 +38,12 @@
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true,
         "packet_override_note": "Use High for newly implemented range/focus/scope/lifecycle state; Medium for projection/rendering and proven callback composition."
+      },
+      "progress_evidence": {
+        "updated_at": "2026-10-03T04:53:39.015941+00:00",
+        "checkpoint": "served a201/34740; next baseline8afaaa2f",
+        "scope": "Paired34740 layer edits/history/reload; visualfix2cb8e70c; defaultempty andF3.1 acceptance join remain.",
+        "acceptance": "No criteria/dependencies waived; partial source and bounded proof only."
       }
     },
     {
@@ -204,7 +210,7 @@
         "F6C.1"
       ],
       "acceptance_after": [],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
@@ -219,6 +225,12 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
+      },
+      "progress_evidence": {
+        "updated_at": "2026-10-03T04:53:39.015941+00:00",
+        "checkpoint": "served a201/34740; next baseline8afaaa2f",
+        "scope": "Paired profileSA\u2192Cherry/UndoRedo/reload green; headercounter child activelyporting; fullcriteriaremain.",
+        "acceptance": "No criteria/dependencies waived; partial source and bounded proof only."
       }
     },
     {
@@ -278,7 +290,7 @@
       "acceptance_after": [
         "INT.2"
       ],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
@@ -293,6 +305,12 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
+      },
+      "progress_evidence": {
+        "updated_at": "2026-10-03T04:53:39.015941+00:00",
+        "checkpoint": "served a201/34740; next baseline8afaaa2f",
+        "scope": "Marker/navigation/camera sourcesa201 plus actualPartInspector repairbd7f1c11; freshpairedgreen stillpending.",
+        "acceptance": "No criteria/dependencies waived; partial source and bounded proof only."
       }
     },
     {

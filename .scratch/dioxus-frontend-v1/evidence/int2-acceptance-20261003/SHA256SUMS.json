@@ -1,0 +1,17 @@
+{
+  "REVIEW.md": "a18ed232e36c3df7b0460fd5ba3f82762eb54349796b10b4a42e5d7371403dd5",
+  "audit-context.json": "b27817c26c25f0bd7ff27406247a202a3f507d7ad81611ea4b0ae3bc99485bf7",
+  "candidate-a201-portable.boardstudio": "d68e6651757b00ce6269ee521bd10acc7cc175d0faafe22813d3abb98614211c",
+  "candidate-a201-zmk-retry.zip": "a5cc4ed9cae9f76dd3d40ea549f7f4a0528511322e36205604160b219dcb51c1",
+  "candidate-a201-zmk.zip": "a5cc4ed9cae9f76dd3d40ea549f7f4a0528511322e36205604160b219dcb51c1",
+  "delivery-fault-installed.json": "f30627c9b266a9d6ed8dbcaf5f0b4678a481cce579139654db8e268d47191706",
+  "failure-resource-trace.json": "ead6165ea0d0b3b5ca148108569cbe817f215a7ab33596b9862f6986169c6600",
+  "final-resource-trace.json": "8c385c74f826ec6fe7b4ea02660d9300328e4959a12553ed608ec003f01c9c99",
+  "injected-delivery-error.png": "061a8fd250ba3451ce7a9e999b261c6267d703bc2a07ab8a52411f3cc76eb888",
+  "portable-reimport-store.json": "868baff7303ea074dd8836658d36aa377259d1b6e7c54e440ae4182ee8008862",
+  "retry-resource-trace.json": "137aeb291ac1fe291193ee6463874cac363f9fbfa9e9fb592a4045a375fdf476",
+  "reused-evidence-freshness.json": "0e41313928b23d0149ed2a0f2debfddef99a4146d5406167d56a46c7d24e351d",
+  "session-export-cancel-green.log": "6b17cbc5f33fecd653c49c65e7db5ded396841e727ce34ff9a3d9c7e819e57bb",
+  "source-and-archive-audit.json": "8a056d392992ff212eb62d035fd7de0a24e4c18ab8faab225ea71a93fa5770b8",
+  "success-resource-trace.json": "33161a539d906015c0a410c199aee9994d4c3c9d4fa612ac0ae904b9819df726"
+}

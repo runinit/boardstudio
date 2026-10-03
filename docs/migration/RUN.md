@@ -1,6 +1,6 @@
 # BoardStudio milestone continuation
 
-Current active checkpoint: [frontend run state](dioxus-frontend-v1-run.json). Candidate frontend-candidate-batch-20261003 served at34740 root/subpath, source a201a96a. Full22 commands passed;1354 inputs zero source drift;145 assets per route zero mismatches. Eight joined source slices undergoing consolidated Sol review and paired journeys. Known Parts accepted-refresh draft loss, Keycaps Part Inspector rejection and Layout unrelated-revision draft reset under repair; PCB pin/lock frozen for next batch. Parent acceptance remains1/62; RF001–015 retained.
+Current active checkpoint: [frontend run state](dioxus-frontend-v1-run.json). [34741](http://127.0.0.1:34741/) serves the repaired full baseline from8afaaa2f:22 successful steps,1357 unchanged inputs,145 assets/route. Independent package and repaired paired journeys continue. INT.2 is accepted against unchanged scoped provider/delivery criteria, with15 hash-verified retained artifacts; totals2 accepted,12 implementing,48 planned. Parts row-key repair and Keycaps assignment header are joined for the first guarded page-feature reuse candidate. All consumer criteria/joins and RF001–015 remain tracked.
 
 ## Active checkpoint — 2026-10-02, combined source freeze
 

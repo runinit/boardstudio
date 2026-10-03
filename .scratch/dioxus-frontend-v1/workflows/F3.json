@@ -1,6 +1,6 @@
 {
   "workflow": "F3",
-  "status": "planned",
+  "status": "implementing",
   "dependency_semantics": "start_after gates implementation; acceptance_after gates completion; depends_on is their union. Existing F1/F3a baseline assumed.",
   "tasks": [
     {
@@ -144,7 +144,7 @@
         "F3.1"
       ],
       "acceptance_after": [],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
       "shared_edit_owner": "integration coordinator",
@@ -159,6 +159,12 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
+      },
+      "progress_evidence": {
+        "updated_at": "2026-10-03T04:53:39.015941+00:00",
+        "checkpoint": "served a201/34740; next baseline8afaaa2f",
+        "scope": "F3.4b outline Inspector/management active isolated author; outline/perimeter full criteria remain.",
+        "acceptance": "No criteria/dependencies waived; partial source and bounded proof only."
       }
     },
     {
@@ -182,7 +188,7 @@
         "F3.1"
       ],
       "acceptance_after": [],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
       "shared_edit_owner": "integration coordinator",
@@ -197,6 +203,12 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
+      },
+      "progress_evidence": {
+        "updated_at": "2026-10-03T04:53:39.015941+00:00",
+        "checkpoint": "served a201/34740; next baseline8afaaa2f",
+        "scope": "Standalone Inspector7484 + accepted-refresh repair78cc436a + findingPart consumerbd7f1c11; paired full Inspector gates remain.",
+        "acceptance": "No criteria/dependencies waived; partial source and bounded proof only."
       }
     },
     {

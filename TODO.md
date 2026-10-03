@@ -2,7 +2,7 @@
 
 <!-- phase: 3 -->
 
-**Current priority:** [Dioxus frontend v1](.scratch/dioxus-frontend-v1/PLAN.md), with 62 planned tasks and workflow author/reviewer ownership. Full F2–F9 remain open; executable F1/F3a evidence is unchanged.
+**Current priority:** [Dioxus frontend v1](.scratch/dioxus-frontend-v1/PLAN.md), with 62 parents: 2 accepted (INT.1/INT.2), 12 implementing and 48 planned. Full F2–F9 remain open. [34741](http://127.0.0.1:34741/) serves the repaired8af full baseline; bounded paired evidence and remaining gates are in the current run ledger.
 
 ## Retained M1 migration foundation — 2026-10-01
 

@@ -55,7 +55,7 @@
       ],
       "priority": "P0",
       "effort": "M",
-      "status": "accepted",
+      "status": "planned",
       "acceptance": "Provide the smallest private scoped dispatch and file/asset/delivery seam, prove it with the first required existing provider call and cancellation/stale/error/resource checks. Individual format/query adapters belong to their consuming visible feature tasks and do not all have to exist before INT.2 completes. Preserve current session/document/revision/board identity and one session/store; no backend rewrite.",
       "boundary_status": "Runtime currently lacks complete workspace facades; existing CoreWorker/BrowserStore/application/provider contracts are present. Verify each concrete call during implementation and record genuine public gaps instead of assuming them.",
       "external_gates": [],
@@ -71,21 +71,6 @@
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true,
         "contract_review_reuse": "Reuse current contract; routine private frontend work proceeds to integrated candidate review."
-      },
-      "progress_evidence": {
-        "updated_at": "2026-10-03T04:53:39.015941+00:00",
-        "checkpoint": "served a201/34740; next baseline8afaaa2f",
-        "scope": "Existing provider/delivery seam under exact acceptance audit; no closure implied.",
-        "acceptance": "No criteria/dependencies waived; partial source and bounded proof only."
-      },
-      "acceptance_evidence": {
-        "date": "2026-10-03T05:02:51.070211+00:00",
-        "source": "a201a96a76c0d908580793e36e4c7d315155fbb3",
-        "url": "http://127.0.0.1:34740/",
-        "review": ".scratch/dioxus-frontend-v1/evidence/int2-acceptance-20261003/REVIEW.md",
-        "review_sha256": "a18ed232e36c3df7b0460fd5ba3f82762eb54349796b10b4a42e5d7371403dd5",
-        "decision": "All unchanged small scoped request/file/asset/delivery seam criteria met; exact source freshness and limits retained.",
-        "scope": "INT.2 only. Individual format/query adapters and F5.2/F8 consumer criteria remain open."
       }
     },
     {
@@ -160,7 +145,7 @@
         "INT.1"
       ],
       "acceptance_after": [],
-      "status": "implementing",
+      "status": "planned",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
       "shared_edit_owner": "integration coordinator",
@@ -175,12 +160,6 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      },
-      "progress_evidence": {
-        "updated_at": "2026-10-03T04:53:39.015941+00:00",
-        "checkpoint": "served a201/34740; next baseline8afaaa2f",
-        "scope": "Saved search source3c75ba51, existing demos/new keyboard/library; paired broad gate open.",
-        "acceptance": "No criteria/dependencies waived; partial source and bounded proof only."
       }
     },
     {
@@ -202,7 +181,7 @@
       "acceptance_after": [
         "INT.2"
       ],
-      "status": "implementing",
+      "status": "planned",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
       "shared_edit_owner": "integration coordinator",
@@ -217,12 +196,6 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      },
-      "progress_evidence": {
-        "updated_at": "2026-10-03T04:53:39.015941+00:00",
-        "checkpoint": "served a201/34740; next baseline8afaaa2f",
-        "scope": "Project19 currentname paired34740; lifecycle/archive/delete completion criteria remain.",
-        "acceptance": "No criteria/dependencies waived; partial source and bounded proof only."
       }
     },
     {
@@ -433,7 +406,7 @@
         "F3.1"
       ],
       "acceptance_after": [],
-      "status": "implementing",
+      "status": "planned",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
       "shared_edit_owner": "integration coordinator",
@@ -448,12 +421,6 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      },
-      "progress_evidence": {
-        "updated_at": "2026-10-03T04:53:39.015941+00:00",
-        "checkpoint": "served a201/34740; next baseline8afaaa2f",
-        "scope": "F3.4b outline Inspector/management active isolated author; outline/perimeter full criteria remain.",
-        "acceptance": "No criteria/dependencies waived; partial source and bounded proof only."
       }
     },
     {
@@ -477,7 +444,7 @@
         "F3.1"
       ],
       "acceptance_after": [],
-      "status": "implementing",
+      "status": "planned",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
       "shared_edit_owner": "integration coordinator",
@@ -492,12 +459,6 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      },
-      "progress_evidence": {
-        "updated_at": "2026-10-03T04:53:39.015941+00:00",
-        "checkpoint": "served a201/34740; next baseline8afaaa2f",
-        "scope": "Standalone Inspector7484 + accepted-refresh repair78cc436a + findingPart consumerbd7f1c11; paired full Inspector gates remain.",
-        "acceptance": "No criteria/dependencies waived; partial source and bounded proof only."
       }
     },
     {
@@ -698,7 +659,7 @@
       "acceptance_after": [
         "INT.2"
       ],
-      "status": "implementing",
+      "status": "planned",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
       "shared_edit_owner": "integration coordinator",
@@ -713,12 +674,6 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      },
-      "progress_evidence": {
-        "updated_at": "2026-10-03T04:53:39.015941+00:00",
-        "checkpoint": "served a201/34740; next baseline8afaaa2f",
-        "scope": "Parts custom authoring1a integrated; verified followup rowkey repair pending; full import/editor criteria remain.",
-        "acceptance": "No criteria/dependencies waived; partial source and bounded proof only."
       }
     },
     {
@@ -976,7 +931,7 @@
       "acceptance_after": [
         "INT.2"
       ],
-      "status": "implementing",
+      "status": "planned",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
       "shared_edit_owner": "integration coordinator",
@@ -991,12 +946,6 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      },
-      "progress_evidence": {
-        "updated_at": "2026-10-03T04:53:39.015941+00:00",
-        "checkpoint": "served a201/34740; next baseline8afaaa2f",
-        "scope": "Paired34740 multi-board Matrix Apply exact React documents; visualfix2cb8e70c and direct/adversarial/INT2 gates remain.",
-        "acceptance": "No criteria/dependencies waived; partial source and bounded proof only."
       }
     },
     {
@@ -1022,7 +971,7 @@
         "F3.2",
         "F6K.4"
       ],
-      "status": "implementing",
+      "status": "planned",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
       "shared_edit_owner": "integration coordinator",
@@ -1037,12 +986,6 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      },
-      "progress_evidence": {
-        "updated_at": "2026-10-03T04:53:39.015941+00:00",
-        "checkpoint": "served a201/34740; next baseline8afaaa2f",
-        "scope": "Pinlocks03914b14 and protected remap dedicatedSessionCore23effad6; paired/full nets/handoff gates remain.",
-        "acceptance": "No criteria/dependencies waived; partial source and bounded proof only."
       }
     },
     {
@@ -1262,7 +1205,7 @@
       "acceptance_after": [
         "F3.1"
       ],
-      "status": "implementing",
+      "status": "planned",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
@@ -1278,12 +1221,6 @@
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true,
         "packet_override_note": "Use High for newly implemented range/focus/scope/lifecycle state; Medium for projection/rendering and proven callback composition."
-      },
-      "progress_evidence": {
-        "updated_at": "2026-10-03T04:53:39.015941+00:00",
-        "checkpoint": "served a201/34740; next baseline8afaaa2f",
-        "scope": "Paired34740 layer edits/history/reload; visualfix2cb8e70c; defaultempty andF3.1 acceptance join remain.",
-        "acceptance": "No criteria/dependencies waived; partial source and bounded proof only."
       }
     },
     {
@@ -1450,7 +1387,7 @@
         "F6C.1"
       ],
       "acceptance_after": [],
-      "status": "implementing",
+      "status": "planned",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
@@ -1465,12 +1402,6 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      },
-      "progress_evidence": {
-        "updated_at": "2026-10-03T04:53:39.015941+00:00",
-        "checkpoint": "served a201/34740; next baseline8afaaa2f",
-        "scope": "Paired profileSA\u2192Cherry/UndoRedo/reload green; headercounter child activelyporting; fullcriteriaremain.",
-        "acceptance": "No criteria/dependencies waived; partial source and bounded proof only."
       }
     },
     {
@@ -1530,7 +1461,7 @@
       "acceptance_after": [
         "INT.2"
       ],
-      "status": "implementing",
+      "status": "planned",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
@@ -1545,12 +1476,6 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      },
-      "progress_evidence": {
-        "updated_at": "2026-10-03T04:53:39.015941+00:00",
-        "checkpoint": "served a201/34740; next baseline8afaaa2f",
-        "scope": "Marker/navigation/camera sourcesa201 plus actualPartInspector repairbd7f1c11; freshpairedgreen stillpending.",
-        "acceptance": "No criteria/dependencies waived; partial source and bounded proof only."
       }
     },
     {
@@ -1886,7 +1811,7 @@
         "F7.4"
       ],
       "acceptance_after": [],
-      "status": "implementing",
+      "status": "planned",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
       "shared_edit_owner": "integration coordinator",
@@ -1901,12 +1826,6 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      },
-      "progress_evidence": {
-        "updated_at": "2026-10-03T04:53:39.015941+00:00",
-        "checkpoint": "served a201/34740; next baseline8afaaa2f",
-        "scope": "Case livepreview85 + currentresultUndo repair85d0a736; actual34740redretained; fullgeneration/export gates remain.",
-        "acceptance": "No criteria/dependencies waived; partial source and bounded proof only."
       }
     },
     {
@@ -2354,7 +2273,7 @@
         "F7.8",
         "F8.6"
       ],
-      "status": "implementing",
+      "status": "planned",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
       "shared_edit_owner": "integration coordinator",
@@ -2370,12 +2289,6 @@
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true,
         "author_role_note": "Evidence execution/preparation; Astra independently assesses acceptance, task external gates unchanged."
-      },
-      "progress_evidence": {
-        "updated_at": "2026-10-03T04:53:39.015941+00:00",
-        "checkpoint": "served a201/34740; next baseline8afaaa2f",
-        "scope": "Six-workbench pairedjourneys active; all full criteria/closure intact.",
-        "acceptance": "No criteria/dependencies waived; partial source and bounded proof only."
       }
     },
     {

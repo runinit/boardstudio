@@ -724,21 +724,19 @@
     "result": "Fresh React archive has0 local assets: unchecked export0 assets, checked6 assets, each digest verified. Bounded archive-option proof only; STEP/firmware/full export parent remain open."
   },
   "current_served_frontier_20261002": {
-    "url": "http://127.0.0.1:34740/",
-    "root_url": "http://127.0.0.1:34740/",
-    "subpath": "http://127.0.0.1:34740/boardstudio/",
-    "subpath_url": "http://127.0.0.1:34740/boardstudio/",
-    "build": "frontend-candidate-batch-20261003",
-    "source": "a201a96a76c0d908580793e36e4c7d315155fbb3",
-    "source_commit": "a201a96a76c0d908580793e36e4c7d315155fbb3",
+    "url": "http://127.0.0.1:34741/",
+    "root_url": "http://127.0.0.1:34741/",
+    "subpath": "http://127.0.0.1:34741/boardstudio/",
+    "subpath_url": "http://127.0.0.1:34741/boardstudio/",
+    "build": "frontend-parity-repairs-full-baseline-20261003",
+    "source": "8afaaa2f38da73bce2e61de246fda92c6fe96db8",
+    "source_commit": "8afaaa2f38da73bce2e61de246fda92c6fe96db8",
     "commands": 22,
-    "source_hashes": 1354,
+    "source_hashes": 1357,
     "assets_per_route": 145,
-    "elapsed_seconds": 517.57779,
-    "provenance_sha256": "a94e2c6989ea98664f31e5dd2f57d62a853b40fcdce348c701f0c80d40eafc7f",
-    "qualification": "Independent package verification CLEAR; actual paired Case Undo exposed stale blocked title (repair integrated85d0a736). Paired PCB Apply durable documents byte-identical; button placement remains open. Keymap layer edits/history/reload pass; owned spacing gap under repair. Project name bounded trim/history/reload green; menuvisual correction underway. Known Parts and Layout draft issues/Keycaps Inspector and mode pending nextcandidate.",
-    "independent_review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/frontend-batch-a201a96a-case-package-review-sol-20261003.md",
-    "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
+    "elapsed_seconds": 524.315853,
+    "provenance_sha256": "4612d6c4915b36e901fa031c6a44f6efb95f342f136bb305f26447ca48fafb80",
+    "qualification": "Root fullbuild/input/assetsverified; independent package/paired repairedjourneys underway."
   },
   "pending_integration_wave_20261002": {
     "source": "d585492012a60937879e89a8618c1d533fddba4e",
@@ -754,21 +752,19 @@
     ]
   },
   "current_comparison_build": {
-    "url": "http://127.0.0.1:34740/",
-    "root_url": "http://127.0.0.1:34740/",
-    "subpath": "http://127.0.0.1:34740/boardstudio/",
-    "subpath_url": "http://127.0.0.1:34740/boardstudio/",
-    "build": "frontend-candidate-batch-20261003",
-    "source": "a201a96a76c0d908580793e36e4c7d315155fbb3",
-    "source_commit": "a201a96a76c0d908580793e36e4c7d315155fbb3",
+    "url": "http://127.0.0.1:34741/",
+    "root_url": "http://127.0.0.1:34741/",
+    "subpath": "http://127.0.0.1:34741/boardstudio/",
+    "subpath_url": "http://127.0.0.1:34741/boardstudio/",
+    "build": "frontend-parity-repairs-full-baseline-20261003",
+    "source": "8afaaa2f38da73bce2e61de246fda92c6fe96db8",
+    "source_commit": "8afaaa2f38da73bce2e61de246fda92c6fe96db8",
     "commands": 22,
-    "source_hashes": 1354,
+    "source_hashes": 1357,
     "assets_per_route": 145,
-    "elapsed_seconds": 517.57779,
-    "provenance_sha256": "a94e2c6989ea98664f31e5dd2f57d62a853b40fcdce348c701f0c80d40eafc7f",
-    "qualification": "Independent package verification CLEAR; actual paired Case Undo exposed stale blocked title (repair integrated85d0a736). Paired PCB Apply durable documents byte-identical; button placement remains open. Keymap layer edits/history/reload pass; owned spacing gap under repair. Project name bounded trim/history/reload green; menuvisual correction underway. Known Parts and Layout draft issues/Keycaps Inspector and mode pending nextcandidate.",
-    "independent_review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/frontend-batch-a201a96a-case-package-review-sol-20261003.md",
-    "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
+    "elapsed_seconds": 524.315853,
+    "provenance_sha256": "4612d6c4915b36e901fa031c6a44f6efb95f342f136bb305f26447ca48fafb80",
+    "qualification": "Root fullbuild/input/assetsverified; independent package/paired repairedjourneys underway."
   },
   "active_source_freeze": {
     "url": "http://127.0.0.1:34736/",
@@ -1010,6 +1006,25 @@
       "url": "http://127.0.0.1:34740/",
       "subpath_url": "http://127.0.0.1:34740/boardstudio/",
       "verification": "Root source/asset proof complete; independent package and paired browser review running."
+    },
+    {
+      "build": "frontend-parity-repairs-full-baseline-20261003",
+      "source": "8afaaa2f38da73bce2e61de246fda92c6fe96db8",
+      "status": "complete",
+      "commands": 22,
+      "failed_commands": [],
+      "inputs": 1357,
+      "source_drift": [],
+      "asset_counts": {
+        "root": 145,
+        "subpath": 145
+      },
+      "asset_mismatches": {
+        "root": [],
+        "subpath": []
+      },
+      "elapsed_seconds": 524.315853,
+      "provenance_sha256": "4612d6c4915b36e901fa031c6a44f6efb95f342f136bb305f26447ca48fafb80"
     }
   ],
   "latest_keymap_binding_receipt": ".scratch/dioxus-keymap-layers/evidence/binding-public-34737-20261002/RESULTS.md",
@@ -1124,7 +1139,40 @@
       "Packaging fail-closed graph guards",
       "Saved-search mounted verification"
     ],
-    "checks": "Combined strict WASM all-target Clippy passed324762c8,13.70s; full helper baseline and actualreuse remain pending. Sourceintegration does not close parentcriteria.",
+    "checks": "28 repaired packaging guard tests, fmt and combined strict WASM all-target Clippy pass at8afaaa2f. Full22 helper baseline currentlybuilding; actual page-feature reuse qualification follows Partsjoin.",
     "acceptance": "No parent closure from source-only joins; currentserved a201 at34740."
+  },
+  "parent_progress_20261003": {
+    "accepted": 2,
+    "implementing": 12,
+    "planned": 48,
+    "total": 62,
+    "note": "Partial evidence-backed status reconciliation; all criteria/joins retained; previous status snapshot saved under evidence/parent-progress-20261003."
+  },
+  "int2_acceptance_20261003": {
+    "date": "2026-10-03T05:02:51.070211+00:00",
+    "source": "a201a96a76c0d908580793e36e4c7d315155fbb3",
+    "url": "http://127.0.0.1:34740/",
+    "review": ".scratch/dioxus-frontend-v1/evidence/int2-acceptance-20261003/REVIEW.md",
+    "review_sha256": "a18ed232e36c3df7b0460fd5ba3f82762eb54349796b10b4a42e5d7371403dd5",
+    "decision": "All unchanged small scoped request/file/asset/delivery seam criteria met; exact source freshness and limits retained.",
+    "scope": "INT.2 only. Individual format/query adapters and F5.2/F8 consumer criteria remain open."
+  },
+  "comparison_history_before_34741": {
+    "url": "http://127.0.0.1:34740/",
+    "root_url": "http://127.0.0.1:34740/",
+    "subpath": "http://127.0.0.1:34740/boardstudio/",
+    "subpath_url": "http://127.0.0.1:34740/boardstudio/",
+    "build": "frontend-candidate-batch-20261003",
+    "source": "a201a96a76c0d908580793e36e4c7d315155fbb3",
+    "source_commit": "a201a96a76c0d908580793e36e4c7d315155fbb3",
+    "commands": 22,
+    "source_hashes": 1354,
+    "assets_per_route": 145,
+    "elapsed_seconds": 517.57779,
+    "provenance_sha256": "a94e2c6989ea98664f31e5dd2f57d62a853b40fcdce348c701f0c80d40eafc7f",
+    "qualification": "Independent package verification CLEAR; actual paired Case Undo exposed stale blocked title (repair integrated85d0a736). Paired PCB Apply durable documents byte-identical; button placement remains open. Keymap layer edits/history/reload pass; owned spacing gap under repair. Project name bounded trim/history/reload green; menuvisual correction underway. Known Parts and Layout draft issues/Keycaps Inspector and mode pending nextcandidate.",
+    "independent_review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/frontend-batch-a201a96a-case-package-review-sol-20261003.md",
+    "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   }
 }

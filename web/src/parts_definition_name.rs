@@ -1030,7 +1030,7 @@ mod mounted_tests {
             "dirty values owned by the prior definition cannot commit into the next owner"
         );
         crate::parts_custom_definition::clear_pad_number_draft_for_test();
-        let _ = root.remove();
+        root.remove();
     }
 
     #[wasm_bindgen_test]
