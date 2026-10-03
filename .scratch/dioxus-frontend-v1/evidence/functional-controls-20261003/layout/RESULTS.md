@@ -21,7 +21,14 @@ Additional paired browser check on the same REVIUNG41 fixture: pinned TypeScript
 - **Arrow nudge:** with the `main-U1` tree row focused, ArrowRight moved X from `273.2` to `273.3` mm in both builds (`+0.1 mm`). Shift+ArrowRight moved it from `273.3` to `274.3` mm (`+1.0 mm`) in both.
 - **Editable field and canvas focus:** with the selected part's `X mm` spinbutton focused, ArrowLeft left the part at `274.3` mm on both builds. Focusing the Layout canvas/application and pressing ArrowRight also left it unchanged on both. The mounted nudge route is the focused tree row, not canvas focus; this matches the reference's tested behavior.
 - **Snap guide:** moving U1 toward RST produced a live snapped preview at approximately `(273.2, -43.25)` mm. Dioxus exposed `main-RST · corner / midpoint / center` as a live status label. TypeScript rendered its `.wb-snap-guide` circle/path, with no text in that SVG marker. After pointer-up committed the move, the guide element/status disappeared on both builds.
+- **Escape cancellation:** repeating the snapped preview, pressing Escape while the pointer was still held restored U1 to `(273.2, -15)` mm and removed the guide on both builds. Releasing the pointer afterward left the restored position unchanged.
 
-Input was delivered through trusted browser mouse and keyboard actions. DOM reads were limited to visible rendered parts/guide nodes; no app runtime state was injected. The guide's pointer-cancel clearing path was not separately exercised; commit clearing passed.
+Input was delivered through trusted browser mouse and keyboard actions. DOM reads were limited to visible rendered parts/guide nodes; no app runtime state was injected. This verifies the user-facing Escape cancel path on both paired builds. A later candidate-only native touch-cancel probe is reported separately to the root for C03; paired TypeScript/Dioxus `pointercancel` qualification remains unverified.
 
-The tested C04 legs pass for the mounted tree-item nudge route, editable spinbutton behavior, live snap feedback, and guide removal on commit. The only untested leg here is guide removal on pointer cancel.
+The tested C04 legs pass for the mounted tree-item nudge route, editable spinbutton behavior, live snap feedback, and guide removal on commit and Escape cancel. A paired native `pointercancel` event check remains outside this receipt.
+
+## F3.3-C03 supplemental: candidate touch-cancel path
+
+On Dioxus build `frontend-module-attachment-repair-20261003` only (`http://127.0.0.1:34782/`, REVIUNG41), a bounded trusted Chrome DevTools Protocol touch-cancel check exercised the candidate cancellation path. With touch emulation enabled, the input sequence was `Input.dispatchTouchEvent(touchStart, 902,244)`, `touchMove(900,300)`, `touchMove(898,312)`, then `touchCancel`. During the snapped preview the status read `main-RST · corner / midpoint / center` and U1 previewed at `(273.2, -43.25)` mm. After `touchCancel`, the guide was absent and U1 returned to `(273.2, -15)` mm. The TypeScript native `pointercancel` path was not tested.
+
+Input was sent through the browser CDP `Input` domain after enabling `Emulation.setTouchEmulationEnabled`; only rendered DOM was read back. No page script or application runtime state was injected.

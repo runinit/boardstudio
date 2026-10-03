@@ -1281,6 +1281,13 @@
           "path": ".scratch/dioxus-layout-authoring/evidence/f33b-matrix-transform-paired-20261003/",
           "result": "Column OffsetX/Key LocalX edit Undo/Redo/reload GREEN; changed34759 contextual Key versus Component form GREEN. Full transforms/constraints/pointer criteria retained.",
           "acceptance": "No full-parent acceptance claimed."
+        },
+        {
+          "at": "2026-10-03T23:18:05.320345+00:00",
+          "source_commit": "733c1da2abede39a617d2eca2e42d9bd437cea41",
+          "path": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/layout/RESULTS.md",
+          "result": "C04 nudge and snap guide lifecycle verified against pinned TypeScript; unchanged Alt drag evidence reused.",
+          "acceptance": "No parent closure; C03 native cancellation/final sample and other parent criteria remain."
         }
       ],
       "criteria": [
@@ -1364,16 +1371,18 @@
         {
           "id": "F3.3-C04",
           "requirement": "Alt bypasses grid and geometry snapping; snap guide appears/clears correctly; arrow nudge is 0.1 mm and Shift+arrow is 1 mm outside editable fields.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/objects/layout_transform_toolbar.rs",
             "web/src/presentation/objects/layout_align_controller.rs",
             "web/src/presentation/outline_snapping.rs"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/layout/RESULTS.md"
+          ],
           "blockers": [],
-          "next_action": "Inspect currently mounted key and snap-guide behavior, then reuse/add focused public proof for Alt, guide lifecycle, and both nudge increments.",
+          "next_action": "Retain paired Alt drag, 0.1/1 mm tree-focused nudge, editable-field exclusion and snap-guide commit/Escape clearing evidence. Native pointercancel/lost capture and other explicitly named cancellation paths remain under C03.",
           "finish_condition": "Public UI confirms Alt bypass, correct guide lifecycle, and 0.1 mm/1 mm nudges outside editable fields.",
           "owned_files": [
             "web/src/presentation/objects/layout_transform_toolbar.rs",

@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T23:16:39.298687+00:00",
+    "updated_at": "2026-10-03T23:18:40.865594+00:00",
     "parent_counts": {
       "accepted": 10,
       "implementing": 41,
@@ -488,7 +488,7 @@
       {
         "stream": "Layout",
         "priority": "Functional gaps alongside other streams; exact visual parity deferred",
-        "state": "Paired C04 keyboard increments, editable-field exclusion and snap feedback/commit clearing passed. Remaining pointer-cancel clearing qualification running."
+        "state": "F3.3-C04 verified: paired Alt/nudge and snap-guide commit/Escape clearing. Candidate-only native touchCancel also restores position/clears guide; full C03 cancellation paths remain open."
       },
       {
         "stream": "PCB",
