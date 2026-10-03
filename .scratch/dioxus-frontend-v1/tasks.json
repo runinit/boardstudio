@@ -1253,7 +1253,7 @@
       "acceptance_after": [
         "F4.7"
       ],
-      "status": "in_progress",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
       "shared_edit_owner": "integration coordinator",
@@ -1275,7 +1275,15 @@
         "scope": "First placement Inspector child consumes current ProjectDoc module/definition/physical-instance data and existing Core SetMountedModule/RemoveMountedModule edits. It adds scoped mounted-module selection from the PCB overlay. Supports, connection, circuit joins, source editing, full F5.4 criteria and all parent joins remain open.",
         "child": "PCB22 mounted-module placement Inspector",
         "acceptance": "Source packet only; root integration, combined check/package, paired Save/Remove/Undo/Redo/reopen journey and all original parent criteria/dependencies remain open."
-      }
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T11:33:42.522228+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Mounted-module placement Inspector joined4d8e160f; canonical status spelling normalized from author in_progress. Parent criteria unchanged."
+        }
+      ]
     },
     {
       "id": "F5.6",

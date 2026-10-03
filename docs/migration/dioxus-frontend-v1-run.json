@@ -1273,12 +1273,12 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T11:23:45.363302+00:00",
+    "updated_at": "2026-10-03T11:33:42.522228+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
       "accepted": 3,
-      "implementing": 35,
-      "planned": 24,
+      "implementing": 36,
+      "planned": 23,
       "total": 62
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
@@ -1299,8 +1299,8 @@
       "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34764-20261003/package-proof.json"
     },
     "integration": {
-      "source_commit": "e889f93a",
-      "state": "34764 remainsserved; focusedExportcontext and CurrentprojectstatusGREEN. Nextsourcejoins: Keycaps93ef, footprintExport609f/RF1a20, correctedCasee889. Layoutdraft-owner/header/ID and presetghost repairs, Partsselectedmodulepreview and PCBmountedInspector active.",
+      "source_commit": "e016e69e41f820775ba8246fdf9f2a5f5440507b",
+      "state": "34764 remains served. Next joined batch: Keycaps clearance disclosure, footprint ZIP action, corrected Case selection placements, source-backed VIK center preview, Layout findings/navigation and PCB mounted-module Inspector. Initial combined compile/capture corrections committed6b9c/bdc; remaining strict lint corrections active. One combined package after source settles; no new UI tests.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1939,6 +1939,20 @@
         "candidate": "661296fe/34764",
         "evidence": ".scratch/dioxus-frontend-v1/evidence/export-workspace-34764-20261003/current-project-status-34764-green.json",
         "limits": "Generalfooterfindingsplacement still implementing."
+      },
+      {
+        "journey": "Layout Board Inspector rename/history/reload and Geometry script output/reload",
+        "state": "Bounded paired GREEN on34764; default heading and three draft/ID repairs remain explicit",
+        "candidate": "661296fe/34764",
+        "evidence": ".scratch/dioxus-layout-authoring/evidence/f31-board-inspector-geometry-20261003/RESULTS.md",
+        "remaining": "Layout follow-on repairs and full parent joins."
+      },
+      {
+        "journey": "VIK module catalogue/variant/source/readiness",
+        "state": "Bounded Inspector GREEN on34764; stale center preview reproduced and repaired in next source007f8552",
+        "candidate": "661296fe/34764",
+        "evidence": ".scratch/dioxus-parts-catalogue/evidence/issue02-vik-modules-34764/RESULTS.md",
+        "remaining": "Changed center source-preview journey; full Parts parent criteria."
       }
     ],
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
@@ -1951,14 +1965,14 @@
         "result": "PASS",
         "duration_seconds": 17.49,
         "new_tests": 0
-      }
+      },
+      "next": "One combined strict page WASM all-target check and fast package using34764 full provider baseline."
     },
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "next_work": [
-      "Complete34764 changed Board/Geometry/VIK/Exportstatus journeys and one consolidated Sol delta review.",
-      "Integrate next ready UI packet serially; use this freshfullbaseline for fast provider reuse.",
-      "Layout-first next: presetassembly1\u00d71matrix preview/action, realLayoutfindings and contextual navigation.",
-      "ContinuePCBmountedplacementInspector, Keycapsdisclosure/legend, Casecontextualpanes, PartsProjectdemoidentity/cards, Exportfootprints."
+      "Run combined settled-source check/package34765 and qualify only changed UI journeys under one Sol review.",
+      "Layout-first repairs: draft ownership, script ID allocation, Board heading and preset assembly placement.",
+      "Continue six queues: PCB mounted placement, Keymap frontier, Keycaps legend, Case contextual UI, Parts Project demo fresh-copy/cards, footprint export collision correction if reproduced."
     ],
     "execution_policy": "Ordinary reversible UI gets no new tests. Run one required affected compile/check per integrated batch, inspect only changed paired browser journeys, and use one consolidated candidate review. Reuse unchanged history/reopen evidence. Real reproduced bugs retain one focused regression. Parent criteria, blocker history and RF ledger remain explicit.",
     "served_candidate_history": [
