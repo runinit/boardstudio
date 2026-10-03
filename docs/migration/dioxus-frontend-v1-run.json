@@ -1273,7 +1273,7 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T12:17:20.444089+00:00",
+    "updated_at": "2026-10-03T12:26:53.990710+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
       "accepted": 6,
@@ -1283,24 +1283,24 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-context-findings-footprints-20261003",
-      "source_commit": "17ba32b984c13f3621a2145efe1dd478862ab5cd",
-      "root_url": "http://127.0.0.1:34765/",
-      "subpath_url": "http://127.0.0.1:34765/boardstudio/",
-      "provenance": "web/target/builds/frontend-context-findings-footprints-20261003/provenance.json",
-      "provenance_sha256": "273ca2fa2315b32fec91b0490d2f70fb03b5426d759310bced6e934ad73947d5",
-      "fresh_commands": 8,
-      "inherited_commands": 22,
-      "source_inputs": 1378,
+      "build_id": "frontend-six-stream-parity-recovery-20261003",
+      "source_commit": "3a080e0e99d0638ddc1b562b3fc5a8ac91f3fefd",
+      "root_url": "http://127.0.0.1:34767/",
+      "subpath_url": "http://127.0.0.1:34767/boardstudio/",
+      "provenance": "web/target/builds/frontend-six-stream-parity-recovery-20261003/provenance.json",
+      "provenance_sha256": "96d7bc6289aedaadd8198bb9038c67d24fc659fde847362b24c7504313cbc733",
+      "fresh_commands": 22,
+      "inherited_commands": 0,
+      "source_inputs": 1372,
       "source_mismatches": 0,
       "assets_per_route": 146,
-      "command_span_seconds": 100.874479,
-      "package_qualification": "Strict page WASM all-targets19.23s PASS; newtests0. Fast package8fresh/22inherited,1378sources/146assets-route0mismatch,root/subpath200COOP/COEP. Changed journeys active; no parentclosure.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34765-20261003/package-proof.json"
+      "command_span_seconds": 459.672795,
+      "package_qualification": "Combined strict page WASM all-targets PASS18.35s; no new UI tests. Full22 package;1372 maintained inputs/146 assets per route zero mismatches, root/subpath200 COOP/COEP. Changed paired journeys active. Preset late-selection repair e959bd02 pending next candidate; no full-workbench acceptance.",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34767-20261003/package-proof.json"
     },
     "integration": {
-      "source_commit": "4483ed4d",
-      "state": "Sixstreamfrontendbatch joined. StrictpageWASMalltargets PASS18.35s/no newUItests after sharedprop/fixture/presetRSX/types/signalborrow/capture corrections. CorrectedgeneratedCoreoutputclassifier alreadyfocusedRED/GREEN2tests and Solreviewed. Freshfull34767 package starts;34765 remainslive,34766 rejected/notbaseline.",
+      "source_commit": "3a080e0e99d0638ddc1b562b3fc5a8ac91f3fefd",
+      "state": "Frozen six-stream source qualified and served at34767. Changed paired journeys executing in parallel; one consolidated Sol review. Preset terminal selection/feedback P2 has isolated repair e959bd02, not included in34767. Rejected34766 remains unserved and is not a baseline.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1959,14 +1959,7 @@
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "heavy_slots": {
       "policy": "Coordinator assigned; maximum2 heavy jobs/1package",
-      "active": [
-        {
-          "kind": "fullpackage",
-          "owner": "root",
-          "build_id": "frontend-six-stream-parity-recovery-20261003",
-          "slot_authorized_at": "2026-10-03T12:17:20.444089+00:00"
-        }
-      ],
+      "active": [],
       "check": {
         "source_commit": "4483ed4d",
         "log": ".scratch/dioxus-frontend-v1/evidence/candidate-34767-20261003/combined-check-green.log",
@@ -1974,7 +1967,7 @@
         "duration_seconds": 18.35,
         "new_ui_tests": 0
       },
-      "next": "Next combined source after ready packets; no heavy author job assigned.",
+      "next": "Next combined affected check/package only after ready repairs or substantive packets are joined; verified full34767 supports guarded UI/provider reuse.",
       "completed_focused_regression": {
         "owner": "keycaps_geometry_repair",
         "source": "be4ec412 / integrated31a7f3d0",
@@ -1986,9 +1979,10 @@
     },
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "next_work": [
-      "Qualify freshfull34767, then parallel onlychanged frontendjourneys: presetplacement,globalfindings/header,Casepanes/viewslots,PCBsupports/clearance,Demo freshcopies,Keymap/Keycaps styles,actualZIP. One consolidated Sol review.",
-      "Layout-first assembly preset placement; continue six queues with Case shell, PCB advanced mounted controls, Keycaps legends, Parts demo cards/fresh copies and Keymap criterion reconciliation.",
-      "Correct observed Keymap export-button placement and global findings route; no behavior/parent closure implied by UI source presence."
+      "Integrate the bounded preset late-selection/feedback repair; reuse unchanged proof and the qualified full34767 baseline for the next UI package.",
+      "Finish changed paired journeys and consolidated candidate review; record actual deltas without broadening unchanged checks.",
+      "Layout-first: reconcile the four exact F3.1 criteria against sufficient retained evidence, implement concrete missing daily UI behavior, and retain genuine F6K.1/F6C.1 acceptance joins.",
+      "Keep six queues supplied with substantive workbench functionality and RF001\u2013015; one waiting combined packet per stream."
     ],
     "execution_policy": "Ordinary reversible UI gets no new tests. Run one required affected compile/check per integrated batch, inspect only changed paired browser journeys, and use one consolidated candidate review. Reuse unchanged history/reopen evidence. Real reproduced bugs retain one focused regression. Parent criteria, blocker history and RF ledger remain explicit.",
     "served_candidate_history": [
@@ -2232,6 +2226,22 @@
         "command_span_seconds": 447.476376,
         "package_qualification": "CombinedstrictpageWASMalltargets17.49s PASS/newtests0; fullpackage22commands;1375sources/146assets bothroutes0mismatch,root/subpath200COOP/COEP. Changedjourneysactive; no inferredparentclosure.",
         "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34764-20261003/package-proof.json"
+      },
+      {
+        "build_id": "frontend-context-findings-footprints-20261003",
+        "source_commit": "17ba32b984c13f3621a2145efe1dd478862ab5cd",
+        "root_url": "http://127.0.0.1:34765/",
+        "subpath_url": "http://127.0.0.1:34765/boardstudio/",
+        "provenance": "web/target/builds/frontend-context-findings-footprints-20261003/provenance.json",
+        "provenance_sha256": "273ca2fa2315b32fec91b0490d2f70fb03b5426d759310bced6e934ad73947d5",
+        "fresh_commands": 8,
+        "inherited_commands": 22,
+        "source_inputs": 1378,
+        "source_mismatches": 0,
+        "assets_per_route": 146,
+        "command_span_seconds": 100.874479,
+        "package_qualification": "Strict page WASM all-targets19.23s PASS; newtests0. Fast package8fresh/22inherited,1378sources/146assets-route0mismatch,root/subpath200COOP/COEP. Changed journeys active; no parentclosure.",
+        "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34765-20261003/package-proof.json"
       }
     ],
     "consolidated_reviews": [
@@ -2389,6 +2399,39 @@
         "legend_receipt": ".scratch/dioxus-keycaps-workflow/evidence/keycap-legend-transaction-20261003/receipt-34765.md",
         "scope": "F6C.2 settings and legend behavior only. F6C.1/F3.1/full Keycaps and visual Inspector alignment remain open. Native OS picker and individually clicked per-key socket/row/depth not claimed. No new UI tests or cutover.",
         "decision": "Accepted under unchanged canonical settings/legend criteria. Representative actual authority/history/error behavior plus direct shared control mappings sufficient; visual alignment and F6C.1/F3.1 retained."
+      }
+    ],
+    "active_streams": [
+      {
+        "stream": "Layout",
+        "priority": "first",
+        "candidate": "34767",
+        "state": "Preset/Board/Geometry and global findings changed paired journeys active; late-selection repair ready for next join."
+      },
+      {
+        "stream": "PCB",
+        "candidate": "34767",
+        "state": "Mounted service-clearance/support controls changed paired journey active."
+      },
+      {
+        "stream": "Keymap",
+        "candidate": "34767",
+        "state": "Inspector export placement/spacing changed paired visual journey active; prior binding/macros accepted."
+      },
+      {
+        "stream": "Keycaps",
+        "candidate": "34767",
+        "state": "Inspector padding/action spacing changed paired visual journey active; prior settings/legends accepted."
+      },
+      {
+        "stream": "Case",
+        "candidate": "34767",
+        "state": "Contextual Objects and viewer controls changed paired shell journey active; prior authored edit parent accepted."
+      },
+      {
+        "stream": "Parts + Project",
+        "candidate": "34767",
+        "state": "Demo cards/fresh copy identity/saved reopening changed paired journey active."
       }
     ]
   }
