@@ -28,6 +28,16 @@
       "accepted_status": "Sofle v2 \u00b7 Revision9 \u00b7 Saved",
       "offline_restored": false,
       "qualification": "root saved-editor reload only; subpath/full history/export/3D qualification not inferred"
+    },
+    {
+      "journey": "Import same5b at /boardstudio/ \u2192 saved \u2192 offline on \u2192 subpath reload",
+      "url": "http://127.0.0.1:34734/boardstudio/",
+      "service_worker_controlled": true,
+      "workspace_present": true,
+      "svg_paths": 24,
+      "accepted_status": "Sofle v2 \u00b7 Revision9 \u00b7 Saved",
+      "network_restored": true,
+      "qualification": "root and subpath saved-editor reload verified; no full export/3D/history acceptance inferred"
     }
   ]
 }
