@@ -219,29 +219,6 @@ enum MechanicalTextIntent {
 }
 
 impl MechanicalTextIntent {
-    fn field_id(&self) -> String {
-        match self {
-            Self::ClosureThread => "closure-thread".to_owned(),
-            Self::ClosureScrewLengths => "closure-screw-lengths".to_owned(),
-            Self::CriticalFit { fit_id, field } => format!(
-                "critical-fit:{fit_id}:{}",
-                match field {
-                    MechanicalCriticalFitTextField::Label => "label",
-                    MechanicalCriticalFitTextField::Tolerance => "tolerance",
-                }
-            ),
-            Self::Hardware { hardware_id, field } => format!(
-                "hardware:{hardware_id}:{}",
-                match field {
-                    MechanicalHardwareTextField::Designation => "designation",
-                    MechanicalHardwareTextField::Thread => "thread",
-                    MechanicalHardwareTextField::Tolerance => "tolerance",
-                    MechanicalHardwareTextField::Notes => "notes",
-                }
-            ),
-        }
-    }
-
     fn patch(&self, value: String) -> Result<MechanicalSettingsPatch, String> {
         Ok(match self {
             Self::ClosureThread => MechanicalSettingsPatch::SetClosureThread(value),
@@ -948,15 +925,17 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     on_request: props.on_request,
                     owner_key: owner_key.clone(),
                 }
-                OpeningControls {
-                    key: "{owner_key}:case-openings",
-                    identity: props.identity.clone(),
-                    request_sequence,
-                    values: values.clone(),
-                    editable: props.editable,
-                    feedback: props.feedback.clone(),
-                    on_request: props.on_request,
-                    owner_key: owner_key.clone(),
+                for opening_owner in [format!("{owner_key}:case-openings")] {
+                    OpeningControls {
+                        key: "{opening_owner}",
+                        identity: props.identity.clone(),
+                        request_sequence,
+                        values: values.clone(),
+                        editable: props.editable,
+                        feedback: props.feedback.clone(),
+                        on_request: props.on_request,
+                        owner_key: owner_key.clone(),
+                    }
                 }
                 // A keyed dynamic owner boundary retires child field drafts on scope changes.
                 for mounting_owner in [format!("{owner_key}:mounting")] {
@@ -1003,20 +982,22 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                         owner_key: owner_key.clone(),
                     }
                 }
-                CriticalFitControls {
-                    key: "{owner_key}:critical-fits",
-                    identity: props.identity.clone(),
-                    request_sequence,
-                    fits: values.critical_fits.clone(),
-                    hardware: values.hardware.clone(),
-                    hardware_mounts: props.hardware_mounts.clone(),
-                    fit_parts: props.fit_parts.clone(),
-                    fit_parts_resolved: props.fit_parts_resolved,
-                    values: values.clone(),
-                    editable: props.editable,
-                    feedback: props.feedback.clone(),
-                    on_request: props.on_request,
-                    owner_key: owner_key.clone(),
+                for fit_owner in [format!("{owner_key}:critical-fits")] {
+                    CriticalFitControls {
+                        key: "{fit_owner}",
+                        identity: props.identity.clone(),
+                        request_sequence,
+                        fits: values.critical_fits.clone(),
+                        hardware: values.hardware.clone(),
+                        hardware_mounts: props.hardware_mounts.clone(),
+                        fit_parts: props.fit_parts.clone(),
+                        fit_parts_resolved: props.fit_parts_resolved,
+                        values: values.clone(),
+                        editable: props.editable,
+                        feedback: props.feedback.clone(),
+                        on_request: props.on_request,
+                        owner_key: owner_key.clone(),
+                    }
                 }
                 button {
                     r#type: "button",
@@ -3168,7 +3149,7 @@ fn TextDraftField(props: TextDraftFieldProps) -> Element {
             let mut error = error;
             let mut status = status;
             let mut submitted = submitted;
-            let mut draft = draft;
+            let draft = draft;
             let value = draft();
             if submitted().is_some() {
                 return;

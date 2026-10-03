@@ -173,14 +173,6 @@ fn vector_values(value: Vec3) -> [f64; 3] {
     [value.x, value.y, value.z]
 }
 
-fn model_vector(model: &PartModel, field: VectorField) -> Vec3 {
-    match field {
-        VectorField::Offset => model.offset,
-        VectorField::Rotation => model.rotation,
-        VectorField::Scale => model.scale,
-    }
-}
-
 fn set_model_axis(model: &mut PartModel, field: VectorField, axis: Axis, value: f64) {
     let vector = match field {
         VectorField::Offset => &mut model.offset,
@@ -343,7 +335,7 @@ pub(super) fn ComponentModelEditor(
     let mut error = use_signal(|| None::<ModelEditorMessage>);
     let mut notice = use_signal(|| None::<ModelEditorMessage>);
     let mut uploading = use_signal(|| false);
-    let mut pending = use_signal(|| None::<PendingModelEdit>);
+    let pending = use_signal(|| None::<PendingModelEdit>);
     let alive = use_hook(|| Rc::new(Cell::new(true)));
     let request_generation = use_hook(|| Rc::new(Cell::new(0_u64)));
     use_drop({

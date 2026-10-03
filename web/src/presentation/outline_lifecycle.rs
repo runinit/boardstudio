@@ -3354,7 +3354,7 @@ pub(super) fn OutlineDraftCanvasOverlay(
         3
     };
     let mut drawing_operation = projection.drawing_operation;
-    let mut points = projection.drawing_points;
+    let points = projection.drawing_points;
     let grid = outline_grid(snap_settings.snap_fraction, pitch);
     let paths = projection.snap_paths.clone();
     let origins = Rc::new(origins);

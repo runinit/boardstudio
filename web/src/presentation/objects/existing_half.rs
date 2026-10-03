@@ -71,11 +71,11 @@ pub(in crate::presentation) fn use_existing_half(
         let runtime = runtime.clone();
         move || runtime.operation().0
     });
-    let mut open_id = use_signal(|| 0_u64);
-    let mut open = use_signal(|| None::<ExistingHalfOwner>);
-    let mut error = use_signal(|| None::<String>);
-    let mut status = use_signal(|| None::<String>);
-    let mut pending = use_signal(|| None::<PendingExistingHalf>);
+    let open_id = use_signal(|| 0_u64);
+    let open = use_signal(|| None::<ExistingHalfOwner>);
+    let error = use_signal(|| None::<String>);
+    let status = use_signal(|| None::<String>);
+    let pending = use_signal(|| None::<PendingExistingHalf>);
 
     use_effect(use_reactive(
         (&version(), &workspace(), &scope_generation()),

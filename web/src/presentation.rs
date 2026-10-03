@@ -1391,7 +1391,7 @@ fn pcb_add_outline_select_handler(
     })
 }
 
-pub(super) fn board_reference_owner_is_current(
+fn board_reference_owner_is_current(
     runtime: &Rc<Runtime>,
     workspace: Signal<&'static str>,
     adapter: &SelectionAdapter,
@@ -1423,7 +1423,7 @@ pub(super) fn board_reference_owner_is_current(
         .is_some_and(|accepted| accepted.token == token && accepted.document.revision == revision)
 }
 
-pub(super) fn board_reference_target_is_current(
+fn board_reference_target_is_current(
     runtime: &Rc<Runtime>,
     workspace: Signal<&'static str>,
     adapter: &SelectionAdapter,
@@ -1448,7 +1448,7 @@ pub(super) fn board_reference_target_is_current(
         })
 }
 
-pub(super) fn board_reference_owner_lineage_is_current(
+fn board_reference_owner_lineage_is_current(
     runtime: &Rc<Runtime>,
     workspace: Signal<&'static str>,
     adapter: &SelectionAdapter,
@@ -1468,7 +1468,7 @@ pub(super) fn board_reference_owner_lineage_is_current(
         .is_some_and(|scope| active_board_scope_matches(&model, scope))
 }
 
-pub(super) fn submit_board_reference_document(
+fn submit_board_reference_document(
     runtime: &Rc<Runtime>,
     workspace: Signal<&'static str>,
     adapter: &SelectionAdapter,
@@ -1521,7 +1521,7 @@ pub(super) fn submit_board_reference_document(
     Ok(Some(outcome))
 }
 
-pub(super) fn dispatch_board_reference_action(
+fn dispatch_board_reference_action(
     runtime: &Rc<Runtime>,
     workspace: Signal<&'static str>,
     adapter: &SelectionAdapter,
