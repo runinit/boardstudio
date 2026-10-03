@@ -18,7 +18,8 @@
     "Both PCB Add menus search reset switch tht and choose reset switch tht top, reaching Layout preview on Main board.",
     "Focus canvas and Escape cancel retains34parts; DioxusRevision7Saved.",
     "Repeat PCB chooser, focus canvas and Enter: both Mainboard35parts, Layout selected; DioxusRevision8Saved, no preview or alert.",
-    "Dioxus chooser Escape restores collapsed Add and focuses m1-add-object-trigger; Back restores contextual tree."
+    "Dioxus chooser Escape restores collapsed Add and focuses m1-add-object-trigger; Back restores contextual tree.",
+    "Both PCB Add\u2192Browse all parts open Parts; Dioxus retains query reset switch tht, Mainboard and Revision8Saved, browsererrorsnone."
   ],
   "visual_observations": [
     "Paired preview screenshots visually inspected: command pill/view group and board geometry are present in corresponding positions.",
@@ -29,6 +30,6 @@
   "limitations": [
     "Only changed PCB-source admission and placement transitions checked; unchanged component placement/history/reopen receipts reused.",
     "No injected storage or stale callback fault and no new tests.",
-    "Browse transition and next-candidate placement-hint GREEN still pending."
+    "Next-candidate placement-hint GREEN still pending."
   ]
 }
