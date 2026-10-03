@@ -2965,11 +2965,11 @@ fn Editor() -> Element {
         let mut objects_open = objects_open;
         let mut inspect_open = inspect_open;
         let canvas_interaction = canvas_interaction.clone();
-        EventHandler::new(move |preset| {
+        EventHandler::new(move |source: objects::MatrixPlacementSource| {
             if workspace() != "Parts" || canvas_interaction.current().is_some() {
                 return;
             }
-            on_place.call(preset);
+            on_place.call(source);
             workspace.set("Layout");
             layout_assembly_3d.set(false);
             selected_context.set(None);

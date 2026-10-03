@@ -27,7 +27,7 @@ pub(super) struct InspectorInput {
     pub(super) placement_busy: bool,
     pub(super) placement_error: Option<String>,
     pub(super) layout_target: Signal<Option<String>>,
-    pub(super) on_place_assembly: EventHandler<super::parts::MatrixPresetId>,
+    pub(super) on_place_assembly: EventHandler<super::objects::MatrixPlacementSource>,
     pub(super) on_open_module_placement: EventHandler<String>,
 }
 
