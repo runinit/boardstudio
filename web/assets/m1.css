@@ -215,12 +215,14 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-inspector-body > .m1-inspector > header { display: none; }
 .m1-panel-heading { position: relative; z-index: 2; display: flex; flex: 0 0 42px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 10px; border-bottom: 1px solid var(--wb-rule); color: var(--wb-ink); background: var(--wb-panel); }
 .m1-panel-heading h2 { margin: 0 auto 0 0; font-size: 14px; }
-.m1-panel-close { flex: none; width: 30px; height: 30px; padding: 4px; }
+.m1-panel-close { flex: none; width: 30px; height: 30px; padding: 4px; border: 0; border-radius: 3px; color: var(--wb-muted); background: transparent; box-shadow: none; }
 .m1-panel-close svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; }
-.m1-panel-options-trigger { flex: none; width: 30px; height: 30px; padding: 4px; }
+.m1-panel-options-trigger { flex: none; width: 30px; height: 30px; padding: 4px; border: 0; border-radius: 3px; color: var(--wb-muted); background: transparent; box-shadow: none; }
+.m1-panel-close:hover, .m1-panel-options-trigger:hover { color: var(--wb-ink); background: var(--wb-raised); }
 .m1-panel-options-trigger svg { width: 16px; height: 16px; fill: currentColor; }
 .m1-panel-options { position: absolute; z-index: 8; top: 38px; right: 6px; display: grid; gap: 2px; width: 168px; padding: 5px; border: 1px solid var(--wb-rule-strong); border-radius: 5px; background: var(--wb-panel); box-shadow: 0 8px 22px rgb(0 0 0 / 20%); }
-.m1-panel-options button { min-height: 34px; text-align: left; }
+.m1-panel-options button { justify-content: flex-start; width: 100%; min-height: 34px; padding: 6px 8px; border: 0; border-radius: 3px; color: var(--wb-ink); background: transparent; box-shadow: none; text-align: left; white-space: normal; font: var(--wb-type-body)/var(--wb-leading-ui) var(--wb-body); }
+.m1-panel-options button:hover { background: var(--wb-raised); }
 .m1-panel-options label { display: grid; gap: 6px; padding: 8px; font-size: var(--wb-type-label); }
 .m1-panel-options select { width: 100%; min-height: 32px; color: var(--wb-ink); background: var(--wb-panel); border: 1px solid var(--wb-rule-strong); border-radius: 4px; font: inherit; }
 .m1-panel-rail { position: absolute; z-index: 5; top: 38%; display: flex; align-items: center; justify-content: center; width: 32px; height: 118px; padding: 8px 4px; writing-mode: vertical-rl; border: 1px solid var(--wb-rule-strong); color: var(--wb-ink); background: var(--wb-panel); box-shadow: 2px 4px 14px rgb(0 0 0 / 12%); }
