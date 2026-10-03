@@ -76,7 +76,7 @@ pub(crate) struct MechanicalGasketSupportRow {
 }
 
 impl MechanicalGasketSupportRow {
-    fn saved_anchor(&self) -> MechanicalGasketAnchor {
+    pub(crate) fn saved_anchor(&self) -> MechanicalGasketAnchor {
         MechanicalGasketAnchor {
             id: self.id.clone(),
             region_id: self.region_id.clone(),
@@ -219,6 +219,11 @@ pub(crate) enum MechanicalSettingsPatch {
         field: MechanicalDimension,
         value: f64,
     },
+    SetGasketSupportUnlinked {
+        support_id: String,
+        pair_id: Option<String>,
+        anchors: Vec<MechanicalGasketAnchor>,
+    },
     SetSwitchFamily {
         definition_id: String,
         family: MechanicalSwitchFamily,
@@ -226,7 +231,7 @@ pub(crate) enum MechanicalSettingsPatch {
 }
 
 impl MechanicalSettingsPatch {
-    fn field_id(&self) -> String {
+    pub(crate) fn field_id(&self) -> String {
         match self {
             Self::Enable => "configure".to_owned(),
             Self::InitializeClosures => "initialize-closures".to_owned(),
@@ -248,6 +253,9 @@ impl MechanicalSettingsPatch {
                     _ => "dimension",
                 }
             ),
+            Self::SetGasketSupportUnlinked { support_id, .. } => {
+                format!("gasket-support:{support_id}:link")
+            }
             Self::SetSwitchFamily { definition_id, .. } => {
                 format!("switch-family:{definition_id}")
             }
@@ -382,7 +390,7 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     }
                 } else {
                     p { class: "m1-mechanical-help",
-                        if support.unlinked { "This gasket is unlinked from its pair." } else { "Matching upper and lower pads resize together." }
+                        if support.unlinked { "This gasket is unlinked from its pair." } else { "This support is linked to its mirrored pair. Matching upper and lower pads resize together." }
                     }
                     if let Some(error) = support.fit_error.as_deref() {
                         p { role: "alert", "{error} Preview and export stay blocked until it fits." }

@@ -1,7 +1,7 @@
 //! Case-owned tree and Inspector content. The page dispatcher supplies accepted
 //! projections and callbacks; this module owns no Runtime/Session authority.
 use super::{
-    InstanceSelection, MechanicalSettings, MechanicalSettingsMount,
+    InstanceSelection, MechanicalSettings, MechanicalSettingsMount, MechanicalSettingsProps,
     case_controller::CaseBodyInspector,
     case_display::preference_ids,
     case_viewer::{BodySelection, CaseSelection},
@@ -94,6 +94,7 @@ pub(super) struct ObjectsInput<'a> {
 pub(super) struct CanvasInput {
     pub(super) generation_ready: bool,
     pub(super) instance_scope_pending: bool,
+    pub(super) mechanical_settings: Option<MechanicalSettingsProps>,
 }
 
 pub(super) struct InspectorInput {
@@ -896,7 +897,10 @@ pub(super) fn canvas(input: CanvasInput) -> Element {
     if input.instance_scope_pending {
         rsx! { p { role: "status", "Selecting physical assembly…" } }
     } else {
-        rsx! { crate::cad_presentation::CasePanel { generation_ready: input.generation_ready } }
+        rsx! { crate::cad_presentation::CasePanel {
+            generation_ready: input.generation_ready,
+            mechanical_settings: input.mechanical_settings,
+        } }
     }
 }
 

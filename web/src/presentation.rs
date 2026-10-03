@@ -54,7 +54,7 @@ use canvas_interaction::{CanvasInteractionArbiter, CanvasInteractionOwner};
 use canvas_layers::CanvasLayers;
 pub(crate) use case_viewer::{CasePreviewViewer, CaseViewer};
 use library::Library;
-pub(crate) use mechanical_settings::MechanicalSettings;
+pub(crate) use mechanical_settings::{MechanicalSettings, MechanicalSettingsProps};
 pub(crate) use mechanical_settings_mount::MechanicalSettingsMount;
 use panels::{
     InspectorPanel, ObjectsPanel, PanelMode, PanelSettings, PanelSide, use_panel_settings,
@@ -5757,6 +5757,7 @@ fn Editor() -> Element {
             case_workspace::CanvasInput {
                 generation_ready: mechanical_settings.generation_ready,
                 instance_scope_pending,
+                mechanical_settings: mechanical_settings.props.clone(),
             },
         ))),
         "Parts" => Some(workspace_composition::WorkspaceCanvasInput::Parts(

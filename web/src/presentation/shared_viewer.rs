@@ -275,10 +275,12 @@ pub(crate) fn CaseSharedViewer(
     resolved_theme: String,
     on_signal: EventHandler<ScopedViewerSignal>,
     on_display_change: EventHandler<ScopedDisplayChange>,
+    mechanical_settings: Option<super::MechanicalSettingsProps>,
 ) -> Element {
     let runtime = use_context::<Rc<crate::runtime::Runtime>>();
     let _ = use_context::<Signal<u64>>()();
     let theme = resolved_theme;
+    let mut editing_gaskets = use_signal(|| false);
     let owner = match use_hook(ViewerOwner::new) {
         Ok(owner) => owner,
         Err(error) => {
@@ -1775,11 +1777,109 @@ fn SharedViewer(
     let zoom_in = host.clone();
     let zoom_out = host.clone();
     let assembly_change_display = change_display.clone();
+    let selected_support = mechanical_settings.as_ref().and_then(|settings| {
+        settings.gasket_supports.iter().find(|support| {
+            !support.is_previous
+                && (selected_layer == format!("gasket:{}:lower", support.id)
+                    || selected_layer == format!("gasket:{}:upper", support.id))
+        })
+    });
+    let can_edit_gaskets = mechanical_settings.as_ref().is_some_and(|settings| {
+        !settings.gasket_supports.is_empty()
+            && settings.identity.scope == projection.identity.scope
+            && settings.identity.snapshot_token == projection.identity.snapshot_token
+    });
+    let unlink_request = selected_support.and_then(|support| {
+        mechanical_settings.as_ref().map(|settings| {
+            let anchors = settings
+                .gasket_supports
+                .iter()
+                .filter(|candidate| {
+                    candidate.id == support.id
+                        || candidate.pair_id.as_deref() == Some(support.id.as_str())
+                })
+                .map(super::mechanical_settings::MechanicalGasketSupportRow::saved_anchor)
+                .collect::<Vec<_>>();
+            (
+                support.id.clone(),
+                support.pair_id.clone(),
+                anchors,
+                settings.identity.clone(),
+                settings.request_sequence,
+                settings.on_request,
+                settings.editable,
+            )
+        })
+    });
+    let unlink_feedback = selected_support.and_then(|support| {
+        mechanical_settings.as_ref().and_then(|settings| {
+            let field_id = format!("gasket-support:{}:link", support.id);
+            settings
+                .feedback
+                .iter()
+                .rev()
+                .find(|feedback| feedback.field_id == field_id)
+                .cloned()
+        })
+    });
+    let unlink_source = current_source.clone();
+    let unlink_owner = owner.clone();
+    let unlink_projection = projection.clone();
+    let unlink_runtime = runtime.clone();
 
     rsx! {
         div { class: "m1-case-view m1-shared-viewer",
             div { class: "m1-case-view-toolbar",
                 button { onclick: move |_| run_host(&fit, |host| host.fit(), &mut status), "Fit case" }
+                if can_edit_gaskets {
+                    button {
+                        r#type: "button",
+                        aria_pressed: editing_gaskets(),
+                        disabled: mechanical_settings.as_ref().is_none_or(|settings| !settings.editable),
+                        onclick: move |_| editing_gaskets.set(!editing_gaskets()),
+                        "Edit gaskets"
+                    }
+                }
+                if editing_gaskets() {
+                    if let Some((support_id, pair_id, anchors, identity, mut sequence, on_request, editable)) = unlink_request.clone() {
+                        button {
+                            r#type: "button",
+                            disabled: !editable || selected_support.is_some_and(|support| support.unlinked),
+                            onclick: move |_| {
+                                if !(unlink_source.0)()
+                                    || !owner_is_current(&unlink_owner, &unlink_projection.identity)
+                                    || unlink_runtime.scope().as_ref() != Some(&identity.scope)
+                                {
+                                    return;
+                                }
+                                let Some(request_id) = sequence().checked_add(1) else { return };
+                                sequence.set(request_id);
+                                let patch = super::mechanical_settings::MechanicalSettingsPatch::SetGasketSupportUnlinked {
+                                    support_id: support_id.clone(), pair_id: pair_id.clone(), anchors: anchors.clone(),
+                                };
+                                on_request.call(super::mechanical_settings::MechanicalSettingsRequest {
+                                    identity: identity.clone(),
+                                    request_id,
+                                    field_id: patch.field_id(),
+                                    patch,
+                                });
+                            },
+                            "Unlink selected support"
+                        }
+                        if let Some(feedback) = unlink_feedback.as_ref() {
+                            match feedback.state {
+                                super::mechanical_settings::MechanicalSettingsFeedbackState::Pending => p { role: "status", "Unlinking selected support…" },
+                                super::mechanical_settings::MechanicalSettingsFeedbackState::Saved => p { role: "status", "Selected support unlinked." },
+                                super::mechanical_settings::MechanicalSettingsFeedbackState::Failed => p { role: "alert", "{feedback.message.as_deref().unwrap_or("The support could not be unlinked.")}" },
+                            }
+                        }
+                        if selected_support.is_some_and(|support| support.unlinked) {
+                            p { class: "m1-case-edit-hint", "This gasket is unlinked from its pair." }
+                        }
+                    } else {
+                        p { class: "m1-case-edit-hint", "Select a gasket in Objects to unlink its mirrored support pair." }
+                    }
+                }
                 details { class: "m1-case-view-settings",
                     summary { "View controls" }
                     div { class: "m1-case-view-settings-body",

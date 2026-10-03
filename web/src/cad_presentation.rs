@@ -10,7 +10,10 @@ use crate::case_generation_lifecycle::{
 };
 
 #[component]
-pub fn CasePanel(generation_ready: bool) -> Element {
+pub fn CasePanel(
+    generation_ready: bool,
+    mechanical_settings: Option<crate::presentation::MechanicalSettingsProps>,
+) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let instance_selection = use_context::<crate::presentation::InstanceSelection>();
     let runtime_version = use_context::<Signal<u64>>();
@@ -180,6 +183,7 @@ pub fn CasePanel(generation_ready: bool) -> Element {
                     scene,
                     model_rows: accepted_preview.as_ref().and_then(|preview| runtime.native_model_delivery(preview)),
                     preview: accepted_preview,
+                    mechanical_settings,
                 }
             }
         }

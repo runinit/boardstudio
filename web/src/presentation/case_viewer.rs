@@ -75,6 +75,7 @@ pub(crate) fn CaseViewer(
     scene: Rc<CadScene>,
     preview: Option<Rc<crate::case_preview::NativePreviewSnapshot>>,
     model_rows: Option<super::model_delivery::ModelDeliveryRows>,
+    mechanical_settings: Option<super::MechanicalSettingsProps>,
 ) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let instance_selection = use_context::<InstanceSelection>();
@@ -199,6 +200,7 @@ pub(crate) fn CaseViewer(
             resolved_theme: theme().to_owned(),
             on_signal,
             on_display_change,
+            mechanical_settings,
         }
     }
 }
@@ -281,6 +283,7 @@ pub(crate) fn CasePreviewViewer(
             resolved_theme: theme,
             on_signal,
             on_display_change,
+            mechanical_settings: None,
         }
     }
 }

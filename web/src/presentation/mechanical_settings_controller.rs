@@ -933,6 +933,62 @@ fn apply_patch(
                 }
             }
         }
+        MechanicalSettingsPatch::SetGasketSupportUnlinked {
+            support_id,
+            pair_id,
+            anchors,
+        } => {
+            if support_id.is_empty()
+                || anchors.is_empty()
+                || anchors.len() > 2
+                || !anchors.iter().any(|anchor| anchor.id == *support_id)
+            {
+                return Err("The selected gasket support is no longer available.".into());
+            }
+            let mut ids = std::collections::HashSet::new();
+            if anchors
+                .iter()
+                .any(|anchor| anchor.id.is_empty() || !ids.insert(&anchor.id))
+            {
+                return Err("The linked gasket support selection is invalid.".into());
+            }
+            let pair_is_present = pair_id
+                .as_ref()
+                .is_some_and(|pair_id| ids.contains(pair_id));
+            if pair_id.as_deref() == Some(support_id.as_str())
+                || pair_id.is_some() != pair_is_present
+                || anchors.len() != if pair_id.is_some() { 2 } else { 1 }
+            {
+                return Err("The selected gasket support pair is no longer available.".into());
+            }
+            if anchors
+                .iter()
+                .find(|anchor| anchor.id == *support_id)
+                .is_some_and(|anchor| anchor.unlinked)
+            {
+                return Err("The selected gasket support is already unlinked.".into());
+            }
+            if configuration.mount != MechanicalMount::Gasket {
+                return Err("The current configuration no longer contains gasket supports.".into());
+            }
+            let layout = configuration
+                .gasket_layout
+                .get_or_insert_with(default_gasket_layout);
+            for source in anchors {
+                let mut anchor = source.clone();
+                anchor.unlinked = true;
+                anchor.placement = Some(GasketPlacement::User);
+                if let Some(existing) = layout
+                    .supports
+                    .iter_mut()
+                    .find(|entry| entry.id == anchor.id)
+                {
+                    *existing = anchor;
+                } else {
+                    layout.supports.push(anchor);
+                }
+            }
+        }
         MechanicalSettingsPatch::SetSwitchFamily {
             definition_id,
             family,
@@ -1290,6 +1346,9 @@ fn patch_field_id(patch: &MechanicalSettingsPatch) -> String {
                 _ => "dimension",
             }
         ),
+        MechanicalSettingsPatch::SetGasketSupportUnlinked { support_id, .. } => {
+            format!("gasket-support:{support_id}:link")
+        }
         MechanicalSettingsPatch::SetSwitchFamily { definition_id, .. } => {
             format!("switch-family:{definition_id}")
         }

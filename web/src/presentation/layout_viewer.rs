@@ -165,6 +165,7 @@ pub(crate) fn LayoutCanonicalViewer() -> Element {
             resolved_theme: theme,
             on_signal,
             on_display_change,
+            mechanical_settings: None,
         }
     }
 }
