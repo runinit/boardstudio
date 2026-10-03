@@ -1,6 +1,6 @@
 # Keymap binding Tab focus paired journey
 
-Reference: pinned React source `5a472a9426e6e38993361da402cd4ec730feb369` at `http://127.0.0.1:5173/`. Pre-repair candidate: `http://127.0.0.1:34757/`, source `243aa551` (root-verified full build). The focused browser profiles were `keymap-journey-dioxus-20261003` and `keymap-journey-react-20261003`; both opened Sofle v2, Keymap / Base, Left PCB, and selected `left-keys-SW1`.
+Reference: pinned React source `5a472a9426e6e38993361da402cd4ec730feb369` at `http://127.0.0.1:5173/`. Pre-repair candidate: `http://127.0.0.1:34757/`, source `d7742d46ad0e4dc05d5eb229c7c7de50e6f7945c` (root-verified guarded page build inheriting unchanged providers from full `243aa551`). The focused browser profiles were `keymap-journey-dioxus-20261003` and `keymap-journey-react-20261003`; both opened Sofle v2, Keymap / Base, Left PCB, and selected `left-keys-SW1`.
 
 ## Pre-repair paired result (RED)
 
