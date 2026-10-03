@@ -1099,7 +1099,7 @@ pub(super) fn PartsInspectorPanel(
             assembly_editor::SavedAssembliesEditor {
                 snapshot: snapshot.clone(),
                 scope: scope.clone(),
-                definitions: snapshot.document.definitions.iter().cloned().chain(catalogue.entries.as_ref().into_iter().flatten().map(|entry| (*entry.definition).clone())).collect(),
+                definitions: snapshot.document.definitions.iter().cloned().chain(catalogue.entries.as_ref().into_iter().flat_map(|entries| entries.iter()).map(|entry| (*entry.definition).clone())).collect(),
                 selected_context,
                 on_place: on_place_assembly.clone(),
             }

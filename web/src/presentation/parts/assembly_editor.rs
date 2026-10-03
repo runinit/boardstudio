@@ -52,7 +52,7 @@ pub(super) fn SavedAssembliesEditor(
     let _ = runtime_version();
     let mut editing = use_signal(|| None::<AssemblyDraft>);
     let mut pending = use_signal(|| None::<PendingSave>);
-    let mut preparing_apply = use_signal(|| false);
+    let preparing_apply = use_signal(|| false);
     let mut feedback = use_signal(|| None::<String>);
 
     use_effect({
@@ -406,7 +406,7 @@ fn begin_apply_assembly_to_matrix(
                 &operation_id.0.to_string(),
             )?;
             for definition in &mut definitions {
-                *definition = super::super::normalize_matrix_definition(definition.clone()).await?;
+                *definition = super::normalize_matrix_definition(definition.clone()).await?;
             }
             Ok::<_, String>((matrix, definitions))
         }
@@ -480,6 +480,7 @@ fn AssemblyDraftFields(
     let assets = use_signal(|| draft.assets.clone());
     let import_pending = use_signal(|| false);
     let render_value = value();
+    let apply_value = render_value.clone();
     let member_definitions = definitions
         .iter()
         .filter(|definition| {
@@ -571,7 +572,7 @@ fn AssemblyDraftFields(
                     button {
                         r#type: "button",
                         disabled: controls_disabled || unsaved_assets,
-                        onclick: move |_| on_apply.call(render_value.clone()),
+                        onclick: move |_| on_apply.call(apply_value.clone()),
                         "Apply to selected matrix"
                     }
                 }
@@ -694,7 +695,6 @@ fn AssemblyMemberFields(
             let mounted = mounted.clone();
             let draft = draft.clone();
             let member_id = member_id.clone();
-            let value = value;
             let mut assets = assets;
             let mut import_pending = import_pending;
             let mut import_feedback = import_feedback;

@@ -271,7 +271,7 @@ pub(in crate::presentation) fn use_matrix_placement(
             let canvas_interaction = canvas_interaction.clone();
             spawn_local(async move {
                 let result = async {
-                    let (mut matrix, mut definitions) = match source {
+                    let (mut matrix, definitions) = match source {
                         super::MatrixPlacementSource::Preset(preset_id) => {
                             let preset = crate::presentation::parts::matrix_setup_preset(preset_id);
                             let templates =
