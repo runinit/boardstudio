@@ -83,7 +83,6 @@ pub(crate) fn use_mechanical_settings_mount(
     instance_selection: InstanceSelection,
     case_selection: CaseSelection,
     on_show_finding: EventHandler<MechanicalFindingNavigation>,
-    on_show_configured_board: EventHandler<String>,
 ) -> MechanicalSettingsMount {
     let editor_instance_id = use_hook({
         let runtime = runtime.clone();
@@ -641,19 +640,6 @@ pub(crate) fn use_mechanical_settings_mount(
                 }
             }
         });
-        let on_show_configured_board = EventHandler::new({
-            let current_reader = current_reader.clone();
-            let rendered_identity = current.identity.clone();
-            let alive = alive.clone();
-            move |id: String| {
-                if alive.get()
-                    && workspace() == "Case"
-                    && current_reader().is_some_and(|live| live.identity == rendered_identity)
-                {
-                    on_show_configured_board.call(id);
-                }
-            }
-        });
         let transport = current
             .accepted
             .document
@@ -679,7 +665,6 @@ pub(crate) fn use_mechanical_settings_mount(
             on_request,
             on_select_layer,
             on_show_finding,
-            on_show_configured_board,
         }
     });
 

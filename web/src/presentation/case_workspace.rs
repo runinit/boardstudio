@@ -1426,7 +1426,6 @@ mod mounted_live_scene_tests {
             instance_selection,
             case_selection,
             EventHandler::new(move |request: super::super::mechanical_settings_mount::MechanicalFindingNavigation| shown_finding.set(request.finding_id)),
-            EventHandler::new(|_| {}),
         );
         let inspector = mechanical.props.map(super::super::MechanicalSettings);
         rsx! {

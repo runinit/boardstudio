@@ -2637,61 +2637,6 @@ fn Editor() -> Element {
             Rc::new(move || instance_selection.is_current(&runtime.model()))
         },
     );
-    let on_show_mechanical_board = {
-        let runtime = runtime.clone();
-        let captured_scope = current_scope.clone();
-        let captured_generation = (adapter.generation)();
-        let adapter = adapter.clone();
-        EventHandler::new(move |board_id: String| {
-            let Some(scope) = captured_scope.as_ref() else {
-                return;
-            };
-            if runtime.scope().as_ref() != Some(scope)
-                || (adapter.generation)() != captured_generation
-            {
-                return;
-            }
-            let model = runtime.model();
-            let Some(snapshot) = model.accepted.as_ref() else {
-                return;
-            };
-            if !snapshot
-                .document
-                .boards
-                .iter()
-                .any(|board| board.id == board_id)
-            {
-                return;
-            }
-            let instance_id = instance_selection::resolve(
-                &snapshot.document,
-                snapshot.session_epoch,
-                &board_id,
-                instance_preference.read().as_ref(),
-            )
-            .map(str::to_owned);
-            if scope.board_id == board_id && scope.instance_id == instance_id {
-                return;
-            }
-            let cleanup = adapter
-                .cleanup
-                .borrow()
-                .as_ref()
-                .map(|(_, cleanup)| cleanup.clone());
-            if let Some(cleanup) = cleanup {
-                cleanup();
-            }
-            let mut selected_context = adapter.selected_context;
-            let mut anchor_scope = adapter.anchor_scope;
-            selected_context.set(None);
-            anchor_scope.set(None);
-            runtime.submit(Event::Navigate {
-                operation_id: runtime.operation(),
-                board_id,
-                instance_id,
-            });
-        })
-    };
     let on_show_mechanical_finding = {
         let runtime = runtime.clone();
         let captured_scope = current_scope.clone();
@@ -2814,7 +2759,6 @@ fn Editor() -> Element {
             display: case_display,
         },
         on_show_mechanical_finding,
-        on_show_mechanical_board,
     );
     let Some(render_scope) = current_scope.clone() else {
         return rsx! {};

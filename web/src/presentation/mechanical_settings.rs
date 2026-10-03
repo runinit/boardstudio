@@ -389,7 +389,6 @@ pub(crate) struct MechanicalSettingsProps {
     pub(crate) on_request: EventHandler<MechanicalSettingsRequest>,
     pub(crate) on_select_layer: EventHandler<String>,
     pub(crate) on_show_finding: EventHandler<String>,
-    pub(crate) on_show_configured_board: EventHandler<String>,
 }
 
 #[component]
@@ -400,7 +399,6 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
         .values
         .as_ref()
         .is_some_and(|values| values.board_id == identity.active_board_id);
-    let mismatch = props.mismatch.as_ref();
     let owner_key = format!(
         "{}:{}:{}:{}:{}:{}:{:?}",
         identity.editor_instance_id,
@@ -551,20 +549,12 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     "Showing generated layers from a previous accepted revision. Settings below reflect the current accepted configuration."
                 }
             }
-            if let Some(mismatch) = mismatch {
-                div { role: "status", class: "m1-mechanical-mismatch",
-                    p { "The mechanical stack belongs to {mismatch.board_name}. This board remains in authored Case mode." }
-                    button {
-                        r#type: "button",
-                        onclick: {
-                            let on_show = props.on_show_configured_board;
-                            let id = mismatch.board_id.clone();
-                            move |_| on_show.call(id.clone())
-                        },
-                        "Show configured board"
-                    }
+            if let Some(mismatch) = props.mismatch.as_ref() {
+                p { role: "status", class: "m1-mechanical-mismatch",
+                    "Mechanical settings are unavailable while {mismatch.board_name} is configured. Use the authored Case panel to return to that board."
                 }
-            } else if let Some(values) = props.values.as_ref().filter(|_| configuration_matches) {
+            }
+            if let Some(values) = props.values.as_ref().filter(|_| configuration_matches) {
                 if let Some(feedback) = current_feedback {
                     if feedback.state == MechanicalSettingsFeedbackState::Pending {
                         p { role: "status", "Saving mechanical settings…" }
@@ -2194,7 +2184,6 @@ mod contextual_layer_tests {
                 on_request: move |_| {},
                 on_select_layer: move |id| selected_layer.set(id),
                 on_show_finding: move |id| shown_finding.set(id),
-                on_show_configured_board: move |_| {},
             }
             div { id: "case-contextual-selected-finding", "{shown_finding}" }
         }
@@ -2227,7 +2216,6 @@ mod contextual_layer_tests {
                     },
                     on_select_layer: move |_| {},
                     on_show_finding: move |_| {},
-                    on_show_configured_board: move |_| {},
                 }
             }
             div { id: "case-battery-wireless-test-root",
@@ -2259,7 +2247,6 @@ mod contextual_layer_tests {
                     },
                     on_select_layer: move |_| {},
                     on_show_finding: move |_| {},
-                    on_show_configured_board: move |_| {},
                 }
             }
             div { id: "case-battery-last-request", "{last_request}" }
