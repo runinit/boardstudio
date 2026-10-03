@@ -97,6 +97,9 @@ mod layout_viewer_source;
 
 #[cfg(all(feature = "page", test, not(target_arch = "wasm32")))]
 mod presentation {
+    #[path = "outline_grid_rounding.rs"]
+    mod outline_grid_rounding_tests;
+
     pub(crate) mod objects {
         #[path = "keycap_resize.rs"]
         mod keycap_resize;

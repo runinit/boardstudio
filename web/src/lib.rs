@@ -22,9 +22,6 @@ pub const CORE_WORKER_FRAME_VERSION: u8 = 1;
 mod core_protocol;
 #[cfg(all(test, feature = "page"))]
 mod matrix_transform_operation;
-#[cfg(all(test, feature = "page"))]
-#[path = "presentation/outline_grid_rounding.rs"]
-mod outline_grid_rounding_tests;
 #[cfg(any(all(target_arch = "wasm32", feature = "page"), test))]
 mod persistence_contract;
 

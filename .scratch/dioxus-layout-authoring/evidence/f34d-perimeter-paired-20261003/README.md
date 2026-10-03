@@ -20,6 +20,8 @@ These screenshots preserve only the focused paired reference and pre-repair RED 
 
 Review also found a policy mismatch at negative half-grid coordinates: React `Math.round(-0.5)` produces negative zero and `Math.round(-1.5)` produces `-1`, while Rust `f64::round()` produces `-1` and `-2`. The focused production-source regression `outline_grid_rounding_tests::tests::negative_half_grid_matches_javascript_math_round` first failed on the uncorrected behavior (`-0.5` snapped to `-1.0`) and passed after the grid rounding port used the JavaScript tie rule. The shared `presentation/outline_grid_rounding.rs` helper is called by the WASM page snap policy and compiled directly by the native focused regression, without widening API visibility or suppressing lints. Final focused test: 1 passed; `cargo fmt -- --check` and `git diff --check` passed.
 
+The integration places the unchanged native test adapter in the existing binary presentation stand-in. This preserves the provider library root byte for byte, allowing the packaging guard to prove page-only ownership and reuse the verified full providers. The production helper and regression assertions remain unchanged.
+
 ## Post-repair Dioxus journey
 
 Fresh frozen page candidate: `http://127.0.0.1:34749/boardstudio/`, source `dd7697ed99864040697c905b3d0e28209301d11b`, provider SHA-256 `1f3584f7b41b9c2d912381a302657ccf202abc7ebcbf04622ef68bf62c0f932e`. Session: `f34d-dioxus-final-20261003`. This build contains the pointer/capture/final-sample repair (`f9aadf64`); it predates the separate negative half-grid source follow-up (`57e94966` and test-seam cleanup `e3eb2633`).
