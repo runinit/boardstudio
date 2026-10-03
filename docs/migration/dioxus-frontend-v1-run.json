@@ -1273,7 +1273,7 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T12:26:53.990710+00:00",
+    "updated_at": "2026-10-03T12:47:50.284433+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
       "accepted": 6,
@@ -1295,12 +1295,12 @@
       "source_mismatches": 0,
       "assets_per_route": 146,
       "command_span_seconds": 459.672795,
-      "package_qualification": "Combined strict page WASM all-targets PASS18.35s; no new UI tests. Full22 package;1372 maintained inputs/146 assets per route zero mismatches, root/subpath200 COOP/COEP. Changed paired journeys active. Preset late-selection repair e959bd02 pending next candidate; no full-workbench acceptance.",
+      "package_qualification": "Full 22-command package and maintained inputs/assets qualified. Seven changed paired journeys are bounded GREEN and consolidated Sol-reviewed. The preset completion repair and Objects/Keymap UI follow-up are joined for 34768; broader parents remain open.",
       "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34767-20261003/package-proof.json"
     },
     "integration": {
-      "source_commit": "3a080e0e99d0638ddc1b562b3fc5a8ac91f3fefd",
-      "state": "Frozen six-stream source qualified and served at34767. Changed paired journeys executing in parallel; one consolidated Sol review. Preset terminal selection/feedback P2 has isolated repair e959bd02, not included in34767. Rejected34766 remains unserved and is not a baseline.",
+      "source_commit": "6d9320f2fc8b8cd38643243efd6f51abfb4b191c",
+      "state": "34767 changed journeys qualified and reviewed. UI-only 34768 batch frozen: contextual Objects menu/composition and compact focus, preset completion guards/label, Keymap disclosure spacing. Combined strict page WASM all-targets PASS 20.046s; no new UI tests. Range/tools/Case/PCB/Parts/export substantive packets remain isolated for next full candidate.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1656,6 +1656,13 @@
         "new_tests": 0,
         "tests_executed": 0,
         "log": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/frontend-ui-corrections-export-combined-clippy-final.log"
+      },
+      "next_candidate": {
+        "build_id": "frontend-contextual-panes-followup-20261003",
+        "port": 34768,
+        "source_commit": "6d9320f2fc8b8cd38643243efd6f51abfb4b191c",
+        "provider_baseline": "frontend-six-stream-parity-recovery-20261003",
+        "state": "combined check passed; guarded page/provider reuse packaging next"
       }
     },
     "journeys": [
@@ -1959,15 +1966,21 @@
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "heavy_slots": {
       "policy": "Coordinator assigned; maximum2 heavy jobs/1package",
-      "active": [],
+      "active": [
+        {
+          "owner": "root",
+          "job": "guarded page/provider reuse package 34768",
+          "target": "integration web/target"
+        }
+      ],
       "check": {
-        "source_commit": "4483ed4d",
-        "log": ".scratch/dioxus-frontend-v1/evidence/candidate-34767-20261003/combined-check-green.log",
+        "source_commit": "6d9320f2fc8b8cd38643243efd6f51abfb4b191c",
+        "log": ".scratch/dioxus-frontend-v1/evidence/candidate-34768-20261003/combined-check-followup.log",
         "result": "PASS",
-        "duration_seconds": 18.35,
+        "duration_seconds": 20.046,
         "new_ui_tests": 0
       },
-      "next": "Next combined affected check/package only after ready repairs or substantive packets are joined; verified full34767 supports guarded UI/provider reuse.",
+      "next": "Package 34768 with verified full34767 providers; next substantive/API/fixture packet batch uses one full provider build.",
       "completed_focused_regression": {
         "owner": "keycaps_geometry_repair",
         "source": "be4ec412 / integrated31a7f3d0",
@@ -1975,14 +1988,18 @@
         "result": "Expected filename collision RED then GREEN1test/160filtered",
         "duration_seconds": 14.4,
         "evidence": "/home/chris/.local/share/boardstudio/reviews/export-workspace-20261003/react-footprints-baseline.md"
+      },
+      "completed_layout_range_regression": {
+        "owner": "layout_perimeter_canvas_delivery",
+        "result": "Expected flat-list/companion RED then typed primary matrix rectangle GREEN; one focused native public Session test, repeated Shift anchor preserved. Packet isolated, not served yet."
       }
     },
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "next_work": [
-      "Integrate the bounded preset late-selection/feedback repair; reuse unchanged proof and the qualified full34767 baseline for the next UI package.",
-      "Finish changed paired journeys and consolidated candidate review; record actual deltas without broadening unchanged checks.",
-      "Layout-first: reconcile the four exact F3.1 criteria against sufficient retained evidence, implement concrete missing daily UI behavior, and retain genuine F6K.1/F6C.1 acceptance joins.",
-      "Keep six queues supplied with substantive workbench functionality and RF001\u2013015; one waiting combined packet per stream."
+      "Serve guarded-reuse34768 and inspect only changed Objects/menu/focus and Keymap/preset paths.",
+      "Serially join ready rectangle-selection, real transform tools, Case handles, PCB navigation and Parts variants into one full candidate.",
+      "Implement full/draft KiCad exports through existing providers and Session-owned commit/adopt seam.",
+      "Close parents only from existing canonical criteria/joins and consolidated review; retain architecture/refactoring takeaways."
     ],
     "execution_policy": "Ordinary reversible UI gets no new tests. Run one required affected compile/check per integrated batch, inspect only changed paired browser journeys, and use one consolidated candidate review. Reuse unchanged history/reopen evidence. Real reproduced bugs retain one focused regression. Parent criteria, blocker history and RF ledger remain explicit.",
     "served_candidate_history": [
@@ -2275,6 +2292,14 @@
         "audit": ".scratch/dioxus-frontend-v1/evidence/case-f72-acceptance-20261003/AUDIT.json",
         "audit_sha256": "7a07545e92ee1e9cc739005269b9c658148e3aa9ec4793d848b29d18d3e5352e",
         "result": "F7.2 accepted under unchanged five criteria. Export retained tree-context P2 reproduced and being corrected; footer and broader parent limits preserved."
+      },
+      {
+        "candidate": "34767",
+        "review": ".scratch/dioxus-frontend-v1/evidence/candidate-34767-20261003/consolidated-review.md",
+        "review_sha256": "f01424e51f7ef74e29c7b8e76959d99f33a2f2a61a0ba64f81cbdb3bf447f3fd",
+        "audit": ".scratch/dioxus-frontend-v1/evidence/candidate-34767-20261003/consolidated-audit.json",
+        "audit_sha256": "c77e28c48a85485533a2b72f60db7e4bf6cd530fb58ccb6278dfe5dcbd20953d",
+        "result": "Seven changed journeys bounded GREEN. Preset stale-selection source repair queued next candidate; broader parent criteria retained."
       }
     ],
     "build_attempt_history": [
@@ -2342,6 +2367,11 @@
         "build_id": "frontend-six-stream-parity-recovery-source-check",
         "source_commit": "1283aff2..4483ed4d",
         "result": "JoinedCaseRc/defaultprops+Libraryfallback+existingCasefixture; presetmoduleexports/ownedSnapshot/RSX/existingplacementfixture and Signalreads/captures corrected. Failuresretained; finalstrictPASS18.35s. No newUItests."
+      },
+      {
+        "build_id": "frontend-contextual-panes-followup-source-check",
+        "source_commit": "73d1b6ab..6d9320f2",
+        "result": "Initial strict compile failed missing mutable preparation Signal capture; one-line repair restored it. Follow-up PASS 20.046s, no new UI tests. Both logs retained."
       }
     ],
     "parent_acceptances": [
@@ -2406,32 +2436,32 @@
         "stream": "Layout",
         "priority": "first",
         "candidate": "34767",
-        "state": "Preset/Board/Geometry and global findings changed paired journeys active; late-selection repair ready for next join."
+        "state": "Findings/preset paired journeys GREEN 34767; Objects composition and terminal selection repair next34768. Range native RED/GREEN passed; real transform tools in progress."
       },
       {
         "stream": "PCB",
         "candidate": "34767",
-        "state": "Mounted service-clearance/support controls changed paired journey active."
+        "state": "Mounted clearance/support paired journey GREEN34767; owning-module source navigation in progress."
       },
       {
         "stream": "Keymap",
         "candidate": "34767",
-        "state": "Inspector export placement/spacing changed paired visual journey active; prior binding/macros accepted."
+        "state": "Export order/insets qualified34767; final disclosure spacing next34768; bindings/macros accepted."
       },
       {
         "stream": "Keycaps",
         "candidate": "34767",
-        "state": "Inspector padding/action spacing changed paired visual journey active; prior settings/legends accepted."
+        "state": "Inspector spacing qualified34767; settings/legends accepted; canonical fit/CAD frontier reconciliation active."
       },
       {
         "stream": "Case",
         "candidate": "34767",
-        "state": "Contextual Objects and viewer controls changed paired shell journey active; prior authored edit parent accepted."
+        "state": "Contextual shell paired GREEN34767; authored editing accepted; actual gasket/mount handles in progress."
       },
       {
         "stream": "Parts + Project",
         "candidate": "34767",
-        "state": "Demo cards/fresh copy identity/saved reopening changed paired journey active."
+        "state": "Two demo cards/fresh copy identity/reopen paired GREEN34767; RGB/Choc variant packet ready for next full build; next Parts UI frontier active."
       }
     ]
   }

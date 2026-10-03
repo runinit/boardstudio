@@ -1,0 +1,23 @@
+{
+  "exit": 0,
+  "duration_seconds": 20.046,
+  "source_commit": "6d9320f2fc8b8cd38643243efd6f51abfb4b191c",
+  "command": [
+    "cargo",
+    "clippy",
+    "--manifest-path",
+    "web/Cargo.toml",
+    "--locked",
+    "--target",
+    "wasm32-unknown-unknown",
+    "--no-default-features",
+    "--features",
+    "page",
+    "--all-targets",
+    "--",
+    "-D",
+    "warnings"
+  ],
+  "new_tests": 0,
+  "initial_failure": "combined-check.log: missing mutable placement capture; minimal one-line repair 6d9320f2"
+}

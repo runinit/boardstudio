@@ -4,7 +4,7 @@ Current active checkpoint: [frontend run state](dioxus-frontend-v1-run.json), fi
 
 Current parent accounting (2026-10-03): **6 accepted / 33 implementing / 23 planned / 62 total**. F7.2 authored Case editing, F6K.2 typed bindings, F6K.3 structured macros and F6C.2 Keycaps settings/legends are accepted from consolidated reviews and sufficient paired workflows. Layout-first work and the architecture/refactoring ledger continue; use the authoritative record above for current source and queues.
 
-Current comparison candidate: [Dioxus34767](http://127.0.0.1:34767/) and [TypeScript5173](http://127.0.0.1:5173/). Frozen source `3a080e0e`, full22 commands459.67s; strict page check18.35s;1372 maintained source inputs and146 assets per route match. Changed six-stream journeys and one consolidated review are active; preset late-selection repair remains a next-candidate correction. [Package proof](../../.scratch/dioxus-frontend-v1/evidence/candidate-34767-20261003/package-proof.json). Rejected34766 is retained and unserved.
+Current comparison candidate: [Dioxus34767](http://127.0.0.1:34767/) and [TypeScript5173](http://127.0.0.1:5173/). Seven changed paired journeys are bounded GREEN and consolidated-reviewed. The UI-only Objects/menu/focus, preset completion and Keymap spacing follow-up is frozen for34768; combined strict page check PASS20.046s with no new UI tests. Rectangle selection passed one focused native RED/GREEN in isolation. Substantive packets continue across six streams. [34767 package proof](../../.scratch/dioxus-frontend-v1/evidence/candidate-34767-20261003/package-proof.json). Rejected34766 is retained and unserved.
 
 ## Historical checkpoint — 2026-10-02, combined source freeze
 
