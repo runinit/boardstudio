@@ -1101,16 +1101,30 @@
       {
         "slice": "Keycaps explicit Part Inspector/pill",
         "source": "bd7f1c11"
+      },
+      {
+        "slice": "PCB Apply actions / Keymap Layers visual correction",
+        "source": "2cb8e70c"
+      },
+      {
+        "slice": "Layout accepted-refresh draft lifetime",
+        "source": "78cc436a"
+      },
+      {
+        "slice": "PCB remap dedicated Session/Core operation",
+        "source": "23effad6"
+      },
+      {
+        "slice": "Saved keyboard search",
+        "source": "3c75ba51"
       }
     ],
     "pending": [
-      "Layout accepted-refresh draft repair",
       "Parts accepted-refresh pad-row/draft repair",
-      "PCB/Keymap owned visual correction",
-      "PCB protected-remap dedicated Session/Core operation",
-      "Packaging fail-closed graph guards"
+      "Packaging fail-closed graph guards",
+      "Saved-search mounted verification"
     ],
-    "checks": "Strict all-target page WASM passed30045911; bd7f1c11 final combined rerun pending after remaining joins. Full helper baseline and actual reuse need production qualification.",
+    "checks": "Combined strict WASM all-target Clippy passed324762c8,13.70s; full helper baseline and actualreuse remain pending. Sourceintegration does not close parentcriteria.",
     "acceptance": "No parent closure from source-only joins; currentserved a201 at34740."
   }
 }
