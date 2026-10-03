@@ -17,6 +17,7 @@ mod preview;
 mod standard_profile_lifetime;
 pub(in crate::presentation) use assembly_presets::MatrixPresetId;
 pub(in crate::presentation) use assembly_presets::SwitchOrientation;
+pub(in crate::presentation) use assembly_presets::matrix_with_assembly;
 
 pub(super) fn matrix_setup_preset(
     preset: assembly_presets::MatrixPresetId,
@@ -998,7 +999,7 @@ pub(super) fn PartsInspectorPanel(
     placement_busy: bool,
     placement_error: Option<String>,
     mut layout_target: Signal<Option<String>>,
-    on_place_assembly: EventHandler<assembly_presets::MatrixPresetId>,
+    on_place_assembly: EventHandler<super::objects::MatrixPlacementSource>,
     on_open_module_placement: EventHandler<String>,
 ) -> Element {
     let active_assembly = use_context::<PartsAssemblySelection>().0();
@@ -1098,7 +1099,9 @@ pub(super) fn PartsInspectorPanel(
             assembly_editor::SavedAssembliesEditor {
                 snapshot: snapshot.clone(),
                 scope: scope.clone(),
-                definitions: catalogue.entries.as_ref().map(|entries| entries.iter().map(|entry| (*entry.definition).clone()).collect()).unwrap_or_default(),
+                definitions: snapshot.document.definitions.iter().cloned().chain(catalogue.entries.as_ref().into_iter().flatten().map(|entry| (*entry.definition).clone())).collect(),
+                selected_context,
+                on_place: on_place_assembly.clone(),
             }
             if let Some(module_id) = selected_module_id.as_deref() {
                 if let Some(module) = module_catalogue.entries.as_deref().and_then(|entries| entries.iter().find(|entry| entry.definition.id == module_id)) {
@@ -1122,7 +1125,7 @@ pub(super) fn PartsInspectorPanel(
                     class: "m1-parts-place-assembly",
                     r#type: "button",
                     disabled: placement_busy,
-                    onclick: move |_| on_place_assembly.call(preset),
+                    onclick: move |_| on_place_assembly.call(super::objects::MatrixPlacementSource::Preset(preset)),
                     "Place key assembly"
                 }
             }

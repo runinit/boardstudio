@@ -183,13 +183,22 @@ model asset selection and finite offset/rotation/positive-scale edits, model
 import through the existing verified asset path, visual-only model members,
 and an isolated recipe preview in the retained Parts preview owner. Save merges
 draft assets and referenced definitions through the same accepted document
-edit/history boundary. The reference's Ergogen `modelBindings` derivation for
-the “Edit model defaults” action is not yet bridged into Dioxus; that remains an
-explicit model-binding parity gap instead of being guessed from UI state.
+edit/history boundary. The “Edit model defaults” action calls the retained
+Ergogen `modelBindings` provider with the member's definition and overrides,
+preserving generated unresolved-model identifiers instead of inferring model
+bindings from UI state.
 
-F4.6 remains incomplete. Matrix/board Apply/Place retain the F3.2 acceptance
-join, and the full acceptance/evidence table above is unchanged. Do not mark the
-parent criterion complete from these bounded authoring packets.
+The mounted placement follow-up routes Apply-to-selected-matrix through the
+existing `SetMatrix` accepted edit and Place-in-Layout through the F3.2
+cursor-controlled matrix placement owner. Both carry operation-scoped
+definition snapshots, preserve the accepted Session/Core edit boundary, and
+reject stale scope/source/selection state. The Dioxus placement control does
+not yet reproduce React's independent “Place on selected board” X/Y-origin
+form, which commits a set of component parts; it currently offers the existing
+Layout matrix placement workflow, so criterion 33 remains open for an exact
+paired acceptance/evidence trace. The full F4.6 acceptance/evidence table above
+is unchanged. Do not mark the parent criterion complete from these bounded
+authoring packets.
 
 ### Refactoring observation handoff
 

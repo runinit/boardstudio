@@ -160,6 +160,65 @@ pub(crate) async fn footprint_export_model_ids(
     Ok(ids)
 }
 
+/// Resolve the same generator-authored model bindings used by the retained
+/// Ergogen package. Assembly authoring calls this when a designer chooses to
+/// edit model defaults for a generated component.
+#[cfg(all(target_arch = "wasm32", feature = "page"))]
+pub(crate) async fn model_bindings(
+    definition: &boardstudio_core::model::PartDefinition,
+    part: &boardstudio_core::model::Part,
+) -> Result<Vec<boardstudio_core::model::PartModel>, String> {
+    use js_sys::Function;
+    use serde::Serialize;
+    use wasm_bindgen::{JsCast, JsValue};
+
+    fn function(module: &JsValue, name: &str) -> Result<Function, String> {
+        js_sys::Reflect::get(module, &JsValue::from_str(name))
+            .map_err(|error| format!("Ergogen {name} export is unavailable: {error:?}"))?
+            .dyn_into::<Function>()
+            .map_err(|error| format!("Ergogen {name} export is unavailable: {error:?}"))
+    }
+
+    fn value(value: &impl Serialize) -> Result<JsValue, String> {
+        let json = serde_json::to_string(value).map_err(|error| error.to_string())?;
+        js_sys::JSON::parse(&json)
+            .map_err(|error| format!("Could not prepare Ergogen model binding query: {error:?}"))
+    }
+
+    let Some(generator) = definition.generator.as_ref() else {
+        return Ok(definition.models.clone().unwrap_or_default());
+    };
+    let module = layout_generator_module().await?;
+    let is_ergogen = function(&module, "isErgogen")?;
+    if !is_ergogen
+        .call1(&module, &JsValue::from_str(&generator.source))
+        .map_err(|error| format!("Could not inspect {} generator: {error:?}", definition.id))?
+        .as_bool()
+        .unwrap_or(false)
+    {
+        return Ok(definition.models.clone().unwrap_or_default());
+    }
+    let model_bindings = function(&module, "modelBindings")?;
+    let result = model_bindings
+        .call2(&module, &value(definition)?, &value(part)?)
+        .map_err(|error| {
+            format!(
+                "Could not resolve {} model bindings: {error:?}",
+                definition.id
+            )
+        })?;
+    serde_wasm_bindgen::from_value(result)
+        .map_err(|error| format!("Ergogen returned invalid model bindings: {error}"))
+}
+
+#[cfg(not(all(target_arch = "wasm32", feature = "page")))]
+pub(crate) async fn model_bindings(
+    definition: &boardstudio_core::model::PartDefinition,
+    _part: &boardstudio_core::model::Part,
+) -> Result<Vec<boardstudio_core::model::PartModel>, String> {
+    Ok(definition.models.clone().unwrap_or_default())
+}
+
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 pub(crate) async fn generated_model_asset_ids_for_paths(
     paths: &[String],

@@ -202,7 +202,7 @@ pub(in crate::presentation) fn use_matrix_placement(
         let mut preparing = preparing;
         let mut error = error;
         let assembly_orientation = assembly_orientation.0;
-        move |preset: crate::presentation::parts::MatrixPresetId| {
+        move |source: super::MatrixPlacementSource| {
             if pending.read().is_some() || preparing.read().is_some() || placement.read().is_some()
             {
                 return;
@@ -236,7 +236,16 @@ pub(in crate::presentation) fn use_matrix_placement(
                 .get("reversibleLayout")
                 .and_then(serde_json::Value::as_bool)
                 .unwrap_or(false);
-            let preset = crate::presentation::parts::matrix_setup_preset(preset);
+            let matrix_key = match &source {
+                super::MatrixPlacementSource::Preset(preset) => {
+                    crate::presentation::parts::matrix_setup_preset(*preset)
+                        .as_str()
+                        .to_owned()
+                }
+                super::MatrixPlacementSource::Assembly { assembly, .. } => {
+                    format!("saved-assembly-{}", assembly.id)
+                }
+            };
             let orientation = match assembly_orientation() {
                 crate::presentation::parts::SwitchOrientation::South => {
                     super::MatrixSwitchOrientation::South
@@ -249,7 +258,7 @@ pub(in crate::presentation) fn use_matrix_placement(
                 &accepted.document.matrices,
                 &accepted.document.definitions,
                 &accepted.document.parts,
-                preset.as_str(),
+                &matrix_key,
                 reversible,
             );
             preparing.set(Some(owner.clone()));
@@ -262,41 +271,75 @@ pub(in crate::presentation) fn use_matrix_placement(
             let canvas_interaction = canvas_interaction.clone();
             spawn_local(async move {
                 let result = async {
-                    let templates =
-                        crate::presentation::parts::load_matrix_templates(reversible).await?;
-                    let mut prepared = prepare_matrix(
-                        matrix_id.clone(),
-                        owner.board_id.clone(),
-                        MatrixSetupRequest {
-                            rows: 1,
-                            columns: 1,
-                            preset,
-                        },
-                        reversible,
-                        &templates,
-                    )?;
-                    for definition in &mut prepared.definitions {
-                        *definition = crate::presentation::parts::normalize_matrix_definition(
-                            definition.clone(),
-                        )
-                        .await?;
-                    }
-                    let orientation_name = match orientation {
-                        super::MatrixSwitchOrientation::South => "south",
-                        super::MatrixSwitchOrientation::North => "north",
+                    let (mut matrix, mut definitions) = match source {
+                        super::MatrixPlacementSource::Preset(preset_id) => {
+                            let preset = crate::presentation::parts::matrix_setup_preset(preset_id);
+                            let templates =
+                                crate::presentation::parts::load_matrix_templates(reversible)
+                                    .await?;
+                            let mut prepared = prepare_matrix(
+                                matrix_id.clone(),
+                                owner.board_id.clone(),
+                                MatrixSetupRequest {
+                                    rows: 1,
+                                    columns: 1,
+                                    preset,
+                                },
+                                reversible,
+                                &templates,
+                            )?;
+                            for definition in &mut prepared.definitions {
+                                *definition =
+                                    crate::presentation::parts::normalize_matrix_definition(
+                                        definition.clone(),
+                                    )
+                                    .await?;
+                            }
+                            let orientation_name = match orientation {
+                                super::MatrixSwitchOrientation::South => "south",
+                                super::MatrixSwitchOrientation::North => "north",
+                            };
+                            let variant = format!(
+                                "preset/{}/{}{}",
+                                preset.as_str(),
+                                if reversible { "reversible/" } else { "" },
+                                orientation_name,
+                            );
+                            let matrix = crate::presentation::objects::matrix_with_preset(
+                                &prepared.matrix,
+                                &prepared.matrix,
+                                &variant,
+                                orientation,
+                            );
+                            (matrix, prepared.definitions)
+                        }
+                        super::MatrixPlacementSource::Assembly {
+                            assembly,
+                            definitions: sources,
+                        } => {
+                            let seed = assembly_matrix_seed(
+                                matrix_id.clone(),
+                                owner.board_id.clone(),
+                                assembly.name.clone(),
+                            );
+                            let (matrix, mut definitions) =
+                                crate::presentation::parts::matrix_with_assembly(
+                                    &seed,
+                                    &assembly,
+                                    &sources,
+                                    &accepted.document,
+                                    &format!("placement-{}", owner.request_id),
+                                )?;
+                            for definition in &mut definitions {
+                                *definition =
+                                    crate::presentation::parts::normalize_matrix_definition(
+                                        definition.clone(),
+                                    )
+                                    .await?;
+                            }
+                            (matrix, definitions)
+                        }
                     };
-                    let variant = format!(
-                        "preset/{}/{}{}",
-                        preset.as_str(),
-                        if reversible { "reversible/" } else { "" },
-                        orientation_name,
-                    );
-                    let mut matrix = crate::presentation::objects::matrix_with_preset(
-                        &prepared.matrix,
-                        &prepared.matrix,
-                        &variant,
-                        orientation,
-                    );
                     matrix.origin = boardstudio_core::model::Vec2::default();
                     let mut scenes = runtime
                         .project_matrices(accepted.document.revision, vec![matrix.clone()])
@@ -304,7 +347,7 @@ pub(in crate::presentation) fn use_matrix_placement(
                     if scenes.len() != 1 {
                         return Err("Core returned an incomplete matrix placement preview.".into());
                     }
-                    Ok::<_, String>((matrix, prepared.definitions, scenes.remove(0)))
+                    Ok::<_, String>((matrix, definitions, scenes.remove(0)))
                 }
                 .await;
                 if !alive.get() {
@@ -510,6 +553,45 @@ fn placement_source(runtime: &Runtime) -> Option<(AcceptedSnapshot, Scope, Strin
         return None;
     }
     Some((snapshot.clone(), scope.clone(), scope.board_id))
+}
+
+fn assembly_matrix_seed(
+    id: String,
+    board_id: String,
+    name: String,
+) -> boardstudio_core::model::Matrix {
+    use boardstudio_core::model::{Matrix, MatrixCell, Vec2};
+    Matrix {
+        id,
+        name: Some(name),
+        rows: 1,
+        columns: 1,
+        pitch: Vec2 { x: 19.05, y: 19.05 },
+        origin: Vec2::default(),
+        definition_id: String::new(),
+        part_ids: Vec::new(),
+        board_id: Some(board_id),
+        mirror: None,
+        rotation: None,
+        edge_gap: Some(Vec2 { x: 1.0, y: 1.0 }),
+        diode_direction: None,
+        row_offsets: Vec::new(),
+        column_offsets: Vec::new(),
+        column_staggers: Vec::new(),
+        column_splays: Vec::new(),
+        column_origins: Vec::new(),
+        cells: vec![MatrixCell {
+            row: 0,
+            column: 0,
+            enabled: true,
+            definition_id: None,
+            variant: None,
+            offset: None,
+            rotation: Some(0.0),
+            assemblies: Vec::new(),
+            assemblies_local: Some(true),
+        }],
+    }
 }
 
 fn same_session_scope(runtime: &Runtime, owner: &MatrixPlacementOwner) -> bool {

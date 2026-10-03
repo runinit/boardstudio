@@ -1,5 +1,8 @@
 use super::catalogue::CatalogEntry;
-use boardstudio_core::model::{PartDefinition, Side, Vec2};
+use boardstudio_core::model::{
+    AssemblyDefinition, Matrix, MatrixAssembly, MatrixCell, PartDefinition, PartKind, ProjectDoc,
+    Side, Vec2,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::presentation) enum MatrixPresetId {
@@ -235,4 +238,197 @@ fn member(
         side,
         generator_parameters,
     }
+}
+
+/// Applies the saved-assembly recipe to every cell while retaining matrix
+/// geometry and enabled state, matching the pinned `matrixWithAssembly` helper.
+/// Definitions receive operation-specific snapshot identities so Core can
+/// commit recipe edits without changing already-placed part snapshots.
+pub(in crate::presentation) fn matrix_with_assembly(
+    matrix: &Matrix,
+    assembly: &AssemblyDefinition,
+    catalogue_definitions: &[PartDefinition],
+    document: &ProjectDoc,
+    snapshot_nonce: &str,
+) -> Result<(Matrix, Vec<PartDefinition>), String> {
+    let Some(primary) = assembly.members.first() else {
+        return Err("Name the assembly and add at least one member".into());
+    };
+    if primary.definition_id.is_none() {
+        return Err(
+            "The first assembly member must have a component definition to apply it to a matrix."
+                .into(),
+        );
+    }
+    if primary.pose.at.x != 0.0 || primary.pose.at.y != 0.0 || primary.side != Side::Front {
+        return Err(
+            "For matrix placement, keep the first member at the origin on the front".into(),
+        );
+    }
+    if assembly.members.iter().any(|member| {
+        !member.pose.at.x.is_finite()
+            || !member.pose.at.y.is_finite()
+            || !member.pose.rotation.is_finite()
+            || member.models.iter().any(|model| {
+                [
+                    model.offset.x,
+                    model.offset.y,
+                    model.offset.z,
+                    model.rotation.x,
+                    model.rotation.y,
+                    model.rotation.z,
+                    model.scale.x,
+                    model.scale.y,
+                    model.scale.z,
+                ]
+                .into_iter()
+                .any(|value| !value.is_finite())
+                    || [model.scale.x, model.scale.y, model.scale.z]
+                        .into_iter()
+                        .any(|value| value <= 0.0)
+            })
+    }) {
+        return Err(
+            "Assembly positions and angles must be finite, and model scales must be positive."
+                .into(),
+        );
+    }
+    let member_ids = assembly
+        .members
+        .iter()
+        .map(|member| member.id.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    if member_ids.len() != assembly.members.len()
+        || member_ids.iter().any(|id| id.trim().is_empty())
+    {
+        return Err("Assembly members must have unique, non-empty identities.".into());
+    }
+    let asset_exists = |id: &str| {
+        document.assets.iter().any(|asset| asset.id == id)
+            || crate::bundled_models::bundled_model(id).is_some()
+            || id.starts_with("unresolved-model:")
+    };
+    let mut definitions = Vec::with_capacity(assembly.members.len());
+    for member in &assembly.members {
+        let source = member.definition_id.as_deref().and_then(|id| {
+            document
+                .definitions
+                .iter()
+                .chain(catalogue_definitions)
+                .find(|definition| definition.id == id)
+        });
+        let mut definition = if let Some(source) = source {
+            source.clone()
+        } else if member.definition_id.is_none() {
+            PartDefinition {
+                hardware_profile: None,
+                input_profile: None,
+                id: format!("assembly-model-only:{}", member.id),
+                name: format!("{} model", member.id),
+                kind: PartKind::Custom,
+                keycap: None,
+                envelope_source: None,
+                kicad_source: None,
+                terminals: Default::default(),
+                matrix_terminals: None,
+                envelope_notice: None,
+                courtyard: Vec::new(),
+                pads: Vec::new(),
+                models: Some(member.models.clone()),
+                generator: None,
+                mechanical_profile: None,
+            }
+        } else {
+            return Err(format!(
+                "Missing component definition: {}",
+                member.definition_id.as_deref().unwrap_or_default()
+            ));
+        };
+        if let Some(generator) = definition.generator.as_mut()
+            && let Some(parameters) = member.parameters.as_ref()
+        {
+            generator.parameters.extend(parameters.clone());
+        }
+        if matches!(
+            &member.model_mode,
+            Some(boardstudio_core::model::AssemblyModelMode::Custom)
+        ) || (member.model_mode.is_none() && !member.models.is_empty())
+        {
+            definition.models = Some(member.models.clone());
+        }
+        for model in definition.models.as_deref().unwrap_or_default() {
+            if !asset_exists(&model.asset_id) {
+                return Err(format!(
+                    "The model asset '{}' is not available in this project.",
+                    model.asset_id
+                ));
+            }
+        }
+        definition.id = format!(
+            "{}/assembly-{}/definition/{}",
+            matrix.id,
+            safe_identity(snapshot_nonce),
+            member.id
+        );
+        definitions.push(definition);
+    }
+
+    let primary_rotation = primary.pose.rotation;
+    let angle = -primary_rotation.to_radians();
+    let (sin, cos) = angle.sin_cos();
+    let assemblies = assembly
+        .members
+        .iter()
+        .skip(1)
+        .enumerate()
+        .map(|(index, member)| MatrixAssembly {
+            id: member.id.clone(),
+            definition_id: definitions[index + 1].id.clone(),
+            offset: Vec2 {
+                x: member.pose.at.x * cos - member.pose.at.y * sin,
+                y: member.pose.at.x * sin + member.pose.at.y * cos,
+            },
+            rotation: Some(member.pose.rotation - primary_rotation),
+            side: Some(member.side.clone()),
+        })
+        .collect::<Vec<_>>();
+    let mut cells = Vec::with_capacity((matrix.rows * matrix.columns) as usize);
+    for row in 0..matrix.rows {
+        for column in 0..matrix.columns {
+            let previous = matrix
+                .cells
+                .iter()
+                .find(|cell| cell.row == row && cell.column == column);
+            cells.push(MatrixCell {
+                row,
+                column,
+                enabled: previous.is_none_or(|cell| cell.enabled),
+                definition_id: Some(definitions[0].id.clone()),
+                variant: previous.and_then(|cell| cell.variant.clone()),
+                offset: previous.and_then(|cell| cell.offset),
+                rotation: Some(
+                    previous.and_then(|cell| cell.rotation).unwrap_or(0.0) + primary_rotation,
+                ),
+                assemblies: assemblies.clone(),
+                assemblies_local: Some(true),
+            });
+        }
+    }
+    let mut matrix = matrix.clone();
+    matrix.definition_id = definitions[0].id.clone();
+    matrix.cells = cells;
+    Ok((matrix, definitions))
+}
+
+fn safe_identity(value: &str) -> String {
+    value
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || matches!(character, '-' | '_') {
+                character
+            } else {
+                '-'
+            }
+        })
+        .collect()
 }

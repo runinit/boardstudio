@@ -51,6 +51,18 @@ pub(in crate::presentation) struct MatrixPlacementOwner {
     pub revision: u64,
 }
 
+/// Data source for the existing Layout matrix-placement lifecycle. Saved
+/// assembly recipes carry only their source definitions; Core still validates
+/// and commits the matrix plus definition snapshots through SetMatrix.
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::presentation) enum MatrixPlacementSource {
+    Preset(crate::presentation::parts::MatrixPresetId),
+    Assembly {
+        assembly: boardstudio_core::model::AssemblyDefinition,
+        definitions: Vec<boardstudio_core::model::PartDefinition>,
+    },
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::presentation) struct MatrixPlacementProjection {
     pub owner: MatrixPlacementOwner,
@@ -71,7 +83,7 @@ pub(in crate::presentation) struct MatrixPlacementMount {
     pub placement: Option<MatrixPlacementProjection>,
     pub busy: bool,
     pub error: Option<String>,
-    pub on_place: EventHandler<crate::presentation::parts::MatrixPresetId>,
+    pub on_place: EventHandler<MatrixPlacementSource>,
     pub on_move: EventHandler<MatrixPlacementMove>,
     pub on_commit: EventHandler<MatrixPlacementMove>,
     pub on_cancel: EventHandler<MatrixPlacementOwner>,
