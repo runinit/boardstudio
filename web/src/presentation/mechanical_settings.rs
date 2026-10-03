@@ -4,9 +4,9 @@ pub(crate) use crate::mechanical_feedback::{
     MechanicalSettingsFeedback, MechanicalSettingsFeedbackState, MechanicalSettingsIdentity,
 };
 use boardstudio_core::model::{
-    CaseOpening, GasketPlacement, HardwareTransport, MechanicalBattery, MechanicalBottomStyle,
-    MechanicalGasketAnchor, MechanicalMount, MechanicalSwitchFamily, Mount, MountKind, PlateMethod,
-    Severity, Vec2,
+    CaseOpening, GasketPlacement, HardwareTransport, InsertInstallation, InternalClosureHardware,
+    MechanicalBattery, MechanicalBottomStyle, MechanicalGasketAnchor, MechanicalMount,
+    MechanicalSwitchFamily, Mount, MountKind, PlateMethod, ScrewDrive, Severity, Vec2,
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -38,6 +38,7 @@ pub(crate) struct MechanicalSettingsValues {
     pub(crate) opening_allowance: f64,
     pub(crate) openings: Vec<CaseOpening>,
     pub(crate) internal_gasket: bool,
+    pub(crate) closure_hardware: Option<InternalClosureHardware>,
     pub(crate) plate_to_pcb: f64,
     pub(crate) battery_height: f64,
 }
@@ -263,6 +264,10 @@ pub(crate) enum MechanicalSettingsPatch {
     InitializeClosures,
     Disable,
     SetBatteryEnabled(bool),
+    SetClosureInsertPreset(String),
+    SetClosureDrive(ScrewDrive),
+    SetClosureInstallation(InsertInstallation),
+    SetClosureFixedLength(Option<f64>),
     SetOpenings(Vec<CaseOpening>),
     SetOpeningDimension {
         opening_index: usize,
@@ -333,6 +338,10 @@ impl MechanicalSettingsPatch {
             Self::InitializeClosures => "initialize-closures".to_owned(),
             Self::Disable => "disable".to_owned(),
             Self::SetBatteryEnabled(_) => "battery-enabled".to_owned(),
+            Self::SetClosureInsertPreset(id) => format!("closure-insert:{id}"),
+            Self::SetClosureDrive(_) => "closure-drive".to_owned(),
+            Self::SetClosureInstallation(_) => "closure-installation".to_owned(),
+            Self::SetClosureFixedLength(_) => "closure-fixed-length".to_owned(),
             Self::SetOpenings(_) => "case-openings".to_owned(),
             Self::SetOpeningDimension {
                 opening_index,
@@ -729,6 +738,16 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                         }
                     }
                 }
+                if values.internal_gasket {
+                    GasketClosureControls {
+                        key: "{owner_key}:gasket-closure-hardware",
+                        identity: props.identity.clone(),
+                        request_sequence,
+                        hardware: values.closure_hardware.clone(),
+                        editable: props.editable,
+                        on_request: props.on_request,
+                    }
+                }
                 button {
                     r#type: "button",
                     class: "m1-mechanical-disable",
@@ -766,6 +785,131 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                         move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::Enable)
                     },
                     "Configure mechanical stack"
+                }
+            }
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct GasketClosureControlsProps {
+    identity: MechanicalSettingsIdentity,
+    request_sequence: Signal<u64>,
+    hardware: Option<InternalClosureHardware>,
+    editable: bool,
+    on_request: EventHandler<MechanicalSettingsRequest>,
+}
+
+#[component]
+fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
+    let Some(hardware) = props.hardware.as_ref() else {
+        return None;
+    };
+    let selected_preset = [
+        ("m2-3", 2.0, 0.4, 3.0, 3.2),
+        ("m2-4", 2.0, 0.4, 4.0, 3.2),
+        ("m2.5-3", 2.5, 0.45, 3.0, 3.5),
+        ("m2.5-4", 2.5, 0.45, 4.0, 3.5),
+        ("m2.5-5", 2.5, 0.45, 5.0, 3.5),
+        ("m3-3", 3.0, 0.5, 3.0, 4.2),
+    ]
+    .into_iter()
+    .find(|(_, diameter, _, length, insert_diameter)| {
+        hardware.thread_diameter == *diameter
+            && hardware.insert_length == *length
+            && hardware.insert_diameter == *insert_diameter
+    })
+    .map(|(id, ..)| id);
+    let selected_length = hardware
+        .fixed_length
+        .map_or_else(|| "auto".to_owned(), |length| length.to_string());
+    let request_sequence = props.request_sequence;
+    let identity = props.identity.clone();
+    let on_request = props.on_request;
+    rsx! {
+        details { class: "m1-mechanical-group", open: true, aria_label: "Closure hardware",
+            summary { "Closure hardware · {hardware.thread}" }
+            p { class: "m1-mechanical-help", "Custom screw and insert dimensions. Review these against your hardware; the starting M2 dimensions are not a supplier preset." }
+            label { class: "m1-mechanical-field",
+                span { "Insert size" }
+                select {
+                    aria_label: "Insert size",
+                    disabled: !props.editable,
+                    value: selected_preset.unwrap_or("custom"),
+                    onchange: {
+                        let mut sequence = request_sequence;
+                        let identity = identity.clone();
+                        move |event: FormEvent| {
+                            let id = event.value();
+                            if id != "custom" {
+                                send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetClosureInsertPreset(id));
+                            }
+                        }
+                    },
+                    option { value: "custom", "Custom dimensions" }
+                    option { value: "m2-3", "M2 × L3 × OD3.2" }
+                    option { value: "m2-4", "M2 × L4 × OD3.2" }
+                    option { value: "m2.5-3", "M2.5 × L3 × OD3.5" }
+                    option { value: "m2.5-4", "M2.5 × L4 × OD3.5" }
+                    option { value: "m2.5-5", "M2.5 × L5 × OD3.5" }
+                    option { value: "m3-3", "M3 × L3 × OD4.2" }
+                }
+            }
+            label { class: "m1-mechanical-field",
+                span { "Screw drive" }
+                select {
+                    disabled: !props.editable,
+                    value: if hardware.drive == ScrewDrive::Hex { "hex" } else { "torx" },
+                    onchange: {
+                        let mut sequence = request_sequence;
+                        let identity = identity.clone();
+                        move |event: FormEvent| {
+                            let drive = if event.value() == "torx" { ScrewDrive::Torx } else { ScrewDrive::Hex };
+                            send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetClosureDrive(drive));
+                        }
+                    },
+                    option { value: "hex", "Hex socket" }
+                    option { value: "torx", "Torx" }
+                }
+            }
+            label { class: "m1-mechanical-field",
+                span { "Insert installation" }
+                select {
+                    disabled: !props.editable,
+                    value: if hardware.installation == InsertInstallation::HeatSet { "heat-set" } else { "tapped" },
+                    onchange: {
+                        let mut sequence = request_sequence;
+                        let identity = identity.clone();
+                        move |event: FormEvent| {
+                            let installation = if event.value() == "tapped" { InsertInstallation::Tapped } else { InsertInstallation::HeatSet };
+                            send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetClosureInstallation(installation));
+                        }
+                    },
+                    option { value: "heat-set", "Heat-set · printed top" }
+                    option { value: "tapped", "Tapped · machined top" }
+                }
+            }
+            label { class: "m1-mechanical-field",
+                span { "Screw length" }
+                select {
+                    aria_label: "Screw length",
+                    disabled: !props.editable,
+                    value: selected_length,
+                    onchange: {
+                        let mut sequence = request_sequence;
+                        let identity = identity.clone();
+                        let lengths = hardware.screw_lengths.clone();
+                        move |event: FormEvent| {
+                            let fixed = event.value().parse::<f64>().ok();
+                            if fixed.is_none() || fixed.is_some_and(|length| lengths.contains(&length)) {
+                                send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetClosureFixedLength(fixed));
+                            }
+                        }
+                    },
+                    option { value: "auto", "Automatic from available lengths" }
+                    for length in hardware.screw_lengths.iter() {
+                        option { value: "{length}", "{length} mm · fixed" }
+                    }
                 }
             }
         }
@@ -2320,6 +2464,7 @@ mod contextual_layer_tests {
             opening_allowance: 0.0,
             openings: vec![],
             internal_gasket: true,
+            closure_hardware: None,
             plate_to_pcb: 3.5,
             battery_height: 0.0,
         }

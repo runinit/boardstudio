@@ -840,6 +840,27 @@ fn apply_patch(
                 configuration.battery = None;
             }
         }
+        MechanicalSettingsPatch::SetClosureInsertPreset(id) => {
+            resize_closure_insert(closure_hardware_mut(configuration)?, id)?;
+        }
+        MechanicalSettingsPatch::SetClosureDrive(drive) => {
+            closure_hardware_mut(configuration)?.drive = drive.clone();
+        }
+        MechanicalSettingsPatch::SetClosureInstallation(installation) => {
+            closure_hardware_mut(configuration)?.installation = installation.clone();
+        }
+        MechanicalSettingsPatch::SetClosureFixedLength(length) => {
+            let hardware = closure_hardware_mut(configuration)?;
+            if let Some(length) = length {
+                if !length.is_finite() || *length <= 0.0 || !hardware.screw_lengths.contains(length)
+                {
+                    return Err(
+                        "Choose an available positive screw length or automatic length.".into(),
+                    );
+                }
+            }
+            hardware.fixed_length = *length;
+        }
         MechanicalSettingsPatch::SetOpenings(openings) => {
             validate_openings(openings)?;
             configuration.openings = Some(openings.clone());
@@ -1261,6 +1282,10 @@ fn apply_patch(
     let skip_process_normalization = matches!(
         patch,
         MechanicalSettingsPatch::SetBatteryEnabled(_)
+            | MechanicalSettingsPatch::SetClosureInsertPreset(_)
+            | MechanicalSettingsPatch::SetClosureDrive(_)
+            | MechanicalSettingsPatch::SetClosureInstallation(_)
+            | MechanicalSettingsPatch::SetClosureFixedLength(_)
             | MechanicalSettingsPatch::SetOpenings(_)
             | MechanicalSettingsPatch::SetOpeningDimension { .. }
     ) || matches!(
@@ -1677,6 +1702,42 @@ fn default_internal_gasket() -> InternalGasketConfiguration {
             bearing_thickness: 1.5,
         },
     }
+}
+
+fn closure_hardware_mut(
+    configuration: &mut MechanicalConfiguration,
+) -> Result<&mut InternalClosureHardware, String> {
+    configuration
+        .internal_gasket
+        .as_mut()
+        .map(|settings| &mut settings.hardware)
+        .ok_or_else(|| "Internal gasket closure hardware is no longer available.".into())
+}
+
+fn resize_closure_insert(hardware: &mut InternalClosureHardware, id: &str) -> Result<(), String> {
+    let (thread_diameter, pitch, insert_length, insert_diameter) = match id {
+        "m2-3" => (2.0, 0.4, 3.0, 3.2),
+        "m2-4" => (2.0, 0.4, 4.0, 3.2),
+        "m2.5-3" => (2.5, 0.45, 3.0, 3.5),
+        "m2.5-4" => (2.5, 0.45, 4.0, 3.5),
+        "m2.5-5" => (2.5, 0.45, 5.0, 3.5),
+        "m3-3" => (3.0, 0.5, 3.0, 4.2),
+        _ => return Err("The selected insert preset is unavailable.".into()),
+    };
+    hardware.id = format!("custom-{id}");
+    hardware.thread = format!("M{thread_diameter} × {pitch}");
+    hardware.thread_diameter = thread_diameter;
+    hardware.pitch = pitch;
+    hardware.insert_length = insert_length;
+    hardware.insert_diameter = insert_diameter;
+    hardware.seat_diameter = insert_diameter - 0.4;
+    hardware.seat_lead_diameter = insert_diameter - 0.2;
+    hardware.seat_depth = insert_length + hardware.bottoming_clearance;
+    hardware.engagement = (insert_length - 0.5).min(insert_length - hardware.thread_start);
+    hardware.hole_diameter = thread_diameter + 0.2;
+    hardware.head_diameter = thread_diameter * 2.0;
+    hardware.head_height = thread_diameter / 2.0;
+    Ok(())
 }
 
 #[cfg(test)]
