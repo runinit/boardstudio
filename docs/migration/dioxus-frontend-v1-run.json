@@ -44,7 +44,7 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "7345cbfb",
+      "source_commit": "642d5474",
       "state": "Source integration first: Add-object/VIK joined; PCB/compact-shell/next Layout and Case packets in progress. Packaging/public qualification/review deferred until larger coherent candidate.",
       "packets": [
         {
@@ -87,12 +87,16 @@
       "policy": "Coordinator assigned; maximum 2 heavy jobs / 1 package",
       "active": [],
       "check": {
-        "source_commit": "49fce6114deba042c2d02eea305d252ec8e44a66",
-        "result": "PASS",
-        "log": ".scratch/dioxus-frontend-v1/evidence/candidate-34771-20261003/strict-check.json",
-        "page_seconds": 10.466813,
+        "source_commit": "3dbcdb38",
+        "result": "Failed strict check: two needless Option borrow conversions in Add-object source. Repaired at642d5474; recheck deferred until larger candidate.",
+        "command": "cargo clippy --manifest-path web/Cargo.toml --locked --target wasm32-unknown-unknown --no-default-features --features page --all-targets -- -D warnings",
+        "exit_code": 101,
+        "diagnostics": [
+          "objects.rs267 needless_option_as_deref",
+          "objects.rs286 needless_option_as_deref"
+        ],
         "new_ui_tests": 0,
-        "unchanged_worker": "34769 deployed library strict check reused"
+        "unchanged_worker": "34769 deployed library strict evidence reused"
       }
     },
     "execution_policy": "docs/agents/issue-tracker.md#frontend-delivery-records",
