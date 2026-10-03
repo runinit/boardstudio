@@ -1045,14 +1045,14 @@ def checked_baseline(build_id):
     return baseline, provenance, provenance_path, provenance_hash, expected_tools, command_log_hashes
 
 
-def verified_reuse_helper(provenance, current_helper_hash):
-    """Prove the baseline helper is either unchanged or the pinned bbd4 helper."""
+def verified_reuse_helper(provenance, current_helper_hash, *, refresh_fixtures=False):
+    """Keep ordinary reuse unchanged; explicit refresh may use the pinned helper."""
     source_commit = provenance["source_commit"]
     baseline_helper_hash = provenance["sources"].get(REUSE_HELPER_PATH)
     if not isinstance(baseline_helper_hash, str):
         raise ValueError("baseline source manifest is missing the guarded reuse helper")
     compatible_blob = COMPATIBLE_FULL_BUILD_HELPERS.get((source_commit, baseline_helper_hash))
-    if compatible_blob is not None:
+    if compatible_blob is not None and refresh_fixtures:
         try:
             blob = subprocess.check_output(
                 ["git", "rev-parse", f"{source_commit}:{REUSE_HELPER_PATH}"],
@@ -1099,7 +1099,11 @@ def validate_reuse(build_id, baseline_id, *, refresh_fixtures=False):
     baseline, provenance, provenance_path, provenance_hash, tools, command_log_hashes = checked_baseline(baseline_id)
     current = sources()
     old = provenance["sources"]
-    helper_compatibility = verified_reuse_helper(provenance, current.get(REUSE_HELPER_PATH, ""))
+    if not refresh_fixtures and current.get(FIXTURE_PREPARATION_PATH) != old.get(FIXTURE_PREPARATION_PATH):
+        raise ValueError("fixture-preparation changes require explicit --refresh-fixtures-from")
+    helper_compatibility = verified_reuse_helper(
+        provenance, current.get(REUSE_HELPER_PATH, ""), refresh_fixtures=refresh_fixtures
+    )
     added = set(current) - set(old)
     removed = set(old) - set(current)
     if removed:
