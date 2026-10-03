@@ -1,12 +1,12 @@
 {
   "run": "dioxus-frontend-v1-20261001",
   "scope": "100% frontend: all TSX, UI state, theming and responsive/interaction behavior",
-  "status": "The current served comparison is `frontend-command-icons-reuse-20261002` at http://127.0.0.1:34733/ and /boardstudio/ (source `8cfd6bb7`). Independent verification confirms8 fresh commands,22 inherited full-build receipts,1328 source inputs,145 assets and126 unchanged provider files per route, with zero drift. Packaging command span is104.66s versus471.61s full. Current source passed supported mixed page/core-worker WASM strict Clippy and formatting. Actual paired1280\u00d7577 toolbar captures, Snap Close/focus restoration,375/390px containment and saved subpath offline editor reload passed bounded checks. Full parent acceptance remains open. Six streams continue implementing canonical Layout3D, component placement, contextual Case/Keycaps panes, Mirror canvas overlay, Parts standard profiles and ZMK Export. Architectural/refactoring ledger RF-001\u2013RF-014 and all62 canonical parents remain retained. Earlier checkpoint sections below are history.",
+  "status": "Current execution checkpoint (2026-10-02): Six streams continue. Served candidate frontend-contextual-case-mirror-keycaps-20261002 is f261a327 at http://127.0.0.1:34734/ and /boardstudio/: 22 successful commands, 1331 source hashes, 145 assets per route, independently verified. Bounded paired Case12 and Keycaps06 receipts are awaiting review; Mirror inner-form visual differences remain under repair. Parts15 and ZMK source d5854920 passed independent join review and strict supported WASM all-target Clippy (15.66s), pending the next package. PCB layer controls, canonical Layout3D, component placement, battery settings, finding navigation and macro labels advance in isolation. Sol 6.1 High reviews; configured 30/live 11 concurrency. All 62 parents and RF-001\u2013RF-014 retained; no full workbench acceptance.",
   "six_stream_parity": {
     "spec": ".scratch/dioxus-workbench-parity/spec.md",
     "stream_reconciliation": ".scratch/dioxus-workbench-parity/stream-reconciliation.md",
     "confirmed_at": "2026-10-02",
-    "status": "The current served comparison is `frontend-command-icons-reuse-20261002` at http://127.0.0.1:34733/ and /boardstudio/ (source `8cfd6bb7`). Independent verification confirms8 fresh commands,22 inherited full-build receipts,1328 source inputs,145 assets and126 unchanged provider files per route, with zero drift. Packaging command span is104.66s versus471.61s full. Current source passed supported mixed page/core-worker WASM strict Clippy and formatting. Actual paired1280\u00d7577 toolbar captures, Snap Close/focus restoration,375/390px containment and saved subpath offline editor reload passed bounded checks. Full parent acceptance remains open. Six streams continue implementing canonical Layout3D, component placement, contextual Case/Keycaps panes, Mirror canvas overlay, Parts standard profiles and ZMK Export. Architectural/refactoring ledger RF-001\u2013RF-014 and all62 canonical parents remain retained. Earlier checkpoint sections below are history.",
+    "status": "Current execution checkpoint (2026-10-02): Six streams continue. Served candidate frontend-contextual-case-mirror-keycaps-20261002 is f261a327 at http://127.0.0.1:34734/ and /boardstudio/: 22 successful commands, 1331 source hashes, 145 assets per route, independently verified. Bounded paired Case12 and Keycaps06 receipts are awaiting review; Mirror inner-form visual differences remain under repair. Parts15 and ZMK source d5854920 passed independent join review and strict supported WASM all-target Clippy (15.66s), pending the next package. PCB layer controls, canonical Layout3D, component placement, battery settings, finding navigation and macro labels advance in isolation. Sol 6.1 High reviews; configured 30/live 11 concurrency. All 62 parents and RF-001\u2013RF-014 retained; no full workbench acceptance.",
     "active_feature_contracts": {
       "composition": {
         "ticket": ".scratch/dioxus-workbench-parity/issues/01-private-workbench-composition.md",
@@ -760,14 +760,17 @@
     "acceptance": "partial comparison; full workbench gates remain open"
   },
   "active_source_freeze": {
-    "commit": "8cfd6bb79e9e10b788e007fd428145b1e37095d1",
-    "build": "frontend-command-icons-reuse-20261002",
-    "state": "packaged and independently verified; bounded public checks complete; source lease released for next reviewed integration batch",
-    "url": "http://127.0.0.1:34733/",
-    "subpath_url": "http://127.0.0.1:34733/boardstudio/",
-    "receipt": ".scratch/dioxus-frontend-v1/evidence/command-icons-reuse-public-20261002.json",
-    "build_log": "/home/chris/.local/share/boardstudio/retained-tmp/20261002/frontend-command-icons-reuse-console.log",
-    "baseline_source": "9d34f3672f4f05cb3771bc5cd358508b13e9c31f",
-    "baseline_native_log": "/home/chris/.local/share/boardstudio/retained-tmp/20261002/frontend-parity-joined-native.log"
+    "commit": "f261a327858f51a1de4928374bc65b669e2792a3",
+    "build": "frontend-contextual-case-mirror-keycaps-20261002",
+    "state": "complete and independently verified; source lease released for next reviewed batch",
+    "url": "http://127.0.0.1:34734/",
+    "subpath_url": "http://127.0.0.1:34734/boardstudio/",
+    "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/full-package-provenance-review-f261a327-20261002.md",
+    "provenance_sha256": "f77c5920371ae6a69e42ae42e20f0eef2519f7822f1eb404f4b580c17b38e066",
+    "source_inputs": 1331,
+    "commands": 22,
+    "assets_per_route": 145,
+    "elapsed_seconds": 576.574183,
+    "public_acceptance": "paired journeys in progress; no full parent closure"
   }
 }

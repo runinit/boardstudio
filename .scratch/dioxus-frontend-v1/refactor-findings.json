@@ -173,6 +173,11 @@
         "observation": "PCB07 and PCB08 isolated authors each correctly implemented a generic-part Inspector, but the initial serial join duplicated its heading and moved Ergogen bindings ahead of Board details/Connections. Independent review reproduced the composition mismatch; a single contextual host heading and a private Element slot now preserve both controllers and reference order. Source review clear; actual paired DOM qualification remains open.",
         "during_port": "One root integration owner, isolated leaf authors, exact shared handoff patches and source-specific independent review; source clearance never substitutes for paired browser acceptance.",
         "later_question": "Can workbench composition interfaces express ordered contextual sections explicitly enough to prevent semantically wrong but compilable joins?"
+      },
+      "accepted_source_failure_guards_20261002": {
+        "observation": "Independent review found Layout model terminal errors and selected-key loader failures checking weaker ownership than successful delivery; isolated repairs require the same captured accepted source/lease guard and suspended production regressions.",
+        "during_port": "Fix reproduced stale feedback before integration; source holds remain until reviewed.",
+        "post_port": "Assess one private delivery authority for success, failure and cancellation after parity."
       }
     },
     {
@@ -447,7 +452,12 @@
           "observation": "Normal Event::Edit Preview lacks gesture-generation cancellation/clear-preview authority. Fields-only transform and one-shot alignment can use existing commit authority; pointer Stagger/Splay/Origin remain separately gated. Align AABB policy uses accepted courtyard/keycap corners and matrix-local operations.",
           "status": "Source-backed lifecycle prerequisite retained; no pointer-tool or parent parity claim."
         }
-      ]
+      ],
+      "linked_cell_assembly_override_20261002": {
+        "observation": "Fresh linked-half assembly replacement requires assemblies_local; otherwise canonical Core synchronization restores inherited data. Preseeded local fixtures hid this omission.",
+        "during_port": "Author repair exercises actual Core acceptance and Undo/Redo from a non-local linked cell; expected-red evidence must pass through Core synchronization.",
+        "post_port": "Assess whether private edit construction can encode explicit override intent without scattered flag handling."
+      }
     },
     {
       "id": "RF-006",
@@ -857,6 +867,15 @@
         "checks": "13 normal + 13 optimized reuse tests and existing source inventory test pass after integration; full helper-matched baseline currently building. Real eligible eight-command reuse and root/subpath/offline proof remain open.",
         "later_question": "Extend reviewed dependency ownership proofs to more page leaves without weakening consumed-input, tool/config or exact provider-artifact inventories.",
         "thread_limit": "Saved concurrency ceiling is30; this live session rejects new threads and some completed-reviewer reactivation at its11-slot limit. Reuse existing active slots and retain queued stream ownership; do not claim a live limit change."
+      },
+      "oracle_and_tool_authority_20261002": {
+        "observations": [
+          "agent-browser mouse wheel emitted at (0,0) despite preceding mouse move; trusted coordinate CDP wheel scrolled both actual Inspectors. Initial product-scroll diagnosis was retracted; no speculative CSS repair.",
+          "Parts helper switch||input fallback is distinct from public Inspector matrixInputAvailable-only admission. Corrected canonical contracts f1d99176 retain the mistaken inference in history.",
+          "ZMK controlled test shim imposed newest-only delivery beyond real Session authority; final test uses Session export_is_current and preserves concurrent delivery while keeping latest report ownership."
+        ],
+        "during_port": "Retain raw probes, exact pinned call-site evidence, production authority tests and independent review; no broader acceptance inferred.",
+        "post_port": "Improve browser input adapters and test authority reuse to reduce false failures and false parity claims."
       }
     },
     {
