@@ -162,6 +162,7 @@ pub(super) fn layer_groups_for_scene(
         .map(|entry| entry.contours.as_slice())
         .or_else(|| (document.boards.len() == 1).then_some(scene_contours))
         .unwrap_or_default();
+    let has_edge_cuts = !contours.is_empty() || layers.contains("Edge.Cuts");
     let members: HashSet<&str> = board.part_ids.iter().map(String::as_str).collect();
     let parts: Vec<&Part> = document
         .parts
@@ -206,7 +207,7 @@ pub(super) fn layer_groups_for_scene(
         .filter(|layer| !layer.contains('.') && layer.as_str() != "Edge.Cuts")
         .map(|layer| CanvasLayer::hidden(layer.clone(), visible_layer_label(layer)))
         .collect::<Vec<_>>();
-    if !contours.is_empty() {
+    if has_edge_cuts {
         objects.push(CanvasLayer::hidden("Edge.Cuts", "Board outline"));
     }
     if has_courtyards {
@@ -279,7 +280,7 @@ mod tests {
     use super::*;
     use crate::footprint_forms::{Graphic, Point, Shape};
     use boardstudio_application::SessionEpoch;
-    use boardstudio_core::model::{PadShape, Vec2};
+    use boardstudio_core::model::{PadShape, PartGenerator, PartKind, Vec2};
     use std::rc::Rc;
     use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -315,6 +316,56 @@ mod tests {
         let current_request = GeneratorLayerRequest {
             scope: scope("right"),
             sources: vec![],
+        };
+        let previous = GeneratorLayerInventory {
+            request: old_request,
+            layers: BTreeSet::from(["F.SilkS".into()]),
+        };
+        assert!(current_generator_layers(&current_request, Some(&previous)).is_empty());
+    }
+
+    #[wasm_bindgen_test]
+    fn completed_inventory_from_an_old_generator_definition_is_not_reused() {
+        let scope = Scope {
+            session_epoch: SessionEpoch(2),
+            document_id: "doc".into(),
+            board_id: "left".into(),
+            instance_id: None,
+        };
+        let definition = |id: &str| PartDefinition {
+            hardware_profile: None,
+            input_profile: None,
+            id: id.into(),
+            name: id.into(),
+            kind: PartKind::Custom,
+            keycap: None,
+            envelope_source: None,
+            kicad_source: None,
+            terminals: Default::default(),
+            matrix_terminals: None,
+            envelope_notice: None,
+            courtyard: vec![],
+            pads: vec![],
+            models: None,
+            generator: Some(PartGenerator {
+                source: id.into(),
+                version: "1".into(),
+                parameters: Default::default(),
+            }),
+            mechanical_profile: None,
+        };
+        let source = |id: &str| GeneratorLayerSource {
+            definition: definition(id),
+            parameters: None,
+            side: Side::Front,
+        };
+        let old_request = GeneratorLayerRequest {
+            scope: scope.clone(),
+            sources: vec![source("old")],
+        };
+        let current_request = GeneratorLayerRequest {
+            scope,
+            sources: vec![source("new")],
         };
         let previous = GeneratorLayerInventory {
             request: old_request,

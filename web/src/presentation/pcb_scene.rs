@@ -627,5 +627,20 @@ mod mounted_layer_tests {
             crate::presentation::footprint_graphics::resolve_board_layer("F.SilkS", &Side::Back),
             "B.SilkS"
         );
+
+        let generated_edge = crate::presentation::pcb_layers::layer_groups_for_scene(
+            &snapshot.document,
+            &[],
+            &[],
+            &scope,
+            BTreeSet::from(["Edge.Cuts".into()]),
+        );
+        let edge_rows = generated_edge
+            .iter()
+            .flat_map(|group| &group.layers)
+            .filter(|layer| layer.id == "Edge.Cuts")
+            .collect::<Vec<_>>();
+        assert_eq!(edge_rows.len(), 1);
+        assert_eq!(edge_rows[0].label, "Board outline");
     }
 }
