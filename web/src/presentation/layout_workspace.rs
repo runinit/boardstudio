@@ -37,6 +37,8 @@ pub(super) struct ToolbarInput {
 }
 
 pub(super) struct InspectorInput {
+    pub(super) geometry_scripts_open: bool,
+    pub(super) on_close_geometry_scripts: EventHandler<()>,
     pub(super) context_title: Option<String>,
     pub(super) context_detail: Option<String>,
     pub(super) show_position_inspector: bool,
@@ -57,7 +59,8 @@ pub(super) fn objects(input: ObjectsInput) -> Element {
                 on_select: input.shared.on_select,
                 on_navigate: input.shared.on_navigate,
                 on_nudge: input.shared.on_nudge,
-            board_setup: Some(input.shared.board_setup),
+                on_open_geometry_scripts: input.shared.on_open_geometry_scripts,
+                board_setup: Some(input.shared.board_setup),
                 matrix_setup: Some(input.matrix_setup),
                 matrix_inspector: Some(input.matrix_inspector),
                 mirrored_pair: Some(input.mirrored_pair),
@@ -127,6 +130,13 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
 }
 
 pub(super) fn inspector(input: InspectorInput) -> Element {
+    if input.geometry_scripts_open {
+        return rsx! {
+            super::geometry_scripts::GeometryScriptsEditor {
+                on_back: input.on_close_geometry_scripts,
+            }
+        };
+    }
     rsx! {
         if input.outline_inspector.is_none() && input.component_inspector.is_none() {
         if let Some(title) = input.context_title.as_ref() {

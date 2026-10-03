@@ -12,6 +12,7 @@ mod context_summary;
 mod empty_board_canvas;
 mod export_workspace;
 mod firmware_positions;
+mod geometry_scripts;
 mod inspector;
 mod instance_selection;
 mod keycaps_finding_marker;
@@ -274,6 +275,7 @@ struct WorkspaceCallbackSlots {
     keymap_layer: EventHandler<String>,
     keymap_export: EventHandler<()>,
     show_configured_board: EventHandler<String>,
+    open_geometry_scripts: EventHandler<()>,
 }
 
 #[allow(non_snake_case)]
@@ -2025,10 +2027,12 @@ fn Editor() -> Element {
         keymap_layer: EventHandler::new(|_: String| {}),
         keymap_export: EventHandler::new(|_: ()| {}),
         show_configured_board: EventHandler::new(|_: String| {}),
+        open_geometry_scripts: EventHandler::new(|_: ()| {}),
     });
     let runtime = use_context::<Rc<Runtime>>();
     let mut objects_open = use_signal(|| false);
     let mut inspect_open = use_signal(|| false);
+    let mut geometry_scripts_open = use_signal(|| false);
     let objects_panel_settings = use_panel_settings(PanelSide::Objects);
     let inspector_panel_settings = use_panel_settings(PanelSide::Inspector);
     let created_request_signal = use_context::<Signal<Option<SetupGuideRequest>>>();
@@ -5408,6 +5412,22 @@ fn Editor() -> Element {
     workspace_callbacks
         .show_configured_board
         .replace(Box::new(on_show_configured_board));
+    {
+        let mut workspace = workspace;
+        let mut objects_open = objects_open;
+        let mut inspect_open = inspect_open;
+        let mut geometry_scripts_open = geometry_scripts_open;
+        let inspector_settings = inspector_panel_settings;
+        workspace_callbacks
+            .open_geometry_scripts
+            .replace(Box::new(move |_| {
+                workspace.set("Layout");
+                objects_open.set(false);
+                inspect_open.set(true);
+                geometry_scripts_open.set(true);
+                pin_inspector_on_desktop(inspector_settings);
+            }));
+    }
     workspace_callbacks
         .toggle_footprints
         .replace(Box::new(move |_| {
@@ -5464,6 +5484,7 @@ fn Editor() -> Element {
         on_select: workspace_callbacks.select_tree,
         on_navigate: workspace_callbacks.navigate,
         on_nudge: workspace_callbacks.nudge_tree,
+        on_open_geometry_scripts: workspace_callbacks.open_geometry_scripts,
         board_setup,
     };
     let case_scene = case_workspace::workspace_display_scene(runtime.cad_scene(), &render_scope);
@@ -6101,6 +6122,10 @@ fn Editor() -> Element {
         }
         _ => workspace_composition::WorkspaceInspectorInput::Layout(Box::new(
             layout_workspace::InspectorInput {
+                geometry_scripts_open: geometry_scripts_open(),
+                on_close_geometry_scripts: EventHandler::new(move |()| {
+                    geometry_scripts_open.set(false);
+                }),
                 context_title: context_summary
                     .as_ref()
                     .map(|summary| summary.title.clone()),

@@ -124,6 +124,7 @@ pub(super) fn Objects(
     on_select: EventHandler<TreeSelectRequest>,
     on_navigate: EventHandler<(Scope, String, Option<String>)>,
     on_nudge: EventHandler<TreeNudgeRequest>,
+    on_open_geometry_scripts: EventHandler<()>,
     board_setup: Option<BoardSetupMount>,
     matrix_setup: Option<MatrixSetupMount>,
     mirrored_pair: Option<MirroredPairMount>,
@@ -608,6 +609,14 @@ fn AddObjectEntry(
                                     }
                                 },
                                 "Board outline…"
+                            }
+                            button {
+                                r#type: "button",
+                                onclick: move |_| {
+                                    menu_open.set(false);
+                                    on_open_geometry_scripts.call(());
+                                },
+                                "Geometry scripts…"
                             }
                         }
                     }
