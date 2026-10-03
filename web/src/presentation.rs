@@ -5593,7 +5593,13 @@ fn Editor() -> Element {
             if workspace() != active_workspace
                 || generation() != render_generation
                 || runtime.scope().as_ref() != Some(&owner_scope)
-                || !runtime.ready_saved()
+                || model.lifecycle != Lifecycle::Ready
+                || model.durability
+                    != (Durability::Saved {
+                        revision: owner_revision,
+                    })
+                || model.gesture.is_some()
+                || model.display_preview.is_some()
                 || !model.accepted.as_ref().is_some_and(|accepted| {
                     accepted.token == owner_token && accepted.document.revision == owner_revision
                 })
@@ -6723,7 +6729,10 @@ fn Editor() -> Element {
                     }
                     if show_empty_board {
                         empty_board_canvas::EmptyBoardCanvas {
-                            editable: runtime.ready_saved(),
+                            editable: model.lifecycle == Lifecycle::Ready
+                                && model.durability == (Durability::Saved { revision: snapshot.document.revision })
+                                && model.gesture.is_none()
+                                && model.display_preview.is_none(),
                             on_matrix: on_empty_board_matrix,
                             on_parts: on_browse_parts,
                         }
