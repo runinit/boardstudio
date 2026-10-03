@@ -128,9 +128,9 @@ pub(crate) fn CaseViewer(
         .unwrap_or_default();
     let direct_handles = case_viewer_handles(&scene, mechanical_settings.as_ref());
     let gesture = use_hook(|| Rc::new(RefCell::new(None::<CaseGestureDraft>)));
-    let mut handle_preview = use_signal(|| None::<Vec<ViewerHandle>>);
-    let mut gesture_field = use_signal(|| None::<String>);
-    let mut gesture_message = use_signal(|| None::<String>);
+    let handle_preview = use_signal(|| None::<Vec<ViewerHandle>>);
+    let gesture_field = use_signal(|| None::<String>);
+    let gesture_message = use_signal(|| None::<String>);
     use_effect(use_reactive(
         (
             &scene.scope,
@@ -157,6 +157,7 @@ pub(crate) fn CaseViewer(
         let direct_handles = direct_handles.clone();
         let mechanical_settings = mechanical_settings.clone();
         let gesture = gesture.clone();
+        let mut selection = selection;
         let mut handle_preview = handle_preview;
         let mut gesture_field = gesture_field;
         let mut gesture_message = gesture_message;
@@ -529,7 +530,7 @@ fn handle_case_gesture(
     preview: &mut Signal<Option<Vec<ViewerHandle>>>,
     feedback_field: &mut Signal<Option<String>>,
     message: &mut Signal<Option<String>>,
-    selection: CaseSelection,
+    mut selection: CaseSelection,
     phase: HandleGesturePhase,
     handle_id: &str,
     point: Option<[f32; 3]>,

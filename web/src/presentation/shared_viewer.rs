@@ -897,7 +897,6 @@ fn project_layout_preview(
         identity,
         input,
         layers,
-        handles: Vec::new(),
     })
 }
 
@@ -1304,7 +1303,7 @@ fn SharedViewer(
                     return;
                 }
                 let active =
-                    active_case_handles(handles, preview.as_deref(), edit_gaskets, edit_mounts);
+                    active_case_handles(&handles, preview.as_deref(), edit_gaskets, edit_mounts);
                 let result = handles_value(&active).and_then(|handles| {
                     host.borrow()
                         .as_ref()

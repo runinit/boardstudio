@@ -13,6 +13,7 @@ use boardstudio_core::model::{
     MatrixSplayChange, Vec2,
 };
 use dioxus::prelude::*;
+use dioxus_web::WebEventExt;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::JsCast;
 use web_sys::SvgElement;
@@ -122,7 +123,7 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
     let runtime_inner = runtime.0.clone();
     let arbiter_for_drop = arbiter.clone();
     let drag_for_drop = drag.clone();
-    let guide_for_drop = snap_guide;
+    let mut guide_for_drop = snap_guide;
     use_drop(move || {
         cancel_transform_drag(
             &runtime_inner,
@@ -242,8 +243,9 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
     let svg_for_start = svg.0.clone();
     let drag_for_start = drag.clone();
     let arbiter_for_start = arbiter.clone();
-    let mut guide_for_start = snap_guide;
+    let guide_for_start = snap_guide;
     let start_drag = Rc::new(move |event: PointerEvent, gesture: TransformGesture| {
+        let mut guide_for_start = guide_for_start;
         let Some(pointer) = event.data().try_as_web_event() else {
             return;
         };
@@ -280,9 +282,14 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
             TransformGesture::Splay { origin, .. } => origin,
             _ => Vec2::default(),
         };
-        let Some(start_point) =
-            super::coordinates(&svg_for_start, &pointer, view_x, view_y, width, height)
-        else {
+        let Some(start_point) = crate::presentation::coordinates(
+            &svg_for_start,
+            &pointer,
+            view_x,
+            view_y,
+            width,
+            height,
+        ) else {
             let _ = capture.release_pointer_capture(pointer.pointer_id());
             arbiter_for_start.release(CanvasInteractionOwner::MatrixTransform);
             return;
@@ -318,8 +325,9 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
     let svg_for_move = svg.0.clone();
     let drag_for_move = drag.clone();
     let arbiter_for_move = arbiter.clone();
-    let mut guide_for_move = snap_guide;
+    let guide_for_move = snap_guide;
     let move_drag = Rc::new(move |event: PointerEvent| {
+        let mut guide_for_move = guide_for_move;
         let Some(pointer) = event.data().try_as_web_event() else {
             return;
         };
@@ -349,9 +357,14 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
             );
             return;
         }
-        let Some(point) =
-            super::coordinates(&svg_for_move, &pointer, view_x, view_y, width, height)
-        else {
+        let Some(point) = crate::presentation::coordinates(
+            &svg_for_move,
+            &pointer,
+            view_x,
+            view_y,
+            width,
+            height,
+        ) else {
             return;
         };
         let operation = sample_transform(
@@ -385,8 +398,9 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
     let svg_for_end = svg.0.clone();
     let drag_for_end = drag.clone();
     let arbiter_for_end = arbiter.clone();
-    let mut guide_for_end = snap_guide;
+    let guide_for_end = snap_guide;
     let end_drag = Rc::new(move |event: PointerEvent| {
+        let mut guide_for_end = guide_for_end;
         let Some(pointer) = event.data().try_as_web_event() else {
             return;
         };
@@ -425,7 +439,8 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
             );
             return;
         }
-        let point = super::coordinates(&svg_for_end, &pointer, view_x, view_y, width, height);
+        let point =
+            crate::presentation::coordinates(&svg_for_end, &pointer, view_x, view_y, width, height);
         let operation = point
             .and_then(|point| {
                 sample_transform(
@@ -471,8 +486,9 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
     let runtime_for_cancel = runtime.0.clone();
     let drag_for_cancel = drag.clone();
     let arbiter_for_cancel = arbiter.clone();
-    let mut guide_for_cancel = snap_guide;
+    let guide_for_cancel = snap_guide;
     let cancel_drag = Rc::new(move |event: PointerEvent| {
+        let mut guide_for_cancel = guide_for_cancel;
         let Some(pointer) = event.data().try_as_web_event() else {
             return;
         };
@@ -495,8 +511,9 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
     let runtime_for_key = runtime.0.clone();
     let drag_for_key = drag.clone();
     let arbiter_for_key = arbiter.clone();
-    let mut guide_for_key = snap_guide;
+    let guide_for_key = snap_guide;
     let on_key_down = Rc::new(move |event: KeyboardEvent| {
+        let mut guide_for_key = guide_for_key;
         let Some(key) = event.data().try_as_web_event() else {
             return;
         };
@@ -526,7 +543,7 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
     };
     rsx! {
         if let Some(guide) = snap_guide() {
-            g { class: "m1-transform-snap-guide", aria_hidden: "true",
+            g { class: "m1-transform-snap-guide", "aria-hidden": "true",
                 circle { cx: "{guide.x}", cy: "{guide.y}", r: "{width / 170.0}" }
             }
         }
@@ -534,7 +551,7 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
             g {
                 class: "m1-transform-handle m1-stagger-handle",
                 transform: "translate({handle_point.x} {handle_point.y})",
-                role: "button", tabindex: "0", aria_label: "Drag to stagger",
+                role: "button", tabindex: "0", "aria-label": "Drag to stagger",
                 onpointerdown: { let start = start_drag.clone(); move |event| start(event, gesture) },
                 onpointermove: { let handler = move_drag.clone(); move |event| handler(event) },
                 onpointerup: { let handler = end_drag.clone(); move |event| handler(event) },
@@ -552,7 +569,7 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
                 g {
                     class: "m1-transform-handle m1-splay-origin-handle",
                     transform: "translate({handle_point.x} {handle_point.y}) scale({handle_scale})",
-                    role: "button", tabindex: "0", aria_label: "Move splay origin",
+                    role: "button", tabindex: "0", "aria-label": "Move splay origin",
                     onpointerdown: { let start = start_drag.clone(); move |event| start(event, TransformGesture::Origin { column: selected_column }) },
                     onpointermove: { let handler = move_drag.clone(); move |event| handler(event) },
                     onpointerup: { let handler = end_drag.clone(); move |event| handler(event) },
@@ -576,7 +593,7 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
                             g {
                                 class: "m1-transform-handle m1-splay-angle-handle",
                                 transform: "translate({angle_point.x} {angle_point.y}) scale({handle_scale})",
-                                role: "button", tabindex: "0", aria_label: "Drag to splay",
+                                role: "button", tabindex: "0", "aria-label": "Drag to splay",
                                 onpointerdown: { let start = start_drag.clone(); move |event| start(event, gesture) },
                                 onpointermove: { let handler = move_drag.clone(); move |event| handler(event) },
                                 onpointerup: { let handler = end_drag.clone(); move |event| handler(event) },
@@ -918,7 +935,7 @@ fn same_transform_as_start(drag: &TransformDrag, operation: &EditOperation) -> b
 }
 
 fn submit_transform_edit(
-    runtime: &Runtime,
+    runtime: &Rc<Runtime>,
     drag: &TransformDrag,
     operation: EditOperation,
     phase: EditPhase,
@@ -938,7 +955,7 @@ fn submit_transform_edit(
     });
 }
 
-fn clear_transform_preview(runtime: &Runtime, drag: &TransformDrag) {
+fn clear_transform_preview(runtime: &Rc<Runtime>, drag: &TransformDrag) {
     if !drag.preview_submitted {
         return;
     }
@@ -958,7 +975,7 @@ fn clear_transform_preview(runtime: &Runtime, drag: &TransformDrag) {
 }
 
 fn cancel_transform_drag(
-    runtime: &Runtime,
+    runtime: &Rc<Runtime>,
     drag: &Rc<RefCell<Option<TransformDrag>>>,
     arbiter: &CanvasInteractionArbiter,
     guide: &mut Signal<Option<Vec2>>,

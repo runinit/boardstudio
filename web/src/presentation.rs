@@ -1798,7 +1798,9 @@ fn layout_view_mode_handler(
                     }
                 }
                 Some(CanvasInteractionOwner::MatrixTransform) => {
-                    canvas_interaction.release(CanvasInteractionOwner::MatrixTransform);
+                    placements
+                        .interactions
+                        .release(CanvasInteractionOwner::MatrixTransform);
                 }
                 Some(CanvasInteractionOwner::MirroredPair) | None => {}
             }
@@ -2425,7 +2427,7 @@ fn Editor() -> Element {
     let layout_snap_settings = use_signal(objects::LayoutSnapSettings::default);
     let layout_command_menu = use_signal(|| None::<objects::LayoutCommandMenu>);
     let mut layout_transform_tool = use_signal(|| None::<objects::LayoutTransformTool>);
-    let mut layout_transform_tool_owner =
+    let layout_transform_tool_owner =
         use_signal(|| None::<(Option<Scope>, u64, Option<String>, &'static str, bool)>);
     let mut layout_assembly_3d = use_signal(|| false);
     let tree_cell_anchor = use_hook(|| Rc::new(RefCell::new(None::<OwnedTreeCellAnchor>)));
@@ -3669,11 +3671,11 @@ fn Editor() -> Element {
         let generation = render_generation;
         let token = snapshot.token;
         let revision = snapshot.document.revision;
-        let mut workspace = workspace;
+        let workspace = workspace;
         let mut parts_selection = parts_selection;
         let mut parts_selection_generation = parts_selection_generation;
         let mut parts_preview_activation = parts_preview_activation;
-        let mut objects_open = objects_open;
+        let objects_open = objects_open;
         let mut inspect_open = inspect_open;
         let objects_panel_settings = objects_panel_settings;
         move |module_id: String| {
