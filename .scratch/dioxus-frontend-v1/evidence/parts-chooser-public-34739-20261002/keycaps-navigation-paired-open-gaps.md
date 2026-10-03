@@ -31,3 +31,5 @@ This demonstrates routing and single-key selection, while retaining a concrete o
 - Dioxus screenshot: `/home/chris/.local/share/boardstudio/retained-tmp/20261002/keycaps-nav-c6-34739-layout-route.png`, SHA-256 `17d349ba6d5cae73ac8b138f30270c74f74b8f4c34ab759823b6208a991ac03f`.
 
 The unrelated missing original F6C.4 fixture/provenance gate remains open; this c6 fixture is a separate, clearly identified retained archive.
+
+Root visually inspected both retained screenshots: React command pill says Select: Part and opens component Properties/Relations; Dioxus says Select: Key and opens key-size/local-transform Inspector. This is an additional selection-mode/contextual-Inspector parity defect, not merely a naming difference. The navigation owner has been instructed to include it with finding-geometry fit correction.
