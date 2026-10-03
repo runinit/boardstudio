@@ -55,8 +55,8 @@ mod pcb_workspace;
 mod selection;
 mod setup_guide;
 mod shared_viewer;
-mod workspace_composition;
 mod workbench_shortcuts;
+mod workspace_composition;
 mod zmk_firmware_export;
 
 use crate::case_generation_lifecycle::AutomaticCaseGeneration;
@@ -1370,7 +1370,7 @@ fn pcb_add_outline_select_handler(
 ) -> EventHandler<objects::TreeSelectRequest> {
     let mut workspace = workspace;
     let mut assembly_3d = assembly_3d;
-    EventHandler::new(move |request| {
+    EventHandler::new(move |request: objects::TreeSelectRequest| {
         let objects::TreeContext::Outline { board_id } = &request.context else {
             on_select.call(request);
             return;

@@ -599,7 +599,7 @@ fn owner_is_current(
 }
 
 fn settle_pending(
-    runtime: &Runtime,
+    runtime: &Rc<Runtime>,
     workspace: &'static str,
     scope_generation: u64,
     pending: &mut Signal<Option<PendingExistingHalf>>,
@@ -713,7 +713,7 @@ pub(in crate::presentation) struct ExistingHalfProps {
 #[component]
 pub(in crate::presentation) fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
     let owner = props.projection.owner.clone();
-    let default_choice = use_signal(|| "all".to_owned());
+    let mut default_choice = use_signal(|| "all".to_owned());
     let choice = default_choice();
     let default_axis = format!("{:.2}", owner.default_axis_x);
     let mut axis = use_signal(|| default_axis.clone());
@@ -727,11 +727,12 @@ pub(in crate::presentation) fn ExistingHalfSetup(props: ExistingHalfProps) -> El
     let can_create = props.projection.editable && has_sources && axis_number.is_some();
     let on_create = props.on_create;
     let owner_submit = owner.clone();
+    let axis_submit = axis_value.clone();
     let choice_submit = choice.clone();
     let options = owner.options.clone();
     let submit = move |event: FormEvent| {
         event.prevent_default();
-        let Some(axis_x) = axis_value
+        let Some(axis_x) = axis_submit
             .trim()
             .parse::<f64>()
             .ok()
@@ -758,6 +759,7 @@ pub(in crate::presentation) fn ExistingHalfSetup(props: ExistingHalfProps) -> El
         });
     };
     let cancel = props.on_cancel;
+    let owner_escape = owner.clone();
     let error = props.projection.error.clone();
     let status = props.projection.status.clone();
 
@@ -769,7 +771,7 @@ pub(in crate::presentation) fn ExistingHalfSetup(props: ExistingHalfProps) -> El
                 if event.key().to_string() == "Escape" && props.projection.can_cancel {
                     event.prevent_default();
                     event.stop_propagation();
-                    cancel.call(owner.clone());
+                    cancel.call(owner_escape.clone());
                 }
             },
             section { class: "m1-matrix-setup m1-mirrored-pair-setup",
