@@ -848,6 +848,58 @@ fn target_board_id(target: &FindingNavigationTarget) -> &str {
 }
 
 #[cfg(test)]
+pub(super) fn browser_navigation_fixture() -> (FindingNavigationRequest, KeycapsFitState, ProjectDoc)
+{
+    use boardstudio_application::SessionEpoch;
+    use boardstudio_core::model::{Board, KeycapResolution};
+
+    let scope = Scope {
+        session_epoch: SessionEpoch(2),
+        document_id: "doc".into(),
+        board_id: "left".into(),
+        instance_id: None,
+    };
+    let source = KeycapsFitSource {
+        scope,
+        token: SnapshotToken(7),
+        revision: 11,
+        case_preview_current: false,
+    };
+    let mut document = ProjectDoc::empty("doc", "Project");
+    document.boards.push(Board {
+        id: "left".into(),
+        name: "Left PCB".into(),
+        outline_ids: vec![],
+        part_ids: vec![],
+        net_ids: vec![],
+        thickness: 1.6,
+        traces: vec![],
+        vias: vec![],
+    });
+    let finding = Finding {
+        id: "board:left:invalid-settings".into(),
+        severity: Severity::Warning,
+        scope: FindingScope::Layout,
+        message: "Board needs review".into(),
+        target_ids: vec!["left".into()],
+    };
+    let mut state = KeycapsFitState::begin(source.clone(), None);
+    state.finish(Ok(KeycapResolution {
+        revision: source.revision,
+        specs: vec![],
+        findings: vec![finding.clone()],
+    }));
+    let request = FindingNavigationRequest {
+        source,
+        finding,
+        target: FindingNavigationTarget::Board {
+            board_id: "left".into(),
+        },
+    };
+    (request, state, document)
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use boardstudio_application::{SessionEpoch, SnapshotToken};

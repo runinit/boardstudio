@@ -581,6 +581,9 @@ mod tests {
     #[derive(Clone)]
     struct MountedProbe {
         expected: NavigationOwner,
+        request: keycaps_fit::FindingNavigationRequest,
+        fit_state: keycaps_fit::KeycapsFitState,
+        document: boardstudio_core::model::ProjectDoc,
         initial_live: LiveNavigationOwner,
         live: Rc<RefCell<Option<Signal<LiveNavigationOwner>>>>,
         schedule: Rc<RefCell<Option<EventHandler<()>>>>,
@@ -642,26 +645,33 @@ mod tests {
         let on_schedule = use_callback({
             let probe = probe.clone();
             move |_: ()| {
-                let request = request(keycaps_fit::FindingNavigationTarget::Part {
-                    board_id: "left".into(),
-                    part_id: "part-a".into(),
-                });
-                let target = request.target.clone();
-                let effects = route_effects(
+                let request = probe.request.clone();
+                let accepted = AcceptedNavigationSource {
+                    scope: request.source.scope.clone(),
+                    token: request.source.token,
+                    revision: request.source.revision,
+                    active_board_id: "left".into(),
+                };
+                let admitted = admit_accepted_request(
                     &request,
-                    &target,
-                    Some(objects::TreeContext::Component {
-                        part_id: Some("part-a".into()),
-                        matrix_id: None,
-                        row: None,
-                        column: None,
-                        assembly_id: None,
-                    }),
-                    probe.expected.generation,
+                    NavigationAdmission {
+                        current_workspace: "Keycaps",
+                        owner: OwnerIdentity {
+                            scope: &request.source.scope,
+                            generation: probe.expected.generation,
+                        },
+                        live_scope: Some(&request.source.scope),
+                        live_generation: probe.expected.generation,
+                        accepted: &accepted,
+                        fit_state: &probe.fit_state,
+                        document: &probe.document,
+                        live_mechanical_layers: Some(&[]),
+                    },
+                    |_| None,
                 )
-                .expect("mounted route fixture is valid");
+                .expect("mounted production admission accepts the current fixture");
                 let mut pending = probe.pending.borrow().expect("mounted pending fit");
-                dispatch_route(effects, &request, |action| {
+                dispatch_route(admitted.effects, &request, |action| {
                     if let RouteAction::QueueLayoutFit(fit) = &action {
                         pending.set(Some(fit.clone()));
                     }
@@ -674,7 +684,11 @@ mod tests {
     }
 
     fn mounted_probe(owner: NavigationOwner) -> (MountedProbe, VirtualDom) {
+        let (request, fit_state, document) = keycaps_fit::browser_navigation_fixture();
         let probe = MountedProbe {
+            request,
+            fit_state,
+            document,
             initial_live: live(&owner),
             expected: owner,
             live: Rc::default(),
@@ -692,17 +706,11 @@ mod tests {
     }
 
     fn owner_fixture() -> NavigationOwner {
+        let (request, _, _) = keycaps_fit::browser_navigation_fixture();
         owner_for_request(
-            &request(keycaps_fit::FindingNavigationTarget::Part {
+            &request,
+            Destination::Layout(objects::TreeContext::Outline {
                 board_id: "left".into(),
-                part_id: "part-a".into(),
-            }),
-            Destination::Layout(objects::TreeContext::Component {
-                part_id: Some("part-a".into()),
-                matrix_id: None,
-                row: None,
-                column: None,
-                assembly_id: None,
             }),
             4,
         )
@@ -909,8 +917,8 @@ mod tests {
         assert_eq!(current_effects[1], FitAction::FocusInspector);
         let mut stale_effects = Vec::new();
         let mut stale_owner = current_owner.clone();
-        stale_owner.destinations = vec![Destination::Layout(objects::TreeContext::Outline {
-            board_id: "left".into(),
+        stale_owner.destinations = vec![Destination::Layout(objects::TreeContext::Matrix {
+            matrix_id: "replacement-matrix".into(),
         })];
         assert!(!finish_destination_fit(
             &owner,
@@ -929,8 +937,8 @@ mod tests {
         let (probe, mut dom) = mounted_probe(owner.clone());
         probe.schedule.borrow().as_ref().unwrap().call(());
         let replacement = LiveNavigationOwner {
-            destinations: vec![Destination::Layout(objects::TreeContext::Outline {
-                board_id: "left".into(),
+            destinations: vec![Destination::Layout(objects::TreeContext::Matrix {
+                matrix_id: "replacement-matrix".into(),
             })],
             ..live(&owner)
         };
