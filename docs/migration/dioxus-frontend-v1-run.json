@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T14:48:16.788587+00:00",
+    "updated_at": "2026-10-03T14:50:20.096987+00:00",
     "parent_counts": {
       "accepted": 10,
       "implementing": 41,
@@ -44,8 +44,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "18f05311",
-      "state": "Larger source batch joined directly. Application checks, packaging, browser qualification and consolidated review are deferred until the coherent candidate is frozen.",
+      "source_commit": "e57fd3a8",
+      "state": "Larger joined source batch frozen for one preview package. Authors continue in isolates; tests/browser qualification/review remain deferred.",
       "packets": [
         {
           "stream": "Layout",
@@ -143,6 +143,12 @@
           "integrated_commit": "18f05311",
           "change": "Routed-board reference pose and existing model mappings",
           "receipt": ".scratch/dioxus-frontend-v1/issues/05-pcb.md"
+        },
+        {
+          "stream": "Layout",
+          "integrated_commit": "f7823a24+e57fd3a8",
+          "change": "Reference background dot grid",
+          "receipt": ".scratch/dioxus-layout-authoring/evidence/f33-background-grid-dots-20261003.md"
         }
       ],
       "qualification": "Joined source is not acceptance. No new application tests or browser qualification were run for this batch."
@@ -169,7 +175,14 @@
     ],
     "heavy_slots": {
       "policy": "Coordinator assigned; maximum 2 heavy jobs / 1 package",
-      "active": [],
+      "active": [
+        {
+          "kind": "package",
+          "build_id": "frontend-source-batch-20261003-1",
+          "source_commit": "e57fd3a8",
+          "mode": "explicit fixture refresh from full34769; page/offline rebuild; no application tests"
+        }
+      ],
       "check": {
         "source_commit": "3dbcdb38",
         "result": "Failed strict check: two needless Option borrow conversions in Add-object source. Repaired at642d5474; recheck deferred until larger candidate.",
