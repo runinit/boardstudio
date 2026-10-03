@@ -88,6 +88,8 @@ The first F5.5 mounted-placement Inspector child adds the source-overlay-to-Insp
 
 The bounded F2.1 demo-card child keeps the two existing REVIUNG41/Sofle fixture actions, adds read-only previews from their packaged project JSON, and assigns a fresh project ID only when a bundled fixture is opened. The same private Runtime still supplies fixture metadata and unpacks fixture archives, while generic user archive imports retain their archived ID. This is another RF-001 shared Runtime touchpoint; the temporary page-local adapter keeps the Session and document authority unchanged. After parity, assess whether fixture catalogue/preview/copy policy belongs in a narrower page-local module. The combined check and paired repeated-open browser result remain pending. See [Issue 20](../../.scratch/dioxus-frontend-tranche-1/issues/20-project-demo-cards-fresh-copies.md).
 
+The matched34767 Objects comparison found generic physical-instance/grouping controls and a duplicate project heading moving the Layout hierarchy down by about159px. The bounded correction gives the existing panel one private grouping preference and composes its UI into the options menu; the tree consumes that same preference. Physical assembly choice remains contextual to Case. Preset completion also required current selection/context guards beyond Scope generation so late feedback cannot replace a newer user intent. These extend RF-001’s owner/composition observations; the broader refactor should assess explicit pane and completion-owner interfaces. No second document store is introduced, and the next candidate must prove the changed UI.
+
 ## RF-002
 
 **Internal browser host types are exposed as crate APIs** — architecture / API design. confirmed observation; future cost is a design risk.

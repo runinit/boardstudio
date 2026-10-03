@@ -85,7 +85,14 @@ pub(super) fn ObjectsPanel(
     settings: Signal<PanelSettings>,
     children: Element,
 ) -> Element {
-    panel_frame(PanelSide::Objects, compact_open, settings, children)
+    let options = super::objects::use_object_options();
+    panel_frame(
+        PanelSide::Objects,
+        compact_open,
+        settings,
+        children,
+        Some(options),
+    )
 }
 
 #[component]
@@ -95,7 +102,7 @@ pub(super) fn InspectorPanel(
     children: Element,
 ) -> Element {
     let body = rsx! { div { class: "m1-inspector-body", {children} } };
-    panel_frame(PanelSide::Inspector, compact_open, settings, body)
+    panel_frame(PanelSide::Inspector, compact_open, settings, body, None)
 }
 
 fn panel_frame(
@@ -103,6 +110,7 @@ fn panel_frame(
     compact_open: Signal<bool>,
     settings: Signal<PanelSettings>,
     children: Element,
+    options: Option<Element>,
 ) -> Element {
     let compact = use_compact_viewport();
     let menu_open = use_signal(|| false);
@@ -267,14 +275,32 @@ fn panel_frame(
                         focus_element(ids.options_trigger);
                         return;
                     }
+                    if compact() {
+                        event.prevent_default();
+                        event.stop_propagation();
+                        set_bool(compact_open, false);
+                        focus_panel_toggle(side);
+                        return;
+                    }
                     if current.mode == PanelMode::Pinned { return; }
                     event.prevent_default();
                     set_bool(revealed, false);
                     set_bool(focus_rail_after_render, true);
                 },
-                if !compact() {
                     header { class: "m1-panel-heading",
                         h2 { "{ids.title}" }
+                        if compact() {
+                            button {
+                                class: "m1-panel-close",
+                                aria_label: match side { PanelSide::Objects => "Close objects", PanelSide::Inspector => "Close inspector" },
+                                onclick: move |_| {
+                                    set_bool(menu_open, false);
+                                    set_bool(compact_open, false);
+                                    focus_panel_toggle(side);
+                                },
+                                svg { "aria-hidden": "true", view_box: "0 0 16 16", path { d: "m4 4 8 8M12 4l-8 8" } }
+                            }
+                        }
                         button {
                             id: ids.options_trigger,
                             class: "m1-panel-options-trigger",
@@ -283,7 +309,11 @@ fn panel_frame(
                             aria_controls: ids.options_group,
                             title: ids.options_label,
                             onclick: move |_| set_bool(menu_open, !menu_open()),
-                            "Options"
+                            svg { "aria-hidden": "true", view_box: "0 0 16 16",
+                                circle { cx: "8", cy: "3", r: "1.2" }
+                                circle { cx: "8", cy: "8", r: "1.2" }
+                                circle { cx: "8", cy: "13", r: "1.2" }
+                            }
                         }
                     }
                     if menu_open() {
@@ -300,11 +330,13 @@ fn panel_frame(
                                     focus_element(ids.options_trigger);
                                 }
                             },
-                            button { onclick: move |_| apply_panel_mode(settings, menu_open, revealed, focus_rail_after_render, if current.mode == PanelMode::Autohide { PanelMode::Pinned } else { PanelMode::Autohide }), "{primary_action}" }
-                            button { onclick: move |_| apply_panel_mode(settings, menu_open, revealed, focus_rail_after_render, PanelMode::Collapsed), "{ids.collapse_action}" }
+                            {options}
+                            if !compact() {
+                                button { onclick: move |_| apply_panel_mode(settings, menu_open, revealed, focus_rail_after_render, if current.mode == PanelMode::Autohide { PanelMode::Pinned } else { PanelMode::Autohide }), "{primary_action}" }
+                                button { onclick: move |_| apply_panel_mode(settings, menu_open, revealed, focus_rail_after_render, PanelMode::Collapsed), "{ids.collapse_action}" }
+                            }
                         }
                     }
-                }
                 {children}
             }
         }
@@ -371,6 +403,20 @@ impl PanelSide {
             Self::Objects => "objects",
             Self::Inspector => "inspector",
         }
+    }
+}
+
+fn focus_panel_toggle(side: PanelSide) {
+    let selector = format!(
+        ".m1-compact-panel-controls button[aria-controls='{}']",
+        PanelIds::for_side(side).shell
+    );
+    if let Some(element) = web_sys::window()
+        .and_then(|window| window.document())
+        .and_then(|document| document.query_selector(&selector).ok().flatten())
+        .and_then(|element| element.dyn_into::<HtmlElement>().ok())
+    {
+        let _ = element.focus();
     }
 }
 

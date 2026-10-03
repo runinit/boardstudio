@@ -1089,7 +1089,7 @@ pub(super) fn PartsInspectorPanel(
                     r#type: "button",
                     disabled: placement_busy,
                     onclick: move |_| on_place_assembly.call(preset),
-                    "Place assembly"
+                    "Place key assembly"
                 }
             }
             if let Some(definition) = editable_definition {

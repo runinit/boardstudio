@@ -57,6 +57,36 @@ pub(in crate::presentation) use mirrored_pair_controller::use_mirrored_pair;
 pub(in crate::presentation) use tree::TreeContext;
 use tree::{Grouping, TreeKind};
 
+#[derive(Clone, Copy)]
+struct ObjectTreePreferences {
+    grouping: Signal<Grouping>,
+}
+
+pub(super) fn use_object_options() -> Element {
+    let grouping = use_signal(|| Grouping::from_storage(read_tree_grouping()));
+    use_context_provider(|| ObjectTreePreferences { grouping });
+    rsx! { ObjectOptions { grouping } }
+}
+
+#[component]
+fn ObjectOptions(mut grouping: Signal<Grouping>) -> Element {
+    rsx! {
+        label { "Group objects"
+            select {
+                "aria-label": "Tree grouping",
+                value: if grouping() == Grouping::Row { "row" } else { "column" },
+                onchange: move |event: FormEvent| {
+                    let next = Grouping::from_storage(Some(event.value()));
+                    grouping.set(next);
+                    write_tree_grouping(next);
+                },
+                option { value: "column", "Columns" }
+                option { value: "row", "Rows" }
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct ScopedTreeContext {
     pub scope: Scope,
@@ -183,19 +213,7 @@ pub(super) fn Objects(
             }
         },
     ));
-    let mut grouping = use_signal(|| Grouping::from_storage(read_tree_grouping()));
-    let visible_count = document
-        .boards
-        .iter()
-        .find(|board| board.id == board_id)
-        .map(|board| {
-            document
-                .parts
-                .iter()
-                .filter(|part| board.part_ids.contains(&part.id))
-                .count()
-        })
-        .unwrap_or(0);
+    let grouping = use_context::<ObjectTreePreferences>().grouping;
     let instances: Vec<_> = document
         .hardware
         .as_ref()
@@ -208,9 +226,6 @@ pub(super) fn Objects(
         })
         .unwrap_or_default();
     let active_instance = model.active_instance_id.clone().unwrap_or_default();
-    let instance_pending = !instances
-        .iter()
-        .any(|instance| instance.id == active_instance);
     let current_expanded = expanded.read().clone();
     let items = if pcb_workspace {
         tree::build_pcb_tree(&model, &current_expanded)
@@ -316,38 +331,9 @@ pub(super) fn Objects(
                             }
                         }
                     }
-                } else if !pcb_workspace && !instances.is_empty() {
-                    label { "Physical instance"
-                        select { "aria-label": "Physical instance", value: "{active_instance}", onchange: move |event: FormEvent| {
-                            if let Some(scope) = instance_scope.clone() {
-                                let value = event.value();
-                                if !value.is_empty() {
-                                    navigate_instance.call((scope.clone(), scope.board_id, Some(value)));
-                                }
-                            }
-                        },
-                            if instance_pending {
-                                option { value: "", disabled: true, "Selecting assembly…" }
-                            }
-                            for instance in &instances { option { key: "{instance.id}", value: "{instance.id}", "{instance.name}" } }
-                        }
-                    }
-                }
-                if !pcb_workspace {
-                label { "Group objects"
-                    select { "aria-label": "Group objects", value: if grouping() == Grouping::Row { "row" } else { "column" }, onchange: move |event: FormEvent| {
-                        let next = Grouping::from_storage(Some(event.value()));
-                        grouping.set(next);
-                        write_tree_grouping(next);
-                    },
-                        option { value: "column", "Columns" }
-                        option { value: "row", "Rows" }
-                    }
-                }
                 }
             }
             div { class: "m1-object-tree",
-                if !pcb_workspace { div { class: "m1-object-tree-heading", "{document.name}", span { "{visible_count} parts" } } }
                 div { role: "tree", "aria-label": "CAD structure", class: "m1-component-list m1-object-tree-list",
                     for item in items.iter().cloned() {
                         {
