@@ -100,8 +100,8 @@ async fn matrix_cancel_restores_guide_focus_and_new_form_focuses_rows() {
     cancel.focus().unwrap();
     cancel.click();
     rendered().await;
-    let returned_heading = focused().tag_name() == "H2"
-        && focused().text_content().as_deref() == Some("Keyboard setup");
+    let returned_heading =
+        focused().tag_name() == "H2" && focused().text_content().as_deref() == Some("Setup guide");
     assert_eq!(
         (
             initial_heading,

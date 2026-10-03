@@ -78,13 +78,13 @@ pub(super) fn ProjectSetupGuide(
         SetupGuideStage::Review => "Review & export",
     };
     rsx! {
-        aside { class: "m1-setup-guide", "aria-label": "Setup guide",
+        aside { class: "m1-setup-guide", "aria-label": "Project setup guide",
             header { class: "m1-setup-guide__header",
                 div {
                     h2 {
                         tabindex: "-1",
                         onmounted: move |event| async move { let _ = event.set_focus(true).await; },
-                        "Keyboard setup"
+                        "Setup guide"
                     }
                     p { "A step-by-step guide to your keyboard." }
                 }

@@ -324,7 +324,7 @@ pub(in crate::presentation) fn project_setup_controls(mount: PhysicalSetupMount)
     let wired = mount.clone();
     let split = projection.topology == HardwareTopology::Split;
     rsx! {
-        section { class: "m1-project-physical-setup", "aria-label": "Physical assembly setup",
+        section { class: "m1-project-physical-setup", "aria-label": "Physical assembly",
             div { class: "m1-project-setup-choice",
                 span { "Keyboard configuration" }
                 div { role: "group", "aria-label": "Keyboard configuration",
