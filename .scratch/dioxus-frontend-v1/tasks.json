@@ -1475,7 +1475,7 @@
       "acceptance_after": [
         "F3.1"
       ],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
@@ -1497,7 +1497,19 @@
         "checkpoint": "served a201/34740; next baseline8afaaa2f",
         "scope": "Paired34740 layer edits/history/reload; visualfix2cb8e70c; defaultempty andF3.1 acceptance join remain.",
         "acceptance": "No criteria/dependencies waived; partial source and bounded proof only."
-      }
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/keymap-f6k1-acceptance-20261003/DECISION.json"
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T14:28:21.135366+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Sufficient unchanged canonical source/paired proof and existing consolidated Sol readiness; accepted F3.1 final join. No additional test/review handoff.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/keymap-f6k1-acceptance-20261003/DECISION.json"
+        }
+      ]
     },
     {
       "id": "F6K.2",
@@ -3157,8 +3169,8 @@
     "integration_slices": 2,
     "boundary_slices": 2,
     "status": {
-      "accepted": 9,
-      "implementing": 33,
+      "accepted": 10,
+      "implementing": 32,
       "planned": 20
     }
   },

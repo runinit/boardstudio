@@ -1,0 +1,14 @@
+{
+  "parent": "F6K.1",
+  "at": "2026-10-03T14:28:21.102540+00:00",
+  "candidate_source": "7938a895a6d2a9c3b8c09dda25ce70cd45f7d328",
+  "candidate_url": "http://127.0.0.1:34771/boardstudio/",
+  "review": ".scratch/dioxus-frontend-v1/evidence/candidate-34771-20261003/consolidated-review.md",
+  "review_sha256": "2ccabda19fe98a345e80b3662a3da546eebfb75e8a48b01d8df1761a4aee4c4c",
+  "audit": ".scratch/dioxus-frontend-v1/evidence/candidate-34771-20261003/consolidated-audit.json",
+  "audit_sha256": "a8352d86c1093cc5d3b2f7c63d02a3910788650d67fc4619a7a62317a58b1b67",
+  "criteria_accounting": ".scratch/dioxus-keymap-layers/evidence/keymap-frontier-audit-20261003/criterion-accounting.md",
+  "scope": "Unchanged canonical projection/layers/selection/active-label/shared-2D-footer clause. Existing source and paired receipts cover stable supported key identities, layer edits and base protection, canvas/search selection, labels/empty states, camera/zoom, selected mm/footer routing and history neutrality. Compact34770/changed selector34771 proof retained. F3.1 final join accepted. Consolidated Sol assessment recommends ready; no missing canonical K1 criterion.",
+  "decision": "Accepted from sufficient existing proof and completed scope assessment; no new test, browser or review cycle. Final candidate review is referenced once, not copied into this parent folder.",
+  "remaining_outside_scope": "Full Keymap/F6K.4 joins, broader shell4px correction and new source batch qualification remain open; Case handle and Layout transform limits in the candidate review remain explicit."
+}

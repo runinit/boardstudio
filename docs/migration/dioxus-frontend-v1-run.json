@@ -16,10 +16,10 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T14:24:12.299027+00:00",
+    "updated_at": "2026-10-03T14:28:21.135546+00:00",
     "parent_counts": {
-      "accepted": 9,
-      "implementing": 33,
+      "accepted": 10,
+      "implementing": 32,
       "planned": 20,
       "total": 62
     },
@@ -107,9 +107,11 @@
     },
     "execution_policy": "docs/agents/issue-tracker.md#frontend-delivery-records",
     "candidate_review": {
-      "review": "/home/chris/.local/share/boardstudio/reviews/candidate-34769-20261003/REVIEW.md",
-      "audit": "/home/chris/.local/share/boardstudio/reviews/candidate-34769-20261003/AUDIT.json",
-      "state": "Retained consolidated review; further review deferred until larger candidate is ready."
+      "review": ".scratch/dioxus-frontend-v1/evidence/candidate-34771-20261003/consolidated-review.md",
+      "review_sha256": "2ccabda19fe98a345e80b3662a3da546eebfb75e8a48b01d8df1761a4aee4c4c",
+      "audit": ".scratch/dioxus-frontend-v1/evidence/candidate-34771-20261003/consolidated-audit.json",
+      "audit_sha256": "a8352d86c1093cc5d3b2f7c63d02a3910788650d67fc4619a7a62317a58b1b67",
+      "state": "Finalized34771 scope assessments with explicit unqualified broader limits; next source batch review deferred."
     },
     "parent_acceptances": [
       {
@@ -123,6 +125,10 @@
       {
         "parent": "F6C.1",
         "decision_record": ".scratch/dioxus-frontend-v1/evidence/keycaps-f6c1-acceptance-20261003/DECISION.json"
+      },
+      {
+        "parent": "F6K.1",
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/keymap-f6k1-acceptance-20261003/DECISION.json"
       }
     ],
     "active_streams": [
