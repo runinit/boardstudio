@@ -288,6 +288,8 @@ The first Issue 12 source packet proposed a normal `ReplaceDocument` edit to rem
 
 Preview can yield between keycap chunks; a synchronous WASM STEP build cannot be interrupted mid-kernel call. Host cancellation can stop queued work and suppress stale completion without immediately releasing ongoing computation.
 
+The standalone KiCad-footprints export adapter adds the same bounded case to the shared preview-generator worker: only Ergogen jobs from the accepted Core plan use it, and the worker has no per-request cancel message. Runtime's captured scope and identity checks prevent a canceled or superseded operation from delivering a ZIP, but already-running conversion may finish. This is an explicit limit, not a CPU-preemption guarantee; the adapter and cancellation boundary are documented in [architecture.md](../architecture.md). See the F8.2a child ticket for the provider path and remaining export-parent work.
+
 **Impact:** A single cancelled status can obscure remaining CPU/memory work or lead the UI to promise prompt preemption that the engine does not provide.
 
 **During the port:** Preserve chunk/yield preview behavior and late-result suppression; report actual cancellation granularity, keep resource checks and do not add unproven preemption claims.

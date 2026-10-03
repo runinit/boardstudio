@@ -1279,7 +1279,14 @@
         }
       ],
       "continuation_notes": [
-        "2026-10-02 Case11 review7d3e: completed same-scope scene display can remain visible while findings require strict current token. Separate visual projection from actionable diagnostic projection; mounted stale omission/current arrival regression required."
+        "2026-10-02 Case11 review7d3e: completed same-scope scene display can remain visible while findings require strict current token. Separate visual projection from actionable diagnostic projection; mounted stale omission/current arrival regression required.",
+        {
+          "date": "2026-10-03",
+          "source": "727bade154e2091afebb08e39bafd21d55164a62",
+          "observation": "The standalone KiCad-footprints exporter reuses the shared preview-generator worker only for Ergogen jobs returned by the accepted Core export plan. That worker has no per-request cancel operation; Runtime scope/token guards suppress stale file delivery, but cancellation does not guarantee that already-running conversion work stops.",
+          "during_port": "Keep conversion work on the existing provider and preserve captured-owner checks after each await. Do not claim CPU preemption; make a dedicated cancellable provider a later design choice only if measured resource impact warrants it.",
+          "post_port": "Assess cancellation granularity across shared preview consumers and export coordination without duplicating worker ownership."
+        }
       ]
     },
     {
