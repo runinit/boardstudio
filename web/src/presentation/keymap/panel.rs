@@ -24,6 +24,9 @@ pub(in crate::presentation) fn KeymapPanel(
 ) -> Element {
     let mut query = use_signal(String::new);
     let mut selected_editor = use_signal(|| KeymapEditor::Keys);
+    let mut keys_section_open = use_signal(|| true);
+    let mut macros_section_open = use_signal(|| true);
+    let mut encoders_section_open = use_signal(|| true);
     // React keys the Inspector by its accepted selection owner. Keep query and tab
     // presentation local to that owner, without changing shared Session selection.
     use_effect(use_reactive((&scope, &selected_key_id), move |_| {
@@ -131,7 +134,16 @@ pub(in crate::presentation) fn KeymapPanel(
                                 class: if pressed { "m1-keymap-editor-tab is-active" } else { "m1-keymap-editor-tab" },
                                 r#type: "button",
                                 "aria-pressed": "{pressed}",
-                                onclick: move |_| selected_editor.set(editor),
+                                onclick: move |_| {
+                                    if selected_editor() != editor {
+                                        match editor {
+                                            KeymapEditor::Keys => keys_section_open.set(true),
+                                            KeymapEditor::Macros => macros_section_open.set(true),
+                                            KeymapEditor::Encoders => encoders_section_open.set(true),
+                                        }
+                                        selected_editor.set(editor);
+                                    }
+                                },
                                 "{label}"
                             }
                         }
@@ -146,8 +158,11 @@ pub(in crate::presentation) fn KeymapPanel(
                 "Export ZMK source"
             }
             if selected_editor() == KeymapEditor::Keys {
-                details { class: "m1-keymap-editor-section", open: true,
-                    summary { span { "{heading}" } }
+                details { class: "m1-keymap-editor-section", open: keys_section_open(),
+                    summary { onclick: move |event: MouseEvent| {
+                        event.prevent_default();
+                        keys_section_open.set(!keys_section_open());
+                    }, span { "{heading}" } }
                     div { class: "m1-keymap-section-body",
                         label { class: "m1-keymap-search-label", "Find a key"
                             input {
@@ -191,15 +206,21 @@ pub(in crate::presentation) fn KeymapPanel(
                     }
                 }
             } else if selected_editor() == KeymapEditor::Macros {
-                details { class: "m1-keymap-editor-section", open: true,
-                    summary { span { "Macros" } }
+                details { class: "m1-keymap-editor-section", open: macros_section_open(),
+                    summary { onclick: move |event: MouseEvent| {
+                        event.prevent_default();
+                        macros_section_open.set(!macros_section_open());
+                    }, span { "Macros" } }
                     div { class: "m1-keymap-section-body",
                         {macros_editor}
                     }
                 }
             } else {
-                details { class: "m1-keymap-editor-section", open: true,
-                    summary { span { "{encoder_heading}" } }
+                details { class: "m1-keymap-editor-section", open: encoders_section_open(),
+                    summary { onclick: move |event: MouseEvent| {
+                        event.prevent_default();
+                        encoders_section_open.set(!encoders_section_open());
+                    }, span { "{encoder_heading}" } }
                     div { class: "m1-keymap-section-body",
                         {encoders_editor}
                     }
