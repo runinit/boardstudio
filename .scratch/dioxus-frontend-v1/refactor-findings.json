@@ -418,6 +418,15 @@
         "post_port": "After parity, assess a narrower page-local bundled-project catalog/copy adapter so reusable preview metadata and archive-copy policy do not accumulate in the shared Runtime surface.",
         "validation": "Paired public journey on React 5a472a94 and candidate 3a080e0e showed both fixture-derived cards, distinct accepted IDs for repeated starts, saved cards, and saved-card reopen. Candidate source maps generic archive import to None and changes identity only for fixture Some(copy_id); unchanged archive-flow receipts are reused. Combined strict check/package passed; exact journey and asset hashes are in .scratch/dioxus-frontend-tranche-1/evidence/project-demo-cards-fresh-copies-34767/RESULTS.md.",
         "status": "cards, fresh-copy identity, saved listing/reopen qualified for two existing demos; preview fallback and open failure/supersession injection and wider catalogue remain open; RF-001 observation remains; no F2.1 parent closure"
+      },
+      "pcb_module_source_navigation_20261003": {
+        "source": "PCB mounted-module source navigation commit 27c673b4; React Workbench.tsx at 5a472a9426e6e38993361da402cd4ec730feb369",
+        "evidence": ".scratch/dioxus-pcb-view/issues/14-mounted-module-footprints.md; .scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md",
+        "observation": "The pinned React module overlay routes to the Parts source Inspector, while Dioxus had routed directly to its PCB placement-only Inspector. The correction now routes through the existing scoped TreeContext plus the existing scope-tagged PartsSelection, and the source Inspector returns to that exact mounted instance only while board, session, token/revision, selected source definition and module context still match. This adds callback wiring to shared presentation composition and leaves source definition and placement as separate feature owners.",
+        "current_mitigation": "Keep the mounted instance in TreeContext::MountedModule and source choice in the existing scoped PartsSelection; do not create a second selection/draft store or synthesize host Part identity.",
+        "post_port_follow_up": "Evaluate a typed Parts selection target for definitions, variants and mounted-instance return context after parity; measure shared presentation change intersections before extracting navigation ownership.",
+        "validation": "Source commit is isolated; cargo fmt and diff whitespace checks pass. The next integrated candidate still needs the changed pointer/Enter/Space-to-Parts route and exact-placement return journey; no build/public/parent acceptance is claimed.",
+        "status": "bounded source implementation; combined compile and paired route qualification pending; RF-001/RF-006 retained without a new ID"
       }
     },
     {
