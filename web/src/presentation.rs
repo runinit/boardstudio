@@ -246,7 +246,7 @@ struct WorkspaceCallbackSlots {
     keymap_select: EventHandler<String>,
     keycaps_select: EventHandler<String>,
     keycaps_finding: EventHandler<keycaps_fit::FindingNavigationRequest>,
-    pcb_empty_hit: EventHandler<MouseEvent>,
+    pcb_empty_hit: EventHandler<PointerEvent>,
     pcb_part_hit: EventHandler<pcb_scene::PcbPartHit>,
     pcb_part_pointer_down: EventHandler<pcb_scene::PcbPartPointerDown>,
     pcb_wiring_edit_board: EventHandler<()>,
@@ -1942,7 +1942,7 @@ fn Editor() -> Element {
         keymap_select: EventHandler::new(|_: String| {}),
         keycaps_select: EventHandler::new(|_: String| {}),
         keycaps_finding: EventHandler::new(|_: keycaps_fit::FindingNavigationRequest| {}),
-        pcb_empty_hit: EventHandler::new(|_: MouseEvent| {}),
+        pcb_empty_hit: EventHandler::new(|_: PointerEvent| {}),
         pcb_part_hit: EventHandler::new(|_: pcb_scene::PcbPartHit| {}),
         pcb_part_pointer_down: EventHandler::new(|_: pcb_scene::PcbPartPointerDown| {}),
         pcb_wiring_edit_board: EventHandler::new(|_: ()| {}),
@@ -3227,51 +3227,6 @@ fn Editor() -> Element {
             }
             objects_open.set(false);
             inspect_open.set(true);
-        }
-    };
-    let on_pcb_empty_hit = {
-        let runtime = runtime.clone();
-        let adapter = adapter.clone();
-        let scope = render_scope.clone();
-        let generation = render_generation;
-        let token = snapshot.token;
-        move |_: MouseEvent| {
-            if workspace() != "PCB"
-                || runtime.scope().as_ref() != Some(&scope)
-                || (adapter.generation)() != generation
-            {
-                return;
-            }
-            let model = runtime.model();
-            if !active_board_scope_matches(&model, &scope) || !instance_selection.is_current(&model)
-            {
-                return;
-            }
-            let Some(snapshot) = model
-                .accepted
-                .as_ref()
-                .filter(|snapshot| snapshot.token == token)
-            else {
-                return;
-            };
-            if !snapshot
-                .document
-                .boards
-                .iter()
-                .any(|board| board.id == scope.board_id)
-            {
-                return;
-            }
-            let mut selected_context = adapter.selected_context;
-            selected_context.set(None);
-            let mut anchor_scope = adapter.anchor_scope;
-            anchor_scope.set(None);
-            runtime.submit(Event::SelectParts {
-                operation_id: runtime.operation(),
-                part_ids: Vec::new(),
-                range_part_ids: Vec::new(),
-                mode: SelectionMode::Replace,
-            });
         }
     };
     let on_pcb_part_hit = {
@@ -5145,6 +5100,61 @@ fn Editor() -> Element {
                 active: false,
                 pan: false,
                 camera: Vec2::default(),
+            });
+        }
+    };
+    let on_pcb_empty_hit = {
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let scope = render_scope.clone();
+        let generation = render_generation;
+        let token = snapshot.token;
+        let space_down = space_down.clone();
+        let drag = drag.clone();
+        let canvas_interaction = canvas_interaction.clone();
+        move |event: PointerEvent| {
+            let Some(pointer) = event.data().try_as_web_event() else {
+                return;
+            };
+            if pointer.button() != 0
+                || space_down.get()
+                || drag.borrow().is_some()
+                || canvas_interaction.current().is_some()
+                || workspace() != "PCB"
+                || runtime.scope().as_ref() != Some(&scope)
+                || (adapter.generation)() != generation
+            {
+                return;
+            }
+            let model = runtime.model();
+            if !active_board_scope_matches(&model, &scope) || !instance_selection.is_current(&model)
+            {
+                return;
+            }
+            let Some(snapshot) = model
+                .accepted
+                .as_ref()
+                .filter(|snapshot| snapshot.token == token)
+            else {
+                return;
+            };
+            if !snapshot
+                .document
+                .boards
+                .iter()
+                .any(|board| board.id == scope.board_id)
+            {
+                return;
+            }
+            let mut selected_context = adapter.selected_context;
+            selected_context.set(None);
+            let mut anchor_scope = adapter.anchor_scope;
+            anchor_scope.set(None);
+            runtime.submit(Event::SelectParts {
+                operation_id: runtime.operation(),
+                part_ids: Vec::new(),
+                range_part_ids: Vec::new(),
+                mode: SelectionMode::Replace,
             });
         }
     };

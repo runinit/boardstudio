@@ -174,6 +174,15 @@
           "evidence": ".scratch/dioxus-pcb-view/issues/13-canvas-command-pill.md",
           "observation": "The PCB command pill reuses the shared UI and existing accepted selection, matrix transform, align, snap and Session gesture paths. Private transform/align owners now carry an exact Layout-or-PCB route identity; the Layout admission remains exact and PCB uses a separate current-owner check. This is bounded composition mitigation under RF-001, not a generalized workspace framework or public acceptance claim.",
           "status": "isolated implementation committed; strict WASM Clippy and test-target compilation pass; browser journey and root integration remain open"
+        },
+        {
+          "source": "Repair base ed5af2c9d3f0962680c43c4e681c7f8a86651151; reproduced package source 32a57ed3; React 5a472a9426e6e38993361da402cd4ec730feb369",
+          "evidence": ".scratch/dioxus-pcb-view/evidence/pcb-modifier-click-repair-20261003/red.json",
+          "observation": "PCB part pointer-down selected while capture-retargeted compatibility click reached the SVG empty-hit path and cleared selection. Trusted Control-click SW2 from selected SW1 reproduced actual [].",
+          "current_mitigation": "Pointer-down owns PCB pointer selection; the empty-space path excludes primary-pan/drag/arbiter conflicts and keeps current accepted-source guards. Click-only accessibility activation retains scoped part-hit admission. Capture, movement threshold, release/cancel and one-step history are unchanged.",
+          "post_port_follow_up": "Keep normalized pointer gestures and activation routing under one explicit host lifecycle owner; do not infer empty hits from capture-retargeted compatibility clicks.",
+          "validation": "Run trusted native Ctrl-click browser regression on the integrated package; review focused toggle/plain/range/empty/keyboard/movement/cancel/history behavior. Native selection tests cannot reproduce browser capture retargeting.",
+          "status": "Expected RED retained; integrated browser GREEN and consolidated repair review open at source freeze. No parent acceptance or broad refactor claim."
         }
       ],
       "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted.",

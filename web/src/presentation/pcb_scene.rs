@@ -148,6 +148,12 @@ pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
                             },
                             onclick: move |event: MouseEvent| {
                                 event.stop_propagation();
+                                // Pointer selection is already applied on pointerdown.
+                                // Capture can retarget this compatibility click to the SVG.
+                                // Keep click-only accessibility activation, without toggling twice.
+                                if event.data().try_as_web_event().is_some_and(|event| event.detail() != 0) {
+                                    return;
+                                }
                                 let modifiers = event.data().modifiers();
                                 click_hit.call(PcbPartHit {
                                     scope: click_scope.clone(),

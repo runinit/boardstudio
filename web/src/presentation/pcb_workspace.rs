@@ -24,7 +24,7 @@ pub(super) struct CanvasInput {
     pub(super) selected_ids: Vec<String>,
     pub(super) generation: u64,
     pub(super) handlers: CanvasEventHandlers,
-    pub(super) on_empty_hit: EventHandler<MouseEvent>,
+    pub(super) on_empty_hit: EventHandler<PointerEvent>,
     pub(super) on_part_hit: EventHandler<PcbPartHit>,
     pub(super) on_part_pointer_down: EventHandler<PcbPartPointerDown>,
 }
@@ -77,7 +77,10 @@ pub(super) fn canvas(input: CanvasInput) -> Element {
                 role: "group",
                 "aria-label": "PCB layout; select a part with click, Enter, or Space, hold Space and drag to pan, or use the mouse wheel to zoom",
                 onmounted: handlers.mount,
-                onpointerdown: handlers.start_pan,
+                onpointerdown: move |event: PointerEvent| {
+                    handlers.start_pan.call(event.clone());
+                    input.on_empty_hit.call(event);
+                },
                 onpointermove: handlers.move_pointer,
                 onpointerup: handlers.end_pointer,
                 onpointercancel: handlers.cancel_pointer,
@@ -85,7 +88,6 @@ pub(super) fn canvas(input: CanvasInput) -> Element {
                 onkeydown: handlers.keyboard,
                 onkeyup: handlers.key_up,
                 onwheel: handlers.wheel,
-                onclick: input.on_empty_hit,
                 g { transform: "scale(1,-1)",
                     PcbScene {
                         snapshot: input.snapshot.clone(),
