@@ -1765,10 +1765,10 @@
         "refactoring_handoff_required": true
       },
       "progress_evidence": {
-        "updated_at": "2026-10-03T04:53:39.015941+00:00",
-        "checkpoint": "served a201/34740; next baseline8afaaa2f",
-        "scope": "Marker/navigation/camera sourcesa201 plus actualPartInspector repairbd7f1c11; freshpairedgreen stillpending.",
-        "acceptance": "No criteria/dependencies waived; partial source and bounded proof only."
+        "updated_at": "2026-10-03T10:12:42+00:00",
+        "checkpoint": "paired SW1 finding-to-Layout navigation on React 5a472a94 and public Dioxus 34761/source2107f980",
+        "scope": "Keycaps entry/control parity and one Select affected geometry route; evidence .scratch/dioxus-frontend-v1/evidence/keycaps-fit-navigation-20261003/paired-context-navigation.md",
+        "acceptance": "Bounded route matched: both apps selected left-keys-SW1 and showed the Layout Properties inspector at X 9.18/Y -78.05 mm. No source gap found in this action. F6C.4 remains open for current-case body/feature and stale-revision browser qualification, inherited-binding fit refresh, failed/superseded resolve behavior, exact non-key geometry focus, invalid/unsupported resolver states, and INT.2; no criteria/dependencies waived."
       }
     },
     {
