@@ -234,11 +234,17 @@ pub(crate) fn use_mechanical_settings_mount(
             None::<(SettingsSourceKey, MechanicalSettingsIdentity)>,
         ))
     });
+    let settled_mechanical = use_hook(|| {
+        Rc::new(RefCell::new(
+            None::<(SettingsSourceKey, MechanicalSettingsIdentity)>,
+        ))
+    });
     use_effect(use_reactive((&version(), &workspace()), {
         let runtime = runtime.clone();
         let current = current.clone();
         let alive = alive.clone();
         let resolving = resolving_mechanical.clone();
+        let settled = settled_mechanical.clone();
         move |_| {
             if workspace() != "Case" {
                 return;
@@ -254,13 +260,7 @@ pub(crate) fn use_mechanical_settings_mount(
             };
             let identity = current_settings.identity.clone();
             let request_key = (key.clone(), identity.clone());
-            if resolved_mechanical
-                .read()
-                .as_ref()
-                .is_some_and(|projection| {
-                    projection.key == key && projection.identity == current_settings.identity
-                })
-            {
+            if settled.borrow().as_ref() == Some(&request_key) {
                 return;
             }
             {
@@ -278,6 +278,7 @@ pub(crate) fn use_mechanical_settings_mount(
             let current = current.clone();
             let alive = alive.clone();
             let resolving = resolving.clone();
+            let settled = settled.clone();
             let mut resolved = resolved_mechanical;
             spawn_local(async move {
                 let result = runtime
@@ -297,6 +298,7 @@ pub(crate) fn use_mechanical_settings_mount(
                 if !still_current {
                     return;
                 }
+                *settled.borrow_mut() = Some(request_key);
                 if let Ok((assembly, effective_configuration)) = result {
                     resolved.set(Some(MechanicalSettingsResolvedProjection {
                         key,
