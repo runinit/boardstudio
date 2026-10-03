@@ -394,6 +394,15 @@
         "current_mitigation": "Private emptyboard/footer leaves, reuse existing scoped controllers, callback acceptance guards, focused sharedcheck and changedbrowserdeltas; targetrustfmt withskip_children. Preserve all failures and unprovedcriteria.",
         "post_port_proposal": "Consolidate contextual projection/action ownership and boardidentity bundles after parity; define one formatting/build publisher and one progress/evidence record toreduce accidental sharedfile changes.",
         "validation": "Exercise same UI journeys acrosscontext/history/reopen; maintain source/asset provenance, no inventedacceptance or newduplicated tests."
+      },
+      "project_demo_copy_20261003": {
+        "source": "F2.1 bounded Project demo cards/fresh-copy child 20; reference ProjectLibrary.tsx at 5a472a9426e6e38993361da402cd4ec730feb369",
+        "evidence": ".scratch/dioxus-frontend-tranche-1/issues/20-project-demo-cards-fresh-copies.md; .scratch/dioxus-frontend-tranche-1/drafts/20-project-demo-cards-fresh-copies.md",
+        "observation": "The private Library now needs both fixture-document reads for previews and fixture-archive opens for copies, while manual archive import must retain its existing identity. The bounded page Runtime adds a fixture-only fresh-ID choice to the shared archive-unpack path and keeps import identity unchanged; this is another concrete cross-workflow Runtime touchpoint under RF-001.",
+        "mitigation": "Use packaged fixture JSON only for read-only previews and pass a fresh project ID only from the two bundled demo actions. Preserve open-sequence admission, generic import identity, source fixture data, and normal Session/persistence ownership.",
+        "post_port": "After parity, assess a narrower page-local bundled-project catalog/copy adapter so reusable preview metadata and archive-copy policy do not accumulate in the shared Runtime surface.",
+        "validation": "Paired public journey must show both fixture-derived cards, open the same demo twice with distinct accepted IDs, and verify normal import identity semantics remain unchanged. Build/package and candidate evidence remain pending.",
+        "status": "bounded source implementation; combined check and changed paired browser journey pending; no new RF ID or F2.1 parent closure"
       }
     },
     {

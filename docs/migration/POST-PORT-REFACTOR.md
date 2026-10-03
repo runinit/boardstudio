@@ -86,6 +86,8 @@ The Parts preset-to-preview slice (source pending) makes one logical library cho
 
 The first F5.5 mounted-placement Inspector child adds the source-overlay-to-Inspector route through a board/module-scoped `TreeContext` and reuses existing `SetMountedModule`/`RemoveMountedModule` edits. It intentionally does not reinterpret daughterboard artwork as host parts or add another durable draft store. This is another bounded addition to shared presentation composition, not evidence that the root hotspot is reduced; root composition, checks and changed public Save/Remove/history/reopen proof remain open. See [Issue 22](../../.scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md).
 
+The bounded F2.1 demo-card child keeps the two existing REVIUNG41/Sofle fixture actions, adds read-only previews from their packaged project JSON, and assigns a fresh project ID only when a bundled fixture is opened. The same private Runtime still supplies fixture metadata and unpacks fixture archives, while generic user archive imports retain their archived ID. This is another RF-001 shared Runtime touchpoint; the temporary page-local adapter keeps the Session and document authority unchanged. After parity, assess whether fixture catalogue/preview/copy policy belongs in a narrower page-local module. The combined check and paired repeated-open browser result remain pending. See [Issue 20](../../.scratch/dioxus-frontend-tranche-1/issues/20-project-demo-cards-fresh-copies.md).
+
 ## RF-002
 
 **Internal browser host types are exposed as crate APIs** — architecture / API design. confirmed observation; future cost is a design risk.

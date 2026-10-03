@@ -103,9 +103,10 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-library-content { min-width: 0; }
 .m1-project-menu-library .m1-library-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 20px; scrollbar-width: thin; scrollbar-color: var(--wb-rule-strong) transparent; }
 .m1-project-menu-library .m1-library-heading { margin-bottom: 12px; }
-.m1-project-menu-demo-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
-.m1-project-menu-demo-actions button { width: auto; min-height: 34px; padding: 6px 10px; border: 1px solid var(--wb-rule-strong); border-radius: 4px; color: var(--wb-ink); background: var(--wb-panel); cursor: pointer; }
-.m1-project-menu-demo-actions button:hover { background: var(--wb-raised); }
+.m1-demo-keyboards { display: grid; gap: 10px; margin-top: 20px; }
+.m1-demo-keyboards-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.m1-demo-keyboards-heading h3 { margin: 0; color: var(--wb-ink); font-size: 15px; font-weight: 600; }
+.m1-demo-keyboards-heading span { color: var(--wb-muted); font-size: var(--wb-type-label); }
 .m1-project-menu-footer { display: flex; flex: none; justify-content: flex-start; padding: 8px 14px; background: var(--wb-paper); }
 .m1-project-menu-footer button { display: inline-flex; align-items: center; gap: 7px; width: auto; min-height: 36px; padding: 6px 10px; border: 0; border-radius: 4px; color: var(--wb-ink); background: transparent; font: inherit; cursor: pointer; }
 .m1-project-menu-footer button:hover { background: var(--wb-raised); }

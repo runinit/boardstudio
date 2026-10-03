@@ -4557,6 +4557,11 @@ impl Runtime {
             }
         }
     }
+    pub(crate) async fn fixture_document(&self, name: &'static str) -> Result<ProjectDoc, String> {
+        let bytes = fetch_bytes(&format!("assets/fixtures/{name}.json")).await?;
+        serde_json::from_slice(&bytes)
+            .map_err(|error| format!("Could not read the {name} demo preview: {error}"))
+    }
     pub fn open_fixture(self: &Rc<Self>, name: &str) {
         let name = name.to_owned();
         let sequence = match self.begin_open() {
@@ -4566,11 +4571,20 @@ impl Runtime {
                 return;
             }
         };
+        let copy_id = match browser_uuid() {
+            Ok(copy_id) => copy_id,
+            Err(error) => {
+                if self.open_sequence.get() == sequence {
+                    self.report(error);
+                }
+                return;
+            }
+        };
         let this = self.clone();
         spawn_local(async move {
             match fetch_bytes(&format!("assets/fixtures/{name}.boardstudio")).await {
                 Ok(bytes) => {
-                    if let Err(error) = this.import_archive_at(bytes, sequence).await
+                    if let Err(error) = this.import_archive_at(bytes, sequence, Some(copy_id)).await
                         && this.open_sequence.get() == sequence
                     {
                         this.report(error);
@@ -4605,7 +4619,7 @@ impl Runtime {
         spawn_local(async move {
             let result = match JsFuture::from(file.array_buffer()).await {
                 Ok(buffer) => {
-                    this.import_archive_at(Uint8Array::new(&buffer).to_vec(), sequence)
+                    this.import_archive_at(Uint8Array::new(&buffer).to_vec(), sequence, None)
                         .await
                 }
                 Err(error) => Err(format!("Import read failed: {error:?}")),
@@ -4621,6 +4635,7 @@ impl Runtime {
         self: &Rc<Self>,
         bytes: Vec<u8>,
         sequence: u64,
+        fresh_copy_id: Option<String>,
     ) -> Result<(), String> {
         let operation = self.operation();
         let core = self.core.borrow().clone();
@@ -4642,8 +4657,11 @@ impl Runtime {
         else {
             return Err(format!("Archive rejected: {reply:?}"));
         };
-        let document: ProjectDoc =
+        let mut document: ProjectDoc =
             serde_json::from_str(&project_json).map_err(|e| e.to_string())?;
+        if let Some(copy_id) = fresh_copy_id {
+            document.id = copy_id;
+        }
         let mut copied = BTreeMap::new();
         for asset in assets {
             let bytes = result

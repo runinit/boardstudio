@@ -70,7 +70,7 @@ impl ProjectNameCommitAction {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 struct PreviewKey {
     id: String,
     x: f64,
@@ -80,6 +80,7 @@ struct PreviewKey {
     height: f64,
 }
 
+#[derive(Clone, PartialEq)]
 struct Preview {
     keys: Vec<PreviewKey>,
     left: f64,
@@ -344,6 +345,112 @@ fn KeyboardCard(
 }
 
 #[component]
+fn DemoKeyboardPreview(preview: Option<Preview>, fallback: String) -> Element {
+    match preview {
+        Some(preview) if preview.keys.is_empty() => rsx! {
+            div { class: "m1-keyboard-preview is-empty",
+                svg { class: "m1-library-keyboard-icon", view_box: "0 0 20 20", "aria-hidden": "true",
+                    path { d: "M2 5h16v11H2ZM5 8h.1M8 8h.1M11 8h.1M14 8h.1M5 11h.1M8 11h.1M11 11h.1M14 11h.1M6 14h8" }
+                }
+                span { "No keys placed" }
+            }
+        },
+        Some(preview) => rsx! {
+            div { class: "m1-keyboard-preview",
+                svg { view_box: "{preview.left} {preview.top} {preview.width} {preview.height}", "aria-hidden": "true",
+                    for key in &preview.keys {
+                        rect {
+                            key: "{key.id}",
+                            transform: "translate({key.x} {key.y}) rotate({key.angle})",
+                            x: "{-key.width / 2.0}",
+                            y: "{-key.height / 2.0}",
+                            width: "{key.width}",
+                            height: "{key.height}",
+                            rx: "2",
+                        }
+                    }
+                }
+            }
+        },
+        None => rsx! {
+            div { class: "m1-keyboard-preview is-empty",
+                svg { class: "m1-library-keyboard-icon", view_box: "0 0 20 20", "aria-hidden": "true",
+                    path { d: "M2 5h16v11H2ZM5 8h.1M8 8h.1M11 8h.1M14 8h.1M5 11h.1M8 11h.1M11 11h.1M14 11h.1M6 14h8" }
+                }
+                span { "{fallback}" }
+            }
+        },
+    }
+}
+
+#[component]
+fn DemoKeyboardCard(name: &'static str, fixture: &'static str) -> Element {
+    let runtime = use_context::<Rc<Runtime>>();
+    let fixture_document = use_resource({
+        let runtime = runtime.clone();
+        move || {
+            let runtime = runtime.clone();
+            async move { runtime.fixture_document(fixture).await.map(Arc::new) }
+        }
+    });
+    let loaded = fixture_document.read();
+    let document = loaded.as_ref().and_then(|result| result.as_ref().ok());
+    let preview_result = document.map(|document| preview(document));
+    let detail = match (document, preview_result.as_ref()) {
+        (Some(document), Some(Ok(preview))) => format!(
+            "{} keys · {}",
+            preview.keys.len(),
+            if document.boards.len() > 1 {
+                format!("{} boards", document.boards.len())
+            } else {
+                "Single board".into()
+            }
+        ),
+        (Some(_), Some(Err(()))) => "Preview unavailable".into(),
+        _ => "Start an editable copy".into(),
+    };
+    let graphic = preview_result.and_then(Result::ok);
+    let fallback = if loaded.is_none() {
+        "Loading preview…"
+    } else {
+        "Preview unavailable"
+    };
+    let runtime = runtime.clone();
+    rsx! {
+        article { class: "m1-keyboard-card m1-demo-keyboard-card",
+            button {
+                class: "m1-keyboard-tile",
+                r#type: "button",
+                aria_label: "Start {name}",
+                onclick: move |_| {
+                    super::close_project_menu();
+                    runtime.open_fixture(fixture);
+                },
+                DemoKeyboardPreview { preview: graphic, fallback: fallback.into() }
+                span { class: "m1-keyboard-title", "{name}" }
+                span { class: "m1-keyboard-detail", "{detail}" }
+            }
+        }
+    }
+}
+
+#[component]
+fn DemoKeyboardCards(project_menu: bool) -> Element {
+    rsx! {
+        section { class: if project_menu { "m1-project-menu-demo-actions m1-demo-keyboards" } else { "m1-demo-keyboards" }, aria_label: "Demo keyboards",
+            header { class: "m1-demo-keyboards-heading",
+                h3 { "Demo keyboards" }
+                span { "Start an editable copy" }
+            }
+            div { class: "m1-keyboard-grid",
+                DemoKeyboardCard { key: "reviung41", name: "REVIUNG41", fixture: "reviung41" }
+                DemoKeyboardCard { key: "sofle", name: "Sofle v2", fixture: "sofle" }
+            }
+        }
+    }
+}
+
+#[component]
 pub(super) fn Library(
     project_menu: bool,
     #[props(default)] menu_page: Option<Signal<super::ProjectMenuPage>>,
@@ -504,10 +611,6 @@ pub(super) fn Library(
     let query = search_query();
     cards.retain(|(document, _)| matches_project_search(document, &query));
     let no_search_matches = cards.is_empty() && !query.trim().is_empty();
-    let reviung = runtime.clone();
-    let sofle = runtime.clone();
-    let menu_reviung = runtime.clone();
-    let menu_sofle = runtime.clone();
     let import = runtime.clone();
     let menu_import = import.clone();
     let current_name_for_blur = current_name.clone();
@@ -657,10 +760,7 @@ pub(super) fn Library(
                     p { class: "m1-keyboard-empty", "No keyboards match your search." }
                 }
                 if project_menu {
-                    div { class: "m1-project-menu-demo-actions",
-                        button { r#type: "button", onclick: move |_| { super::close_project_menu(); menu_reviung.open_fixture("reviung41"); }, "REVIUNG41 copy" }
-                        button { r#type: "button", onclick: move |_| { super::close_project_menu(); menu_sofle.open_fixture("sofle"); }, "Sofle v2 copy" }
-                    }
+                    DemoKeyboardCards { project_menu: true }
                 } else {
                     div { class: "m1-library-actions",
                         button { r#type: "button", disabled: pending_new().is_some(), onclick: move |_| start_new_menu_landing(), "New project" }
@@ -675,8 +775,6 @@ pub(super) fn Library(
                                 super::close_project_menu();
                             }, "Setup guide" }
                         }
-                        button { r#type: "button", onclick: move |_| { super::close_project_menu(); reviung.open_fixture("reviung41"); }, "REVIUNG41 copy" }
-                        button { r#type: "button", onclick: move |_| { super::close_project_menu(); sofle.open_fixture("sofle"); }, "Sofle v2 copy" }
                         label { "Import .boardstudio"
                             input { r#type: "file", accept: ".boardstudio", onchange: move |event: FormEvent| {
                                 let Some(input) = event.data().try_as_web_event().and_then(|e| e.target()).and_then(|e| e.dyn_into::<HtmlInputElement>().ok()) else { return; };
@@ -687,6 +785,7 @@ pub(super) fn Library(
                             }}
                         }
                     }
+                    DemoKeyboardCards { project_menu: false }
                 }
             }
             if project_menu {
