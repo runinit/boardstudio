@@ -667,6 +667,13 @@
         "validation": "Focused browser-WASM owner regression failed before the correction and passed after it. Strict WASM Clippy, rustfmt and diff checks pass. The public candidate repro and accepted wireless-archive projection comparison are retained in the linked handoff; the post-fix public workflow remains open.",
         "evidence": ".scratch/dioxus-case-workspace/evidence/case13-wireless-right-transport-admission-20261002/implementation-handoff.md",
         "status": "bounded Case13 source correction; independent source review and fresh public re-run remain open; no API/schema change or parent acceptance"
+      },
+      "case_legacy_gasket_support_admission_20261003": {
+        "observation": "Current Core emits supports for legacy mount=Gasket configurations with no internalGasket. The contextual field/controller originally required internalGasket even though the reference resize operation persists gasketLayout support anchors for both providers.",
+        "current_mitigation": "Remove only the private internalGasket admission predicate; keep Gasket mount, current owner/snapshot/scope and payload/finite-value checks. No Core/provider/schema/API semantics change.",
+        "provider_limitation": "Legacy core/src/mechanical/gasket.rs honors saved anchor identity, region, outline, perimeter position and unlink state, but resolves support length/width from global gasketLayout values rather than each saved anchor override. Per-support dimension metadata is persisted by the reference path too; this repair preserves that provider behavior and does not claim a rendered legacy dimension correction.",
+        "evidence": ".scratch/dioxus-case-workspace/evidence/legacy-gasket-support-admission-20261003/README.md",
+        "status": "Bounded admission repair; contextual current/legacy public journeys and full Case parents remain open."
       }
     },
     {
