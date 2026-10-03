@@ -38,6 +38,22 @@
       "accepted_status": "Sofle v2 \u00b7 Revision9 \u00b7 Saved",
       "network_restored": true,
       "qualification": "root and subpath saved-editor reload verified; no full export/3D/history acceptance inferred"
+    },
+    {
+      "journey": "Select PCB in both apps, same5b1280x577 light",
+      "candidate_route": "/boardstudio/",
+      "captures_sha256": {
+        "/home/chris/.local/share/boardstudio/retained-tmp/20261002/pcb-root-34734-current.png": "07620ff4bf77f20e5fdca0c7ceb7ad5b51110bf0a63f7ed70037df08305b4c6d",
+        "/home/chris/.local/share/boardstudio/retained-tmp/20261002/pcb-react-5173-current.png": "0eea76ed98a4f626ca644e339d36b11c63b94bc505c6a80df05e42674fbf20e0"
+      },
+      "visually_inspected": true,
+      "remaining_gaps": [
+        "PCB toolbar Select/Transform/Align/Snap absent in candidate",
+        "PCB Add object absent; candidate retains matrix groups and extra physical/group selectors instead of reference flat parts tree",
+        "Wiring mode and Apply absent in candidate",
+        "PCB layer controls absent; existing02 stream implementing"
+      ],
+      "qualification": "observations sent to existing PCB/shared-shell queues; no additional duplicate tickets or fullPCB acceptance"
     }
   ]
 }
