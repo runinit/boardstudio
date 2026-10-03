@@ -1,0 +1,17 @@
+[INFO]: 🎯  Checking for the Wasm target...
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.18s
+[INFO]: ⬇️  Installing wasm-bindgen...
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+     Running unittests src/main.rs (target/wasm32-unknown-unknown/debug/deps/boardstudio_web-74ecf9cb6aa79cd1.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:44339/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+Loading Wasm module...
+using deprecated parameters for the initialization function; pass a single object instead
+
+running 1 test
+Invoking test: presentation::library::mounted_tests::retained_project_name_action_is_rejected_after_library_unmount
+test presentation::library::mounted_tests::retained_project_name_action_is_rejected_after_library_unmount ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 117 filtered out; finished in 0.27s
+
