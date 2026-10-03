@@ -847,7 +847,13 @@ pub(super) fn PartsInspectorPanel(
                     snapshot: snapshot.clone(),
                     scope: scope.clone(),
                     selection: selected,
-                    definition,
+                    definition: definition.clone(),
+                    crate::parts_custom_definition::CustomDefinitionFields {
+                        snapshot: snapshot.clone(),
+                        scope: scope.clone(),
+                        selection: selected,
+                        definition,
+                    }
                 }
             }
             if !controller_placement_enabled && let Some(entry) = entry.as_ref() {

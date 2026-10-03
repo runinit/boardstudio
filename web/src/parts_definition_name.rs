@@ -22,6 +22,7 @@ mod ui {
         scope: Option<Scope>,
         selection: Signal<Option<(Option<Scope>, String)>>,
         definition: PartDefinition,
+        children: Element,
     ) -> Element {
         let runtime = use_context::<Rc<Runtime>>();
         let mut draft = use_signal(|| definition.name.clone());
@@ -147,6 +148,7 @@ mod ui {
                             }
                         }
                     }
+                    {children}
                 }
             }
         }
@@ -692,6 +694,14 @@ mod mounted_tests {
                     scope: scope(),
                     selection,
                     definition: definition(),
+                    children: rsx! {
+                        crate::parts_custom_definition::CustomDefinitionFields {
+                            snapshot: snapshot(),
+                            scope: scope(),
+                            selection,
+                            definition: definition(),
+                        }
+                    },
                 }
             }
         }
@@ -764,6 +774,113 @@ mod mounted_tests {
             .unwrap()
             .unwrap()
             .has_attribute("open")
+    }
+
+    fn pad_id_input() -> HtmlInputElement {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector("#parts-name-mounted-regression input[aria-label='Pad 1 ID']")
+            .unwrap()
+            .unwrap()
+            .dyn_into()
+            .unwrap()
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_pad_id_action_remaps_every_matching_instance_through_the_runtime_edit() {
+        let mut document = ProjectDoc::empty("parts-name-mounted", "Parts name mounted");
+        let mut definition = definition("selected", "Footprint");
+        definition.pads = serde_json::from_value(serde_json::json!([
+            {"id":"old","number":"1","at":{"x":0.0,"y":0.0},"size":{"x":2.0,"y":2.0},"shape":"circle"},
+            {"id":"keep","number":"2","at":{"x":1.0,"y":0.0},"size":{"x":2.0,"y":2.0},"shape":"circle"}
+        ])).unwrap();
+        document.definitions = vec![definition.clone()];
+        document.parts = serde_json::from_value(serde_json::json!([
+            {"id":"instance-a","definitionId":"selected","reference":"U1","pose":{"at":{"x":0.0,"y":0.0},"rotation":0.0},"side":"front"},
+            {"id":"instance-b","definitionId":"selected","reference":"U2","pose":{"at":{"x":1.0,"y":0.0},"rotation":0.0},"side":"front"}
+        ])).unwrap();
+        document.nets = serde_json::from_value(serde_json::json!([
+            {"id":"net-a","name":"A","pins":[{"partId":"instance-a","padId":"old"},{"partId":"instance-b","padId":"old"}]},
+            {"id":"net-b","name":"B","pins":[{"partId":"instance-a","padId":"keep"}]}
+        ])).unwrap();
+        let runtime = Runtime::new().unwrap();
+        let (mut session, mut core) = open_document(document);
+        let snapshot = session.read_model().accepted.as_ref().unwrap().clone();
+        let scope = session.scope();
+        runtime.set_definition_name_test_state(snapshot.clone(), scope.clone());
+        let state = Rc::new(RefCell::new(None));
+        let seed = Rc::new(Seed {
+            snapshot: snapshot.clone(),
+            scope: scope.clone(),
+            selection: Some((scope.clone(), "selected".into())),
+            definition: snapshot.document.definitions[0].clone(),
+            state: state.clone(),
+        });
+        let root = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .create_element("div")
+            .unwrap();
+        root.set_id("parts-name-mounted-regression");
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .body()
+            .unwrap()
+            .append_child(&root)
+            .unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(seed);
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        settle().await;
+        root.query_selector("details summary")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        settle().await;
+        let field = pad_id_input();
+        type_value(&field, "renamed");
+        let _ = field.blur();
+        settle().await;
+
+        let event = runtime
+            .take_definition_name_test_event()
+            .expect("mounted definition field submits one Runtime edit");
+        let effects = session.submit(event);
+        advance(&mut session, &mut core, effects);
+        let accepted = session.read_model().accepted.as_ref().unwrap();
+        assert_eq!(accepted.document.definitions[0].pads[0].id, "renamed");
+        assert_eq!(accepted.document.nets[0].pins[0].pad_id, "renamed");
+        assert_eq!(accepted.document.nets[0].pins[1].pad_id, "renamed");
+        assert_eq!(accepted.document.nets[1].pins[0].pad_id, "keep");
+
+        let undo_effects = session.submit(AppEvent::Undo {
+            operation_id: OperationId(81),
+        });
+        advance(&mut session, &mut core, undo_effects);
+        assert_eq!(
+            session
+                .read_model()
+                .accepted
+                .as_ref()
+                .unwrap()
+                .document
+                .definitions[0]
+                .pads[0]
+                .id,
+            "old"
+        );
+        let _ = root.remove();
     }
 
     fn type_value(input: &HtmlInputElement, value: &str) {
