@@ -119,6 +119,8 @@ pub(super) fn Objects(
     pair_created: Option<Signal<Option<MirroredPairCreated>>>,
     on_place_component: Option<EventHandler<super::part_placement::ComponentPlacementAction>>,
     layout_target: Option<Signal<Option<String>>>,
+    parts_query: Option<super::parts::PartsQuery>,
+    on_browse_parts: Option<EventHandler<()>>,
     placement_error: Option<String>,
 ) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
@@ -208,6 +210,8 @@ pub(super) fn Objects(
             if (matrix_setup.is_some() || mirrored_pair.is_some())
                 && let Some(on_place_component) = on_place_component
                 && let Some(layout_target) = layout_target
+                && let Some(parts_query) = parts_query
+                && let Some(on_browse_parts) = on_browse_parts
             {
                 LayoutAddObjectEntry {
                     matrix_setup,
@@ -216,6 +220,8 @@ pub(super) fn Objects(
                     scope: active_scope.clone(),
                     on_place_component,
                     layout_target,
+                    parts_query,
+                    on_browse_parts,
                 }
             }
             if let Some(error) = placement_error {
@@ -412,6 +418,8 @@ fn LayoutAddObjectEntry(
     scope: Option<Scope>,
     on_place_component: EventHandler<super::part_placement::ComponentPlacementAction>,
     layout_target: Signal<Option<String>>,
+    parts_query: super::parts::PartsQuery,
+    on_browse_parts: EventHandler<()>,
 ) -> Element {
     let mut menu_open = use_signal(|| false);
     let open_menu = menu_open();
@@ -472,6 +480,8 @@ fn LayoutAddObjectEntry(
                             snapshot,
                             scope,
                             layout_target,
+                            query: parts_query,
+                            on_browse: on_browse_parts,
                             on_place: EventHandler::new(move |action| {
                                 menu_open.set(false);
                                 on_place_component.call(action);

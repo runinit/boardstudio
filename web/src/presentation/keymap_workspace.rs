@@ -44,6 +44,8 @@ pub(super) fn objects(input: SharedObjectsInput) -> Element {
             pair_created: None,
             on_place_component: None,
             layout_target: None,
+            parts_query: None,
+            on_browse_parts: None,
             placement_error: None,
         }
     }

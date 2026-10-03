@@ -90,6 +90,8 @@ fn composition() -> Element {
                 scope: Some(owner(1).scope),
                 on_place_component: EventHandler::default(),
                 layout_target: Signal::new(None),
+                parts_query: Signal::new(String::new()),
+                on_browse_parts: EventHandler::default(),
                 matrix_setup: None,
                 mirrored_pair: Some(MirroredPairMount {
                     form: Some(current()),

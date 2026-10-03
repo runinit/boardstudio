@@ -10,6 +10,8 @@ pub(super) struct ObjectsInput {
     pub(super) pair_created: Signal<Option<objects::MirroredPairCreated>>,
     pub(super) on_place_component: EventHandler<super::part_placement::ComponentPlacementAction>,
     pub(super) layout_target: Signal<Option<String>>,
+    pub(super) parts_query: super::parts::PartsQuery,
+    pub(super) on_browse_parts: EventHandler<()>,
     pub(super) placement_error: Option<String>,
 }
 
@@ -54,6 +56,8 @@ pub(super) fn objects(input: ObjectsInput) -> Element {
                 pair_created: Some(input.pair_created),
                 on_place_component: Some(input.on_place_component),
                 layout_target: Some(input.layout_target),
+                parts_query: Some(input.parts_query),
+                on_browse_parts: Some(input.on_browse_parts),
                 placement_error: input.placement_error,
             }
         }

@@ -1097,10 +1097,31 @@ fn durability_state(durability: &Durability) -> &'static str {
 }
 
 fn pin_inspector_on_desktop(mut settings: Signal<PanelSettings>) {
-    let compact = web_sys::window()
+    if is_compact_viewport() {
+        return;
+    }
+    let mut current = settings();
+    if current.mode != PanelMode::Pinned {
+        current.mode = PanelMode::Pinned;
+        settings.set(current);
+    }
+}
+
+fn is_compact_viewport() -> bool {
+    web_sys::window()
         .and_then(|window| window.match_media("(max-width: 760px)").ok().flatten())
-        .is_some_and(|query| query.matches());
+        .is_some_and(|query| query.matches())
+}
+
+fn browse_parts_workspace(
+    mut workspace: Signal<&'static str>,
+    mut compact_open: Signal<bool>,
+    mut settings: Signal<PanelSettings>,
+    compact: bool,
+) {
+    workspace.set("Parts");
     if compact {
+        compact_open.set(true);
         return;
     }
     let mut current = settings();
@@ -3904,6 +3925,14 @@ fn Editor() -> Element {
         .read()
         .clone()
         .filter(|selected| selected.scope == render_scope);
+    let on_browse_parts = EventHandler::new(move |_| {
+        browse_parts_workspace(
+            workspace,
+            objects_open,
+            objects_panel_settings,
+            is_compact_viewport(),
+        );
+    });
     let objects_input = match active_workspace {
         "PCB" => workspace_composition::WorkspaceObjectsInput::Pcb(shared_objects),
         "Keymap" => workspace_composition::WorkspaceObjectsInput::Keymap(shared_objects),
@@ -3944,6 +3973,8 @@ fn Editor() -> Element {
                 pair_created: pair_created_selection,
                 on_place_component: part_placement.on_place_component,
                 layout_target,
+                parts_query,
+                on_browse_parts,
                 placement_error: part_placement.error.clone(),
             },
         )),

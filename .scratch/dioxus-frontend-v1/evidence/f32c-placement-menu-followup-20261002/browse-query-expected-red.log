@@ -1,0 +1,90 @@
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/f32c-placement-menu-followup-20261002/web)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 19.72s
+[INFO]: ⬇️  Installing wasm-bindgen...
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.52s
+     Running unittests src/main.rs (target/wasm32-unknown-unknown/debug/deps/boardstudio_web-aa31c5a7ade9d867.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:45005/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+Loading Wasm module...
+
+running 1 test
+test presentation::parts::add_object_menu_tests::mounted_browse_button_preserves_search_and_pins_desktop_objects ... FAIL
+
+failures:
+
+---- presentation::parts::add_object_menu_tests::mounted_browse_button_preserves_search_and_pins_desktop_objects output ----
+    error output:
+        panicked at src/presentation/parts.rs:545:9:
+        assertion `left == right` failed
+          left: ""
+         right: "battery"
+
+        Stack:
+
+        Error
+            at http://127.0.0.1:44391/wasm-bindgen-test:1626:25
+            at logError (http://127.0.0.1:44391/wasm-bindgen-test:2758:18)
+            at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:44391/wasm-bindgen-test:1625:57)
+            at boardstudio_web-aa31c5a7ade9d867.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:44391/wasm-bindgen-test_bg.wasm:wasm-function[141288]:0x1bad8c6)
+            at boardstudio_web-aa31c5a7ade9d867.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:44391/wasm-bindgen-test_bg.wasm:wasm-function[80074]:0x191108c)
+            at boardstudio_web-aa31c5a7ade9d867.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:44391/wasm-bindgen-test_bg.wasm:wasm-function[29537]:0x135ae32)
+            at boardstudio_web-aa31c5a7ade9d867.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:44391/wasm-bindgen-test_bg.wasm:wasm-function[84277]:0x1951463)
+            at boardstudio_web-aa31c5a7ade9d867.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:44391/wasm-bindgen-test_bg.wasm:wasm-function[25211]:0x12697eb)
+            at boardstudio_web-aa31c5a7ade9d867.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:44391/wasm-bindgen-test_bg.wasm:wasm-function[48979]:0x1661a96)
+            at boardstudio_web-aa31c5a7ade9d867.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:44391/wasm-bindgen-test_bg.wasm:wasm-function[143266]:0x1bb37a7)
+
+
+
+    JS exception that was thrown:
+        RuntimeError: unreachable
+            at boardstudio_web-aa31c5a7ade9d867.wasm.__rustc[4b1ee1ef74718a7b]::__rust_abort (http://127.0.0.1:44391/wasm-bindgen-test_bg.wasm:wasm-function[143763]:0x1bb4674)
+            at boardstudio_web-aa31c5a7ade9d867.wasm.__rustc[4b1ee1ef74718a7b]::__rust_start_panic (http://127.0.0.1:44391/wasm-bindgen-test_bg.wasm:wasm-function[143680]:0x1bb44fc)
+            at boardstudio_web-aa31c5a7ade9d867.wasm.__rustc[4b1ee1ef74718a7b]::rust_panic (http://127.0.0.1:44391/wasm-bindgen-test_bg.wasm:wasm-function[141772]:0x1baf2f5)
+            at boardstudio_web-aa31c5a7ade9d867.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:44391/wasm-bindgen-test_bg.wasm:wasm-function[25211]:0x126985e)
+            at boardstudio_web-aa31c5a7ade9d867.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:44391/wasm-bindgen-test_bg.wasm:wasm-function[48979]:0x1661a96)
+            at boardstudio_web-aa31c5a7ade9d867.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:44391/wasm-bindgen-test_bg.wasm:wasm-function[143266]:0x1bb37a7)
+            at boardstudio_web-aa31c5a7ade9d867.wasm.__rustc[4b1ee1ef74718a7b]::rust_begin_unwind (http://127.0.0.1:44391/wasm-bindgen-test_bg.wasm:wasm-function[110438]:0x1a9cecf)
+            at boardstudio_web-aa31c5a7ade9d867.wasm.core[f0fd674eaa06beef]::panicking::panic_fmt (http://127.0.0.1:44391/wasm-bindgen-test_bg.wasm:wasm-function[83167]:0x1940c1b)
+            at boardstudio_web-aa31c5a7ade9d867.wasm.core[f0fd674eaa06beef]::panicking::assert_failed_inner (http://127.0.0.1:44391/wasm-bindgen-test_bg.wasm:wasm-function[21941]:0x119487a)
+            at boardstudio_web-aa31c5a7ade9d867.wasm.core[f0fd674eaa06beef]::panicking::assert_failed::<alloc[ae94343a5edb5677]::string::String, &str> (http://127.0.0.1:44391/wasm-bindgen-test_bg.wasm:wasm-function[67787]:0x183ac25)
+
+failures:
+
+    presentation::parts::add_object_menu_tests::mounted_browse_button_preserves_search_and_pins_desktop_objects
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 118 filtered out; finished in 0.09s
+
+console output:
+    using deprecated parameters for the initialization function; pass a single object instead
+    Invoking test: presentation::parts::add_object_menu_tests::mounted_browse_button_preserves_search_and_pins_desktop_objects
+    panicked at src/presentation/parts.rs:545:9:
+    assertion `left == right` failed
+      left: ""
+     right: "battery"
+
+    Stack:
+
+    Error
+        at http://127.0.0.1:44391/wasm-bindgen-test:1626:25
+        at logError (http://127.0.0.1:44391/wasm-bindgen-test:2758:18)
+        at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:44391/wasm-bindgen-test:1625:57)
+        at boardstudio_web-aa31c5a7ade9d867.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:44391/wasm-bindgen-test_bg.wasm:wasm-function[141288]:0x1bad8c6)
+        at boardstudio_web-aa31c5a7ade9d867.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:44391/wasm-bindgen-test_bg.wasm:wasm-function[80074]:0x191108c)
+        at boardstudio_web-aa31c5a7ade9d867.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:44391/wasm-bindgen-test_bg.wasm:wasm-function[29537]:0x135ae32)
+        at boardstudio_web-aa31c5a7ade9d867.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:44391/wasm-bindgen-test_bg.wasm:wasm-function[84277]:0x1951463)
+        at boardstudio_web-aa31c5a7ade9d867.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:44391/wasm-bindgen-test_bg.wasm:wasm-function[25211]:0x12697eb)
+        at boardstudio_web-aa31c5a7ade9d867.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:44391/wasm-bindgen-test_bg.wasm:wasm-function[48979]:0x1661a96)
+        at boardstudio_web-aa31c5a7ade9d867.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:44391/wasm-bindgen-test_bg.wasm:wasm-function[143266]:0x1bb37a7)
+
+
+Error: some tests failed
+error: test failed, to rerun pass `--bin boardstudio-web`
+
+Caused by:
+  process didn't exit successfully: `/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner /home/chris/.local/share/boardstudio/worktrees/f32c-placement-menu-followup-20261002/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-aa31c5a7ade9d867.wasm mounted_browse_button_preserves_search_and_pins_desktop_objects` (exit status: 1)
+note: test exited abnormally; to see the full output pass --no-capture to the harness.
+Error: Running Wasm tests with wasm-bindgen-test failed
+Caused by: Running Wasm tests with wasm-bindgen-test failed
+Caused by: failed to execute `cargo test`: exited with exit status: 1
+  full command: cd "web" && CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER="/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner" CHROMEDRIVER="/usr/bin/chromedriver" WASM_BINDGEN_TEST_ONLY_WEB="1" "cargo" "test" "--target" "wasm32-unknown-unknown" "--no-default-features" "--features" "page" "--bin" "boardstudio-web" "--" "mounted_browse_button_preserves_search_and_pins_desktop_objects"

@@ -198,10 +198,12 @@ pub(super) fn AddObjectComponentChooser(
     snapshot: AcceptedSnapshot,
     scope: Option<Scope>,
     layout_target: Signal<Option<String>>,
+    mut query: PartsQuery,
+    on_browse: EventHandler<()>,
     on_place: EventHandler<super::part_placement::ComponentPlacementAction>,
 ) -> Element {
     let catalogue = use_catalogue(&snapshot, &scope);
-    let mut query = use_signal(String::new);
+    let mut selection_generation = use_context::<PartsSelectionGeneration>().0;
     let board_id = scope.as_ref().map(|scope| scope.board_id.as_str());
     let layouts = snapshot
         .document
@@ -214,10 +216,11 @@ pub(super) fn AddObjectComponentChooser(
         .unwrap_or_default();
     let search = query().trim().to_lowercase();
     let content = if let Some(entries) = catalogue.entries {
-        if entries.is_empty() {
+        let choices = add_object_choices(&entries);
+        if choices.is_empty() {
             rsx! { p { class: "m1-parts-empty", role: "status", "No component definitions are available." } }
         } else if search.is_empty() {
-            let groups = add_object_groups(&entries);
+            let groups = add_object_groups(&choices);
             rsx! {
                 for (label, items) in groups {
                     details { key: "{label}", class: "m1-parts-category", open: label == "Components",
@@ -248,10 +251,7 @@ pub(super) fn AddObjectComponentChooser(
                 }
             }
         } else {
-            let results = entries
-                .iter()
-                .filter(|entry| entry.matches_library_search(&search))
-                .collect::<Vec<_>>();
+            let results = add_object_search_results(&entries, &search);
             if results.is_empty() {
                 rsx! { p { class: "m1-parts-empty", role: "status", "No parts match this search." } }
             } else {
@@ -286,7 +286,6 @@ pub(super) fn AddObjectComponentChooser(
     } else {
         rsx! { p { class: "m1-parts-loading", role: "status", "Loading component catalogue…" } }
     };
-    let mut workspace = use_context::<super::WorkspaceState>().0;
     rsx! {
         div { class: "m1-add-component-chooser",
             if !layouts.is_empty() {
@@ -312,21 +311,40 @@ pub(super) fn AddObjectComponentChooser(
                     "aria-label": "Search parts",
                     placeholder: "Find a part…",
                     value: "{query()}",
-                    oninput: move |event| query.set(event.value()),
+                    oninput: move |event| {
+                        query.set(event.value());
+                        selection_generation.with_mut(|value| *value = value.wrapping_add(1));
+                    },
                 }
             }
             {content}
             button {
                 class: "m1-add-browse",
                 r#type: "button",
-                onclick: move |_| workspace.set("Parts"),
+                onclick: move |_| on_browse.call(()),
                 "Browse all parts"
             }
         }
     }
 }
 
-fn add_object_groups(entries: &[CatalogEntry]) -> Vec<(&'static str, Vec<&CatalogEntry>)> {
+fn add_object_search_results<'a>(
+    entries: &'a [CatalogEntry],
+    search: &str,
+) -> Vec<&'a CatalogEntry> {
+    add_object_choices(entries)
+        .into_iter()
+        .filter(|entry| entry.matches_library_search(search))
+        .collect()
+}
+
+fn add_object_choices(entries: &[CatalogEntry]) -> Vec<&CatalogEntry> {
+    catalogue_choices(entries)
+}
+
+fn add_object_groups<'a>(
+    entries: &[&'a CatalogEntry],
+) -> Vec<(&'static str, Vec<&'a CatalogEntry>)> {
     type GroupMatcher = fn(&CatalogEntry) -> bool;
     let groups: [(&str, GroupMatcher); 4] = [
         ("Components", |entry| {
@@ -359,7 +377,11 @@ fn add_object_groups(entries: &[CatalogEntry]) -> Vec<(&'static str, Vec<&Catalo
         .map(|(label, matches)| {
             (
                 label,
-                entries.iter().filter(|entry| matches(entry)).collect(),
+                entries
+                    .iter()
+                    .copied()
+                    .filter(|entry| matches(entry))
+                    .collect(),
             )
         })
         .collect()
@@ -368,6 +390,8 @@ fn add_object_groups(entries: &[CatalogEntry]) -> Vec<(&'static str, Vec<&Catalo
 #[cfg(test)]
 mod add_object_menu_tests {
     use super::*;
+    use std::{cell::RefCell, rc::Rc, sync::Arc};
+    use wasm_bindgen::JsCast;
 
     fn entry(id: &str, name: &str, kind: &str) -> CatalogEntry {
         CatalogEntry {
@@ -385,6 +409,162 @@ mod add_object_menu_tests {
         }
     }
 
+    fn retired_entry() -> CatalogEntry {
+        let mut definition =
+            (*entry("retired", "Battery legacy controller", "controller").definition).clone();
+        definition.generator = Some(boardstudio_core::model::PartGenerator {
+            source: "infused-kim/nice_nano_pretty".into(),
+            version: "legacy".into(),
+            parameters: Default::default(),
+        });
+        CatalogEntry {
+            definition: Rc::new(definition),
+            source: catalogue::CatalogueSource::Project,
+        }
+    }
+
+    fn assembly_snapshot_entry() -> CatalogEntry {
+        entry(
+            "assembly-keyboard/definition/battery",
+            "Battery assembly snapshot",
+            "custom",
+        )
+    }
+
+    #[derive(Clone, Copy)]
+    struct BrowseSignals {
+        query: PartsQuery,
+        workspace: Signal<&'static str>,
+        compact_open: Signal<bool>,
+        panel_settings: Signal<super::super::PanelSettings>,
+        generation: Signal<u64>,
+    }
+
+    #[component]
+    fn BrowseChooserHost(compact: bool) -> Element {
+        let signals = use_context::<Rc<RefCell<Option<BrowseSignals>>>>();
+        let query = use_signal(String::new);
+        let workspace = use_signal(|| "Layout");
+        let compact_open = use_signal(|| false);
+        let panel_settings = use_signal(|| super::super::PanelSettings {
+            mode: super::super::PanelMode::Collapsed,
+            width: None,
+        });
+        let generation = use_signal(|| 0u64);
+        use_context_provider(|| PartsSelectionGeneration(generation));
+        *signals.borrow_mut() = Some(BrowseSignals {
+            query,
+            workspace,
+            compact_open,
+            panel_settings,
+            generation,
+        });
+        let layout_target = use_signal(|| None);
+        let on_browse = EventHandler::new(move |_| {
+            super::super::browse_parts_workspace(workspace, compact_open, panel_settings, compact);
+        });
+        rsx! {
+            AddObjectComponentChooser {
+                snapshot: AcceptedSnapshot {
+                    token: SnapshotToken(4),
+                    session_epoch: boardstudio_application::SessionEpoch(3),
+                    document: Arc::new(ProjectDoc::empty("browse-project", "Browse test")),
+                    scene: Arc::new(
+                        serde_json::from_value(serde_json::json!({
+                            "revision": 0,
+                            "transactionId": "browse-test",
+                            "changedIds": [],
+                            "transforms": [],
+                            "matrixScenes": [],
+                            "contours": [],
+                            "boardContours": [],
+                            "boardReadiness": [],
+                            "findings": [],
+                            "readiness": {
+                                "layout": false,
+                                "outline": false,
+                                "pcb": false,
+                                "case": false
+                            }
+                        }))
+                        .unwrap(),
+                    ),
+                },
+                scope: None,
+                layout_target,
+                query,
+                on_browse,
+                on_place: EventHandler::default(),
+            }
+        }
+    }
+
+    async fn browse_from_mounted_chooser(compact: bool) {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id(if compact {
+            "parts-browse-compact-test-root"
+        } else {
+            "parts-browse-desktop-test-root"
+        });
+        document.body().unwrap().append_child(&root).unwrap();
+        let signals: Rc<RefCell<Option<BrowseSignals>>> = Rc::new(RefCell::new(None));
+        let dom = VirtualDom::new_with_props(BrowseChooserHost, BrowseChooserHostProps { compact });
+        dom.provide_root_context(signals.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(30).await;
+
+        let input = root
+            .query_selector("input[aria-label='Search parts']")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap();
+        input.set_value("battery");
+        let input_event = web_sys::EventInit::new();
+        input_event.set_bubbles(true);
+        input
+            .dispatch_event(
+                &web_sys::Event::new_with_event_init_dict("input", &input_event).unwrap(),
+            )
+            .unwrap();
+        gloo_timers::future::TimeoutFuture::new(10).await;
+        root.query_selector("button.m1-add-browse")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        gloo_timers::future::TimeoutFuture::new(10).await;
+
+        let signals = signals.borrow().as_ref().copied().unwrap();
+        assert_eq!((signals.query)(), "battery");
+        assert_eq!((signals.generation)(), 1);
+        assert_eq!((signals.workspace)(), "Parts");
+        assert_eq!((signals.compact_open)(), compact);
+        assert_eq!(
+            (signals.panel_settings)().mode,
+            if compact {
+                super::super::PanelMode::Collapsed
+            } else {
+                super::super::PanelMode::Pinned
+            }
+        );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn mounted_browse_button_preserves_search_and_reveals_compact_objects() {
+        browse_from_mounted_chooser(true).await;
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn mounted_browse_button_preserves_search_and_pins_desktop_objects() {
+        browse_from_mounted_chooser(false).await;
+    }
+
     #[wasm_bindgen_test::wasm_bindgen_test]
     fn add_menu_uses_the_four_reference_groups_for_available_definitions() {
         let entries = vec![
@@ -393,9 +573,21 @@ mod add_object_menu_tests {
             entry("display", "OLED display", "custom"),
             entry("encoder", "Rotary encoder EC11", "encoder"),
             entry("stabilizer", "MX stabilizer", "custom"),
+            retired_entry(),
+            assembly_snapshot_entry(),
         ];
 
-        let groups = add_object_groups(&entries);
+        let choices = add_object_choices(&entries);
+        assert_eq!(choices.len(), 5);
+        assert!(choices.iter().all(|entry| {
+            !entry.definition.id.starts_with("assembly-")
+                && entry
+                    .definition
+                    .generator
+                    .as_ref()
+                    .is_none_or(|generator| generator.source != "infused-kim/nice_nano_pretty")
+        }));
+        let groups = add_object_groups(&choices);
 
         assert_eq!(
             groups.iter().map(|(label, _)| *label).collect::<Vec<_>>(),
@@ -415,6 +607,33 @@ mod add_object_menu_tests {
         assert_eq!(group_ids("Controllers"), ["controller"]);
         assert_eq!(group_ids("Displays"), ["display"]);
         assert_eq!(group_ids("Encoders"), ["encoder"]);
+        let battery_matches = add_object_search_results(&entries, "battery");
+        assert_eq!(
+            battery_matches
+                .iter()
+                .map(|entry| entry.definition.id.as_str())
+                .collect::<Vec<_>>(),
+            ["battery"]
+        );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn add_menu_search_excludes_retired_and_assembly_snapshot_definitions() {
+        let entries = vec![
+            entry("battery", "Battery connector", "connector"),
+            retired_entry(),
+            assembly_snapshot_entry(),
+        ];
+
+        let results = add_object_search_results(&entries, "battery");
+
+        assert_eq!(
+            results
+                .iter()
+                .map(|entry| entry.definition.id.as_str())
+                .collect::<Vec<_>>(),
+            ["battery"]
+        );
     }
 }
 

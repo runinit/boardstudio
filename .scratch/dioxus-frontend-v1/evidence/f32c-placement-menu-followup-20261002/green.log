@@ -1,0 +1,17 @@
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/f32c-placement-menu-followup-20261002/web)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 14.00s
+[INFO]: ⬇️  Installing wasm-bindgen...
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.49s
+     Running unittests src/main.rs (target/wasm32-unknown-unknown/debug/deps/boardstudio_web-aa31c5a7ade9d867.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:45311/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+Loading Wasm module...
+
+running 4 tests
+test presentation::parts::add_object_menu_tests::mounted_browse_button_preserves_search_and_reveals_compact_objects ... ok
+test presentation::parts::add_object_menu_tests::mounted_browse_button_preserves_search_and_pins_desktop_objects ... ok
+test presentation::parts::add_object_menu_tests::add_menu_uses_the_four_reference_groups_for_available_definitions ... ok
+test presentation::parts::add_object_menu_tests::add_menu_search_excludes_retired_and_assembly_snapshot_definitions ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 115 filtered out; finished in 0.13s
