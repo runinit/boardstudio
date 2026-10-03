@@ -949,7 +949,7 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-keymap-heading span { color: var(--wb-muted); font-size: var(--wb-type-label); }
 .m1-keymap-panel h3 { margin: 0 0 7px; color: var(--wb-ink); font-size: var(--wb-type-body); }
 .m1-keymap-layers, .m1-keymap-editor-section { min-width: 0; border-top: 1px solid var(--wb-rule); }
-.m1-keymap-layers > summary, .m1-keymap-editor-section > summary { display: flex; align-items: center; gap: 8px; min-height: 46px; padding: 12px 0; list-style: none; cursor: pointer; font-size: var(--wb-type-body); font-weight: 600; }
+.m1-keymap-layers > summary, .m1-keymap-editor-section > summary { display: flex; align-items: center; gap: 8px; min-height: 46px; margin-block: .6rem; padding: 12px 0; list-style: none; cursor: pointer; font-size: var(--wb-type-body); font-weight: 600; }
 .m1-keymap-layers > summary::-webkit-details-marker, .m1-keymap-editor-section > summary::-webkit-details-marker { display: none; }
 .m1-keymap-layers > summary::before, .m1-keymap-editor-section > summary::before { content: ""; flex: 0 0 6px; width: 6px; height: 6px; margin-right: 4px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); }
 .m1-keymap-layers[open] > summary::before, .m1-keymap-editor-section[open] > summary::before { margin-top: -4px; transform: rotate(45deg); }
