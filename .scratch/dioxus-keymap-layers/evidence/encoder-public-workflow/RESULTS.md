@@ -50,3 +50,11 @@ On the public PCB Wiring UI for Left PCB, changed `Pin for left/SW25/encoder-a` 
 For one recovery attempt, restored the fixture's original encoder-A pin `P1` through the same visible selector and applied wiring. The UI showed `Wiring pin saved`; the subsequent public ZMK export downloaded `c05-dioxus-after-correction-34782.zip`. Its `electrical-plan.json` has Left PCB `peripheralTerminals` encoder-a `P1`, encoder-b `P0`, push `P2`, matching the imported fixture's retained positive F5 plan; the archive also includes the ZMK keymap and shield outputs. This establishes recovery at source-export/readiness generation; no local ZMK firmware build was run. The post-recovery page capture is `c05-dioxus-after-correction-34782.png` and `.json`.
 
 Evidence is limited to this one Left PCB encoder-A failure/correction path; it does not claim all readiness failures or firmware compilation are qualified.
+
+## C07 narrow encoder control operability — 2026-10-03
+
+Reopened the same imported Sofle fixture on candidate `http://127.0.0.1:34782/` in an isolated public browser session and set the viewport to 430×900. In Keymap → Encoders → `left-SW25`, the CW, CCW, and Push button controls were reachable and editable without widening the viewport. Public controls were set to Key press with CW `F5`, CCW `Q`, and Push `SPACE`. CW and CCW each produced visible `Binding saved.` feedback; after blurring the Push input, the UI reflected `SPACE` with Key press. The immediate public DOM read recorded all three values at 430×900.
+
+The subsequent public ZMK export download action did not complete in the browser session. A bounded same-handle poll stalled; there is no C07 ZIP at the requested path or in the default Downloads directory, so this leg does not claim accepted export/reopen confirmation for the three narrow-width edits. C05's full-size failure/recovery export remains separate evidence and is not counted as C07 export proof. Existing Undo/Redo and reimport evidence above remains the accepted-history/archive evidence for the editor generally.
+
+Module-recovery remains unavailable in the same Sofle fixture: its Keymap panel exposes the actual encoder controls, including Push, but there are no attached-module rows to remove/recover. No module-specific recovery behavior is claimed. The browser session was closed after the bounded poll.

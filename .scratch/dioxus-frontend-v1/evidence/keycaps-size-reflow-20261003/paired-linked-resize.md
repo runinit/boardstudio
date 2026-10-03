@@ -24,3 +24,9 @@ The live path exercised the existing `KeySizeControls` → private accepted-docu
 - [`dioxus-linked-reload.png`](dioxus-linked-reload.png), SHA-256 `76cc54fe5b646759bb89b80700749d76c218b6fd28a98a17e28c7eb3aa841622`.
 
 Both are post-reload captures with the linked SW1 key selected, 2u×1u accepted size, Saved state, and the remaining overlap warning. F6C.3 still lacks a paired journey selecting both mirrored halves together, and the broader F3.2/F3.5 joins remain open. Existing RF-005/RF-001/RF-009 are carried forward; this browser run produced no new refactoring finding.
+
+## Mixed-selection Wide/Tall qualification (Dioxus candidate only, 2026-10-03)
+
+On the same fixture archive above, candidate build `frontend-module-attachment-repair-20261003` (source `733c1da2`, `http://127.0.0.1:34782/`), I used trusted Ctrl-additive pointer input to select `left-keys-SW1` (1u×4u) and `left-keys-SW8` (1u×1u). The inspector showed `2 keys selected` and `Mixed`. Wide was accepted and reached `Saved` with the selected pair at 4u×1u; Tall was then accepted and reached `Saved` with the pair at 1u×4u. Afterward, selecting SW1 and SW8 separately showed 1u×4u for each. The Wide shape produced an overlap finding in this fixture; the size edit remained accepted and saved.
+
+Captures: [`dioxus-mixed-wide-saved.png`](dioxus-mixed-wide-saved.png) (SHA-256 `1300d1c9fe7e2c2428151b01aec4655c565aa7a71bb113ff03a034e4b58b6c1f`) and [`dioxus-mixed-tall-saved.png`](dioxus-mixed-tall-saved.png) (SHA-256 `6610f2d5466419f0a3d5b62427a2e8642bc9939d0aa0e70d1c4d014c1fce18a2`). This is candidate-only evidence, not paired parity: the React session's exposed hit targets were intercepted by SVG polygons and selected unrelated objects, so its corresponding mixed-selection Wide/Tall behavior remains unverified. The original fixture's embedded project was not inspected through a separate download/export artifact in this qualification.

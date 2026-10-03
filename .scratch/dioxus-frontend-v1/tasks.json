@@ -5143,7 +5143,7 @@
             ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md"
           ],
           "blockers": [],
-          "next_action": "Fresh in-place Undo/Redo, reload, board/project round trips and retained validation recovery passed. Qualify a compact encoder-edit journey and remaining provider/module recovery branches without repeating proven history.",
+          "next_action": "Compact430x900 public CW F5/CCW Q controls showed Binding saved; Push SPACE retained after blur. Post-edit export stalled with no downloaded ZIP, so compact accepted archive/output confirmation remains open. Reuse prior full-size history/reopen and C05 recovery; module recovery needs a fixture containing modules.",
           "finish_condition": "Encoder edits survive Undo/Redo and save/reload; compact controls remain operable and failure/recovery returns to current accepted state.",
           "owned_files": [
             "web/src/presentation/keymap/encoder_editor.rs",
@@ -5391,7 +5391,7 @@
             ".scratch/dioxus-frontend-v1/evidence/keycaps-size-reflow-20261003/paired-linked-resize.md"
           ],
           "blockers": [],
-          "next_action": "Qualify a mixed-size selection for Mixed display and Wide/Tall normalization.",
+          "next_action": "Candidate34782 mixed SW1 1x4/SW8 1x1 selection showed Mixed, Wide saved 4x1 and Tall 1x4; individual Inspector reselect retained Tall. Complete matching TypeScript journey using a reliable key-selection route; previous SVG hit targeting selected unrelated objects, not an established product defect. No accepted archive comparison yet.",
           "finish_condition": "Heterogeneous sizes display Mixed; Wide and Tall apply the common long/short pair to all selected keys.",
           "owned_files": [
             "web/src/presentation/objects/keycap_size.rs",
