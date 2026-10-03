@@ -232,7 +232,8 @@ fn courtyard_bounds(points: &[Vec2]) -> (f64, f64, f64, f64) {
 #[cfg(all(test, target_arch = "wasm32"))]
 mod mounted_layer_tests {
     use super::*;
-    use crate::presentation::canvas_layers::{CanvasLayer, CanvasLayers};
+    use crate::presentation::canvas_layers::CanvasLayer;
+    use crate::presentation::pcb_layers::PcbLayerControls;
     use boardstudio_application::{Scope, SessionEpoch};
     use boardstudio_core::model::{
         Board, BoardContours, Contour, Pad, Part, PartDefinition, PartKind, Pose2, ProjectDoc,
@@ -364,19 +365,11 @@ mod mounted_layer_tests {
         let hidden = use_signal(BTreeSet::new);
         let footprints = use_signal(|| true);
         use_context_provider(|| super::super::LayerVisibility { hidden, footprints });
-        let groups = crate::presentation::pcb_layers::layer_groups_for_scene(
-            &snapshot.document,
-            &snapshot.scene.board_contours,
-            &snapshot.scene.contours,
-            &scope,
-            BTreeSet::new(),
-        );
         rsx! {
             div { id: "pcb-layer-mount",
-                CanvasLayers {
-                    trigger_id: String::from("pcb-layer-trigger"),
-                    list_id: String::from("pcb-layer-list"),
-                    groups,
+                PcbLayerControls {
+                    snapshot: snapshot.clone(),
+                    scope: scope.clone(),
                 }
                 svg { PcbScene {
                     snapshot,
@@ -385,6 +378,40 @@ mod mounted_layer_tests {
                     generation: 0,
                     on_part_hit: |_| {},
                 } }
+            }
+        }
+    }
+
+    fn mounted_board_switch() -> Element {
+        let (mut snapshot, scope) = fixture();
+        let mut document = (*snapshot.document).clone();
+        document.boards.push(Board {
+            id: "empty-board".into(),
+            name: "Empty board".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        snapshot.document = Arc::new(document);
+        let empty_scope = Scope {
+            board_id: "empty-board".into(),
+            ..scope.clone()
+        };
+        let mut empty_selected = use_signal(|| false);
+        let current_scope = if empty_selected() { empty_scope } else { scope };
+        let hidden = use_signal(BTreeSet::new);
+        let footprints = use_signal(|| true);
+        use_context_provider(|| super::super::LayerVisibility { hidden, footprints });
+        rsx! {
+            div { id: "pcb-layer-mount",
+                button { id: "switch-pcb-board", onclick: move |_| empty_selected.set(!empty_selected()), "Switch board" }
+                PcbLayerControls {
+                    snapshot,
+                    scope: current_scope,
+                }
             }
         }
     }
@@ -434,10 +461,22 @@ mod mounted_layer_tests {
         assert_eq!(count(".m1-part-drill"), 1);
         assert_eq!(count(".m1-part-label"), 1);
 
-        click("#pcb-layer-trigger");
+        click("#m1-pcb-layers-trigger");
         settle().await;
         assert_eq!(count("button[aria-label='Hide F.Cu']"), 1);
         assert_eq!(count("button[aria-label='Hide B.Cu']"), 1);
+        assert_eq!(
+            web_sys::window()
+                .unwrap()
+                .document()
+                .unwrap()
+                .query_selector("#pcb-layer-mount button[aria-label='Hide F.Cu'] .m1-layer-label")
+                .unwrap()
+                .unwrap()
+                .text_content()
+                .as_deref(),
+            Some("Front copper")
+        );
         click("button[aria-label='Hide F.Cu']");
         settle().await;
         assert_eq!(
@@ -488,8 +527,32 @@ mod mounted_layer_tests {
                 .unwrap();
         row.dispatch_event(&event).unwrap();
         settle().await;
-        assert!(count("#pcb-layer-list[hidden]") > 0);
-        assert_eq!(document.active_element().unwrap().id(), "pcb-layer-trigger");
+        assert!(count("#m1-pcb-layers-list[hidden]") > 0);
+        assert_eq!(
+            document.active_element().unwrap().id(),
+            "m1-pcb-layers-trigger"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn production_layer_component_recomputes_rows_when_board_scope_changes() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("pcb-layer-test-root");
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(mounted_board_switch),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        settle().await;
+        assert_eq!(count("button[aria-label='Hide F.Cu']"), 1);
+        click("#switch-pcb-board");
+        settle().await;
+        assert_eq!(count("button[aria-label='Hide F.Cu']"), 0);
+        click("#switch-pcb-board");
+        settle().await;
+        assert_eq!(count("button[aria-label='Hide F.Cu']"), 1);
         root.remove();
     }
 
@@ -502,6 +565,13 @@ mod mounted_layer_tests {
             &snapshot.scene.contours,
             &scope,
             BTreeSet::new(),
+        );
+        assert_eq!(
+            groups
+                .iter()
+                .map(|group| group.title.as_deref().unwrap_or(""))
+                .collect::<Vec<_>>(),
+            ["Copper", "Objects"]
         );
         assert!(groups.iter().flat_map(|group| &group.layers).all(|layer| {
             !matches!(
@@ -516,7 +586,7 @@ mod mounted_layer_tests {
             groups
                 .iter()
                 .flat_map(|group| &group.layers)
-                .any(|layer| { layer == &CanvasLayer::hidden("F.Cu", "F.Cu") })
+                .any(|layer| { layer == &CanvasLayer::hidden("F.Cu", "Front copper") })
         );
 
         let generated_layers = ["F.SilkS".to_owned(), "B.Mask".to_owned()]
@@ -529,10 +599,28 @@ mod mounted_layer_tests {
             &scope,
             generated_layers,
         );
+        assert_eq!(
+            groups
+                .iter()
+                .map(|group| group.title.as_deref().unwrap_or(""))
+                .collect::<Vec<_>>(),
+            ["Copper", "Technical", "Objects"]
+        );
         let rows = groups
             .iter()
             .flat_map(|group| &group.layers)
             .collect::<Vec<_>>();
+        assert_eq!(
+            groups
+                .iter()
+                .find(|group| group.title.as_deref() == Some("Objects"))
+                .unwrap()
+                .layers
+                .iter()
+                .map(|layer| layer.label.as_str())
+                .collect::<Vec<_>>(),
+            ["Board outline", "Courtyards", "Pads", "Holes", "References"]
+        );
         assert!(rows.iter().any(|layer| layer.id == "F.SilkS"));
         assert!(rows.iter().any(|layer| layer.id == "B.Mask"));
         assert_eq!(

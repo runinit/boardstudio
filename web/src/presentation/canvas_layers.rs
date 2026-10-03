@@ -49,6 +49,13 @@ impl CanvasLayerGroup {
             layers,
         }
     }
+
+    pub(super) fn titled(title: impl Into<String>, layers: Vec<CanvasLayer>) -> Self {
+        Self {
+            title: Some(title.into()),
+            layers,
+        }
+    }
 }
 
 #[derive(Props, Clone, PartialEq)]
@@ -125,7 +132,7 @@ pub(super) fn CanvasLayers(props: CanvasLayersProps) -> Element {
                                 LayerTarget::LayoutFootprints => footprints && !hidden.contains("Footprints"),
                             };
                             let action = if visible { "Hide" } else { "Show" };
-                            let aria_label = format!("{action} {}", layer.label);
+                            let aria_label = format!("{action} {}", layer.id);
                             let control = layer.clone();
                             let on_toggle = toggle;
                             rsx! {

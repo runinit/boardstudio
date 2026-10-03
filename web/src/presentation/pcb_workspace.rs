@@ -1,7 +1,6 @@
 //! PCB-owned workspace surface composition.
-use super::canvas_layers::CanvasLayers;
 use super::objects;
-use super::pcb_layers;
+use super::pcb_layers::PcbLayerControls;
 use super::pcb_scene::{PcbPartHit, PcbScene};
 use super::workspace_composition::{CanvasEventHandlers, SharedObjectsInput};
 use boardstudio_application::{AcceptedSnapshot, Scope};
@@ -39,7 +38,6 @@ pub(super) fn toolbar() -> Element {
 }
 
 pub(super) fn canvas(input: CanvasInput) -> Element {
-    let layer_groups = pcb_layers::use_layer_groups(&input.snapshot, &input.scope);
     let handlers = input.handlers;
     rsx! {
         section { class: "m1-pcb-workspace", "aria-label": "PCB workspace",
@@ -62,18 +60,17 @@ pub(super) fn canvas(input: CanvasInput) -> Element {
                 onclick: input.on_empty_hit,
                 g { transform: "scale(1,-1)",
                     PcbScene {
-                        snapshot: input.snapshot,
-                        scope: input.scope,
+                        snapshot: input.snapshot.clone(),
+                        scope: input.scope.clone(),
                         selected_ids: input.selected_ids,
                         generation: input.generation,
                         on_part_hit: input.on_part_hit,
                     }
                 }
             }
-            CanvasLayers {
-                trigger_id: String::from("m1-pcb-layers-trigger"),
-                list_id: String::from("m1-pcb-layers-list"),
-                groups: layer_groups,
+            PcbLayerControls {
+                snapshot: input.snapshot.clone(),
+                scope: input.scope.clone(),
             }
         }
     }

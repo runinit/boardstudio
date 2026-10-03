@@ -1,5 +1,5 @@
 //! Layer inventory and visibility grouping for accepted host PCB scene geometry.
-use super::canvas_layers::{CanvasLayer, CanvasLayerGroup};
+use super::canvas_layers::{CanvasLayer, CanvasLayerGroup, CanvasLayers};
 use super::footprint_graphics::{generator_drawings, resolve_board_layer};
 use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_core::model::{Pad, Part, PartDefinition, ProjectDoc, Side};
@@ -13,18 +13,48 @@ struct GeneratorLayerSource {
     side: Side,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+struct GeneratorLayerRequest {
+    scope: Scope,
+    sources: Vec<GeneratorLayerSource>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct GeneratorLayerInventory {
+    request: GeneratorLayerRequest,
+    layers: BTreeSet<String>,
+}
+
+#[derive(Props, Clone, PartialEq)]
+pub(super) struct PcbLayerControlsProps {
+    snapshot: AcceptedSnapshot,
+    scope: Scope,
+}
+
+#[component]
+pub(super) fn PcbLayerControls(props: PcbLayerControlsProps) -> Element {
+    let groups = use_layer_groups(&props.snapshot, &props.scope);
+    rsx! {
+        CanvasLayers {
+            trigger_id: String::from("m1-pcb-layers-trigger"),
+            list_id: String::from("m1-pcb-layers-list"),
+            groups,
+        }
+    }
+}
+
 pub(super) fn use_layer_groups(
     snapshot: &AcceptedSnapshot,
     scope: &Scope,
 ) -> Vec<CanvasLayerGroup> {
-    let generated_sources = generator_sources(snapshot, scope);
-    let generated_layers = use_resource(use_reactive(&generated_sources, |sources| async move {
-        collect_generator_layers(sources).await
-    }));
-    let generated_layers = match &*generated_layers.read() {
-        Some(Ok(layers)) => layers.clone(),
-        Some(Err(_)) | None => BTreeSet::new(),
+    let request = GeneratorLayerRequest {
+        scope: scope.clone(),
+        sources: generator_sources(snapshot, scope),
     };
+    let inventory = use_resource(use_reactive(&request, |request| async move {
+        collect_generator_layers(request).await
+    }));
+    let generated_layers = current_generator_layers(&request, inventory.read().as_ref());
     if snapshot.session_epoch != scope.session_epoch {
         return Vec::new();
     }
@@ -73,20 +103,40 @@ fn generator_sources(snapshot: &AcceptedSnapshot, scope: &Scope) -> Vec<Generato
         .collect()
 }
 
-async fn collect_generator_layers(
-    sources: Vec<GeneratorLayerSource>,
-) -> Result<BTreeSet<String>, String> {
+fn current_generator_layers(
+    request: &GeneratorLayerRequest,
+    inventory: Option<&GeneratorLayerInventory>,
+) -> BTreeSet<String> {
+    inventory
+        .filter(|inventory| inventory.request == *request)
+        .map(|inventory| inventory.layers.clone())
+        .unwrap_or_default()
+}
+
+async fn collect_generator_layers(request: GeneratorLayerRequest) -> GeneratorLayerInventory {
     let mut layers = BTreeSet::new();
-    for source in sources {
-        if let Some(drawings) =
-            generator_drawings(source.definition, source.parameters, Some(false)).await?
-        {
-            for graphic in drawings.iter() {
-                layers.insert(resolve_board_layer(&graphic.layer, &source.side));
-            }
+    for source in &request.sources {
+        let result = generator_drawings(
+            source.definition.clone(),
+            source.parameters.clone(),
+            Some(false),
+        )
+        .await;
+        extend_generator_layers(&mut layers, &source.side, result);
+    }
+    GeneratorLayerInventory { request, layers }
+}
+
+fn extend_generator_layers(
+    layers: &mut BTreeSet<String>,
+    side: &Side,
+    result: Result<Option<super::footprint_graphics::Drawings>, String>,
+) {
+    if let Ok(Some(drawings)) = result {
+        for graphic in drawings.iter() {
+            layers.insert(resolve_board_layer(&graphic.layer, side));
         }
     }
-    Ok(layers)
 }
 
 pub(super) fn layer_groups_for_scene(
@@ -139,27 +189,61 @@ pub(super) fn layer_groups_for_scene(
         }
     }
 
-    let mut controls = layers
+    let copper = layers
         .iter()
+        .filter(|layer| layer.ends_with(".Cu"))
+        .map(|layer| CanvasLayer::hidden(layer.clone(), visible_layer_label(layer)))
+        .collect::<Vec<_>>();
+    let technical = layers
+        .iter()
+        .filter(|layer| {
+            layer.contains('.') && !layer.ends_with(".Cu") && layer.as_str() != "Edge.Cuts"
+        })
         .map(|layer| CanvasLayer::hidden(layer.clone(), layer.clone()))
         .collect::<Vec<_>>();
+    let mut objects = layers
+        .iter()
+        .filter(|layer| !layer.contains('.') && layer.as_str() != "Edge.Cuts")
+        .map(|layer| CanvasLayer::hidden(layer.clone(), visible_layer_label(layer)))
+        .collect::<Vec<_>>();
     if !contours.is_empty() {
-        controls.push(CanvasLayer::hidden("Edge.Cuts", "Edge.Cuts"));
+        objects.push(CanvasLayer::hidden("Edge.Cuts", "Board outline"));
     }
     if has_courtyards {
-        controls.push(CanvasLayer::hidden("Courtyards", "Courtyards"));
+        objects.push(CanvasLayer::hidden("Courtyards", "Courtyards"));
     }
     if has_pads {
-        controls.push(CanvasLayer::hidden("Pads", "Pads"));
+        objects.push(CanvasLayer::hidden("Pads", "Pads"));
     }
     if has_holes {
-        controls.push(CanvasLayer::hidden("Holes", "Holes"));
+        objects.push(CanvasLayer::hidden("Holes", "Holes"));
     }
     if has_references {
-        controls.push(CanvasLayer::hidden("References", "References"));
+        objects.push(CanvasLayer::hidden("References", "References"));
     }
-    controls.sort_by(|left, right| left.id.cmp(&right.id));
-    vec![CanvasLayerGroup::ungrouped(controls)]
+    let mut groups = Vec::new();
+    if !copper.is_empty() {
+        groups.push(CanvasLayerGroup::titled("Copper", copper));
+    }
+    if !technical.is_empty() {
+        groups.push(CanvasLayerGroup::titled("Technical", technical));
+    }
+    if !objects.is_empty() {
+        groups.push(CanvasLayerGroup::titled(
+            "Objects",
+            std::mem::take(&mut objects),
+        ));
+    }
+    groups
+}
+
+fn visible_layer_label(layer: &str) -> String {
+    match layer {
+        "F.Cu" => "Front copper".into(),
+        "B.Cu" => "Back copper".into(),
+        "Edge.Cuts" => "Board outline".into(),
+        _ => layer.to_owned(),
+    }
 }
 
 fn pad_copper_layers(pad: &Pad, part_side: &Side) -> Vec<String> {
@@ -193,7 +277,10 @@ pub(super) fn pad_is_visible(pad: &Pad, part_side: &Side, hidden: &BTreeSet<Stri
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::footprint_forms::{Graphic, Point, Shape};
+    use boardstudio_application::SessionEpoch;
     use boardstudio_core::model::{PadShape, Vec2};
+    use std::rc::Rc;
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
@@ -211,6 +298,44 @@ mod tests {
             rotation: None,
             net_id: None,
         }
+    }
+
+    #[wasm_bindgen_test]
+    fn completed_inventory_from_an_old_board_scope_is_not_reused() {
+        let scope = |board_id: &str| Scope {
+            session_epoch: SessionEpoch(2),
+            document_id: "doc".into(),
+            board_id: board_id.into(),
+            instance_id: None,
+        };
+        let old_request = GeneratorLayerRequest {
+            scope: scope("left"),
+            sources: vec![],
+        };
+        let current_request = GeneratorLayerRequest {
+            scope: scope("right"),
+            sources: vec![],
+        };
+        let previous = GeneratorLayerInventory {
+            request: old_request,
+            layers: BTreeSet::from(["F.SilkS".into()]),
+        };
+        assert!(current_generator_layers(&current_request, Some(&previous)).is_empty());
+    }
+
+    #[wasm_bindgen_test]
+    fn one_generator_failure_does_not_drop_other_emitted_layer_rows() {
+        let mut layers = BTreeSet::new();
+        extend_generator_layers(
+            &mut layers,
+            &Side::Front,
+            Ok(Some(Rc::new(vec![Graphic {
+                layer: "F.SilkS".into(),
+                shape: Shape::Circle(Point(0.0, 0.0), 1.0),
+            }]))),
+        );
+        extend_generator_layers(&mut layers, &Side::Front, Err("one bad source".into()));
+        assert_eq!(layers, BTreeSet::from(["F.SilkS".into()]));
     }
 
     #[wasm_bindgen_test]
