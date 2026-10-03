@@ -13,11 +13,11 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, Lifecycle, OperationId, Scope, SnapshotToken, TerminalOutcome,
 };
 use boardstudio_core::model::{
-    GasketConstructionVersion, InsertInstallation, InternalClosureHardware,
-    InternalGasketConfiguration, MechanicalAssembly, MechanicalBottomStyle,
+    GasketConstructionVersion, HardwareTransport, InsertInstallation, InternalClosureHardware,
+    InternalGasketConfiguration, MechanicalAssembly, MechanicalBattery, MechanicalBottomStyle,
     MechanicalConfiguration, MechanicalGasketLayout, MechanicalMount, MechanicalSwitchFamily,
     Mount, MountKind, Part, PartDefinition, PartGenerator, PartKind, PlateMethod, ProjectDoc,
-    ScrewDrive, ScrewHeadProfile, ScrewLengthDatum,
+    ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Vec2, Vec3,
 };
 use std::{
     cell::{Cell, RefCell},
@@ -808,6 +808,37 @@ fn apply_patch(
             return Err("Configure and Disable cannot be applied as configuration updates.".into());
         }
         MechanicalSettingsPatch::InitializeClosures => unreachable!("handled above"),
+        MechanicalSettingsPatch::SetBatteryEnabled(enabled) => {
+            if document
+                .hardware
+                .as_ref()
+                .is_some_and(|hardware| hardware.transport == HardwareTransport::Wireless)
+            {
+                return Err(
+                    "Wireless battery envelopes are managed by the wireless configuration.".into(),
+                );
+            }
+            if *enabled {
+                if configuration.battery.is_some() {
+                    return Err("A battery envelope is already configured.".into());
+                }
+                configuration.battery = Some(MechanicalBattery {
+                    cable_width: Some(2.0),
+                    size: Vec3 {
+                        x: 30.0,
+                        y: 20.0,
+                        z: 6.0,
+                    },
+                    at: Vec2 { x: 0.0, y: 0.0 },
+                    cable_exit: Vec2 { x: 0.0, y: 0.0 },
+                });
+            } else {
+                if configuration.battery.is_none() {
+                    return Err("There is no battery envelope to remove.".into());
+                }
+                configuration.battery = None;
+            }
+        }
         MechanicalSettingsPatch::SetMethod(method) => configuration.method = method.clone(),
         MechanicalSettingsPatch::SetMount(mount) => {
             configuration.mount = mount.clone();
@@ -840,7 +871,7 @@ fn apply_patch(
         }
         MechanicalSettingsPatch::SetDimension { field, value } => {
             validate_dimension(*field, *value)?;
-            set_dimension(configuration, *field, *value);
+            set_dimension(configuration, *field, *value)?;
         }
         MechanicalSettingsPatch::SetSwitchFamily {
             definition_id,
@@ -896,7 +927,24 @@ fn apply_patch(
                 default_plate_foam_thickness(configuration.plate_to_pcb);
         }
     }
-    normalize_processes(configuration, patch);
+    let battery_only_patch = matches!(patch, MechanicalSettingsPatch::SetBatteryEnabled(_))
+        || matches!(
+            patch,
+            MechanicalSettingsPatch::SetDimension {
+                field: MechanicalDimension::BatteryWidth
+                    | MechanicalDimension::BatteryDepth
+                    | MechanicalDimension::BatteryHeight
+                    | MechanicalDimension::BatteryCableWidth
+                    | MechanicalDimension::BatteryPositionX
+                    | MechanicalDimension::BatteryPositionY
+                    | MechanicalDimension::BatteryCableExitX
+                    | MechanicalDimension::BatteryCableExitY,
+                ..
+            }
+        );
+    if !battery_only_patch {
+        normalize_processes(configuration, patch);
+    }
     Ok(())
 }
 
@@ -904,7 +952,7 @@ fn set_dimension(
     configuration: &mut MechanicalConfiguration,
     field: MechanicalDimension,
     value: f64,
-) {
+) -> Result<(), String> {
     match field {
         MechanicalDimension::PlateThickness => configuration.plate_thickness = value,
         MechanicalDimension::PlateFoamThickness => configuration.plate_foam_thickness = value,
@@ -914,19 +962,67 @@ fn set_dimension(
         MechanicalDimension::WallThickness => configuration.wall_thickness = value,
         MechanicalDimension::Clearance => configuration.clearance = value,
         MechanicalDimension::OpeningAllowance => configuration.opening_allowance = Some(value),
+        MechanicalDimension::BatteryWidth
+        | MechanicalDimension::BatteryDepth
+        | MechanicalDimension::BatteryHeight
+        | MechanicalDimension::BatteryCableWidth
+        | MechanicalDimension::BatteryPositionX
+        | MechanicalDimension::BatteryPositionY
+        | MechanicalDimension::BatteryCableExitX
+        | MechanicalDimension::BatteryCableExitY => {
+            let battery = configuration.battery.as_mut().ok_or_else(|| {
+                "The battery envelope was removed before this field update.".to_owned()
+            })?;
+            match field {
+                MechanicalDimension::BatteryWidth => battery.size.x = value,
+                MechanicalDimension::BatteryDepth => battery.size.y = value,
+                MechanicalDimension::BatteryHeight => battery.size.z = value,
+                MechanicalDimension::BatteryCableWidth => battery.cable_width = Some(value),
+                MechanicalDimension::BatteryPositionX => battery.at.x = value,
+                MechanicalDimension::BatteryPositionY => battery.at.y = value,
+                MechanicalDimension::BatteryCableExitX => battery.cable_exit.x = value,
+                MechanicalDimension::BatteryCableExitY => battery.cable_exit.y = value,
+                _ => unreachable!("battery dimension variant checked above"),
+            }
+        }
     }
+    Ok(())
 }
 
 fn validate_dimension(field: MechanicalDimension, value: f64) -> Result<(), String> {
     let valid = value.is_finite()
         && match field {
             MechanicalDimension::OpeningAllowance => (-1.0..=1.0).contains(&value),
+            MechanicalDimension::BatteryWidth
+            | MechanicalDimension::BatteryDepth
+            | MechanicalDimension::BatteryHeight
+            | MechanicalDimension::BatteryCableWidth => value >= 0.1,
+            MechanicalDimension::BatteryPositionX
+            | MechanicalDimension::BatteryPositionY
+            | MechanicalDimension::BatteryCableExitX
+            | MechanicalDimension::BatteryCableExitY => value >= -1_000_000.0,
             _ => value >= 0.0,
         };
     if valid {
         Ok(())
     } else if field == MechanicalDimension::OpeningAllowance {
         Err("Opening allowance must be between −1 and 1 mm.".into())
+    } else if matches!(
+        field,
+        MechanicalDimension::BatteryWidth
+            | MechanicalDimension::BatteryDepth
+            | MechanicalDimension::BatteryHeight
+            | MechanicalDimension::BatteryCableWidth
+    ) {
+        Err("Battery dimensions and cable width must be at least 0.1 mm.".into())
+    } else if matches!(
+        field,
+        MechanicalDimension::BatteryPositionX
+            | MechanicalDimension::BatteryPositionY
+            | MechanicalDimension::BatteryCableExitX
+            | MechanicalDimension::BatteryCableExitY
+    ) {
+        Err("Battery positions and cable exits must be at least −1,000,000 mm.".into())
     } else {
         Err("Mechanical dimensions must be finite and nonnegative.".into())
     }
@@ -1089,6 +1185,7 @@ fn patch_field_id(patch: &MechanicalSettingsPatch) -> String {
         MechanicalSettingsPatch::Enable => "configure".into(),
         MechanicalSettingsPatch::InitializeClosures => "initialize-closures".into(),
         MechanicalSettingsPatch::Disable => "disable".into(),
+        MechanicalSettingsPatch::SetBatteryEnabled(_) => "battery-enabled".into(),
         MechanicalSettingsPatch::SetMethod(_) => "method".into(),
         MechanicalSettingsPatch::SetMount(_) => "mount".into(),
         MechanicalSettingsPatch::SetBottomStyle(_) => "bottom-style".into(),
@@ -1103,6 +1200,14 @@ fn patch_field_id(patch: &MechanicalSettingsPatch) -> String {
             MechanicalDimension::WallThickness => "wall-thickness".into(),
             MechanicalDimension::Clearance => "clearance".into(),
             MechanicalDimension::OpeningAllowance => "opening-allowance".into(),
+            MechanicalDimension::BatteryWidth => "battery-width".into(),
+            MechanicalDimension::BatteryDepth => "battery-depth".into(),
+            MechanicalDimension::BatteryHeight => "battery-height".into(),
+            MechanicalDimension::BatteryCableWidth => "battery-cable-width".into(),
+            MechanicalDimension::BatteryPositionX => "battery-position-x".into(),
+            MechanicalDimension::BatteryPositionY => "battery-position-y".into(),
+            MechanicalDimension::BatteryCableExitX => "battery-cable-exit-x".into(),
+            MechanicalDimension::BatteryCableExitY => "battery-cable-exit-y".into(),
         },
         MechanicalSettingsPatch::SetSwitchFamily { definition_id, .. } => {
             format!("switch-family:{definition_id}")
@@ -1161,5 +1266,205 @@ fn default_internal_gasket() -> InternalGasketConfiguration {
             seat_lead_diameter: 3.0,
             bearing_thickness: 1.5,
         },
+    }
+}
+
+#[cfg(test)]
+mod battery_patch_tests {
+    use super::*;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    fn configuration() -> MechanicalConfiguration {
+        MechanicalConfiguration {
+            internal_gasket: None,
+            gasket_layout: None,
+            hardware: None,
+            critical_fits: None,
+            bottom_style: Some(MechanicalBottomStyle::Shell),
+            middle_frame: Some(false),
+            gasket_travel: None,
+            openings: None,
+            opening_allowance: Some(0.25),
+            stabilizers: None,
+            part_processes: None,
+            gasket: None,
+            closure_mounts: None,
+            board_id: "board".into(),
+            integrated_plate_frame: false,
+            battery: None,
+            mounts: vec![],
+            method: PlateMethod::Printed,
+            mount: MechanicalMount::Rigid,
+            plate_thickness: 1.5,
+            plate_foam_thickness: 0.5,
+            pcb_thickness: 1.6,
+            bottom_foam_thickness: 0.4,
+            battery_height: 4.0,
+            bottom_thickness: 3.0,
+            plate_to_pcb: 3.5,
+            wall_thickness: 2.0,
+            clearance: 0.3,
+            profiles: vec![],
+        }
+    }
+
+    #[wasm_bindgen_test]
+    fn enabling_wired_battery_uses_reference_defaults_without_changing_other_settings() {
+        let mut configuration = configuration();
+        let before = configuration.clone();
+
+        apply_patch(
+            &mut configuration,
+            &MechanicalSettingsPatch::SetBatteryEnabled(true),
+            &ProjectDoc::empty("doc", "doc"),
+            "board",
+        )
+        .unwrap();
+
+        assert_eq!(configuration.board_id, before.board_id);
+        assert_eq!(configuration.method, before.method);
+        assert_eq!(configuration.mount, before.mount);
+        assert_eq!(configuration.plate_thickness, before.plate_thickness);
+        assert_eq!(configuration.bottom_thickness, before.bottom_thickness);
+        assert_eq!(configuration.part_processes, before.part_processes);
+        assert_eq!(
+            configuration.battery,
+            Some(MechanicalBattery {
+                cable_width: Some(2.0),
+                size: Vec3 {
+                    x: 30.0,
+                    y: 20.0,
+                    z: 6.0,
+                },
+                at: Vec2 { x: 0.0, y: 0.0 },
+                cable_exit: Vec2 { x: 0.0, y: 0.0 },
+            })
+        );
+    }
+
+    #[wasm_bindgen_test]
+    fn removing_battery_preserves_all_non_battery_settings() {
+        let mut configuration = configuration();
+        configuration.battery = Some(MechanicalBattery {
+            cable_width: None,
+            size: Vec3 {
+                x: 42.0,
+                y: 18.0,
+                z: 5.0,
+            },
+            at: Vec2 { x: 8.0, y: -3.0 },
+            cable_exit: Vec2 { x: 40.0, y: -3.0 },
+        });
+        let mut expected = configuration.clone();
+        expected.battery = None;
+
+        apply_patch(
+            &mut configuration,
+            &MechanicalSettingsPatch::SetBatteryEnabled(false),
+            &ProjectDoc::empty("doc", "doc"),
+            "board",
+        )
+        .unwrap();
+
+        assert_eq!(configuration, expected);
+    }
+
+    #[wasm_bindgen_test]
+    fn battery_fields_update_their_own_values_and_reject_missing_or_invalid_envelopes() {
+        let mut configuration = configuration();
+        configuration.battery = Some(MechanicalBattery {
+            cable_width: None,
+            size: Vec3 {
+                x: 30.0,
+                y: 20.0,
+                z: 6.0,
+            },
+            at: Vec2 { x: 0.0, y: 0.0 },
+            cable_exit: Vec2 { x: 0.0, y: 0.0 },
+        });
+        let fields = [
+            (MechanicalDimension::BatteryWidth, 31.0),
+            (MechanicalDimension::BatteryDepth, 21.0),
+            (MechanicalDimension::BatteryHeight, 7.0),
+            (MechanicalDimension::BatteryCableWidth, 2.5),
+            (MechanicalDimension::BatteryPositionX, -12.0),
+            (MechanicalDimension::BatteryPositionY, 13.0),
+            (MechanicalDimension::BatteryCableExitX, 30.0),
+            (MechanicalDimension::BatteryCableExitY, -5.0),
+        ];
+        for (field, value) in fields {
+            apply_patch(
+                &mut configuration,
+                &MechanicalSettingsPatch::SetDimension { field, value },
+                &ProjectDoc::empty("doc", "doc"),
+                "board",
+            )
+            .unwrap();
+        }
+        assert_eq!(
+            configuration.battery,
+            Some(MechanicalBattery {
+                cable_width: Some(2.5),
+                size: Vec3 {
+                    x: 31.0,
+                    y: 21.0,
+                    z: 7.0,
+                },
+                at: Vec2 { x: -12.0, y: 13.0 },
+                cable_exit: Vec2 { x: 30.0, y: -5.0 },
+            })
+        );
+
+        assert!(
+            apply_patch(
+                &mut configuration,
+                &MechanicalSettingsPatch::SetDimension {
+                    field: MechanicalDimension::BatteryWidth,
+                    value: 0.0,
+                },
+                &ProjectDoc::empty("doc", "doc"),
+                "board",
+            )
+            .is_err()
+        );
+        configuration.battery = None;
+        assert!(
+            apply_patch(
+                &mut configuration,
+                &MechanicalSettingsPatch::SetDimension {
+                    field: MechanicalDimension::BatteryWidth,
+                    value: 1.0,
+                },
+                &ProjectDoc::empty("doc", "doc"),
+                "board",
+            )
+            .unwrap_err()
+            .contains("removed")
+        );
+    }
+
+    #[wasm_bindgen_test]
+    fn wireless_transport_rejects_manual_battery_toggle() {
+        let mut configuration = configuration();
+        let mut document = ProjectDoc::empty("doc", "doc");
+        document.hardware = Some(boardstudio_core::model::HardwareConfiguration {
+            topology: Default::default(),
+            transport: HardwareTransport::Wireless,
+            instances: vec![],
+            boards: vec![],
+            shared_construction: None,
+        });
+
+        assert!(
+            apply_patch(
+                &mut configuration,
+                &MechanicalSettingsPatch::SetBatteryEnabled(true),
+                &document,
+                "board",
+            )
+            .unwrap_err()
+            .contains("Wireless")
+        );
+        assert!(configuration.battery.is_none());
     }
 }

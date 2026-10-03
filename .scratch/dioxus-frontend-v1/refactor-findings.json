@@ -168,6 +168,15 @@
         "observation": "No new refactoring takeaway observed in the custom-component create path. The leaf reuses Runtime operation IDs/outcomes and the existing accepted ReplaceDocument/history path; reconciliation checks both Parts query/selection intent generation and the actual monotonic Runtime scope generation, including A\u2192B\u2192A scope transitions. A mounted production-effect test verifies workspace generation advances once per transition without subscribing to its own write. The Inspector resolves accepted project definitions directly while catalogue loading/error status remains visible.",
         "status": "bounded implementation handoff with reviewed source/effect repairs; paired public browser acceptance and parent joins remain open"
       },
+      "case13_battery_patch_20261002": {
+        "source": "Case Issue13 battery envelope controls; implementation based on f261a327858f51a1de4928374bc65b669e2792a3",
+        "evidence": ".scratch/dioxus-case-workspace/evidence/battery-envelope-issue13-20261002/implementation-handoff.md",
+        "observation": "The shared private mechanical-settings patch path unconditionally ran manufacturing-process normalization. A production-seam battery-removal regression reproduced an unrelated mutation: `partProcesses` changed from absent to an empty vector. The bounded correction skips this process normalization for battery-only toggles/fields, preserving construction/process propagation on the patches that own it and retaining the existing canonical/physical target policy.",
+        "certainty": "confirmed incidental mutation in the battery-only path; no claim that other unrelated patch families are free of the same side effect",
+        "current_mitigation": "Keep battery operations limited to the selected current configuration and skip only unrelated process normalization for battery-only changes. Preserve existing Runtime, operation, persistence, instance-link and mechanical-resolution ownership.",
+        "post_port_follow_up": "Assess the mechanical patch funnel's field ownership and derived process-normalization policy. Any decomposition must preserve construction-linked propagation and accepted canonical/physical instance semantics.",
+        "validation": "Retained unguarded-regression red shows the empty-process-vector addition; four focused controller WASM tests pass after the guard, mounted wired/wireless controls pass, and strict all-target WASM Clippy passes. Public paired edit/history/reopen acceptance remains open."
+      },
       "shared_join_checkpoint_20261002": {
         "source": "94480901a2dcabaa6085416e29116c620017a385",
         "observation": "PCB07 and PCB08 isolated authors each correctly implemented a generic-part Inspector, but the initial serial join duplicated its heading and moved Ergogen bindings ahead of Board details/Connections. Independent review reproduced the composition mismatch; a single contextual host heading and a private Element slot now preserve both controllers and reference order. Source review clear; actual paired DOM qualification remains open.",

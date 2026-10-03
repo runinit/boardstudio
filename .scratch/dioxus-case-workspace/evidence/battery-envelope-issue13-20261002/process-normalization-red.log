@@ -1,0 +1,91 @@
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/case-battery-implementation-20261002/web)
+warning: unused variable: `battery_only_patch`
+   --> src/presentation/mechanical_settings_controller.rs:930:9
+    |
+930 |     let battery_only_patch = matches!(patch, MechanicalSettingsPatch::SetBatteryEnabled(_))
+    |         ^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_battery_only_patch`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `boardstudio-web` (bin "boardstudio-web" test) generated 1 warning (run `cargo fix --bin "boardstudio-web" -p boardstudio-web --tests` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.53s
+     Running unittests src/main.rs (/home/chris/.local/share/boardstudio/retained-tmp/20261002/case-battery-target/wasm32-unknown-unknown/debug/deps/boardstudio_web-8674f89af6490a63.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:44129/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+Loading Wasm module...
+using deprecated parameters for the initialization function; pass a single object instead
+
+running 1 test
+Invoking test: presentation::mechanical_settings_controller::battery_patch_tests::removing_battery_preserves_all_non_battery_settings
+panicked at src/presentation/mechanical_settings_controller.rs:1367:9:
+assertion `left == right` failed
+  left: MechanicalConfiguration { internal_gasket: None, gasket_layout: None, hardware: None, critical_fits: None, bottom_style: Some(Shell), middle_frame: Some(false), gasket_travel: None, openings: None, opening_allowance: Some(0.25), stabilizers: None, part_processes: Some([]), gasket: None, closure_mounts: None, board_id: "board", integrated_plate_frame: false, battery: None, mounts: [], method: Printed, mount: Rigid, plate_thickness: 1.5, plate_foam_thickness: 0.5, pcb_thickness: 1.6, bottom_foam_thickness: 0.4, battery_height: 4.0, bottom_thickness: 3.0, plate_to_pcb: 3.5, wall_thickness: 2.0, clearance: 0.3, profiles: [] }
+ right: MechanicalConfiguration { internal_gasket: None, gasket_layout: None, hardware: None, critical_fits: None, bottom_style: Some(Shell), middle_frame: Some(false), gasket_travel: None, openings: None, opening_allowance: Some(0.25), stabilizers: None, part_processes: None, gasket: None, closure_mounts: None, board_id: "board", integrated_plate_frame: false, battery: None, mounts: [], method: Printed, mount: Rigid, plate_thickness: 1.5, plate_foam_thickness: 0.5, pcb_thickness: 1.6, bottom_foam_thickness: 0.4, battery_height: 4.0, bottom_thickness: 3.0, plate_to_pcb: 3.5, wall_thickness: 2.0, clearance: 0.3, profiles: [] }
+
+Stack:
+
+Error
+    at http://127.0.0.1:33093/wasm-bindgen-test:1621:25
+    at logError (http://127.0.0.1:33093/wasm-bindgen-test:2746:18)
+    at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:33093/wasm-bindgen-test:1620:57)
+    at boardstudio_web-8674f89af6490a63.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:33093/wasm-bindgen-test_bg.wasm:wasm-function[130515]:0x19dc5b2)
+    at boardstudio_web-8674f89af6490a63.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:33093/wasm-bindgen-test_bg.wasm:wasm-function[73882]:0x176f577)
+    at boardstudio_web-8674f89af6490a63.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:33093/wasm-bindgen-test_bg.wasm:wasm-function[27749]:0x123759a)
+    at boardstudio_web-8674f89af6490a63.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:33093/wasm-bindgen-test_bg.wasm:wasm-function[77812]:0x17ab699)
+    at boardstudio_web-8674f89af6490a63.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:33093/wasm-bindgen-test_bg.wasm:wasm-function[23743]:0x1157e82)
+    at boardstudio_web-8674f89af6490a63.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:33093/wasm-bindgen-test_bg.wasm:wasm-function[45537]:0x14fcc16)
+    at boardstudio_web-8674f89af6490a63.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:33093/wasm-bindgen-test_bg.wasm:wasm-function[132314]:0x19e1c11)
+
+
+test presentation::mechanical_settings_controller::battery_patch_tests::removing_battery_preserves_all_non_battery_settings ... FAIL
+
+failures:
+
+---- presentation::mechanical_settings_controller::battery_patch_tests::removing_battery_preserves_all_non_battery_settings output ----
+    error output:
+        panicked at src/presentation/mechanical_settings_controller.rs:1367:9:
+        assertion `left == right` failed
+          left: MechanicalConfiguration { internal_gasket: None, gasket_layout: None, hardware: None, critical_fits: None, bottom_style: Some(Shell), middle_frame: Some(false), gasket_travel: None, openings: None, opening_allowance: Some(0.25), stabilizers: None, part_processes: Some([]), gasket: None, closure_mounts: None, board_id: "board", integrated_plate_frame: false, battery: None, mounts: [], method: Printed, mount: Rigid, plate_thickness: 1.5, plate_foam_thickness: 0.5, pcb_thickness: 1.6, bottom_foam_thickness: 0.4, battery_height: 4.0, bottom_thickness: 3.0, plate_to_pcb: 3.5, wall_thickness: 2.0, clearance: 0.3, profiles: [] }
+         right: MechanicalConfiguration { internal_gasket: None, gasket_layout: None, hardware: None, critical_fits: None, bottom_style: Some(Shell), middle_frame: Some(false), gasket_travel: None, openings: None, opening_allowance: Some(0.25), stabilizers: None, part_processes: None, gasket: None, closure_mounts: None, board_id: "board", integrated_plate_frame: false, battery: None, mounts: [], method: Printed, mount: Rigid, plate_thickness: 1.5, plate_foam_thickness: 0.5, pcb_thickness: 1.6, bottom_foam_thickness: 0.4, battery_height: 4.0, bottom_thickness: 3.0, plate_to_pcb: 3.5, wall_thickness: 2.0, clearance: 0.3, profiles: [] }
+        
+        Stack:
+        
+        Error
+            at http://127.0.0.1:33093/wasm-bindgen-test:1621:25
+            at logError (http://127.0.0.1:33093/wasm-bindgen-test:2746:18)
+            at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:33093/wasm-bindgen-test:1620:57)
+            at boardstudio_web-8674f89af6490a63.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:33093/wasm-bindgen-test_bg.wasm:wasm-function[130515]:0x19dc5b2)
+            at boardstudio_web-8674f89af6490a63.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:33093/wasm-bindgen-test_bg.wasm:wasm-function[73882]:0x176f577)
+            at boardstudio_web-8674f89af6490a63.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:33093/wasm-bindgen-test_bg.wasm:wasm-function[27749]:0x123759a)
+            at boardstudio_web-8674f89af6490a63.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:33093/wasm-bindgen-test_bg.wasm:wasm-function[77812]:0x17ab699)
+            at boardstudio_web-8674f89af6490a63.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:33093/wasm-bindgen-test_bg.wasm:wasm-function[23743]:0x1157e82)
+            at boardstudio_web-8674f89af6490a63.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:33093/wasm-bindgen-test_bg.wasm:wasm-function[45537]:0x14fcc16)
+            at boardstudio_web-8674f89af6490a63.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:33093/wasm-bindgen-test_bg.wasm:wasm-function[132314]:0x19e1c11)
+        
+        
+    
+    JS exception that was thrown:
+        RuntimeError: unreachable
+            at boardstudio_web-8674f89af6490a63.wasm.__rustc[4b1ee1ef74718a7b]::__rust_abort (http://127.0.0.1:33093/wasm-bindgen-test_bg.wasm:wasm-function[132779]:0x19e29f0)
+            at boardstudio_web-8674f89af6490a63.wasm.__rustc[4b1ee1ef74718a7b]::__rust_start_panic (http://127.0.0.1:33093/wasm-bindgen-test_bg.wasm:wasm-function[132701]:0x19e288c)
+            at boardstudio_web-8674f89af6490a63.wasm.__rustc[4b1ee1ef74718a7b]::rust_panic (http://127.0.0.1:33093/wasm-bindgen-test_bg.wasm:wasm-function[130934]:0x19ddcb5)
+            at boardstudio_web-8674f89af6490a63.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:33093/wasm-bindgen-test_bg.wasm:wasm-function[23743]:0x1157ef5)
+            at boardstudio_web-8674f89af6490a63.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:33093/wasm-bindgen-test_bg.wasm:wasm-function[45537]:0x14fcc16)
+            at boardstudio_web-8674f89af6490a63.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:33093/wasm-bindgen-test_bg.wasm:wasm-function[132314]:0x19e1c11)
+            at boardstudio_web-8674f89af6490a63.wasm.__rustc[4b1ee1ef74718a7b]::rust_begin_unwind (http://127.0.0.1:33093/wasm-bindgen-test_bg.wasm:wasm-function[102299]:0x18e1e9e)
+            at boardstudio_web-8674f89af6490a63.wasm.core[f0fd674eaa06beef]::panicking::panic_fmt (http://127.0.0.1:33093/wasm-bindgen-test_bg.wasm:wasm-function[76884]:0x179da11)
+            at boardstudio_web-8674f89af6490a63.wasm.core[f0fd674eaa06beef]::panicking::assert_failed_inner (http://127.0.0.1:33093/wasm-bindgen-test_bg.wasm:wasm-function[20655]:0x108ef8e)
+            at boardstudio_web-8674f89af6490a63.wasm.core[f0fd674eaa06beef]::panicking::assert_failed::<boardstudio_core[245593304c351146]::model::MechanicalConfiguration, boardstudio_core[245593304c351146]::model::MechanicalConfiguration> (http://127.0.0.1:33093/wasm-bindgen-test_bg.wasm:wasm-function[59139]:0x16613dc)
+
+failures:
+
+    presentation::mechanical_settings_controller::battery_patch_tests::removing_battery_preserves_all_non_battery_settings
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 74 filtered out; finished in 0.03s
+
+Error: some tests failed
+error: test failed, to rerun pass `--bin boardstudio-web`
+
+Caused by:
+  process didn't exit successfully: `/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner /home/chris/.local/share/boardstudio/retained-tmp/20261002/case-battery-target/wasm32-unknown-unknown/debug/deps/boardstudio_web-8674f89af6490a63.wasm 'presentation::mechanical_settings_controller::battery_patch_tests::removing_battery_preserves_all_non_battery_settings' --nocapture` (exit status: 1)

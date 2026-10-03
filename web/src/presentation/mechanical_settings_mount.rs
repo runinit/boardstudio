@@ -20,8 +20,8 @@ use crate::mechanical_feedback::{
 use crate::runtime::{CadScene, Runtime};
 use boardstudio_application::{AcceptedSnapshot, Durability, Event, Lifecycle, OperationId, Scope};
 use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, MechanicalBottomStyle, MechanicalConfiguration,
-    MechanicalMount, Part, PartKind, ProjectDoc,
+    EditCommand, EditOperation, EditPhase, HardwareTransport, MechanicalBottomStyle,
+    MechanicalConfiguration, MechanicalMount, Part, PartKind, ProjectDoc,
 };
 use dioxus::prelude::*;
 use std::{
@@ -472,10 +472,17 @@ pub(crate) fn use_mechanical_settings_mount(
                 }
             }
         });
+        let transport = current
+            .accepted
+            .document
+            .hardware
+            .as_ref()
+            .map_or(HardwareTransport::None, |hardware| hardware.transport);
         MechanicalSettingsProps {
             identity: current.identity.clone(),
             request_sequence,
-            values: configuration.map(|configuration| settings_values(configuration.as_ref())),
+            values: configuration
+                .map(|configuration| settings_values(configuration.as_ref(), transport)),
             profiles,
             layers,
             findings,
@@ -680,9 +687,14 @@ fn project_settings_source(
     })
 }
 
-fn settings_values(configuration: &MechanicalConfiguration) -> MechanicalSettingsValues {
+fn settings_values(
+    configuration: &MechanicalConfiguration,
+    transport: HardwareTransport,
+) -> MechanicalSettingsValues {
     MechanicalSettingsValues {
         board_id: configuration.board_id.clone(),
+        transport,
+        battery: configuration.battery.clone(),
         method: configuration.method.clone(),
         mount: configuration.mount.clone(),
         bottom_style: configuration

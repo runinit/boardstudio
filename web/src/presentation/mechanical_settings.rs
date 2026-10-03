@@ -4,7 +4,8 @@ pub(crate) use crate::mechanical_feedback::{
     MechanicalSettingsFeedback, MechanicalSettingsFeedbackState, MechanicalSettingsIdentity,
 };
 use boardstudio_core::model::{
-    MechanicalBottomStyle, MechanicalMount, MechanicalSwitchFamily, PlateMethod, Severity, Vec2,
+    HardwareTransport, MechanicalBattery, MechanicalBottomStyle, MechanicalMount,
+    MechanicalSwitchFamily, PlateMethod, Severity, Vec2,
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -17,6 +18,8 @@ use web_sys::HtmlInputElement;
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct MechanicalSettingsValues {
     pub(crate) board_id: String,
+    pub(crate) transport: HardwareTransport,
+    pub(crate) battery: Option<MechanicalBattery>,
     pub(crate) method: PlateMethod,
     pub(crate) mount: MechanicalMount,
     pub(crate) bottom_style: MechanicalBottomStyle,
@@ -78,6 +81,14 @@ pub(crate) enum MechanicalDimension {
     WallThickness,
     Clearance,
     OpeningAllowance,
+    BatteryWidth,
+    BatteryDepth,
+    BatteryHeight,
+    BatteryCableWidth,
+    BatteryPositionX,
+    BatteryPositionY,
+    BatteryCableExitX,
+    BatteryCableExitY,
 }
 
 fn is_dimension_field(field_id: &str) -> bool {
@@ -90,6 +101,14 @@ fn is_dimension_field(field_id: &str) -> bool {
         MechanicalDimension::WallThickness,
         MechanicalDimension::Clearance,
         MechanicalDimension::OpeningAllowance,
+        MechanicalDimension::BatteryWidth,
+        MechanicalDimension::BatteryDepth,
+        MechanicalDimension::BatteryHeight,
+        MechanicalDimension::BatteryCableWidth,
+        MechanicalDimension::BatteryPositionX,
+        MechanicalDimension::BatteryPositionY,
+        MechanicalDimension::BatteryCableExitX,
+        MechanicalDimension::BatteryCableExitY,
     ]
     .iter()
     .any(|field| field.field_id() == field_id)
@@ -106,12 +125,28 @@ impl MechanicalDimension {
             Self::WallThickness => "wall-thickness",
             Self::Clearance => "clearance",
             Self::OpeningAllowance => "opening-allowance",
+            Self::BatteryWidth => "battery-width",
+            Self::BatteryDepth => "battery-depth",
+            Self::BatteryHeight => "battery-height",
+            Self::BatteryCableWidth => "battery-cable-width",
+            Self::BatteryPositionX => "battery-position-x",
+            Self::BatteryPositionY => "battery-position-y",
+            Self::BatteryCableExitX => "battery-cable-exit-x",
+            Self::BatteryCableExitY => "battery-cable-exit-y",
         }
     }
 
     fn rule(self) -> NumberRule {
         match self {
             Self::OpeningAllowance => NumberRule::Bounded(-1, 1),
+            Self::BatteryWidth
+            | Self::BatteryDepth
+            | Self::BatteryHeight
+            | Self::BatteryCableWidth => NumberRule::AtLeastTenth,
+            Self::BatteryPositionX
+            | Self::BatteryPositionY
+            | Self::BatteryCableExitX
+            | Self::BatteryCableExitY => NumberRule::Coordinate,
             _ => NumberRule::Nonnegative,
         }
     }
@@ -122,6 +157,7 @@ pub(crate) enum MechanicalSettingsPatch {
     Enable,
     InitializeClosures,
     Disable,
+    SetBatteryEnabled(bool),
     SetMethod(PlateMethod),
     SetMount(MechanicalMount),
     SetBottomStyle(MechanicalBottomStyle),
@@ -143,6 +179,7 @@ impl MechanicalSettingsPatch {
             Self::Enable => "configure".to_owned(),
             Self::InitializeClosures => "initialize-closures".to_owned(),
             Self::Disable => "disable".to_owned(),
+            Self::SetBatteryEnabled(_) => "battery-enabled".to_owned(),
             Self::SetMethod(_) => "method".to_owned(),
             Self::SetMount(_) => "mount".to_owned(),
             Self::SetBottomStyle(_) => "bottom-style".to_owned(),
@@ -324,6 +361,15 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     findings: props.findings.clone(),
                     on_show_finding: props.on_show_finding,
                 }
+                BatteryControls {
+                    identity: props.identity.clone(),
+                    request_sequence,
+                    values: values.clone(),
+                    editable: props.editable,
+                    feedback: props.feedback.clone(),
+                    on_request: props.on_request,
+                    owner_key: owner_key.clone(),
+                }
                 button {
                     r#type: "button",
                     class: "m1-mechanical-disable",
@@ -361,6 +407,148 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                         move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::Enable)
                     },
                     "Configure mechanical stack"
+                }
+            }
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct BatteryControlsProps {
+    identity: MechanicalSettingsIdentity,
+    request_sequence: Signal<u64>,
+    values: MechanicalSettingsValues,
+    editable: bool,
+    feedback: Rc<[MechanicalSettingsFeedback]>,
+    on_request: EventHandler<MechanicalSettingsRequest>,
+    owner_key: String,
+}
+
+#[component]
+fn BatteryControls(props: BatteryControlsProps) -> Element {
+    let battery = props.values.battery.as_ref();
+    let request_sequence = props.request_sequence;
+    rsx! {
+        section { class: "m1-mechanical-option-group", aria_label: "Openings and battery",
+            h3 { "Openings & battery" }
+            section { class: "m1-mechanical-group", aria_label: "Battery",
+                h4 { "Battery" }
+                if props.values.transport == HardwareTransport::Wireless {
+                    p { class: "m1-mechanical-help", "Included for wireless. Set your cell dimensions; the battery shares the space below the PCB with bottom foam." }
+                } else {
+                    label { class: "m1-mechanical-check m1-mechanical-battery-toggle",
+                        input {
+                            r#type: "checkbox",
+                            aria_label: "Include a battery envelope",
+                            checked: battery.is_some(),
+                            disabled: !props.editable,
+                            onchange: {
+                                let identity = props.identity.clone();
+                                let on_request = props.on_request;
+                                let mut sequence = request_sequence;
+                                move |event: FormEvent| send_request(
+                                    &mut sequence,
+                                    &identity,
+                                    on_request,
+                                    MechanicalSettingsPatch::SetBatteryEnabled(event.checked()),
+                                )
+                            }
+                        }
+                        span { "Include a battery envelope" }
+                    }
+                }
+                if let Some(battery) = battery {
+                    fieldset { class: "m1-mechanical-group m1-mechanical-battery-fields", disabled: !props.editable,
+                        legend { "Battery dimensions and cable · mm" }
+                        DimensionField {
+                            key: "{props.owner_key}:battery-width",
+                            identity: props.identity.clone(),
+                            request_sequence,
+                            on_request: props.on_request,
+                            feedback: props.feedback.clone(),
+                            field: MechanicalDimension::BatteryWidth,
+                            label: "Width",
+                            value: battery.size.x,
+                            editable: props.editable,
+                        }
+                        DimensionField {
+                            key: "{props.owner_key}:battery-depth",
+                            identity: props.identity.clone(),
+                            request_sequence,
+                            on_request: props.on_request,
+                            feedback: props.feedback.clone(),
+                            field: MechanicalDimension::BatteryDepth,
+                            label: "Depth",
+                            value: battery.size.y,
+                            editable: props.editable,
+                        }
+                        DimensionField {
+                            key: "{props.owner_key}:battery-height",
+                            identity: props.identity.clone(),
+                            request_sequence,
+                            on_request: props.on_request,
+                            feedback: props.feedback.clone(),
+                            field: MechanicalDimension::BatteryHeight,
+                            label: "Height",
+                            value: battery.size.z,
+                            editable: props.editable,
+                        }
+                        DimensionField {
+                            key: "{props.owner_key}:battery-cable-width",
+                            identity: props.identity.clone(),
+                            request_sequence,
+                            on_request: props.on_request,
+                            feedback: props.feedback.clone(),
+                            field: MechanicalDimension::BatteryCableWidth,
+                            label: "Cable width",
+                            value: battery.cable_width.unwrap_or(2.0),
+                            editable: props.editable,
+                        }
+                        DimensionField {
+                            key: "{props.owner_key}:battery-position-x",
+                            identity: props.identity.clone(),
+                            request_sequence,
+                            on_request: props.on_request,
+                            feedback: props.feedback.clone(),
+                            field: MechanicalDimension::BatteryPositionX,
+                            label: "Position X",
+                            value: battery.at.x,
+                            editable: props.editable,
+                        }
+                        DimensionField {
+                            key: "{props.owner_key}:battery-position-y",
+                            identity: props.identity.clone(),
+                            request_sequence,
+                            on_request: props.on_request,
+                            feedback: props.feedback.clone(),
+                            field: MechanicalDimension::BatteryPositionY,
+                            label: "Position Y",
+                            value: battery.at.y,
+                            editable: props.editable,
+                        }
+                        DimensionField {
+                            key: "{props.owner_key}:battery-cable-exit-x",
+                            identity: props.identity.clone(),
+                            request_sequence,
+                            on_request: props.on_request,
+                            feedback: props.feedback.clone(),
+                            field: MechanicalDimension::BatteryCableExitX,
+                            label: "Cable exit X",
+                            value: battery.cable_exit.x,
+                            editable: props.editable,
+                        }
+                        DimensionField {
+                            key: "{props.owner_key}:battery-cable-exit-y",
+                            identity: props.identity.clone(),
+                            request_sequence,
+                            on_request: props.on_request,
+                            feedback: props.feedback.clone(),
+                            field: MechanicalDimension::BatteryCableExitY,
+                            label: "Cable exit Y",
+                            value: battery.cable_exit.y,
+                            editable: props.editable,
+                        }
+                    }
                 }
             }
         }
@@ -524,12 +712,26 @@ fn ContextualLayerInspector(props: ContextualLayerInspectorProps) -> Element {
 enum NumberRule {
     Nonnegative,
     Bounded(i8, i8),
+    AtLeastTenth,
+    Coordinate,
 }
 
 impl NumberRule {
+    fn minimum(self) -> &'static str {
+        match self {
+            Self::Nonnegative => "0",
+            Self::Bounded(-1, 1) => "-1",
+            Self::Bounded(_, _) => "0",
+            Self::AtLeastTenth => "0.1",
+            Self::Coordinate => "-1000000",
+        }
+    }
+
     fn error(self) -> &'static str {
         match self {
             Self::Nonnegative => "Enter a finite value of zero or greater.",
+            Self::AtLeastTenth => "Enter a finite value of 0.1 mm or greater.",
+            Self::Coordinate => "Enter a finite value of −1,000,000 mm or greater.",
             Self::Bounded(min, max) => {
                 if min == -1 && max == 1 {
                     "Enter a finite value from -1 to 1 mm."
@@ -544,6 +746,8 @@ impl NumberRule {
         value.is_finite()
             && match self {
                 Self::Nonnegative => value >= 0.0,
+                Self::AtLeastTenth => value >= 0.1,
+                Self::Coordinate => value >= -1_000_000.0,
                 Self::Bounded(min, max) => value >= f64::from(min) && value <= f64::from(max),
             }
     }
@@ -943,7 +1147,7 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                 input {
                     r#type: "number",
                     step: "0.1",
-                    min: match props.field.rule() { NumberRule::Nonnegative => "0", NumberRule::Bounded(_, _) => "-1" },
+                    min: props.field.rule().minimum(),
                     max: if props.field == MechanicalDimension::OpeningAllowance { "1" },
                     value: "{draft}",
                     disabled: !props.editable,
@@ -1171,16 +1375,14 @@ fn severity_label(value: &Severity) -> &'static str {
 mod contextual_layer_tests {
     use super::*;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
+    use boardstudio_core::model::Vec3;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
-    fn test_page() -> Element {
-        let mut selected_layer = use_signal(|| "plate".to_owned());
-        let mut shown_finding = use_signal(String::new);
-        let request_sequence = use_signal(|| 0_u64);
-        let identity = MechanicalSettingsIdentity {
+    fn test_identity() -> MechanicalSettingsIdentity {
+        MechanicalSettingsIdentity {
             editor_instance_id: 1,
             scope_generation: 1,
             presentation_generation: 1,
@@ -1194,9 +1396,17 @@ mod contextual_layer_tests {
             revision: 1,
             active_board_id: "board".into(),
             configuration_board_id: "board".into(),
-        };
-        let values = MechanicalSettingsValues {
+        }
+    }
+
+    fn test_values(
+        transport: HardwareTransport,
+        battery: Option<MechanicalBattery>,
+    ) -> MechanicalSettingsValues {
+        MechanicalSettingsValues {
             board_id: "board".into(),
+            transport,
+            battery,
             method: PlateMethod::Printed,
             mount: MechanicalMount::Rigid,
             bottom_style: MechanicalBottomStyle::Shell,
@@ -1211,7 +1421,15 @@ mod contextual_layer_tests {
             clearance: 0.2,
             opening_allowance: 0.0,
             internal_gasket: true,
-        };
+        }
+    }
+
+    fn test_page() -> Element {
+        let mut selected_layer = use_signal(|| "plate".to_owned());
+        let mut shown_finding = use_signal(String::new);
+        let request_sequence = use_signal(|| 0_u64);
+        let identity = test_identity();
+        let values = test_values(HardwareTransport::Wired, None);
         let layers = Rc::from([
             MechanicalLayerRow {
                 id: "plate".into(),
@@ -1291,6 +1509,68 @@ mod contextual_layer_tests {
         }
     }
 
+    #[component]
+    fn BatteryTestPage() -> Element {
+        let wired_request_sequence = use_signal(|| 0_u64);
+        let wireless_request_sequence = use_signal(|| 0_u64);
+        let mut last_request = use_signal(String::new);
+        rsx! {
+            div { id: "case-battery-wired-test-root",
+                MechanicalSettings {
+                    identity: test_identity(),
+                    request_sequence: wired_request_sequence,
+                    values: Some(test_values(HardwareTransport::Wired, None)),
+                    profiles: Rc::from([]),
+                    layers: Rc::from([]),
+                    findings: Rc::from([]),
+                    selected_layer: String::new(),
+                    mismatch: None,
+                    editable: true,
+                    disabled_reason: None,
+                    feedback: Rc::from([]),
+                    summary_feedback: None,
+                    on_request: move |request: MechanicalSettingsRequest| {
+                        last_request.set(format!("{:?}", request.patch))
+                    },
+                    on_select_layer: move |_| {},
+                    on_show_finding: move |_| {},
+                    on_show_configured_board: move |_| {},
+                }
+            }
+            div { id: "case-battery-wireless-test-root",
+                MechanicalSettings {
+                    identity: test_identity(),
+                    request_sequence: wireless_request_sequence,
+                    values: Some(test_values(
+                        HardwareTransport::Wireless,
+                        Some(MechanicalBattery {
+                            cable_width: None,
+                            size: Vec3 { x: 30.0, y: 20.0, z: 6.0 },
+                            at: Vec2 { x: 12.0, y: -4.0 },
+                            cable_exit: Vec2 { x: 29.0, y: -4.0 },
+                        }),
+                    )),
+                    profiles: Rc::from([]),
+                    layers: Rc::from([]),
+                    findings: Rc::from([]),
+                    selected_layer: String::new(),
+                    mismatch: None,
+                    editable: true,
+                    disabled_reason: None,
+                    feedback: Rc::from([]),
+                    summary_feedback: None,
+                    on_request: move |request: MechanicalSettingsRequest| {
+                        last_request.set(format!("{:?}", request.patch))
+                    },
+                    on_select_layer: move |_| {},
+                    on_show_finding: move |_| {},
+                    on_show_configured_board: move |_| {},
+                }
+            }
+            div { id: "case-battery-last-request", "{last_request}" }
+        }
+    }
+
     fn element(selector: &str) -> web_sys::HtmlElement {
         web_sys::window()
             .unwrap()
@@ -1305,6 +1585,17 @@ mod contextual_layer_tests {
 
     async fn rendered() {
         gloo_timers::future::TimeoutFuture::new(60).await;
+    }
+
+    fn mount_battery_test_page(root_id: &'static str, page: fn() -> Element) {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id(root_id);
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(page),
+            dioxus_web::Config::new().rootnode(root.into()),
+        );
     }
 
     #[wasm_bindgen_test]
@@ -1423,5 +1714,86 @@ mod contextual_layer_tests {
         assert!(text.contains("Clearance"));
         assert!(!text.contains("Resolved thickness"));
         assert!(!text.contains("Plate thickness"));
+    }
+
+    #[wasm_bindgen_test]
+    async fn battery_controls_match_wired_and_wireless_modes_and_dispatch_toggle() {
+        mount_battery_test_page("case-battery-settings-test-root", BatteryTestPage);
+        rendered().await;
+
+        let panel = element("#case-battery-wired-test-root .m1-mechanical-settings");
+        assert!(
+            panel
+                .text_content()
+                .unwrap_or_default()
+                .contains("Include a battery envelope"),
+            "wired mechanical settings should expose the optional battery envelope toggle"
+        );
+        let toggle =
+            element("#case-battery-wired-test-root input[aria-label='Include a battery envelope']")
+                .dyn_into::<web_sys::HtmlInputElement>()
+                .unwrap();
+        assert!(!toggle.checked());
+        assert!(!panel.text_content().unwrap_or_default().contains("Width"));
+
+        toggle.set_checked(true);
+        let change = web_sys::EventInit::new();
+        change.set_bubbles(true);
+        toggle
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &change).unwrap())
+            .unwrap();
+        rendered().await;
+        assert_eq!(
+            element("#case-battery-last-request")
+                .text_content()
+                .as_deref(),
+            Some("SetBatteryEnabled(true)")
+        );
+
+        let panel = element("#case-battery-wireless-test-root .m1-mechanical-settings");
+        let text = panel.text_content().unwrap_or_default();
+        assert!(text.contains("Included for wireless."));
+        assert!(!text.contains("Include a battery envelope"));
+        for label in [
+            "Width",
+            "Depth",
+            "Height",
+            "Cable width",
+            "Position X",
+            "Position Y",
+            "Cable exit X",
+            "Cable exit Y",
+        ] {
+            assert!(
+                text.contains(label),
+                "wireless battery field {label} should be visible"
+            );
+        }
+
+        let document = web_sys::window().unwrap().document().unwrap();
+        let inputs = document
+            .query_selector_all(
+                "#case-battery-wireless-test-root .m1-mechanical-battery-fields input[type='number']",
+            )
+            .unwrap();
+        assert_eq!(inputs.length(), 8);
+        let expected_minimums = [
+            "0.1", "0.1", "0.1", "0.1", "-1000000", "-1000000", "-1000000", "-1000000",
+        ];
+        for (index, minimum) in expected_minimums.into_iter().enumerate() {
+            let input = inputs
+                .item(index as u32)
+                .unwrap()
+                .dyn_into::<web_sys::HtmlInputElement>()
+                .unwrap();
+            assert_eq!(input.step(), "0.1");
+            assert_eq!(input.min(), minimum);
+        }
+        let cable_width = inputs
+            .item(3)
+            .unwrap()
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap();
+        assert_eq!(cable_width.value().parse::<f64>().unwrap(), 2.0);
     }
 }
