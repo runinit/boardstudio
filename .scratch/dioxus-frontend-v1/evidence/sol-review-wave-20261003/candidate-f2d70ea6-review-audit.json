@@ -1,0 +1,101 @@
+{
+  "source": "f2d70ea627d851ea461033b44052bbf3740d37a1",
+  "comparison_base": "a2bd8b54e6ec6efe7559b22fd6cf752c63cce010",
+  "url": "http://127.0.0.1:34747/",
+  "source_findings": [
+    {
+      "axis": "Spec",
+      "priority": "P2",
+      "file": "web/src/presentation/parts/preview.rs",
+      "line": 187,
+      "finding": "Accepted imported KiCad definition has no generator; load_preview rejects it before source/pad preview. Confirmed in 34747 paired receipt. Separate correction 8cb822fc is outside f2d review."
+    }
+  ],
+  "closed_historical_finding": {
+    "parts_import_failure_owner": "424b11808eba97e6ad18149d3f0eaa617ae74247"
+  },
+  "preservation": {
+    "parts_import_leaf_byte_equal_424b1180": true,
+    "runtime_adapter_byte_equal_7ee4ef8c": true,
+    "pcb_scene_byte_equal_75341410": true
+  },
+  "root_package_proof": {
+    "path": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/frontend-parts-import-delivery-root-proof.json",
+    "sha256": "e5d454ecca222d6bbb439f836ff03a309965a83b332384392bf34133bd695c9e",
+    "data": {
+      "status": "complete",
+      "source": "f2d70ea627d851ea461033b44052bbf3740d37a1",
+      "source_inputs": 1360,
+      "source_mismatches": [],
+      "commands": 8,
+      "failed_commands": [],
+      "assets": {
+        "root": {
+          "count": 145,
+          "mismatches": []
+        },
+        "subpath": {
+          "count": 145,
+          "mismatches": []
+        }
+      },
+      "provenance_sha256": "2b7b6853800bcea30907f16a6c2e62794c476509ca3f95436dc696441a03a9a1",
+      "command_span_seconds": 107.032953,
+      "/": {
+        "status": 200,
+        "coep": "require-corp"
+      },
+      "/boardstudio/": {
+        "status": 200,
+        "coep": "require-corp"
+      }
+    },
+    "boundary": "Reused root delivery proof;8 fresh commands with retained baseline command/provider evidence, not a new full22 run by this reviewer."
+  },
+  "source_sha256": {
+    "web/src/presentation/parts_import_footprint.rs": "b959620e8eda3d707fbe7636e208330e52b5ff87e49799ee2fed8573fbf275d6",
+    "web/src/presentation/pcb_scene.rs": "a343760d4e672b9fbfcbd2e1ad264e489ef31061806a4ea9777a2498c0487883",
+    "web/assets/m1.css": "dc24961e852db1118912ef39861f82c0c1aabe0529e24a045b70a1486f99afb4"
+  },
+  "checks": {
+    "affected_source_whitespace": "pass",
+    "reviewer_compiler_jobs": 0,
+    "reviewer_browser_journeys": 0
+  },
+  "public_receipts": {
+    "parts": {
+      "commit": "2ca044bbe42e6fb295ae429c2185bfe64ceb237b",
+      "snapshot": "PARTS-PAIRED-RECEIPT.md",
+      "sha256": "a52ff5fe3f3e646c6e1f3633507226eb0798dbaf6d534042478706e3f9732a56",
+      "boundary": "Author paired valid/malformed imports, Undo/reimport/reload. No fresh Redo, compact, full archive round-trip or preview acceptance claim."
+    },
+    "keycaps": {
+      "snapshot": "KEYCAPS-REPLAY.json",
+      "sha256": "4dba5ee4af4bea4f5c7d60419d8040cb97b4955faa3be1f43f6cfa004896c44a",
+      "boundary": "Corrected retained receipt: focused marker present; previous negative probe superseded. Camera vertical offset remains."
+    },
+    "pcb_selection-checks.json": {
+      "commit": "d67e52d8ca754095353bcc6c5a45de36d4f79137",
+      "snapshot": "PCB-selection-checks.json",
+      "sha256": "34e02d20895c9d1ee4421e4b6932cfb7aa1a020d6dc4620a7509c80f8cea08f4"
+    },
+    "pcb_final-green.json": {
+      "commit": "d67e52d8ca754095353bcc6c5a45de36d4f79137",
+      "snapshot": "PCB-final-green.json",
+      "sha256": "99b935feb4699de8c256a2f2c17f26530fa18299aaac8c5e5fd1e5366b595835"
+    }
+  },
+  "parent_status_edits": [],
+  "public_open_observations": [
+    "Keycaps finding route camera y differs by 0.45165945165945 viewBox units (~2.2px); x/extents and marker match.",
+    "Parts import full child acceptance remains open: preview and remaining required Redo/compact/archive round-trip evidence not supplied by this focused replay.",
+    "Broader PCB layer/module consumers and parent joins remain open; current scoped selection fix does not close full PCB parent criteria."
+  ],
+  "discarded_false_findings": [
+    "Imported pads/Add pad are disabled through fieldset; editable courtyard matches React and is not a defect.",
+    "Missing Keycaps marker was an initial receipt probe false negative; actual DOM and PNG show the focused Core contour."
+  ],
+  "standards_decision": "No new actionable Standards defect found in the reviewed integrated deltas.",
+  "spec_decision": "Bounded delivery/selection/geometry improvements supported; imported preview gap remains. No full child/parent closure.",
+  "acceptance_parent_status": "No status edits. Preserve existing accepted INT.2; no reopened INT.2 gate."
+}
