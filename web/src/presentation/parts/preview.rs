@@ -184,6 +184,10 @@ pub(in crate::presentation) fn PartsPreviewPanel(
 }
 
 async fn load_preview(definition: Rc<PartDefinition>) -> Result<PreviewContent, PreviewFailure> {
+    if definition.kicad_source.is_some() {
+        return source_backed_preview(&definition);
+    }
+
     let generator = definition
         .generator
         .as_ref()
@@ -217,6 +221,24 @@ async fn load_preview(definition: Rc<PartDefinition>) -> Result<PreviewContent, 
         PreviewFailure::Failed("The selected definition contains no 2D footprint geometry.".into())
     })?;
     let layers = preview_layers(&definition, &drawings, outline.as_ref());
+    Ok(PreviewContent {
+        drawings,
+        outline,
+        layers,
+        view_box,
+    })
+}
+
+fn source_backed_preview(definition: &PartDefinition) -> Result<PreviewContent, PreviewFailure> {
+    let drawings = Rc::new(Vec::new());
+    let outline = (!definition.courtyard.is_empty()).then(|| PreviewOutline {
+        label: "Courtyard",
+        points: definition.courtyard.clone(),
+    });
+    let view_box = view_box(definition, &drawings, outline.as_ref()).ok_or_else(|| {
+        PreviewFailure::Failed("The imported footprint contains no projected 2D geometry.".into())
+    })?;
+    let layers = preview_layers(definition, &drawings, outline.as_ref());
     Ok(PreviewContent {
         drawings,
         outline,
