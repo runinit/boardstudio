@@ -152,7 +152,11 @@ pub(super) fn CanvasLayers(props: CanvasLayersProps) -> Element {
                                 LayerTarget::LayoutFootprints => footprints && !hidden.contains("Footprints"),
                             };
                             let action = if visible { "Hide" } else { "Show" };
-                            let aria_label = format!("{action} {}", layer.id);
+                            let accessibility_label = match &layer.target {
+                                LayerTarget::ModuleHidden(_) => &layer.label,
+                                _ => &layer.id,
+                            };
+                            let aria_label = format!("{action} {accessibility_label}");
                             let control = layer.clone();
                             let on_toggle = toggle;
                             rsx! {
