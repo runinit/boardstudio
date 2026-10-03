@@ -950,13 +950,13 @@ fn MountRow(props: MountRowProps) -> Element {
                 on_request: props.on_request, feedback: props.feedback.clone(), field: MechanicalDimension::MountHoleDiameter,
                 label: "Hole diameter", value: mount.hole_diameter, editable: props.editable, mount_target: Some(make_target(&mount.id)),
             }
+            DimensionField { key: "{field_prefix}:boss",
+                identity: props.identity.clone(), request_sequence: props.request_sequence,
+                on_request: props.on_request, feedback: props.feedback.clone(), field: MechanicalDimension::MountBossDiameter,
+                label: "Boss diameter", value: mount.boss_diameter.unwrap_or(5.0), editable: props.editable, mount_target: Some(make_target(&mount.id)),
+            }
             if mount.kind == MountKind::Boss {
-                DimensionField { key: "{field_prefix}:boss",
-                    identity: props.identity.clone(), request_sequence: props.request_sequence,
-                    on_request: props.on_request, feedback: props.feedback.clone(), field: MechanicalDimension::MountBossDiameter,
-                    label: "Boss diameter", value: mount.boss_diameter.unwrap_or(5.0), editable: props.editable, mount_target: Some(make_target(&mount.id)),
-                }
-                DimensionField {
+                DimensionField { key: "{field_prefix}:height",
                     identity: props.identity.clone(), request_sequence: props.request_sequence,
                     on_request: props.on_request, feedback: props.feedback.clone(), field: MechanicalDimension::MountBossHeight,
                     label: "Boss height", value: mount.height.unwrap_or(5.0), editable: props.editable, mount_target: Some(make_target(&mount.id)),

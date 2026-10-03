@@ -865,9 +865,6 @@ fn apply_patch(
             validate_mounts(mounts)?;
             match collection {
                 MechanicalMountCollection::Suspension => {
-                    if configuration.mount == MechanicalMount::Gasket {
-                        return Err("Suspension mounts are unavailable for a gasket mount.".into());
-                    }
                     configuration.mounts = mounts.clone();
                 }
                 MechanicalMountCollection::Closure => {
@@ -915,9 +912,7 @@ fn apply_patch(
                 MechanicalDimension::MountPositionX => mount.at.x = *value,
                 MechanicalDimension::MountPositionY => mount.at.y = *value,
                 MechanicalDimension::MountHoleDiameter => mount.hole_diameter = *value,
-                MechanicalDimension::MountBossDiameter if mount.kind == MountKind::Boss => {
-                    mount.boss_diameter = Some(*value)
-                }
+                MechanicalDimension::MountBossDiameter => mount.boss_diameter = Some(*value),
                 MechanicalDimension::MountBossHeight if mount.kind == MountKind::Boss => {
                     mount.height = Some(*value)
                 }
@@ -1193,8 +1188,8 @@ fn validate_mounts(mounts: &[Mount]) -> Result<(), String> {
             return Err("Mount positions must be finite values.".into());
         }
         validate_mount_positive(mount.hole_diameter, "Hole diameter")?;
+        validate_mount_positive(mount.boss_diameter.unwrap_or(5.0), "Boss diameter")?;
         if mount.kind == MountKind::Boss {
-            validate_mount_positive(mount.boss_diameter.unwrap_or(5.0), "Boss diameter")?;
             validate_mount_positive(mount.height.unwrap_or(5.0), "Boss height")?;
         }
     }
