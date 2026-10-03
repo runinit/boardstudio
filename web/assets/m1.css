@@ -453,7 +453,7 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-export-list { display: grid; gap: 8px; }
 .m1-export-row { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--wb-rule); border-radius: 6px; background: var(--wb-panel); }
 .m1-export-ready-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--wb-muted); }
-.m1-export-ready-dot.is-ready { background: var(--wb-accent); }
+.m1-export-ready-dot.is-ready { background: var(--wb-status-success-surface); }
 .m1-export-row-copy { display: grid; gap: 3px; min-width: 0; }
 .m1-export-row-copy small, .m1-export-reason { color: var(--wb-muted); font-size: 12px; }
 .m1-export-row-action { min-width: 92px; }
