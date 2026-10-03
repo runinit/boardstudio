@@ -647,7 +647,7 @@
         "F2.3",
         "F6C.3"
       ],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
       "shared_edit_owner": "integration coordinator",
@@ -663,7 +663,15 @@
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true,
         "author_role_note": "Evidence execution/preparation; Astra independently assesses acceptance, task external gates unchanged."
-      }
+      },
+      "status_history": [
+        {
+          "previous": "planned",
+          "new": "implementing",
+          "date": "2026-10-03",
+          "reason": "F3.8 mountedGeometryscripts226fe787; F3.7 boardInspector15 dispatched on provenentrycapability. Criteria and finalacceptance unchanged; source/status update only."
+        }
+      ]
     },
     {
       "id": "F3.8",
@@ -687,7 +695,7 @@
       "acceptance_after": [
         "F3.5"
       ],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
       "shared_edit_owner": "integration coordinator",
@@ -702,7 +710,15 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      }
+      },
+      "status_history": [
+        {
+          "previous": "planned",
+          "new": "implementing",
+          "date": "2026-10-03",
+          "reason": "F3.8 mountedGeometryscripts226fe787; F3.7 boardInspector15 dispatched on provenentrycapability. Criteria and finalacceptance unchanged; source/status update only."
+        }
+      ]
     },
     {
       "id": "F4.1",

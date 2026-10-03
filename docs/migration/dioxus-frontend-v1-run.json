@@ -1271,12 +1271,12 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T10:52:40.840783+00:00",
+    "updated_at": "2026-10-03T10:55:47.104107+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
       "accepted": 2,
-      "planned": 26,
-      "implementing": 34,
+      "implementing": 36,
+      "planned": 24,
       "total": 62
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
@@ -1298,7 +1298,7 @@
     },
     "integration": {
       "source_commit": "65d49442",
-      "state": "34763 verified/live; shared UI/Export changed journeys and one consolidated review active. Geometry scripts next source join;34762 retained.",
+      "state": "34763 served; empty-action stylingGREEN, Caseoneaction/uppercaseGREEN receiptjoined. Solfinalconsolidatedreadinessactive. NextLayoutbatch hasGeometryscriptsjoined226fe787 and BoardInspector15authoring; PartsVIKmodulesparallel.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1902,6 +1902,26 @@
         "candidate": "900068a0/34762",
         "evidence": ".scratch/dioxus-pcb-view/evidence/21-empty-board-entry-20261003/public-34762.json",
         "remaining": "Correctedactionstylequalify nextcandidate; broadermatrix/parentcriteriaretained."
+      },
+      {
+        "candidate": "http://127.0.0.1:34763/",
+        "source_commit": "99ec041a2895e5ab23880be25501beb9360487db",
+        "provenance_sha256": "d3c03d6db107ab7a55753b5798d99444f7d0843540ef96530c00d9f44296fe08",
+        "reference": "http://127.0.0.1:5173/",
+        "reference_commit": "5a472a9426e6e38993361da402cd4ec730feb369",
+        "changed_leg": "Empty selected Board2 action typography/height/color",
+        "result": "GREEN",
+        "measurements": {
+          "primary": "both34px height/13pxfont/white text/blue background",
+          "secondary": "both40px height/13pxfont/inktext/transparent background"
+        },
+        "captures_visually_inspected": [
+          "react-34763-pair-empty.png",
+          "dioxus-34763-empty.png"
+        ],
+        "reused": "public-34762.json: entry/actions/cancel/Browse and acceptedrevision unchanged; prior newboard history/reopen and current-source display guards. No repeated action/history pass.",
+        "limits": "Contextual Board Inspector generic Position and Objects grouping/header gaps remain; nextchild15 addresses board Inspector. No fullF3/F5parent acceptance.",
+        "tool_notes": "Initial eval syntax error and screenshot CDP timeout were tooling failures; after closing only root-owned superseded test tabs, capture succeeded. They are not app behavior failures."
       }
     ],
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
