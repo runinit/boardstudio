@@ -771,8 +771,8 @@
   },
   "active_source_freeze": {
     "date": "2026-10-03T11:09:14.306552+00:00",
-    "build_id": "frontend-board-geometry-vik-20261003",
-    "state": "Pagepackage inprogress; no integration source mutation until provenance proof",
+    "build_id": "frontend-board-geometry-vik-full-20261003",
+    "state": "One full package establishes source/asset baseline for added VIK catalogue; source frozen",
     "head_before_freeze_commit": "533501d9"
   },
   "retained_checkpoint_history": [
@@ -1273,7 +1273,7 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T11:09:14.306552+00:00",
+    "updated_at": "2026-10-03T11:10:42.024526+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
       "accepted": 3,
@@ -1300,7 +1300,7 @@
     },
     "integration": {
       "source_commit": "533501d9",
-      "state": "Frozen nextbatch: Layout BoardInspector and Geometryscripts, PartsVIK catalogue, Projectstatus nesting, Exportcontext repair. CombinedstrictpageWASMalltargets PASS17.49s; package34764starting.",
+      "state": "CombinedstrictpageWASMalltargets PASS17.49s. Page-reuse preflight correctly detects newly packaged VIK JSON; fullbaseline package34764 active, no duplicate functional tests.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -2232,6 +2232,11 @@
         "build_id": "frontend-board-geometry-vik-source-check-followup",
         "source_commit": "02bf8bde",
         "result": "Remaining mutableVIKselection/existingtestfixture callback corrected533501d9. No newtests added. Finalstrictcheck PASS17.49s."
+      },
+      {
+        "build_id": "frontend-board-geometry-vik-20261003",
+        "source_commit": "26ff6b9c",
+        "result": "Page/provider reuse preflight rejected new web/assets/imported-modules.json. No artifact created. Existing guard preserved; one full package will establish the new static-asset baseline, after which routine page reuse resumes."
       }
     ],
     "parent_acceptances": [
