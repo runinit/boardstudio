@@ -16,9 +16,9 @@ use boardstudio_application::{
 use boardstudio_core::model::{
     CaseOpening, GasketConstructionVersion, GasketPlacement, HardwareTransport, InsertInstallation,
     InternalClosureHardware, InternalGasketConfiguration, MechanicalAssembly, MechanicalBattery,
-    MechanicalBottomStyle, MechanicalConfiguration, MechanicalGasketLayout, MechanicalMount,
-    MechanicalSwitchFamily, Mount, MountKind, Part, PartDefinition, PartGenerator, PartKind,
-    PlateMethod, ProjectDoc, ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Vec2, Vec3,
+    MechanicalBottomStyle, MechanicalConfiguration, MechanicalCriticalFit, MechanicalGasketLayout,
+    MechanicalMount, MechanicalSwitchFamily, Mount, MountKind, Part, PartDefinition, PartGenerator,
+    PartKind, PlateMethod, ProjectDoc, ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Vec2, Vec3,
 };
 use std::{
     cell::{Cell, RefCell},
@@ -861,6 +861,112 @@ fn apply_patch(
             }
             hardware.fixed_length = *length;
         }
+        MechanicalSettingsPatch::SetClosureThread(thread) => {
+            closure_hardware_mut(configuration)?.thread = thread.clone();
+        }
+        MechanicalSettingsPatch::SetClosureScrewLengths(lengths) => {
+            if lengths.is_empty()
+                || lengths
+                    .iter()
+                    .any(|length| !length.is_finite() || *length <= 0.0)
+            {
+                return Err("Enter positive lengths separated by commas.".into());
+            }
+            let hardware = closure_hardware_mut(configuration)?;
+            hardware.screw_lengths = lengths.clone();
+            if hardware
+                .fixed_length
+                .is_some_and(|fixed| !hardware.screw_lengths.contains(&fixed))
+            {
+                hardware.fixed_length = None;
+            }
+        }
+        MechanicalSettingsPatch::SetClosureHeadProfile(profile) => {
+            closure_hardware_mut(configuration)?.head_profile = profile.clone();
+        }
+        MechanicalSettingsPatch::SetClosureLengthDatum(datum) => {
+            closure_hardware_mut(configuration)?.length_datum = datum.clone();
+        }
+        MechanicalSettingsPatch::AddCriticalFit { part_id } => {
+            if part_id.is_empty() {
+                return Err("A generated part must be selected for a critical fit.".into());
+            }
+            let fits = configuration.critical_fits.get_or_insert_with(Vec::new);
+            let mut suffix = 1_u64;
+            let fit_id = loop {
+                let candidate = format!("case-critical-fit-{suffix}");
+                if !fits.iter().any(|fit| fit.id == candidate) {
+                    break candidate;
+                }
+                suffix = suffix
+                    .checked_add(1)
+                    .ok_or_else(|| "Critical fit identity is exhausted.".to_owned())?;
+            };
+            fits.push(MechanicalCriticalFit {
+                id: fit_id,
+                part_id: part_id.clone(),
+                label: "Critical dimension".into(),
+                from: Vec2 { x: 0.0, y: 0.0 },
+                to: Vec2 { x: 10.0, y: 0.0 },
+                tolerance: "±0.2 mm".into(),
+            });
+        }
+        MechanicalSettingsPatch::RemoveCriticalFit { fit_id } => {
+            let fits = configuration
+                .critical_fits
+                .as_mut()
+                .ok_or_else(|| "The selected critical fit is no longer available.".to_owned())?;
+            let index = fits
+                .iter()
+                .position(|fit| fit.id == *fit_id)
+                .ok_or_else(|| "The selected critical fit is no longer available.".to_owned())?;
+            fits.remove(index);
+        }
+        MechanicalSettingsPatch::SetCriticalFitText {
+            fit_id,
+            field,
+            value,
+        } => {
+            let fit = critical_fit_mut(configuration, fit_id)?;
+            match field {
+                super::mechanical_settings::MechanicalCriticalFitTextField::Label => {
+                    fit.label = value.clone()
+                }
+                super::mechanical_settings::MechanicalCriticalFitTextField::Tolerance => {
+                    fit.tolerance = value.clone()
+                }
+            }
+        }
+        MechanicalSettingsPatch::SetCriticalFitPart { fit_id, part_id } => {
+            if part_id.is_empty() {
+                return Err("A generated part must be selected for a critical fit.".into());
+            }
+            critical_fit_mut(configuration, fit_id)?.part_id = part_id.clone();
+        }
+        MechanicalSettingsPatch::SetCriticalFitPoint {
+            fit_id,
+            field,
+            value,
+        } => {
+            if !matches!(
+                *field,
+                MechanicalDimension::CriticalFitFromX
+                    | MechanicalDimension::CriticalFitFromY
+                    | MechanicalDimension::CriticalFitToX
+                    | MechanicalDimension::CriticalFitToY
+            ) {
+                return Err("The selected critical-fit endpoint is unavailable.".into());
+            }
+            validate_dimension(*field, *value)?;
+            let fit = critical_fit_mut(configuration, fit_id)?;
+            match field {
+                MechanicalDimension::CriticalFitFromX => fit.from.x = *value,
+                MechanicalDimension::CriticalFitFromY => fit.from.y = *value,
+                MechanicalDimension::CriticalFitToX => fit.to.x = *value,
+                MechanicalDimension::CriticalFitToY => fit.to.y = *value,
+                _ => return Err("The selected critical-fit endpoint is unavailable.".into()),
+            }
+        }
         MechanicalSettingsPatch::SetOpenings(openings) => {
             validate_openings(openings)?;
             configuration.openings = Some(openings.clone());
@@ -1286,6 +1392,15 @@ fn apply_patch(
             | MechanicalSettingsPatch::SetClosureDrive(_)
             | MechanicalSettingsPatch::SetClosureInstallation(_)
             | MechanicalSettingsPatch::SetClosureFixedLength(_)
+            | MechanicalSettingsPatch::SetClosureThread(_)
+            | MechanicalSettingsPatch::SetClosureScrewLengths(_)
+            | MechanicalSettingsPatch::SetClosureHeadProfile(_)
+            | MechanicalSettingsPatch::SetClosureLengthDatum(_)
+            | MechanicalSettingsPatch::AddCriticalFit { .. }
+            | MechanicalSettingsPatch::RemoveCriticalFit { .. }
+            | MechanicalSettingsPatch::SetCriticalFitText { .. }
+            | MechanicalSettingsPatch::SetCriticalFitPart { .. }
+            | MechanicalSettingsPatch::SetCriticalFitPoint { .. }
             | MechanicalSettingsPatch::SetOpenings(_)
             | MechanicalSettingsPatch::SetOpeningDimension { .. }
     ) || matches!(
@@ -1307,7 +1422,25 @@ fn apply_patch(
                 | MechanicalDimension::BatteryPositionX
                 | MechanicalDimension::BatteryPositionY
                 | MechanicalDimension::BatteryCableExitX
-                | MechanicalDimension::BatteryCableExitY,
+                | MechanicalDimension::BatteryCableExitY
+                | MechanicalDimension::ClosureThreadDiameter
+                | MechanicalDimension::ClosurePitch
+                | MechanicalDimension::ClosureHeadDiameter
+                | MechanicalDimension::ClosureHeadHeight
+                | MechanicalDimension::ClosureHoleDiameter
+                | MechanicalDimension::ClosureInsertDiameter
+                | MechanicalDimension::ClosureInsertLength
+                | MechanicalDimension::ClosureSeatDiameter
+                | MechanicalDimension::ClosureSeatDepth
+                | MechanicalDimension::ClosureEngagement
+                | MechanicalDimension::ClosureThreadStart
+                | MechanicalDimension::ClosureTipAllowance
+                | MechanicalDimension::ClosureBottomingClearance
+                | MechanicalDimension::ClosureRoof
+                | MechanicalDimension::ClosureSurround
+                | MechanicalDimension::ClosureSeatLeadDepth
+                | MechanicalDimension::ClosureSeatLeadDiameter
+                | MechanicalDimension::ClosureBearingThickness,
             ..
         }
     );
@@ -1414,6 +1547,55 @@ fn set_dimension(
         | MechanicalDimension::OpeningPointY => {
             return Err("Opening dimensions require a current access opening selection.".into());
         }
+        MechanicalDimension::ClosureThreadDiameter
+        | MechanicalDimension::ClosurePitch
+        | MechanicalDimension::ClosureHeadDiameter
+        | MechanicalDimension::ClosureHeadHeight
+        | MechanicalDimension::ClosureHoleDiameter
+        | MechanicalDimension::ClosureInsertDiameter
+        | MechanicalDimension::ClosureInsertLength
+        | MechanicalDimension::ClosureSeatDiameter
+        | MechanicalDimension::ClosureSeatDepth
+        | MechanicalDimension::ClosureEngagement
+        | MechanicalDimension::ClosureThreadStart
+        | MechanicalDimension::ClosureTipAllowance
+        | MechanicalDimension::ClosureBottomingClearance
+        | MechanicalDimension::ClosureRoof
+        | MechanicalDimension::ClosureSurround
+        | MechanicalDimension::ClosureSeatLeadDepth
+        | MechanicalDimension::ClosureSeatLeadDiameter
+        | MechanicalDimension::ClosureBearingThickness => {
+            let hardware = closure_hardware_mut(configuration)?;
+            match field {
+                MechanicalDimension::ClosureThreadDiameter => hardware.thread_diameter = value,
+                MechanicalDimension::ClosurePitch => hardware.pitch = value,
+                MechanicalDimension::ClosureHeadDiameter => hardware.head_diameter = value,
+                MechanicalDimension::ClosureHeadHeight => hardware.head_height = value,
+                MechanicalDimension::ClosureHoleDiameter => hardware.hole_diameter = value,
+                MechanicalDimension::ClosureInsertDiameter => hardware.insert_diameter = value,
+                MechanicalDimension::ClosureInsertLength => hardware.insert_length = value,
+                MechanicalDimension::ClosureSeatDiameter => hardware.seat_diameter = value,
+                MechanicalDimension::ClosureSeatDepth => hardware.seat_depth = value,
+                MechanicalDimension::ClosureEngagement => hardware.engagement = value,
+                MechanicalDimension::ClosureThreadStart => hardware.thread_start = value,
+                MechanicalDimension::ClosureTipAllowance => hardware.tip_allowance = value,
+                MechanicalDimension::ClosureBottomingClearance => {
+                    hardware.bottoming_clearance = value
+                }
+                MechanicalDimension::ClosureRoof => hardware.roof = value,
+                MechanicalDimension::ClosureSurround => hardware.surround = value,
+                MechanicalDimension::ClosureSeatLeadDepth => hardware.seat_lead_depth = value,
+                MechanicalDimension::ClosureSeatLeadDiameter => hardware.seat_lead_diameter = value,
+                MechanicalDimension::ClosureBearingThickness => hardware.bearing_thickness = value,
+                _ => unreachable!("closure dimension variant checked above"),
+            }
+        }
+        MechanicalDimension::CriticalFitFromX
+        | MechanicalDimension::CriticalFitFromY
+        | MechanicalDimension::CriticalFitToX
+        | MechanicalDimension::CriticalFitToY => {
+            return Err("Critical-fit endpoint dimensions require a current fit selection.".into());
+        }
         MechanicalDimension::BatteryWidth
         | MechanicalDimension::BatteryDepth
         | MechanicalDimension::BatteryHeight
@@ -1460,7 +1642,11 @@ fn validate_dimension(field: MechanicalDimension, value: f64) -> Result<(), Stri
             | MechanicalDimension::BatteryCableExitX
             | MechanicalDimension::BatteryCableExitY
             | MechanicalDimension::MountPositionX
-            | MechanicalDimension::MountPositionY => value >= -1_000_000.0,
+            | MechanicalDimension::MountPositionY
+            | MechanicalDimension::CriticalFitFromX
+            | MechanicalDimension::CriticalFitFromY
+            | MechanicalDimension::CriticalFitToX
+            | MechanicalDimension::CriticalFitToY => value >= -1_000_000.0,
             _ => value >= 0.0,
         };
     if valid {
@@ -1489,6 +1675,14 @@ fn validate_dimension(field: MechanicalDimension, value: f64) -> Result<(), Stri
             | MechanicalDimension::BatteryCableExitY
     ) {
         Err("Battery positions and cable exits must be at least −1,000,000 mm.".into())
+    } else if matches!(
+        field,
+        MechanicalDimension::CriticalFitFromX
+            | MechanicalDimension::CriticalFitFromY
+            | MechanicalDimension::CriticalFitToX
+            | MechanicalDimension::CriticalFitToY
+    ) {
+        Err("Critical-fit coordinates must be at least −1,000,000 mm.".into())
     } else {
         Err("Mechanical dimensions must be finite and nonnegative.".into())
     }
@@ -1712,6 +1906,17 @@ fn closure_hardware_mut(
         .as_mut()
         .map(|settings| &mut settings.hardware)
         .ok_or_else(|| "Internal gasket closure hardware is no longer available.".into())
+}
+
+fn critical_fit_mut<'a>(
+    configuration: &'a mut MechanicalConfiguration,
+    fit_id: &str,
+) -> Result<&'a mut MechanicalCriticalFit, String> {
+    configuration
+        .critical_fits
+        .as_mut()
+        .and_then(|fits| fits.iter_mut().find(|fit| fit.id == fit_id))
+        .ok_or_else(|| "The selected critical fit is no longer available.".into())
 }
 
 fn resize_closure_insert(hardware: &mut InternalClosureHardware, id: &str) -> Result<(), String> {

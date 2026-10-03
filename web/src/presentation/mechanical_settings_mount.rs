@@ -5,9 +5,10 @@
 //! admits and commits every request against a fresh accepted snapshot.
 use super::case_viewer::CaseSelection;
 use super::mechanical_settings::{
-    MechanicalBoardMismatch, MechanicalFindingRow, MechanicalGasketSupportRow, MechanicalLayerRow,
-    MechanicalProfileChoice, MechanicalSettingsFeedback, MechanicalSettingsFeedbackState,
-    MechanicalSettingsIdentity, MechanicalSettingsProps, MechanicalSettingsValues,
+    MechanicalBoardMismatch, MechanicalFindingRow, MechanicalFitPart, MechanicalGasketSupportRow,
+    MechanicalLayerRow, MechanicalProfileChoice, MechanicalSettingsFeedback,
+    MechanicalSettingsFeedbackState, MechanicalSettingsIdentity, MechanicalSettingsProps,
+    MechanicalSettingsValues,
 };
 use super::mechanical_settings_controller::{
     MechanicalResolution, MechanicalSettingsController, MechanicalSettingsCurrent,
@@ -517,6 +518,12 @@ pub(crate) fn use_mechanical_settings_mount(
         let gasket_supports = scene_rows
             .as_ref()
             .map_or_else(|| Rc::from([]), |rows| rows.gasket_supports.clone());
+        let fit_parts = scene_rows
+            .as_ref()
+            .map_or_else(|| Rc::from([]), |rows| rows.fit_parts.clone());
+        let fit_parts_resolved = scene_rows
+            .as_ref()
+            .is_some_and(|rows| rows.fit_parts_resolved);
         let suggested_mounts = scene_rows
             .as_ref()
             .map_or_else(|| Rc::from([]), |rows| rows.suggested_mounts.clone());
@@ -654,6 +661,8 @@ pub(crate) fn use_mechanical_settings_mount(
             profiles,
             layers,
             gasket_supports,
+            fit_parts,
+            fit_parts_resolved,
             suggested_mounts,
             findings,
             selected_layer,
@@ -793,6 +802,8 @@ impl PartialEq for MechanicalSettingsResolvedProjection {
 struct MechanicalSceneRows {
     layers: Rc<[MechanicalLayerRow]>,
     gasket_supports: Rc<[MechanicalGasketSupportRow]>,
+    fit_parts: Rc<[MechanicalFitPart]>,
+    fit_parts_resolved: bool,
     suggested_mounts: Rc<[Mount]>,
     findings: Rc<[MechanicalFindingRow]>,
 }
@@ -858,9 +869,24 @@ fn project_scene_rows(
     let suggested_mounts = current_assembly
         .map(|assembly| assembly.suggested_mounts.clone())
         .unwrap_or_default();
+    let fit_parts = current_assembly
+        .into_iter()
+        .flat_map(|assembly| assembly.case.bodies.iter())
+        .map(|body| MechanicalFitPart {
+            id: body.body.id.clone(),
+            name: if body.body.name.is_empty() {
+                body.body.id.clone()
+            } else {
+                body.body.name.clone()
+            },
+        })
+        .collect::<Vec<_>>();
+    let fit_parts_resolved = current_assembly.is_some();
     Some(MechanicalSceneRows {
         layers: Rc::from(layers),
         gasket_supports: Rc::from(gasket_supports),
+        fit_parts: Rc::from(fit_parts),
+        fit_parts_resolved,
         suggested_mounts: Rc::from(suggested_mounts),
         findings: Rc::from(findings),
     })
@@ -938,6 +964,7 @@ fn settings_values(
             .internal_gasket
             .as_ref()
             .map(|settings| settings.hardware.clone()),
+        critical_fits: configuration.critical_fits.clone().unwrap_or_default(),
         plate_to_pcb: configuration.plate_to_pcb,
         battery_height: configuration.battery_height,
     }

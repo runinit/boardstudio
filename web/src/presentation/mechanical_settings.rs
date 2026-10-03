@@ -5,8 +5,9 @@ pub(crate) use crate::mechanical_feedback::{
 };
 use boardstudio_core::model::{
     CaseOpening, GasketPlacement, HardwareTransport, InsertInstallation, InternalClosureHardware,
-    MechanicalBattery, MechanicalBottomStyle, MechanicalGasketAnchor, MechanicalMount,
-    MechanicalSwitchFamily, Mount, MountKind, PlateMethod, ScrewDrive, Severity, Vec2,
+    MechanicalBattery, MechanicalBottomStyle, MechanicalCriticalFit, MechanicalGasketAnchor,
+    MechanicalMount, MechanicalSwitchFamily, Mount, MountKind, PlateMethod, ScrewDrive,
+    ScrewHeadProfile, ScrewLengthDatum, Severity, Vec2,
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -39,6 +40,7 @@ pub(crate) struct MechanicalSettingsValues {
     pub(crate) openings: Vec<CaseOpening>,
     pub(crate) internal_gasket: bool,
     pub(crate) closure_hardware: Option<InternalClosureHardware>,
+    pub(crate) critical_fits: Vec<MechanicalCriticalFit>,
     pub(crate) plate_to_pcb: f64,
     pub(crate) battery_height: f64,
 }
@@ -116,6 +118,12 @@ pub(crate) struct MechanicalBoardMismatch {
     pub(crate) board_name: String,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct MechanicalFitPart {
+    pub(crate) id: String,
+    pub(crate) name: String,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum MechanicalDimension {
     PlateThickness,
@@ -145,6 +153,90 @@ pub(crate) enum MechanicalDimension {
     MountHoleDiameter,
     MountBossDiameter,
     MountBossHeight,
+    ClosureThreadDiameter,
+    ClosurePitch,
+    ClosureHeadDiameter,
+    ClosureHeadHeight,
+    ClosureHoleDiameter,
+    ClosureInsertDiameter,
+    ClosureInsertLength,
+    ClosureSeatDiameter,
+    ClosureSeatDepth,
+    ClosureEngagement,
+    ClosureThreadStart,
+    ClosureTipAllowance,
+    ClosureBottomingClearance,
+    ClosureRoof,
+    ClosureSurround,
+    ClosureSeatLeadDepth,
+    ClosureSeatLeadDiameter,
+    ClosureBearingThickness,
+    CriticalFitFromX,
+    CriticalFitFromY,
+    CriticalFitToX,
+    CriticalFitToY,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum MechanicalCriticalFitTextField {
+    Label,
+    Tolerance,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum MechanicalTextIntent {
+    ClosureThread,
+    ClosureScrewLengths,
+    CriticalFit {
+        fit_id: String,
+        field: MechanicalCriticalFitTextField,
+    },
+}
+
+impl MechanicalTextIntent {
+    fn field_id(&self) -> String {
+        match self {
+            Self::ClosureThread => "closure-thread".to_owned(),
+            Self::ClosureScrewLengths => "closure-screw-lengths".to_owned(),
+            Self::CriticalFit { fit_id, field } => format!(
+                "critical-fit:{fit_id}:{}",
+                match field {
+                    MechanicalCriticalFitTextField::Label => "label",
+                    MechanicalCriticalFitTextField::Tolerance => "tolerance",
+                }
+            ),
+        }
+    }
+
+    fn patch(&self, value: String) -> Result<MechanicalSettingsPatch, String> {
+        Ok(match self {
+            Self::ClosureThread => MechanicalSettingsPatch::SetClosureThread(value),
+            Self::ClosureScrewLengths => {
+                let mut lengths = Vec::new();
+                for item in value.split(',') {
+                    let length = item
+                        .trim()
+                        .parse::<f64>()
+                        .map_err(|_| "Enter positive lengths separated by commas.".to_owned())?;
+                    if !length.is_finite() || length <= 0.0 {
+                        return Err("Enter positive lengths separated by commas.".to_owned());
+                    }
+                    if !lengths.contains(&length) {
+                        lengths.push(length);
+                    }
+                }
+                if lengths.is_empty() {
+                    return Err("Enter positive lengths separated by commas.".to_owned());
+                }
+                MechanicalSettingsPatch::SetClosureScrewLengths(lengths)
+            }
+            Self::CriticalFit { fit_id, field } => MechanicalSettingsPatch::SetCriticalFitText {
+                fit_id: fit_id.clone(),
+                field: *field,
+                value,
+            },
+        })
+    }
 }
 
 fn is_dimension_field(field_id: &str) -> bool {
@@ -162,6 +254,9 @@ fn is_dimension_field(field_id: &str) -> bool {
         .iter()
         .any(|field| field_id.ends_with(field))
     {
+        return true;
+    }
+    if field_id.starts_with("closure-") || field_id.starts_with("critical-fit:") {
         return true;
     }
     [
@@ -220,6 +315,28 @@ impl MechanicalDimension {
             Self::MountHoleDiameter => "mount-hole-diameter",
             Self::MountBossDiameter => "mount-boss-diameter",
             Self::MountBossHeight => "mount-boss-height",
+            Self::ClosureThreadDiameter => "closure-thread-diameter",
+            Self::ClosurePitch => "closure-pitch",
+            Self::ClosureHeadDiameter => "closure-head-diameter",
+            Self::ClosureHeadHeight => "closure-head-height",
+            Self::ClosureHoleDiameter => "closure-hole-diameter",
+            Self::ClosureInsertDiameter => "closure-insert-diameter",
+            Self::ClosureInsertLength => "closure-insert-length",
+            Self::ClosureSeatDiameter => "closure-seat-diameter",
+            Self::ClosureSeatDepth => "closure-seat-depth",
+            Self::ClosureEngagement => "closure-engagement",
+            Self::ClosureThreadStart => "closure-thread-start",
+            Self::ClosureTipAllowance => "closure-tip-allowance",
+            Self::ClosureBottomingClearance => "closure-bottoming-clearance",
+            Self::ClosureRoof => "closure-roof",
+            Self::ClosureSurround => "closure-surround",
+            Self::ClosureSeatLeadDepth => "closure-seat-lead-depth",
+            Self::ClosureSeatLeadDiameter => "closure-seat-lead-diameter",
+            Self::ClosureBearingThickness => "closure-bearing-thickness",
+            Self::CriticalFitFromX => "critical-fit-from-x",
+            Self::CriticalFitFromY => "critical-fit-from-y",
+            Self::CriticalFitToX => "critical-fit-to-x",
+            Self::CriticalFitToY => "critical-fit-to-y",
         }
     }
 
@@ -242,7 +359,11 @@ impl MechanicalDimension {
             | Self::BatteryCableExitX
             | Self::BatteryCableExitY
             | Self::MountPositionX
-            | Self::MountPositionY => NumberRule::Coordinate,
+            | Self::MountPositionY
+            | Self::CriticalFitFromX
+            | Self::CriticalFitFromY
+            | Self::CriticalFitToX
+            | Self::CriticalFitToY => NumberRule::Coordinate,
             Self::GasketSupportLength => NumberRule::AtLeastFive,
             Self::GasketSupportWidth => NumberRule::AtLeastHalf,
             _ => NumberRule::Nonnegative,
@@ -268,6 +389,30 @@ pub(crate) enum MechanicalSettingsPatch {
     SetClosureDrive(ScrewDrive),
     SetClosureInstallation(InsertInstallation),
     SetClosureFixedLength(Option<f64>),
+    SetClosureThread(String),
+    SetClosureScrewLengths(Vec<f64>),
+    SetClosureHeadProfile(ScrewHeadProfile),
+    SetClosureLengthDatum(ScrewLengthDatum),
+    AddCriticalFit {
+        part_id: String,
+    },
+    RemoveCriticalFit {
+        fit_id: String,
+    },
+    SetCriticalFitText {
+        fit_id: String,
+        field: MechanicalCriticalFitTextField,
+        value: String,
+    },
+    SetCriticalFitPart {
+        fit_id: String,
+        part_id: String,
+    },
+    SetCriticalFitPoint {
+        fit_id: String,
+        field: MechanicalDimension,
+        value: f64,
+    },
     SetOpenings(Vec<CaseOpening>),
     SetOpeningDimension {
         opening_index: usize,
@@ -342,6 +487,23 @@ impl MechanicalSettingsPatch {
             Self::SetClosureDrive(_) => "closure-drive".to_owned(),
             Self::SetClosureInstallation(_) => "closure-installation".to_owned(),
             Self::SetClosureFixedLength(_) => "closure-fixed-length".to_owned(),
+            Self::SetClosureThread(_) => "closure-thread".to_owned(),
+            Self::SetClosureScrewLengths(_) => "closure-screw-lengths".to_owned(),
+            Self::SetClosureHeadProfile(_) => "closure-head-profile".to_owned(),
+            Self::SetClosureLengthDatum(_) => "closure-length-datum".to_owned(),
+            Self::AddCriticalFit { .. } => "critical-fit:add".to_owned(),
+            Self::RemoveCriticalFit { fit_id } => format!("critical-fit:{fit_id}:remove"),
+            Self::SetCriticalFitText { fit_id, field, .. } => format!(
+                "critical-fit:{fit_id}:{}",
+                match field {
+                    MechanicalCriticalFitTextField::Label => "label",
+                    MechanicalCriticalFitTextField::Tolerance => "tolerance",
+                }
+            ),
+            Self::SetCriticalFitPart { fit_id, .. } => format!("critical-fit:{fit_id}:part"),
+            Self::SetCriticalFitPoint { fit_id, field, .. } => {
+                format!("critical-fit:{fit_id}:{}", field.field_id())
+            }
             Self::SetOpenings(_) => "case-openings".to_owned(),
             Self::SetOpeningDimension {
                 opening_index,
@@ -443,6 +605,8 @@ pub(crate) struct MechanicalSettingsProps {
     pub(crate) profiles: Rc<[MechanicalProfileChoice]>,
     pub(crate) layers: Rc<[MechanicalLayerRow]>,
     pub(crate) gasket_supports: Rc<[MechanicalGasketSupportRow]>,
+    pub(crate) fit_parts: Rc<[MechanicalFitPart]>,
+    pub(crate) fit_parts_resolved: bool,
     pub(crate) suggested_mounts: Rc<[Mount]>,
     pub(crate) findings: Rc<[MechanicalFindingRow]>,
     pub(crate) selected_layer: String,
@@ -558,9 +722,9 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     } else {
                         p { class: "m1-mechanical-help", "Fits at this position." }
                     }
-                    fieldset { class: "m1-mechanical-group", disabled: !props.editable,
+                    for gasket_owner in [format!("{owner_key}:gasket:{}", support.id)] {
+                    fieldset { key: "{gasket_owner}", class: "m1-mechanical-group", disabled: !props.editable,
                         DimensionField {
-                            key: "{owner_key}:gasket:{support.id}:length",
                             identity: props.identity.clone(),
                             request_sequence,
                             on_request: props.on_request,
@@ -574,7 +738,6 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                             }),
                         }
                         DimensionField {
-                            key: "{owner_key}:gasket:{support.id}:width",
                             identity: props.identity.clone(),
                             request_sequence,
                             on_request: props.on_request,
@@ -592,6 +755,7 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                                 p { role: "status", "{reason}" }
                             }
                         }
+                    }
                     }
                     p { class: "m1-mechanical-help", "Prefer 10 mm cuts; use 5 mm increments for a tighter fit. Foam thickness and compression are shared by the floating stack." }
                     button {
@@ -745,8 +909,23 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                         request_sequence,
                         hardware: values.closure_hardware.clone(),
                         editable: props.editable,
+                        feedback: props.feedback.clone(),
                         on_request: props.on_request,
+                        owner_key: owner_key.clone(),
                     }
+                }
+                CriticalFitControls {
+                    key: "{owner_key}:critical-fits",
+                    identity: props.identity.clone(),
+                    request_sequence,
+                    fits: values.critical_fits.clone(),
+                    fit_parts: props.fit_parts.clone(),
+                    fit_parts_resolved: props.fit_parts_resolved,
+                    values: values.clone(),
+                    editable: props.editable,
+                    feedback: props.feedback.clone(),
+                    on_request: props.on_request,
+                    owner_key: owner_key.clone(),
                 }
                 button {
                     r#type: "button",
@@ -797,13 +976,15 @@ struct GasketClosureControlsProps {
     request_sequence: Signal<u64>,
     hardware: Option<InternalClosureHardware>,
     editable: bool,
+    feedback: Rc<[MechanicalSettingsFeedback]>,
     on_request: EventHandler<MechanicalSettingsRequest>,
+    owner_key: String,
 }
 
 #[component]
 fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
     let Some(hardware) = props.hardware.as_ref() else {
-        return None;
+        return rsx! {};
     };
     let selected_preset = [
         ("m2-3", 2.0, 0.4, 3.0, 3.2),
@@ -912,8 +1093,386 @@ fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
                     }
                 }
             }
+            TextDraftField {
+                key: "{props.owner_key}:closure-screw-lengths",
+                identity: props.identity.clone(),
+                request_sequence,
+                on_request,
+                feedback: props.feedback.clone(),
+                label: "Available screw lengths (mm)",
+                value: hardware.screw_lengths.iter().map(ToString::to_string).collect::<Vec<_>>().join(", "),
+                intent: MechanicalTextIntent::ClosureScrewLengths,
+                editable: props.editable,
+            }
+            details { class: "m1-mechanical-group", aria_label: "Advanced closure dimensions",
+                summary { "Advanced closure dimensions · Custom · mm" }
+                TextDraftField {
+                    key: "{props.owner_key}:closure-thread",
+                    identity: props.identity.clone(),
+                    request_sequence,
+                    on_request,
+                    feedback: props.feedback.clone(),
+                    label: "Thread designation",
+                    value: hardware.thread.clone(),
+                    intent: MechanicalTextIntent::ClosureThread,
+                    editable: props.editable,
+                }
+                label { class: "m1-mechanical-field",
+                    span { "Screw head profile" }
+                    select {
+                        disabled: !props.editable,
+                        value: if hardware.head_profile == ScrewHeadProfile::Countersunk { "countersunk" } else { "flat" },
+                        onchange: {
+                            let mut sequence = request_sequence;
+                            let identity = identity.clone();
+                            move |event: FormEvent| {
+                                let profile = if event.value() == "countersunk" { ScrewHeadProfile::Countersunk } else { ScrewHeadProfile::Flat };
+                                send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetClosureHeadProfile(profile));
+                            }
+                        },
+                        option { value: "flat", "Flat bearing surface" }
+                        option { value: "countersunk", "Countersunk" }
+                    }
+                }
+                label { class: "m1-mechanical-field",
+                    span { "Screw length measured from" }
+                    select {
+                        disabled: !props.editable,
+                        value: match hardware.length_datum {
+                            ScrewLengthDatum::UnderHead => "under-head",
+                            ScrewLengthDatum::Overall => "overall",
+                            ScrewLengthDatum::Unresolved => "unresolved",
+                        },
+                        onchange: {
+                            let mut sequence = request_sequence;
+                            let identity = identity.clone();
+                            move |event: FormEvent| {
+                                let datum = match event.value().as_str() {
+                                    "overall" => ScrewLengthDatum::Overall,
+                                    "unresolved" => ScrewLengthDatum::Unresolved,
+                                    _ => ScrewLengthDatum::UnderHead,
+                                };
+                                send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetClosureLengthDatum(datum));
+                            }
+                        },
+                        option { value: "under-head", "Under the head" }
+                        option { value: "overall", "Top of head · overall" }
+                        option { value: "unresolved", "Unknown" }
+                    }
+                }
+                for (field, label, value) in closure_dimension_fields(hardware) {
+                    DimensionField {
+                        key: "{props.owner_key}:{field.field_id()}",
+                        identity: props.identity.clone(),
+                        request_sequence,
+                        on_request,
+                        feedback: props.feedback.clone(),
+                        field,
+                        label,
+                        value,
+                        editable: props.editable,
+                    }
+                }
+                p { class: "m1-mechanical-help", "Thread changes do not resize the insert. Countersunk lengths include the head. Incompatible dimensions appear in Mechanical diagnostics." }
+            }
         }
     }
+}
+
+fn closure_dimension_fields(
+    hardware: &InternalClosureHardware,
+) -> [(MechanicalDimension, &'static str, f64); 18] {
+    [
+        (
+            MechanicalDimension::ClosureThreadDiameter,
+            "Thread diameter",
+            hardware.thread_diameter,
+        ),
+        (
+            MechanicalDimension::ClosurePitch,
+            "Thread pitch",
+            hardware.pitch,
+        ),
+        (
+            MechanicalDimension::ClosureHeadDiameter,
+            "Head diameter",
+            hardware.head_diameter,
+        ),
+        (
+            MechanicalDimension::ClosureHeadHeight,
+            "Head height",
+            hardware.head_height,
+        ),
+        (
+            MechanicalDimension::ClosureHoleDiameter,
+            "Screw clearance hole",
+            hardware.hole_diameter,
+        ),
+        (
+            MechanicalDimension::ClosureInsertDiameter,
+            "Insert outside diameter",
+            hardware.insert_diameter,
+        ),
+        (
+            MechanicalDimension::ClosureInsertLength,
+            "Insert length",
+            hardware.insert_length,
+        ),
+        (
+            MechanicalDimension::ClosureSeatDiameter,
+            "Insert seat diameter",
+            hardware.seat_diameter,
+        ),
+        (
+            MechanicalDimension::ClosureSeatDepth,
+            "Insert seat depth",
+            hardware.seat_depth,
+        ),
+        (
+            MechanicalDimension::ClosureEngagement,
+            "Thread engagement",
+            hardware.engagement,
+        ),
+        (
+            MechanicalDimension::ClosureThreadStart,
+            "Thread start offset",
+            hardware.thread_start,
+        ),
+        (
+            MechanicalDimension::ClosureTipAllowance,
+            "Screw tip allowance",
+            hardware.tip_allowance,
+        ),
+        (
+            MechanicalDimension::ClosureBottomingClearance,
+            "Bottoming clearance",
+            hardware.bottoming_clearance,
+        ),
+        (
+            MechanicalDimension::ClosureRoof,
+            "Roof above insert",
+            hardware.roof,
+        ),
+        (
+            MechanicalDimension::ClosureSurround,
+            "Material around insert",
+            hardware.surround,
+        ),
+        (
+            MechanicalDimension::ClosureSeatLeadDepth,
+            "Seat lead-in depth",
+            hardware.seat_lead_depth,
+        ),
+        (
+            MechanicalDimension::ClosureSeatLeadDiameter,
+            "Seat lead-in diameter",
+            hardware.seat_lead_diameter,
+        ),
+        (
+            MechanicalDimension::ClosureBearingThickness,
+            "Material above screw head",
+            hardware.bearing_thickness,
+        ),
+    ]
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct CriticalFitControlsProps {
+    identity: MechanicalSettingsIdentity,
+    request_sequence: Signal<u64>,
+    fits: Vec<MechanicalCriticalFit>,
+    fit_parts: Rc<[MechanicalFitPart]>,
+    fit_parts_resolved: bool,
+    values: MechanicalSettingsValues,
+    editable: bool,
+    feedback: Rc<[MechanicalSettingsFeedback]>,
+    on_request: EventHandler<MechanicalSettingsRequest>,
+    owner_key: String,
+}
+
+#[component]
+fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
+    let parts = critical_fit_parts(&props.values, &props.fit_parts, props.fit_parts_resolved);
+    let fits = &props.fits;
+    let fit_rows = fits
+        .iter()
+        .cloned()
+        .map(|fit| {
+            let length = ((fit.to.x - fit.from.x).powi(2) + (fit.to.y - fit.from.y).powi(2)).sqrt();
+            (fit, length)
+        })
+        .collect::<Vec<_>>();
+    let request_sequence = props.request_sequence;
+    let identity = props.identity.clone();
+    let on_request = props.on_request;
+    rsx! {
+        details { class: "m1-mechanical-group", open: !fits.is_empty(), aria_label: "Hardware and critical fits",
+            summary { "Hardware & critical fits · {fits.len()} fits" }
+            div { class: "m1-mechanical-spec-group",
+                header {
+                    strong { "Critical fits" }
+                    button {
+                        r#type: "button",
+                        class: "m1-mechanical-quiet",
+                        disabled: !props.editable,
+                        onclick: {
+                            let mut sequence = request_sequence;
+                            let identity = identity.clone();
+                            let part_id = parts.first().map_or_else(|| "plate".to_owned(), |part| part.id.clone());
+                            move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::AddCriticalFit { part_id: part_id.clone() })
+                        },
+                        "Add fit dimension"
+                    }
+                }
+                p { class: "m1-mechanical-help", "Endpoints are document XY coordinates. Length is calculated from the saved endpoints." }
+                for (fit, measured_length) in fit_rows.iter() {
+                    article { class: "m1-mechanical-spec-card", key: "{props.owner_key}:fit:{fit.id}",
+                        header {
+                            strong { if fit.label.is_empty() { "Fit dimension" } else { "{fit.label}" } }
+                            button {
+                                r#type: "button",
+                                class: "m1-mechanical-quiet",
+                                disabled: !props.editable,
+                                onclick: {
+                                    let mut sequence = request_sequence;
+                                    let identity = identity.clone();
+                                    let fit_id = fit.id.clone();
+                                    move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::RemoveCriticalFit { fit_id: fit_id.clone() })
+                                },
+                                "Remove"
+                            }
+                        }
+                        label { class: "m1-mechanical-field",
+                            span { "Generated part" }
+                            select {
+                                aria_label: "Part for critical fit {fit.id}",
+                                disabled: !props.editable,
+                                value: "{fit.part_id}",
+                                onchange: {
+                                    let mut sequence = request_sequence;
+                                    let identity = identity.clone();
+                                    let fit_id = fit.id.clone();
+                                    move |event: FormEvent| send_request(
+                                        &mut sequence,
+                                        &identity,
+                                        on_request,
+                                        MechanicalSettingsPatch::SetCriticalFitPart { fit_id: fit_id.clone(), part_id: event.value() },
+                                    )
+                                },
+                                for part in parts.iter() {
+                                    option { value: "{part.id}", "{part.name}" }
+                                }
+                            }
+                        }
+                        TextDraftField {
+                            key: "{props.owner_key}:fit:{fit.id}:label",
+                            identity: props.identity.clone(),
+                            request_sequence,
+                            on_request,
+                            feedback: props.feedback.clone(),
+                            label: "Dimension name",
+                            value: fit.label.clone(),
+                            intent: MechanicalTextIntent::CriticalFit { fit_id: fit.id.clone(), field: MechanicalCriticalFitTextField::Label },
+                            editable: props.editable,
+                        }
+                        TextDraftField {
+                            key: "{props.owner_key}:fit:{fit.id}:tolerance",
+                            identity: props.identity.clone(),
+                            request_sequence,
+                            on_request,
+                            feedback: props.feedback.clone(),
+                            label: "Tolerance",
+                            value: fit.tolerance.clone(),
+                            intent: MechanicalTextIntent::CriticalFit { fit_id: fit.id.clone(), field: MechanicalCriticalFitTextField::Tolerance },
+                            editable: props.editable,
+                        }
+                        div { class: "m1-mechanical-fit-points",
+                            DimensionField {
+                                key: "{props.owner_key}:fit:{fit.id}:from-x",
+                                identity: props.identity.clone(),
+                                request_sequence,
+                                on_request,
+                                feedback: props.feedback.clone(),
+                                field: MechanicalDimension::CriticalFitFromX,
+                                label: "From X",
+                                value: fit.from.x,
+                                editable: props.editable,
+                                accessible_label: Some(format!("Critical fit {} from X", fit.id)),
+                                critical_fit_target: Some(CriticalFitDimensionTarget { fit_id: fit.id.clone() }),
+                            }
+                            DimensionField {
+                                key: "{props.owner_key}:fit:{fit.id}:from-y",
+                                identity: props.identity.clone(),
+                                request_sequence,
+                                on_request,
+                                feedback: props.feedback.clone(),
+                                field: MechanicalDimension::CriticalFitFromY,
+                                label: "From Y",
+                                value: fit.from.y,
+                                editable: props.editable,
+                                accessible_label: Some(format!("Critical fit {} from Y", fit.id)),
+                                critical_fit_target: Some(CriticalFitDimensionTarget { fit_id: fit.id.clone() }),
+                            }
+                            DimensionField {
+                                key: "{props.owner_key}:fit:{fit.id}:to-x",
+                                identity: props.identity.clone(),
+                                request_sequence,
+                                on_request,
+                                feedback: props.feedback.clone(),
+                                field: MechanicalDimension::CriticalFitToX,
+                                label: "To X",
+                                value: fit.to.x,
+                                editable: props.editable,
+                                accessible_label: Some(format!("Critical fit {} to X", fit.id)),
+                                critical_fit_target: Some(CriticalFitDimensionTarget { fit_id: fit.id.clone() }),
+                            }
+                            DimensionField {
+                                key: "{props.owner_key}:fit:{fit.id}:to-y",
+                                identity: props.identity.clone(),
+                                request_sequence,
+                                on_request,
+                                feedback: props.feedback.clone(),
+                                field: MechanicalDimension::CriticalFitToY,
+                                label: "To Y",
+                                value: fit.to.y,
+                                editable: props.editable,
+                                accessible_label: Some(format!("Critical fit {} to Y", fit.id)),
+                                critical_fit_target: Some(CriticalFitDimensionTarget { fit_id: fit.id.clone() }),
+                            }
+                        }
+                        output { class: "m1-mechanical-fit-result",
+                            "Measured {measured_length:.2} mm · {fit.tolerance}"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn critical_fit_parts(
+    values: &MechanicalSettingsValues,
+    resolved: &[MechanicalFitPart],
+    is_resolved: bool,
+) -> Vec<MechanicalFitPart> {
+    if is_resolved {
+        return resolved.to_vec();
+    }
+    let ids = [
+        Some(("plate", "Plate")),
+        (values.plate_foam_thickness > 0.0).then_some(("plate-foam", "Plate foam")),
+        (values.bottom_foam_thickness > 0.0).then_some(("bottom-foam", "Bottom foam")),
+        Some(("bottom", "Bottom")),
+        (values.bottom_style == MechanicalBottomStyle::Sheet && values.middle_frame)
+            .then_some(("middle-frame", "Middle frame")),
+    ];
+    ids.into_iter()
+        .flatten()
+        .map(|(id, name)| MechanicalFitPart {
+            id: id.to_owned(),
+            name: name.to_owned(),
+        })
+        .collect()
 }
 
 #[derive(Props, Clone, PartialEq)]
@@ -1994,6 +2553,8 @@ struct DimensionFieldProps {
     opening_target: Option<OpeningDimensionTarget>,
     #[props(default)]
     accessible_label: Option<String>,
+    #[props(default)]
+    critical_fit_target: Option<CriticalFitDimensionTarget>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -2012,6 +2573,11 @@ struct MountDimensionTarget {
 struct OpeningDimensionTarget {
     opening_index: usize,
     point_index: Option<usize>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct CriticalFitDimensionTarget {
+    fit_id: String,
 }
 
 #[component]
@@ -2094,6 +2660,7 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
         let support_target = props.support_target.clone();
         let mount_target = props.mount_target.clone();
         let opening_target = props.opening_target.clone();
+        let critical_fit_target = props.critical_fit_target.clone();
         let accepted = props.value;
         let sequence = props.request_sequence;
         let on_request = props.on_request;
@@ -2142,6 +2709,12 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                 MechanicalSettingsPatch::SetOpeningDimension {
                     opening_index: target.opening_index,
                     point_index: target.point_index,
+                    field,
+                    value,
+                }
+            } else if let Some(target) = critical_fit_target.clone() {
+                MechanicalSettingsPatch::SetCriticalFitPoint {
+                    fit_id: target.fit_id,
                     field,
                     value,
                 }
@@ -2219,6 +2792,179 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                     }
                 }
                 small { "mm" }
+            }
+            if let Some(error) = error_text.as_deref() { small { role: "alert", "{error}" } }
+            if let Some(status) = status_text { small { role: "status", "{status}" } }
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct TextDraftFieldProps {
+    identity: MechanicalSettingsIdentity,
+    request_sequence: Signal<u64>,
+    on_request: EventHandler<MechanicalSettingsRequest>,
+    feedback: Rc<[MechanicalSettingsFeedback]>,
+    label: &'static str,
+    value: String,
+    intent: MechanicalTextIntent,
+    editable: bool,
+}
+
+#[component]
+fn TextDraftField(props: TextDraftFieldProps) -> Element {
+    let mut draft = use_signal(|| props.value.clone());
+    let mut error = use_signal(|| None::<String>);
+    let mut submitted = use_signal(|| None::<MechanicalSettingsRequest>);
+    let mut status = use_signal(|| None::<String>);
+    let mut previous_accepted = use_signal(|| props.value.clone());
+    let accepted = props.value.clone();
+    let feedback_entries = props.feedback.clone();
+    let mut draft_for_ack = draft;
+    let mut error_for_ack = error;
+    let mut submitted_for_ack = submitted;
+    let mut status_for_ack = status;
+    let submitted_copy = submitted;
+    use_effect(use_reactive(
+        (&feedback_entries, &accepted),
+        move |(feedback_entries, accepted)| {
+            let accepted_changed = *previous_accepted.read() != accepted;
+            if accepted_changed {
+                previous_accepted.set(accepted.clone());
+            }
+            let Some(request) = submitted_copy.read().clone() else {
+                if accepted_changed {
+                    draft_for_ack.set(accepted);
+                    error_for_ack.set(None);
+                    status_for_ack.set(None);
+                }
+                return;
+            };
+            let feedback = feedback_entries.iter().find(|feedback| {
+                feedback.identity == request.identity
+                    && feedback.request_id == request.request_id
+                    && feedback.field_id == request.field_id
+            });
+            match feedback.map(|feedback| (&feedback.state, &feedback.message)) {
+                Some((MechanicalSettingsFeedbackState::Pending, _)) => {
+                    status_for_ack.set(Some("Saving…".to_owned()));
+                }
+                Some((MechanicalSettingsFeedbackState::Saved, _)) => {
+                    draft_for_ack.set(accepted);
+                    error_for_ack.set(None);
+                    status_for_ack.set(Some("Saved".to_owned()));
+                    submitted_for_ack.set(None);
+                }
+                Some((MechanicalSettingsFeedbackState::Failed, message)) => {
+                    error_for_ack.set(Some(message.clone().unwrap_or_else(|| {
+                        "This setting was not saved. Review the value and retry.".to_owned()
+                    })));
+                    status_for_ack.set(None);
+                    submitted_for_ack.set(None);
+                }
+                None if accepted_changed => {
+                    draft_for_ack.set(accepted);
+                    error_for_ack.set(None);
+                    status_for_ack.set(None);
+                    submitted_for_ack.set(None);
+                }
+                None => {}
+            }
+        },
+    ));
+
+    let commit: Rc<dyn Fn()> = Rc::new({
+        let identity = props.identity.clone();
+        let intent = props.intent.clone();
+        let sequence = props.request_sequence;
+        let on_request = props.on_request;
+        move || {
+            let mut sequence = sequence;
+            let mut error = error;
+            let mut status = status;
+            let mut submitted = submitted;
+            let mut draft = draft;
+            let value = draft();
+            if submitted().is_some() {
+                return;
+            }
+            if value == accepted {
+                error.set(None);
+                status.set(None);
+                return;
+            }
+            let patch = match intent.patch(value) {
+                Ok(patch) => patch,
+                Err(message) => {
+                    error.set(Some(message));
+                    status.set(None);
+                    return;
+                }
+            };
+            let Some(request_id) = sequence().checked_add(1) else {
+                error.set(Some(
+                    "Mechanical request identity is exhausted; reopen the Case inspector."
+                        .to_owned(),
+                ));
+                return;
+            };
+            sequence.set(request_id);
+            let request = MechanicalSettingsRequest {
+                identity: identity.clone(),
+                request_id,
+                field_id: patch.field_id(),
+                patch,
+            };
+            submitted.set(Some(request.clone()));
+            status.set(Some("Saving…".to_owned()));
+            error.set(None);
+            on_request.call(request);
+        }
+    });
+    let error_text = error();
+    let status_text = status();
+    rsx! {
+        label { class: "m1-mechanical-field",
+            span { "{props.label}" }
+            input {
+                r#type: "text",
+                class: "m1-mechanical-text",
+                value: "{draft}",
+                disabled: !props.editable,
+                "aria-invalid": error_text.is_some(),
+                oninput: move |event: FormEvent| {
+                    draft.set(event.value());
+                    error.set(None);
+                    status.set(None);
+                    submitted.set(None);
+                },
+                onblur: {
+                    let commit = commit.clone();
+                    move |_| commit()
+                },
+                onkeydown: {
+                    let accepted = props.value.clone();
+                    move |event: KeyboardEvent| {
+                        let key = event.data().key().to_string();
+                        if key == "Enter" {
+                            event.prevent_default();
+                            if let Some(input) = event
+                                .data()
+                                .try_as_web_event()
+                                .and_then(|event| event.target())
+                                .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
+                            {
+                                let _ = input.blur();
+                            }
+                        } else if key == "Escape" {
+                            event.prevent_default();
+                            draft.set(accepted.clone());
+                            error.set(None);
+                            submitted.set(None);
+                            status.set(None);
+                        }
+                    }
+                }
             }
             if let Some(error) = error_text.as_deref() { small { role: "alert", "{error}" } }
             if let Some(status) = status_text { small { role: "status", "{status}" } }
@@ -2465,6 +3211,7 @@ mod contextual_layer_tests {
             openings: vec![],
             internal_gasket: true,
             closure_hardware: None,
+            critical_fits: vec![],
             plate_to_pcb: 3.5,
             battery_height: 0.0,
         }
@@ -2554,6 +3301,8 @@ mod contextual_layer_tests {
                 profiles: Rc::from([]),
                 layers,
                 gasket_supports: Rc::from([]),
+                fit_parts: Rc::from([]),
+                fit_parts_resolved: false,
                 suggested_mounts: Rc::from([]),
                 findings,
                 selected_layer: selected_layer(),
@@ -2584,6 +3333,8 @@ mod contextual_layer_tests {
                     profiles: Rc::from([]),
                     layers: Rc::from([]),
                     gasket_supports: Rc::from([]),
+                    fit_parts: Rc::from([]),
+                    fit_parts_resolved: false,
                     suggested_mounts: Rc::from([]),
                     findings: Rc::from([]),
                     selected_layer: String::new(),
@@ -2615,6 +3366,8 @@ mod contextual_layer_tests {
                     profiles: Rc::from([]),
                     layers: Rc::from([]),
                     gasket_supports: Rc::from([]),
+                    fit_parts: Rc::from([]),
+                    fit_parts_resolved: false,
                     suggested_mounts: Rc::from([]),
                     findings: Rc::from([]),
                     selected_layer: String::new(),
