@@ -2,6 +2,8 @@
 
 **Parent:** F3.3 — Transforms, constraints and snapping. **Reference:** React pin `5a472a9426e6e38993361da402cd4ec730feb369`; behavior inventory and review requests are under `evidence/transform-align/`.
 
+**Focused paired receipt:** [Selected Column/Key transform journey](../evidence/f33b-matrix-transform-paired-20261003/README.md). The paired edit/Undo/Redo/reopen path matched for a Column offset and Key-local X. The receipt also records a candidate-only generic world-position inspector on Key context; the isolated composition correction still needs a rebuilt public candidate check.
+
 ## Goal
 
 Make matrix-owned position/orientation, row/column offsets, stagger/splay/origin, and key-cell local transforms editable from the selected Layout context through existing SetMatrix and SetMatrixSplay operations. Provide working Transform navigation shortcuts to those mounted properties. This child does not implement Stagger/Splay/Origin pointer tools: the current Session's ordinary Event::Edit preview path does not have gesture-generation cancellation or a clear-preview event, so a late canceled preview could replace `ReadModel.display_preview` and remain visible/block edits. Existing Core SetMatrix/Splay authority alone is not proof of safe pointer preview/cancel behavior. This is a bounded child of F3.3; it does not change its canonical `start_after=[F3.1]` or `acceptance_after=[F3.2]` edges and does not claim either parent accepted.

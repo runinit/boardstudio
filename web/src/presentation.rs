@@ -4400,8 +4400,7 @@ fn Editor() -> Element {
             let resolved = selection::resolve_context(&model, &selected.context);
             resolved.is_some_and(|ids| {
                 ids.len() == 1 && model.selected_part_ids.as_slice() == ids.as_slice()
-            }) && (matches!(&selected.context, objects::TreeContext::Key { .. })
-                || matches!(&selected.context, objects::TreeContext::Component { .. }))
+            }) && matches!(&selected.context, objects::TreeContext::Component { .. })
         });
     let context_summary = selected_tree_context
         .as_ref()
