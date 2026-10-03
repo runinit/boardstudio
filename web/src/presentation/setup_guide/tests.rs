@@ -26,7 +26,7 @@ fn panel_composition() -> Element {
             div { class: "m1-editor-body",
                 ObjectsPanel { compact_open: objects_open, settings: objects_settings,
                     ProjectSetupGuide {
-                        stage: stage(), stage_detail: stage_detail(stage(), &ProjectDoc::empty("fixture", "Fixture"), "board"), project_name: "Fixture".to_owned(),
+                        stage: stage(), stage_readiness: [false; 5], stage_detail: stage_detail(stage(), &ProjectDoc::empty("fixture", "Fixture"), "board"), project_name: "Fixture".to_owned(),
                         on_name_change: |_| {}, on_name_commit: |_| {},
                         on_stage_change: move |next| {
                             stage.set(next);

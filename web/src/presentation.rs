@@ -7523,6 +7523,35 @@ fn Editor() -> Element {
             guide_preferences_for_dismiss.set(Some(preferences));
         }
     };
+    let guide_statuses = setup_guide::stage_statuses(
+        &document,
+        &model.active_board_id,
+        &snapshot.scene,
+        match &pcb_wiring_mount.resolution {
+            pcb_wiring::PcbWiringResolution::Current { identity, plan }
+                if identity.scope.document_id == document.id
+                    && identity.scope.board_id == model.active_board_id
+                    && identity.scope.instance_id.is_none()
+                    && identity.token == snapshot.token
+                    && identity.revision == document.revision =>
+            {
+                Some(plan.as_ref())
+            }
+            _ => None,
+        },
+    );
+    let guide_stage_index = guide
+        .as_ref()
+        .map(|preferences| match preferences.current_stage {
+            SetupGuideStage::Project => 0,
+            SetupGuideStage::Layout => 1,
+            SetupGuideStage::Wiring => 2,
+            SetupGuideStage::Case => 3,
+            SetupGuideStage::Review => 4,
+        })
+        .unwrap_or(0);
+    let guide_stage_readiness = guide_statuses.clone().map(|status| status.ready);
+    let guide_stage_detail = guide_statuses[guide_stage_index].detail.clone();
     rsx! {
         section { class: "m1-editor", "aria-label": "Keyboard editor",
             panels::CompactPanelScrim {}
@@ -7531,11 +7560,8 @@ fn Editor() -> Element {
                     if let Some(preferences) = guide {
                         setup_guide::ProjectSetupGuide {
                             stage: preferences.current_stage,
-                            stage_detail: setup_guide::stage_detail(
-                                preferences.current_stage,
-                                &document,
-                                &model.active_board_id,
-                            ),
+                            stage_readiness: guide_stage_readiness,
+                            stage_detail: guide_stage_detail,
                             project_name: name_value,
                             on_name_change,
                             on_name_commit,

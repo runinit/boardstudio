@@ -33,7 +33,7 @@ fn composition() -> Element {
                 }
             } else {
                 ProjectSetupGuide {
-                    stage: stage(), stage_detail: "Ready".to_owned(), project_name: "Focus fixture".to_owned(),
+                    stage: stage(), stage_readiness: [false; 5], stage_detail: "Ready".to_owned(), project_name: "Focus fixture".to_owned(),
                     on_name_change: |_| {}, on_name_commit: |_| {}, on_stage_change: move |next| stage.set(next),
                     on_open_workspace: |_| {}, on_open_matrix_setup: Some(on_open),
                     on_choose_controller: None, on_dismiss: |_| {}, project_controls: None,

@@ -1,5 +1,8 @@
 use crate::operation_outcomes::OutcomeSlot;
-use boardstudio_core::model::ProjectDoc;
+use boardstudio_core::{
+    electrical::ElectricalPlan,
+    model::{PartKind, ProjectDoc, SceneDelta, Severity},
+};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use wasm_bindgen::JsCast;
@@ -56,9 +59,214 @@ pub(crate) struct SetupGuidePreferences {
     pub(crate) current_stage: SetupGuideStage,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct SetupGuideStageStatus {
+    pub(crate) ready: bool,
+    pub(crate) detail: String,
+}
+
+fn step_class(current: bool, ready: bool) -> &'static str {
+    match (current, ready) {
+        (true, true) => "m1-setup-guide__step is-current is-ready",
+        (true, false) => "m1-setup-guide__step is-current",
+        (false, true) => "m1-setup-guide__step is-ready",
+        (false, false) => "m1-setup-guide__step",
+    }
+}
+
+pub(crate) fn stage_statuses(
+    document: &ProjectDoc,
+    board_id: &str,
+    scene: &SceneDelta,
+    wiring_plan: Option<&ElectricalPlan>,
+) -> [SetupGuideStageStatus; 5] {
+    let board = document.boards.iter().find(|board| board.id == board_id);
+    let board_parts = board.map(|board| &board.part_ids[..]).unwrap_or_default();
+    let matrices: Vec<_> = document
+        .matrices
+        .iter()
+        .filter(|matrix| {
+            matrix.board_id.as_deref() == Some(board_id)
+                || (matrix.board_id.is_none()
+                    && matrix
+                        .part_ids
+                        .iter()
+                        .any(|part_id| board_parts.contains(part_id)))
+        })
+        .collect();
+    let enabled_cells = matrices.iter().fold(0_u64, |count, matrix| {
+        let total = u64::from(matrix.rows) * u64::from(matrix.columns);
+        let disabled = matrix
+            .cells
+            .iter()
+            .filter(|cell| !cell.enabled && cell.row < matrix.rows && cell.column < matrix.columns)
+            .map(|cell| (cell.row, cell.column))
+            .collect::<std::collections::BTreeSet<_>>()
+            .len() as u64;
+        count + total.saturating_sub(disabled)
+    });
+    let matrix_part_ids = matrices
+        .iter()
+        .flat_map(|matrix| matrix.part_ids.iter().cloned())
+        .collect::<std::collections::BTreeSet<_>>();
+    let standalone_keys = document
+        .parts
+        .iter()
+        .filter(|part| {
+            board_parts.contains(&part.id)
+                && !matrix_part_ids.contains(&part.id)
+                && document.definitions.iter().any(|definition| {
+                    definition.id == part.definition_id && definition.kind == PartKind::Switch
+                })
+        })
+        .count() as u64;
+    let key_count = enabled_cells + standalone_keys;
+    let mut guide_targets =
+        std::collections::BTreeSet::from([document.id.clone(), board_id.to_owned()]);
+    guide_targets.extend(board_parts.iter().cloned());
+    if let Some(board) = board {
+        guide_targets.extend(board.outline_ids.iter().cloned());
+    }
+    guide_targets.extend(matrices.iter().map(|matrix| matrix.id.clone()));
+    let layout_error_count = scene
+        .findings
+        .iter()
+        .filter(|finding| {
+            finding.severity == Severity::Error
+                && (finding.target_ids.is_empty()
+                    || finding
+                        .target_ids
+                        .iter()
+                        .any(|target| guide_targets.contains(target)))
+        })
+        .count();
+    let project_ready = board.is_some()
+        && document.hardware.as_ref().is_some_and(|hardware| {
+            hardware
+                .boards
+                .iter()
+                .any(|entry| entry.board_id == board_id)
+                || hardware
+                    .instances
+                    .iter()
+                    .any(|instance| instance.board_id == board_id)
+        });
+    let layout_ready = board.is_some()
+        && key_count > 0
+        && (standalone_keys > 0
+            || matrix_part_ids
+                .iter()
+                .any(|part_id| board_parts.contains(part_id)))
+        && layout_error_count == 0;
+    let wiring_current = wiring_plan.is_some_and(|plan| {
+        plan.board_id.as_deref() == Some(board_id)
+            && plan.revision == document.revision
+            && plan.instance_id.is_none()
+    });
+    let wiring_ready = wiring_plan.is_some_and(|plan| {
+        plan.diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.severity != "error")
+    });
+    let wiring_applied = wiring_plan.is_some_and(|plan| {
+        let Some(board) = document.boards.iter().find(|board| board.id == board_id) else {
+            return false;
+        };
+        let Some(configuration) = document.hardware.as_ref().and_then(|hardware| {
+            hardware
+                .boards
+                .iter()
+                .find(|configuration| configuration.board_id == board_id)
+        }) else {
+            return false;
+        };
+        let prefix = format!("generated/electrical/{board_id}/");
+        let current_nets = document
+            .nets
+            .iter()
+            .filter(|net| net.id.starts_with(&prefix))
+            .collect::<Vec<_>>();
+        plan.revision == document.revision
+            && current_nets.len() == plan.nets.len()
+            && configuration.mode == plan.mode
+            && configuration.controller_part_id == plan.controller_part_id
+            && plan.nets.iter().all(|net| {
+                current_nets.iter().any(|current| *current == net)
+                    && board.net_ids.contains(&net.id)
+            })
+    });
+    let wiring_stage_ready = wiring_current && wiring_ready && wiring_applied;
+    let case_configured = document
+        .case_bodies
+        .iter()
+        .any(|body| body.board_id == board_id);
+    let case_ready = scene
+        .board_readiness
+        .iter()
+        .find(|readiness| readiness.board_id == board_id)
+        .is_some_and(|readiness| readiness.case_ready);
+    let review_ready =
+        board.is_some() && layout_ready && wiring_stage_ready && (!case_configured || case_ready);
+
+    [
+        SetupGuideStageStatus {
+            ready: project_ready,
+            detail: stage_detail(SetupGuideStage::Project, document, board_id),
+        },
+        SetupGuideStageStatus {
+            ready: layout_ready,
+            detail: if layout_ready {
+                format!(
+                    "{key_count} enabled key position{} {} ready.",
+                    if key_count == 1 { "" } else { "s" },
+                    if key_count == 1 { "is" } else { "are" }
+                )
+            } else if layout_error_count > 0 {
+                format!(
+                    "{layout_error_count} layout finding{} need attention.",
+                    if layout_error_count == 1 { "" } else { "s" }
+                )
+            } else {
+                "Create a layout and place its assemblies.".into()
+            },
+        },
+        SetupGuideStageStatus {
+            ready: wiring_stage_ready,
+            detail: if wiring_stage_ready {
+                "Controller pins and board nets are applied.".into()
+            } else if wiring_current && wiring_ready {
+                "Apply the resolved wiring before export.".into()
+            } else {
+                "Resolve the controller and board wiring.".into()
+            },
+        },
+        SetupGuideStageStatus {
+            ready: case_ready,
+            detail: if case_configured {
+                if case_ready {
+                    "Authored case geometry is ready.".into()
+                } else {
+                    "Review the authored case geometry.".into()
+                }
+            } else {
+                "Optional: configure a case or continue without one.".into()
+            },
+        },
+        SetupGuideStageStatus {
+            ready: review_ready,
+            detail: if review_ready {
+                "The selected board is ready for review and export.".into()
+            } else {
+                "Complete the required steps for this board before export.".into()
+            },
+        },
+    ]
+}
+
 #[component]
 pub(super) fn ProjectSetupGuide(
     stage: SetupGuideStage,
+    stage_readiness: [bool; 5],
     stage_detail: String,
     project_name: String,
     on_name_change: EventHandler<String>,
@@ -70,6 +278,13 @@ pub(super) fn ProjectSetupGuide(
     on_dismiss: EventHandler<()>,
     project_controls: Option<Element>,
 ) -> Element {
+    let stage_index = match stage {
+        SetupGuideStage::Project => 0,
+        SetupGuideStage::Layout => 1,
+        SetupGuideStage::Wiring => 2,
+        SetupGuideStage::Case => 3,
+        SetupGuideStage::Review => 4,
+    };
     let heading = match stage {
         SetupGuideStage::Project => "Project & hardware",
         SetupGuideStage::Layout => "Layout & assemblies",
@@ -90,40 +305,41 @@ pub(super) fn ProjectSetupGuide(
                 }
                 button { class: "m1-setup-guide__dismiss", r#type: "button", onclick: move |_| on_dismiss.call(()), "Back to objects" }
             }
+            p { class: "m1-setup-guide__intro", "Step {stage_index + 1} of 5. Move between steps freely; your work is kept." }
             nav { class: "m1-setup-guide__steps", "aria-label": "Setup steps",
                 button {
-                    class: if stage == SetupGuideStage::Project { "m1-setup-guide__step is-current" } else { "m1-setup-guide__step" },
+                    class: step_class(stage == SetupGuideStage::Project, stage_readiness[0]),
                     aria_current: (stage == SetupGuideStage::Project).then_some("step"),
                     onclick: move |_| on_stage_change.call(SetupGuideStage::Project),
-                    span { class: "m1-setup-guide__step-marker", "1" }
+                    span { class: "m1-setup-guide__step-marker", aria_label: stage_readiness[0].then_some("Ready"), if stage_readiness[0] { "✓" } else { "1" } }
                     strong { "Project & hardware" }
                 }
                 button {
-                    class: if stage == SetupGuideStage::Layout { "m1-setup-guide__step is-current" } else { "m1-setup-guide__step" },
+                    class: step_class(stage == SetupGuideStage::Layout, stage_readiness[1]),
                     aria_current: (stage == SetupGuideStage::Layout).then_some("step"),
                     onclick: move |_| on_stage_change.call(SetupGuideStage::Layout),
-                    span { class: "m1-setup-guide__step-marker", "2" }
+                    span { class: "m1-setup-guide__step-marker", aria_label: stage_readiness[1].then_some("Ready"), if stage_readiness[1] { "✓" } else { "2" } }
                     strong { "Layout & assemblies" }
                 }
                 button {
-                    class: if stage == SetupGuideStage::Wiring { "m1-setup-guide__step is-current" } else { "m1-setup-guide__step" },
+                    class: step_class(stage == SetupGuideStage::Wiring, stage_readiness[2]),
                     aria_current: (stage == SetupGuideStage::Wiring).then_some("step"),
                     onclick: move |_| on_stage_change.call(SetupGuideStage::Wiring),
-                    span { class: "m1-setup-guide__step-marker", "3" }
+                    span { class: "m1-setup-guide__step-marker", aria_label: stage_readiness[2].then_some("Ready"), if stage_readiness[2] { "✓" } else { "3" } }
                     strong { "Controller & wiring" }
                 }
                 button {
-                    class: if stage == SetupGuideStage::Case { "m1-setup-guide__step is-current" } else { "m1-setup-guide__step" },
+                    class: step_class(stage == SetupGuideStage::Case, stage_readiness[3]),
                     aria_current: (stage == SetupGuideStage::Case).then_some("step"),
                     onclick: move |_| on_stage_change.call(SetupGuideStage::Case),
-                    span { class: "m1-setup-guide__step-marker", "4" }
+                    span { class: "m1-setup-guide__step-marker", aria_label: stage_readiness[3].then_some("Ready"), if stage_readiness[3] { "✓" } else { "4" } }
                     strong { "Case (optional)" }
                 }
                 button {
-                    class: if stage == SetupGuideStage::Review { "m1-setup-guide__step is-current" } else { "m1-setup-guide__step" },
+                    class: step_class(stage == SetupGuideStage::Review, stage_readiness[4]),
                     aria_current: (stage == SetupGuideStage::Review).then_some("step"),
                     onclick: move |_| on_stage_change.call(SetupGuideStage::Review),
-                    span { class: "m1-setup-guide__step-marker", "5" }
+                    span { class: "m1-setup-guide__step-marker", aria_label: stage_readiness[4].then_some("Ready"), if stage_readiness[4] { "✓" } else { "5" } }
                     strong { "Review & export" }
                 }
             }
