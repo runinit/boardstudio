@@ -6053,6 +6053,10 @@ fn Editor() -> Element {
                     mechanical_layer_ids,
                     fit_retry: keycaps_fit_state.on_retry,
                     fit_navigate: workspace_callbacks.keycaps_finding,
+                    on_export: {
+                        let runtime = runtime.clone();
+                        EventHandler::new(move |_: ()| runtime.export_keycaps_step())
+                    },
                 },
             ))
         }

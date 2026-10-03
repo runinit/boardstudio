@@ -31,6 +31,7 @@ pub(super) struct InspectorInput {
     pub(super) mechanical_layer_ids: Rc<[String]>,
     pub(super) fit_retry: EventHandler<()>,
     pub(super) fit_navigate: EventHandler<FindingNavigationRequest>,
+    pub(super) on_export: EventHandler<()>,
 }
 
 pub(super) fn objects(input: SharedObjectsInput) -> Element {
@@ -108,6 +109,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
     if let Some(view) = input.view {
         let settings_editor = input.settings_editor;
         let settings_actions = input.settings_actions;
+        let on_export = input.on_export;
         let selected_title = input
             .selected_key_id
             .as_deref()
@@ -156,6 +158,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                     on_retry: input.fit_retry,
                     on_navigate: input.fit_navigate,
                 }
+                button { disabled: view.keys.is_empty(), onclick: move |_| on_export.call(()), "Export keycap STEP" }
             }
         }
     } else {

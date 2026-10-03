@@ -3,6 +3,7 @@ use crate::cad_jobs::{
     CadBodyMesh, CadMesh, CadOperation, CadReply, CadReplyOutcome, CadRequest, CadResult,
     CadSnapshotIdentity,
 };
+use boardstudio_core::model::KeycapSpec;
 use futures_channel::oneshot;
 use js_sys::{Array, Float32Array, Function, Object, Promise, Reflect, Uint8Array};
 use serde::{Deserialize, Serialize};
@@ -50,8 +51,27 @@ struct WireRequest {
     identity: CadSnapshotIdentity,
     operation: CadOperation,
     prepared: Option<boardstudio_core::model::PreparedCaseAssemblyIR>,
+    #[serde(default)]
+    keycaps: Option<KeycapsStepInput>,
     #[serde(skip)]
     input_bytes: Vec<u8>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct KeycapsStepInput {
+    revision: u64,
+    specs: Vec<KeycapSpec>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct KeycapsStepRequest {
+    request_id: String,
+    job_id: String,
+    identity: CadSnapshotIdentity,
+    operation: CadOperation,
+    keycaps: KeycapsStepInput,
 }
 
 struct Pending {
@@ -143,12 +163,54 @@ impl CadWorker {
         self.ready().await?;
         let frame =
             serde_json::to_string(&request).map_err(|error| CadWorkerError(error.to_string()))?;
+        self.request_frame(&request.request_id, &frame, &request.input_bytes)
+            .await
+    }
+
+    pub(crate) async fn request_keycaps_step(
+        &self,
+        request_id: String,
+        job_id: String,
+        identity: CadSnapshotIdentity,
+        specs: Vec<KeycapSpec>,
+    ) -> Result<CadReply, CadWorkerError> {
+        if request_id.is_empty()
+            || job_id.is_empty()
+            || identity.revision > crate::cad_jobs::MAX_CAD_REVISION
+            || specs.is_empty()
+        {
+            return Err(CadWorkerError(
+                "Keycap STEP input does not match its accepted snapshot".into(),
+            ));
+        }
+        self.ready().await?;
+        let revision = identity.revision;
+        let frame = serde_json::to_string(&KeycapsStepRequest {
+            request_id: request_id.clone(),
+            job_id,
+            identity,
+            operation: CadOperation::ExportStep,
+            keycaps: KeycapsStepInput { revision, specs },
+        })
+        .map_err(|error| CadWorkerError(error.to_string()))?;
+        self.request_frame(&request_id, &frame, &[]).await
+    }
+
+    async fn request_frame(
+        &self,
+        request_id: &str,
+        frame: &str,
+        input_bytes: &[u8],
+    ) -> Result<CadReply, CadWorkerError> {
+        if self.state.borrow().closed {
+            return Err(CadWorkerError("CAD worker is closed".into()));
+        }
         let object = Object::new();
         Reflect::set(&object, &"kind".into(), &"request".into()).map_err(js_error)?;
-        Reflect::set(&object, &"frame".into(), &JsValue::from_str(&frame)).map_err(js_error)?;
+        Reflect::set(&object, &"frame".into(), &JsValue::from_str(frame)).map_err(js_error)?;
         let transfers = Array::new();
-        if !request.input_bytes.is_empty() {
-            let bytes = Uint8Array::from(request.input_bytes.as_slice());
+        if !input_bytes.is_empty() {
+            let bytes = Uint8Array::from(input_bytes);
             let buffer = bytes.buffer();
             Reflect::set(&object, &"inputBytes".into(), &buffer).map_err(js_error)?;
             transfers.push(&buffer);
@@ -159,12 +221,12 @@ impl CadWorker {
             if state.closed {
                 return Err(CadWorkerError("CAD worker is closed".into()));
             }
-            if state.pending.contains_key(&request.request_id) {
+            if state.pending.contains_key(request_id) {
                 return Err(CadWorkerError("duplicate in-flight CAD request id".into()));
             }
             state
                 .pending
-                .insert(request.request_id.clone(), Pending { sender });
+                .insert(request_id.to_owned(), Pending { sender });
         }
         let posted = if transfers.length() == 0 {
             self.worker.post_message(&object)
@@ -172,7 +234,7 @@ impl CadWorker {
             self.worker.post_message_with_transfer(&object, &transfers)
         };
         if let Err(error) = posted
-            && let Some(pending) = self.state.borrow_mut().pending.remove(&request.request_id)
+            && let Some(pending) = self.state.borrow_mut().pending.remove(request_id)
         {
             let _ = pending.sender.send(Err(js_error(error)));
         }
@@ -545,6 +607,11 @@ fn receive_worker_message(
         .ok_or_else(|| JsValue::from_str("CAD request omitted frame"))?;
     let mut request = serde_json::from_str::<WireRequest>(&frame)
         .map_err(|error| JsValue::from_str(&error.to_string()))?;
+    if request.keycaps.is_some() && request.operation != CadOperation::ExportStep {
+        return Err(JsValue::from_str(
+            "Keycap CAD input is only valid for STEP export",
+        ));
+    }
     if request.identity.revision > crate::cad_jobs::MAX_CAD_REVISION {
         return post_reply(
             scope,
@@ -560,6 +627,18 @@ fn receive_worker_message(
             None,
             Array::new(),
         );
+    }
+    if request.operation == CadOperation::ExportStep
+        && let Some(keycaps) = request.keycaps.as_ref()
+        && (request.prepared.is_some()
+            || !request.input_bytes.is_empty()
+            || keycaps.revision != request.identity.revision
+            || keycaps.specs.is_empty()
+            || keycaps.specs.len() > 4096)
+    {
+        return Err(JsValue::from_str(
+            "Keycap STEP input does not match its accepted snapshot",
+        ));
     }
     if let Some(buffer) = Reflect::get(&data, &"inputBytes".into())
         .ok()
@@ -739,22 +818,40 @@ async fn run_request(
         )
         .map_err(|error| (request.clone(), error, false))?,
         CadOperation::ExportStep => {
-            let prepared = prepared_value().map_err(|error| (request.clone(), error, false))?;
-            Reflect::set(&prepared, &"stepOnly".into(), &JsValue::TRUE)
-                .map_err(|error| (request.clone(), js_message(error), false))?;
-            let bodies = Array::from(
-                &Reflect::get(&prepared, &"bodies".into())
-                    .map_err(|error| (request.clone(), js_message(error), false))?,
-            );
-            // This worker owns a fresh module/cache. Empty keys intentionally
-            // miss preview meshes while the provider rebuilds exact solids
-            // from the same prepared regions without allocating triangulations.
-            let keys = Array::new_with_length(bodies.length());
-            for index in 0..bodies.length() {
-                keys.set(index, JsValue::from_str("m1-independent-step-cache-miss"));
+            if let Some(keycaps) = request.keycaps.as_ref() {
+                let input = serde_json::to_string(&serde_json::json!({
+                    "revision": keycaps.revision,
+                    "specs": keycaps.specs,
+                    "export": true,
+                }))
+                .map_err(|error| (request.clone(), error.to_string(), false))?;
+                let input = js_sys::JSON::parse(&input)
+                    .map_err(|error| (request.clone(), js_message(error), false))?;
+                let result = invoke("build_keycaps", &[input])
+                    .map_err(|error| (request.clone(), error, false))?;
+                // This action downloads only STEP. Avoid cloning the unused
+                // preview meshes back to the page as structured data.
+                Reflect::set(&result, &"bodies".into(), &Array::new())
+                    .map_err(|error| (request.clone(), js_message(error), false))?;
+                result
+            } else {
+                let prepared = prepared_value().map_err(|error| (request.clone(), error, false))?;
+                Reflect::set(&prepared, &"stepOnly".into(), &JsValue::TRUE)
+                    .map_err(|error| (request.clone(), js_message(error), false))?;
+                let bodies = Array::from(
+                    &Reflect::get(&prepared, &"bodies".into())
+                        .map_err(|error| (request.clone(), js_message(error), false))?,
+                );
+                // This worker owns a fresh module/cache. Empty keys intentionally
+                // miss preview meshes while the provider rebuilds exact solids
+                // from the same prepared regions without allocating triangulations.
+                let keys = Array::new_with_length(bodies.length());
+                for index in 0..bodies.length() {
+                    keys.set(index, JsValue::from_str("m1-independent-step-cache-miss"));
+                }
+                invoke("export_cached_assembly", &[prepared, keys.into()])
+                    .map_err(|error| (request.clone(), error, false))?
             }
-            invoke("export_cached_assembly", &[prepared, keys.into()])
-                .map_err(|error| (request.clone(), error, false))?
         }
         CadOperation::ReadStep => {
             if bytes.is_empty() || bytes.len() > MAX_STEP_BYTES {

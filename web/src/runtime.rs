@@ -12,7 +12,7 @@ use boardstudio_core::{
     model::{
         ArchiveEntry, ArchiveReply, ArchiveRequest, ArtifactReply, ArtifactRequest, Board,
         CompiledFootprint, CoreReply, CoreRequest, ErgogenJobResult, FinishExportRequest,
-        HardwareTopology, Material, MechanicalAssembly, MechanicalBuiltinProfile,
+        HardwareTopology, KeycapSpec, Material, MechanicalAssembly, MechanicalBuiltinProfile,
         MechanicalConfiguration, MechanicalPartProfile, MechanicalSwitchFamily, Operation,
         OutlineFeature, OutlineSettings, PcbPreview, PrepareExportRequest, ProjectDoc,
     },
@@ -73,6 +73,7 @@ struct Artifact {
     scope: Scope,
     token: SnapshotToken,
     firmware: bool,
+    keycaps_step: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -322,6 +323,7 @@ pub struct Runtime {
     cad_worker: RefCell<Option<(Scope, Rc<CadWorker>)>>,
     cad_jobs: RefCell<BTreeMap<JobId, Rc<Cell<bool>>>>,
     step_exports: RefCell<BTreeSet<OperationId>>,
+    keycaps_step_exports: RefCell<BTreeSet<OperationId>>,
     firmware_exports: RefCell<BTreeMap<OperationId, FirmwareExportCapture>>,
     latest_firmware_export: Cell<Option<OperationId>>,
     firmware_export_delivery_errors: RefCell<BTreeMap<OperationId, String>>,
@@ -410,6 +412,7 @@ impl Runtime {
             cad_worker: RefCell::new(None),
             cad_jobs: RefCell::new(BTreeMap::new()),
             step_exports: RefCell::new(BTreeSet::new()),
+            keycaps_step_exports: RefCell::new(BTreeSet::new()),
             firmware_exports: RefCell::new(BTreeMap::new()),
             latest_firmware_export: Cell::new(None),
             firmware_export_delivery_errors: RefCell::new(BTreeMap::new()),
@@ -1710,6 +1713,8 @@ impl Runtime {
                     .operation_outcomes
                     .settle(operation_id, outcome.clone());
                 self.step_exports.borrow_mut().remove(&operation_id);
+                let is_keycaps_step_export =
+                    self.keycaps_step_exports.borrow_mut().remove(&operation_id);
                 let firmware_capture = self.firmware_exports.borrow_mut().remove(&operation_id);
                 let delivery_error = self
                     .firmware_export_delivery_errors
@@ -1726,6 +1731,23 @@ impl Runtime {
                         delivery_error,
                     ) {
                         self.apply_report(report);
+                    }
+                } else if is_keycaps_step_export {
+                    match outcome {
+                        TerminalOutcome::Completed => {}
+                        TerminalOutcome::Rejected(reason)
+                        | TerminalOutcome::PersistenceFailed(reason)
+                        | TerminalOutcome::BlockedByRecovery(reason)
+                        | TerminalOutcome::ExecutorFailed(reason) => {
+                            self.apply_report(RuntimeReport::alert(reason));
+                        }
+                        TerminalOutcome::Cancelled => self.report("Cancelled."),
+                        TerminalOutcome::Closed => self.report("Editor closed."),
+                        TerminalOutcome::Superseded => {
+                            if observed {
+                                self.changed();
+                            }
+                        }
                     }
                 } else {
                     match outcome {
@@ -1807,7 +1829,10 @@ impl Runtime {
                 scope,
                 snapshot,
             } => {
-                let is_step_export = self.step_exports.borrow().contains(&operation_id);
+                let is_keycaps_step_export =
+                    self.keycaps_step_exports.borrow().contains(&operation_id);
+                let is_step_export =
+                    self.step_exports.borrow().contains(&operation_id) || is_keycaps_step_export;
                 let is_firmware_export = self.firmware_exports.borrow().contains_key(&operation_id);
                 let work: Result<ArchiveWorkFuture<'_>, String> =
                     self.archive_export_options.dispatch(
@@ -1815,7 +1840,11 @@ impl Runtime {
                         is_step_export,
                         is_firmware_export,
                         || -> ArchiveWorkFuture<'_> {
-                            Box::pin(self.step_bytes(operation_id, &snapshot, &scope))
+                            if is_keycaps_step_export {
+                                Box::pin(self.keycaps_step_bytes(operation_id, &snapshot, &scope))
+                            } else {
+                                Box::pin(self.step_bytes(operation_id, &snapshot, &scope))
+                            }
                         },
                         |embed_used_models| -> ArchiveWorkFuture<'_> {
                             Box::pin(self.pack_archive(
@@ -1857,6 +1886,11 @@ impl Runtime {
                                 format!("{}-zmk.zip", snapshot.document.name),
                                 Some("application/zip".to_owned()),
                             )
+                        } else if is_keycaps_step_export {
+                            (
+                                format!("{}-keycaps.step", snapshot.document.name),
+                                Some("model/step".to_owned()),
+                            )
                         } else if is_step_export {
                             ("keyboard.step".to_owned(), None)
                         } else {
@@ -1872,6 +1906,7 @@ impl Runtime {
                                 scope: scope.clone(),
                                 token: snapshot.token,
                                 firmware: is_firmware_export,
+                                keycaps_step: is_keycaps_step_export,
                             },
                         );
                         self.complete(Completion::ExportFinished {
@@ -1908,6 +1943,8 @@ impl Runtime {
                         self.firmware_export_delivery_errors
                             .borrow_mut()
                             .insert(artifact.operation_id, error);
+                    } else if artifact.keycaps_step {
+                        self.apply_report(RuntimeReport::alert(error));
                     } else {
                         self.report(error);
                     }
@@ -3188,6 +3225,34 @@ impl Runtime {
             scope,
         });
     }
+    pub(crate) fn export_keycaps_step(self: &Rc<Self>) {
+        let Some(scope) = self.scope() else {
+            self.apply_report(RuntimeReport::alert("Select a board before export"));
+            return;
+        };
+        let model = self.model();
+        let Some(snapshot) = model.accepted else {
+            self.apply_report(RuntimeReport::alert("The project is still opening"));
+            return;
+        };
+        if model.active_board_id != scope.board_id
+            || !snapshot
+                .document
+                .boards
+                .iter()
+                .any(|board| board.id == scope.board_id)
+        {
+            self.apply_report(RuntimeReport::alert("Select a board before export"));
+            return;
+        }
+        self.clear_alert();
+        let operation_id = self.operation();
+        self.keycaps_step_exports.borrow_mut().insert(operation_id);
+        self.submit(Event::StartExport {
+            operation_id,
+            scope,
+        });
+    }
     pub(crate) fn export_firmware(self: &Rc<Self>) {
         let Some(scope) = self.scope() else {
             self.report("Select a board before exporting ZMK source.");
@@ -3492,6 +3557,109 @@ impl Runtime {
             validate_reply(&request, reply, &prepared.identity)
                 .map(|result| result.step)
                 .map_err(|e| format!("{e:?}"))
+        }
+        .await;
+        worker.close();
+        self.export_workers.borrow_mut().remove(&operation_id);
+        result
+    }
+
+    async fn keycaps_step_bytes(
+        &self,
+        operation_id: OperationId,
+        snapshot: &AcceptedSnapshot,
+        scope: &Scope,
+    ) -> Result<Vec<u8>, String> {
+        let guard = || {
+            if !self.export_current(operation_id, snapshot.token, scope) {
+                return Err("Keycap STEP export was cancelled or superseded.".to_owned());
+            }
+            self.ensure_keycaps_source_current(snapshot, scope)
+        };
+        guard()?;
+        let core = self.core.borrow().clone();
+        let executor_epoch = self.session.borrow().core_executor_epoch();
+        let request_id = format!("keycaps-step-resolve-{}", operation_id.0);
+        let request = CoreRequest::ResolveKeycaps {
+            id: request_id.clone(),
+            document: (*snapshot.document).clone(),
+            board_id: scope.board_id.clone(),
+            cases: None,
+        };
+        let reply = core
+            .request(&request_id, &executor_epoch.0.to_string(), &request)
+            .await
+            .map_err(|error| format!("Keycap STEP resolution failed: {error}"))?;
+        guard()?;
+        if self.session.borrow().core_executor_epoch() != executor_epoch
+            || !Rc::ptr_eq(&core, &self.core.borrow())
+        {
+            return Err("The Core worker changed during keycap STEP resolution.".into());
+        }
+        let resolution = match reply {
+            CoreReply::KeycapsResolved { id, result } if id == request_id => result,
+            CoreReply::Error { id, message, .. } if id == request_id => return Err(message),
+            CoreReply::KeycapsResolved { .. } | CoreReply::Error { .. } => {
+                return Err("Core returned a stale keycap STEP resolution reply.".into());
+            }
+            _ => return Err("Core returned an unexpected keycap STEP resolution reply.".into()),
+        };
+        if resolution.revision != snapshot.document.revision {
+            return Err("Core resolved keycaps for another document revision.".into());
+        }
+        let errors = resolution
+            .findings
+            .iter()
+            .filter(|finding| finding.severity == boardstudio_core::model::Severity::Error)
+            .map(|finding| finding.message.as_str())
+            .collect::<Vec<_>>();
+        if !errors.is_empty() {
+            return Err(errors.join("\n"));
+        }
+        if resolution.specs.is_empty() {
+            return Err("Choose a keycap profile in Keymap before export".into());
+        }
+        guard()?;
+        let identity = CadSnapshotIdentity {
+            token: snapshot.token.0,
+            session_epoch: snapshot.session_epoch.0,
+            document_id: snapshot.document.id.clone(),
+            board_id: scope.board_id.clone(),
+            instance_id: scope.instance_id.clone(),
+            revision: snapshot.document.revision,
+        };
+        let worker = Rc::new(
+            CadWorker::new(&resource_url("assets/cad-worker/entry.js")?)
+                .map_err(|error| error.to_string())?,
+        );
+        self.export_workers
+            .borrow_mut()
+            .insert(operation_id, worker.clone());
+        let request_id = format!("keycaps-step-cad-{}", operation_id.0);
+        let result = async {
+            worker.ready().await.map_err(|error| error.to_string())?;
+            guard()?;
+            let reply = worker
+                .request_keycaps_step(
+                    request_id.clone(),
+                    format!("keycaps-step-{}", operation_id.0),
+                    identity.clone(),
+                    resolution.specs,
+                )
+                .await
+                .map_err(|error| error.to_string())?;
+            guard()?;
+            let request = CadRequest {
+                request_id,
+                job_id: format!("keycaps-step-{}", operation_id.0),
+                identity: identity.clone(),
+                operation: CadOperation::ExportStep,
+                prepared: None,
+                input_bytes: vec![],
+            };
+            validate_reply(&request, reply, &identity)
+                .map(|result| result.step)
+                .map_err(|error| format!("{error:?}"))
         }
         .await;
         worker.close();
