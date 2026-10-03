@@ -406,6 +406,8 @@ fn assembly_instructions(name: &str, plan: &ElectricalPlan, draft: bool) -> Stri
     let mut lines = vec![
         format!("# {name}"),
         String::new(),
+        "# PCB wiring and assembly".into(),
+        String::new(),
         if draft {
             "DRAFT: review the unresolved findings below before fabrication.".into()
         } else {
