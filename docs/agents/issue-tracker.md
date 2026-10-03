@@ -92,6 +92,14 @@ stream. Necessary migration API/design/visibility changes are authorized by the
 
 ### Frontend delivery records
 
+**Current execution phase — user update 2026-10-03:** integrate more, test later.
+Authors implement and freeze mounted work without a new per-packet test/browser/review
+cycle. The coordinator integrates a larger coherent candidate before packaging,
+changed public qualification and the single consolidated review. Checks already
+running may finish; results are retained. Source integration is not parent acceptance.
+Final criteria, history/reopen evidence and real dependency joins remain required
+before acceptance, using sufficient existing proof where unchanged.
+
 Read current progress with `python3 .scratch/dioxus-frontend-v1/progress.py show`.
 It reads the [live operations record](../migration/dioxus-frontend-v1-run.json)
 and derives parent counts from the [canonical graph](../../.scratch/dioxus-frontend-v1/tasks.json).

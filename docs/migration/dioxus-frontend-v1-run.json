@@ -45,7 +45,7 @@
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
       "source_commit": "7345cbfb",
-      "state": "Add-object selected-matrix correction and VIK demo joined; fixture-refresh helper awaited for one combined candidate.",
+      "state": "Source integration first: Add-object/VIK joined; PCB/compact-shell/next Layout and Case packets in progress. Packaging/public qualification/review deferred until larger coherent candidate.",
       "packets": [
         {
           "stream": "Layout",
@@ -95,11 +95,11 @@
         "unchanged_worker": "34769 deployed library strict check reused"
       }
     },
-    "execution_policy": "CONSTRAINTS.md#delivery-priority-and-reduced-repeated-testing--user-update-2026-10-03",
+    "execution_policy": "docs/agents/issue-tracker.md#frontend-delivery-records",
     "candidate_review": {
       "review": "/home/chris/.local/share/boardstudio/reviews/candidate-34769-20261003/REVIEW.md",
       "audit": "/home/chris/.local/share/boardstudio/reviews/candidate-34769-20261003/AUDIT.json",
-      "state": "One consolidated review in progress; finalize once, then acceptance decisions reference its repository path/hash."
+      "state": "Retained consolidated review; further review deferred until larger candidate is ready."
     },
     "parent_acceptances": [
       {
@@ -150,10 +150,10 @@
       }
     ],
     "next_work": [
-      "Join fixture-refresh helper; one combined strict check and package for Add object and VIK.",
-      "Verify only changed Add object/VIK journeys and outstanding transform leg; reuse other evidence.",
-      "Finalize one candidate review and reference it for ready parent decisions.",
-      "Continue six queues and preserve RF observations."
+      "Integrate ready PCB, compact shell and fixture-refresh source packets directly.",
+      "Continue six queues with next missing mounted workflows; no per-packet test/review cycle.",
+      "Package and qualify changed public journeys after the larger candidate is assembled.",
+      "Use one finalized candidate review and canonical decision references for ready parent acceptance."
     ]
   }
 }
