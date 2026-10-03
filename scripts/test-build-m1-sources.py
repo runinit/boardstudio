@@ -21,6 +21,13 @@ INPUTS = (
 
 
 class BuildSourceTests(TestCase):
+    def test_page_check_matches_the_locked_ci_wasm_frontend_command(self):
+        self.assertEqual(BUILD.page_check_command(), [
+            "cargo", "check", "--manifest-path", "web/Cargo.toml", "--locked", "--target",
+            "wasm32-unknown-unknown", "--no-default-features", "--features", "page", "--bin",
+            "boardstudio-web",
+        ])
+
     def test_generated_core_package_does_not_change_maintained_source_inventory(self):
         with TemporaryDirectory() as temporary:
             root = Path(temporary)

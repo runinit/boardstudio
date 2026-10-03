@@ -3,6 +3,7 @@
 from pathlib import Path
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -68,7 +69,11 @@ CORE_TEST_ONLY_PATHS = frozenset({"core/tests/electrical_wiring.rs"})
 BUILD_TEST_ONLY_PATHS = frozenset({
     "scripts/test-build-m1-reuse.py",
     "scripts/test-build-m1-sources.py",
+    "scripts/test-migration-deliver.py",
 })
+# The guard executes in the build CLI, so its exact source may change without
+# changing packaged providers. Keep this separate from verification-only files.
+BUILD_CONTROL_ONLY_PATHS = frozenset({"scripts/migration-deliver.py"})
 NON_PAGE_RUST_ALIASES = frozenset({"web/src/presentation/objects/layout_align_geometry.rs"})
 REUSED_PROVIDER_PREFIXES = (
     "assets/cad/",
@@ -916,7 +921,13 @@ def baseline_tools(provenance, baseline):
     return expected
 
 
-def expected_full_commands(baseline):
+def page_check_command():
+    return ["cargo", "check", "--manifest-path", "web/Cargo.toml", "--locked", "--target",
+            "wasm32-unknown-unknown", "--no-default-features", "--features", "page", "--bin",
+            "boardstudio-web"]
+
+
+def expected_full_commands(baseline, *, include_page_check=True):
     output = baseline
     commands = [
         ("rustc-version", ["rustc", "--version"], REPO, {}),
@@ -925,6 +936,10 @@ def expected_full_commands(baseline):
         ("wasm-pack-version", ["wasm-pack", "--version"], REPO, {}),
         ("node-version", ["node", "--version"], REPO, {}),
         ("pnpm-version", ["pnpm", "--version"], REPO, {}),
+    ]
+    if include_page_check:
+        commands.append(("page-check", page_check_command(), REPO, {}))
+    commands.extend([
         ("core", ["wasm-pack", "build", REPO / "core", "--target", "web", "--release", "--locked"], REPO, {}),
         ("core-worker", ["wasm-pack", "build", WEB, "--target", "web", "--out-name", "m1_core_worker", "--out-dir", output / "core-worker", "--release", "--locked", "--no-default-features", "--features", "core-worker"], REPO, {}),
         ("cad-worker", ["wasm-pack", "build", WEB, "--target", "web", "--out-name", "m1_cad_worker", "--out-dir", output / "cad-worker", "--release", "--locked", "--no-default-features", "--features", "cad-worker"], REPO, {}),
@@ -935,7 +950,7 @@ def expected_full_commands(baseline):
         ("layout-generators", ["node", REPO / "scripts/web/build-layout-generators.mjs", WEB / "assets"], REPO, {}),
         ("preview-generator", ["node", REPO / "scripts/web/build-preview-generator.mjs", WEB / "assets"], REPO, {}),
         ("ergogen-models", [sys.executable, REPO / "scripts/stage-ergogen-models.py", "--source-root", REPO / "ergogen/library/vendor", "--destination", WEB / "assets/ergogen-models", "--manifest", output / "ergogen-models-catalog.json"], REPO, {}),
-    ]
+    ])
     for mode, prefix in (("root", "/"), ("subpath", "/boardstudio/")):
         commands.append((f"page-{mode}", ["dx", "build", "--web", "--release", "--base-path", prefix, "--no-default-features", "--features", "page", "--cargo-args=--locked"], WEB, {}))
         manifest = output / f"offline-manifest-{mode}.json"
@@ -979,18 +994,36 @@ def checked_baseline(build_id):
         raise ValueError("baseline source manifest is missing")
     if any(not re.fullmatch(r"[0-9a-f]{64}", str(value)) for value in provenance["sources"].values()):
         raise ValueError("baseline source manifest contains an invalid SHA-256")
-    if not isinstance(provenance.get("commands"), list) or len(provenance["commands"]) != 22:
-        raise ValueError("baseline is not a complete 22-command full build")
+    if not isinstance(provenance.get("commands"), list) or len(provenance["commands"]) not in (22, 23):
+        raise ValueError("baseline is not a complete full build command sequence")
     if not all(isinstance(row, dict) and isinstance(row.get("log"), str) for row in provenance["commands"]):
         raise ValueError("baseline command receipts are malformed")
     command_labels = [Path(row.get("log", "")).name.removesuffix(".log") for row in provenance["commands"]]
-    required_labels = ["rustc-version", "cargo-version", "dx-version", "wasm-pack-version", "node-version", "pnpm-version",
+    legacy_schema = len(provenance["commands"]) == 22
+    required_labels = ["rustc-version", "cargo-version", "dx-version", "wasm-pack-version", "node-version", "pnpm-version"]
+    if not legacy_schema:
+        required_labels.append("page-check")
+    required_labels += [
                        "core", "core-worker", "cad-worker", "renderer", "cad", "fixtures", "ergogen-catalogue",
                        "layout-generators", "preview-generator", "ergogen-models", "page-root", "offline-worker-root",
                        "embed-offline-root", "page-subpath", "offline-worker-subpath", "embed-offline-subpath"]
     if command_labels != required_labels or any(row.get("exit") != 0 for row in provenance["commands"]):
         raise ValueError("baseline command lineage is not the successful full-build sequence")
-    expected_commands = expected_full_commands(baseline)
+    if legacy_schema:
+        helper_hash = provenance["sources"].get(REUSE_HELPER_PATH)
+        compatible_blob = COMPATIBLE_FULL_BUILD_HELPERS.get((provenance["source_commit"], helper_hash))
+        if compatible_blob is None:
+            raise ValueError("legacy baseline helper is neither unchanged nor the pinned compatible full-build helper")
+        try:
+            helper_blob = subprocess.check_output(
+                ["git", "rev-parse", f"{provenance['source_commit']}:{REUSE_HELPER_PATH}"],
+                cwd=REPO, text=True, stderr=subprocess.PIPE,
+            ).strip()
+        except (OSError, subprocess.CalledProcessError) as error:
+            raise ValueError("legacy baseline helper Git identity cannot be verified") from error
+        if helper_blob != compatible_blob:
+            raise ValueError("legacy baseline helper Git identity differs from its pinned proof")
+    expected_commands = expected_full_commands(baseline, include_page_check=not legacy_schema)
     command_log_hashes = {}
     for row, (label, expected_argv, expected_cwd, expected_env) in zip(provenance["commands"], expected_commands):
         log = Path(row.get("log", ""))
@@ -1124,6 +1157,7 @@ def validate_reuse(build_id, baseline_id, *, refresh_fixtures=False):
         raise ValueError(f"page module graph is missing source-manifest inputs: {missing[:8]}")
     providers = set().union(*(set(paths) for paths in ownership["provider_rust_inputs"].values()))
     eligible = (PAGE_ONLY_ALLOWLIST | page_rust | test_rust | CORE_TEST_ONLY_PATHS | BUILD_TEST_ONLY_PATHS |
+                BUILD_CONTROL_ONLY_PATHS |
                 {PAGE_ONLY_MAIN_PATH, REUSE_HELPER_PATH}) - providers - NON_PAGE_RUST_ALIASES
     if refresh_fixtures:
         eligible |= {FIXTURE_PREPARATION_PATH}
@@ -1238,8 +1272,10 @@ def build_reuse(build_id, baseline_id, *, refresh_fixtures=False):
         "page_feature_ownership": ownership,
         "build_test_only_inputs": sorted(BUILD_TEST_ONLY_PATHS),
         "changed_build_test_only_inputs": sorted(set(changed) & BUILD_TEST_ONLY_PATHS),
+        "build_control_only_inputs": sorted(BUILD_CONTROL_ONLY_PATHS),
+        "changed_build_control_inputs": sorted(set(changed) & BUILD_CONTROL_ONLY_PATHS),
         "dependency_proof": {
-            "statement": "Page-only Rust inputs are resolved from the exact page binary and library module roots under the locked wasm32 page feature set, then subtracted against the three provider library roots from the full build command matrix. New/moved module inputs must remain inside that derived page-only graph; deletions require a full build. Separate cfg(test) module files and the single unchanged-Core-target integration test are recorded as test-only and are not package command inputs. The two explicitly named standalone Python build-test harnesses likewise remain hashed but are not executed by package commands. Other scripts still require unchanged provider input or the explicit fixture/helper proof. Cargo manifests, lib root, build script, and main.rs retain their source/feature proofs. The build helper must match the baseline or pass its explicit committed compatibility proof; a fixture-preparation source change is accepted only in fixture-refresh mode. The layout_align_geometry core-worker test alias remains explicitly excluded.",
+            "statement": "Page-only Rust inputs are resolved from the exact page binary and library module roots under the locked wasm32 page feature set, then subtracted against the three provider library roots from the full build command matrix. New/moved module inputs must remain inside that derived page-only graph; deletions require a full build. Separate cfg(test) module files, the single unchanged-Core-target integration test, and the named standalone build-test harnesses are recorded as test-only and are not package command inputs. The exact migration build guard is recorded as a build-control-only input; unrelated scripts still require unchanged provider input or an explicit fixture/helper proof. Cargo manifests, lib root, build script, and main.rs retain their source/feature proofs. The build helper must match the baseline or pass its explicit committed compatibility proof; a fixture-preparation source change is accepted only in fixture-refresh mode. The layout_align_geometry core-worker test alias remains explicitly excluded.",
             "source_hashes": {
                 **{path: source_before[path] for path in PAGE_ONLY_PROOF_PATHS},
                 PAGE_ONLY_MAIN_PATH: source_before[PAGE_ONLY_MAIN_PATH],
@@ -1270,6 +1306,7 @@ def build_reuse(build_id, baseline_id, *, refresh_fixtures=False):
             print(log.read_text()[-10000:], file=sys.stderr)
             raise SystemExit(result.returncode)
 
+    run("page-check", page_check_command())
     if refresh_fixtures:
         run("fixtures", ["node", REPO / FIXTURE_PREPARATION_PATH, output / "fixtures"])
     else:
@@ -1386,7 +1423,9 @@ def build_full(build_id):
     (output / "tmp").mkdir()
     environment = dict(os.environ, TMPDIR=str(output / "tmp"))
     provenance = {"source_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO, text=True).strip(),
-                  "sources": sources(), "commands": [], "scope": "Development candidate; acceptance is recorded separately."}
+                  "build_id": build_id,
+                  "sources": sources(), "commands": [], "scope": "Development candidate; acceptance is recorded separately.",
+                  "status": "running"}
 
     def run(name, command, cwd=REPO, extra_env=None):
         print(f"{name}: {' '.join(map(str,command))}", flush=True)
@@ -1395,12 +1434,15 @@ def build_full(build_id):
         with log.open("w") as stream:
             result = subprocess.run(list(map(str, command)), cwd=cwd, env=dict(environment, **(extra_env or {})), stdout=stream, stderr=subprocess.STDOUT)
         provenance["commands"].append({"argv": list(map(str, command)), "cwd": str(cwd), "exit": result.returncode, "log": str(log), "environment": extra_env or {}, "started": started, "finished": datetime.now(timezone.utc).isoformat()})
+        if result.returncode:
+            provenance["status"] = f"failed-{name}"
         (output / "provenance.json").write_text(json.dumps(provenance, indent=2)+"\n")
         if result.returncode:
             print(log.read_text()[-10000:], file=sys.stderr)
             raise SystemExit(result.returncode)
 
     for name, command in [("rustc-version", ["rustc", "--version"]), ("cargo-version", ["cargo", "--version"]), ("dx-version", ["dx", "--version"]), ("wasm-pack-version", ["wasm-pack", "--version"]), ("node-version", ["node", "--version"]), ("pnpm-version", ["pnpm", "--version"]),
+                          ("page-check", page_check_command()),
                           ("core", ["wasm-pack", "build", REPO / "core", "--target", "web", "--release", "--locked"]),
                           ("core-worker", ["wasm-pack", "build", WEB, "--target", "web", "--out-name", "m1_core_worker", "--out-dir", output / "core-worker", "--release", "--locked", "--no-default-features", "--features", "core-worker"]),
                           ("cad-worker", ["wasm-pack", "build", WEB, "--target", "web", "--out-name", "m1_cad_worker", "--out-dir", output / "cad-worker", "--release", "--locked", "--no-default-features", "--features", "cad-worker"]),
@@ -1457,23 +1499,32 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if not valid_build_id(args.build_id):
         parser.error("build id must be alphanumeric with optional hyphens")
-    if args.reuse_providers_from is not None:
-        if not valid_build_id(args.reuse_providers_from):
-            parser.error("baseline build id must be alphanumeric with optional hyphens")
-        try:
-            build_reuse(args.build_id, args.reuse_providers_from)
-        except ValueError as error:
-            parser.error(str(error))
-        return
-    if args.refresh_fixtures_from is not None:
-        if not valid_build_id(args.refresh_fixtures_from):
-            parser.error("baseline build id must be alphanumeric with optional hyphens")
-        try:
-            build_reuse(args.build_id, args.refresh_fixtures_from, refresh_fixtures=True)
-        except ValueError as error:
-            parser.error(str(error))
-        return
-    build_full(args.build_id)
+    if args.reuse_providers_from is not None and not valid_build_id(args.reuse_providers_from):
+        parser.error("baseline build id must be alphanumeric with optional hyphens")
+    if args.refresh_fixtures_from is not None and not valid_build_id(args.refresh_fixtures_from):
+        parser.error("baseline build id must be alphanumeric with optional hyphens")
+    guard_spec = importlib.util.spec_from_file_location(
+        "migration_deliver", REPO / "scripts/migration-deliver.py"
+    )
+    if guard_spec is None or guard_spec.loader is None:
+        raise RuntimeError("migration delivery build guard cannot be loaded")
+    guard = importlib.util.module_from_spec(guard_spec)
+    guard_spec.loader.exec_module(guard)
+    build_freeze = guard.build_freeze
+    with build_freeze(REPO):
+        if args.reuse_providers_from is not None:
+            try:
+                build_reuse(args.build_id, args.reuse_providers_from)
+            except ValueError as error:
+                parser.error(str(error))
+            return
+        if args.refresh_fixtures_from is not None:
+            try:
+                build_reuse(args.build_id, args.refresh_fixtures_from, refresh_fixtures=True)
+            except ValueError as error:
+                parser.error(str(error))
+            return
+        build_full(args.build_id)
 
 
 if __name__ == "__main__":

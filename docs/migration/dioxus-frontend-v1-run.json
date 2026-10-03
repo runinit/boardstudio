@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T16:20:35.518489+00:00",
+    "updated_at": "2026-10-03T17:04:46.388801+00:00",
     "parent_counts": {
       "accepted": 10,
       "implementing": 41,
@@ -49,7 +49,7 @@
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
       "source_commit": "5c8161cf80d2c93c6214cb7caed6dffc4463f64d",
-      "state": "Larger Assembly/encoder candidate packaged and served34774. All bounded source passes completed; source/release compilers have zero warnings. Tests, changed public journeys and one consolidated Sol review remain deferred; no parent acceptance added.",
+      "state": "Candidate34774 contains the queued Layout source and passes its retained compiler/package checks. Delivery-tooling fixes are being integrated separately; focused Layout qualification starts through the verified candidate trigger.",
       "packets": [
         {
           "stream": "Layout",
@@ -485,15 +485,58 @@
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Use the larger34774 candidate for the later changed-public-journey and single consolidated Sol qualification phase; reuse unchanged evidence.",
-      "Repair proven defects in existing source/tickets, preserving integrated fixes and relevant source bases. No repeated planning or per-packet approval cycle.",
-      "Preserve all62 parent criteria, blocker history and RF ledger. Source inventory, compiler and package proof do not establish browser behavior or acceptance."
+      "record-candidate verifies the frozen package and starts focused Layout journeys plus one consolidated Sol 6.1 High review when its start conditions pass.",
+      "Other workbench queues continue. Route concrete findings to existing source/tickets; reuse unchanged evidence and repair only affected behavior.",
+      "Preserve all 62 parent criteria, blocker history and RF observations. Compiler/package success and qualification start do not accept parents."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
-      "implementation": ".github/workflows/check.yaml; docs/agents/issue-tracker.md#frontend-delivery-records",
+      "implementation": "CONSTRAINTS.md; scripts/migration-deliver.py; scripts/build-m1.py; .scratch/dioxus-frontend-v1/progress.py; .scratch/dioxus-frontend-v1/qualification.py",
       "architectural_observation": ".scratch/dioxus-frontend-v1/refactor-findings.json:RF-009.delivery_retro_20261003",
-      "qualification": "Workflow fixes applied; no behavioral qualification or source-gap inventory counted as acceptance."
+      "qualification": "Focused tooling checks passed; local commit guard installed and candidate34774 reverified on both routes. Layout-ready trigger entered qualifying; paired browser journey started. No parent acceptance added.",
+      "checks": {
+        "build_reuse": 33,
+        "source_inventory": 3,
+        "progress": 15,
+        "qualification": 6,
+        "commit_guard": 9
+      },
+      "guard": {
+        "registered_checkout": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001",
+        "branch": "codex/rust-v1-ui-parity-20261001",
+        "role": "coordinator",
+        "installed": true,
+        "scope": "Migration shared Git directory only; no global config or primary React repo hook changed"
+      }
+    },
+    "qualification": {
+      "trigger": "layout_ready",
+      "phase": "qualifying",
+      "layout_source_commit": "5c8161cf80d2c93c6214cb7caed6dffc4463f64d",
+      "unmet_start_conditions": [],
+      "journeys": [
+        {
+          "id": "layout-selection-inspector",
+          "state": "running",
+          "scope": "Sofle selection, contextual Objects/Inspector Properties and Relations, matrix/key edits, Undo and reopen",
+          "spec": ".scratch/dioxus-layout-authoring/spec.md"
+        },
+        {
+          "id": "layout-outline-authoring",
+          "state": "pending",
+          "scope": "Generated outline copy/edit; perimeter/feature controls; snap/grid; Undo and reopen",
+          "spec": ".scratch/dioxus-layout-authoring/spec.md"
+        }
+      ],
+      "review": {
+        "profile": "sol-review",
+        "state": "pending"
+      },
+      "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
+      "candidate_build_id": "frontend-source-batch-20261003-5",
+      "source_commit": "5c8161cf80d2c93c6214cb7caed6dffc4463f64d",
+      "started_at": "2026-10-03T17:03:19.310659+00:00",
+      "browser_agent": "/root/layout_ready_browser"
     }
   }
 }

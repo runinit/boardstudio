@@ -3,11 +3,19 @@
 
 import argparse
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 import hashlib
+import importlib.util
 import json
+import os
 from pathlib import Path
+import re
 import sys
+import tempfile
+from urllib.error import URLError
+from urllib.parse import quote, unquote, urljoin, urlsplit
+from urllib.request import Request, urlopen
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -15,6 +23,9 @@ RUN = Path("docs/migration/dioxus-frontend-v1-run.json")
 TASKS = Path(".scratch/dioxus-frontend-v1/tasks.json")
 RF = Path(".scratch/dioxus-frontend-v1/refactor-findings.json")
 REPORT = Path("docs/migration/POST-PORT-REFACTOR.md")
+PHASE_SPEC = importlib.util.spec_from_file_location("frontend_qualification", Path(__file__).with_name("qualification.py"))
+qualification = importlib.util.module_from_spec(PHASE_SPEC)
+PHASE_SPEC.loader.exec_module(qualification)
 
 
 def read(path):
@@ -26,6 +37,37 @@ def write(path, value):
     content = json.dumps(value, indent=2) + "\n"
     if target.read_text() != content:
         target.write_text(content)
+
+
+def atomic_write_json(path, value):
+    """Replace one JSON record atomically after its complete value is ready."""
+    target = ROOT / path
+    content = json.dumps(value, indent=2) + "\n"
+    if target.read_text() == content:
+        return False
+    mode = target.stat().st_mode
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w", encoding="utf-8", dir=target.parent, prefix=f".{target.name}.",
+            suffix=".tmp", delete=False,
+        ) as stream:
+            temporary = Path(stream.name)
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temporary, mode)
+        os.replace(temporary, target)
+        temporary = None
+        directory = os.open(target.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+    return True
 
 
 def counts(tasks):
@@ -58,11 +100,231 @@ def refactor_report():
         evidence = finding.get("evidence", [])
         if evidence:
             lines += ["**Evidence:** " + "; ".join(f"`{item}`" for item in evidence), ""]
-        observations = finding.get("handoff_evidence", [])
-        if observations:
-            lines += [f"{len(observations)} additional source observations are indexed "
-                      "under this RF ID in the ledger.", ""]
+        rendered = {
+            "id", "title", "status", "confidence", "observation", "impact",
+            "during_port", "post_port_proposal", "validation_needed", "evidence",
+        }
+        additional = {key: value for key, value in finding.items() if key not in rendered}
+        if additional:
+            details = json.dumps(additional, ensure_ascii=False, indent=2)
+            longest_fence = max((len(match.group()) for match in re.finditer(r"`+", details)), default=0)
+            fence = "`" * max(3, longest_fence + 1)
+            lines += ["**Additional recorded details:**", "", f"{fence}json", details, fence, ""]
     return "\n".join(lines)
+
+
+REQUIRED_HEADERS = {
+    "Cross-Origin-Opener-Policy": "same-origin",
+    "Cross-Origin-Embedder-Policy": "require-corp",
+}
+
+
+def repository_file(relative, label):
+    path = Path(relative)
+    if path.is_absolute() or ".." in path.parts:
+        raise ValueError(f"{label} must be a repository-relative path")
+    target = ROOT / path
+    try:
+        resolved = target.resolve(strict=True)
+        resolved.relative_to(ROOT.resolve())
+    except (OSError, ValueError) as error:
+        raise ValueError(f"{label} must resolve within the repository: {relative}") from error
+    if not resolved.is_file():
+        raise ValueError(f"Missing {label}: {relative}")
+    return resolved
+
+
+def safe_asset_path(asset):
+    parsed = urlsplit(asset)
+    decoded = unquote(asset)
+    if (not asset or parsed.scheme or parsed.netloc or "://" in asset or "://" in decoded
+            or parsed.query or parsed.fragment or "\\" in asset or "\\" in decoded
+            or asset.startswith("/") or decoded.startswith("/") or ":" in asset):
+        raise ValueError(f"Invalid package asset path: {asset}")
+    parts = decoded.split("/")
+    if any(part in ("", ".", "..") for part in parts):
+        raise ValueError(f"Package asset path escapes its route: {asset}")
+    return decoded
+
+
+def validate_provenance(proof_path):
+    proof = json.loads(proof_path.read_text())
+    provenance_path = repository_file(proof["provenance"], "provenance")
+    provenance_bytes = provenance_path.read_bytes()
+    if hashlib.sha256(provenance_bytes).hexdigest() != proof["provenance_sha256"]:
+        raise ValueError("Candidate provenance hash mismatch")
+    provenance = json.loads(provenance_bytes)
+    for key in ("build_id", "source_commit"):
+        if proof[key] != provenance.get(key):
+            raise ValueError(f"Candidate {key} does not match provenance")
+    if provenance.get("status") != "complete":
+        raise ValueError("Candidate provenance is not complete")
+    if (not isinstance(provenance.get("commands"), list) or not provenance["commands"]
+            or any(not isinstance(command, dict) for command in provenance["commands"])):
+        raise ValueError("Candidate provenance has no executed commands")
+    commands = list(provenance["commands"])
+    lineage = provenance.get("inherited_full_build_lineage")
+    inherited_count = provenance.get("inherited_full_build_commands")
+    if (not isinstance(lineage, list) or any(not isinstance(command, dict) for command in lineage)
+            or type(inherited_count) is not int
+            or type(proof.get("inherited_commands")) is not int):
+        raise ValueError("Candidate provenance has invalid inherited command lineage")
+    if inherited_count != len(lineage) or proof.get("inherited_commands") != inherited_count:
+        raise ValueError("Candidate inherited command count does not match provenance")
+    if type(proof.get("fresh_commands")) is not int or proof["fresh_commands"] != len(commands):
+        raise ValueError("Candidate fresh command count does not match provenance")
+    commands += lineage
+    if any(command.get("exit", command.get("exit_code")) != 0 for command in commands):
+        raise ValueError("Candidate provenance contains a failed command")
+    sources = provenance.get("sources")
+    if (not isinstance(sources, dict) or type(proof.get("source_count")) is not int
+            or proof["source_count"] != len(sources)):
+        raise ValueError("Candidate source count does not match provenance")
+    if not isinstance(proof.get("source_mismatches"), list) or proof["source_mismatches"]:
+        raise ValueError("Candidate source inventory has mismatches")
+    routes = proof.get("routes", {})
+    if not isinstance(routes, dict):
+        raise ValueError("Candidate proof has invalid route records")
+    if set(routes) != {"root", "subpath"}:
+        raise ValueError("Candidate proof must contain root and subpath routes")
+    for route in ("root", "subpath"):
+        result = routes[route]
+        if not isinstance(result, dict):
+            raise ValueError(f"Candidate proof has invalid {route} route record")
+        if result.get("http") != 200:
+            raise ValueError(f"Candidate {route} route was not HTTP 200")
+        if not isinstance(result.get("mismatches"), list) or result["mismatches"]:
+            raise ValueError(f"Candidate {route} proof contains asset mismatches")
+        if result.get("headers") != REQUIRED_HEADERS:
+            raise ValueError(f"Candidate {route} proof has unexpected isolation headers")
+        route_record = provenance.get(route)
+        if not isinstance(route_record, dict) or not isinstance(route_record.get("assets"), dict):
+            raise ValueError(f"Candidate provenance has no {route} asset map")
+        assets = route_record["assets"]
+        if (not assets or "index.html" not in assets
+                or type(result.get("asset_count")) is not int
+                or result["asset_count"] != len(assets)):
+            raise ValueError(f"Candidate {route} asset count does not match provenance")
+        if not isinstance(route_record.get("site"), str) or not route_record["site"]:
+            raise ValueError(f"Candidate {route} provenance has no package directory")
+        site = Path(route_record["site"])
+        if not site.is_absolute():
+            site = ROOT / site
+        try:
+            site = site.resolve(strict=True)
+            site.relative_to(ROOT.resolve())
+        except (OSError, ValueError) as error:
+            raise ValueError(f"Candidate {route} package directory escapes the repository") from error
+        for asset, digest in assets.items():
+            relative_asset = safe_asset_path(asset)
+            if not re.fullmatch(r"[0-9a-f]{64}", str(digest)):
+                raise ValueError(f"Invalid {route} asset entry: {asset}")
+            try:
+                target = (site / relative_asset).resolve(strict=True)
+                target.relative_to(site)
+                target.relative_to(ROOT.resolve())
+            except (OSError, ValueError) as error:
+                raise ValueError(f"Candidate {route} asset escapes its package directory: {asset}") from error
+            if not target.is_file() or hashlib.sha256(target.read_bytes()).hexdigest() != digest:
+                raise ValueError(f"Candidate {route} package asset hash mismatch: {asset}")
+    return proof, provenance
+
+
+def response_headers(response):
+    headers = response.headers
+    if hasattr(headers, "items"):
+        return {str(key).lower(): str(value).lower() for key, value in headers.items()}
+    return {key.lower(): str(headers.get(key, "")).lower() for key in REQUIRED_HEADERS}
+
+
+def fetch_checked(url, expected_hash=None):
+    parsed = urlsplit(url)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise ValueError(f"Invalid candidate URL: {url}")
+    request = Request(url, headers={"User-Agent": "BoardStudio-progress-record/1"})
+    try:
+        with urlopen(request, timeout=10) as response:
+            if response.getcode() != 200:
+                raise ValueError(f"Candidate URL did not return HTTP 200: {url}")
+            headers = response_headers(response)
+            for key, value in REQUIRED_HEADERS.items():
+                if headers.get(key.lower()) != value:
+                    raise ValueError(f"Candidate URL has incorrect {key}: {url}")
+            body = response.read()
+    except URLError as error:
+        raise ValueError(f"Could not verify candidate URL {url}: {error}") from error
+    if expected_hash and hashlib.sha256(body).hexdigest() != expected_hash:
+        raise ValueError(f"Served asset hash mismatch: {url}")
+    return body
+
+
+def verify_candidate_routes(proof, provenance, root_url, subpath_url):
+    for route, base_url in (("root", root_url), ("subpath", subpath_url)):
+        route_record = provenance[route]
+        parsed = urlsplit(base_url)
+        decoded_path = unquote(parsed.path)
+        if (parsed.scheme not in ("http", "https") or not parsed.netloc
+                or parsed.username or parsed.password or parsed.query or parsed.fragment
+                or "\\" in decoded_path or "://" in decoded_path
+                or any(part in (".", "..") for part in decoded_path.split("/"))
+                or parsed.path != route_record.get("prefix")):
+            raise ValueError(f"Candidate {route} URL does not match its safe route prefix")
+        assets = route_record["assets"]
+        root_url = base_url
+        fetch_checked(root_url, assets["index.html"])
+        requests = []
+        for asset, digest in assets.items():
+            safe_path = safe_asset_path(asset)
+            if safe_path == "index.html":
+                continue
+            escaped_asset = quote(safe_path, safe="/!$&'()*+,;=@-._~")
+            url = urljoin(base_url, escaped_asset)
+            resolved = urlsplit(url)
+            if resolved.netloc != parsed.netloc or not resolved.path.startswith(parsed.path):
+                raise ValueError(f"Candidate asset URL escapes its route: {asset}")
+            requests.append((url, digest))
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            list(pool.map(lambda pair: fetch_checked(pair[0], pair[1]), requests))
+
+
+def candidate_record(proof, proof_path, root_url, subpath_url):
+    return {
+        "build_id": proof["build_id"],
+        "source_commit": proof["source_commit"],
+        "root_url": root_url,
+        "subpath_url": subpath_url,
+        "provenance": proof["provenance"],
+        "provenance_sha256": proof["provenance_sha256"],
+        "fresh_commands": proof["fresh_commands"],
+        "inherited_commands": proof["inherited_commands"],
+        "source_inputs": proof["source_count"],
+        "source_mismatches": len(proof["source_mismatches"]),
+        "assets_per_route": proof["routes"]["root"]["asset_count"],
+        "command_span_seconds": proof["duration_seconds"],
+        "package_qualification": proof["qualification"],
+        "package_proof": str(proof_path),
+        "release_warnings": proof["release_warnings"],
+    }
+
+
+def record_candidate(proof_relative, root_url=None, subpath_url=None):
+    proof_path = repository_file(proof_relative, "package proof")
+    try:
+        proof, provenance = validate_provenance(proof_path)
+    except (KeyError, TypeError) as error:
+        raise ValueError(f"Malformed candidate proof or provenance; missing {error.args[0]}") from error
+    current_run = read(RUN)
+    current = current_run["current_progress"]["served_candidate"]
+    root_url = root_url or current["root_url"]
+    subpath_url = subpath_url or current["subpath_url"]
+    verify_candidate_routes(proof, provenance, root_url, subpath_url)
+    candidate = candidate_record(proof, proof_relative, root_url, subpath_url)
+    phase_changed = qualification.refresh(current_run["current_progress"], proof, provenance, ROOT)
+    if current == candidate and not phase_changed:
+        return False
+    current_run["current_progress"]["served_candidate"] = candidate
+    current_run["current_progress"]["updated_at"] = datetime.now(timezone.utc).isoformat()
+    return atomic_write_json(RUN, current_run)
 
 
 def validate(run, graph):
@@ -130,7 +392,23 @@ def main():
     status.add_argument("status", choices=("planned", "implementing", "accepted"))
     status.add_argument("--reason", required=True)
     status.add_argument("--decision")
+    candidate = commands.add_parser(
+        "record-candidate",
+        help="Validate an existing package proof against its provenance and served assets",
+    )
+    candidate.add_argument("proof", help="repository-relative path to an existing package proof")
+    candidate.add_argument("--root-url", help="served root URL; defaults to the current candidate URL")
+    candidate.add_argument("--subpath-url", help="served subpath URL; defaults to the current candidate URL")
     args = parser.parse_args()
+    if args.command == "record-candidate":
+        changed = record_candidate(args.proof, args.root_url, args.subpath_url)
+        print("Served candidate recorded" if changed else "Served candidate already current")
+        phase = read(RUN)["current_progress"].get("qualification", {})
+        if phase:
+            print("Qualification: " + phase["phase"])
+            for condition in phase.get("unmet_start_conditions", []):
+                print("  Pending: " + condition)
+        return
     run, graph = read(RUN), read(TASKS)
     if args.command == "set-status":
         for parent in args.parent:
@@ -160,6 +438,20 @@ def main():
     candidate = progress["served_candidate"]
     print(f"Served: {candidate['root_url']} ({candidate['source_commit'][:8]})")
     print(f"Integration: {progress['integration']['state']}")
+    phase = progress.get("qualification", {})
+    if phase:
+        print(f"Qualification: {phase.get('phase', 'integrating')}")
+        journeys = phase.get("journeys", [])
+        print(f"Journeys: {sum(journey.get('state') == 'passed' for journey in journeys)}/{len(journeys)} passed")
+        for condition in phase.get("unmet_start_conditions", []):
+            print("  Pending: " + condition)
+    provenance_path = ROOT / candidate['provenance']
+    if provenance_path.exists():
+        commands = json.loads(provenance_path.read_text()).get('commands', [])
+        finishes = [command['finished'] for command in commands if command.get('finished')]
+        if finishes:
+            age = datetime.now(timezone.utc) - datetime.fromisoformat(max(finishes))
+            print(f"Candidate age: {max(0, int(age.total_seconds() // 60))} minutes since packaging")
     for stream in progress["active_streams"]:
         print(f"{stream['stream']}: {stream['state']}")
 

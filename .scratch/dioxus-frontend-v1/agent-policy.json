@@ -1,9 +1,9 @@
 {
-  "version": 1,
+  "version": 2,
   "date": "2026-10-03",
-  "baseline": "7b7b004e717ce9976d60cc8c0326627b64caa04b",
-  "authority": "User confirmed Layout-first, six queues, one waiting packet per stream, journey/criterion reporting; final direction: less testing and more moving.",
-  "status": "Effective source-first phase: serial source integration, cached combined compile before package; application tests/browser qualification/consolidated Sol review later. No per-child approval chain or base-confirmation wait.",
+  "operating_contract": "CONSTRAINTS.md",
+  "records": "docs/agents/issue-tracker.md#frontend-delivery-records",
+  "history": "docs/migration/history/OPERATING-RULES-before-20261003.md",
   "profiles": {
     "luna-low": {
       "model": "gpt-6-luna",
@@ -28,26 +28,6 @@
       "fork_turns": "none",
       "service_tier_preference": "priority",
       "per_call_tier_override_supported": false
-    },
-    "astra-review": {
-      "model": "gpt-6-astra",
-      "reasoning_effort": "high",
-      "role": "independent contract/source/evidence review",
-      "fork_turns": "none",
-      "service_tier_preference": "priority",
-      "per_call_tier_override_supported": false,
-      "historical_compatibility_only": true,
-      "default_dispatch_enabled": false
-    },
-    "astra-deep-review": {
-      "model": "gpt-6-astra",
-      "reasoning_effort": "xhigh",
-      "role": "difficult unresolved review",
-      "fork_turns": "none",
-      "service_tier_preference": "priority",
-      "per_call_tier_override_supported": false,
-      "historical_compatibility_only": true,
-      "default_dispatch_enabled": false
     },
     "astra-debug": {
       "model": "gpt-6-astra",
@@ -78,904 +58,324 @@
   "coordinator_profile": "luna-high",
   "default_verifier_profile": "luna-medium",
   "default_reviewer_profile": "sol-review",
-  "packet_rules": {
-    "parents_are_work_packages": true,
-    "parent_task_count": 62,
-    "low_is_packet_only": "No whole multi-behavior task is assigned Low; coordinator may extract mechanical subpackets with exact oracle and no new lifecycle/identity policy.",
-    "high_parent_can_split": "Rendering/mechanical subpackets can use Medium/Low after concrete state contract and ownership are proven; record packet-level override and reason.",
-    "required_fields": [
-      "parent_and_packet_id",
-      "exact_source_and_spec_baseline",
-      "workspace",
-      "owned_files",
-      "shared_edit_owner",
-      "public_outcome",
-      "reference_fixture_actions",
-      "actual_input_callback_types",
-      "scope_draft_commit_cancel_contract",
-      "affected_checks_and_evidence_path",
-      "required_integration_joins",
-      "author_verifier_reviewer_profiles",
-      "escalation_conditions",
-      "refactoring_observations"
-    ],
-    "same_crate_proof": "INT.1 must prove actual private consumer/provider reachability before parallel feature dispatch.",
-    "acceptance": "All packet outcomes/checks plus real joins remain required to close the parent."
-  },
-  "review_rules": {
-    "batching": "Default: one integrated candidate receives consolidated Standards+Spec review and paired browser journeys. Reviewers split the candidate by workflow/file ownership in parallel and return one actionable finding list.",
-    "dedicated": "Routine and necessary API/design changes proceed under user authority to candidate review. Escalate only a concrete unresolved requirement that prevents meaningful implementation, not a blanket API permission gate.",
-    "preimplementation": "Authors refine specs/tickets and implement immediately from pinned React behavior and proven consumed capabilities; routine frontend slices do not wait for an independent planning approval.",
-    "author_cannot_approve": true,
-    "repair_independence": "If any reviewer/debugger edits a repair, a different Sol reviewer assesses the exact integrated delta.",
-    "extra_high": "New reviews use Sol 6.1 High, including focused unresolved review. Astra xhigh remains available for difficult evidenced bug repair, not default review.",
-    "scope_upgrade": "Record discovered ownership/async/gesture risks and add discriminating focused tests; include them in the candidate review rather than opening another approval queue.",
-    "evidence_freshness": "Pin one candidate commit/build/fixture manifest; reuse source and test evidence when unchanged. Recheck only affected behavior after repairs. Preserve unresolved defects and accurate unexecuted gates.",
-    "contract_reuse": "Reuse applicable contracts. No mandatory independent planning\u2192source\u2192root-composition sequence for routine frontend work."
-  },
-  "escalation": {
-    "mechanical_errors": "Author may fix obvious compiler/type/format errors normally; recurring failure with no new evidence triggers diagnosis.",
-    "behavioral_regression": "Retain failing public reproduction and candidate; Astra High diagnoses/fixes instead of repeated speculative Luna rewrites.",
-    "high_to_xhigh": "Escalate unresolved material reasoning/bug with prior hypotheses and evidence.",
-    "approval_boundaries": "Necessary migration APIs/design changes authorized by latest user instruction; unrelated destructive/history/external cutover actions retain their separate authority."
-  },
-  "concurrency": {
-    "max_total_agents": 30,
-    "max_children": 29,
-    "steady_state": [
-      "coordinator / serial shared integration owner",
-      "six persistent Luna workbench author lanes with disjoint private ownership",
-      "independent Luna verification",
-      "independent Sol 6.1 High Standards and Spec review axes",
-      "optional Luna automatic-frontier planner within remaining capacity"
-    ],
-    "three_builders": "Historical three-author proposal superseded by six persistent workbench streams; simultaneous dispatch bounded by actual capacity and review/verification queues.",
-    "shared_files": "coordinator serializes; browser sessions/stores isolated; CAD-heavy checks serial",
-    "runtime_change": "User/configured ceiling30; collaboration metadata exposes11 total slots. Actual spawn rejection remains binding; queue or reuse suitable agents. No host configuration changed.",
-    "observed_runtime_slots": 11,
-    "max_waiting_packets_per_stream": 1,
-    "integration_priority": "Layout first, six persistent queues",
-    "heavy_jobs": "Coordinator grants target-specific leases; at most two active heavy jobs, including at most one package build. No process-list-based self-dispatch."
-  },
-  "runtime_observation": {
-    "checked": "2026-10-02",
-    "host_config_service_tier": "priority",
-    "host_config_default_subagent_model": "gpt-6-luna",
-    "host_config_default_subagent_effort": "high",
-    "tool_model_support": [
-      "gpt-6-luna low/medium/high",
-      "gpt-6-astra high/xhigh",
-      "gpt-6.1-sol high"
-    ],
-    "tool_service_tier_metadata": "priority",
-    "spawn_has_tier_parameter": false,
-    "effective_child_tier": "unverified unless runtime metadata reports it",
-    "configuration_changed": false,
-    "launch_provenance_fields": [
-      "requested_model",
-      "requested_effort",
-      "requested_tier_preference",
-      "agent_id",
-      "observed_runtime_model_or_unverified",
-      "observed_effort_or_unverified",
-      "observed_tier_or_unverified",
-      "source_artifact_identity",
-      "fallback_if_any"
-    ],
-    "running_agent_model_changes": "Policy updates do not hot-switch launched agents; followup_task has no profile override. Reuse suitable launched profiles or spawn explicit replacement when capacity permits."
-  },
-  "deep_review_candidates": [
-    "BND.2",
-    "F8.2",
-    "F7.3",
-    "F7.5",
-    "F7.7",
-    "F6C.3",
-    "F6C.5"
-  ],
-  "calibration": "After first accepted tranche, record first-pass acceptance, defect categories, retry/review time and observed usage; adjust bounded packet size/effort without weakening gates.",
   "task_assignments": {
     "INT.1": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true,
-      "contract_review_reuse": "Reuse current contract; routine private frontend work proceeds to integrated candidate review."
+      "reviewer_profile": "sol-review"
     },
     "INT.2": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true,
-      "contract_review_reuse": "Reuse current contract; routine private frontend work proceeds to integrated candidate review."
+      "reviewer_profile": "sol-review"
     },
     "BND.1": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true,
-      "contract_review_reuse": "Reuse current contract; routine private frontend work proceeds to integrated candidate review."
+      "reviewer_profile": "sol-review"
     },
     "BND.2": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true,
-      "contract_review_reuse": "Reuse current contract; routine private frontend work proceeds to integrated candidate review."
+      "reviewer_profile": "sol-review"
     },
     "F2.1": {
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F2.2": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F2.3": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F2.4": {
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true,
-      "packet_override_note": "Use High for newly implemented range/focus/scope/lifecycle state; Medium for projection/rendering and proven callback composition."
+      "reviewer_profile": "sol-review"
     },
     "F3.1": {
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true,
-      "packet_override_note": "Use High for newly implemented range/focus/scope/lifecycle state; Medium for projection/rendering and proven callback composition."
+      "reviewer_profile": "sol-review"
     },
     "F3.2": {
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F3.3": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F3.4": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F3.5": {
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F3.6": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F3.7": {
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true,
-      "author_role_note": "Evidence execution/preparation; Sol independently assesses acceptance, task external gates unchanged."
+      "reviewer_profile": "sol-review"
     },
     "F3.8": {
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F4.1": {
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F4.2": {
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F4.3": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F4.4": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F4.5": {
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F4.6": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F4.7": {
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F5.1": {
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F5.2": {
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F5.3": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F5.4": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F5.5": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F5.6": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F5.7": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F5.8": {
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true,
-      "author_role_note": "Evidence execution/preparation; Sol independently assesses acceptance, task external gates unchanged."
+      "reviewer_profile": "sol-review"
     },
     "F6K.1": {
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true,
-      "packet_override_note": "Use High for newly implemented range/focus/scope/lifecycle state; Medium for projection/rendering and proven callback composition."
+      "reviewer_profile": "sol-review"
     },
     "F6K.2": {
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F6K.3": {
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F6K.4": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F6C.1": {
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true,
-      "packet_override_note": "Use High for newly implemented range/focus/scope/lifecycle state; Medium for projection/rendering and proven callback composition."
+      "reviewer_profile": "sol-review"
     },
     "F6C.2": {
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F6C.3": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F6C.4": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F6C.5": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F6.6": {
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true,
-      "author_role_note": "Evidence execution/preparation; Sol independently assesses acceptance, task external gates unchanged."
+      "reviewer_profile": "sol-review"
     },
     "F7.1": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true,
-      "contract_review_reuse": "Reuse current contract; routine private frontend work proceeds to integrated candidate review."
+      "reviewer_profile": "sol-review"
     },
     "F7.2": {
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F7.3": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true,
-      "contract_review_reuse": "Reuse current contract; routine private frontend work proceeds to integrated candidate review."
+      "reviewer_profile": "sol-review"
     },
     "F7.4": {
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F7.5": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F7.6": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F7.7": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F7.8": {
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true,
-      "author_role_note": "Evidence execution/preparation; Sol independently assesses acceptance, task external gates unchanged."
+      "reviewer_profile": "sol-review"
     },
     "F8.1": {
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F8.2": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true,
-      "contract_review_reuse": "Reuse current contract; routine private frontend work proceeds to integrated candidate review."
+      "reviewer_profile": "sol-review"
     },
     "F8.3": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F8.4": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F8.5": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true
+      "reviewer_profile": "sol-review"
     },
     "F8.6": {
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true,
-      "author_role_note": "Evidence execution/preparation; Sol independently assesses acceptance, task external gates unchanged."
+      "reviewer_profile": "sol-review"
     },
     "F9.1": {
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true,
-      "author_role_note": "Evidence execution/preparation; Sol independently assesses acceptance, task external gates unchanged."
+      "reviewer_profile": "sol-review"
     },
     "F9.2": {
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true,
-      "author_role_note": "Evidence execution/preparation; Sol independently assesses acceptance, task external gates unchanged."
+      "reviewer_profile": "sol-review"
     },
     "F9.3": {
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true,
-      "author_role_note": "Evidence execution/preparation; Sol independently assesses acceptance, task external gates unchanged."
+      "reviewer_profile": "sol-review"
     },
     "F9.4": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true,
-      "author_role_note": "Evidence execution/preparation; Sol independently assesses acceptance, task external gates unchanged."
+      "reviewer_profile": "sol-review"
     },
     "F9.5": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true,
-      "author_role_note": "Evidence execution/preparation; Sol independently assesses acceptance, task external gates unchanged."
+      "reviewer_profile": "sol-review"
     },
     "F9.6": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true,
-      "author_role_note": "Evidence execution/preparation; Sol independently assesses acceptance, task external gates unchanged."
+      "reviewer_profile": "sol-review"
     },
     "F9.7": {
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
-      "reviewer_profile": "sol-review",
-      "review_mode": "integrated_candidate_batch",
-      "contract_review_before_implementation": false,
-      "requires_dispatch_packet": true,
-      "policy": "AGENT-ROUTING.md",
-      "extra_high_trigger": "Material uncertainty requires focused Sol 6.1 High review and discriminating evidence; Astra xhigh remains available for difficult evidenced bug repair.",
-      "refactoring_handoff_required": true,
-      "author_role_note": "Evidence execution/preparation; Sol independently assesses acceptance, task external gates unchanged."
+      "reviewer_profile": "sol-review"
     }
   },
-  "allocation_counts": {
-    "luna-high": 34,
-    "luna-medium": 28,
-    "preimplementation_contract_review": 0,
-    "dedicated_review_tasks": 0
+  "concurrency": {
+    "max_total_agents": 30,
+    "observed_runtime_slots": 11,
+    "max_waiting_packets_per_stream": 1,
+    "max_heavy_jobs": 2,
+    "max_package_builds": 1
   },
-  "integration_process": {
-    "owner": "root coordinator",
-    "persistent_streams": [
-      "Layout",
-      "PCB",
-      "Keymap",
-      "Keycaps",
-      "Case/shared3D",
-      "Parts+Project support"
-    ],
-    "shared_paths": [
-      "web/src/presentation.rs",
-      "web/src/main.rs",
-      "web/src/runtime.rs",
-      "shared composition/registration",
-      "global CSS",
-      "packaging/manifest scripts",
-      "canonical run/RF ledgers"
-    ],
-    "handoff_template": "integration-handoff-template.md",
-    "queue_metadata": [
-      "stream",
-      "author_commit_and_owned_paths",
-      "existing_spec_and_receipt_pointer",
-      "new_rf_delta_or_none",
-      "state"
-    ],
-    "build_window": "Freeze root integration inputs through before/after source hashes; isolated authors continue.",
-    "provider_reuse_spec": "specs/page-only-packaging-reuse.md; implemented and actual changed-source qualified at19525578",
-    "acceptance": "One integrated Standards/Spec candidate review with affected paired journeys. All parent criteria remain; no per-child approval chain.",
-    "historical_queue_metadata_before_20261003": [
-      "packet_id",
-      "stream",
-      "private_commit_and_paths",
-      "integration_baseline",
-      "mount_symbol_and_contract_hash",
-      "shared_patch_and_css_fragment",
-      "checks_and_paired_evidence",
-      "reviewer_and_verdicts",
-      "rf_observation",
-      "state",
-      "root_lease",
-      "build_and_fingerprints"
-    ],
-    "handoff_template_required": false,
-    "handoff_policy": "A commit/owned paths plus existing receipt pointer in a message is sufficient. Root records queue state once. Compiler/build results and candidate review references belong to their existing records, not a per-packet checklist."
-  },
-  "api_design_authority": {
-    "user_instruction": "if you need to change things (APIs, design) change them",
-    "scope": "Necessary migration API/design/visibility/contracts changes; no repeated permission round",
-    "requirements": [
-      "coherent callers/generated contracts/tests/docs",
-      "compatibility or verified migration for saved projects",
-      "candidate-level review",
-      "record architectural/refactor rationale"
-    ],
-    "excluded": [
-      "unrelated changes",
-      "discarding work/history rewrites",
-      "external publication/cutover"
-    ]
-  },
-  "historical_allocation_counts_before_20261003": {
-    "luna-high": 34,
-    "luna-medium": 28,
-    "preimplementation_contract_review": 7,
-    "dedicated_review_tasks": 28
-  },
-  "testing_policy": {
-    "ordinary_ui": "Required affected check on combined source; no new test by default.",
-    "bug_fix": "Reuse actual reproduction, focused regression and affected verification.",
-    "candidate": "One consolidated Sol review and changed paired journeys; reuse unchanged evidence.",
-    "broaden": "Only a failure or identified unresolved risk justifies more checks.",
-    "parent_gates": "All62 acceptance criteria and RF history retained."
-  },
-  "documentation_workflow": "docs/agents/issue-tracker.md#frontend-delivery-records",
-  "skill_overrides": {
-    "authority": "CONSTRAINTS.md#delivery-records-and-skill-overrides--user-update-2026-10-03",
-    "planning": "Refine existing specs/tickets; no repeat quiz or duplicate publication.",
-    "implementation": "Existing integration branch; direct serial coordinator joins; ordinary UI has no TDD or separate merger requirement.",
-    "review": "One finalized candidate review; parent decisions reference it.",
-    "records": "Coordinator owns parent/live/RF updates; derived views refresh through progress.py sync."
-  },
-  "execution_phase": {
-    "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
-    "source_base": "Reuse assigned relevant base unless consumed interfaces or overlapping source change; no confirmation wait.",
-    "continuation": "Original author automatically continues distinct real gaps in its ownership after joining.",
-    "no_gap_audit": "Return existing source pointers by message; no new receipt, commit or worktree.",
-    "compiler": "One combined diagnostic list; fix existing source without duplicating specs/tickets/reviews; compile before package retry.",
-    "qualification": "No new application tests/browser/reviews in current integration phase. Source presence and compilation are not acceptance."
-  }
+  "qualification_trigger": "Layout queued implementation integrated, fresh combined compile and verified candidate package; other streams continue"
 }

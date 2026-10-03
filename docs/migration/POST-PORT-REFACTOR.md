@@ -22,7 +22,468 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Evidence:** `web/src/presentation.rs`; `web/src/runtime.rs`; `app/src/ui/Workbench.tsx`; `.scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/keycaps05-navigation-owner-review-5fd4bb76-sol-20261002.md`; `web/src/presentation/pcb_wiring/pins.rs`; `.scratch/dioxus-pcb-view/issues/11-board-wiring-pin-lock-controls.md`; `docs/migration/dioxus-frontend-v1-run.json:current_progress`
 
-41 additional source observations are indexed under this RF ID in the ledger.
+**Additional recorded details:**
+
+```json
+{
+  "category": "architecture / modularity",
+  "impact_priority": "high",
+  "discovered": "2026-10-02",
+  "baseline": "c827c4e6",
+  "workflows": [
+    "F2",
+    "F3",
+    "F4",
+    "F5",
+    "F6",
+    "F7",
+    "F8"
+  ],
+  "decision": "proposal only; no refactor/API/schema change approved by this entry",
+  "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
+  "linked_tasks": [
+    "INT.1"
+  ],
+  "handoff_evidence": [
+    {
+      "source": "2030c9a3",
+      "evidence": ".scratch/dioxus-frontend-tranche-1/evidence/cards-panels-2030c9a3/cards-panels-standards.md",
+      "observation": "Saved Library presentation deep-copied accepted ProjectDoc and all saved documents on Runtime repaints. Bounded correction uses existing immutable Arc document snapshots and borrows saved-list signal. Strict WASM Clippy passes; browser review pending; allocation latency remains unmeasured.",
+      "status": "current correction under review; retain immutable presentation ownership/allocation follow-up"
+    },
+    {
+      "source": "Case/Keymap current integration; final source commit pending",
+      "evidence": ".scratch/dioxus-frontend-v1/evidence/case-keymap-current/refactor-handoff.md",
+      "observation": "Case/Keymap mounting exposed repeated Inspector reachability predicates; one private has_inspector predicate now gates grid, compact toggle and mount. Keymap projection uses immutable Rc minimal display data. Source corrections reviewed; no measured performance claim.",
+      "status": "bounded mitigation/evidence update; broad structural refactor deferred"
+    },
+    {
+      "source": "Dioxus integration 89b1de8a28fdf02db91d972c90a69235bfbbbffb and React reference 5a472a9426e6e38993361da402cd4ec730feb369",
+      "evidence": ".scratch/dioxus-frontend-v1/evidence/case-shared3d-parity-reset-20261002/AUDIT.md",
+      "observation": "Public/source audit found Case still uses the shared Layout-oriented Objects tree, mounts authored Case editing in the right Inspector, and mounts MechanicalSettings in the central Case panel. The concrete mismatch follows current root composition: one shared Objects tree plus split feature mounts. Existing feature controllers are present; the proposed repair is contextual composition around those owners, not a duplicate authority.",
+      "status": "current parity correction ticketed; no structural redesign or API change authorized"
+    },
+    {
+      "source": "Confirmed six-stream parity reset; composition ticket 7279b6bf (status-only update after clearance) and reviewed contract c6550ab5",
+      "evidence": ".scratch/dioxus-workbench-parity/issues/01-private-workbench-composition.md",
+      "observation": "The bounded private composition extraction is dispatched with six disjoint feature render leaves and a root-owned thin dispatcher. It preserves existing feature-local Runtime/lifecycle ownership and Session/Core authority. This mitigates shared presentation edit contention; it does not establish the hotspot is resolved or add a new refactoring takeaway beyond RF-001.",
+      "status": "implementation in progress; no user-visible workflow or parent acceptance implied"
+    },
+    {
+      "source": "Integration 10377780; composition source commits 1c5de957, 44777c41 and 09563bc1",
+      "evidence": ".scratch/dioxus-workbench-parity/evidence/integration-handoff-20261002.md; /tmp/frontend-parity-reset-20261002/composition/source-standards-review.md; /tmp/frontend-parity-reset-20261002/composition/source-spec-review.md",
+      "observation": "The private six-workspace leaves and dispatcher are implemented and mounted. Standards identified unbounded per-render EventHandler::new callback allocations; the bounded correction allocates typed slots once via an unconditional pre-early-return use_hook and replaces each slot with fresh closures per render. The six-leaf seam mitigates shared edit contention, while root composition and the Layout SVG remain coordinator-owned. PCB source review separately observed full PartDefinition and generator-parameter copies on selection repaints.",
+      "status": "Source review clear; native 34, strict WASM Clippy, final formatting, and integrated eight-command/980-hash build pass. Six-workspace paired characterization remains pending. PCB copy cost is unmeasured and deferred; no performance improvement or hotspot resolution is claimed."
+    },
+    {
+      "source": "a896cd49; paired React5a472a94",
+      "evidence": ".scratch/dioxus-workbench-parity/evidence/matrix-keycaps-wave-20261002/RESULTS.md",
+      "observation": "Root integration still owns repeated route/callback/stylesheet wiring. Browser found Keycaps list placement and missing Matrix styles despite typed source review; bounded placement and CSS corrections are committed, broader composition redesign deferred.",
+      "status": "bounded fixes recorded; shared selection discrepancy under source diagnosis; full acceptance and structural refactor open"
+    },
+    {
+      "source": "PCB host-scene review at source correction 590140b2 against pinned React 5a472a94",
+      "evidence": ".scratch/dioxus-pcb-view/evidence/wiring-context-20261002/audit.md",
+      "observation": "The private scene rebuilds board membership/part projections on selection renders and transfers owned generator parameters plus a full PartDefinition through the existing FootprintGraphics props. Standards triaged broad memoization as an unmeasured risk; do not broaden the PCB parity patch or claim a performance pass.",
+      "current_mitigation": "Keep the existing FootprintGraphics owned-prop boundary and current accepted-source behavior; remove only a clearly redundant local clone if source-safe. No projection cache or interface redesign is authorized by this evidence.",
+      "post_port_follow_up": "Measure selection-driven render frequency and allocations on a real multi-part board with generated footprints before proposing immutable-input memoization or changing the owned prop contract.",
+      "validation": "Profile accepted scene and generator input allocations during selection-only renders; compare output/selection parity and verify document/history/export state remains unchanged.",
+      "status": "unmeasured design risk recorded; no performance-pass or acceptance claim"
+    },
+    {
+      "source": "PCB Wiring bounded Runtime adapter; source commit 626668b7 plus reviewed follow-up pending",
+      "evidence": ".scratch/dioxus-pcb-view/evidence/wiring-context-20261002/implementation-handoff.md",
+      "observation": "The new private electrical preview helper repeats the existing mechanical settings resolver boundary: each independently validates accepted source/scope and checks the exact Core worker Rc plus Session executor epoch around its await. The bounded feature helper is necessary now; a shared tested read-query lifecycle boundary is a post-port proposal only. The separate PCB scene allocation observation remains unmeasured.",
+      "current_mitigation": "Keep the two bounded Runtime helpers explicit and source-specific, with exact accepted input, worker and epoch checks; do not introduce a generic query framework or duplicate Session/document authority during the parity slice.",
+      "post_port_follow_up": "After parity, evaluate one shared, tested Runtime read-query lifecycle boundary covering accepted-source/scope admission, worker identity/epoch, cancellation and stale-reply suppression. Measure a real benefit and preserve feature-specific typed inputs before consolidating.",
+      "validation": "Exercise mechanical and electrical source changes, executor restart/reopen ABA and late worker replies through the real Runtime; prove current accepted inputs are returned and stale results suppressed without duplicate authority.",
+      "status": "bounded source adapter implemented; shared lifecycle refactor deferred; compiler/browser/public gates remain open"
+    },
+    {
+      "source": "Unintegrated Keycaps448c3274 and firmware handoff6fe8fb87; independent Astra source review against42b9fdef",
+      "evidence": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/spec-review.md; .scratch/dioxus-frontend-v1/evidence/source-wave-20261002/standards-review.md",
+      "observation": "Keycaps effect tracks sequence/state reads it writes and repeatedly restarts assessment; F5 firmware edit observer watches stable Signal identity instead of numeric Runtime version and can miss asynchronous outcomes. Native pure tests and builds did not exercise these mounted WASM lifetimes. Targetless terminal firmware feedback also loses session/board/instance ownership. Required correctness repairs are active; no acceptance or performance result is inferred.",
+      "current_mitigation": "Fix exact effect dependencies/nonreactive bookkeeping, retain stable feedback target, and add mounted asynchronous lifecycle regressions plus paired browser proof before source integration.",
+      "post_port_follow_up": "Assess shared tested owner/lifecycle seams only after parity; explicitly distinguish pure projection tests from mounted Runtime effect coverage.",
+      "validation": "Mount source/retry assessment and delayed operation settlement; prove bounded requests, saved/failed transitions, hidden-panel survival, and context-scoped feedback. Retain red-before-fix and exact built-browser proof.",
+      "status": "Concrete bugs under current repair; broader lifecycle/test architecture proposal deferred."
+    },
+    {
+      "source": "Keycaps4d9196; corrected F5 source05b4611b integrated83700272",
+      "evidence": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/standards-review.md",
+      "observation": "The Keycaps mounted native harness substituted scope-cancelled Dioxus spawn for browser detached wasm_bindgen_futures::spawn_local, masking post-Editor-unmount access to disposed Signals. A render-time EventHandler::new also retains a new callback until scope drop according to installed Dioxus0.7.10. Current fixes require alive/drop guard before Signal access and use_callback; the F5 observer/admission fixes have source-integration clearance and executed native/WASM checks.",
+      "status": "Keycaps lifetime/test corrections active; F5 source integrated, mounted browser gate open. Broader common ownership abstraction remains deferred."
+    },
+    ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/root-ledger-reconciliation.md",
+    {
+      "date": "2026-10-02",
+      "source": "7be1770d60b1482a01a40a09b9e7e9024981bc99",
+      "evidence": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/current-wave-refresh.json",
+      "observation": "Compact Project guide explicit Objects reveal competed with workspace-default effects, hiding active Case stage; actual Chromium component repaired1 covers stage reveal versus settings action. MatrixSetup requires a shared private owner across guide and Objects entry, and logical board authoring must admit a valid physical-instance scope. Broader owner/composition consolidation stays deferred.",
+      "status": "Current correctness repairs and independent/browser gates retained; structural refactoring deferred; no parent closure."
+    },
+    {
+      "source": "actual34723 New Matrix guide journey",
+      "evidence": ".scratch/dioxus-frontend-tranche-1/evidence/new17-compact-guide-repair-20261002/repair.md",
+      "observation": "Guide/form share owner and cancel restores retained preference, but actual browser focus remainsBODY instead ofReactSetupguideheading; source mount correctness does not prove focus restoration afterconditional subtree replacement. Independent Astra correctness repair queued.",
+      "status": "Bounded current defect; focus ownership architecture proposal deferred."
+    },
+    {
+      "source": "ae232927",
+      "evidence": ".scratch/dioxus-frontend-v1/integration-handoff-template.md",
+      "observation": "Six private workbench lanes submit exact mount/callback/scope contracts and scoped CSS fragments; root serially integrates declared shared paths and freezes packaging inputs. This mitigates concurrent-write conflicts but does not remove shared presentation/Runtime coupling.",
+      "status": "process mitigation implemented; module-boundary effectiveness and public parity remain open"
+    },
+    {
+      "source": "packaging author transfer after69159aa7",
+      "evidence": "/home/chris/.local/share/boardstudio/retained-tmp/20261002/packaging-author-transfer.json",
+      "observation": "An author interpreted the named integration checkout as isolated and edited its packaging script. Root stopped writes, preserved exact bytes and patch, created a distinct worktree, verified transferred hashes, and restored only acknowledged owned root script bytes to HEAD. No work discarded.",
+      "status": "corrected; handoff now requires actual git-top-level/branch/HEAD proof before edits; broader ownership enforcement remains post-port opportunity"
+    },
+    {
+      "source": "Keycaps warning6c6c133e independent review",
+      "evidence": "/home/chris/.local/share/boardstudio/reviews/keycaps-overlap-source-review-sol-20261002.md",
+      "observation": "Inspector tree context is a navigation anchor; accepted ReadModel.selected_part_ids is Add/Toggle/Range selection authority. Context-derived extent incorrectly filtered overlap warnings and size controls under multi-selection. Confirmed correctness defect; immediate fix in progress.",
+      "current_mitigation": "Use accepted selection IDs for editing/warnings while retaining contextual validity checks; production selection mutation regressions required.",
+      "post_port_follow_up": "Clarify and consolidate context-anchor versus accepted-selection projection semantics across Inspector controllers after parity.",
+      "status": "confirmed defect under repair; broader selection model consolidation deferred"
+    },
+    {
+      "source": "Parts15 isolated111647f6; served9d34f367 separate",
+      "evidence": "SolPCB Parts15 exact source review, repair owner parts_new_component_author; public toolbar checkpoint workbench-parity-joined-public-20261002/root-toolbar-checkpoint.json",
+      "observation": "Independent review found an unmerged Parts15 async continuation reading disposed editor Signals before its alive guard and again in stale cleanup. Parts13 had previously required an effect self-read correction. These are concrete recurring lifecycle integration hazards, not proof of a production crash in served9d. Separately actual paired Case generated Plate selection retains global MechanicalSettings rather than contextual Plate Inspector; Mirror form appears in Objects instead of reference canvas overlay. Missing composition parity is current port work, not evidence that it was caused by module size.",
+      "status": "Parts15 source held and repairing; broader lifecycle/owner interface assessment deferred, no public acceptance waiver",
+      "post_port_validation": "Evaluate a common lifetime-first async admission pattern and mounted unmount/resolve tests across feature controllers; measure shared composition churn before proposing generalized abstractions."
+    },
+    {
+      "source": "ZMK Export row 19; source commit pending independent review",
+      "evidence": ".scratch/dioxus-frontend-tranche-1/evidence/keymap-export-zmk-row-20261002/implementation-checks.md",
+      "observation": "The bounded Export row adds an Editor composition seam, accepted wiring projection and Runtime report severity path across the same shared presentation/Runtime hotspot. The feature keeps a private row leaf and root-owned serial Editor mount; there is no measured performance claim or broader module extraction.",
+      "status": "bounded feature implementation under source review; root integration, release build and paired browser acceptance remain open"
+    },
+    {
+      "source": "Issue 12 protected PCB remap correction; isolated source commit pending",
+      "evidence": ".scratch/dioxus-pcb-view/evidence/pcb-protected-remap-20261003/followup-core-session-correction.md",
+      "observation": "A normal Session ReplaceDocument cannot clear a protected handoff: CoreEngine::edit invokes electrical::preserve_handoff and restores the old baseline. The bounded action now dispatches Core's existing ReviewElectricalRemap request through a narrow Session event and keeps Session's normal persistence/history authority.",
+      "status": "required behavior correction; no duplicate document authority or general operation framework proposed"
+    },
+    {
+      "source": "PCB Issue 13 command pill, isolated source commit d01c18af",
+      "evidence": ".scratch/dioxus-pcb-view/issues/13-canvas-command-pill.md",
+      "observation": "The PCB command pill reuses the shared UI and existing accepted selection, matrix transform, align, snap and Session gesture paths. Private transform/align owners now carry an exact Layout-or-PCB route identity; the Layout admission remains exact and PCB uses a separate current-owner check. This is bounded composition mitigation under RF-001, not a generalized workspace framework or public acceptance claim.",
+      "status": "isolated implementation committed; strict WASM Clippy and test-target compilation pass; browser journey and root integration remain open"
+    },
+    {
+      "source": "Repair base ed5af2c9d3f0962680c43c4e681c7f8a86651151; reproduced package source 32a57ed3; React 5a472a9426e6e38993361da402cd4ec730feb369",
+      "evidence": ".scratch/dioxus-pcb-view/evidence/pcb-modifier-click-repair-20261003/red.json",
+      "observation": "PCB part pointer-down selected while capture-retargeted compatibility click reached the SVG empty-hit path and cleared selection. Trusted Control-click SW2 from selected SW1 reproduced actual [].",
+      "current_mitigation": "Pointer-down owns PCB pointer selection; the empty-space path excludes primary-pan/drag/arbiter conflicts and keeps current accepted-source guards. Click-only accessibility activation retains scoped part-hit admission. Capture, movement threshold, release/cancel and one-step history are unchanged.",
+      "post_port_follow_up": "Keep normalized pointer gestures and activation routing under one explicit host lifecycle owner; do not infer empty hits from capture-retargeted compatibility clicks.",
+      "validation": "Run trusted native Ctrl-click browser regression on the integrated package; review focused toggle/plain/range/empty/keyboard/movement/cancel/history behavior. Native selection tests cannot reproduce browser capture retargeting.",
+      "status": "Expected RED retained; integrated browser GREEN and consolidated repair review open at source freeze. No parent acceptance or broad refactor claim."
+    },
+    {
+      "source": "f2d70ea627d851ea461033b44052bbf3740d37a1",
+      "evidence": ".scratch/dioxus-pcb-view/evidence/pcb-modifier-click-repair-20261003/final-green.json",
+      "observation": "Trusted Ctrl-add then Ctrl-remove and directly affected plain/empty/keyboard selection pass with revision12. Second RED distinguished native DOM propagation from Dioxus synthetic bubbling; both must stop before part pointer-down can own selection.",
+      "current_mitigation": "PCB pointer-down owns pointer selection; compatibility clicks cannot clear or toggle again, and Dioxus synthetic propagation cannot invoke the empty-space down path. Keyboard/click-only activation retains scoped admission.",
+      "status": "Bounded reproduced defect GREEN; complete PCB13/F5 criteria and cutover remain open. Existing capture/move/end/cancel/history evidence reused; no broad author suite/build."
+    },
+    {
+      "source": "PCB14 mounted-module footprint source packet; compile/public proof pending",
+      "evidence": ".scratch/dioxus-pcb-view/issues/14-mounted-module-footprints.md",
+      "observation": "The PCB scene already carried authentic module footprints, but the shell had only host-layer and Layout Footprints state. A separate transient module owner and read-only source consumer now connect the Footprints row; daughterboard pads remain source-owned. Other module categories/navigation stay explicit F5.4 work.",
+      "status": "bounded implementation; no new RF ID or broad structural refactor"
+    },
+    {
+      "source": "0a19f622859c8997cff322a90b47c6f92ff8d33b; accepted Keycaps STEP export source freeze",
+      "evidence": ".scratch/dioxus-keycap-cad-bridge/evidence/source-contract.md",
+      "observation": "The page binary and boardstudio_web worker host are separate crates, so a crate-private method cannot carry Core-resolved KeycapSpecs to the already packaged build_keycaps export. The bounded slice adds one specific public CadWorker::request_keycaps_step entry point while keeping its wire types and public CadRequest/CadOperation unchanged.",
+      "status": "confirmed crate-boundary constraint and bounded adapter; paired browser/download validation pending; no new RF ID"
+    },
+    {
+      "source": "a76fa2bd/34748; root module label repair b3e020ed",
+      "evidence": ".scratch/dioxus-pcb-view/evidence/14-mounted-module-footprints-20261003/public-receipt.md",
+      "observation": "Source-owned module artwork now renders through the accepted snapshot. Paired VIK fixture geometry matches all373 leaves across26 footprints; independent module and host pad/hole toggles preserve saved ProjectDoc/revision6. Accessibility label correction is queued in34749.",
+      "status": "Bounded geometry/visibility receipt; module-free and board-retention checks, other categories/navigation and fullF5.4 remain open. No new RF ID or broad refactor."
+    },
+    {
+      "source": "PCB15 source packet based on dd7697ed",
+      "evidence": ".scratch/dioxus-pcb-view/issues/15-mounted-module-layer-inventory.md",
+      "observation": "The complete ten-row module inventory consumes the accepted source geometry and existing independent transient owner. Read-only board/hole/support/clearance/artwork and module error marker overlays remain distinct from host circuitry; no duplicated Core/CAD or persisted state.",
+      "status": "One affected strict check passes; changed paired public journey and consolidated candidate review pending. Owning-module navigation/shared finding focus/full F5.4 remain open; no new RF ID."
+    },
+    {
+      "source": "F5.5 first mounted-placement Inspector child; isolated from integration source 26ff6b9c",
+      "evidence": ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md",
+      "observation": "The first placement slice extends the existing scoped tree selection with an exact board/module context and routes one private Inspector into existing SetMountedModule/RemoveMountedModule Core edits. This responds to a concrete integration gap: rendered source artwork must be made selectable without inventing host Part identity. Root composition remains a shared hotspot; no second selection owner, durable draft store, public API or Core/schema change is introduced.",
+      "current_mitigation": "Keep selection scope tied to the accepted project/session/board and module instance; keep source artwork read-only and module placement fields in the current placement draft.",
+      "post_port_follow_up": "After parity, evaluate whether typed workspace selection projections can express module ownership without broadening Layout selection semantics; retain one Session document/history authority.",
+      "validation": "Root integration and changed paired pointer/keyboard select, placement Save/Remove, save/reopen and history qualification remain open. Do not infer F5.4 geometry completion or full F5.5 acceptance from this child.",
+      "status": "isolated source packet in progress; no new RF ID"
+    },
+    {
+      "source": "PCB17 ordinary controller chooser packet",
+      "evidence": ".scratch/dioxus-pcb-view/evidence/17-controller-chooser-20261003/source-handoff.md",
+      "observation": "Controller entry callback shape hid a mandatory setup-guide origin and PCB return route. Reusing it from ordinary PCB would be inert; explicit accepted ordinary chooser origin now separates those private workflows while sharing transaction/lifecycle code.",
+      "status": "source implemented; actual integrated journey pending; broad intent/composition refactor deferred"
+    },
+    {
+      "source": "Keycaps 3D preview source packet; pinned React profile/color/layer reference",
+      "evidence": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md; docs/architecture.md",
+      "observation": "The same page/library crate boundary also requires the dedicated public CadWorker::request_keycaps_preview facade. Runtime owns a worker separate from Case generation and STEP export; the viewer consumes the already accepted KeycapsFitState specs, adds colored cap/legend bodies to the current shared projection, and checks accepted scope/token/revision plus worker generation. The first served replay (243aa551, retained 1280x577 fixture journey) found a reactive self-trigger: the preview effect read and incremented its own generation signal, repeatedly cancelling work so neither canonical preview nor keycap CAD worker settled. The effect-owned counter now uses an untracked read. The fixed candidate d7742d46 then rendered the shared preview and passed cap/legend plus global Keycaps hide/show on the same fixture. No duplicate Core query, generic request field, renderer contract, or CAD engine was added. The existing build_keycaps call is synchronous and cannot cooperatively yield during its kernel operation; worker close and currentness checks suppress late publication.",
+      "status": "bounded Keycaps-route browser journey green on d7742d46; strict page WASM all-target Clippy passes; Keymap consumer, remaining lifecycle journeys, and full F6C.5 acceptance remain open"
+    },
+    {
+      "source": "ead8fe7c",
+      "evidence": ".scratch/dioxus-pcb-view/issues/18-pcb-contextual-objects.md",
+      "observation": "Confirmed frontend composition gap: PCB mounted the generic Layout matrix/physical-instance/grouping inventory although the reference PCB shows flat actual board parts. Bounded current correction uses an accepted-board PCB tree and existing explicit part contexts/Inspector, hiding Layout controls and adding PCB footer. Outline rows currently reuse and filter the generic tree; this avoids duplicating outline lifecycle but still computes unused Layout rows.",
+      "status": "Source integrated; changed public qualification pending. Later assess a shared outline projection plus workspace-specific inventory queries, without adding a second selection authority."
+    },
+    {
+      "source": "Parts assembly preview packet based on 7b6057e6",
+      "evidence": ".scratch/dioxus-parts-catalogue/issues/02-assembly-presets-modules.md; .scratch/dioxus-parts-catalogue/issues/03-isolated-library-preview.md",
+      "observation": "One logical library choice is represented by the existing selected-definition signal plus a Parts-private preset signal. The single activation updates both; serialized ordered recipe identity and selection generation gate asynchronous sample publication. More library target kinds could desynchronize these owners if evolved independently.",
+      "current_mitigation": "Keep preset activation atomic and recipe identity complete; clear the preset when an ordinary definition is selected. Do not write active project state from preview composition.",
+      "post_port_follow_up": "After parity, assess a typed Parts library choice union for definitions, assembly presets and module variants under one accepted scope owner.",
+      "validation": "Compare all mounted selection paths and ensure no stale sample is published after definition/preset/orientation changes; active document/revision/history/assets remain unchanged.",
+      "status": "bounded mitigation; typed-owner redesign deferred under RF-001; source review/public journey pending"
+    },
+    {
+      "source": "F2.4 Project shell candidate 34763; source 99ec041a; pinned React5a472a94",
+      "evidence": ".scratch/dioxus-frontend-v1/evidence/f24-shell-parity-20261003/receipt.md",
+      "observation": "The bounded Project/save-status/tabs/Export and Appearance route keeps existing Runtime/session/theme preference authorities and closes a measured topbar displacement: on the 1280px Sofle fixture, Project/status/tabs/Export x positions differ by at most1.47px from pinned React after replacing the fixed260px Project slot and boxed Export button. No new architectural takeaway; the source-visible shared composition hotspot remains covered by RF-001.",
+      "status": "Changed desktop shell/menu/Appearance paired journey verified on34763; responsive/compact and wider parent qualification remain open; no new RF ID or broad refactor."
+    },
+    {
+      "source": "F31 Board Inspector private projection/controller packet based on b93fc0ee",
+      "evidence": ".scratch/dioxus-layout-authoring/specs/F31-board-inspector.md; .scratch/dioxus-layout-authoring/issues/15-board-inspector.md",
+      "observation": "The board-level Layout context adds another projection/action mount to shared Editor composition. The feature leaf keeps board readiness, accepted live parts and exact session/token/revision/tree generation admission private, then reuses the existing ReplaceDocument path; no second document owner or public Core API is introduced.",
+      "current_mitigation": "Keep Board projection and rename action in a private Layout module and add only the minimum root mount; preserve the existing component, matrix and outline inspector precedence.",
+      "post_port_follow_up": "After parity, measure presentation cross-workflow file intersections and evaluate stable workspace composition boundaries while retaining one accepted Session owner.",
+      "validation": "Compare affected files changed across a representative Layout contextual Inspector slice; after parity, show independent leaf work can be verified without widening unrelated composition and preserves the exact accepted owner.",
+      "status": "bounded source implementation; combined check, paired browser journey and review pending; no parent closure"
+    },
+    {
+      "source": "PCB Issue 23 mounted-module service-clearance/support editor; isolated implementation from f4d2aad9",
+      "evidence": ".scratch/dioxus-pcb-view/issues/23-mounted-module-supports-and-clearance.md; .scratch/dioxus-pcb-view/evidence/22-mounted-module-inspector-20261003/placement-save-reopen.md; web/src/presentation/pcb_module_inspector.rs",
+      "observation": "The bounded follow-up adds service-clearance and source-hole support-ring/standoff controls to the existing mounted placement leaf, reusing its accepted snapshot, local draft and guarded SetMountedModule owner. Core remains the validation and resolution authority; no public API or second document store is introduced.",
+      "current_mitigation": "Keep authored text fields in the selected Inspector draft; submit one complete MountedModule through the existing operation after the current project/session/board/module/token/revision guard.",
+      "post_port_follow_up": "After F5 parity, measure whether the shared presentation composition surface remains a repeated workflow edit hotspot; do not generalize module-specific draft or Core validation into a framework before that evidence.",
+      "validation": "Existing 34765 placement Save/reopen and settled Undo/Redo receipts are reused unchanged. New service/support controls require root combined check and one changed paired journey; no compiler/public result is inferred from this isolated source packet.",
+      "status": "isolated implementation frozen; combined check and changed public journey pending; no F5.5 or parent acceptance claimed"
+    },
+    {
+      "source": "34767/3a080e0e; next Objects composition source pending",
+      "evidence": ".scratch/dioxus-layout-authoring/evidence/f31-canonical-criteria-reconciliation-20261003.md",
+      "observation": "Matched public panes exposed generic instance/grouping selectors and duplicate project summary displacing the primary Layout tree by about159px. The correction shares one private panel-owned grouping preference with the tree, composes its controls into the existing options slot and keeps physical assembly context in Case. Preset async completion separately needed current selection/context guards beyond Scope generation.",
+      "status": "bounded composition and completion-owner mitigations; no duplicate document authority; changed browser proof pending next candidate"
+    },
+    {
+      "source": "Compact shell parity source packet based on 698cee60; React 5a472a94; Dioxus compact controls at 34768",
+      "evidence": ".scratch/dioxus-frontend-v1/issues/01-shell-theme.md; .scratch/dioxus-frontend-v1/specs/f24-project-shell-visible-parity.md; web/src/presentation.rs; web/src/presentation/panels.rs; web/assets/m1.css",
+      "observation": "Compact panel toggles need to sit in the shared App topbar while panel drawers remain rendered by the private panel module. The bounded wiring shares two open/closed Signals across those owners and preserves existing mode/width persistence. This exposes cross-panel visibility/focus routing in root composition; no duplicate store or Session/Core owner was added.",
+      "current_mitigation": "Keep one App-owned visibility signal pair, reuse it directly in the panel leaves and topbar toggles, and leave drafts with feature owners and mode/width persistence with panel policy.",
+      "post_port_follow_up": "Assess whether a typed private panel controller can keep topbar routing thin while preserving panel-local draft owners, persisted mode/width policy and Session/Core authority.",
+      "validation": "Use one paired 720x640 Objects-to-Inspect drawer journey and the combined affected check after integration; exercise 980px/820px threshold controls and reuse unchanged desktop evidence.",
+      "status": "source implementation is isolated; integrated build and changed paired journey remain open; RF-001 retained without a new ID"
+    },
+    {
+      "source": "aa33bc80",
+      "evidence": "web/src/presentation/objects/layout_transform_toolbar.rs",
+      "observation": "Actual trusted34769 Stagger handle pointerdown reached the mounted path but no pointer capture/up/edit occurred: native current_target belongs to delegated Dioxus listener rather than SVG handle. Narrow event-target.closest mounted-handle capture correction; one changed paired browser regression only. Repeated event/capture owner assumptions across shared presentation remain a refactor takeaway.",
+      "status": "Current parity repair in next34770; browser GREEN pending; no general event framework added."
+    },
+    {
+      "source": "d4870a1b+5d2b4a98+4b517045+ee7321d6+b0935c29",
+      "observation": "Actual paired checks found shared open signals rendering a compact scrim over the desktop canvas, dynamic select value set before Export option existed, and transform handles using cell-only geometry instead of accepted selected parts. Narrow media-aware scrim component, explicit option selection, shared edit operations and reference geometry repair preserve authority. These repeated DOM/lifecycle assumptions explain rework; consolidate typed private pane/event ownership after parity.",
+      "status": "Corrected source and combined strict PASS; next34771 changed public GREEN pending.",
+      "evidence": ".scratch/dioxus-frontend-v1/evidence/candidate-34771-20261003/strict-check.json"
+    },
+    {
+      "source": "VIK module review card/fixture packet on bbd4da1b; React reference 5a472a9426e6e38993361da402cd4ec730feb369",
+      "evidence": ".scratch/dioxus-frontend-tranche-1/evidence/vik-module-review-source-20261003/FIXTURE-PREP.md",
+      "observation": "The VIK card uses the existing DemoKeyboardCard and Runtime fixture preview/open path. Fixture preparation calls the existing reference openModuleReviewDemo, Core open/edit operations and packProject; it adds no provider, document store, Runtime facade or module authority. Keep fresh accepted identity, module source provenance and human-review assumptions explicit.",
+      "status": "No new refactoring takeaway observed for this bounded card/fixture source slice; RF-001 shared composition/provider identity observations and integrated candidate browser proof remain open."
+    },
+    {
+      "date": "2026-10-03",
+      "source": "113c330c and f653b8f9; Runtime mechanical export / private module-profile editor",
+      "evidence": ".scratch/dioxus-frontend-v1/issues/08-export-coordinator-dispatch.md; .scratch/dioxus-frontend-v1/evidence/module-profile-editor-source-20261003/RECEIPT.md",
+      "observation": "Generated-mechanical export adds about1045 Runtime lines combining accepted-owner guards, provider orchestration, manufacturing-document formatting and ZIP construction. Module profiles add a separate presentation-owned accepted-edit draft. These mounted source changes reuse existing geometry/providers, but continue the known shared Runtime and edit-lifecycle coupling; they are unqualified source, not a performance or behavior verdict.",
+      "current_mitigation": "Keep feature-owned captures and existing Session/Core authority; integrate shared source serially, with one later candidate qualification/review.",
+      "post_port_follow_up": "Assess a deep mechanical-export module with a typed accepted source and format/provider boundaries; compare feature edit owners for consolidation only after parity.",
+      "validation": "Preserve exact package entries/body content, snapshot/error/cancellation behavior, accepted history and cleanup; measure source churn and repeated guard logic before restructuring."
+    },
+    {
+      "source": "F8.5 authored/generated Case STEP source packet in export-workspace-20261003",
+      "evidence": ".scratch/dioxus-frontend-v1/evidence/export-workspace-20261003/authored-case-step-source-map.md",
+      "observation": "Pinned React keeps authored Case STEP available with generated mechanics active: it exports canonical saved caseBodies while the generated ZIP uses the selected-instance mechanical projection. Dioxus now has two mounted Runtime paths over the same export owner; their geometry inputs remain explicitly separate. This confirms the shared Runtime is an integration hotspot, while the private owner guards and existing Core/CAD providers are the bounded mitigation. No performance or parity qualification is claimed.",
+      "status": "source-backed behavior implemented; public authored/generated output qualification remains open; retain canonical-versus-instance separation and defer broader Runtime extraction until post-port review"
+    }
+  ],
+  "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted.",
+  "parts_name_draft_20261002": "Source comparison found Dioxus token/revision-keyed Name draft resets on unrelated accepted edits while React DraftInput resets only accepted value changes. Required parity repair splits stable target/value draft identity from current accepted capture; no stale admission waiver. Independent review and mounted regression remain open.",
+  "parts13_create_component_20261002": {
+    "source": "Parts13 private create leaf and isolated Parts mount at codex/parts-new-component13-20261002",
+    "evidence": ".scratch/dioxus-parts-catalogue/evidence/parts13-implementation-handoff-20261002.md",
+    "observation": "No new refactoring takeaway observed in the custom-component create path. The leaf reuses Runtime operation IDs/outcomes and the existing accepted ReplaceDocument/history path; reconciliation checks both Parts query/selection intent generation and the actual monotonic Runtime scope generation, including A→B→A scope transitions. A mounted production-effect test verifies workspace generation advances once per transition without subscribing to its own write. The Inspector resolves accepted project definitions directly while catalogue loading/error status remains visible.",
+    "status": "bounded implementation handoff with reviewed source/effect repairs; paired public browser acceptance and parent joins remain open"
+  },
+  "case13_battery_patch_20261002": {
+    "source": "Case Issue13 battery envelope controls; implementation commit e3fdb7ee13bb6ab64cf9c033b6889405f4916e64 based on f261a327858f51a1de4928374bc65b669e2792a3",
+    "evidence": ".scratch/dioxus-case-workspace/evidence/battery-envelope-issue13-20261002/implementation-handoff.md",
+    "observation": "The shared private mechanical-settings patch path unconditionally ran manufacturing-process normalization. A production-seam battery-removal regression reproduced an unrelated mutation: `partProcesses` changed from absent to an empty vector. The bounded correction skips this process normalization for battery-only toggles/fields, preserving construction/process propagation on the patches that own it and retaining the existing canonical/physical target policy.",
+    "certainty": "confirmed incidental mutation in the battery-only path; no claim that other unrelated patch families are free of the same side effect",
+    "current_mitigation": "Keep battery operations limited to the selected current configuration and skip only unrelated process normalization for battery-only changes. Preserve existing Runtime, operation, persistence, instance-link and mechanical-resolution ownership.",
+    "post_port_follow_up": "Assess the mechanical patch funnel's field ownership and derived process-normalization policy. Any decomposition must preserve construction-linked propagation and accepted canonical/physical instance semantics.",
+    "validation": "Retained unguarded-regression red shows the empty-process-vector addition; four focused controller WASM tests pass after the guard, mounted wired/wireless controls pass, and strict all-target WASM Clippy passes. Public paired edit/history/reopen acceptance remains open."
+  },
+  "shared_join_checkpoint_20261002": {
+    "source": "94480901a2dcabaa6085416e29116c620017a385",
+    "observation": "PCB07 and PCB08 isolated authors each correctly implemented a generic-part Inspector, but the initial serial join duplicated its heading and moved Ergogen bindings ahead of Board details/Connections. Independent review reproduced the composition mismatch; a single contextual host heading and a private Element slot now preserve both controllers and reference order. Source review clear; actual paired DOM qualification remains open.",
+    "during_port": "One root integration owner, isolated leaf authors, exact shared handoff patches and source-specific independent review; source clearance never substitutes for paired browser acceptance.",
+    "later_question": "Can workbench composition interfaces express ordered contextual sections explicitly enough to prevent semantically wrong but compilable joins?"
+  },
+  "accepted_source_failure_guards_20261002": {
+    "observation": "Independent review found Layout model terminal errors and selected-key loader failures checking weaker ownership than successful delivery; isolated repairs require the same captured accepted source/lease guard and suspended production regressions.",
+    "during_port": "Fix reproduced stale feedback before integration; source holds remain until reviewed.",
+    "post_port": "Assess one private delivery authority for success, failure and cancellation after parity."
+  },
+  "cross_stream_composition_20261002": {
+    "source": "F3 generic component placement6c9 + F7 canonical viewer53b2 + Mirror48bd, integrated root e6dc6c53",
+    "observations": [
+      "Preparing component placement has busy=true/projection=None; checking only visible projection on 3D entry can allow late loader publication. Existing owner cancellation must cover preparing work. Combined production regression is required before acceptance.",
+      "Private props/owner removal broke retained older mounted compositions during root strict checks. Root repaired obsolete return callback and supplied consistent accepted snapshot props while preserving previous mounted assertions."
+    ],
+    "during_port": "Retain explicit cross-stream integration tests and independently review final join; no failing gate waived.",
+    "post_port": "Assess shared interaction retirement and composition fixture ownership after parity instead of spreading conditional cancellation and ad hoc fixture glue."
+  },
+  "continuations": [
+    {
+      "date": "2026-10-02",
+      "source": "5fd4bb767fc558ed4ac90c6c9c39b821c8669129",
+      "observation": "Keycaps navigation dispatch was extracted, but accepted-source admission, destination-render scheduling and deferred Inspector focus remained in shared presentation. Independent review retained a bounded HOLD: synchronous dispatcher tests do not exercise mounted production guards, and a global deferred Inspector query has no captured owner.",
+      "during_port": "Repair production-used mounted owner/guarded frame effects in isolated slice, test replacement before queued fit/focus, retain source and public acceptance gates.",
+      "post_port": "Evaluate feature-owned effect lifetimes and injectable scheduling boundaries across workbenches after parity; no acceptance waiver."
+    },
+    {
+      "date": "2026-10-03",
+      "source": "Issue 02 VIK module row/variant continuation; pinned React 5a472a9426e6e38993361da402cd4ec730feb369",
+      "observation": "The Parts selection signal still carries both footprint IDs and module variant IDs as strings. The bounded module browser namespaces the existing identity as module:{id} and keeps the accepted Scope alongside it; this fits current composition but leaves kind-specific selection validity distributed across consumers. The source module package is 43,356,120 bytes and is lazy-loaded from a page asset, so the current page incurs that transfer on Parts entry.",
+      "current_mitigation": "Keep variant identity exact, scope-qualified and read-only; fetch through the existing subpath-aware resource_url from a Parts-private module and cache only successfully decoded bundled entries. Project snapshots override bundled entries by ID while retaining reviewed row membership. Do not add a Runtime public API or treat VIK instance behavior as library metadata.",
+      "post_port_follow_up": "Assess a typed Parts library-choice owner for definitions, assembly presets and module variants, plus whether the imported module package should be split into a narrow summary and lazy full geometry without losing provenance or identity.",
+      "status": "bounded private mitigation; selection-owner and package-size design deferred; Issue 02 and parent acceptance remain open"
+    },
+    {
+      "date": "2026-10-03",
+      "source": "Issue 02 VIK paired candidate 34764, source 661296fe5633e2327488cd56738c14ab81c22341; React ModulePreview.tsx at 5a472a9426e6e38993361da402cd4ec730feb369",
+      "observation": "Selecting a source-backed VIK row and variant updated the Inspector correctly, but the mounted center still displayed the previously selected MX switch preview. Source presence and Inspector state did not guarantee the active preview owner had changed. React ModulePreview renders the exact selected module snapshot board contours, holes and available circuit courtyard/drill geometry.",
+      "current_mitigation": "Route the module-tagged Parts selection through a read-only page-local preview using only that selected ModuleDefinition source geometry. Leave missing outlines empty; retain exact selection identity and existing accepted project snapshot precedence. A paired candidate replay is required before considering this corrected.",
+      "post_port_follow_up": "Assess a typed Parts library-choice owner spanning definitions, assembly presets and module variants so menu, Inspector and center preview consume one tagged current selection.",
+      "status": "specific mounted preview mismatch reproduced; source-backed correction in progress; do not claim Issue 02 acceptance"
+    }
+  ],
+  "continuation_notes": [
+    "2026-10-02 review continuation: Layout component Inspector scope-only generation can revive retained callbacks after selection/workspace ABA; Case root stale-display join allowed old diagnostics with current finding callback. Isolated repairs underway; existing authorities and full acceptance retained.",
+    "2026-10-02 paired c6 finding navigation: selected key identity reaches Layout but fit behavior differs by roughly2x from React at1280x577. Production-hook/renderer qualification does not replace equal-fixture viewport geometry acceptance. Existing navigation/marker child owners retain correction and full parent gates.",
+    "2026-10-03 combined candidate a201a96a: both consolidated reviewers traced explicit finding Part intent for a primary matrix switch to a Component context rejected by the joined Layout Inspector canonical-Key equality guard. Source-local proofs passed, but feature composition still disagrees about selection intent. Repair assigned immediately; ordinary Key/Column routing must remain intact. Future refactor should centralize explicit selection intent and Inspector admission policies; full paired acceptance remains required."
+  ],
+  "execution_observations": [
+    {
+      "date": "2026-10-03",
+      "observation": "Read-only audit: shared source joins and stale duplicate progress/routing rules increase queue and rework; required acceptance remains distinct from code presence.",
+      "mitigation": "Integrate ready batch; Layout-first, one waiting packet/stream; fewer repeated checks, one candidate review, unified current_progress; all history and criteria retained."
+    },
+    {
+      "date": "2026-10-03",
+      "source": "Actual public32a/34743 Outline Undo, Keymap/Keycaps header and PCB Ctrl-click observations; repair source ddc53653.",
+      "observation": "Independent leaf state and shared layout/pointer ownership still compose incorrectly: accepted Undo can revive a submitted coordinate draft, floating context headers can overlap view controls and change camera bounds, and pointer capture can retarget compatibility clicks into empty-canvas selection.",
+      "mitigation": "Fix only the reproduced boundaries during parity; value-change draft synchronization is integrated and preserves unrelated drafts. Header/camera and PCB pointer lifecycle repairs remain active.",
+      "post_port": "Assess explicit contextual layout contracts, accepted-value draft lifetimes and one pointer-selection authority after the port. Preserve trusted paired evidence; no broad refactor is started."
+    },
+    {
+      "date": "2026-10-03",
+      "source": "34755 ordinary PCB chooser paired journey; RootParts preview composition comparison",
+      "observation": "Missing ordinary controller entry used a hidden guide-only origin; explicit accepted origin now delivers placement/history/reopen. The remaining Parts contextual shell/header, assembly groups and preview framing gaps demonstrate why generic workbench composition source presence is insufficient.",
+      "mitigation": "Current ordinary route wired through existing scoped transaction; Parts stream owns one coherent contextual composition continuation. No full visual/parent acceptance claimed.",
+      "post_port": "Consolidate action origin/return-context policy and explicit workbench composition contracts; preserve retained paired screenshots and saved projects."
+    },
+    {
+      "date": "2026-10-03",
+      "source": "PCB18 public34758 SW3/R1, pinned usePcbWorkspace.tsx, root0e546579",
+      "observation": "Correct contextual inventory still prepended private Layout position/matrix authoring before reference PCB wiring.",
+      "mitigation": "Remove only wrong PCB Inspector composition and unused private numeric-position path; keep Layout authoring and PCB canvas/wiring owners.",
+      "post_port": "Define explicit workbench Inspector composition separately from shared selection/projection helpers."
+    },
+    {
+      "date": "2026-10-03",
+      "source": "F2.4 Issue 10 source audit against React5a472a94 and paired Board2 screenshots; Dioxus base8746265b",
+      "evidence": ".scratch/dioxus-frontend-v1/specs/f24-project-shell-visible-parity.md; /home/chris/.local/share/boardstudio/retained-tmp/20261003/pcb19-react-board2.png; /home/chris/.local/share/boardstudio/retained-tmp/20261003/pcb19-dioxus-board2-34760.png",
+      "observation": "Visible Project, save status, tab and Export responsibilities share presentation.rs composition, while the Project menu body lives in presentation/library.rs. This is another bounded example of RF-001's shared shell integration surface; source alone does not show that a larger extraction would reduce total coupling.",
+      "mitigation": "Keep the correction private and scoped to the root header, Project settings view and shell CSS; existing Runtime and theme preference remain authoritative.",
+      "post_port": "Measure workflow file intersections after parity before considering a private shell-component boundary.",
+      "status": "No new RF ID; required paired candidate qualification remains open."
+    },
+    {
+      "date": "2026-10-03",
+      "source": "Paired34762/React5a472a94 screenshots and computed empty-action styles; next correctionsbd971126/6d799257",
+      "evidence": ".scratch/dioxus-pcb-view/evidence/21-empty-board-entry-20261003/public-34762.json; .scratch/dioxus-pcb-view/evidence/20-add-object-20261003/public-34762-hint.json",
+      "observation": "Copied UI controls diverged in effective CSS: empty primary40px versusreference34px, secondary accent versusink; Project/Export boxed rather thanplain, and footer coordinates shifted by retained revision text. Source presence and matching action labels did not establish placement/style parity. Exact architecture cause is not established.",
+      "mitigation": "Correct only observed scoped CSS/composition, view paired actual surfaces once, and reuse unchanged action/history evidence. Current footer/shell corrections remain in their waiting packet.",
+      "post_port": "Assess a shared style/token contract and contextual shell projection after parity; measure cascade conflicts and cross-feature style changes before extracting. Record Layout module/finding overlay visual differences as unresolved feature coverage, not an invented cause.",
+      "status": "Verified visual drift; bounded source repairs in progress; no broad redesign or new RF ID."
+    }
+  ],
+  "case_mechanical_resolution_display_20261003": {
+    "observation": "Mechanical Inspector findings/support rows currently derive from a successful exact CadScene, while the existing read-only ResolveMechanical owner can return blocked assemblies. CAD preparation discards blocked assembly output before scene publication. This couples mechanical diagnostic display to successful preview delivery.",
+    "evidence": ".scratch/dioxus-case-workspace/evidence/current-mechanical-resolution-diagnosis-20261003/README.md; .scratch/dioxus-case-workspace/evidence/15-mounting-controls-20261003/public-receipt.md",
+    "status": "Blocked-result diagnostics/suggestions display and Issue 15 adoption are corrected for their bounded current-scope journey; candidate 37d81320 strict all-target check passed and the paired X=128 action retained 76 diagnostics/four suggestions while adoption persisted four suspension mounts and four closure rows. A separate Show-navigation RED showed the blocked current finding could not select its generated Plate because the root route required an exact CadScene and direct layer target. The isolated Case source now passes exact current resolver identity into that route and matches generated mount targets to their containing layer; integrated check and changed GREEN remain pending. The earlier transient Gasket zero-row observation remains unconfirmed. Full Issue 15/12 and parent acceptance remain open.",
+    "post_port_follow_up": "Keep current resolver diagnostics/supports/suggestions independent from CAD preview delivery, keyed by the current settings owner and accepted scope/token/revision. Continue to use CadScene for geometry layers and preview delivery; avoid a second authority, geometry-kernel change, or provider change."
+  },
+  "canvas_entry_wave_20261003": {
+    "date": "2026-10-03",
+    "source": "2107f980;79af180f;0bfa0bc4;83b49eca",
+    "evidence": ".scratch/dioxus-pcb-view/evidence/20-add-object-20261003/public-34761.json",
+    "observation": "Paired actualbrowser found missing empty-board and pending-placement entry/help despite accepted editing capabilities. Sharedroot composition still obscures workbench board Inspector and menu parity. Matrix recovery/report had independent scope/token/epoch/revision arguments; source83b bundles existing accepted request identity. Cargo fmt wholemodule registration changed main.rs during a frozen packaging attempt; strict compiler caught outdated fixture adapters after private component extraction.",
+    "current_mitigation": "Private emptyboard/footer leaves, reuse existing scoped controllers, callback acceptance guards, focused sharedcheck and changedbrowserdeltas; targetrustfmt withskip_children. Preserve all failures and unprovedcriteria.",
+    "post_port_proposal": "Consolidate contextual projection/action ownership and boardidentity bundles after parity; define one formatting/build publisher and one progress/evidence record toreduce accidental sharedfile changes.",
+    "validation": "Exercise same UI journeys acrosscontext/history/reopen; maintain source/asset provenance, no inventedacceptance or newduplicated tests."
+  },
+  "project_demo_copy_20261003": {
+    "source": "F2.1 bounded Project demo cards/fresh-copy child 20; reference ProjectLibrary.tsx at 5a472a9426e6e38993361da402cd4ec730feb369",
+    "evidence": ".scratch/dioxus-frontend-tranche-1/issues/20-project-demo-cards-fresh-copies.md; .scratch/dioxus-frontend-tranche-1/drafts/20-project-demo-cards-fresh-copies.md",
+    "observation": "The private Library now needs both fixture-document reads for previews and fixture-archive opens for copies, while manual archive import must retain its existing identity. The bounded page Runtime adds a fixture-only fresh-ID choice to the shared archive-unpack path and keeps import identity unchanged; this is another concrete cross-workflow Runtime touchpoint under RF-001.",
+    "mitigation": "Use packaged fixture JSON only for read-only previews and pass a fresh project ID only from the two bundled demo actions. Preserve open-sequence admission, generic import identity, source fixture data, and normal Session/persistence ownership.",
+    "post_port": "After parity, assess a narrower page-local bundled-project catalog/copy adapter so reusable preview metadata and archive-copy policy do not accumulate in the shared Runtime surface.",
+    "validation": "Paired public journey on React 5a472a94 and candidate 3a080e0e showed both fixture-derived cards, distinct accepted IDs for repeated starts, saved cards, and saved-card reopen. Candidate source maps generic archive import to None and changes identity only for fixture Some(copy_id); unchanged archive-flow receipts are reused. Combined strict check/package passed; exact journey and asset hashes are in .scratch/dioxus-frontend-tranche-1/evidence/project-demo-cards-fresh-copies-34767/RESULTS.md.",
+    "status": "cards, fresh-copy identity, saved listing/reopen qualified for two existing demos; preview fallback and open failure/supersession injection and wider catalogue remain open; RF-001 observation remains; no F2.1 parent closure"
+  },
+  "pcb_module_source_navigation_20261003": {
+    "source": "PCB mounted-module source navigation commit 27c673b4; React Workbench.tsx at 5a472a9426e6e38993361da402cd4ec730feb369",
+    "evidence": ".scratch/dioxus-pcb-view/issues/14-mounted-module-footprints.md; .scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md",
+    "observation": "The pinned React module overlay routes to the Parts source Inspector, while Dioxus had routed directly to its PCB placement-only Inspector. The correction now routes through the existing scoped TreeContext plus the existing scope-tagged PartsSelection, and the source Inspector returns to that exact mounted instance only while board, session, token/revision, selected source definition and module context still match. This adds callback wiring to shared presentation composition and leaves source definition and placement as separate feature owners.",
+    "current_mitigation": "Keep the mounted instance in TreeContext::MountedModule and source choice in the existing scoped PartsSelection; do not create a second selection/draft store or synthesize host Part identity.",
+    "post_port_follow_up": "Evaluate a typed Parts selection target for definitions, variants and mounted-instance return context after parity; measure shared presentation change intersections before extracting navigation ownership.",
+    "validation": "Source commit is isolated; cargo fmt and diff whitespace checks pass. The next integrated candidate still needs the changed pointer/Enter/Space-to-Parts route and exact-placement return journey; no build/public/parent acceptance is claimed.",
+    "status": "bounded source implementation; combined compile and paired route qualification pending; RF-001/RF-006 retained without a new ID"
+  },
+  "assembly_authoring_20261003": {
+    "source": "7b7265f8",
+    "evidence": ".scratch/dioxus-frontend-v1/evidence/f46-assembly-authoring-20261003/RECEIPT.md",
+    "observation": "Saved assembly recipes currently use ReplaceDocument, so the private editor must rebase against the accepted document and reject concurrent changes to the same recipe. Recipe editing and placement remain distinct owners.",
+    "current_mitigation": "Preserve unrelated accepted changes with a narrowly scoped conflict check; edit recipes through the existing Session/history/persistence path.",
+    "post_port_follow_up": "Evaluate a dedicated assembly recipe transaction and stable editor callback interface after parity; retain existing placement identity and model-asset ownership.",
+    "validation": "Source integrated only; compiler repairs and later paired acceptance remain open."
+  },
+  "assembly_placement_source_20261003": {
+    "evidence": "a7373cf8 author packet; web/src/presentation/objects/matrix_setup.rs MatrixPlacementSource; existing F4.6 receipt; c7413872/af46b22b board-origin source;55e7abf2 mount;9f12d32a compile; existing F4.6 receipt",
+    "observation": "The placement callback accepted only preset IDs, so saved assembly recipes could not use the same projection/drag/commit owner. A separate Parts writer would duplicate accepted-scope and transaction policy.",
+    "current_mitigation": "Private MatrixPlacementSource carries preset or assembly plus definition snapshots through the existing placement lifecycle and Core SetMatrix. Shared workspace mount propagated the same payload. No public schema or wire change. The distinct direct-board X/Y action now creates operation-scoped definition/part snapshots, normalizes generators and rebases only operation additions onto the latest accepted project before one existing ReplaceDocument edit. Accepted-only root callback sets Part selection mode; no duplicate Session owner or public schema introduced.",
+    "post_port_follow_up": "Keep one accepted edit owner and deepen its typed placement interface. Core AddPart accepts one part, so atomic multi-member placement currently requires a full-document proposal and private conflict/rebase policy; introduce a typed multi-part operation or transaction builder after parity. Behavioral Undo/reopen/conflict qualification remains later."
+  }
+}
+```
 
 ## RF-002: Internal browser host types are exposed as crate APIs
 
@@ -42,7 +503,63 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Evidence:** `web/src/lib.rs`; `web/src/cad_jobs.rs`; `web/src/renderer_host.rs`; `web/src/main.rs`
 
-2 additional source observations are indexed under this RF ID in the ledger.
+**Additional recorded details:**
+
+```json
+{
+  "category": "architecture / API design",
+  "impact_priority": "high",
+  "discovered": "2026-10-02",
+  "baseline": "c827c4e6",
+  "workflows": [
+    "F7",
+    "F8"
+  ],
+  "decision": "proposal only; no refactor/API/schema change approved by this entry",
+  "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
+  "linked_tasks": [
+    "F7.1",
+    "BND.1"
+  ],
+  "follow_up_evidence": [
+    {
+      "date": "2026-10-02",
+      "task": "T1-02 tolerant saved-project discovery boundary",
+      "baseline": "598b2c02",
+      "evidence": [
+        ".scratch/dioxus-frontend-tranche-1/evidence/contracts-active/tolerant-listing-api-proposal.md"
+      ],
+      "observation": "Public BrowserStore discovery returns only Vec<ProjectDoc> or aggregate error, so private page callers cannot retain identified damaged cards and healthy records after typed deserialization fails. The existing raw storage helper/database identity are private in another crate.",
+      "certainty": "confirmed source boundary limitation; tolerant discovery proposal not applied or approved",
+      "current_mitigation": "Keep per-card typed geometry fallback private; prepare smallest additive read-only discovery API for explicit decision. Do not fake documents, skip records or duplicate writable storage authority.",
+      "post_port_follow_up": "Evaluate host discovery/read-model depth and safe degraded presentation contracts after port.",
+      "validation": "Real isolated mixed healthy/damaged/unusable-identity rows, strict-open and unchanged schema/API behavior; transaction errors and stale list guards."
+    }
+  ],
+  "handoff_evidence": [
+    {
+      "source": "cdbac522 private host inclusion plus root native source-sync registration",
+      "evidence": "web/src/renderer_host_source_sync.rs",
+      "observation": "The private page host copies the475-line baseline lifetime source with three documentation prefixes normalized and exactly the unused unchecked update_scene method omitted; an executed native equality test guards the precise transformation. The original library host/public API remain unchanged. This duplicates lifetime ownership and should be retired after a compatible private host boundary is designed.",
+      "status": "temporary source bridge; exact native synchronization and strict WASM/native checks pass; public viewer gates remain open"
+    },
+    {
+      "source": "5944a1df",
+      "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-toolbar-paired-20261002/RESULTS.md",
+      "observation": "The page binary cannot call the library crate private preparation_request, so the Case Generate button uses a private page-local projection of the matched-board readiness precondition. Tests cover missing/mismatched readiness and configured/case_ready cases; preparation_request remains final authority. This fixes a visible enabled-action/rejected-request mismatch but duplicates a small admission predicate across crates.",
+      "current_mitigation": "Keep the helper private and behaviorally aligned with preparation_request; retain its truth-table regression and lower-level admission as final authority.",
+      "post_port_follow_up": "Evaluate a supported shared admission contract or another narrow way to keep UI readiness projection and request authority aligned without widening incidental crate APIs.",
+      "validation": "Paired exact-archive Case journey shows Generate case disabled when the selected physical scope has no readiness row; native page tests and strict WASM Clippy pass."
+    }
+  ],
+  "frontend_helper_visibility_20261003": {
+    "evidence": "WASM page compiler warnings at source56a0459d; web/src/presentation.rs board_reference_* and dispatch helpers",
+    "observation": "Five host helper functions used only by the presentation subtree had crate-level visibility while their argument types were presentation-private. This created private-interface warnings and overstated the intended internal API.",
+    "current_mitigation": "Reduced helper visibility to the defining presentation module atd5f915b7; existing child call paths still compile. No public wire/save contract change.",
+    "post_port_follow_up": "Define private workbench host interfaces with visibility matching their actual consumers; avoid exposing composition callbacks as crate APIs by default."
+  }
+}
+```
 
 ## RF-003: CAD engine capabilities and host protocols drift apart
 
@@ -62,7 +579,81 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Evidence:** `cad/wasm/src/model/keycaps.rs`; `cad/wasm/src/lib.rs`; `cad/src/index.ts`; `app/src/CaseClient.ts`; `web/src/cad_jobs.rs`; `web/src/cad_worker.rs`
 
-5 additional source observations are indexed under this RF ID in the ledger.
+**Additional recorded details:**
+
+```json
+{
+  "category": "architecture / capability discovery",
+  "impact_priority": "high",
+  "discovered": "2026-10-02",
+  "baseline": "c827c4e6",
+  "workflows": [
+    "F6",
+    "F7",
+    "F8"
+  ],
+  "decision": "proposal only; no refactor/API/schema change approved by this entry",
+  "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
+  "linked_tasks": [
+    "BND.1"
+  ],
+  "handoff_evidence": [
+    {
+      "source": "Dioxus integration 89b1de8a28fdf02db91d972c90a69235bfbbbffb",
+      "evidence": ".scratch/dioxus-frontend-v1/evidence/case-shared3d-parity-reset-20261002/AUDIT.md",
+      "observation": "The Case shared-viewer projection sends empty board surfaces, holes and model arrays, while model_delivery.rs contains private selection/decode code but is not registered or called from the page presentation. The candidate displayed generated CAD body meshes without PCB/model meshes. This separates an existing helper source from its absent producer/provider/scene wiring and from the public no-mesh result.",
+      "status": "current F7.3 model-delivery integration remains open; no public API change inferred"
+    },
+    {
+      "source": "Paired TypeScript/Dioxus Case journey on imported-layered-sofle.boardstudio (SHA-256 5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df)",
+      "evidence": ".scratch/dioxus-frontend-v1/evidence/case-readiness-parity-20261002/RESULTS.md",
+      "observation": "At revision 9 with Left PCB/left instance selected and the default plate added, TypeScript renders its 90/90 physical model assembly while the Dioxus canvas is blank, confirming the baseline physical-model projection gap. Before adding a body, React Update preview is disabled, while Dioxus Generate case is enabled and preparation_request rejects it. The exact archive has zero case bodies and no effective per-instance/shared mechanical config, so React generation success was not reproduced and is not claimed.",
+      "status": "confirmed F7 Case public behavior blocker; separate viewer projection and UI readiness-predicate child slices required; not architectural acceptance"
+    },
+    {
+      "source": "Case producer2bf5b534 review 2026-10-02",
+      "observation": "Successful publication invalidates the same lease retained by snapshot; default Value serialization yields Maps while worker reads object fields; decoded model helper remains unconsumed. Required current fixes, not proof of a broad redesign.",
+      "status": "Astra regression-backed repair active; production packaging prerequisite separately recorded."
+    },
+    {
+      "date": "2026-10-02",
+      "source": "7be1770d60b1482a01a40a09b9e7e9024981bc99",
+      "evidence": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/current-wave-refresh.json",
+      "observation": "Case producer preview leases and renderer viewer identities use independent counters; joining their numeric values is invalid. Model.reference maps rendered picks to accepted board Part while Model.id remains mesh/cache identity. Cold STEP worker RefCell lifetime and same-CAD-scene/new-preview projection cache defects required actual mounted/source regressions. Full90/90 browser gate remains open.",
+      "status": "Current correctness repairs and independent/browser gates retained; structural refactoring deferred; no parent closure."
+    },
+    {
+      "source": "d425a2df actual34723 root/subpath",
+      "evidence": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/root-case-0of90-34723-20261002.json",
+      "observation": "Accepted PCB preview and3D viewer ready, but0of90 decoded withNo model asset ID is mapped. Existing bundled-byte provider used by archive is absent from Case model.path descriptor resolver/fetch ports. Narrow adapter must share verified digest mesh cache and real safe path mapping; provider availability is not frontend integration proof. Newmatrixproducer additionally reports unsafeKIPRJMOD path, separate defect under diagnosis.",
+      "status": "Actual browser defect confirmed; adapter implementation active;90/90/pick/reopen gate open. No structural refactor or parent waiver."
+    }
+  ],
+  "current_case_fixture_20261002": {
+    "source": "d425a2dfb56ac2d5576da076bed11272437f1ea2",
+    "fixture": "docs/migration/evidence/new-keyboard-guide-paired-20261002/new17-final-oracle-accepted-project.json",
+    "sha256": "658e2488ef3ac2514646f177c99b6c12f9f47561bd9a42211f72a93d1609b77a",
+    "observation": "Fresh4×4 MX matrix Case preview conversion rejects KIPRJMOD model path; reproduced independently. Distinct from frozen packaged model-fetch adapter; generator loop/diagnosis active, cause not yet established."
+  },
+  "follow_up_evidence": [
+    {
+      "date": "2026-10-03",
+      "task": "BND.1 groups-of-eight preview cancellation parity",
+      "baseline": "current Keycaps isolate before chunk adapter",
+      "certainty": "confirmed source parity gap repaired; user-visible unmount/success path qualified; in-worker cancel-message path is not called by Runtime",
+      "evidence": [
+        "web/src/cad_worker.rs",
+        "cad/src/index.ts",
+        ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+        ".scratch/dioxus-keycaps-workflow/evidence/keycaps-cad-batch-cancel-20261003/receipt-34769.md"
+      ],
+      "observation": "The Dioxus worker invoked build_keycaps once with the entire preview spec vector, while the pinned TypeScript wrapper builds groups of eight and yields between them. The packaged Rust WASM engine remains authoritative; this was a host scheduling/cancellation parity gap, not a missing CAD capability.",
+      "current_mitigation": "The adapter invokes the existing export in groups of eight, yields between groups, checks cancellation if received before a later group, and validates each returned batch revision before combining stable body/legend meshes. The Keycaps Runtime currently closes/terminates its worker on unmount or supersession instead of sending that message. Candidate34769 exercised pending-preview unmount, no late publication, and successful retry with no browser errors.",
+      "remaining": "BND.1 remains bounded/open; worker-message cancellation is unreachable through the Keycaps product owner. Immediate worker termination currently provides disposal without a second settlement lifecycle. Consider changing Runtime only if a measured user benefit emerges; no mid-kernel preemption or parent acceptance is claimed."
+    }
+  ]
+}
+```
 
 ## RF-004: Immutable export tokens do not model export-owned commits
 
@@ -82,6 +673,59 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Evidence:** `application/src/session.rs`; `app/src/exports/context.ts`; `app/src/exports/pcb.ts`; `web/src/runtime.rs`; `.scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/pcb-wiring-mode-source-review-1e5ef6ac-sol-20261002.md`
 
+**Additional recorded details:**
+
+```json
+{
+  "category": "architecture / transaction theory",
+  "impact_priority": "high",
+  "discovered": "2026-10-02",
+  "baseline": "c827c4e6",
+  "workflows": [
+    "F5",
+    "F8"
+  ],
+  "decision": "Necessary narrow private application/runtime API change authorized for the parity slice; broader operation-lineage refactor remains deferred",
+  "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
+  "linked_tasks": [
+    "BND.2",
+    "F8.2"
+  ],
+  "continuations": [
+    {
+      "date": "2026-10-02",
+      "source": "1e5ef6ac561136101f13cb5438a4f3e5d52cb6ba",
+      "observation": "The new PCB Wiring mode action filters successful Saved feedback against its old request token/revision after the accepted edit advances them. Independent review found success feedback unreachable; proposal-only tests missed production settlement.",
+      "during_port": "Separate stable feedback target and exact operation outcome from stale-action request identity; add mounted accepted-refresh/settlement tests before integrating.",
+      "post_port": "Assess transaction-owned accepted-version transitions consistently across export and authoring feedback. Preserve pre-submit stale guards; do not waive visible feedback or history acceptance."
+    },
+    {
+      "date": "2026-10-03",
+      "source": "F8.3a isolated source packet; integrated commit pending",
+      "observation": "The full/draft KiCad adapter now submits applied-wiring and post-package protection mutations as child operations tied to the parent export. Session runs both through the normal Core queue/persistence/history and advances only that still-registered owner's snapshot token; other active exports are cancelled. The changed browser/download journey and save-failure/unrelated-edit race evidence remain pending, so no lifecycle matrix claim is made.",
+      "evidence": ".scratch/dioxus-frontend-v1/issues/08-export-pcb-handoff-slice.md; .scratch/dioxus-frontend-v1/evidence/export-pcb-handoff-20261003/REACT-RECEIPT.md",
+      "status": "source-level mitigation in isolated packet; parent and runtime qualification remain open"
+    }
+  ],
+  "follow_up_evidence": [
+    {
+      "date": "2026-10-03",
+      "task": "34769 export completion source review",
+      "source": "2c33e57f",
+      "observation": "The new Session-owned handoff correctly advanced its active export token after electrical apply/protection, but generic Runtime delivery still used the effect initial snapshot token. Consolidated source review found that mismatch before public packaging.",
+      "current_mitigation": "The handoff returns its exact final guarded token with artifact bytes; owner check, Artifact and ExportFinished carry it, while ordinary exports retain their captured token. Existing scope/session/executor/worker guards remain.",
+      "post_port_follow_up": "Model export-owned accepted transitions and terminal artifact identity in a typed operation result rather than let generic delivery infer immutability from the initial Effect capture.",
+      "evidence": [
+        "web/src/runtime.rs",
+        "application/src/session.rs",
+        "/home/chris/.local/share/boardstudio/reviews/candidate-34769-20261003/REVIEW.md"
+      ],
+      "certainty": "source-verified candidate implementation defect repaired before browser build; no executed RED claim"
+    }
+  ]
+}
+```
+
 ## RF-005: Geometric edit planning lives in frontend helper policy
 
 **Status:** observed; structural proposal deferred until post-port review
@@ -100,7 +744,114 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Evidence:** `app/src/ui/planKeycapResize.ts`; `app/src/ui/keycapReflow.ts`; `application/src/interactions.rs`; `core/src/matrix/layout.rs`; `app/src/closureClearance.ts`; `app/src/createProjectActions.ts`; `core/src/lib.rs`; `core/src/model.rs`; `web/src/case_settings.rs`
 
-4 additional source observations are indexed under this RF ID in the ledger.
+**Additional recorded details:**
+
+```json
+{
+  "category": "architecture / domain ownership",
+  "impact_priority": "medium",
+  "discovered": "2026-10-02",
+  "baseline": "c827c4e6",
+  "workflows": [
+    "F3",
+    "F6",
+    "F7"
+  ],
+  "decision": "proposal only; no refactor/API/schema change approved by this entry",
+  "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
+  "linked_tasks": [
+    "F6C.3",
+    "F7.4e"
+  ],
+  "follow_up_evidence": [
+    {
+      "date": "2026-10-02",
+      "task": "first frontend tranche to-tickets proposal",
+      "baseline": "530e60dd",
+      "proposal": ".scratch/dioxus-frontend-tranche-1/PROPOSAL.md",
+      "observation": "The reference selection controller carries matrix/row/column context and computes an anchored live-member rectangle. The current Dioxus caller supplies flat visible part IDs to a Session Range operation that selects their linear interval and advances its anchor. Semantic tree context is absent from the read model. This extends the frontend interaction-policy ownership finding beyond resize/reflow.",
+      "certainty": "source-confirmed behavior mismatch; public regression reproduction remains required",
+      "evidence": [
+        "app/src/ui/useWorkbenchSelection.ts:37-54",
+        "web/src/presentation.rs:1046",
+        "application/src/session.rs:102-115",
+        "application/src/session.rs:602-625"
+      ],
+      "current_mitigation": "Proposed T1-10 proves a private semantic-context adapter while Session keeps real part selection. T1-12 first reproduces the rectangle/anchor mismatch, then Astra repairs the bounded behavior using existing contracts.",
+      "post_port_follow_up": "Review one explicit home for matrix selection context, anchor policy and part-ID membership, avoiding overlapping writable selection stores.",
+      "validation": "Paired range traces with repeated Shift, toggles, empty/disabled cells and board switches; no fabricated part IDs, stale scope or extra document revisions."
+    },
+    {
+      "date": "2026-10-02",
+      "task": "Case mechanical-settings private contract and F7.4e draft",
+      "baseline": "integration source reviewed 2026-10-02",
+      "proposal": ".scratch/dioxus-case-workspace/evidence/mechanical-settings-contract/implementation-contract.md",
+      "observation": "Pinned React closure-clearance projection includes canonical and physical-instance configurations, reflected X positions, five-decimal board/XY deduplication with maximum drill, generated NPTH parts/definitions and board/layout membership. The Rust SetMechanical operation assigns only the canonical mechanical field; physical configuration helper alone does not generate PCB clearance objects.",
+      "certainty": "source-confirmed frontend behavior and Rust operation boundary; candidate parity and public regression proof remain pending",
+      "evidence": [
+        "app/src/closureClearance.ts",
+        "app/src/createProjectActions.ts",
+        "core/src/lib.rs:1182",
+        "core/src/lib.rs:1343",
+        "web/src/case_settings.rs"
+      ],
+      "current_mitigation": "Draft F7.4e requires one private accepted-document projection and one existing ReplaceDocument/Session edit; closure initialization remains a separate resolution-dependent behavior. No public API, schema, library asset, or geometry-engine change is proposed.",
+      "post_port_follow_up": "After parity, assess where narrowly scoped frontend edit planning belongs relative to accepted document operations; retain core as geometry authority and avoid a duplicate planner.",
+      "validation": "Public Case configure/edit/disable in canonical and physical-instance scopes; saved generated parts/definitions and memberships; flipped/colliding closures; failure atomicity; one-step Undo/Redo and native archive reopen."
+    },
+    {
+      "date": "2026-10-02",
+      "task": "Mechanical effective proposal projection seam review",
+      "baseline": "6509f557c2a16df0a1f5ce19296eeb635df68256",
+      "proposal": ".scratch/dioxus-frontend-v1/evidence/planning/mechanical-effective-projection-cost-20261002.md",
+      "observation": "Existing captured_case_document can project a short-lived proposed canonical document through effective Case policy. A paired document/scene call invokes effective_case_inputs twice, cloning two full documents and two full scenes while discarding one output per call; this is a bounded per-resolution cost, not a measured performance claim.",
+      "certainty": "source-reviewed existing projection behavior and proposed private carrier seam; implementation/public acceptance remain open",
+      "evidence": [
+        "application/src/session.rs:51",
+        "web/src/cad_jobs.rs:241-272",
+        "web/src/cad_jobs.rs:470"
+      ],
+      "current_mitigation": "Validate the original AcceptedSnapshot, full Scope, proposal ID and revision; use an ephemeral carrier sharing the original scene Arc/token/epoch solely with captured_case_document, then discard it. Avoid per-render calls and extra caller clones; no public API or copied policy.",
+      "post_port_follow_up": "After parity, reassess the bounded full-document/full-scene projection cost using actual resolution frequency and workload; do not infer a performance problem or optimize without measurements.",
+      "validation": "Prove accepted snapshot/scope guards, canonical and flipped-instance results, matching original-snapshot contours without double reflection, unchanged accepted document/history and stale rejection."
+    }
+  ],
+  "handoff_evidence": [
+    {
+      "source": "a896cd49; paired React5a472a94",
+      "evidence": ".scratch/dioxus-workbench-parity/evidence/matrix-keycaps-wave-20261002/RESULTS.md",
+      "observation": "Exact Layout-matrix→Keycaps→SW7 journey differs: React retains matrix selection/first SW1, Dioxus selects SW7 alone. Independent source diagnosis traces React setSelectionMode(key) followed by choosePart using captured previous mode; classification as confirmed legacy stale-state bug is under review, not silently declared parity.",
+      "status": "bounded fixes recorded; shared selection discrepancy under source diagnosis; full acceptance and structural refactor open"
+    },
+    {
+      "source": "React5a472a94 vs Dioxus92db0b8f",
+      "evidence": ".scratch/dioxus-workbench-parity/evidence/matrix-keycaps-wave-20261002/keycaps-selection-diagnosis/DIAGNOSIS.md",
+      "observation": "Confirmed legacy stale-closure defect: explicit setSelectionMode(key) immediately followed by captured choosePart still uses Matrix and selectScope restores Matrix. Paired intended single-key oracle passes Dioxus, fails React; manual Key mode first fixes reference path. Preserve correct Dioxus behavior as explicit user-Q1 bug exception; retain original mismatch and earlier hypothesis.",
+      "status": "confirmed legacy defect documented; candidate regression proof retained; broader selection/lifecycle refactor and full Keycaps acceptance open"
+    },
+    {
+      "source": "Reviewed Layout planning packetfb8f776d; published exact childrenee10407a",
+      "evidence": ".scratch/dioxus-layout-authoring/evidence/transform-align/rf-handoff.md",
+      "observation": "Normal Event::Edit Preview lacks gesture-generation cancellation/clear-preview authority. Fields-only transform and one-shot alignment can use existing commit authority; pointer Stagger/Splay/Origin remain separately gated. Align AABB policy uses accepted courtyard/keycap corners and matrix-local operations.",
+      "status": "Source-backed lifecycle prerequisite retained; no pointer-tool or parent parity claim."
+    },
+    {
+      "date": "2026-10-03",
+      "source": "11289ba5: web/src/presentation/objects/existing_half.rs::prepare_existing_half",
+      "evidence": ".scratch/dioxus-layout-authoring/evidence/f32c-existing-half-source-20261003.md",
+      "observation": "Mirror-existing-half eligibility, relationship checks, matrix/layout identity allocation and proposed-document construction now live in a private presentation controller before one ReplaceDocument edit. This ports the existing React frontend policy; Core linked-layout resolution still owns reflected geometry. The action is mounted but not yet browser-qualified.",
+      "current_mitigation": "Keep one captured accepted owner and one normal edit; do not add a second mirror geometry algorithm. Any source-parity repair remains current work, with qualification deferred to the larger candidate.",
+      "post_port_follow_up": "Consider an application-owned typed mirror-existing-layout operation/proposal that centralizes entity allocation and relationship rules, leaving form drafts and accepted-result camera effects in presentation. Evaluate alongside existing matrix/mirror/closure edit planners.",
+      "validation": "Preserve IDs, assemblies and linked geometry, atomic history, stale-source rejection and save/reopen across the same user workflow; measure ownership simplification before generalizing."
+    }
+  ],
+  "linked_cell_assembly_override_20261002": {
+    "observation": "Fresh linked-half assembly replacement requires assemblies_local; otherwise canonical Core synchronization restores inherited data. Preseeded local fixtures hid this omission.",
+    "during_port": "Author repair exercises actual Core acceptance and Undo/Redo from a non-local linked cell; expected-red evidence must pass through Core synchronization.",
+    "post_port": "Assess whether private edit construction can encode explicit override intent without scattered flag handling."
+  }
+}
+```
 
 ## RF-006: Canonical, physical-instance and isolated sample scopes are easy to conflate
 
@@ -120,7 +871,192 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Evidence:** `app/src/ui/Workbench.tsx`; `app/src/ui/LibraryWorkspace.tsx`; `app/src/exports/cases.ts`; `web/src/cad_jobs.rs`; `web/src/presentation/pcb_wiring/mode.rs`; `.scratch/dioxus-pcb-view/evidence/pcb-apply-mode-disabled-20261002/private-probe-20261003.md`
 
-15 additional source observations are indexed under this RF ID in the ledger.
+**Additional recorded details:**
+
+```json
+{
+  "category": "design / coordinate and identity model",
+  "impact_priority": "high",
+  "discovered": "2026-10-02",
+  "baseline": "c827c4e6",
+  "workflows": [
+    "F3",
+    "F4",
+    "F5",
+    "F6",
+    "F7",
+    "F8"
+  ],
+  "decision": "proposal only; no refactor/API/schema change approved by this entry",
+  "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
+  "linked_tasks": [
+    "F7.3",
+    "F7.7",
+    "F8.5"
+  ],
+  "handoff_evidence": [
+    {
+      "source": "Case/Keymap current integration; final source commit pending",
+      "evidence": ".scratch/dioxus-frontend-v1/evidence/case-keymap-current/refactor-handoff.md",
+      "observation": "Case draft source review found target reuse, clean Undo refresh, repeated rejection retry, overlapping pending feedback and scope-change busy-state defects. Scoped subtree key and request-specific terminal observations correct these in source; browser acceptance remains pending.",
+      "status": "bounded mitigation/evidence update; broad structural refactor deferred"
+    },
+    {
+      "source": "dc81237c and pinnedReactInspectorControls; exactdiagnosishashes retained",
+      "evidence": ".scratch/dioxus-frontend-v1/evidence/case-keymap-current/escape-diagnosis/diagnosis.md",
+      "observation": "Inherited native positive numeric constraints min0.001+step0.1 mark valid saved thickness3 as stepMismatch in both implementations. Core validation and saved values remain correct; this is a confirmed browser/input semantics gap for post-port review, not a newlyintroduced cancellation defect. Six correctly invoked Escape checks restore accepted 0, focus and unchanged storage. The original blank observation used invalid `press @ref Escape` driver syntax and is retired as application evidence; no application cancellation regression or source fix was found.",
+      "status": "recorded; no speculative Escape sourcepatch or silent sharedparity change"
+    },
+    {
+      "source": "reviewed a8c9524 layer controller and integrated root mount",
+      "evidence": ".scratch/dioxus-keymap-layers/evidence/integrated-layer-controls",
+      "observation": "Layer editing required distinct raw requested IDs versus resolved displayed fallback, admission accepted-name keys versus unrelated token advances, and exact acknowledgement-token mismatch feedback. Independent review found and corrected these branches. The controller remains a wasm hook, so native page tests do not execute its UI correlation; actual Core/Session tests and strict wasm compilation are separate from required public UI proof.",
+      "status": "current source corrections clear; public acceptance open; retain later state-machine/test-boundary refactor assessment"
+    },
+    {
+      "source": "Standards-reviewed Case effective proposal seam at 6509f557c2a16df0a1f5ce19296eeb635df68256",
+      "evidence": ".scratch/dioxus-frontend-v1/evidence/planning/mechanical-effective-projection-cost-20261002.md",
+      "observation": "The proposed canonical Case document must be projected with captured_case_document, while matching contours use captured_case_scene on the original accepted snapshot. That keeps physical-instance reflection/winding in the existing projection once, avoids persisting/reflection-twice errors, and keeps the temporary carrier out of Session, accepted read models, CAD cache/job preparation, export and operation identity. The paired helpers incur two full document and two full scene clones per resolution because each invokes effective_case_inputs and discards one output.",
+      "status": "source-reviewed private seam and bounded cost observation; implementation and public acceptance remain open; no public visibility or schema change"
+    },
+    {
+      "source": "Keymap binding editor source 6509f557; paired public candidate/React native focus probes",
+      "evidence": ".scratch/dioxus-frontend-v1/evidence/planning/binding-focus-continuity-handoff-20261002.md",
+      "observation": "Actual native Tab during candidate blur-save moves focus to BODY while single-flight disables controls; the React reference moves focus to Hold. After-idle native pointer/selection preserves and saves both Tap and Hold. A prior synthetic agent-browser select red reproduced on React and is retired as driver/event ordering, not candidate-only data loss.",
+      "status": "bounded focus-continuity difference recorded; focused public packet complete; broad F6 acceptance and actual AT remain open; no AT pass or parent closure claimed"
+    },
+    {
+      "source": "Mechanical-settings candidate 0cad7577; public UI import of genuine React Sofle split archive",
+      "evidence": ".scratch/dioxus-case-workspace/evidence/public-mechanical-settings/candidate-0cad7577/RESULTS.md",
+      "observation": "Visible UI changed only the Right physical instance to CNC while preserving the imported Left config, mount IDs/coordinates, generated parts/definitions and memberships exactly. In Right scope Disable cleared all eight generated closure parts/definitions; Undo/Redo restored and removed them; candidate archive and readonly accepted ProjectDoc matched on the full document, and reload retained both instances and memberships.",
+      "status": "bounded public confirmation of the existing canonical-versus-physical-instance distinction; no new refactoring issue or scope/API change; draft/layout, authored mesh/STEP and whole-parent acceptance remain open"
+    },
+    {
+      "source": "Macro public candidate 9ef5bc5c; paired React same-fixture interaction",
+      "evidence": ".scratch/dioxus-keymap-layers/evidence/public-macro-editor/RESULTS.md",
+      "observation": "On both candidate and React, entering invalid tap duration 10001 ms showed the Core validation error and preserved the prior accepted value (45 ms); reverting the field to the already-accepted 45 ms did not clear the global error, while a later distinct valid value did. This is a paired existing behavior, not a candidate-only regression or proposed fix. Public archive/history/reload behavior passes; firmware output and selected ceilings/pending-document race remain unexercised.",
+      "status": "bounded paired RF-006 observation; preserve source parity, no candidate-only fix indicated; broader F6/firmware gates remain open"
+    },
+    {
+      "source": "Parts preview source review/correction candidate 05a1dac4",
+      "evidence": ".scratch/dioxus-workbench-parity/evidence/integration-handoff-20261002.md; /tmp/frontend-parity-reset-20261002/parts-projects/source-spec-review.md",
+      "observation": "The first private preview draft mutated plain Cell/RefCell values returned through use_hook, so request-generation ownership did not persist across renders and an A→B→A scope cycle could alias an old owner. The reviewed correction retained shared hook state. The first geometry draft also inverted the already-Y-up graphic coordinates when computing bounds; the correction aligns bounds with rendered coordinates. These are candidate-source corrections, not integrated or paired-verified Parts behavior; exact React fixture framing remains open.",
+      "status": "Original lifecycle and coordinate-frame defects closed in source review through 05a1dac4; preview remains unmounted in integration and public/build verification is pending. No new RF or broad scope abstraction is proposed."
+    },
+    {
+      "source": "Keymap selected-option remount correction deba7087; immutable public candidate 92db0b8f",
+      "evidence": "/tmp/frontend-parity-reset-20261002/keymap/green-92db0b8f/README.md; /tmp/frontend-parity-reset-20261002/keymap/paired/react-return-keys.txt",
+      "observation": "The previously red filtered SW7 return-to-Keys path now retains the same accepted selection identity after both Macros→Keys and Encoders→Keys remounts; the selected option and layer projection agree with the retained same-fixture React reference. Clearing the query and selecting SW8 on canvas also retains its identity over Function→Main while presenting Transparent then Unassigned.",
+      "status": "Targeted public selection-lineage regression passes at immutable candidate 34691; read-only project revision/hash unchanged. Full Keymap/F6K and parent acceptance remain open; retained under RF-006 without a new register ID."
+    },
+    {
+      "source": "React5a472a94 vs Dioxus92db0b8f",
+      "evidence": ".scratch/dioxus-workbench-parity/evidence/matrix-keycaps-wave-20261002/keycaps-selection-diagnosis/DIAGNOSIS.md",
+      "observation": "Confirmed legacy stale-closure defect: explicit setSelectionMode(key) immediately followed by captured choosePart still uses Matrix and selectScope restores Matrix. Paired intended single-key oracle passes Dioxus, fails React; manual Key mode first fixes reference path. Preserve correct Dioxus behavior as explicit user-Q1 bug exception; retain original mismatch and earlier hypothesis.",
+      "status": "confirmed legacy defect documented; candidate regression proof retained; broader selection/lifecycle refactor and full Keycaps acceptance open"
+    },
+    {
+      "source": "F5.2a board-level electrical query identity",
+      "evidence": ".scratch/dioxus-pcb-view/evidence/wiring-context-20261002/implementation-handoff.md",
+      "observation": "The Wiring plan is board-scoped and normalizes Scope.instance_id to None, matching the reference ResolveElectrical request. The helper separately validates the accepted board/session/document and executor identity. This is distinct from Case/mechanical instance projection and must not be reused as a generic scope normalization rule.",
+      "current_mitigation": "Carry an explicit board Scope(instance_id=None) for electrical resolution and retain the existing physical-instance scope for mechanical operations.",
+      "post_port_follow_up": "Include board, physical-instance and isolated-sample queries in the proposed typed scope/query lifecycle evaluation; preserve each consumer projection and identity independently.",
+      "validation": "Switch between board and physical-instance workspaces while a query is pending; verify board Wiring stays board-scoped and instance mechanical operations retain their captured instance identity.",
+      "status": "source-level distinction recorded; root mount, async lifecycle and paired browser checks remain open"
+    },
+    {
+      "date": "2026-10-03",
+      "source": "Shared 2D footer implementation based on 471b87e7",
+      "evidence": ".scratch/dioxus-keymap-layers/issues/01-keymap-projection-selection.md",
+      "observation": "The footer Grid entry point spans a shared root footer and workspace-local Layout/PCB command menu. Reusing the menu requires lifting only its transient open-menu signal and passing it through existing private toolbar inputs; snap values, camera state, and callbacks remain root-owned. This is additional RF-001 integration evidence, not a new authority or a measured hotspot reduction.",
+      "current_mitigation": "One private footer leaf and the existing Snap/camera owners; root composition stays thin and source-specific callbacks retain captured owner guards.",
+      "status": "Isolated implementation in progress; combined source check and changed paired journey remain pending."
+    },
+    ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/root-ledger-reconciliation.md",
+    {
+      "date": "2026-10-02",
+      "source": "7be1770d60b1482a01a40a09b9e7e9024981bc99",
+      "evidence": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/current-wave-refresh.json",
+      "observation": "Keymap search/tab lifetime must follow accepted selected-owner changes; React keys its Inspector content by board/scope/part, while the Dioxus unscoped query hid newly canvas-selected SW18 behind stale SW17 filter. Actual production-mounted repair6c2468f3 has expected red→green, independent/browser gates remain open.",
+      "status": "Current correctness repairs and independent/browser gates retained; structural refactoring deferred; no parent closure."
+    },
+    {
+      "date": "2026-10-03",
+      "source": "PCB Issue 23 mounted-module support/clearance continuation",
+      "evidence": ".scratch/dioxus-pcb-view/issues/23-mounted-module-supports-and-clearance.md; web/src/presentation/pcb_module_inspector.rs",
+      "observation": "Support-hole identities are source-local to the selected ModuleDefinition; resolved support coordinates are read-only data from the accepted module scene. The edit remains scoped to the selected project/document/session/board/module and does not persist a displayed physical-instance projection.",
+      "status": "private UI implementation reuses the accepted scoped owner; changed paired save/history/reopen evidence pending"
+    }
+  ],
+  "resumed_wave_20261002": "2026-10-02: Physical setup controls need rendered identity envelopes and live guide-stage predicates across asynchronous normalization; stale handlers and bare feedback can retarget/leak across scopes. Astra production regression repair active; public guide join remains open.",
+  "current_diagnosis_20261002": {
+    "outline": "Current34727 paired Bridge selection blanks canvas at755% while React461% renders selected bridge. Isolated regression/camera repair assigned; copy/delete/Undo/reopen bounded journey green, full outline acceptance open."
+  },
+  "case_transport_owner_20261002": {
+    "observation": "Case assembly transport controls were rendered in active physical-instance scope, but their action owner additionally required a selected part-tree context. With Case selected and no part selected, the visible Wireless control changed only transient DOM state: accepted hardware.transport stayed wired, wired guidance remained, export was unchanged, and reload reset the selector. This conflated assembly-scope transport ownership with part-selection ownership.",
+    "current_mitigation": "Case physical-setup owner admission now checks the accepted Case workspace and captured session/document/board/instance scope without requiring a selected part-tree context; common generation/token/revision/current-instance guards remain in place. ProjectGuide admission is unchanged.",
+    "post_port_follow_up": "Audit other controls whose owner is an active assembly scope separately from part/tree-selection actions; consider a typed owner distinction only during the planned post-port review. Do not widen APIs or relax captured identity guards.",
+    "validation": "Focused browser-WASM owner regression failed before the correction and passed after it. Strict WASM Clippy, rustfmt and diff checks pass. The public candidate repro and accepted wireless-archive projection comparison are retained in the linked handoff; the post-fix public workflow remains open.",
+    "evidence": ".scratch/dioxus-case-workspace/evidence/case13-wireless-right-transport-admission-20261002/implementation-handoff.md",
+    "status": "bounded Case13 source correction; independent source review and fresh public re-run remain open; no API/schema change or parent acceptance"
+  },
+  "case_legacy_gasket_support_admission_20261003": {
+    "observation": "Current Core emits supports for legacy mount=Gasket configurations with no internalGasket. The contextual field/controller originally required internalGasket even though the reference resize operation persists gasketLayout support anchors for both providers.",
+    "current_mitigation": "Remove only the private internalGasket admission predicate; keep Gasket mount, current owner/snapshot/scope and payload/finite-value checks. No Core/provider/schema/API semantics change.",
+    "provider_limitation": "Legacy core/src/mechanical/gasket.rs honors saved anchor identity, region, outline, perimeter position and unlink state, but resolves support length/width from global gasketLayout values rather than each saved anchor override. Per-support dimension metadata is persisted by the reference path too; this repair preserves that provider behavior and does not claim a rendered legacy dimension correction.",
+    "evidence": ".scratch/dioxus-case-workspace/evidence/legacy-gasket-support-admission-20261003/README.md",
+    "status": "Bounded admission repair; contextual current/legacy public journeys and full Case parents remain open."
+  },
+  "case_mechanical_resolution_display_20261003": {
+    "observation": "Mechanical Inspector findings/support rows currently derive from a successful exact CadScene, while the existing read-only ResolveMechanical owner can return blocked assemblies. CAD preparation discards blocked assembly output before scene publication. This couples mechanical diagnostic display to successful preview delivery.",
+    "evidence": ".scratch/dioxus-case-workspace/evidence/current-mechanical-resolution-diagnosis-20261003/README.md",
+    "status": "Architectural/error-state investigation only. Initial zero-row configured Gasket observation was transient and the completed candidate resize/Undo/Redo/reopen journey succeeds with17 pairs/40 layers. No persistent-zero bug, cache repair, public paired closure or parent acceptance is claimed.",
+    "post_port_follow_up": "If a settled blocked-result display failure is reproduced, preserve exact accepted scope/token/revision/executor/lifetime and reuse the existing current mechanical resolver independently from CAD geometry; avoid a second authority or provider change."
+  },
+  "execution_observations": [
+    {
+      "date": "2026-10-03",
+      "source": "Sol37d81320 matrix owner review; Keymap actual34758 nativeTab RED",
+      "observation": "Duplicate continuation/recovery lacks full navigation identity; preset draft crosses documents reusing matrix IDs/settings. Pending binding edit disables native Tab target despite stable DOM key.",
+      "mitigation": "Matrix captures/revalidates logical clone/draft owner; Keymap retains admitted focus while pending handler rejects additional edit. Changed candidate proof awaited.",
+      "post_port": "Separate durable edit admission from focus availability; standardize captured async and draft lifetimes."
+    }
+  ],
+  "canvas_entry_wave_20261003": {
+    "date": "2026-10-03",
+    "source": "2107f980;79af180f;0bfa0bc4;83b49eca",
+    "evidence": ".scratch/dioxus-pcb-view/evidence/20-add-object-20261003/public-34761.json",
+    "observation": "Paired actualbrowser found missing empty-board and pending-placement entry/help despite accepted editing capabilities. Sharedroot composition still obscures workbench board Inspector and menu parity. Matrix recovery/report had independent scope/token/epoch/revision arguments; source83b bundles existing accepted request identity. Cargo fmt wholemodule registration changed main.rs during a frozen packaging attempt; strict compiler caught outdated fixture adapters after private component extraction.",
+    "current_mitigation": "Private emptyboard/footer leaves, reuse existing scoped controllers, callback acceptance guards, focused sharedcheck and changedbrowserdeltas; targetrustfmt withskip_children. Preserve all failures and unprovedcriteria.",
+    "post_port_proposal": "Consolidate contextual projection/action ownership and boardidentity bundles after parity; define one formatting/build publisher and one progress/evidence record toreduce accidental sharedfile changes.",
+    "validation": "Exercise same UI journeys acrosscontext/history/reopen; maintain source/asset provenance, no inventedacceptance or newduplicated tests."
+  },
+  "continuations_20261003": [
+    {
+      "source": "BoardInspector7c1c/9a36 andGeometryscripts226fe, source34764/661296fe; consolidatedSol delta review",
+      "observation": "Board local drafts use a request owner containing snapshot token/revision and reset on unrelated accepted refresh; Geometry local drafts omit logical document/session identity and can survive a switch into another document with an equal script tuple. Freshness admission and logical draft identity are distinct and this distinction is repeatedly reimplemented. Newscript also uses a restartable Runtime operation number as a persistent entity ID, so reopen/import can collide with retained IDs.",
+      "mitigation": "ActiveLayout correction separates logical draft identity from latest render/request capture, scopes Script selection/drafts to document/session and checks entity-ID uniqueness before append. No second document owner.",
+      "post_port_follow_up": "Consider small typed admission/draft identity and persistent entity allocation interfaces; characterize refresh versus switch boundaries before centralizing. Preserve workspace semantic target validation.",
+      "status": "Confirmedsource defects; correction/changedcandidateGREEN pending, no parent closure."
+    },
+    {
+      "source": "PCBmountedInspector4d8/96ab, consolidated34765 review and actualchangedUndojourney",
+      "observation": "The initial mounted Inspector source read the local draft Signal it resets, and used an incomplete module mount key. Source96ab corrected both before34765 was packaged. Save/reopen and settled Undo X35→32.5/Redo→35 are GREEN on frozen17ba/provenance273ca. The earlier apparent stale Undo fields were an immediate unsettled observation on that same source, not a reproduced defect or a distinct older RED.",
+      "mitigation": "96ab uses peek and completeScope mount key. Existing Core/Session edit/history remains authoritative. No further source change or new regression test needed for the uncertain immediate observation.",
+      "post_port_follow_up": "Define accepted-baseline synchronization and transient draft ownership explicitly before centralizing form lifecycle helpers. Reuse typed scope and admission instead of independent parameter lists/keys.",
+      "status": "Source finding corrected before public34765; bounded Save/reopen and settled accepted-history transitions GREEN. Full PCB criteria remain.",
+      "evidence": ".scratch/dioxus-pcb-view/evidence/22-mounted-module-placement-inspector-20261003/undo-redo-settled-34765.md",
+      "superseded_observation": "Initial report described stale visible Undo draft and assigned repair; settled capture and source provenance do not support that diagnosis. Preserve this correction and the initial uncertainty."
+    }
+  ],
+  "component_owner_keys_20261003": {
+    "evidence": "WASM page compiler deprecated-key warnings; web/src/presentation/mechanical_settings.rs OpeningControls/CriticalFitControls; release34773 encoder_editor.rs CW/CCW/push keys; a62d4fda+c95b3dea; source compiler logs15/16",
+    "observation": "Keys placed on later sibling component nodes are ignored by Dioxus. The intended owner-remount boundary was therefore not provided by those keys; no saved-state loss is inferred from the warning.",
+    "current_mitigation": "Existing single-item keyed iteration boundaries applied to Case owners and encoder binding editors. The added FnMut iterations require cloned owned target/label/binding props; the compiler found nine moves, repaired together without new tickets/review. Combined c95b3dea source compiles with zero warnings. Changed owner/Undo/reopen behavior and release warning removal remain for later candidate qualification. Release package5c8161cf/34774 now also reports zero compiler warnings on both routes; its owner behavior remains unqualified.",
+    "post_port_follow_up": "Use one small scoped-owner component boundary for forms so selection/scope retirement does not rely on repeated RSX key-placement details."
+  }
+}
+```
 
 ## RF-007: Runtime observation currently supports one subscriber
 
@@ -140,6 +1076,31 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Evidence:** `web/src/runtime.rs`
 
+**Additional recorded details:**
+
+```json
+{
+  "category": "architecture / reactivity",
+  "impact_priority": "medium",
+  "discovered": "2026-10-02",
+  "baseline": "c827c4e6",
+  "workflows": [
+    "F2",
+    "F3",
+    "F4",
+    "F5",
+    "F6",
+    "F7",
+    "F8"
+  ],
+  "decision": "proposal only; no refactor/API/schema change approved by this entry",
+  "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
+  "linked_tasks": [
+    "INT.1"
+  ]
+}
+```
+
 ## RF-008: Archive packing capability is split from its UI options and asset resolution
 
 **Status:** observed; structural proposal deferred until post-port review
@@ -157,6 +1118,77 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 **Validation:** Reference/candidate round trips with imported assets, bundled used models enabled/disabled, missing asset failures and identical project-name output.
 
 **Evidence:** `app/src/storage.ts`; `app/src/ui/Workbench.tsx`; `web/src/runtime.rs`
+
+**Additional recorded details:**
+
+```json
+{
+  "category": "design / persistence orchestration",
+  "impact_priority": "medium",
+  "discovered": "2026-10-02",
+  "baseline": "c827c4e6",
+  "workflows": [
+    "F2",
+    "F4",
+    "F8"
+  ],
+  "decision": "proposal only; no refactor/API/schema change approved by this entry",
+  "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
+  "linked_tasks": [
+    "F2.2",
+    "F8.1"
+  ],
+  "follow_up_evidence": [
+    {
+      "date": "2026-10-02",
+      "task": "first frontend tranche to-tickets proposal",
+      "baseline": "530e60dd",
+      "proposal": ".scratch/dioxus-frontend-tranche-1/PROPOSAL.md",
+      "observation": "Demo fixture opening currently reuses archive import, which submits the parsed project identity unchanged, whereas React demo constructors allocate a fresh project ID. A fixture reopen therefore must not be assumed to have editable-copy identity semantics.",
+      "certainty": "source-supported copy-identity risk; repeated-open browser reproduction not yet performed",
+      "evidence": [
+        "app/src/demos/keyboards.ts:17",
+        "app/src/demos/sofle.ts:16",
+        "web/src/runtime.rs:668-763"
+      ],
+      "current_mitigation": "Proposed T1-04 characterizes repeated demo starts and preserves prior edited copies through a private demo action. Confirmed defects go to Astra; ordinary archive-import identity semantics must remain unchanged.",
+      "post_port_follow_up": "Separate explicit open-existing/import-archive/start-demo-copy intent and identity ownership while sharing archive validation and asset transport.",
+      "validation": "Start the same demo twice, edit/save each, and independently reopen both with identical intended asset references; stale/failing starts cannot replace later work."
+    },
+    {
+      "date": "2026-10-03",
+      "task": "RGB fixture model portability",
+      "source": "bbd4da1b",
+      "observation": "Fixture model loading crossed a URL-to-filesystem boundary without decoding. RGB exposed an existing percent-encoded space in a STEP model URL; file bytes and library metadata were present and unchanged.",
+      "current_mitigation": "Decode local URL pathname only at Node filesystem access; actual fixture-stage RED then GREEN all4fixture/model-hash assertions.",
+      "post_port_follow_up": "Keep URL, filesystem path and archive asset identity distinct in asset-resolution interfaces and maintain representative encoded-name portability inputs.",
+      "evidence": [
+        "scripts/prepare-m1-fixtures.mjs",
+        ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/fixture-url-decoding-regression.json"
+      ]
+    }
+  ],
+  "continuations": [
+    {
+      "date": "2026-10-03",
+      "source": "be4ec41225259fbc4b3c2b5587b0d729043d401b",
+      "confidence": "confirmed Core output collision and bounded corrected browser ZIP on candidate 34767; broader Export parent gates remain open",
+      "observation": "The retained Sofle export fixture has four distinct Ergogen definition IDs whose names sanitize to switch_mx. Pinned React export-worker throws on the duplicate archive path, and the initial Dioxus Core adapter reached the same ambiguous filenames after its preview-worker owner envelope was corrected. Core now preserves legacy stems when unique and adds a deterministic definition-ID digest suffix only for colliding sanitized names; the KiCad root name follows each changed filename stem. Archive duplicate-path validation remains strict. Paired candidate source 3a080e0e99d0638ddc1b562b3fc5a8ac91f3fefd produced a valid 1,584,592-byte ZIP for the 14-definition retained project: 14 footprints, six SHA-verified model assets, library table, and utilities note. Four switch and four diode collisions had distinct filenames and matching internal KiCad names.",
+      "evidence": [
+        "core/src/artifact/kicad/output.rs",
+        "core/src/artifact/kicad/output/tests.rs",
+        ".scratch/dioxus-frontend-v1/evidence/export-footprints-20261003/RECEIPT.md",
+        "/home/chris/.local/share/boardstudio/reviews/export-workspace-20261003/react-footprints-baseline.md",
+        "/home/chris/.local/share/boardstudio/reviews/export-workspace-20261003/dioxus-34767-footprints-receipt.md",
+        "/home/chris/.local/share/boardstudio/reviews/export-workspace-20261003/Sofle-v2-footprints.zip"
+      ],
+      "during_port": "Keep path identity and output-name ownership in Core; do not soften archive duplicate-path rejection or duplicate naming logic in the Dioxus Runtime adapter. The one changed ZIP journey is green; broader export and stale-race matrices remain parent work.",
+      "post_port": "Assess filename allocation alongside archive manifest identity and library naming compatibility, using projects with repeated labels and sanitized collisions.",
+      "validation": "Focused Core regression failed on duplicate switch_mx.kicad_mod before the correction and passes with stable distinct filenames and matching internal names. Candidate 34767 downloaded a valid PK ZIP from the /boardstudio/ route; 14 definitions yielded 14 footprints, six model payload hashes matched archive paths, fp-lib-table and BOARD-UTILITIES.txt were present, and zipfile.testzip returned no errors."
+    }
+  ]
+}
+```
 
 ## RF-009: Parity accounting and acceptance evidence are scattered
 
@@ -176,7 +1208,387 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Evidence:** `.scratch/dioxus-frontend-v1/evidence/tsx-inventory.json`; `CONSTRAINTS.md`; `app/playwright.config.ts`; `.scratch/m1-production/ACCEPTANCE.md`; `docs/migration/dioxus-frontend-v1-run.json:current_progress`
 
-21 additional source observations are indexed under this RF ID in the ledger.
+**Additional recorded details:**
+
+```json
+{
+  "category": "verification / process design",
+  "impact_priority": "medium",
+  "discovered": "2026-10-02",
+  "baseline": "c827c4e6",
+  "workflows": [
+    "F9"
+  ],
+  "decision": "proposal only; no refactor/API/schema change approved by this entry",
+  "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
+  "linked_tasks": [
+    "F9.1",
+    "F9.2",
+    "F9.3"
+  ],
+  "follow_up_evidence": [
+    {
+      "date": "2026-10-02",
+      "task": "agent routing/readiness review",
+      "observation": "Corrected stale F2 spec prose claiming no Rust archive output despite an existing Export archive control/Runtime pack path. Work package prose is insufficient for execution unless actual call paths are checked.",
+      "current_mitigation": "Concrete source-checked dispatch packets and full per-packet Standards/Spec coverage; existing archive implementation reused."
+    },
+    {
+      "date": "2026-10-02",
+      "task": "first frontend tranche to-tickets proposal",
+      "baseline": "530e60dd",
+      "proposal": ".scratch/dioxus-frontend-tranche-1/PROPOSAL.md",
+      "observation": "First-tranche decomposition found 19 reference demo entries (3 Sofle, 15 measured layouts, VIK module review) versus two exposed Dioxus fixture buttons. It also corrected outline navigation claims: selecting a version uses the edit/history path and opening a bridge intentionally fits the camera. Broad task labels concealed these concrete parity obligations.",
+      "certainty": "confirmed source-accounting gap; missing UI alone is not classified as poor architecture",
+      "evidence": [
+        "app/src/demos/keyboards.ts:7-12",
+        "app/src/ui/ProjectLibrary.tsx:137-143",
+        "web/src/presentation.rs:551-594",
+        "app/src/ui/Workbench.tsx:669-680"
+      ],
+      "current_mitigation": "Proposed T1-04/05/06 cover every demo family and actual opens, and T1-11 distinguishes version edits, part-selection clearing and bridge camera movement. Parent task status is unchanged.",
+      "post_port_follow_up": "Include callable catalogue entries and side-effect classifications in reproducible parity accounting, alongside source-file inventories.",
+      "validation": "Every pinned demo maps to a verified real open; paired tree version/bridge traces assert actual document/history/selection/camera effects."
+    },
+    {
+      "date": "2026-10-02",
+      "task": "automatic Parts/PCB/Keymap ticket publication",
+      "baseline": "598b2c02",
+      "evidence": [
+        ".scratch/dioxus-parts-catalogue/evidence/astra-final-review.md",
+        ".scratch/dioxus-pcb-view/evidence/astra-final-review.md",
+        ".scratch/dioxus-keymap-layers/evidence/astra-final-review.md"
+      ],
+      "observation": "Independent source review corrected catalogue provenance (Ergogen/imported/project definitions), eight bundled assembly presets, shared host hidden-layer lifetime, virtual Base and legacy binding fallback, and Base rename versus protected removal. INT.1 supplies only Library/Objects/Inspector composition, not unspecified Parts/PCB/Keymap facades.",
+      "certainty": "confirmed ticket/source accounting gap; no new RF entry or introduced application defect",
+      "current_mitigation": "Six corrected children published automatically with concrete feature contract gates and unchanged parent acceptance joins.",
+      "post_port_follow_up": "Keep per-action source/accounting and private boundary proofs alongside maintained conformance evidence.",
+      "validation": "Dispatch concrete reviewed contracts and integrated public workflows before accepting each parent."
+    },
+    {
+      "date": "2026-10-02",
+      "task": "Case compact focus and resize public evidence",
+      "baseline": "c827c4e6",
+      "evidence": [
+        ".scratch/dioxus-case-workspace/evidence/compact-containment-public/",
+        ".scratch/dioxus-case-workspace/evidence/compact-focus-reveal/",
+        ".scratch/dioxus-case-workspace/evidence/compact-focus-resize-final-public/"
+      ],
+      "observation": "On the prior b6d2af49 compact candidate, keyboard focus entered a covered Generate control with both compact panels open; after focusing Generate on desktop, resizing to compact left focus on the covered control. This is a confirmed candidate keyboard-visibility gap; no React parity or actual assistive-technology result is claimed. Screenshots/canvas intersection alone did not establish focus visibility.",
+      "current_mitigation": "Focus-entry source cf67a388 and Case resize lifecycle repair in integrated source e2a84d8b00418eab4d1ec47e0bf5b6957da9ffe3. Bounded focus-entry passed on earlier build 34681. Final build frontend-case-focus-resize-final-20261002 (8 commands/971 hashes) is at 34683; final resize and integrated keyboard/fit verifier release remains pending. No accessibility waiver.",
+      "post_port_follow_up": "Assess responsive disclosure state and focus ownership as one keyboard transition; preserve screenshot, DOM hit-testing, Tab/Shift+Tab, resize and return-path traces in the conformance suite. Keep actual AT evidence separate.",
+      "status": "confirmed source/UI gap; candidate mitigation integrated; final built public verification pending"
+    },
+    {
+      "date": "2026-10-02",
+      "task": "Case/shared-viewer parity reset audit",
+      "baseline": "89b1de8a28fdf02db91d972c90a69235bfbbbffb",
+      "evidence": [
+        ".scratch/dioxus-frontend-v1/evidence/case-shared3d-parity-reset-20261002/AUDIT.md",
+        ".scratch/dioxus-frontend-v1/issues/07-case-3d-parity-reset-addendum.md"
+      ],
+      "observation": "The F7.8 acceptance text enumerates five consumers, while the confirmed scope requires six streams including PCB. PCB is represented by F5.8; the audit proposes linking F5.8 as an F7.8 acceptance join while keeping capability starts and existing parent joins intact. The exploratory browser pair used similarly named but unverified-equal demos and is explicitly not acceptance evidence.",
+      "certainty": "confirmed ticket accounting discrepancy; exact added graph edge awaits coordinator reconciliation",
+      "current_mitigation": "Addendum and six-stream acceptance child record the required matrix and preserve all existing joins; canonical tasks.json was not edited by this audit.",
+      "post_port_follow_up": "Maintain one source/fixture/action ledger for all six streams and their actual viewer applicability.",
+      "validation": "Update the coordinator-owned 62-parent graph if accepted, then run same-archive paired journeys through all six workflows with exact build and accepted-document provenance."
+    },
+    {
+      "date": "2026-10-02",
+      "task": "shared integration and packaging throughput",
+      "baseline": "ae232927",
+      "observation": "Configured agent ceiling30 differs from observed live11; completed slots are rotated. Temporary build outputs exhausted /tmp; verified inactive generated targets were preserved under home with original-path symlinks, without deleting source, browser profiles or failed-project state.",
+      "current_mitigation": "Exact queue states distinguish source clearance, packaging, paired verification and acceptance. Page-only provider reuse remains a reviewed proposal; provider changes still require full packaging.",
+      "evidence": ".scratch/dioxus-frontend-v1/evidence/shared-integration-routing-20261002.json",
+      "preservation_receipt": "/home/chris/.local/share/boardstudio/retained-tmp/20261002/keymap-inactive-target-preservation.json"
+    },
+    {
+      "date": "2026-10-02",
+      "source": "8cfd6bb79e9e10b788e007fd428145b1e37095d1",
+      "observation": "Static icon/CSS review missed three invalid Dioxus SVG aria_hidden attributes; strict joined WASM compilation caught E0425. Root corrected to existing quoted aria-hidden convention and independently reviewed the bounded fix. Separate Keycaps evidence review caught viewport misstatement and broken oracle link; corrected receipt explicitly avoids matched-viewport visual claims. These are verification/evidence gaps, not evidence that the UI module structure caused defects.",
+      "evidence": [
+        "/home/chris/.local/share/boardstudio/retained-tmp/20261002/frontend-icons-joined-clippy.log",
+        "/home/chris/.local/share/boardstudio/reviews/layout-command-icons-svg-correction-root-review-sol-20261002.md",
+        ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/keycaps-f6c3-public-receipt-final-review-0418cbd9-20261002.md"
+      ],
+      "during_port": "Retain source compile checks and separate source, fixture, visual, and packaged journey claims. Reviewers clear only the evidence actually inspected; production composition requires production-level verification.",
+      "post_port_proposal": "Evaluate machine-checked receipt viewport/link/source identities and maintained production composition journeys during the consolidated conformance refactor."
+    },
+    {
+      "date": "2026-10-02",
+      "task": "PCB Core ApplyElectrical lock revalidation audit",
+      "baseline": "57829464369f40556c57e2de7520e7109950793b",
+      "evidence": ".scratch/dioxus-pcb-view/evidence/apply-current-plan-20261002/core-apply-lock-audit.md",
+      "observation": "Exact-source review showed the empty request lock map passed during Core ApplyElectrical re-resolution does not drop persisted target-board locks: electrical::resolve initializes from the selected board configuration and then extends request locks. The gap is direct ApplyElectrical request-level coverage for persisted locks, not a confirmed behavior defect.",
+      "current_mitigation": "The F5.2d draft consumes the exact accepted Current plan through the existing Core materializer and one strict-revision Session ReplaceDocument edit; Issue 09 adds direct request-level lock coverage. No Core defect or workaround is claimed.",
+      "status": "Exact-source review corrected the initial audit assumption; direct persisted-lock ApplyElectrical coverage remains drafted and unexecuted."
+    },
+    {
+      "date": "2026-10-03",
+      "task": "Issue 12 protected PCB remap Session/Core correction",
+      "observation": "The first isolated Issue 12 packet proposed direct ReplaceDocument clearing, but actual Core settlement restored protection via preserve_handoff. Its direct-edit behavior is superseded and retained in history. The corrected receipt binds the dedicated Session event to the existing Core review request, actual saved revision, stale guards, and preserved lock/assignment data; prior evidence remains linked and unchanged.",
+      "current_mitigation": "Use the strict-revision Session review event and existing Core fingerprint/base-revision checks; keep paired candidate browser/history/reopen and all parent joins open."
+    },
+    {
+      "date": "2026-10-03",
+      "task": "F6K.1 Keymap canvas fit controls",
+      "baseline": "f2d70ea627d851ea461033b44052bbf3740d37a1",
+      "evidence": ".scratch/dioxus-keymap-layers/evidence/keymap-fit-controls-20261003/paired-browser-journey.md",
+      "observation": "The settled paired Keymap route showed React Fit board and Fit selection actions while the Dioxus footer exposed only Undo/Redo and zoom percentage. The bounded repair reuses the existing camera event/state; zoom and Grid/Snap remain explicitly owned by existing viewport/Snap criteria. This is a concrete presentation control gap, not evidence for a new camera abstraction or public API.",
+      "current_mitigation": "F6K.1 ticket 01 now specifies guarded current-board/current-selection fit through the private Keymap view controls. No new refactoring takeaway observed."
+    },
+    {
+      "date": "2026-10-03",
+      "task": "F6K.1d Keymap editor disclosures",
+      "evidence": ".scratch/dioxus-keymap-layers/issues/11-keymap-editor-disclosures.md",
+      "observation": "Pinned React wraps the active Keys, Macros, and Encoders panes in the same native InspectorSection behavior. The current Dioxus Keymap tabs and editor contents are already callable; the bounded parity repair adds only per-pane presentation state around the existing content. This does not support a new shared state framework or data/API change.",
+      "current_mitigation": "One private Keymap panel wrapper retains native disclosure state while a pane remains mounted and defaults open on remount. Keep F6K acceptance and the independent editor data/history criteria open; no new architectural finding observed."
+    },
+    {
+      "date": "2026-10-03",
+      "task": "Shared 2D status footer and Grid menu route",
+      "baseline": "471b87e72545ea5af86b0488ff6597f62021a7b3",
+      "evidence": ".scratch/dioxus-keymap-layers/issues/01-keymap-projection-selection.md",
+      "observation": "On the pinned React 5a472a94 Sofle route, Layout Grid opens the existing Snap dialog; Keymap and Keycaps Grid are disabled. This confirms the context gate and does not establish a reference defect or authorize a new Keymap/Keycaps menu route.",
+      "current_mitigation": "The isolated footer reuses existing root snap/camera state and shares the Layout/PCB Snap menu signal; the source packet awaits one integrated build and the changed paired journey.",
+      "status": "Reference interaction verified; implementation is isolated and all F3/F5/F6 parent criteria remain open."
+    },
+    {
+      "date": "2026-10-03",
+      "task": "34769 combined integration coherence",
+      "baseline": "d64ab741",
+      "observation": "The larger mounted candidate exposed unsupported Dioxus hook/attribute syntax, Rc Runtime call shapes, Copy Signal capture rules, projection field drift and private helper argument fan-out at the combined compile seam. These are integration/coherence costs, not a new domain capability gap. Failed logs remain instead of being replaced by passing prose.",
+      "current_mitigation": "Root repaired joined source coherently, grouped private scoped input bundles and retained all guards; one combined affected page/CAD-worker check and one candidate review, zero new UI tests or lint suppressions. Authors receive exact fixing commits for follow-ons.",
+      "evidence": [
+        ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/strict-check-initial.json",
+        ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/strict-check-followup.json",
+        ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/strict-check-followup2.json",
+        ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/strict-check-followup3.json"
+      ],
+      "post_port_follow_up": "Keep reusable installed-framework composition examples and typed scope/context bundles near owned modules; assess agent handoff coherence separately from broad behavioral qualification."
+    }
+  ],
+  "handoff_evidence": [
+    {
+      "source": "47cf655b",
+      "evidence": ".scratch/dioxus-frontend-tranche-1/evidence/panels-fixed-47cf655b/record.json",
+      "observation": "Actual browser semantics caught inert=false still disabling panel controls and old media declarations replacing variable tracks despite strict compile success; preserve red/green semantics and cascade proof.",
+      "confidence": "confirmed corrected browser defects; future shared-conformance proposal needs assessment"
+    },
+    {
+      "source": "Case/Keymap current integration; final source commit pending",
+      "evidence": ".scratch/dioxus-frontend-v1/evidence/case-keymap-current/refactor-handoff.md",
+      "observation": "Native page checks omit wasm-only Dioxus components; actual WASM compiler exposed RSX and closure-ownership errors. Offline candidate controlled green on disk-backed isolated profiles, low-space tmp controls red; retain filesystem condition without production fix.",
+      "status": "bounded mitigation/evidence update; broad structural refactor deferred"
+    },
+    {
+      "source": "Encoder defaults at e82c039b and narrow option.selected correction 868edfcb",
+      "evidence": ".scratch/dioxus-keymap-layers/evidence/encoder-select-regression/refactor-handoff.md",
+      "observation": "Built candidate 34685 showed key-press in all three unassigned dynamic encoder selectors while the accepted archive had empty sensor/binding maps; no accepted-document mutation occurred. The focused correction binds option selection to accepted values; build 34687 returns none for all three controls. This is a bounded UI projection/default finding, not a Core/API or broader architecture finding.",
+      "status": "Targeted public regression is green; genuine archive workflow and F5.2/F8.2/AT/parent acceptance remain open; retained under RF-006 without a new register ID"
+    },
+    {
+      "source": "Parts preview packaged-default-loader source review",
+      "evidence": ".scratch/dioxus-workbench-parity/evidence/integration-handoff-20261002.md; /tmp/frontend-parity-reset-20261002/parts-projects/source-spec-review.md",
+      "observation": "The reviewed preview loader initially requested generator parameters absent from generated assets/layout-generators.js; the narrow export correction bf797f4 passed a packaged Node check. The Parts preview remains unmounted in the current integration and its full public browser gate remains open.",
+      "status": "Packaged Node check passes after bf797f4; preview browser acceptance and feature integration remain open. No end-to-end preview pass claimed."
+    },
+    {
+      "source": "Keymap candidate correction deba7087; immutable browser build 92db0b8f",
+      "evidence": "/tmp/frontend-parity-reset-20261002/keymap/green-92db0b8f/assertions.txt; /tmp/frontend-parity-reset-20261002/keymap/green-92db0b8f/screenshots/; prior red/reference: /tmp/frontend-parity-reset-20261002/keymap/paired/",
+      "observation": "A fresh public DOM run on the same imported archive verified the previously red selected-option remount after both Macros→Keys and Encoders→Keys, plus clear-filter canvas selection and layer changes. The persisted project revision and serialized record hash were identical before/after; Undo/Redo control DOM state, browser errors, and console output were unchanged/empty. This is a targeted browser evidence loop, not full Keymap/F6K acceptance.",
+      "status": "The exact remount regression is publicly green at candidate 34691 after deba7087; full feature and canonical-parent evidence remains open. Retain under RF-009 with RF-006 selection lineage; no new RF ID."
+    },
+    {
+      "source": "a896cd49; paired React5a472a94",
+      "evidence": ".scratch/dioxus-workbench-parity/evidence/matrix-keycaps-wave-20261002/RESULTS.md",
+      "observation": "Retained initial compiler/lint failures, corrected strict WASM/native gates, build provenance, and paired observations separately. Actual browser caught missing Matrix styles and contextual Keycaps selection difference; source existence and review did not imply accepted visible behavior.",
+      "status": "bounded fixes recorded; shared selection discrepancy under source diagnosis; full acceptance and structural refactor open"
+    },
+    {
+      "source": "React5a472a94 vs Dioxus92db0b8f",
+      "evidence": ".scratch/dioxus-workbench-parity/evidence/matrix-keycaps-wave-20261002/keycaps-selection-diagnosis/DIAGNOSIS.md",
+      "observation": "Confirmed legacy stale-closure defect: explicit setSelectionMode(key) immediately followed by captured choosePart still uses Matrix and selectScope restores Matrix. Paired intended single-key oracle passes Dioxus, fails React; manual Key mode first fixes reference path. Preserve correct Dioxus behavior as explicit user-Q1 bug exception; retain original mismatch and earlier hypothesis.",
+      "status": "confirmed legacy defect documented; candidate regression proof retained; broader selection/lifecycle refactor and full Keycaps acceptance open"
+    },
+    {
+      "source": "F5.2a private Wiring source commit 626668b7; follow-up source review pending",
+      "evidence": ".scratch/dioxus-pcb-view/evidence/wiring-context-20261002/implementation-handoff.md",
+      "observation": "A private board-scoped Core ResolveElectrical adapter and read-only Wiring/switch-terminal Inspector are implemented. Follow-up includes executor-epoch invalidation and reviewed no-controller/diagnostic display corrections. The source is not yet mounted or compiler/public verified; root owns composition, build, paired fixture evidence and all F5.2/F5.3/INT.2 joins.",
+      "status": "private source implementation only; exact current file hashes and unrun checks are recorded in handoff; no acceptance claim"
+    },
+    {
+      "source": "Unintegrated Keycaps448c3274 and firmware handoff6fe8fb87; independent Astra source review against42b9fdef",
+      "evidence": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/spec-review.md; .scratch/dioxus-frontend-v1/evidence/source-wave-20261002/standards-review.md",
+      "observation": "Keycaps effect tracks sequence/state reads it writes and repeatedly restarts assessment; F5 firmware edit observer watches stable Signal identity instead of numeric Runtime version and can miss asynchronous outcomes. Native pure tests and builds did not exercise these mounted WASM lifetimes. Targetless terminal firmware feedback also loses session/board/instance ownership. Required correctness repairs are active; no acceptance or performance result is inferred.",
+      "current_mitigation": "Fix exact effect dependencies/nonreactive bookkeeping, retain stable feedback target, and add mounted asynchronous lifecycle regressions plus paired browser proof before source integration.",
+      "post_port_follow_up": "Assess shared tested owner/lifecycle seams only after parity; explicitly distinguish pure projection tests from mounted Runtime effect coverage.",
+      "validation": "Mount source/retry assessment and delayed operation settlement; prove bounded requests, saved/failed transitions, hidden-panel survival, and context-scoped feedback. Retain red-before-fix and exact built-browser proof.",
+      "status": "Concrete bugs under current repair; broader lifecycle/test architecture proposal deferred."
+    },
+    {
+      "source": "Keycaps47a02cff/f622c259/c097ec3e and integratedbd671ae8 browser proof",
+      "observation": "Original4d activation screenshot belonged to REVIUNG41/Layout and its claim was withdrawn. Fresh isolated exact-Sofle clean/Cherry archives verified integrated findings display. Different F6C.2 settings/F6C.4 findings specs collided at spec.md; settings-spec.md preserves both.",
+      "mitigation": "Require project identity, exact archive/source/build, actually selected workspace and distinct spec paths; preserve corrected history."
+    },
+    ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/root-ledger-reconciliation.md",
+    {
+      "date": "2026-10-02",
+      "source": "7be1770d60b1482a01a40a09b9e7e9024981bc99",
+      "evidence": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/current-wave-refresh.json",
+      "observation": "Release RSX identity is established by the first template root key; nested component keys were ineffective in Matrix fields and debug hot reload obscured static behavior. Actual mounted production owner switch regression repaired3aac941c and integratedbbab7e05. Source stamps, active serving process and live React oracle must be verified separately: old5175 cached sessions are not live acceptance.",
+      "status": "Current correctness repairs and independent/browser gates retained; structural refactoring deferred; no parent closure."
+    },
+    {
+      "source": "packaging leaf expansion1bdaaf0e",
+      "evidence": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/packaging-expansion-source-review-1bdaaf0e-20261002.md",
+      "observation": "Line-oriented Rust registration signature scanning accepted valid split declarations, comments, nested modules, macro-emitted modules and spaced include invocations. Existing15 guards passed; independent actual production eligibility probes exposed seven bypasses.",
+      "current_mitigation": "Expansion remains unintegrated; repair fail-closed token handling with production negative regressions and fresh independent review. Existing narrow helper remains in use.",
+      "post_port_follow_up": "Evaluate a maintained Rust syntax/dependency audit seam instead of ad hoc Python syntax approximations; retain exact source/provider lineage.",
+      "status": "confirmed tooling correctness gap under repair; no actual worker/provider output corruption inferred"
+    },
+    {
+      "source": "b5da3d7d",
+      "evidence": ".scratch/dioxus-layout-authoring/evidence/f34d-perimeter-paired-20261003/README.md",
+      "observation": "Adding a native-only regression module to the shared lib root triggers the conservative full-provider rebuild proof boundary. The unchanged regression adapter now lives in the existing native binary presentation stand-in, preserving production provider bytes and allowing guarded page reuse. No packaging guard was weakened.",
+      "status": "Bounded build-friction mitigation; longer-term feature/test root organization remains a post-port refactoring question."
+    },
+    {
+      "source": "fe86fa05/34750",
+      "evidence": ".scratch/dioxus-pcb-view/evidence/24-module-source-route-20261003/receipt.md",
+      "observation": "Pinned React Workbench.tsx:960 defines moduleFindingIds from accepted findings whose targetIds intersect current-board mounted-module instance IDs; at 1351 it filters all error markers with those IDs when module-findings is hidden. Direct inspection of the live accepted React inventory confirmed each of the three gate/source-caveat PCB errors targets its mounted-module instance and host board, so the candidate predicate matches. Paired 34769 DOM arrays nevertheless showed three such IDs in captured React default and one additional React instance per ID all-visible. React reports duplicate keys for the same IDs, and the live DOM retained matching marker groups after the pinned predicate's accepted inputs excluded them. Treat these as observed stale/duplicate React DOM behavior, not the parity contract. Exact arrays and archive-preservation proof are in evidence/24-module-source-route-20261003/receipt.md. Focused-finding override remains separate because PCB has no equivalent owner.",
+      "current_mitigation": "Candidate renders host and module error markers and gates module-targeted IDs using current host-board module instance IDs, consistent with React's pinned predicate. Do not port stale duplicate-key React nodes or add marker-ID-specific filters. Accepted project archive/revision stays unchanged across the layer toggle.",
+      "status": "Bounded 34769 route/layer journey and observed DOM deltas retained; no candidate visibility defect established by the React rendering artifact. A changed-candidate layer-toggle check remains open. This does not close F5.4/F5.5 or any parent."
+    },
+    {
+      "source": "Issue 02 VIK module React reference pin",
+      "evidence": ".scratch/dioxus-parts-catalogue/evidence/issue02-vik-modules-reference-20261003/RESULTS.md",
+      "observation": "The pinned React variant selector switches stable module snapshots and their exact source/readiness projection. The retained screenshot pair records the first and 1.47-inch variant, including the source-specific Case gate change. This is reference-only evidence; the packaged Dioxus replay and project override/lifecycle criteria are still pending.",
+      "status": "source oracle pinned; do not count toward candidate or Issue 02 acceptance"
+    },
+    {
+      "source": "Issue 02 module row/variant candidate 34764",
+      "evidence": "/home/chris/.local/share/boardstudio/packages/frontend-board-geometry-vik-20261003/provenance.json; .scratch/dioxus-parts-catalogue/evidence/issue02-vik-module-preview-20261003/RESULTS.md",
+      "observation": "On source 661296fe5633e2327488cd56738c14ab81c22341, the packaged 43,356,120-byte module asset hash matched the source; grouped row, three variant IDs, Inspector source/readiness projection and the Case-gate change passed. The same screenshot showed a stale MX center preview after selecting a module, so this result qualifies only the Inspector leg.",
+      "status": "module Inspector leg green; exact source-preview correction and paired changed candidate replay remain open; no parent acceptance"
+    },
+    {
+      "source": "PCB Issue 23 service-clearance/support authoring continuation",
+      "evidence": ".scratch/dioxus-pcb-view/issues/23-mounted-module-supports-and-clearance.md; .scratch/dioxus-pcb-view/evidence/22-mounted-module-inspector-20261003/placement-save-reopen.md",
+      "observation": "The pinned React ModuleInspector exposes these fields in the existing placement form. The retained 34765 receipt proves only the earlier pose/attachment Save and reopen; Issue 23 acceptance requires the changed support/clearance public journey and one consolidated candidate check.",
+      "status": "source implemented in isolation; no changed-package or support/clearance browser acceptance claim"
+    },
+    {
+      "source": "Documentation workflow correction, 2026-10-03",
+      "evidence": "docs/agents/issue-tracker.md#frontend-delivery-records; .scratch/dioxus-frontend-v1/progress.py; preserved run/history snapshot",
+      "observation": "Live run JSON mixed 176 KB of historical/live state; RUN headline counts drifted to six while the graph had nine accepted parents. Acceptance scope and review hashes were copied across task/run/per-parent folders. Handoff template still required pre-consumer review despite candidate-first authority. This incurred repeated context and synchronization work.",
+      "mitigation": "Separate preserved history from compact live operations; coordinator changes status once and derives count/report views; one finalized review per candidate, parent decisions reference its path/hash; one author receipt with any new RF delta.",
+      "post_port_follow_up": "Assess whether the local tracker should remain a small reference-based journal or move to a structured tracker after frontend delivery. Preserve evidence identity and explicit final joins in either option."
+    },
+    {
+      "date": "2026-10-03",
+      "source": "Integration-first continuation after18f05311",
+      "evidence": "docs/agents/issue-tracker.md#frontend-delivery-records",
+      "observation": "Old ready-for-agent and missing-capability text outlived mounted topology controls; record-only coordinator commits also prompted an unnecessary fresh isolate. These are concrete freshness/ownership ambiguities that can duplicate implementation and worktree setup.",
+      "current_mitigation": "One canonical parent graph/live operation record, verify relevant current source, and keep an assigned source base across record-only commits. Preserve existing worktrees/history; do not synchronize every historical issue paragraph."
+    },
+    {
+      "date": "2026-10-03",
+      "source": "Actual build-m1.py fixture-refresh preflight atfe73cb32",
+      "evidence": "docs/migration/dioxus-frontend-v1-run.json:current_progress.heavy_slots.package_attempts",
+      "observation": "Source provenance correctly included a changed standalone packaging test harness, but reuse ownership treated it as a production provider input and rejected the candidate before compilation. Test-only input classification was incomplete, not evidence of an engine change.",
+      "current_mitigation": "Retain hashes/current-commit identity/final drift checks for both explicitly named standalone packaging-test runners; allow their verification-only edits while all other script/provider restrictions remain. Record the rejected attempt; retry the maintained build without rebuilding unchanged engines.",
+      "validation": "A later combined helper regression check plus actual refreshed package must show test-only edits are accepted, arbitrary production script changes still rejected, and source/provider hashes preserved."
+    }
+  ],
+  "resumed_wave_20261002": "2026-10-02: Machine top-level status/current integration still cited5944/34697 despite newer reviewed source andbd671ae8 served build. Corrected records explicitly separate current source14d1bfeb, servedbd671ae8/34720 and running successor build. Historical receipts retained; no parent closure.",
+  "build_cli_takeaway_20261002": "Confirmed tooling gap: build-m1.py treats --help as a valid build ID because hyphens are stripped before alphanumeric validation, starting expensive builds. Multiple authors hit it; preserved incomplete --help directories are not acceptance artifacts. Fix conventional help/invalid-leading-option handling after active source-stamped build, with focused CLI regression; do not mutate script during running provenance guard.",
+  "temporary_storage_preservation_20261002": "At99% tmpfs use, preserved only inactive generated web/target trees from two old worktrees under retained home, with original-path symlinks; checked /proc references and >2h inactivity, no source/history/browser data discarded. /tmp restored3.6GBfree. Manifest retained-tmp/20261002/inactive-target-preservation.json.",
+  "packaging_reuse_checkpoint_20261002": {
+    "source": "4d08ac9b",
+    "observation": "Full frontend builds repeat CAD optimization even when providers are unchanged. Reviewed guarded reuse now accepts only three explicitly proven page/CSS inputs. Review found root Cargo configuration changes and unexpected staged provider files escaped initial guards; both reproduced gaps are fixed with production-path regressions, including optimized Python execution.",
+    "checks": "13 normal + 13 optimized reuse tests and existing source inventory test pass after integration; full helper-matched baseline currently building. Real eligible eight-command reuse and root/subpath/offline proof remain open.",
+    "later_question": "Extend reviewed dependency ownership proofs to more page leaves without weakening consumed-input, tool/config or exact provider-artifact inventories.",
+    "thread_limit": "Saved concurrency ceiling is30; this live session rejects new threads and some completed-reviewer reactivation at its11-slot limit. Reuse existing active slots and retain queued stream ownership; do not claim a live limit change."
+  },
+  "oracle_and_tool_authority_20261002": {
+    "observations": [
+      "agent-browser mouse wheel emitted at (0,0) despite preceding mouse move; trusted coordinate CDP wheel scrolled both actual Inspectors. Initial product-scroll diagnosis was retracted; no speculative CSS repair.",
+      "Parts helper switch||input fallback is distinct from public Inspector matrixInputAvailable-only admission. Corrected canonical contracts f1d99176 retain the mistaken inference in history.",
+      "ZMK controlled test shim imposed newest-only delivery beyond real Session authority; final test uses Session export_is_current and preserves concurrent delivery while keeping latest report ownership."
+    ],
+    "during_port": "Retain raw probes, exact pinned call-site evidence, production authority tests and independent review; no broader acceptance inferred.",
+    "post_port": "Improve browser input adapters and test authority reuse to reduce false failures and false parity claims."
+  },
+  "pcb_layer_oracle_20261002": {
+    "observation": "PCB02 initial interpretation conflated accessibility IDs with visible layer labels/order. Independent pinned source review requires exact visible labels/group ordering; author is repairing alongside hook ownership and stale/failure isolation.",
+    "during_port": "Keep source192d HOLD and validate actual visible DOM plus aria labels separately; independent strict compile success is not parity completion."
+  },
+  "continuation_notes": [
+    "2026-10-02 paired public34739: initial archive5b import followed immediately by PCB retains disabled Wiring mode despite Ready/Saved; reload enables and accepted mode history/reopen passes. Reproduced independently; import/owner lifetime diagnosis remains open.",
+    "2026-10-02 Apply source e687 review: exact source identity alone is insufficient; ElectricalPlan.mode must agree with accepted board configuration/default Matrix. Mode-inconsistent positive fixtures can conceal the missing boundary; legal resolved-plan and negative mismatch coverage required. Repair underway, no Apply acceptance.",
+    "2026-10-03 a201 paired PCB Matrix Apply durable archives match pinned React byte-for-byte on Left and Right; visible action-group placement and primary styling still differ. Layer operations/history/reload pass, but owned layer-button spacing remains wrong. Semantic/document equality is strong bounded evidence, not whole UI or parent acceptance. Packaging feature-graph extension a57135a7 passed its author suite but independent matched-baseline negatives expose legacy-allowlist/provider-overlap, transitive-feature, include! and nested inline-module fail-open cases; actual reuse withheld pending conservative guard repairs."
+  ],
+  "execution_observations": [
+    {
+      "date": "2026-10-03",
+      "observation": "Read-only audit: shared source joins and stale duplicate progress/routing rules increase queue and rework; required acceptance remains distinct from code presence.",
+      "mitigation": "Integrate ready batch; Layout-first, one waiting packet/stream; fewer repeated checks, one candidate review, unified current_progress; all history and criteria retained."
+    }
+  ],
+  "canvas_entry_wave_20261003": {
+    "date": "2026-10-03",
+    "source": "2107f980;79af180f;0bfa0bc4;83b49eca",
+    "evidence": ".scratch/dioxus-pcb-view/evidence/20-add-object-20261003/public-34761.json",
+    "observation": "Paired actualbrowser found missing empty-board and pending-placement entry/help despite accepted editing capabilities. Sharedroot composition still obscures workbench board Inspector and menu parity. Matrix recovery/report had independent scope/token/epoch/revision arguments; source83b bundles existing accepted request identity. Cargo fmt wholemodule registration changed main.rs during a frozen packaging attempt; strict compiler caught outdated fixture adapters after private component extraction.",
+    "current_mitigation": "Private emptyboard/footer leaves, reuse existing scoped controllers, callback acceptance guards, focused sharedcheck and changedbrowserdeltas; targetrustfmt withskip_children. Preserve all failures and unprovedcriteria.",
+    "post_port_proposal": "Consolidate contextual projection/action ownership and boardidentity bundles after parity; define one formatting/build publisher and one progress/evidence record toreduce accidental sharedfile changes.",
+    "validation": "Exercise same UI journeys acrosscontext/history/reopen; maintain source/asset provenance, no inventedacceptance or newduplicated tests."
+  },
+  "continuations_20261003": [
+    {
+      "source": "Current Keymap criterion reconciliation / consolidated Sol34765 review",
+      "observation": "An initial audit counted only later RESULTS files and missed the older paired public-binding-editor README covering all11 choices, validation recovery and accepted history. Conversely source control presence missed visible export-button placement and Inspector rhythm differences found in current browser comparison. Evidence completeness and visual fidelity require separate assessments.",
+      "mitigation": "Canonical F6K.2 accepted from sufficient retained evidence; visible placement work stays queued. Reconcile READMEs and dated source pins before demanding new matrices or reporting controls missing.",
+      "post_port_follow_up": "Use one indexed criterion/journey record linking source ownership, paired snapshots and exact qualification limits; keep visual composition separate from accepted document behavior."
+    },
+    {
+      "source": "Rejected full34766 / classifier96df6ee1",
+      "observation": "The build inventories ignored source inputs but classified its own core/pkg generatedWASM as maintainedsource. A valid Core source change regenerated that output and made the final guard reject all22successfulsteps. This adds waste and obscures true source drift.",
+      "mitigation": "Explicitgeneratedcore/pkg prefix matchesexistingcad/renderer outputclassification; maintainedRust/generator/config/lock and finalpackagedassetguards remain. FocusedRED/GREEN regression includes changedRustsource rejection; originalfailedprovenance retained, freshcandidate required.",
+      "post_port_follow_up": "Derive generated output ownership and source inventories from one build manifest; assess per-provider immutable build caches without weakening freshness or asset provenance."
+    },
+    {
+      "source": "F6K.1/F3.1 reconciliation and compact Keymap receipt, 2026-10-03",
+      "evidence": ".scratch/dioxus-keymap-layers/evidence/keymap-frontier-audit-20261003/criterion-accounting.md; .scratch/dioxus-keymap-layers/evidence/keymap-compact-inspector-20261003/paired-receipt.md; .scratch/dioxus-frontend-v1/evidence/layout-f31-acceptance-20261003/DECISION.json",
+      "observation": "Accepted F3.1 closes the previously open Keymap selection/read-model join. Existing paired Keymap receipts cover the remaining projection and camera controls; the changed 720px compact Export selector now tracks the active workspace after root repair 5d2b4a98. The drawer journey retains a 4px topbar-height visual difference. No additional Keymap control gap or distinct architectural issue was established.",
+      "mitigation": "Reuse retained criterion receipts and the changed 34771 selector leg; leave F6K.1 canonical status for consolidated review and preserve shared panel visibility/focus routing in RF-001. No duplicate Keymap state owner or ticket introduced.",
+      "post_port_follow_up": "Keep one indexed criterion-to-journey map and explicit source/build identity; review shared-shell ownership after parity rather than extracting another Keymap-specific panel owner.",
+      "status": "evidence/ownership reconciliation only; no new RF finding or production change"
+    }
+  ],
+  "delivery_retro_20261003": {
+    "source": "Current session package failures -1/-2; cached source-compile logs; .github/workflows/check.yaml; package.json/.githooks/pre-commit; author messages requesting base confirmation and document-only isolate",
+    "observation": "Packaging ran fixture preparation before discovering basic Rust/RSX types; the existing CI check command covers React/Core/renderer but omits the Dioxus page. Blanket source-base/isolated-worktree wording also produced needless confirmation waits and a proposed document-only isolate. These are concrete process delays, not a reason to repeat accepted user journeys.",
+    "current_mitigation": "Existing locked WASM page compiler wired into CI; cached combined compile before full package retry. Authors advance from relevant bases and freeze shared helper interfaces early. No-gap source checks return existing pointers; per-packet verifier reservation and long handoff checklist removed from operative routing. Root publishes one live record, retaining failed logs and unrelated work.",
+    "post_port_follow_up": "Keep compilation, immutable candidate packaging and behavioral qualification as separate stages with one typed progress/evidence index; evaluate stable scoped callback/view interfaces to reduce RSX capture boilerplate.",
+    "validation": "Locked combined source compiler passes at9f12d32a with zero warnings. Larger5c8161cf preview is packaged/served34774 in150.27312seconds with1381 matching source inputs and190 matching assets per route; both release route compilers also report zero warnings. Failed diagnostic logs remain retained. CI/operative routing use compile-before-package, sufficient assigned bases, optional short handoffs and existing records. No new application tests, paired browser journeys or review; final acceptance remains separate."
+  },
+  "retro_delivery_controls_20261003": {
+    "observation": "Compiler preflight, candidate publication and worktree ownership previously depended on manual coordinator sequencing; overlapping dated operating instructions and omitted nested RF details increased drift and rediscovery.",
+    "mitigation": "One project contract; local registered checkout/branch and build freeze guard; package compiler preflight retaining valid provider proof; verified atomic candidate publication; full nested RF reporting; Layout-ready qualification trigger.",
+    "future_refactor": "Keep build identity, artifact verification, delivery ownership and qualification as narrow typed boundaries. Consolidate Python provenance schemas if further duplication appears; avoid a second issue tracker or parallel live record.",
+    "limitation": "Same-user hooks protect accidental misuse, not file edits or deliberate bypass. Source manifests and candidate review retain their roles. Starting qualification does not establish behavior.",
+    "evidence": [
+      "scripts/migration-deliver.py",
+      "scripts/build-m1.py",
+      ".scratch/dioxus-frontend-v1/progress.py",
+      ".scratch/dioxus-frontend-v1/qualification.py",
+      "CONSTRAINTS.md"
+    ]
+  }
+}
+```
 
 ## RF-010: Cancellation has different guarantees at worker and kernel boundaries
 
@@ -196,6 +1608,82 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Evidence:** `cad/src/index.ts`; `web/src/cad_worker.rs`; `cad/wasm/src/model/keycaps.rs`; `.scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/case11-live-preview-source-review-590e1eac-sol-20261002.md`
 
+**Additional recorded details:**
+
+```json
+{
+  "category": "theoretical / async resource lifecycle",
+  "impact_priority": "medium",
+  "discovered": "2026-10-02",
+  "baseline": "c827c4e6",
+  "workflows": [
+    "F6",
+    "F7",
+    "F8"
+  ],
+  "decision": "proposal only; no refactor/API/schema change approved by this entry",
+  "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
+  "linked_tasks": [
+    "BND.1",
+    "F7.3",
+    "F8.2"
+  ],
+  "follow_up_evidence": [
+    {
+      "date": "2026-10-02",
+      "task": "T1-02 saved-open public diagnosis",
+      "baseline": "598b2c02",
+      "certainty": "confirmed public defect; delayed real request and already-executed reply both reproduce",
+      "evidence": [
+        ".scratch/dioxus-frontend-tranche-1/evidence/contracts-active/open-supersession-diagnosis.md",
+        ".scratch/dioxus-frontend-tranche-1/evidence/contracts-active/open-supersession-reply-result.json",
+        ".scratch/dioxus-frontend-tranche-1/evidence/contracts-active/open-supersession-control.json"
+      ],
+      "observation": "Runtime guards saved-document loading by sequence but Session adoption/persistence lacks latest open intent. Pending A adopts and changes durable active project after newer B is unavailable. No-B control opens A normally.",
+      "current_mitigation": "Full ticket acceptance remains blocked; pure UI and independent panels/tree continue. No unsafe reply dropping, fabricated core error, history-resetting restore or narrower acceptance applied.",
+      "post_port_follow_up": "Review cancellation/adoption contracts across UI intent, worker state, durable commit and one-time caller settlement.",
+      "validation": "Retained red-capable public loop plus pending-core/save variants, valid/unavailable B and history/selection retention; repaired source needs independent review."
+    },
+    {
+      "date": "2026-10-03",
+      "task": "BND.1 preview chunk boundary correction",
+      "baseline": "Keycaps isolate before groups-of-eight adapter",
+      "certainty": "confirmed bounded cancellation granularity; product unmount and retry qualified on candidate34769",
+      "evidence": [
+        "cad/src/index.ts",
+        "web/src/cad_worker.rs",
+        ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+        ".scratch/dioxus-keycaps-workflow/evidence/keycaps-cad-batch-cancel-20261003/receipt-34769.md"
+      ],
+      "observation": "The source wrapper contract can yield only between build_keycaps calls. A Dioxus one-call preview could not process worker cancel messages between groups; the step kernel remains non-preemptible.",
+      "current_mitigation": "Dioxus mirrors eight-spec batches and yields to the worker event loop. The product Runtime currently closes the feature worker on Keycaps unmount/supersession, so worker-message checks are not exercised from this route; candidate34769 observed a pending-preview unmount, no late publication, successful subsequent preview, and no console/page errors. Each kernel batch and STEP remain synchronous.",
+      "post_port": "After React retirement, remove the parallel TypeScript host policy only through the authorized F9 cutover; keep the packaged Rust CAD export as the sole geometry engine. Do not relabel the executable TS wrapper as generated glue.",
+      "validation": "Current preview/unmount/retry path is retained at candidate34769. Explicit worker-message cancellation and mid-kernel preemption were not claimed. No follow-up Runtime change is justified without an actual user benefit."
+    }
+  ],
+  "continuations": [
+    {
+      "date": "2026-10-02",
+      "source": "590e1eac56430b0ad6dea42edc11df9d142a4bc3",
+      "confidence": "confirmed source review findings; repair pending",
+      "observation": "Case live scheduling distinguishes pending strict revision ownership from completed fingerprint-equivalent reuse, but the first implementation did not enforce completion on rebind, dropped generated stale context through a current-token filter, and reset terminal-attempt identity during temporary ineligibility.",
+      "during_port": "Repair all three production paths with meaningful lifecycle regressions before integration; preserve stale visibility and block stale edits.",
+      "post_port": "Assess explicit output completion/currentness and terminal-attempt state across Runtime, generated Inspector projection and scheduling; preserve reviewed single authority rather than spreading independent boolean policy. No frontend acceptance waiver."
+    }
+  ],
+  "continuation_notes": [
+    "2026-10-02 Case11 review7d3e: completed same-scope scene display can remain visible while findings require strict current token. Separate visual projection from actionable diagnostic projection; mounted stale omission/current arrival regression required.",
+    {
+      "date": "2026-10-03",
+      "source": "727bade154e2091afebb08e39bafd21d55164a62",
+      "observation": "The standalone KiCad-footprints exporter reuses the shared preview-generator worker only for Ergogen jobs returned by the accepted Core export plan. That worker has no per-request cancel operation; Runtime scope/token guards suppress stale file delivery, but cancellation does not guarantee that already-running conversion work stops.",
+      "during_port": "Keep conversion work on the existing provider and preserve captured-owner checks after each await. Do not claim CPU preemption; make a dedicated cancellable provider a later design choice only if measured resource impact warrants it.",
+      "post_port": "Assess cancellation granularity across shared preview consumers and export coordination without duplicating worker ownership."
+    }
+  ]
+}
+```
+
 ## RF-011: CAD revision envelope has a JavaScript safe-integer ceiling
 
 **Status:** observed; structural proposal deferred until post-port review
@@ -213,6 +1701,27 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 **Validation:** Max/max+1 request/reply tests and realistic revision growth estimate before changing representation.
 
 **Evidence:** `web/src/cad_jobs.rs`
+
+**Additional recorded details:**
+
+```json
+{
+  "discovered": "2026-10-02",
+  "baseline": "c827c4e6",
+  "decision": "proposal only; no current API/schema/backend change approved",
+  "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
+  "category": "theoretical / representation and identity",
+  "impact_priority": "low",
+  "workflows": [
+    "F7",
+    "F8"
+  ],
+  "linked_tasks": [
+    "F7.1",
+    "F9.4"
+  ]
+}
+```
 
 ## RF-012: Renderer host relies on reflective method names and partial capability wrappers
 
@@ -232,6 +1741,29 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Evidence:** `web/src/renderer_host.rs`; `renderer/src/wasm.rs`
 
+**Additional recorded details:**
+
+```json
+{
+  "discovered": "2026-10-02",
+  "baseline": "c827c4e6",
+  "decision": "proposal only; no current API/schema/backend change approved",
+  "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
+  "category": "architecture / boundary typing",
+  "impact_priority": "medium",
+  "workflows": [
+    "F3",
+    "F4",
+    "F6",
+    "F7"
+  ],
+  "linked_tasks": [
+    "F7.1",
+    "F7.3"
+  ]
+}
+```
+
 ## RF-013: Object tree containers have invalid required-child semantics
 
 **Status:** open; no accessibility waiver; candidate acceptance gate remains required; private semantics repair f65b is under independent review and is not integrated or accepted
@@ -250,7 +1782,36 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Evidence:** `.scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/tree-515f390d-a11y.json`; `.scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/tree-react-a11y.json`; `.scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/tree-515f390d-hierarchy.json`; `.scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/tree-515f390d-unowned.json`; `.scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/parts-context-numeric-steps.json`; `.scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/provenance.json`
 
-1 additional source observations are indexed under this RF ID in the ledger.
+**Additional recorded details:**
+
+```json
+{
+  "category": "accessibility / semantic structure",
+  "impact_priority": "high",
+  "discovered": "2026-10-02",
+  "baseline": "Dioxus tested source 515f390d; React reference 5a472a9426e6e38993361da402cd4ec730feb369",
+  "workflows": [
+    "F3",
+    "F9"
+  ],
+  "decision": "current acceptance gate; no waiver and no parent closure",
+  "follow_up_owner": "T1-10/F3.1 implementation and independent accessibility review",
+  "linked_tasks": [
+    "T1-10",
+    "F3.1",
+    "F9.2",
+    "F9.3"
+  ],
+  "handoff_evidence": [
+    {
+      "source": "Case/Keymap current integration; final source commit pending",
+      "evidence": ".scratch/dioxus-frontend-v1/evidence/case-keymap-current/refactor-handoff.md",
+      "observation": "f65 browser axe reports zero candidate violations after tree item ownership repair. Contrast remains incomplete; actual assistive technology remains unverified.",
+      "status": "bounded mitigation/evidence update; broad structural refactor deferred"
+    }
+  ]
+}
+```
 
 ## RF-014: Host callback ownership must survive browser terminal events
 
@@ -270,6 +1831,28 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Evidence:** `web/src/host/storage.rs`; `.scratch/dioxus-frontend-tranche-1/evidence/idb-observer-repair-20261002/FINDING.md`; `.scratch/dioxus-frontend-tranche-1/evidence/idb-observer-repair-20261002/expanded-red.log`; `.scratch/dioxus-frontend-tranche-1/evidence/idb-observer-repair-20261002/green.log`
 
+**Additional recorded details:**
+
+```json
+{
+  "category": "architecture / asynchronous lifecycle",
+  "impact_priority": "high",
+  "discovered": "2026-10-02",
+  "baseline": "3c0cd7de2dadc6184c6b1771fbe0837a2aa2235a",
+  "workflows": [
+    "F2",
+    "F3",
+    "F9"
+  ],
+  "decision": "Required current correctness fixed without public API widening; broader host lifecycle audit deferred.",
+  "follow_up_owner": "F9 host lifecycle qualification",
+  "linked_tasks": [
+    "F2.2",
+    "F3.2"
+  ]
+}
+```
+
 ## RF-015: Shared viewer controls can read a different source than the rendered scene
 
 **Status:** minimal private repair independently reviewed, integrated and served34737; bounded paired per-model visibility effect proven; broader stale/foreign/model readiness and responsive qualification open
@@ -287,3 +1870,33 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 **Validation:** Current accepted Layout model rows produce ordered per-model controls; exact available toggles affect only the matching mesh; stale/foreign source rows do not leak; Case/native consumers retain their existing source and accessibility context. Verify in a current production package and paired browser journey.
 
 **Evidence:** `web/src/presentation/shared_viewer.rs`; `web/src/presentation/case_assembly_layers.rs`; `.scratch/dioxus-shared-viewer/evidence/layout-canonical-layer-controls-20261002/planning-evidence.md`; `.scratch/dioxus-frontend-v1/evidence/layout-case-transport-public-20261002/README.md`
+
+**Additional recorded details:**
+
+```json
+{
+  "category": "architecture / source ownership",
+  "impact_priority": "medium",
+  "discovered": "2026-10-02",
+  "baseline": "7d09d0a60fbb2cc12e259541614b9483ee618d29",
+  "workflows": [
+    "F3.6",
+    "F7.3b"
+  ],
+  "decision": "Fix source-selection correctness now; assess broader source descriptor only after parity.",
+  "follow_up_owner": "F7.3b shared viewer consumer qualification",
+  "linked_tasks": [
+    "F7.3b",
+    "F3.6"
+  ],
+  "continuations": [
+    {
+      "date": "2026-10-02",
+      "source": "b9e74e37fc34948be9fee97c918b644200778bca",
+      "observation": "Paired Layout3D Layers labels expose packaged identity filenames: React left-J3 uses1.step while Dioxus exposes its content-hash.step. Both hide the same actual visible display mesh. Source identity is now correct, but display naming remains coupled to asset storage.",
+      "during_port": "Retain visual naming parity as an open presentation criterion; no renderer/storage identity changes implied by this ledger entry.",
+      "post_port": "Assess distinct human-readable model metadata and immutable storage identity in a typed accepted viewer-source descriptor."
+    }
+  ]
+}
+```

@@ -1518,6 +1518,19 @@
         "current_mitigation": "Existing locked WASM page compiler wired into CI; cached combined compile before full package retry. Authors advance from relevant bases and freeze shared helper interfaces early. No-gap source checks return existing pointers; per-packet verifier reservation and long handoff checklist removed from operative routing. Root publishes one live record, retaining failed logs and unrelated work.",
         "post_port_follow_up": "Keep compilation, immutable candidate packaging and behavioral qualification as separate stages with one typed progress/evidence index; evaluate stable scoped callback/view interfaces to reduce RSX capture boilerplate.",
         "validation": "Locked combined source compiler passes at9f12d32a with zero warnings. Larger5c8161cf preview is packaged/served34774 in150.27312seconds with1381 matching source inputs and190 matching assets per route; both release route compilers also report zero warnings. Failed diagnostic logs remain retained. CI/operative routing use compile-before-package, sufficient assigned bases, optional short handoffs and existing records. No new application tests, paired browser journeys or review; final acceptance remains separate."
+      },
+      "retro_delivery_controls_20261003": {
+        "observation": "Compiler preflight, candidate publication and worktree ownership previously depended on manual coordinator sequencing; overlapping dated operating instructions and omitted nested RF details increased drift and rediscovery.",
+        "mitigation": "One project contract; local registered checkout/branch and build freeze guard; package compiler preflight retaining valid provider proof; verified atomic candidate publication; full nested RF reporting; Layout-ready qualification trigger.",
+        "future_refactor": "Keep build identity, artifact verification, delivery ownership and qualification as narrow typed boundaries. Consolidate Python provenance schemas if further duplication appears; avoid a second issue tracker or parallel live record.",
+        "limitation": "Same-user hooks protect accidental misuse, not file edits or deliberate bypass. Source manifests and candidate review retain their roles. Starting qualification does not establish behavior.",
+        "evidence": [
+          "scripts/migration-deliver.py",
+          "scripts/build-m1.py",
+          ".scratch/dioxus-frontend-v1/progress.py",
+          ".scratch/dioxus-frontend-v1/qualification.py",
+          "CONSTRAINTS.md"
+        ]
       }
     },
     {

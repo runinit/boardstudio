@@ -85,6 +85,9 @@ SOURCE_BYTES = {
     ".npmrc": b"strict-peer-dependencies=true\n",
     ".node-version": b"22.0.0\n",
     BUILD.REUSE_HELPER_PATH: b"current fixture helper source",
+    "scripts/migration-deliver.py": b"migration build guard before",
+    "scripts/test-migration-deliver.py": b"migration build guard tests before",
+    "scripts/unrelated-build-script.py": b"unrelated build script before",
     BUILD.FIXTURE_PREPARATION_PATH: b"fixture preparation before",
     "web/src/presentation/library.rs": b"pub fn library() {}\n",
 }
@@ -104,12 +107,13 @@ def sha(data):
 
 
 class PageOnlyReuseTests(TestCase):
-    def make_baseline(self, root, *, extra_asset=None):
+    def make_baseline(self, root, *, extra_asset=None, include_page_check=True):
         build_root = root / "web/target/builds"
         baseline = build_root / "full-fixture"
         baseline.mkdir(parents=True)
         sources = {name: sha(body) for name, body in SOURCE_BYTES.items()}
-        sources[BUILD.REUSE_HELPER_PATH] = next(iter(BUILD.COMPATIBLE_FULL_BUILD_HELPERS))[1]
+        if not include_page_check:
+            sources[BUILD.REUSE_HELPER_PATH] = next(iter(BUILD.COMPATIBLE_FULL_BUILD_HELPERS))[1]
         commands = []
         for label in (
             "rustc-version", "cargo-version", "dx-version", "wasm-pack-version", "node-version", "pnpm-version",
@@ -117,6 +121,15 @@ class PageOnlyReuseTests(TestCase):
             "layout-generators", "preview-generator", "ergogen-models", "page-root", "offline-worker-root",
             "embed-offline-root", "page-subpath", "offline-worker-subpath", "embed-offline-subpath",
         ):
+            if label == "core" and include_page_check:
+                labels = ["page-check"]
+            else:
+                labels = []
+            for inserted_label in labels:
+                log = baseline / f"{inserted_label}.log"
+                log.write_text(f"{inserted_label} succeeded\n")
+                commands.append({"argv": self.full_argv(inserted_label, root, baseline), "exit": 0,
+                                 "log": str(log), "cwd": str(root), "environment": {}})
             log = baseline / f"{label}.log"
             log.write_text(TOOLS[label] if label in TOOLS else f"{label} succeeded\n")
             command = {"argv": self.full_argv(label, root, baseline), "exit": 0, "log": str(log),
@@ -180,6 +193,8 @@ class PageOnlyReuseTests(TestCase):
                 "dx-version": ["dx", "--version"], "wasm-pack-version": ["wasm-pack", "--version"],
                 "node-version": ["node", "--version"], "pnpm-version": ["pnpm", "--version"],
             }[label]
+        if label == "page-check":
+            return BUILD.page_check_command()
         if label == "page-root" or label == "page-subpath":
             prefix = "/" if label.endswith("root") else "/boardstudio/"
             return ["dx", "build", "--web", "--release", "--base-path", prefix, "--no-default-features", "--features", "page", "--cargo-args=--locked"]
@@ -216,8 +231,9 @@ class PageOnlyReuseTests(TestCase):
     def mock_environment(self, root, provenance, current=None, head=None, *, helper_changed=False):
         current = current or {name: sha(body) for name, body in SOURCE_BYTES.items()}
         current = dict(current)
-        if not helper_changed:
-            current[BUILD.REUSE_HELPER_PATH] = next(iter(BUILD.COMPATIBLE_FULL_BUILD_HELPERS))[1]
+        pinned_helper_hash = next(iter(BUILD.COMPATIBLE_FULL_BUILD_HELPERS))[1]
+        if not helper_changed and provenance.get("sources", {}).get(BUILD.REUSE_HELPER_PATH) == pinned_helper_hash:
+            current[BUILD.REUSE_HELPER_PATH] = pinned_helper_hash
         head = head or HEAD_BYTES
         for name, body in head.items():
             path = root / name
@@ -334,11 +350,59 @@ class PageOnlyReuseTests(TestCase):
                 BUILD.build_full("full-stub")
 
             receipt = json.loads((web / "target/builds/full-stub/provenance.json").read_text())
-            self.assertEqual(len(calls), 22)
-            self.assertEqual(len(receipt["commands"]), 22)
+            self.assertEqual(len(calls), 23)
+            self.assertEqual(len(receipt["commands"]), 23)
             self.assertEqual(receipt["status"], "complete")
+            self.assertEqual(receipt["build_id"], "full-stub")
             self.assertEqual(receipt["commands"][0]["argv"], ["rustc", "--version"])
+            self.assertEqual(Path(receipt["commands"][6]["log"]).name, "page-check.log")
+            self.assertEqual(receipt["commands"][6]["argv"], BUILD.page_check_command())
             self.assertEqual(receipt["commands"][-1]["argv"][0], "node")
+
+    def test_full_build_page_check_failure_is_logged_and_stops_packaging(self):
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            web = root / "web"
+            (web / "assets").mkdir(parents=True)
+            calls = []
+
+            def executor(argv, cwd, env, stdout, stderr):
+                calls.append(argv)
+                if argv == BUILD.page_check_command():
+                    stdout.write("page frontend compile failed\n")
+                    return subprocess.CompletedProcess(argv, 23)
+                return subprocess.CompletedProcess(argv, 0)
+
+            with patch.object(BUILD, "REPO", root), patch.object(BUILD, "WEB", web), \
+                 patch.object(BUILD, "BUILD_ROOT", web / "target/builds"), \
+                 patch.object(BUILD.subprocess, "check_output", return_value="b" * 40), \
+                 patch.object(BUILD, "sources", return_value={"web/src/lib.rs": sha(b"source")}), \
+                 patch.object(BUILD.subprocess, "run", side_effect=executor):
+                with self.assertRaises(SystemExit) as raised:
+                    BUILD.build_full("page-check-failed")
+
+            output = web / "target/builds/page-check-failed"
+            receipt = json.loads((output / "provenance.json").read_text())
+            self.assertEqual(raised.exception.code, 23)
+            self.assertEqual(receipt["status"], "failed-page-check")
+            self.assertEqual(len(receipt["commands"]), 7)
+            failed = receipt["commands"][-1]
+            self.assertEqual(failed["argv"], BUILD.page_check_command())
+            self.assertEqual(failed["exit"], 23)
+            self.assertIn("page frontend compile failed", Path(failed["log"]).read_text())
+            self.assertEqual(len(calls), 7)
+
+    def test_checked_baseline_accepts_exact_new_and_pinned_legacy_command_schemas(self):
+        for include_page_check in (False, True):
+            with self.subTest(include_page_check=include_page_check), TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                self.make_baseline(root, include_page_check=include_page_check)
+                with self._patches(self.mock_environment(root, {})):
+                    baseline = BUILD.checked_baseline("full-fixture")
+                    expected_count = 23 if include_page_check else 22
+                    self.assertEqual(len(baseline[1]["commands"]), expected_count)
+                    if include_page_check:
+                        self.assertEqual(baseline[1]["commands"][6]["argv"], BUILD.page_check_command())
 
     def test_only_exact_panel_and_css_delta_passes_source_preflight(self):
         with TemporaryDirectory() as temporary:
@@ -663,10 +727,15 @@ fn CommandPill() -> Element {
                     with self.assertRaisesRegex(ValueError, "command feature differs"):
                         BUILD.page_feature_ownership(root)
 
-    def test_stubbed_reuse_build_runs_eight_commands_and_emits_fresh_routes(self):
+    def test_stubbed_reuse_build_runs_nine_commands_and_emits_fresh_routes(self):
         with TemporaryDirectory() as temporary:
             root = Path(temporary)
             baseline, base = self.make_baseline(root)
+            baseline_provenance_path = baseline / "provenance.json"
+            baseline_provenance = json.loads(baseline_provenance_path.read_text())
+            baseline_provenance["sources"].pop("scripts/migration-deliver.py")
+            baseline_provenance["sources"].pop("scripts/test-migration-deliver.py")
+            baseline_provenance_path.write_text(json.dumps(baseline_provenance))
             base_route_hashes = {
                 mode: {name: sha((Path(base[mode]["site"]) / name).read_bytes()) for name in base[mode]["assets"]}
                 for mode in ("root", "subpath")
@@ -702,6 +771,8 @@ fn CommandPill() -> Element {
                     (out_dir / "boardstudio_offline_worker.js").write_text("fresh offline worker")
                 elif argv[0] == "node" and Path(argv[1]).name == "embed-worker-wasm.mjs":
                     Path(argv[4]).write_text("fresh embedded worker")
+                elif argv[0] == "cargo":
+                    pass
                 else:
                     raise AssertionError(argv)
                 return subprocess.CompletedProcess(argv, 0)
@@ -713,10 +784,13 @@ fn CommandPill() -> Element {
 
             output = root / "web/target/builds/candidate"
             receipt = json.loads((output / "provenance.json").read_text())
-            self.assertEqual(len(run_calls), 8)
-            self.assertEqual(len(receipt["commands"]), 8)
-            self.assertEqual(receipt["inherited_full_build_commands"], 22)
-            self.assertEqual(len(receipt["inherited_full_build_lineage"]), 22)
+            self.assertEqual(len(run_calls), 9)
+            self.assertEqual(len(receipt["commands"]), 9)
+            self.assertEqual(Path(receipt["commands"][0]["log"]).name, "page-check.log")
+            self.assertEqual(receipt["inherited_full_build_commands"], 23)
+            self.assertEqual(len(receipt["inherited_full_build_lineage"]), 23)
+            self.assertEqual(receipt["changed_build_control_inputs"], ["scripts/migration-deliver.py"])
+            self.assertEqual(receipt["changed_build_test_only_inputs"], ["scripts/test-migration-deliver.py"])
             self.assertEqual(receipt["status"], "complete")
             for mode, prefix in (("root", "/"), ("subpath", "/boardstudio/")):
                 site = Path(receipt[mode]["site"])
@@ -737,10 +811,53 @@ fn CommandPill() -> Element {
                     base_route_hashes[mode],
                 )
 
-    def test_fixture_refresh_uses_exact_helper_proof_and_seven_fresh_commands(self):
+    def test_unrelated_script_change_is_not_build_control_only(self):
+        path = "scripts/unrelated-build-script.py"
         with TemporaryDirectory() as temporary:
             root = Path(temporary)
-            baseline, base = self.make_baseline(root, extra_asset="assets/fixtures/old.json")
+            self.make_baseline(root)
+            current = {name: sha(body) for name, body in SOURCE_BYTES.items()}
+            head = dict(HEAD_BYTES)
+            head[path] = b"changed unrelated build script"
+            current[path] = sha(head[path])
+            patches = self.mock_environment(root, {}, current, head)
+            with self._patches(patches):
+                with self.assertRaisesRegex(ValueError, "outside page/test-only ownership"):
+                    BUILD.validate_reuse("candidate", "full-fixture")
+
+    def test_reuse_page_check_failure_is_logged_before_fixture_or_route_work(self):
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            _, provenance = self.make_baseline(root)
+            calls = []
+
+            def executor(argv, cwd, env, stdout, stderr):
+                calls.append(argv)
+                stdout.write("page frontend compile failed\n")
+                return subprocess.CompletedProcess(argv, 29)
+
+            patches = self.mock_environment(root, provenance)
+            patches.append(patch.object(BUILD.subprocess, "run", side_effect=executor))
+            with self._patches(patches):
+                with self.assertRaises(SystemExit) as raised:
+                    BUILD.build_reuse("reuse-check-failed", "full-fixture")
+
+            output = root / "web/target/builds/reuse-check-failed"
+            receipt = json.loads((output / "provenance.json").read_text())
+            self.assertEqual(raised.exception.code, 29)
+            self.assertEqual(receipt["status"], "failed-page-check")
+            self.assertEqual(calls, [BUILD.page_check_command()])
+            self.assertEqual(len(receipt["commands"]), 1)
+            failed = receipt["commands"][0]
+            self.assertEqual(failed["exit"], 29)
+            self.assertIn("page frontend compile failed", Path(failed["log"]).read_text())
+
+    def test_fixture_refresh_uses_exact_helper_proof_and_eight_fresh_commands(self):
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            baseline, base = self.make_baseline(
+                root, extra_asset="assets/fixtures/old.json", include_page_check=False
+            )
             current = {name: sha(body) for name, body in SOURCE_BYTES.items()}
             current[BUILD.FIXTURE_PREPARATION_PATH] = sha(HEAD_BYTES[BUILD.FIXTURE_PREPARATION_PATH])
             current["web/src/presentation/library.rs"] = sha(HEAD_BYTES["web/src/presentation/library.rs"])
@@ -766,6 +883,8 @@ fn CommandPill() -> Element {
                     (out / "boardstudio_offline_worker.js").write_text("fresh offline worker")
                 elif argv[0] == "node" and Path(argv[1]).name == "embed-worker-wasm.mjs":
                     Path(argv[4]).write_text("fresh embedded worker")
+                elif argv[0] == "cargo":
+                    pass
                 else:
                     raise AssertionError(argv)
                 return subprocess.CompletedProcess(argv, 0)
@@ -777,10 +896,10 @@ fn CommandPill() -> Element {
 
             output = root / "web/target/builds/fixture-candidate"
             receipt = json.loads((output / "provenance.json").read_text())
-            self.assertEqual(len(calls), 7)
-            self.assertEqual(len(receipt["commands"]), 7)
+            self.assertEqual(len(calls), 8)
+            self.assertEqual(len(receipt["commands"]), 8)
             self.assertEqual([Path(command["log"]).stem for command in receipt["commands"]], [
-                "fixtures", "page-root", "offline-worker-root", "embed-offline-root",
+                "page-check", "fixtures", "page-root", "offline-worker-root", "embed-offline-root",
                 "page-subpath", "offline-worker-subpath", "embed-offline-subpath",
             ])
             self.assertEqual(receipt["inherited_full_build_commands"], 22)
@@ -857,6 +976,8 @@ fn CommandPill() -> Element {
                                 (Path(base["root"]["site"]) / "assets/provider.js").write_text("tampered during build")
                             elif mutation == "provenance":
                                 (baseline / "provenance.json").write_text("{}")
+                    elif argv[0] == "cargo":
+                        pass
                     else:
                         raise AssertionError(argv)
                     return subprocess.CompletedProcess(argv, 0)
@@ -871,7 +992,7 @@ fn CommandPill() -> Element {
                         BUILD.build_reuse("candidate", "full-fixture")
                 receipt = json.loads((root / "web/target/builds/candidate/provenance.json").read_text())
                 self.assertNotEqual(receipt["status"], "complete")
-                self.assertEqual(len(run_calls), 5 if mutation == "provider-addition" else 8)
+                self.assertEqual(len(run_calls), 6 if mutation == "provider-addition" else 9)
                 self.assertTrue((baseline / "provenance.json").is_file())
 
     def _patches(self, patches):
@@ -979,6 +1100,9 @@ fn CommandPill() -> Element {
                 def check_output(command, **kwargs):
                     if command[:3] == ["git", "cat-file", "-e"]:
                         return b""
+                    if command[:2] == ["git", "show"]:
+                        revision, path = command[2].split(":", 1)
+                        return SOURCE_BYTES[path]
                     if command[:2] == ["git", "ls-files"]:
                         return ("\0".join(current_names) + "\0").encode()
                     raise AssertionError(f"unexpected command in actual inventory fixture: {command}")
