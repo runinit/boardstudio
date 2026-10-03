@@ -1389,7 +1389,7 @@
       ],
       "priority": "P0",
       "effort": "M",
-      "acceptance": "A saved fixture opens with the same supported board key set, stable key identities, layer order/names, selection from canvas and searchable list, active-layer labels, default base layer, and explicit empty states as React. Add, rename, and remove only permitted non-base layers through EditKeymap; no display index is persisted. The slice works independently against fixtures before F3/F4 integration and later passes the accepted selection/read-model handoff.",
+      "acceptance": "A saved fixture opens with the same supported board key set, stable key identities, layer order/names, selection from canvas and searchable list, active-layer labels, default base layer, and explicit empty states as React. Add, rename, and remove only permitted non-base layers through EditKeymap; no display index is persisted. The shared 2D footer is reused across Layout, PCB, Keymap, and Keycaps for selected-part mm coordinates, Grid/Geometry snap status, Fit board/Fit selection and existing zoom controls; the Grid entry opens the same existing Snap menu in Layout/PCB and remains disabled in Keymap/Keycaps, matching the pinned React route. Footer callbacks use the current accepted camera/snap owner, and display-only actions leave revision/history unchanged. The slice works independently against fixtures before F3/F4 integration and later passes the accepted selection/read-model handoff.",
       "boundary_status": "Existing immutable accepted document and EditKeymap contract; new private Dioxus projection only. Fixture-ready before F3/F4 handoffs.",
       "workflow": "F6",
       "owner": "Keymap frontend lead",

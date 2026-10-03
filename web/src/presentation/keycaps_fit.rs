@@ -713,6 +713,24 @@ pub(super) fn layout_navigation_bounds(
     Some((min_x - 12.0, max_x + 12.0, min_y - 12.0, max_y + 12.0))
 }
 
+/// Bounds the selected board parts with the same accepted transform, courtyard and keycap
+/// geometry used by the shared Layout viewer. Camera fit adds its viewport padding separately.
+pub(super) fn selected_part_bounds(
+    document: &ProjectDoc,
+    scene: &SceneDelta,
+    board_id: &str,
+    selected_ids: &[String],
+) -> Option<(f64, f64, f64, f64)> {
+    let board = document.boards.iter().find(|board| board.id == board_id)?;
+    let mut bounds = None;
+    for part in document.parts.iter().filter(|part| {
+        board.part_ids.contains(&part.id) && selected_ids.iter().any(|id| id == &part.id)
+    }) {
+        include_layout_part_bounds(document, scene, part, &mut bounds);
+    }
+    bounds
+}
+
 /// React fits a finding's complete Core marker contours after fitting the primary
 /// target. Reuse the accepted scene projection rather than reconstructing finding
 /// geometry from its target IDs or message.

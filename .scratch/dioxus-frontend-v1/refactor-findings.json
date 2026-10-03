@@ -725,6 +725,14 @@
           "validation": "Switch between board and physical-instance workspaces while a query is pending; verify board Wiring stays board-scoped and instance mechanical operations retain their captured instance identity.",
           "status": "source-level distinction recorded; root mount, async lifecycle and paired browser checks remain open"
         },
+        {
+          "date": "2026-10-03",
+          "source": "Shared 2D footer implementation based on 471b87e7",
+          "evidence": ".scratch/dioxus-keymap-layers/issues/01-keymap-projection-selection.md",
+          "observation": "The footer Grid entry point spans a shared root footer and workspace-local Layout/PCB command menu. Reusing the menu requires lifting only its transient open-menu signal and passing it through existing private toolbar inputs; snap values, camera state, and callbacks remain root-owned. This is additional RF-001 integration evidence, not a new authority or a measured hotspot reduction.",
+          "current_mitigation": "One private footer leaf and the existing Snap/camera owners; root composition stays thin and source-specific callbacks retain captured owner guards.",
+          "status": "Isolated implementation in progress; combined source check and changed paired journey remain pending."
+        },
         ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/root-ledger-reconciliation.md",
         {
           "date": "2026-10-02",
@@ -998,6 +1006,15 @@
           "evidence": ".scratch/dioxus-keymap-layers/issues/11-keymap-editor-disclosures.md",
           "observation": "Pinned React wraps the active Keys, Macros, and Encoders panes in the same native InspectorSection behavior. The current Dioxus Keymap tabs and editor contents are already callable; the bounded parity repair adds only per-pane presentation state around the existing content. This does not support a new shared state framework or data/API change.",
           "current_mitigation": "One private Keymap panel wrapper retains native disclosure state while a pane remains mounted and defaults open on remount. Keep F6K acceptance and the independent editor data/history criteria open; no new architectural finding observed."
+        },
+        {
+          "date": "2026-10-03",
+          "task": "Shared 2D status footer and Grid menu route",
+          "baseline": "471b87e72545ea5af86b0488ff6597f62021a7b3",
+          "evidence": ".scratch/dioxus-keymap-layers/issues/01-keymap-projection-selection.md",
+          "observation": "On the pinned React 5a472a94 Sofle route, Layout Grid opens the existing Snap dialog; Keymap and Keycaps Grid are disabled. This confirms the context gate and does not establish a reference defect or authorize a new Keymap/Keycaps menu route.",
+          "current_mitigation": "The isolated footer reuses existing root snap/camera state and shares the Layout/PCB Snap menu signal; the source packet awaits one integrated build and the changed paired journey.",
+          "status": "Reference interaction verified; implementation is isolated and all F3/F5/F6 parent criteria remain open."
         }
       ],
       "handoff_evidence": [

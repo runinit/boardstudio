@@ -31,6 +31,7 @@ pub(super) struct ToolbarInput {
     pub(super) align: objects::LayoutAlignMount,
     pub(super) transform: objects::LayoutTransformMenuMount,
     pub(super) menu_owner_key: String,
+    pub(super) open_menu: Signal<Option<objects::LayoutCommandMenu>>,
     pub(super) on_selection_kind: EventHandler<objects::LayoutSelectionKind>,
     pub(super) on_snap_intent: EventHandler<objects::LayoutSnapIntent>,
 }
@@ -83,6 +84,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                 objects::LayoutCommandPill {
                     command_label: input.command_label,
                     menu_owner_key: input.menu_owner_key,
+                    open_menu: input.open_menu,
                     transform: input.transform,
                     align: input.align,
                     selection_kind: input.selection_kind,

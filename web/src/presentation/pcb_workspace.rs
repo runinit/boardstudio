@@ -9,6 +9,7 @@ use dioxus::prelude::*;
 pub(super) struct ToolbarInput {
     pub(super) command_label: String,
     pub(super) menu_owner_key: String,
+    pub(super) open_menu: Signal<Option<objects::LayoutCommandMenu>>,
     pub(super) selection_kind: objects::LayoutSelectionKind,
     pub(super) snap_settings: objects::LayoutSnapSettings,
     pub(super) transform: objects::LayoutTransformMenuMount,
@@ -65,6 +66,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
             objects::LayoutCommandPill {
                 command_label: input.command_label,
                 menu_owner_key: input.menu_owner_key,
+                open_menu: input.open_menu,
                 transform: input.transform,
                 align: input.align,
                 selection_kind: input.selection_kind,

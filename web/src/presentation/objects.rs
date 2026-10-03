@@ -29,8 +29,9 @@ pub(in crate::presentation) use layout_align::{
 };
 pub(in crate::presentation) use layout_align_controller::use_canvas_align;
 pub(in crate::presentation) use layout_toolbar::{
-    LayoutCommandPill, LayoutSelectionKind, LayoutSelectionSnapStatus, LayoutSnapIntent,
+    LayoutCommandMenu, LayoutCommandPill, LayoutSelectionKind, LayoutSnapIntent,
     LayoutSnapSettings, TreeCellAnchor, context_for_selection_kind, gesture_snap_inputs,
+    snap_label as layout_snap_label,
 };
 pub(in crate::presentation) use layout_transform_toolbar::LayoutTransformMenuMount;
 pub(in crate::presentation) use matrix_inspector::MatrixInspector;

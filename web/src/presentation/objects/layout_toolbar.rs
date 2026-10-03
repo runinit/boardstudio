@@ -416,7 +416,7 @@ const SNAP_STEPS: [(f64, &str, &str); 8] = [
     (-0.1, "-0.1", "0.1 mm"),
 ];
 
-fn snap_label(fraction: f64) -> &'static str {
+pub(in crate::presentation) fn snap_label(fraction: f64) -> &'static str {
     SNAP_STEPS
         .iter()
         .find(|(value, _, _)| *value == fraction)
@@ -510,6 +510,7 @@ fn toggle_layout_command_menu(
 pub(in crate::presentation) fn LayoutCommandPill(
     command_label: String,
     menu_owner_key: String,
+    open_menu: Signal<Option<LayoutCommandMenu>>,
     selection_kind: LayoutSelectionKind,
     snap_settings: LayoutSnapSettings,
     transform: super::layout_transform_toolbar::LayoutTransformMenuMount,
@@ -517,7 +518,6 @@ pub(in crate::presentation) fn LayoutCommandPill(
     on_selection_kind: EventHandler<LayoutSelectionKind>,
     on_snap_intent: EventHandler<LayoutSnapIntent>,
 ) -> Element {
-    let mut open_menu = use_signal(|| None::<LayoutCommandMenu>);
     let outside_listener = use_hook(|| {
         Rc::new(RefCell::new(
             None::<(Document, Closure<dyn FnMut(WebPointerEvent)>)>,
@@ -765,28 +765,6 @@ fn LayoutSnapMenu(
                 }
                 p { "Shared by Layout, drawing and perimeter editing. Unit steps use matrix pitch; mm steps use world coordinates. Hold Alt to bypass snapping." }
             }
-        }
-    }
-}
-
-#[component]
-pub(in crate::presentation) fn LayoutSelectionSnapStatus(
-    snap_settings: LayoutSnapSettings,
-    active_part_position: Option<Vec2>,
-) -> Element {
-    let settings = snap_settings;
-    let (x, y) = active_part_position
-        .map(|position| (position.x, position.y))
-        .unwrap_or((0.0, 0.0));
-    rsx! {
-        div { class: "m1-layout-coordinates", aria_label: "Selected part coordinates",
-            span { "mm" }
-            span { "X " b { "{x:.2}" } }
-            span { "Y " b { "{y:.2}" } }
-        }
-        div { class: "m1-layout-snap-status",
-            span { "Grid {snap_label(settings.snap_fraction)}" }
-            span { if settings.geometry_snap { "Geometry snap on" } else { "Geometry snap off" } }
         }
     }
 }

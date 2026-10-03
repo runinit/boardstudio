@@ -26,4 +26,4 @@ pub(in crate::presentation) use macro_controller::{MacroActions, use_macro_opera
 pub(in crate::presentation) use macro_editor::MacroEditor;
 pub(in crate::presentation) use panel::KeymapPanel;
 pub(super) use view::{KeymapView, project};
-pub(super) use view_controls::{KeymapViewControls, fit_camera, selected_bounds};
+pub(super) use view_controls::{fit_camera, selected_bounds};
