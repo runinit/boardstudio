@@ -404,6 +404,9 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-outline-preview { display: block; width: 100%; height: 150px; margin: 12px 0; border: 1px solid var(--wb-rule); background: var(--wb-canvas); }
 .m1-outline-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .m1-outline-actions button { min-height: 36px; }
+.m1-outline-manual { display: grid; gap: 8px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--wb-rule); }
+.m1-outline-manual h3 { margin: 0; color: var(--wb-ink); font-size: var(--wb-type-label); }
+.m1-outline-manual > p { margin: 0; color: var(--wb-muted); font-size: var(--wb-type-label); }
 .m1-outline-settings { display: grid; gap: 12px; margin-top: 12px; color: var(--wb-ink); }
 .m1-outline-field { display: grid; gap: 5px; color: var(--wb-muted); font-size: var(--wb-type-label); }
 .m1-outline-field :is(input, select) { box-sizing: border-box; width: 100%; min-height: 34px; padding: 6px 8px; border: 1px solid var(--wb-rule-strong); border-radius: 3px; color: var(--wb-ink); background: var(--wb-panel); font: var(--wb-type-body)/var(--wb-leading-ui) var(--wb-body); }
@@ -589,6 +592,10 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-outline-point-handle.is-selected { fill: var(--wb-accent); stroke: var(--wb-panel); stroke-width: 1.2; }
 .m1-outline-point-handle:focus-visible { stroke: var(--wb-status-focus, var(--wb-accent)); stroke-width: 1.7; }
 .m1-outline-point-label { fill: var(--wb-ink); stroke: var(--wb-panel); stroke-width: .3; paint-order: stroke; font-size: 2.5px; pointer-events: none; }
+.m1-outline-draft-controls rect { cursor: crosshair; pointer-events: all; }
+.m1-outline-draft-controls rect:focus-visible { outline: none; stroke: var(--wb-accent); stroke-width: .4; }
+.m1-outline-draft-path { fill: none; stroke: var(--wb-accent); stroke-width: .65; stroke-dasharray: 1.5 1; pointer-events: none; }
+.m1-outline-draft-point { fill: var(--wb-accent); stroke: var(--wb-panel); stroke-width: .35; pointer-events: none; }
 .m1-outline-snap-guide { stroke: var(--wb-selection-ink); stroke-width: .3; stroke-dasharray: 1 .7; pointer-events: none; }
 .m1-outline-snap-label { fill: var(--wb-selection-ink); stroke: var(--wb-canvas); stroke-width: .25; paint-order: stroke; font-size: 2.6px; pointer-events: none; }
 .m1-matrix-key { fill: color-mix(in srgb, var(--wb-geometry-fill-muted) 55%, transparent); stroke: var(--wb-geometry-outline); stroke-width: .28; pointer-events: none; }

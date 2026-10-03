@@ -65,6 +65,15 @@ pub(super) enum OutlineAction {
         phase: EditPhase,
         transaction_id: String,
     },
+    AddFeature {
+        scope: Scope,
+        token: boardstudio_application::SnapshotToken,
+        revision: u64,
+        generation: u64,
+        board_id: String,
+        context: super::objects::TreeContext,
+        feature: OutlineFeature,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -125,6 +134,14 @@ enum PendingKind {
         version_id: String,
         edited_contour: Option<(u32, Vec<Vec2>)>,
     },
+    AddedFeature {
+        version_id: String,
+        feature_id: String,
+    },
+    UpdatedFeature {
+        version_id: String,
+        feature_id: String,
+    },
     Delete {
         version_id: String,
     },
@@ -146,6 +163,8 @@ struct ActionState {
     feedback: Signal<Option<OutlineFeedback>>,
     selected_point: Signal<usize>,
     editing_points: Signal<bool>,
+    drawing_operation: Signal<Option<Operation>>,
+    drawing_points: Signal<Vec<Vec2>>,
     selected_context: Signal<Option<super::objects::ScopedTreeContext>>,
     workspace: Signal<&'static str>,
     scope_generation: Signal<u64>,
@@ -172,6 +191,8 @@ pub(super) struct OutlineInspectorProjection {
     snap_paths: Vec<Vec<Vec2>>,
     pub(super) selected_point: Signal<usize>,
     pub(super) editing_points: Signal<bool>,
+    pub(super) drawing_operation: Signal<Option<Operation>>,
+    pub(super) drawing_points: Signal<Vec<Vec2>>,
     pub(super) versions: Vec<OutlineVersionChoice>,
     pub(super) settings: OutlineSettings,
     pub(super) repair: OutlineRepairSettings,
@@ -257,6 +278,18 @@ impl OutlineActionContext {
             transaction_id,
         }
     }
+
+    fn add_feature(&self, feature: OutlineFeature) -> OutlineAction {
+        OutlineAction::AddFeature {
+            scope: self.scope.clone(),
+            token: self.token,
+            revision: self.revision,
+            generation: self.generation,
+            board_id: self.board_id.clone(),
+            context: self.selection_context.clone(),
+            feature,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -308,6 +341,14 @@ impl OutlineAction {
                 ..
             }
             | OutlineAction::EditPerimeter {
+                scope,
+                token,
+                revision,
+                generation,
+                board_id,
+                ..
+            }
+            | OutlineAction::AddFeature {
                 scope,
                 token,
                 revision,
@@ -393,11 +434,33 @@ pub(super) fn use_outline_lifecycle(
     let feedback = use_signal(|| None::<OutlineFeedback>);
     let selected_point = use_signal(|| 0usize);
     let editing_points = use_signal(|| false);
+    let drawing_operation = use_signal(|| None::<Operation>);
+    let drawing_points = use_signal(Vec::<Vec2>::new);
+    let draft_owner = selected_context.read().clone();
+    let draft_workspace = workspace();
+    use_effect(use_reactive(
+        (
+            &version,
+            &draft_owner,
+            &draft_workspace,
+            &captured_generation,
+        ),
+        {
+            let mut drawing_operation = drawing_operation;
+            let mut drawing_points = drawing_points;
+            move |_| {
+                drawing_operation.set(None);
+                drawing_points.set(Vec::new());
+            }
+        },
+    ));
     let action_state = ActionState {
         pending,
         feedback,
         selected_point,
         editing_points,
+        drawing_operation,
+        drawing_points,
         selected_context,
         workspace,
         scope_generation,
@@ -501,6 +564,14 @@ pub(super) fn use_outline_lifecycle(
                                         )
                                 })
                         }),
+                        PendingKind::AddedFeature { version_id, feature_id }
+                        | PendingKind::UpdatedFeature { version_id, feature_id } => board_state
+                            .and_then(|state| state.versions.iter().find(|version| version.id == *version_id))
+                            .is_some_and(|version| {
+                                version.geometry.features.iter().any(|feature| feature.id() == *feature_id)
+                                    && (matches!(&waiting.kind, PendingKind::UpdatedFeature { .. })
+                                        || board_state.is_some_and(|state| state.active_version_id.as_deref() == Some(version_id)))
+                            }),
                         PendingKind::Delete { version_id } => board_state.is_none_or(|state| {
                             state.active_version_id.is_none()
                                 && state
@@ -597,6 +668,8 @@ fn project_inspector(
         feedback,
         selected_point,
         editing_points,
+        drawing_operation,
+        drawing_points,
         selected_context,
         workspace,
         scope_generation,
@@ -739,6 +812,8 @@ fn project_inspector(
         snap_paths,
         selected_point,
         editing_points,
+        drawing_operation,
+        drawing_points,
         versions,
         settings,
         repair,
@@ -992,6 +1067,101 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
                 vec![board_id.clone()],
             )
         }
+        OutlineAction::AddFeature {
+            context, feature, ..
+        } => {
+            if !selected
+                .as_ref()
+                .is_some_and(|selected| selected.context == *context)
+            {
+                return;
+            }
+            if selected
+                .as_ref()
+                .is_some_and(|selected| match &selected.context {
+                    super::objects::TreeContext::OutlineVersion { version_id, .. } => {
+                        state.and_then(|state| state.active_version_id.as_ref())
+                            != version_id.as_ref()
+                    }
+                    _ => false,
+                })
+            {
+                return;
+            }
+            let OutlineFeature::Polygon { id, points, .. } = feature else {
+                return;
+            };
+            if points.len() < 3
+                || points
+                    .iter()
+                    .any(|point| !point.x.is_finite() || !point.y.is_finite())
+                || snapshot.document.outline.iter().any(|item| item.id() == id)
+                || snapshot
+                    .document
+                    .board_outlines
+                    .iter()
+                    .flat_map(|item| &item.versions)
+                    .flat_map(|version| &version.geometry.features)
+                    .any(|item| item.id() == id)
+            {
+                return;
+            }
+            if let Some(version_id) = state.and_then(|state| state.active_version_id.as_deref()) {
+                let mut document = snapshot.document.clone();
+                let Some(version) = document
+                    .board_outlines
+                    .iter_mut()
+                    .find(|outline| outline.board_id == *board_id)
+                    .and_then(|outline| {
+                        outline
+                            .versions
+                            .iter_mut()
+                            .find(|version| version.id == version_id)
+                    })
+                else {
+                    return;
+                };
+                version.geometry.features.push(feature.clone());
+                (
+                    EditOperation::ReplaceDocument {
+                        document: Box::new(document),
+                    },
+                    PendingKind::UpdatedFeature {
+                        version_id: version_id.to_owned(),
+                        feature_id: id.clone(),
+                    },
+                    vec![board_id.clone(), id.clone()],
+                )
+            } else {
+                let next_number = state
+                    .into_iter()
+                    .flat_map(|state| &state.versions)
+                    .filter_map(|version| {
+                        version
+                            .name
+                            .strip_prefix("Edited outline ")
+                            .and_then(|n| n.parse::<u32>().ok())
+                    })
+                    .max()
+                    .unwrap_or(0)
+                    .saturating_add(1);
+                let version_id = format!("outline-version-{}", operation_id.0);
+                (
+                    EditOperation::CopyOutline {
+                        board_id: board_id.clone(),
+                        version_id: version_id.clone(),
+                        name: format!("Edited outline {next_number}"),
+                        edit: None,
+                        feature: Some(feature.clone()),
+                    },
+                    PendingKind::AddedFeature {
+                        version_id,
+                        feature_id: id.clone(),
+                    },
+                    vec![board_id.clone(), id.clone()],
+                )
+            }
+        }
         OutlineAction::Update { edit, .. } => {
             let Some((operation, expectation, target_ids)) = apply_outline_edit(
                 &snapshot.document,
@@ -1234,6 +1404,9 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
     let on_action = projection.on_action;
     let action_context = projection.action_context.clone();
     let enabled = projection.enabled;
+    let mut drawing_operation = projection.drawing_operation;
+    let mut drawing_points = projection.drawing_points;
+    let mut draft_serial = use_signal(|| 0u64);
     let active_value = projection.active_version_id.clone().unwrap_or_default();
     let perimeter = projection.perimeter.clone();
     let corner_value = match projection.settings.corners {
@@ -1623,6 +1796,60 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
                     "Edit perimeter points"
                 }
             }
+            section { class: "m1-outline-manual", "aria-label": "Manual geometry",
+                h3 { "Manual geometry" }
+                if let Some(operation) = drawing_operation() {
+                    p { role: "status", "Click the canvas to add points. Enter finishes with at least three points; Escape cancels." }
+                    p { "{drawing_points.read().len()} points" }
+                    div { class: "m1-outline-actions",
+                        button {
+                            r#type: "button",
+                            disabled: drawing_points.read().is_empty(),
+                            onclick: move |_| { let mut points = drawing_points.read().clone(); points.pop(); drawing_points.set(points); },
+                            "Undo point"
+                        }
+                        button { r#type: "button", onclick: move |_| { drawing_operation.set(None); drawing_points.set(Vec::new()); }, "Cancel drawing" }
+                        button {
+                            r#type: "button",
+                            disabled: !enabled || drawing_points.read().len() < 3,
+                            onclick: {
+                                let action_context = action_context.clone();
+                                let board_id = projection.board_id.clone();
+                                let revision = projection.revision;
+                                move |_| {
+                                    let points = drawing_points.read().clone();
+                                    if points.len() < 3 || polygon_area(&points).abs() < 1e-6 { return; }
+                                    let serial = draft_serial() + 1;
+                                    draft_serial.set(serial);
+                                    let feature = OutlineFeature::Polygon {
+                                        id: format!("outline-manual-{board_id}-{}-{serial}", revision),
+                                        points,
+                                        anchor_part_id: None,
+                                        operation,
+                                    };
+                                    on_action.call(action_context.add_feature(feature));
+                                    drawing_operation.set(None);
+                                    drawing_points.set(Vec::new());
+                                }
+                            },
+                            "Finish drawing"
+                        }
+                    }
+                } else {
+                    div { class: "m1-outline-actions",
+                        button {
+                            r#type: "button", disabled: !enabled,
+                            onclick: move |_| { perimeter_open.set(false); drawing_points.set(Vec::new()); drawing_operation.set(Some(Operation::Add)); },
+                            "Draw addition"
+                        }
+                        button {
+                            r#type: "button", disabled: !enabled,
+                            onclick: move |_| { perimeter_open.set(false); drawing_points.set(Vec::new()); drawing_operation.set(Some(Operation::Subtract)); },
+                            "Draw cutout"
+                        }
+                    }
+                }
+            }
             div { class: "m1-outline-actions",
                 button { r#type: "button", disabled: !projection.enabled, onclick: move |_| copy_handler.call(copy.clone()), "Copy outline" }
                 if let Some(delete) = delete {
@@ -1994,6 +2221,123 @@ fn outline_grid(fraction: f64, pitch: Vec2) -> Vec2 {
     Vec2 {
         x: spacing(pitch.x),
         y: spacing(pitch.y),
+    }
+}
+
+fn polygon_area(points: &[Vec2]) -> f64 {
+    points
+        .iter()
+        .enumerate()
+        .map(|(index, point)| {
+            let next = points[(index + 1) % points.len()];
+            point.x * next.y - next.x * point.y
+        })
+        .sum::<f64>()
+        * 0.5
+}
+
+#[component]
+pub(super) fn OutlineDraftCanvasOverlay(
+    projection: OutlineInspectorProjection,
+    runtime: OutlineRuntimeHandle,
+    arbiter: CanvasInteractionArbiter,
+    svg: Rc<RefCell<Option<SvgElement>>>,
+    view_x: f64,
+    view_y: f64,
+    width: f64,
+    height: f64,
+    snap_settings: super::objects::LayoutSnapSettings,
+    pitch: Vec2,
+    origins: Vec<crate::presentation::outline_snapping::Origin>,
+) -> Element {
+    let Some(operation) = (projection.drawing_operation)() else {
+        return rsx! {};
+    };
+    let mut drawing_operation = projection.drawing_operation;
+    let mut points = projection.drawing_points;
+    let grid = outline_grid(snap_settings.snap_fraction, pitch);
+    let paths = projection.snap_paths.clone();
+    let origins = Rc::new(origins);
+    let geometry_snap = snap_settings.geometry_snap;
+    let draft = points.read().clone();
+    let point_string = draft
+        .iter()
+        .map(|point| format!("{},{}", point.x, point.y))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let runtime = runtime.0.clone();
+    let action_context = projection.action_context.clone();
+    let on_action = projection.on_action;
+    let enabled = projection.enabled;
+    let board_id = projection.board_id.clone();
+    let revision = projection.revision;
+    let finish = {
+        let points = points;
+        let runtime = runtime.clone();
+        move || {
+            let draft = points.read().clone();
+            if draft.len() < 3 || polygon_area(&draft).abs() < 1e-6 {
+                return;
+            }
+            let feature = OutlineFeature::Polygon {
+                id: format!(
+                    "outline-manual-{board_id}-{}-{}",
+                    revision,
+                    runtime.operation().0
+                ),
+                points: draft,
+                anchor_part_id: None,
+                operation,
+            };
+            on_action.call(action_context.add_feature(feature));
+            points.set(Vec::new());
+        }
+    };
+    rsx! {
+        g { class: "m1-outline-draft-controls", "aria-label": if operation == Operation::Add { "Draw addition" } else { "Draw cutout" },
+            rect {
+                x: "{view_x}", y: "{view_y}", width: "{width}", height: "{height}",
+                fill: "transparent", tabindex: "0", role: "application",
+                aria_label: "Outline drawing canvas. Click to add points. Enter finishes; Escape cancels.",
+                onpointerdown: move |event: PointerEvent| {
+                    let Some(pointer) = event.data().try_as_web_event() else { return; };
+                    pointer.stop_propagation();
+                    if !enabled || pointer.button() != 0 || !arbiter.try_acquire(CanvasInteractionOwner::OutlinePerimeter) { return; }
+                    let Some(at) = super::coordinates(&svg, &pointer, view_x, view_y, width, height) else { arbiter.release(CanvasInteractionOwner::OutlinePerimeter); return; };
+                    let path_points = points.read().clone();
+                    let context = crate::presentation::outline_snapping::Context { anchor: path_points.last().copied(), previous: path_points.iter().rev().nth(1).copied(), exclude: None, neighbor: None };
+                    let px = svg.borrow().as_ref().map(|surface| surface.get_bounding_client_rect().width()).unwrap_or(1.0).max(1.0);
+                    let tolerance = width / px * 7.0;
+                    let mut snapped = crate::presentation::outline_snapping::snap_outline_point(at, context, &paths, crate::presentation::outline_snapping::Options { grid, tolerance, enabled: geometry_snap, free: pointer.alt_key() }, None);
+                    if !pointer.alt_key() && geometry_snap && snapped.guides.is_empty()
+                        && let Some((at, _)) = crate::presentation::outline_snapping::snap_origin(at, &origins, tolerance)
+                    {
+                        snapped.at = at;
+                    }
+                    if !path_points.iter().any(|point| (point.x-snapped.at.x).abs() < 1e-7 && (point.y-snapped.at.y).abs() < 1e-7) { points.set(path_points.into_iter().chain([snapped.at]).collect()); }
+                    arbiter.release(CanvasInteractionOwner::OutlinePerimeter);
+                    pointer.prevent_default();
+                },
+                onkeydown: {
+                    let finish = finish.clone();
+                    move |event: KeyboardEvent| {
+                        let Some(key) = event.data().try_as_web_event() else { return; };
+                        match key.key().as_str() {
+                            "Enter" => { key.prevent_default(); key.stop_propagation(); finish(); },
+                            "Escape" => { key.prevent_default(); key.stop_propagation(); points.set(Vec::new()); drawing_operation.set(None); },
+                            "Backspace" | "Delete" => { key.prevent_default(); key.stop_propagation(); let mut next = points.read().clone(); next.pop(); points.set(next); },
+                            _ => {}
+                        }
+                    }
+                },
+            }
+            if !draft.is_empty() {
+                polyline { class: "m1-outline-draft-path", points: "{point_string}" }
+                for (index, point) in draft.iter().enumerate() {
+                    circle { key: "outline-draft-point-{index}", class: "m1-outline-draft-point", cx: "{point.x}", cy: "{point.y}", r: "1.5" }
+                }
+            }
+        }
     }
 }
 

@@ -23,4 +23,4 @@
 - [ ] Verify production browser parity on the pinned reference fixture, plus the paired Generated and fixed edit outcomes, Undo/Redo and save/reopen gates at parent acceptance. Do not add an exhaustive neighboring transition matrix.
 - [ ] Record the browser preview boundary, bridge owner/removal criteria and React source reference. Preserve RF-001, RF-006 and RF-009; this child does not close F3.4/F3.7 or the 62-parent graph.
 
-**Out of scope:** Rectangles, PartEnvelope connections, additions/cutouts, bridges, gaps, refinements, a new snap algorithm, parent closure, React deletion, renderer/CAD changes, public API/schema visibility, and global performance/accessibility qualification.
+**Out of scope:** Rectangles, PartEnvelope connections, manual addition/cutout drafts (tracked by [F3.4e](18-outline-manual-polygon-drafts.md)), bridges, gaps, refinements, a new snap algorithm, parent closure, React deletion, renderer/CAD changes, public API/schema visibility, and global performance/accessibility qualification.
