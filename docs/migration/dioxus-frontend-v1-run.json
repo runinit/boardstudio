@@ -16,11 +16,11 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T14:36:06.025057+00:00",
+    "updated_at": "2026-10-03T14:48:16.788587+00:00",
     "parent_counts": {
       "accepted": 10,
-      "implementing": 39,
-      "planned": 13,
+      "implementing": 41,
+      "planned": 11,
       "total": 62
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
@@ -44,7 +44,7 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "54f627b1",
+      "source_commit": "18f05311",
       "state": "Larger source batch joined directly. Application checks, packaging, browser qualification and consolidated review are deferred until the coherent candidate is frozen.",
       "packets": [
         {
@@ -107,6 +107,42 @@
           "integrated_commit": "54f627b1",
           "change": "Access-opening add/remove, vertices and dimensions",
           "receipt": ".scratch/dioxus-case-workspace/issues/05-mechanical-enclosure-fit.md"
+        },
+        {
+          "stream": "Layout",
+          "integrated_commit": "81681302",
+          "change": "Accepted mirror-create camera reset and local assembly-copy parity",
+          "receipt": ".scratch/dioxus-layout-authoring/evidence/f32c-existing-half-source-20261003.md"
+        },
+        {
+          "stream": "Shared shell",
+          "integrated_commit": "c0adf728",
+          "change": "Typing-safe global Undo/Redo shortcuts",
+          "receipt": ".scratch/dioxus-frontend-v1/evidence/global-history-shortcuts-20261003/receipt.md"
+        },
+        {
+          "stream": "Case",
+          "integrated_commit": "d3f39f58",
+          "change": "Internal-gasket closure hardware choices",
+          "receipt": ".scratch/dioxus-case-workspace/issues/05-mechanical-enclosure-fit.md"
+        },
+        {
+          "stream": "Parts",
+          "integrated_commit": "f653b8f9",
+          "change": "Module-definition volumes/openings, model bindings and rotary fields",
+          "receipt": ".scratch/dioxus-frontend-v1/evidence/module-profile-editor-source-20261003/RECEIPT.md"
+        },
+        {
+          "stream": "Export support",
+          "integrated_commit": "113c330c",
+          "change": "Generated mechanical package consumer",
+          "receipt": ".scratch/dioxus-frontend-v1/issues/08-export-coordinator-dispatch.md"
+        },
+        {
+          "stream": "PCB",
+          "integrated_commit": "18f05311",
+          "change": "Routed-board reference pose and existing model mappings",
+          "receipt": ".scratch/dioxus-frontend-v1/issues/05-pcb.md"
         }
       ],
       "qualification": "Joined source is not acceptance. No new application tests or browser qualification were run for this batch."
@@ -177,34 +213,34 @@
       {
         "stream": "Layout",
         "priority": "first",
-        "state": "F3.1 accepted; matrix Add object, linked Inspector and Mirror existing half joined. Authors completing accepted-create camera reset and remaining outline/refinement controls."
+        "state": "Selection accepted; matrix Add object, linked Inspector and mirror-half workflow source joined. Outline addition/cutout drafts and reference background grid authoring."
       },
       {
         "stream": "PCB",
-        "state": "Matrix/pair and board geometry routes joined; next actual physical-setup source gap assigned."
+        "state": "Board geometry routes and reference Inspector joined; physical setup is already mounted. Routed-board import/replace and model-path discovery/attachment authoring."
       },
       {
         "stream": "Keymap",
-        "state": "F6K.1/.2/.3 accepted; F6K.4 implemented consumers retain F5.2/F8.2 final joins. Shared menu/shortcut source queue active."
+        "state": "F6K.1/.2/.3 accepted; encoder/firmware-position/export consumers retain F5.2/F8.2 final joins. Global history shortcut source joined."
       },
       {
         "stream": "Keycaps",
-        "state": "F6C.1/.2/.4 accepted; resize/STEP/preview proof retained, F6C.3/.5 joins open. Dedicated worker boundary map reconciled; author implementing missing mechanical-export consumer."
+        "state": "F6C.1/.2/.4 accepted; resize/STEP/preview proof retained, F6C.3/.5 joins open. Worker boundary mapped; export-support author resolving authored-only configured STEP path."
       },
       {
         "stream": "Case",
-        "state": "Authored-editor parent accepted; access-opening controls joined. Next missing mechanical Inspector control authoring; handle pointer-hit/drag qualification still open."
+        "state": "Authored-editor parent accepted; opening controls and closure hardware choices joined. Remaining closure dimensions/critical-fit controls authoring; handle pointer-hit/drag qualification deferred."
       },
       {
         "stream": "Parts + Project",
-        "state": "VIK and fifteen measured-demo source joined. Module-definition profile controls authoring; fixture refresh/card qualification deferred."
+        "state": "Measured demos and module profiles joined. Saved assembly authoring and component model import/pose/scale editor authoring in independent private modules."
       }
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Join ready outline, accepted-create camera, physical-setup, mechanical Inspector, module-profile and generated mechanical-export source packets serially.",
+      "Join ready outline drafts/grid, routed-board import, remaining mechanical settings, assembly authoring and component model controls without per-packet tests or reviews.",
       "Freeze the larger candidate, compile/package once, then qualify changed public journeys and review once; retain unchanged proof.",
-      "Publish only this live progress record and RF deltas; final criteria and parent joins remain intact."
+      "Use assigned relevant source bases across record-only commits. Publish only this live record and new RF deltas; preserve all final criteria and joins."
     ]
   }
 }

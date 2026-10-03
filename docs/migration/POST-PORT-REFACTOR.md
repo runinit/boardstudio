@@ -22,7 +22,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Evidence:** `web/src/presentation.rs`; `web/src/runtime.rs`; `app/src/ui/Workbench.tsx`; `.scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/keycaps05-navigation-owner-review-5fd4bb76-sol-20261002.md`; `web/src/presentation/pcb_wiring/pins.rs`; `.scratch/dioxus-pcb-view/issues/11-board-wiring-pin-lock-controls.md`; `docs/migration/dioxus-frontend-v1-run.json:current_progress`
 
-39 additional source observations are indexed under this RF ID in the ledger.
+40 additional source observations are indexed under this RF ID in the ledger.
 
 ## RF-002: Internal browser host types are exposed as crate APIs
 
@@ -176,7 +176,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Evidence:** `.scratch/dioxus-frontend-v1/evidence/tsx-inventory.json`; `CONSTRAINTS.md`; `app/playwright.config.ts`; `.scratch/m1-production/ACCEPTANCE.md`; `docs/migration/dioxus-frontend-v1-run.json:current_progress`
 
-19 additional source observations are indexed under this RF ID in the ledger.
+20 additional source observations are indexed under this RF ID in the ledger.
 
 ## RF-010: Cancellation has different guarantees at worker and kernel boundaries
 

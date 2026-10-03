@@ -127,6 +127,13 @@ Historical checkpoints are disclosed through the live record's `history` pointer
    the RF JSON once, then runs `progress.py sync`. The readable report is generated.
    A no-new-finding note stays in the packet receipt and creates no ledger copy.
 
+Historical issue status and boundary-gap paragraphs can describe the planning baseline.
+Verify the relevant current source before treating them as a missing capability or
+creating another implementation. The canonical graph owns parent status; the live
+record owns current operations. An assigned source base remains usable across
+coordinator record-only commits: do not create another isolate or rebase merely
+to follow those commits.
+
 This replaces per-slice planning/source/merger approvals and repeated document
 publication for the active frontend run. New tickets are created only for distinct
 runnable work; existing tickets are refined for clarifications or discovered gaps.

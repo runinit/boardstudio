@@ -307,6 +307,15 @@
           "evidence": ".scratch/dioxus-frontend-tranche-1/evidence/vik-module-review-source-20261003/FIXTURE-PREP.md",
           "observation": "The VIK card uses the existing DemoKeyboardCard and Runtime fixture preview/open path. Fixture preparation calls the existing reference openModuleReviewDemo, Core open/edit operations and packProject; it adds no provider, document store, Runtime facade or module authority. Keep fresh accepted identity, module source provenance and human-review assumptions explicit.",
           "status": "No new refactoring takeaway observed for this bounded card/fixture source slice; RF-001 shared composition/provider identity observations and integrated candidate browser proof remain open."
+        },
+        {
+          "date": "2026-10-03",
+          "source": "113c330c and f653b8f9; Runtime mechanical export / private module-profile editor",
+          "evidence": ".scratch/dioxus-frontend-v1/issues/08-export-coordinator-dispatch.md; .scratch/dioxus-frontend-v1/evidence/module-profile-editor-source-20261003/RECEIPT.md",
+          "observation": "Generated-mechanical export adds about1045 Runtime lines combining accepted-owner guards, provider orchestration, manufacturing-document formatting and ZIP construction. Module profiles add a separate presentation-owned accepted-edit draft. These mounted source changes reuse existing geometry/providers, but continue the known shared Runtime and edit-lifecycle coupling; they are unqualified source, not a performance or behavior verdict.",
+          "current_mitigation": "Keep feature-owned captures and existing Session/Core authority; integrate shared source serially, with one later candidate qualification/review.",
+          "post_port_follow_up": "Assess a deep mechanical-export module with a typed accepted source and format/provider boundaries; compare feature edit owners for consolidation only after parity.",
+          "validation": "Preserve exact package entries/body content, snapshot/error/cancellation behavior, accepted history and cleanup; measure source churn and repeated guard logic before restructuring."
         }
       ],
       "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted.",
@@ -1388,6 +1397,13 @@
           "observation": "Live run JSON mixed 176 KB of historical/live state; RUN headline counts drifted to six while the graph had nine accepted parents. Acceptance scope and review hashes were copied across task/run/per-parent folders. Handoff template still required pre-consumer review despite candidate-first authority. This incurred repeated context and synchronization work.",
           "mitigation": "Separate preserved history from compact live operations; coordinator changes status once and derives count/report views; one finalized review per candidate, parent decisions reference its path/hash; one author receipt with any new RF delta.",
           "post_port_follow_up": "Assess whether the local tracker should remain a small reference-based journal or move to a structured tracker after frontend delivery. Preserve evidence identity and explicit final joins in either option."
+        },
+        {
+          "date": "2026-10-03",
+          "source": "Integration-first continuation after18f05311",
+          "evidence": "docs/agents/issue-tracker.md#frontend-delivery-records",
+          "observation": "Old ready-for-agent and missing-capability text outlived mounted topology controls; record-only coordinator commits also prompted an unnecessary fresh isolate. These are concrete freshness/ownership ambiguities that can duplicate implementation and worktree setup.",
+          "current_mitigation": "One canonical parent graph/live operation record, verify relevant current source, and keep an assigned source base across record-only commits. Preserve existing worktrees/history; do not synchronize every historical issue paragraph."
         }
       ],
       "resumed_wave_20261002": "2026-10-02: Machine top-level status/current integration still cited5944/34697 despite newer reviewed source andbd671ae8 served build. Corrected records explicitly separate current source14d1bfeb, servedbd671ae8/34720 and running successor build. Historical receipts retained; no parent closure.",

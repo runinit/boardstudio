@@ -1058,7 +1058,7 @@
         "F4.4",
         "F3.2"
       ],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
       "shared_edit_owner": "integration coordinator",
@@ -1073,7 +1073,15 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      }
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T14:48:16.788501+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Saved-assembly authoring is active and the routed-board reference Inspector is integrated at18f05311, with import/model attachment remaining. Status records implementation only; original criteria, source history and final acceptance joins remain intact."
+        }
+      ]
     },
     {
       "id": "F4.7",
@@ -1414,7 +1422,7 @@
       "acceptance_after": [
         "INT.2"
       ],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
       "shared_edit_owner": "integration coordinator",
@@ -1429,7 +1437,15 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      }
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T14:48:16.788556+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Saved-assembly authoring is active and the routed-board reference Inspector is integrated at18f05311, with import/model attachment remaining. Status records implementation only; original criteria, source history and final acceptance joins remain intact."
+        }
+      ]
     },
     {
       "id": "F5.8",
@@ -3226,8 +3242,8 @@
     "boundary_slices": 2,
     "status": {
       "accepted": 10,
-      "implementing": 39,
-      "planned": 13
+      "implementing": 41,
+      "planned": 11
     }
   },
   "agent_policy": ".scratch/dioxus-frontend-v1/agent-policy.json",
