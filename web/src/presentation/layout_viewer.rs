@@ -250,6 +250,7 @@ pub(crate) fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Elemen
                 parts_preview: None,
                 model_rows,
                 selected_layer: "pcb".to_owned(),
+                selected_reference: None,
                 display: display(),
                 resolved_theme: theme,
                 on_signal,

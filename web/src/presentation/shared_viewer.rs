@@ -273,6 +273,7 @@ pub(crate) fn CaseSharedViewer(
     parts_preview: Option<Rc<crate::parts_preview::PartsPreviewSnapshot>>,
     model_rows: Option<ModelDeliveryRows>,
     selected_layer: String,
+    selected_reference: Option<String>,
     display: CaseDisplay,
     resolved_theme: String,
     on_signal: EventHandler<ScopedViewerSignal>,
@@ -453,6 +454,7 @@ pub(crate) fn CaseSharedViewer(
             component_layers,
             canvas_context,
             selected_layer,
+            selected_reference,
             display,
             theme,
             owner,
@@ -1097,6 +1099,7 @@ fn SharedViewer(
     component_layers: Vec<super::case_assembly_layers::CaseComponentLayer>,
     canvas_context: ViewerCanvasContext,
     selected_layer: String,
+    selected_reference: Option<String>,
     display: CaseDisplay,
     theme: String,
     owner: Rc<ViewerOwner>,
@@ -2168,6 +2171,9 @@ fn SharedViewer(
                 }
             }
             div { class: "m1-case-view-canvas-shell",
+                if let Some(reference) = selected_reference.as_deref() {
+                    div { class: "m1-case-picked-part-badge", "aria-hidden": "true", "{reference}" }
+                }
                 canvas {
                     style: "width:100%;height:100%;display:block",
                     tabindex: "0", role: "img",

@@ -112,6 +112,7 @@ pub(super) struct InspectorInput {
 }
 
 pub(super) struct SelectedPartSummary {
+    pub(super) title: String,
     pub(super) breadcrumb: String,
     pub(super) selected_count: usize,
 }
@@ -152,8 +153,39 @@ pub(super) fn selected_part_summary(
                 .map(|part| part.reference.clone())
         })
         .collect::<Option<Vec<_>>>()?;
+    let matrix_id = match &selected.context {
+        super::objects::TreeContext::Key { matrix_id, .. } => Some(matrix_id.as_str()),
+        super::objects::TreeContext::Component { matrix_id, .. } => matrix_id.as_deref(),
+        _ => None,
+    };
+    let context_name = matrix_id
+        .and_then(|matrix_id| {
+            document
+                .layouts
+                .iter()
+                .find(|layout| {
+                    layout.board_id == model.active_board_id
+                        && layout.matrix_id == matrix_id
+                        && !layout.name.trim().is_empty()
+                })
+                .map(|layout| layout.name.clone())
+                .or_else(|| {
+                    document
+                        .matrices
+                        .iter()
+                        .find(|matrix| matrix.id == matrix_id)
+                        .and_then(|matrix| matrix.name.as_deref())
+                        .map(str::trim)
+                        .filter(|name| !name.is_empty())
+                        .map(str::to_owned)
+                })
+        })
+        .or_else(|| references.first().cloned());
     Some(SelectedPartSummary {
-        breadcrumb: format!("{} / Case / {}", board.name, references.join(", ")),
+        title: references.join(", "),
+        breadcrumb: context_name
+            .map(|name| format!("{} / Case / {name}", board.name))
+            .unwrap_or_else(|| format!("{} / Case", board.name)),
         selected_count: references.len(),
     })
 }
@@ -211,6 +243,24 @@ pub(super) fn objects(input: ObjectsInput<'_>) -> Element {
     let Some(board) = board else {
         return rsx! { p { role: "alert", "The selected Case board is unavailable." } };
     };
+    let selected_part_summary = input
+        .selected_context
+        .read()
+        .as_ref()
+        .filter(|selected| selected.scope == scope)
+        .and_then(|selected| selected_part_summary(input.model, Some(selected)));
+    let selection_title = selected_part_summary
+        .as_ref()
+        .map(|summary| summary.title.as_str())
+        .unwrap_or(&board.name);
+    let selection_breadcrumb = selected_part_summary
+        .as_ref()
+        .map(|summary| summary.breadcrumb.as_str())
+        .unwrap_or("Case");
+    let selection_count = selected_part_summary
+        .as_ref()
+        .map(|summary| format!("{} selected", summary.selected_count))
+        .unwrap_or_else(|| "Select an object to edit".to_owned());
     let active_instance_id = scope.instance_id.clone();
     let active_root_id = active_instance_id
         .clone()
@@ -636,6 +686,11 @@ pub(super) fn objects(input: ObjectsInput<'_>) -> Element {
                     }
                 }
             }
+            footer { class: "m1-case-selection-footer", "aria-label": "Current selection",
+                strong { "{selection_title}" }
+                span { "{selection_breadcrumb}" }
+                span { "{selection_count}" }
+            }
         }
     }
 }
@@ -1018,13 +1073,14 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
             if input.instance_scope_pending {
                 p { role: "status", "Selecting physical assembly…" }
             }
+            if let Some(summary) = input.selected_part_summary.as_ref() {
+                p { class: "m1-case-selection-breadcrumb", "aria-label": "Current selection",
+                    "{summary.breadcrumb}"
+                }
+            }
             if !input.instance_scope_pending {
                 section { class: "m1-case-physical-setup", "aria-label": "Physical assembly",
-                    if let Some(summary) = input.selected_part_summary.as_ref() {
-                        p { class: "m1-case-selection-summary", "aria-label": "Current selection",
-                            "{summary.breadcrumb} · {summary.selected_count} selected"
-                        }
-                    } else {
+                    if input.selected_part_summary.is_none() {
                         p { "Mechanical settings and closure hardware apply to all case assemblies. Select an assembly in Objects." }
                     }
                     if input.physical_setup.projection.topology == boardstudio_core::model::HardwareTopology::Split {

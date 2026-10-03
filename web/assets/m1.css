@@ -298,6 +298,9 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-mirrored-pair-cell { fill: color-mix(in srgb, var(--wb-accent) 20%, transparent); stroke: var(--wb-accent); stroke-width: .35; }
 .m1-object-tree-heading { display: flex; justify-content: space-between; gap: 8px; padding: 9px 10px; border-bottom: 1px solid var(--wb-rule); font-weight: 650; }
 .m1-object-tree-heading span { color: var(--wb-muted); font-weight: 400; white-space: nowrap; }
+.m1-case-selection-footer { display: grid; gap: 6px; padding: 10px; border-top: 1px solid var(--wb-rule); font-size: var(--wb-type-label); }
+.m1-case-selection-footer strong { color: var(--wb-ink); overflow-wrap: anywhere; }
+.m1-case-selection-footer span { color: var(--wb-muted); overflow-wrap: anywhere; }
 .m1-component-list { display: grid; align-content: start; gap: 1px; min-height: 0; flex: 1; overflow: auto; overscroll-behavior: contain; padding: 3px 5px; }
 .m1-component-list .m1-component { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 31px; text-align: left; overflow-wrap: anywhere; border-color: transparent; background: transparent; }
 .m1-component-list .m1-component:hover { background: var(--wb-surface-soft); }
@@ -1006,6 +1009,8 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-case-panel > .m1-shared-viewer > canvas { flex: 1; min-width: 0; min-height: 160px; height: 100%; }
 .m1-case-panel .m1-case-view-canvas-shell { position: relative; display: flex; flex: 1; min-width: 0; min-height: 160px; }
 .m1-case-panel .m1-case-view-canvas-shell > canvas { flex: 1; width: 100%; min-width: 0; min-height: 0; height: 100%; }
+.m1-case-picked-part-badge { position: absolute; z-index: 1; left: 12px; bottom: 12px; max-width: min(70%, 320px); padding: 7px 9px; overflow: hidden; border: 1px solid var(--wb-rule); border-radius: 4px; color: var(--wb-ink); background: var(--wb-panel); font: var(--wb-type-label)/var(--wb-leading-ui) var(--wb-mono); text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+.m1-case-selection-breadcrumb { margin: 0; padding: 10px 14px 0; color: var(--wb-muted); font-size: var(--wb-type-label); line-height: 1.5; }
 .m1-case-panel .m1-case-view-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 6px; flex: none; }
 .m1-case-panel .m1-case-view-settings { padding: 6px 10px; }
 .m1-case-panel .m1-case-view-settings-body { position: absolute; z-index: 5; top: 44px; right: 0; width: min(360px, 100%); max-height: calc(100% - 52px); overflow: auto; padding: 12px; border: 1px solid var(--wb-rule); background: var(--wb-panel); }

@@ -82,6 +82,16 @@ pub(crate) fn CaseViewer(
     let selection_adapter = use_context::<SelectionAdapter>();
     let selection = use_context::<CaseSelection>();
     let theme = use_context::<ResolvedTheme>().0;
+    let selected_reference = {
+        let model = runtime.model();
+        let selected = selection_adapter
+            .selected_context
+            .read()
+            .clone()
+            .filter(|selected| selected.scope == scene.scope);
+        super::case_workspace::selected_part_summary(&model, selected.as_ref())
+            .map(|summary| summary.title)
+    };
     let key = display_key(&scene.scope);
     let initial_display = use_hook({
         let key = key.clone();
@@ -198,6 +208,7 @@ pub(crate) fn CaseViewer(
             parts_preview: None,
             model_rows,
             selected_layer,
+            selected_reference,
             display,
             resolved_theme: theme().to_owned(),
             on_signal,
@@ -217,6 +228,16 @@ pub(crate) fn CasePreviewViewer(
     let selection_adapter = use_context::<SelectionAdapter>();
     let selection = use_context::<CaseSelection>();
     let theme = use_context::<ResolvedTheme>().0;
+    let selected_reference = {
+        let model = runtime.model();
+        let selected = selection_adapter
+            .selected_context
+            .read()
+            .clone()
+            .filter(|selected| selected.scope == preview.owner.scope);
+        super::case_workspace::selected_part_summary(&model, selected.as_ref())
+            .map(|summary| summary.title)
+    };
     let key = display_key(&preview.owner.scope);
     let initial_display = use_hook({
         let key = key.clone();
@@ -283,6 +304,7 @@ pub(crate) fn CasePreviewViewer(
             parts_preview: None,
             model_rows,
             selected_layer: "pcb".to_owned(),
+            selected_reference,
             display,
             resolved_theme: theme,
             on_signal,
