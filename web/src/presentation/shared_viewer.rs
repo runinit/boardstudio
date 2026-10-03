@@ -279,6 +279,7 @@ pub(crate) fn CaseSharedViewer(
     on_signal: EventHandler<ScopedViewerSignal>,
     on_display_change: EventHandler<ScopedDisplayChange>,
     mechanical_settings: Option<super::MechanicalSettingsProps>,
+    inline_case_controls: bool,
 ) -> Element {
     let runtime = use_context::<Rc<crate::runtime::Runtime>>();
     let _ = use_context::<Signal<u64>>()();
@@ -462,6 +463,7 @@ pub(crate) fn CaseSharedViewer(
             on_signal,
             on_display_change,
             mechanical_settings,
+            inline_case_controls,
         }
     }
 }
@@ -1107,6 +1109,7 @@ fn SharedViewer(
     on_signal: EventHandler<ScopedViewerSignal>,
     on_display_change: EventHandler<ScopedDisplayChange>,
     mechanical_settings: Option<super::MechanicalSettingsProps>,
+    inline_case_controls: bool,
 ) -> Element {
     let runtime = use_context::<Rc<crate::runtime::Runtime>>();
     let mut editing_gaskets = use_signal(|| false);
@@ -2038,7 +2041,35 @@ fn SharedViewer(
     rsx! {
         div { class: "m1-case-view m1-shared-viewer",
             div { class: "m1-case-view-toolbar",
+<<<<<<< HEAD
                 button { onclick: move |_| run_host(&fit, |host| host.fit(), &mut status), "{canvas_context.fit_label()}" }
+=======
+                button { onclick: move |_| run_host(&fit, |host| host.fit(), &mut status), "Fit case" }
+                if inline_case_controls {
+                    div { role: "group", "aria-label": "Case camera",
+                        button { onclick: move |_| run_host(&top, |host| host.view("top"), &mut status), "Top view" }
+                        button { onclick: move |_| run_host(&bottom, |host| host.view("bottom"), &mut status), "Bottom view" }
+                        button { onclick: move |_| run_host(&iso, |host| host.view("isometric"), &mut status), "Isometric view" }
+                        button { onclick: move |_| run_host(&left, |host| host.orbit(-50.0, 0.0), &mut status), "Rotate left" }
+                        button { onclick: move |_| run_host(&right, |host| host.orbit(50.0, 0.0), &mut status), "Rotate right" }
+                        button { onclick: move |_| run_host(&zoom_in, |host| host.zoom(0.85), &mut status), "Zoom in" }
+                        button { onclick: move |_| run_host(&zoom_out, |host| host.zoom(1.15), &mut status), "Zoom out" }
+                    }
+                    div { role: "group", "aria-label": "Case display mode",
+                        for mode in [RenderMode::Shaded, RenderMode::Wireframe, RenderMode::Hybrid] {
+                            {
+                                let mut transient = transient;
+                                let label = match mode { RenderMode::Shaded => "Shaded", RenderMode::Wireframe => "Wireframe", RenderMode::Hybrid => "Hybrid" };
+                                rsx! { button {
+                                    "aria-pressed": transient().mode == mode,
+                                    onclick: move |_| transient.with_mut(|view| view.mode = mode),
+                                    "{label}"
+                                } }
+                            }
+                        }
+                    }
+                }
+>>>>>>> 4796742e (Match Case workspace shell to contextual reference)
                 if can_edit_gaskets {
                     button {
                         r#type: "button",
@@ -2085,9 +2116,14 @@ fn SharedViewer(
                     }
                 }
                 details { class: "m1-case-view-settings",
-                    summary { "View controls" }
+                    summary { if inline_case_controls { "More view controls" } else { "View controls" } }
                     div { class: "m1-case-view-settings-body",
+<<<<<<< HEAD
             div { role: "group", "aria-label": "{canvas_context.camera_label()}",
+=======
+            if !inline_case_controls {
+            div { role: "group", "aria-label": "Case camera",
+>>>>>>> 4796742e (Match Case workspace shell to contextual reference)
                 button { onclick: move |_| run_host(&top, |host| host.view("top"), &mut status), "Top view" }
                 button { onclick: move |_| run_host(&bottom, |host| host.view("bottom"), &mut status), "Bottom view" }
                 button { onclick: move |_| run_host(&iso, |host| host.view("isometric"), &mut status), "Isometric view" }
@@ -2109,7 +2145,12 @@ fn SharedViewer(
                     }
                 }
             }
+<<<<<<< HEAD
             div { role: "group", "aria-label": "{canvas_context.assembly_label()}",
+=======
+            }
+            div { role: "group", "aria-label": "Case assembly view",
+>>>>>>> 4796742e (Match Case workspace shell to contextual reference)
                 for view in [AssemblyView::Assembled, AssemblyView::Exploded, AssemblyView::Section] {
                     {
                         let mut transient = transient;

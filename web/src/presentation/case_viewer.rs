@@ -214,6 +214,7 @@ pub(crate) fn CaseViewer(
             on_signal,
             on_display_change,
             mechanical_settings,
+            inline_case_controls: true,
         }
     }
 }
@@ -310,6 +311,7 @@ pub(crate) fn CasePreviewViewer(
             on_signal,
             on_display_change,
             mechanical_settings: None,
+            inline_case_controls: true,
         }
     }
 }

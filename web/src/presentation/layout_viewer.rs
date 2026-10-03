@@ -256,6 +256,7 @@ pub(crate) fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Elemen
                 on_signal,
                 on_display_change,
                 mechanical_settings: None,
+                inline_case_controls: false,
             }
         }
     }

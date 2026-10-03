@@ -87,7 +87,6 @@ pub(super) struct ObjectsInput<'a> {
     pub(super) expanded: Signal<BTreeSet<String>>,
     pub(super) on_action: EventHandler<TreeAction>,
     pub(super) on_select: EventHandler<TreeSelectRequest>,
-    pub(super) on_navigate: EventHandler<(Scope, String, Option<String>)>,
     pub(super) on_display: EventHandler<DisplayRequest>,
 }
 
@@ -511,52 +510,14 @@ pub(super) fn objects(input: ObjectsInput<'_>) -> Element {
         }
     }
 
-    let board_scope = scope.clone();
-    let instance_scope = scope.clone();
     let toggle_scope = input.expanded;
     let on_select = input.on_select;
-    let on_navigate = input.on_navigate;
     let on_action = input.on_action;
     let rows_for_render = rows;
     rsx! {
         aside { class: "m1-objects", "aria-label": "Objects",
             header { h2 { "Objects" } }
-            div { class: "m1-object-navigation",
-                label { "Board"
-                    select { "aria-label": "Board", value: "{scope.board_id}", onchange: move |event: FormEvent| {
-                        on_navigate.call((board_scope.clone(), event.value(), None));
-                    },
-                        for board in &document.boards {
-                            option { key: "{board.id}", value: "{board.id}", "{board.name}" }
-                        }
-                    }
-                }
-                div { class: "m1-instance-selection", role: "group", "aria-label": "Physical instance",
-                    span { "Physical instance" }
-                    div { class: "m1-instance-choices",
-                        for instance in instances.iter().filter(|instance| instance.board_id == scope.board_id) {
-                            {
-                                let id = instance.instance_id.clone().unwrap_or_else(|| instance.board_id.clone());
-                                let selected = id == active_root_id;
-                                let instance_id = instance.instance_id.clone();
-                                let board_id = instance.board_id.clone();
-                                let name = instance.name.clone();
-                                let navigate = on_navigate;
-                                let scope = instance_scope.clone();
-                                rsx! {
-                                    button {
-                                        key: "{id}", r#type: "button", "aria-pressed": selected,
-                                        onclick: move |_| navigate.call((scope.clone(), board_id.clone(), instance_id.clone())),
-                                        "{name}"
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
             div { class: "m1-object-tree",
-                div { class: "m1-object-tree-heading", "{document.name}", span { "{parts.len()} parts" } }
                 div { role: "tree", "aria-label": "Case assembly", class: "m1-component-list m1-object-tree-list",
                     for row in rows_for_render.iter().cloned() {
                         {
@@ -671,13 +632,17 @@ pub(super) fn objects(input: ObjectsInput<'_>) -> Element {
                                             class: "m1-object-visibility",
                                             r#type: "button",
                                             "aria-pressed": visible,
-                                            "aria-label": "Toggle visibility for {row_label}",
+                                            "aria-label": if visible { "Hide {row_label}" } else { "Show {row_label}" },
                                             onclick: move |_| display_handler.call(DisplayRequest {
                                                 target_scope: scope_for_visibility.clone(),
                                                 id: id.clone(),
                                                 action: DisplayAction::ToggleVisibility,
                                             }),
-                                            if visible { "Visible" } else { "Hidden" }
+                                            svg { view_box: "0 0 24 24", "aria-hidden": "true",
+                                                path { d: "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z" }
+                                                circle { cx: "12", cy: "12", r: "3" }
+                                                if !visible { path { d: "m3 3 18 18" } }
+                                            }
                                         }
                                     }
                                 }

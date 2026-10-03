@@ -10,6 +10,8 @@
 
 **Status:** implementation in progress against the independently reviewed Case contract below. This bounded slice is not accepted; Case parent criteria and all downstream joins remain open.
 
+**Shell follow-on:** [Issue 16: Case workspace shell and contextual Objects parity](16-case-workspace-shell-parity.md) refines the mounted tree/viewer layout and common Case controls. Issue 16 does not replace this contract or change Issue 09's selection and ownership semantics.
+
 **Reviewed private contract:** [Case contextual workspace contract](../evidence/contextual-workspace-issue09/implementation-contract-reviewed.md), SHA-256 `3a701acb2dc75bc72f5753fc4bf8b639ebbdd908482c0bd0455a88f17b845c88`; [review and amended acknowledgment](../evidence/contextual-workspace-issue09/review.md), SHA-256 `8512f8e709ff3c1b383451fd4f3ee6c80bb9642358b33cce241aae7e4766dc68`.
 
 - [ ] On Case entry, show the selected board and physical instance using the current accepted scope. Provide the Case assembly context separately from Layout’s Columns/Rows tree. A Main case assembly row is permitted as a display-group control only when backed by the current resolved scene; it is not an editable ProjectDoc object. No placeholder body, duplicate tree node or renderer-generated domain ID may become a domain selection.

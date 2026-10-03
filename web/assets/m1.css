@@ -1062,6 +1062,25 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
   .m1-case-panel .m1-case-view-settings-body { top: 52px; max-height: calc(100% - 60px); }
 }
 
+/* Case workspace shell: assembly navigation stays in Objects; the viewer owns the center. */
+.m1-case-panel > .m1-case-live-status { flex: none; padding-inline: 2px; color: var(--wb-muted); font-size: var(--wb-type-label); line-height: 1.35; }
+.m1-case-panel > .m1-case-live-status.is-error { color: var(--wb-status-error); }
+.m1-case-model-delivery { position: absolute; z-index: 6; top: 46px; right: 12px; max-width: min(420px, calc(100% - 24px)); padding: 6px 9px; border: 1px solid var(--wb-rule); background: var(--wb-panel); }
+.m1-case-model-delivery > summary { cursor: pointer; color: var(--wb-muted); font-size: var(--wb-type-label); }
+.m1-case-model-delivery p { margin: 6px 0 0; color: var(--wb-status-error); font-size: var(--wb-type-label); }
+.m1-object-tree { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.m1-object-tree-list { flex: 1; min-height: 0; overflow: auto; }
+.m1-object-visibility { display: grid; flex: none; place-items: center; width: 28px; min-height: 28px; padding: 4px; border: 0; color: var(--wb-muted); background: transparent; opacity: .72; cursor: pointer; }
+.m1-object-visibility:hover, .m1-object-visibility:focus-visible { opacity: 1; }
+.m1-object-visibility svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.m1-case-view-toolbar { justify-content: flex-start; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; }
+.m1-case-view-toolbar [role="group"] { display: flex; flex: none; align-items: center; gap: 4px; }
+.m1-case-view-toolbar > button, .m1-case-view-toolbar [role="group"] button, .m1-case-view-toolbar > details > summary { flex: none; min-height: 32px; padding: 5px 8px; white-space: nowrap; }
+@media (max-width: 760px) {
+  .m1-case-view-toolbar > button, .m1-case-view-toolbar [role="group"] button, .m1-case-view-toolbar > details > summary { min-height: 44px; }
+  .m1-case-model-delivery { top: 56px; right: 8px; max-width: calc(100% - 16px); }
+}
+
 .m1-keymap-binding-editor { display: grid; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--wb-rule); }
 .m1-keymap-binding-editor .m1-keymap-binding-field { margin-block: 0; }
 .m1-keymap-binding-pending, .m1-keymap-binding-saved { margin: 0; color: var(--wb-muted); font-size: var(--wb-type-label); }

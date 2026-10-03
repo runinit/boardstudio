@@ -6102,7 +6102,6 @@ fn Editor() -> Element {
                 expanded: case_tree_expanded,
                 on_action: workspace_callbacks.case_action,
                 on_select: workspace_callbacks.select_tree,
-                on_navigate: workspace_callbacks.navigate,
                 on_display: workspace_callbacks.case_display,
             },
         )),

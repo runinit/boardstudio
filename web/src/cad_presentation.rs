@@ -152,20 +152,21 @@ pub fn CasePanel(
                     "Cancel"
                 }
             }
-            p { role: "status", "aria-live": "polite", "{title}" }
+            p { class: "m1-case-live-status", role: "status", "aria-live": "polite", "{title}" }
             if runtime.native_case_preview_pending() {
-                p { role: "status", "aria-live": "polite", "Preparing the accepted PCB preview…" }
+                p { class: "m1-case-live-status is-secondary", role: "status", "aria-live": "polite", "Preparing the accepted PCB preview…" }
             } else if runtime.native_case_preview_error().is_some() {
-                p { role: "alert", "The accepted PCB preview could not be prepared." }
-            } else if runtime.native_case_preview().is_some() {
-                p { role: "status", "Accepted PCB preview is ready for the Case viewer." }
+                p { class: "m1-case-live-status is-error", role: "alert", "The accepted PCB preview could not be prepared." }
             }
             if let Some(preview) = accepted_preview.as_ref()
                 && let Some(rows) = runtime.native_model_delivery(preview)
+                && (rows.delivered.len() != preview.preview.models.len() || !rows.failures.is_empty())
             {
-                p { role: "status", "{rows.delivered.len()} of {preview.preview.models.len()} board models decoded." }
-                for failure in rows.failures.iter().take(3) {
-                    p { role: "status", "{failure.reference}: {failure.reason}" }
+                details { class: "m1-case-model-delivery",
+                    summary { "Board models: {rows.delivered.len()} of {preview.preview.models.len()} decoded" }
+                    for failure in rows.failures.iter() {
+                        p { role: "alert", "{failure.reference}: {failure.reason}" }
+                    }
                 }
             }
             if scene.is_none()
