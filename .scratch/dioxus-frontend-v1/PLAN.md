@@ -1,6 +1,8 @@
 # Dioxus frontend execution plan
 
-**Current evidence checkpoint, 2026-10-03:** 2/62 parents accepted (INT.1 and the unchanged scoped delivery seam INT.2); 12 implementing,48 planned. [INT.2 acceptance](evidence/int2-acceptance-20261003/REVIEW.md) retains real delivery/failure/retry/asset/cancellation evidence and consumer limits. Current comparison is [34741](http://127.0.0.1:34741/), full baseline8af; next Parts/Keycaps page-only reuse is under qualification. Earlier checkpoint paragraphs below remain history. No criterion or dependency join is waived.
+**Current execution:** [the run ledger](../../docs/migration/dioxus-frontend-v1-run.json), field `current_progress`, is authoritative for the served candidate, parent counts, completed journeys, waiting packets and next work. Layout has integration priority while all six streams continue. Use one combined affected check, changed paired browser journeys and one consolidated candidate review; reuse sufficient evidence for unchanged behavior. Keep every parent criterion and [refactoring observation](../../docs/migration/POST-PORT-REFACTOR.md). The dated checkpoints below are retained history.
+
+**Retained checkpoint, 2026-10-03:** 2/62 parents accepted (INT.1 and the unchanged scoped delivery seam INT.2); 12 implementing,48 planned. [INT.2 acceptance](evidence/int2-acceptance-20261003/REVIEW.md) retains real delivery/failure/retry/asset/cancellation evidence and consumer limits. Comparison at that checkpoint was [34741](http://127.0.0.1:34741/), full baseline8af. No criterion or dependency join was waived.
 
 ## Active checkpoint — 2026-10-02, public qualification
 
