@@ -21,6 +21,7 @@ use web_sys::{
 };
 
 const MAX_STEP_BYTES: usize = 32 * 1024 * 1024;
+const KEYCAPS_PREVIEW_BATCH_SIZE: usize = 8;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CadWorkerError(pub String);
@@ -852,16 +853,53 @@ async fn run_request(
     let result = match request.operation {
         CadOperation::Preview => {
             if let Some(keycaps) = request.keycaps.as_ref() {
-                let input = serde_json::to_string(&serde_json::json!({
-                    "revision": keycaps.revision,
-                    "specs": keycaps.specs,
-                    "export": false,
-                }))
-                .map_err(|error| (request.clone(), error.to_string(), false))?;
-                let input = js_sys::JSON::parse(&input)
+                // Match React's buildKeycaps adapter: yield between groups so the
+                // dedicated worker can receive cancellation before starting more CAD.
+                let bodies = Array::new();
+                for specs in keycaps.specs.chunks(KEYCAPS_PREVIEW_BATCH_SIZE) {
+                    if canceled() {
+                        return Err((request, "CAD job cancelled".into(), true));
+                    }
+                    let input = serde_json::to_string(&serde_json::json!({
+                        "revision": keycaps.revision,
+                        "specs": specs,
+                        "export": false,
+                    }))
+                    .map_err(|error| (request.clone(), error.to_string(), false))?;
+                    let input = js_sys::JSON::parse(&input)
+                        .map_err(|error| (request.clone(), js_message(error), false))?;
+                    let batch = invoke("build_keycaps", &[input])
+                        .map_err(|error| (request.clone(), error, false))?;
+                    let revision = Reflect::get(&batch, &"revision".into())
+                        .map_err(|error| (request.clone(), js_message(error), false))?
+                        .as_f64();
+                    if revision != Some(request.identity.revision as f64) {
+                        return Err((
+                            request,
+                            "Keycap preview provider returned another revision".into(),
+                            false,
+                        ));
+                    }
+                    let batch_bodies = Reflect::get(&batch, &"bodies".into())
+                        .map_err(|error| (request.clone(), js_message(error), false))?;
+                    for body in Array::from(&batch_bodies).iter() {
+                        bodies.push(&body);
+                    }
+                    yield_to_worker().await;
+                }
+                if canceled() {
+                    return Err((request, "CAD job cancelled".into(), true));
+                }
+                let result = Object::new();
+                Reflect::set(
+                    &result,
+                    &"revision".into(),
+                    &JsValue::from_f64(request.identity.revision as f64),
+                )
+                .map_err(|error| (request.clone(), js_message(error), false))?;
+                Reflect::set(&result, &"bodies".into(), &bodies)
                     .map_err(|error| (request.clone(), js_message(error), false))?;
-                invoke("build_keycaps", &[input])
-                    .map_err(|error| (request.clone(), error, false))?
+                result.into()
             } else {
                 let prepared = request.prepared.as_ref().expect("request validated");
                 let bodies = Array::new();

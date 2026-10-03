@@ -551,7 +551,23 @@
         "fixture": "docs/migration/evidence/new-keyboard-guide-paired-20261002/new17-final-oracle-accepted-project.json",
         "sha256": "658e2488ef3ac2514646f177c99b6c12f9f47561bd9a42211f72a93d1609b77a",
         "observation": "Fresh4\u00d74 MX matrix Case preview conversion rejects KIPRJMOD model path; reproduced independently. Distinct from frozen packaged model-fetch adapter; generator loop/diagnosis active, cause not yet established."
-      }
+      },
+      "follow_up_evidence": [
+        {
+          "date": "2026-10-03",
+          "task": "BND.1 groups-of-eight preview cancellation parity",
+          "baseline": "current Keycaps isolate before chunk adapter",
+          "certainty": "confirmed source gap; bounded private repair authored, served cancellation proof pending",
+          "evidence": [
+            "web/src/cad_worker.rs",
+            "cad/src/index.ts",
+            ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md"
+          ],
+          "observation": "The Dioxus worker invoked build_keycaps once with the entire preview spec vector, while the pinned TypeScript wrapper builds groups of eight and yields between them. The packaged Rust WASM engine remains authoritative; this was a host scheduling/cancellation parity gap, not a missing CAD capability.",
+          "current_mitigation": "The isolated adapter invokes the existing export in groups of eight, yields between groups, checks cancellation before the next group and validates each returned batch revision before combining stable body/legend meshes. No generic request/CAD engine/public contract change.",
+          "remaining": "Root combined source check/package and one changed preview-cancellation journey are pending. Do not infer mid-kernel preemption or parent acceptance."
+        }
+      ]
     },
     {
       "id": "RF-004",
@@ -1377,6 +1393,21 @@
           "current_mitigation": "Full ticket acceptance remains blocked; pure UI and independent panels/tree continue. No unsafe reply dropping, fabricated core error, history-resetting restore or narrower acceptance applied.",
           "post_port_follow_up": "Review cancellation/adoption contracts across UI intent, worker state, durable commit and one-time caller settlement.",
           "validation": "Retained red-capable public loop plus pending-core/save variants, valid/unavailable B and history/selection retention; repaired source needs independent review."
+        },
+        {
+          "date": "2026-10-03",
+          "task": "BND.1 preview chunk boundary correction",
+          "baseline": "Keycaps isolate before groups-of-eight adapter",
+          "certainty": "confirmed worker scheduling parity gap; synchronous-kernel limitation retained",
+          "evidence": [
+            "cad/src/index.ts",
+            "web/src/cad_worker.rs",
+            ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md"
+          ],
+          "observation": "The source wrapper contract can yield only between build_keycaps calls. A Dioxus one-call preview could not process worker cancel messages between groups; the step kernel remains non-preemptible.",
+          "current_mitigation": "Dioxus now mirrors eight-spec batches and yields to the worker event loop after each batch. Cancellation is checked before further batches and suppresses completion; STEP remains a single call whose late result is rejected.",
+          "post_port": "After React retirement, remove the parallel TypeScript host policy only through the authorized F9 cutover; keep the packaged Rust CAD export as the sole geometry engine. Do not relabel the executable TS wrapper as generated glue.",
+          "validation": "Combined check and one changed cancellation/preview journey on the root-served candidate; existing unrelated fit/history/keycap field matrices are not repeated."
         }
       ],
       "continuations": [
