@@ -908,6 +908,16 @@
     ],
     "handoff_template": "integration-handoff-template.md",
     "queue_metadata": [
+      "stream",
+      "author_commit_and_owned_paths",
+      "existing_spec_and_receipt_pointer",
+      "new_rf_delta_or_none",
+      "state"
+    ],
+    "build_window": "Freeze root integration inputs through before/after source hashes; isolated authors continue.",
+    "provider_reuse_spec": "specs/page-only-packaging-reuse.md; implemented and actual changed-source qualified at19525578",
+    "acceptance": "One integrated Standards/Spec candidate review with affected paired journeys. All parent criteria remain; no per-child approval chain.",
+    "historical_queue_metadata_before_20261003": [
       "packet_id",
       "stream",
       "private_commit_and_paths",
@@ -921,9 +931,8 @@
       "root_lease",
       "build_and_fingerprints"
     ],
-    "build_window": "Freeze root integration inputs through before/after source hashes; isolated authors continue.",
-    "provider_reuse_spec": "specs/page-only-packaging-reuse.md; implemented and actual changed-source qualified at19525578",
-    "acceptance": "One integrated Standards/Spec candidate review with affected paired journeys. All parent criteria remain; no per-child approval chain."
+    "handoff_template_required": false,
+    "handoff_policy": "A commit/owned paths plus existing receipt pointer in a message is sufficient. Root records queue state once. Compiler/build results and candidate review references belong to their existing records, not a per-packet checklist."
   },
   "api_design_authority": {
     "user_instruction": "if you need to change things (APIs, design) change them",

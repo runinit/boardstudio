@@ -51,11 +51,11 @@ The 58 workflow slices are supported by two small integration tasks and two earl
 
 ## Model allocation
 
-Use **Luna Medium by default**, Low for fixed-oracle mechanical packets, and High for specified state/gesture/async/adapter work. Reserve **Astra High for independent reviews and behavioral bug fixing**, with Extra High for difficult unresolved cases. The 62 rows are work packages (31 L, 29 M, 2 S); dispatch smaller packets with exact ownership, source/fixture oracle and concrete callbacks. Shared boundaries get a reviewed call-path proof before implementation. Eleven available runtime slots do not mean eleven concurrent authors: keep review, public verification and integration capacity ahead of author throughput.
+Use **Luna Medium by default**, Low for fixed-oracle mechanical packets, and High for specified state/gesture/async/adapter work. Use **Sol 6.1 High for the consolidated candidate review**; Astra High/Extra High remains available for difficult behavioral bugs. The 62 rows are work packages (31 L, 29 M, 2 S); dispatch smaller packets with exact ownership, source/fixture oracle and concrete callbacks. Authors verify consumed capabilities from current source and implement necessary migration seams under existing authority. Reviews and public qualification follow the combined candidate; current slots support disjoint authors and serial root integration.
 
 [Agent policy](AGENT-ROUTING.md) contains the first-wave packet map, cadence, escalation and launch rules; [machine routing](agent-policy.json) assigns every parent task. Fast/priority is the preference and host configuration is already priority, but the exposed spawn call has no tier override. This update does not change host configuration or a running model.
 
-## First visible tranche
+## Retained first visible tranche — 2026-10-02
 
 INT.1 is accepted and supplies the private shell/read-model/callback seam. The visible tranche remains **F2.1 project library**, **F2.3 panels/drawers**, and **F3.1 Layout tree/selection**, with bounded children already underway. Preserve default keycaps, all five Layout layers and the shared Footprints state already delivered by F3a. Recent panel-mode and tree hierarchy corrections have bounded public evidence, but their parent/workflow acceptance still has open joins.
 
@@ -64,7 +64,7 @@ Current pull work includes Parts/selected-context public proof, Keymap binding f
 Each workflow uses a feature author plus a different verification/review agent. Root integrates shared runtime/shell/global CSS/build files; feature authors work in private modules with explicit ownership. With eleven available slots, root schedules disjoint authors while reserving independent verification, both review axes and serialized integration/build capacity. Author concurrency is capped by those queues, not by slot count. [Dispatch and ownership details](EXECUTION.md) describe exact boundaries and handoffs.
 
 
-## Current execution frontier — 2026-10-02
+## Retained execution frontier — 2026-10-02
 
 - **F2.3 / T1-07:** desktop panel modes have bounded implementation and public checks; actual assistive-technology evidence remains open. This is not F2.3 acceptance.
 - **F3.1 / T1-10:** hierarchy placement and unowned-component retention passed paired public checks at `515f390d`; the semantic ownership repair at `f65b0c83` has source review/build and zero candidate axe violations in the focused public packet. Typed selected-context summary and numeric public QA are mounted at `e510dd4c`. Full tree/canvas/Inspector, scope/reopen, stale callback, empty/disabled context, keyboard/compact/theme and actual AT evidence remain open. T1-11 owns outline/bridge navigation; T1-12 owns rectangular range and modifier semantics. The public gaps inspected so far fit these existing tickets; no duplicate F3.1 children are drafted. See [current frontier evidence](evidence/planning/current-frontier-20261002.md).
