@@ -320,6 +320,15 @@
           "observation": "Correct contextual inventory still prepended private Layout position/matrix authoring before reference PCB wiring.",
           "mitigation": "Remove only wrong PCB Inspector composition and unused private numeric-position path; keep Layout authoring and PCB canvas/wiring owners.",
           "post_port": "Define explicit workbench Inspector composition separately from shared selection/projection helpers."
+        },
+        {
+          "date": "2026-10-03",
+          "source": "F2.4 Issue 10 source audit against React5a472a94 and paired Board2 screenshots; Dioxus base8746265b",
+          "evidence": ".scratch/dioxus-frontend-v1/specs/f24-project-shell-visible-parity.md; /home/chris/.local/share/boardstudio/retained-tmp/20261003/pcb19-react-board2.png; /home/chris/.local/share/boardstudio/retained-tmp/20261003/pcb19-dioxus-board2-34760.png",
+          "observation": "Visible Project, save status, tab and Export responsibilities share presentation.rs composition, while the Project menu body lives in presentation/library.rs. This is another bounded example of RF-001's shared shell integration surface; source alone does not show that a larger extraction would reduce total coupling.",
+          "mitigation": "Keep the correction private and scoped to the root header, Project settings view and shell CSS; existing Runtime and theme preference remain authoritative.",
+          "post_port": "Measure workflow file intersections after parity before considering a private shell-component boundary.",
+          "status": "No new RF ID; required paired candidate qualification remains open."
         }
       ],
       "case_mechanical_resolution_display_20261003": {

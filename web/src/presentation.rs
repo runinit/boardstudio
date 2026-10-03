@@ -217,6 +217,11 @@ pub(crate) fn use_test_case_generation_state() {
 
 #[derive(Clone, Copy)]
 struct ThemeState(Signal<&'static str>);
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum ProjectMenuPage {
+    Project,
+    Settings,
+}
 #[derive(Clone, Copy)]
 struct ResolvedTheme(Memo<&'static str>);
 #[derive(Clone, Copy)]
@@ -559,28 +564,53 @@ pub fn App() -> Element {
     } else {
         durability_state(&runtime.model().durability)
     };
+    let mut project_menu_page = use_signal(|| ProjectMenuPage::Project);
     rsx! {
         link { rel: "stylesheet", href: "assets/m1.css" }
         link { rel: "stylesheet", href: "assets/firmware-keymap-panel.css" }
         main { class: "m1-workbench",
             header { class: "m1-topbar",
-                h1 { class: "m1-brand", title: "BoardStudio",
-                    svg { view_box: "0 0 30 30", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true", path { d: "M4 4h22v22H4zM8 20l5-10 4 8 3-5 3 7" }, circle { cx: "13", cy: "10", r: "1.3" } }
-                    span { class: "m1-visually-hidden", "BoardStudio" }
-                }
                 details { class: "m1-project-menu", onkeydown: move |event: KeyboardEvent| {
                     if event.data().key().to_string() == "Escape" {
                         event.prevent_default();
                         close_project_menu();
                     }
                 },
-                    summary { "{project_name}" }
-                    Library { project_menu: true }
+                    summary { "aria-label": "Project", "aria-controls": "m1-project-menu-dropdown", title: "Project menu — {project_name}", onclick: move |_| project_menu_page.set(ProjectMenuPage::Project),
+                        svg { class: "m1-project-mark", view_box: "0 0 30 30", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true", path { d: "M4 4h22v22H4z" }, path { d: "m8 20 5-10 4 8 3-5 3 7" }, circle { cx: "13", cy: "10", r: "1.3" } }
+                        span { class: "m1-project-name", "{project_name}" }
+                        svg { class: "m1-project-chevron", view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true", path { d: "m5 7 5 5 5-5" } }
+                    }
+                    Library { project_menu: true, menu_page: Some(project_menu_page) }
                 }
-                span { class: "m1-save-state", "data-state": "{save_state}", "{save_label}" }
+                details { class: "m1-save-state", "data-state": "{save_state}", onkeydown: move |event: KeyboardEvent| {
+                    if event.data().key().to_string() == "Escape" {
+                        event.prevent_default();
+                        if let Some(menu) = event.data().try_as_web_event().and_then(|event| event.current_target()).and_then(|target| target.dyn_into::<web_sys::HtmlDetailsElement>().ok()) {
+                            menu.set_open(false);
+                            if let Some(summary) = menu.query_selector("summary").ok().flatten().and_then(|element| element.dyn_into::<HtmlElement>().ok()) {
+                                let _ = summary.focus();
+                            }
+                        }
+                    }
+                },
+                    summary {
+                        aria_label: match save_state { "saved" => "Saved locally", "saving" => "Saving locally", "failed" => "Local save failed", _ => "Local save status unavailable" },
+                        i { "aria-hidden": "true" }
+                        span { class: "m1-visually-hidden", "{save_label}" }
+                    }
+                    div { role: "status",
+                        if save_state == "saved" { "Changes are saved in this browser. Use Save project copy for a portable backup." }
+                        else if save_state == "saving" { "Saving changes in this browser…" }
+                        else if save_state == "failed" { "Changes could not be saved locally. Check available browser storage before editing further." }
+                        else { "Local save status is unavailable." }
+                    }
+                }
                 WorkspaceNavigation {}
-                button { class: "m1-export-tab", id: "m1-tab-Export", "aria-pressed": "{workspace() == \"Export\"}", onclick: move |_| workspace.set("Export"), "Export" }
-                ThemePicker {}
+                button { class: "m1-export-tab", id: "m1-tab-Export", "aria-pressed": "{workspace() == \"Export\"}", onclick: move |_| workspace.set("Export"),
+                    svg { view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", stroke_linecap: "round", stroke_linejoin: "round", "aria-hidden": "true", path { d: "M4 12v5h12v-5M10 13V3M6 7l4-4 4 4" } }
+                    span { "Export" }
+                }
             }
             if runtime.model().accepted.is_some() { Editor {} }
             else { LibraryLanding {} }
@@ -659,10 +689,10 @@ fn read_system_theme() -> &'static str {
 }
 
 #[component]
-fn ThemePicker() -> Element {
+pub(super) fn ThemePicker() -> Element {
     let mut theme = use_context::<ThemeState>().0;
-    rsx! { label { class: "m1-theme-picker", "Theme"
-        select { "aria-label": "Theme", value: "{theme()}", onchange: move |event: FormEvent| {
+    rsx! { label { class: "m1-theme-picker", "Appearance"
+        select { "aria-label": "Color theme", value: "{theme()}", onchange: move |event: FormEvent| {
             let preference = match event.value().as_str() { "light" => "light", "dark" => "dark", _ => "system" };
             if let Some(storage) = web_sys::window().and_then(|window| window.local_storage().ok().flatten()) {
                 let _ = storage.set_item("boardstudio:v2:theme", preference);
@@ -718,12 +748,12 @@ fn WorkspaceNavigation() -> Element {
 #[component]
 fn TabIcon(name: &'static str) -> Element {
     rsx! { svg { class: "m1-tab-icon", view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", stroke_linecap: "round", stroke_linejoin: "round", "aria-hidden": "true",
-        if name == "Layout" { path { d: "M4 14.5 14.5 4l2.5 2.5L5.5 18H3v-2.5zM11.5 7l2.5 2.5M3 18h14" } }
-        else if name == "PCB" { path { d: "M4 4h12v12H4zM7 7h2v2H7zM11 11h2v2h-2zM9 8h3v4" } }
-        else if name == "Keymap" { path { d: "M3 5h14v10H3zM6 8h2m2 0h2m2 0h1M6 11h2m2 0h2M6 14h8" } }
+        if name == "Layout" { path { d: "M3 14.5 14.5 3l2.5 2.5L5.5 17H3z" } path { d: "m11 6 3 3M3 17h14" } }
+        else if name == "PCB" { rect { x: "3", y: "3", width: "14", height: "14", rx: "2" } circle { cx: "7", cy: "7", r: "1.2" } circle { cx: "13", cy: "13", r: "1.2" } path { d: "M8 7h3v3M7 8v3h3" } }
+        else if name == "Keymap" { rect { x: "3", y: "4", width: "14", height: "12", rx: "2" } path { d: "M6 7h2M10 7h2M14 7h1M6 10h2M10 10h2M6 13h8" } }
         else if name == "Keycaps" { path { d: "m3 15 2-10h10l2 10zM5 5l2 4h6l2-4M7 9l-1 6m7-6 1 6" } }
         else if name == "Case" { path { d: "m10 2 7 4v8l-7 4-7-4V6zM3 6l7 4 7-4m-7 4v8" } }
-        else { path { d: "M4 3h9l3 3v11H4zM13 3v4h4M7 11h6M7 14h6" } }
+        else { path { d: "M4 3h9l3 3v11H4z" } path { d: "M13 3v4h4M7 11h6M7 14h6" } }
     } }
 }
 

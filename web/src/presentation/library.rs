@@ -122,6 +122,19 @@ fn focus_library_search() {
     });
 }
 
+fn focus_preferences_entry() {
+    spawn_local(async move {
+        gloo_timers::future::TimeoutFuture::new(0).await;
+        if let Some(button) = web_sys::window()
+            .and_then(|window| window.document())
+            .and_then(|document| document.get_element_by_id("m1-preferences-entry"))
+            .and_then(|element| element.dyn_into::<web_sys::HtmlElement>().ok())
+        {
+            let _ = button.focus();
+        }
+    });
+}
+
 fn focus_delete_trigger(project_id: String) {
     spawn_local(async move {
         gloo_timers::future::TimeoutFuture::new(0).await;
@@ -331,7 +344,10 @@ fn KeyboardCard(
 }
 
 #[component]
-pub(super) fn Library(project_menu: bool) -> Element {
+pub(super) fn Library(
+    project_menu: bool,
+    #[props(default)] menu_page: Option<Signal<super::ProjectMenuPage>>,
+) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let version = use_context::<Signal<u64>>();
     let _ = version();
@@ -339,6 +355,8 @@ pub(super) fn Library(project_menu: bool) -> Element {
     let pending_new = use_context::<Signal<Option<PendingNewKeyboard>>>();
     let new_error = use_context::<Signal<String>>();
     let guide_request_counter = use_signal(|| 0_u64);
+    let fallback_menu_page = use_signal(|| super::ProjectMenuPage::Project);
+    let mut menu_page = menu_page.unwrap_or(fallback_menu_page);
     let start_new: Rc<dyn Fn()> = Rc::new({
         let runtime = runtime.clone();
         move || {
@@ -503,32 +521,47 @@ pub(super) fn Library(project_menu: bool) -> Element {
     let delete_generation = request_generation.clone();
     let delete_runtime = runtime.clone();
     let delete_mounted = mounted.clone();
+    let is_settings_page = project_menu && menu_page() == super::ProjectMenuPage::Settings;
     rsx! {
-        section { class: if project_menu { "m1-library m1-project-menu-library" } else { "m1-library" }, "aria-label": if project_menu { "Project menu" } else { "Your keyboards" },
+        section { id: if project_menu { "m1-project-menu-dropdown" } else { "m1-library-landing-content" }, class: if project_menu { "m1-library m1-project-menu-library" } else { "m1-library" }, "aria-label": if project_menu { "Project menu" } else { "Your keyboards" }, "data-page": if project_menu && menu_page() == super::ProjectMenuPage::Settings { "settings" } else { "project" },
             if project_menu {
                 header { class: "m1-project-menu-heading",
-                    h2 { "Keyboards" }
+                    h2 { if menu_page() == super::ProjectMenuPage::Settings { "Workspace settings" } else { "Keyboards" } }
                     button { r#type: "button", aria_label: "Close project menu", onclick: |_| super::close_project_menu(),
                         svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "m5 5 10 10M15 5 5 15" } }
                     }
                 }
-                div { class: "m1-project-menu-actions",
-                    button { class: "m1-library-new", r#type: "button", disabled: pending_new().is_some(), onclick: move |_| start_new_menu_top(),
-                        svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M10 3v14M3 10h14" } }
-                        "New project"
+            }
+            if is_settings_page {
+                div { class: "m1-workspace-preferences",
+                    button { class: "m1-back-link", r#type: "button", onclick: move |_| {
+                        menu_page.set(super::ProjectMenuPage::Project);
+                        focus_preferences_entry();
+                    },
+                        svg { view_box: "0 0 16 16", "aria-hidden": "true", path { d: "M13 8H4m4 4-4-4 4-4" } }
+                        "Back to project menu"
                     }
-                    label { class: "m1-project-menu-open",
-                        svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M2 6V4h6l2 2h8v3M2 6v11h14l2-8H5l-3 8" } }
-                        "Open project…"
-                        input { class: "m1-project-file-input", r#type: "file", accept: ".boardstudio", onchange: move |event: FormEvent| {
-                            let Some(input) = event.data().try_as_web_event().and_then(|e| e.target()).and_then(|e| e.dyn_into::<HtmlInputElement>().ok()) else { return; };
-                            let Some(file) = input.files().and_then(|files| files.get(0)) else { return; };
-                            super::close_project_menu();
-                            menu_import.import_file(file);
-                            input.set_value("");
-                        }}
-                    }
+                    super::ThemePicker {}
                 }
+            }
+            if project_menu {
+                    div { class: "m1-project-menu-actions",
+                        button { class: "m1-library-new", r#type: "button", disabled: pending_new().is_some(), onclick: move |_| start_new_menu_top(),
+                            svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M10 3v14M3 10h14" } }
+                            "New project"
+                        }
+                        label { class: "m1-project-menu-open",
+                            svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M2 6V4h6l2 2h8v3M2 6v11h14l2-8H5l-3 8" } }
+                            "Open project…"
+                            input { class: "m1-project-file-input", r#type: "file", accept: ".boardstudio", onchange: move |event: FormEvent| {
+                                let Some(input) = event.data().try_as_web_event().and_then(|e| e.target()).and_then(|e| e.dyn_into::<HtmlInputElement>().ok()) else { return; };
+                                let Some(file) = input.files().and_then(|files| files.get(0)) else { return; };
+                                super::close_project_menu();
+                                menu_import.import_file(file);
+                                input.set_value("");
+                            }}
+                        }
+                    }
             }
             if has_current {
                 section { class: "m1-project-current", "aria-label": "Current project",
@@ -668,6 +701,10 @@ pub(super) fn Library(project_menu: bool) -> Element {
                             svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M3 3h5l2 2 2-2h5v13h-5l-2 2-2-2H3ZM10 5v13" } }
                             "Setup guide"
                         }
+                    }
+                    button { id: "m1-preferences-entry", r#type: "button", onclick: move |_| menu_page.set(super::ProjectMenuPage::Settings),
+                        svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M3 5h14M3 10h14M3 15h14M6 3v4M14 8v4M8 13v4" } }
+                        "Workspace settings"
                     }
                 }
             }
