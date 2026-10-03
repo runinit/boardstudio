@@ -1281,23 +1281,23 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-module-layers-case-reset-keymap-fit-20261003",
-      "source_commit": "fe86fa05598dee6ef8ffb02f9f6fcfaa6810f10d",
-      "root_url": "http://127.0.0.1:34750/",
-      "subpath_url": "http://127.0.0.1:34750/boardstudio/",
-      "provenance": "web/target/builds/frontend-module-layers-case-reset-keymap-fit-20261003/provenance.json",
-      "provenance_sha256": "3ee7a6c10ba260d41233d5fc1cd1b7f1f518b0bc6b6f029bacae553a59f74740",
+      "build_id": "frontend-layout-membership-repair-20261003",
+      "source_commit": "b3c6909b01b04ef16533c57fc19e2cad608e7218",
+      "root_url": "http://127.0.0.1:34752/",
+      "subpath_url": "http://127.0.0.1:34752/boardstudio/",
+      "provenance": "web/target/builds/frontend-layout-membership-repair-20261003/provenance.json",
+      "provenance_sha256": "defc203721c7bedffca414fc32871258dff82c8f2f2a0c6e20d4c86a0be48a19",
       "fresh_commands": 8,
       "inherited_commands": 22,
-      "source_inputs": 1364,
+      "source_inputs": 1365,
       "source_mismatches": 0,
       "assets_per_route": 145,
-      "command_span_seconds": 97.547451,
-      "package_qualification": "Guarded page-only package passed;1364 sources and145 assets/route match; root/subpath200COEP. Case Reset/history/portable reopen passed. Keymap board/selection framing matches within1px; zoom percentages remain different. PCB435 source geometry leaves/all28 corresponding contours match, but default/toggle finding visibility remains different."
+      "command_span_seconds": 96.079303,
+      "package_qualification": "Guarded page build passed; source/assets match both routes, HTTP200 COEP. Includes mounted Layout membership tab-reset repair. Changed GREEN pending; existing34751 Keymap/Case defects remain and repairs are underway."
     },
     "integration": {
-      "source_commit": "145cb6c0",
-      "state": "Next source adds Parts generator drafts/Apply, Keycaps empty-board guidance and PCB Wiring panel hierarchy. Combined required check found Parts syntax/type errors; author owns direct fixes and affected recheck. Keymap Inspector disclosures and Layout Properties/Relations implementing; real Keycaps3D preview now owns shared CAD/Runtime viewer seam.",
+      "source_commit": "b3c6909b01b04ef16533c57fc19e2cad608e7218",
+      "state": "Layout membership repair served34752; Parts compiler repair passed and served, PCB hierarchy and Keycaps empty guidance bounded GREEN. Keymap disclosure and Case gasket return concrete mounted failures being directly repaired. Keycaps real3D author active.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1434,20 +1434,38 @@
         {
           "slice": "Parts generator drafts preview and Apply",
           "original_source": "19571615",
-          "integrated_source": "7ea6372c",
-          "state": "Joined; required combined check exposed Dioxus syntax/import visibility/BTreeMap/Rc/test-fixture typing errors. Direct author repair under assigned check slot; no candidate/public acceptance yet."
+          "integrated_source": "7ea6372c+ab532f27",
+          "state": "Compiler repair integrated; assigned strictpageWASMalltargets-Dwarnings PASS. Served34751/52; changed paired Apply/history/reopen in progress."
         },
         {
           "slice": "Keycaps empty-board next-step guidance",
           "original_source": "89283a51",
           "integrated_source": "15888954",
-          "state": "Joined; exact reference empty-state text. OrdinaryUI no newtests; nextcandidatecompile/public evidence pending."
+          "state": "Served34751; Sol mountedemptycontextGREEN, exactreferencecopy/0of0/STEPdisabled/Revision0Saved. FullKeycapscriteria remain."
         },
         {
           "slice": "PCB Wiring panel hierarchy",
           "original_source": "21de0faa",
           "integrated_source": "145cb6c0",
-          "state": "Joined; Wiring/controller/topology header, conditionalpins, diagnostics beforefirmware and assignmentcount/guidance. Missing Addcontroller chooser intent remains explicit next frontier."
+          "state": "Served34751; paired header/modes/diagnostics ordering/8assignments confirmed; document Revision6Saved preserved. Addcontroller ticket17 and broadPCBcriteria remain."
+        },
+        {
+          "slice": "Layout component membership tab reset",
+          "original_source": "5c34c0ce",
+          "integrated_source": "b3c6909b",
+          "state": "Mounted34750RED/reference captured;34752source repair served, changedGREENpending."
+        },
+        {
+          "slice": "Keymap Inspector disclosures",
+          "original_source": "64115c13",
+          "integrated_source": "4e8f1cd8",
+          "state": "Mounted34751clickRED: summarycollapse immediately reopens; privateUIstate repair active. Not accepted."
+        },
+        {
+          "slice": "Case All gasket settings context return",
+          "original_source": "3535d6a7",
+          "integrated_source": "5cd5312f",
+          "state": "Mounted34751RED: settings owner rejects gaskets context; existingprivateowner admission repair active. Not accepted."
         }
       ],
       "checks": {
@@ -1611,18 +1629,18 @@
     ],
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "heavy_slots": {
-      "root_target": "Free;34750 guarded package finished in97.55seconds.",
-      "secondary_target": "Parts author directly repairing/rechecking failed newpacket using cachedCase target.",
-      "dispatch": "No repeated passing journey suite. One consolidated review per completed candidate; readysource serially integrated."
+      "root_target": "Free;34752 guardedpage package finished96.08seconds.",
+      "secondary_target": "Reserved Keycaps3D author single affectedstrictWASMcheck on cachedCase target.",
+      "dispatch": "Reusepassingchecks; ordinaryUI nonewtests, one changedjourney and oneconsolidatedcandidate review."
     },
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "next_work": {
-      "Layout": "Properties/Relations contextualpacket nowLayout-owned; obsoleteParts reservation released.",
-      "PCB": "Next Wiring hierarchy34751; explicitordinaryPCBAddcontroller chooser intent next. Generalmarker visibility discrepancy retained.",
-      "Keymap": "Combined Selectedkey/Macros/Encoders disclosurepacket implementing.",
-      "Keycaps": "Actual Core-resolved cap/legend3D preview through existingCADandsharedviewer implementing.",
-      "Case": "Next private contextualcontrols packet; Reset boundedGREEN accepted.",
-      "Parts_Project": "Direct compile repairs for generator drafts/preview/Apply; actualpairedjourney nextcandidate."
+      "Layout": "34752 mounted membership GREEN next; batch confirmed remaining contextual native-select remount defects.",
+      "PCB": "PCB16 changed hierarchy boundedGREEN; implement ordinaryPCB Addcontroller ticket17 through existing placement owner.",
+      "Keymap": "Repair actual disclosure collapse/reopen; one scopedmountedRED/GREEN.",
+      "Keycaps": "Real acceptedcap/legend3D through existingCAD/runtime/sharedviewer implementing.",
+      "Case": "Repair actual Allgasketsettings owner destination admission.",
+      "Parts_Project": "Generator draft/preview/Apply changedpairedjourney in progress; strict compiler green reused."
     },
     "execution_policy": "One required affected compile, one changed paired browser journey and one consolidated candidate review; reuse unchanged evidence. Ordinary reversible UI gets no new tests. Real bugs keep focused regressions and remaining acceptance gates explicit.",
     "served_candidate_history": [
@@ -1655,6 +1673,34 @@
         "assets_per_route": 145,
         "command_span_seconds": 450.712861,
         "package_qualification": "Full build passed. Root/subpath sources and assets match, HTTP200 with COEP. Trusted perimeter drag/history/reopen and successful Keycaps STEP export passed paired journeys. Keymap fit framing mismatch was found and repaired for the next candidate."
+      },
+      {
+        "build_id": "frontend-module-layers-case-reset-keymap-fit-20261003",
+        "source_commit": "fe86fa05598dee6ef8ffb02f9f6fcfaa6810f10d",
+        "root_url": "http://127.0.0.1:34750/",
+        "subpath_url": "http://127.0.0.1:34750/boardstudio/",
+        "provenance": "web/target/builds/frontend-module-layers-case-reset-keymap-fit-20261003/provenance.json",
+        "provenance_sha256": "3ee7a6c10ba260d41233d5fc1cd1b7f1f518b0bc6b6f029bacae553a59f74740",
+        "fresh_commands": 8,
+        "inherited_commands": 22,
+        "source_inputs": 1364,
+        "source_mismatches": 0,
+        "assets_per_route": 145,
+        "command_span_seconds": 97.547451,
+        "package_qualification": "Guarded page-only package passed;1364 sources and145 assets/route match; root/subpath200COEP. Case Reset/history/portable reopen passed. Keymap board/selection framing matches within1px; zoom percentages remain different. PCB435 source geometry leaves/all28 corresponding contours match, but default/toggle finding visibility remains different."
+      },
+      {
+        "build_id": "frontend-parts-generator-pcb-context-keymap-inspector-20261003",
+        "source_commit": "ab532f275cb14385db3e4e52e5adcb5fb7c3ee18",
+        "root_url": "http://127.0.0.1:34751/",
+        "subpath_url": "http://127.0.0.1:34751/boardstudio/",
+        "provenance_sha256": "2b1947a952f895dcee23c795cd99f41366245e6189a7be50a515df4e068053f5",
+        "fresh_commands": 8,
+        "source_inputs": 1365,
+        "source_mismatches": 0,
+        "assets_per_route": 145,
+        "command_span_seconds": 92.67917,
+        "package_qualification": "Package/source/assets pass. PCB changed hierarchy and Keycaps empty guidance pass bounded journeys. Actual Keymap disclosure and Case gasket return journeys exposed owner/state bugs; authors directly repairing. Parts Apply journey in progress."
       }
     ],
     "consolidated_reviews": [

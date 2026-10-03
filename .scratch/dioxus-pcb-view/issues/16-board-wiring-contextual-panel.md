@@ -17,3 +17,5 @@
 - [ ] One combined affected compile and changed paired browser receipt are retained; RF observations and all parent criteria preserved.
 
 Missing Add controller browse intent and default/focused finding marker mismatch remain explicitly open; this is not full Wiring/PCB acceptance.
+
+Public34751 bounded receipt: header/modes/diagnostics hierarchy and8assignments match the pinned reference; Revision6Saved retained. See evidence/16-board-wiring-context-20261003/public-receipt.json. No-controller context only; Addcontroller remains ticket17, fullF5.2 stays open. Consolidated review in progress.

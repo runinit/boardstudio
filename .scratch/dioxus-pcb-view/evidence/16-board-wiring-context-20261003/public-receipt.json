@@ -1,0 +1,29 @@
+{
+  "candidate": "ab532f275cb14385db3e4e52e5adcb5fb7c3ee18",
+  "url": "http://127.0.0.1:34751/",
+  "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
+  "fixture_sha256": "952b26565a4df3ae1122fd0716017560279c938ee19fb6c15af966c88c1d35b0",
+  "hierarchy": [
+    "Wiring",
+    "No controller selected",
+    "Review before handoff",
+    "Firmware keymap",
+    "Assignments"
+  ],
+  "assignment_count": 8,
+  "wiring_modes": [
+    "Matrix",
+    "Direct GPIO"
+  ],
+  "document_status": "Revision6 Saved; UI presentation only",
+  "limits": [
+    "No-controller branch only; source update retains existing selected-controller pin callbacks.",
+    "Missing Add controller and its prompt is next ticket17.",
+    "General findings/objects/footer and fullF5.2 remain open.",
+    "ChangedUI has no document mutation; previous history/reopen evidence reused."
+  ],
+  "visuals": [
+    "React Light and Dioxus Light screenshots visually inspected; existing pane/style differences remain.",
+    "Additional Dioxus Dark screenshot is not a same-theme comparison."
+  ]
+}
