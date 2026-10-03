@@ -1,0 +1,24 @@
+{
+  "url": "http://127.0.0.1:34746/",
+  "input": "trusted Control-click SW2",
+  "before": {
+    "selected": [
+      "matrix/left-keys/r0c0"
+    ],
+    "box": {
+      "x": 677.4946899414062,
+      "y": 306.21270751953125
+    }
+  },
+  "after": {
+    "selected": [
+      "matrix/left-keys/r0c0",
+      "matrix/left-keys/r0c1"
+    ],
+    "box": {
+      "x": 677.4946899414062,
+      "y": 306.21270751953125
+    }
+  },
+  "recordedAt": "2026-10-03T06:38:38.167Z"
+}

@@ -31,4 +31,12 @@ try {
     if (receipt) writeFileSync(receipt, `${JSON.stringify(result, null, 2)}\n`);
     assert.deepEqual(after.selected, ['matrix/left-keys/r0c0', 'matrix/left-keys/r0c1'], 'Control-click SW2 must retain SW1 and add SW2');
     console.log('PASS: Control-click SW2 retains SW1 and adds SW2');
+    await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: after.box.x, y: after.box.y, modifiers: 2 }, sessionId);
+    await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: after.box.x, y: after.box.y, button: 'left', buttons: 1, clickCount: 1, modifiers: 2 }, sessionId);
+    await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: after.box.x, y: after.box.y, button: 'left', buttons: 0, clickCount: 1, modifiers: 2 }, sessionId);
+    await send('Runtime.evaluate', { expression: 'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))', awaitPromise: true }, sessionId);
+    const toggled = read();
+    if (receipt) writeFileSync(receipt, `${JSON.stringify({ ...result, toggle: toggled }, null, 2)}\n`);
+    assert.deepEqual(toggled.selected, ['matrix/left-keys/r0c0'], 'Second Control-click SW2 must remove only SW2');
+    console.log('PASS: second Control-click SW2 removes only SW2');
 } finally { ws.close(); }

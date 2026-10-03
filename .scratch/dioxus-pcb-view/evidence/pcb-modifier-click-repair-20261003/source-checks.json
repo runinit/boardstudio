@@ -18,11 +18,16 @@
     {
       "command": "git diff --check",
       "result": "PASS"
+    },
+    {
+      "command": "Strengthened trusted regression on http://127.0.0.1:34746/ source a2bd8b54e6ec6efe7559b22fd6cf752c63cce010",
+      "result": "Original Ctrl-add GREEN. Ctrl-remove expected RED actual=[]; Dioxus synthetic pointerdown propagation identified."
     }
   ],
   "pending": [
     "Trusted regression GREEN on next integrated frozen package",
     "Consolidated reviewer targeted repair assessment"
   ],
-  "limits": "No additional package build or broad test matrix. No new public API, document schema or history policy. All parent acceptance/cutover gates retained."
+  "limits": "No additional package build or broad test matrix. No new public API, document schema or history policy. All parent acceptance/cutover gates retained.",
+  "followup": "PCB part primary pointerdown now stops Dioxus propagation before dispatch, retaining native stop. Focused integrated GREEN and affected selection checks pending next package."
 }

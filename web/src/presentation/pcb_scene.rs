@@ -131,6 +131,9 @@ pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
                             onpointerdown: move |event: PointerEvent| {
                                 let Some(pointer) = event.data().try_as_web_event() else { return; };
                                 if pointer.button() != 0 { return; }
+                                // Stop Dioxus bubbling as well as the native event below.
+                                // A deselected part starts no drag to guard the empty-space path.
+                                event.stop_propagation();
                                 let modifiers = event.data().modifiers();
                                 pointer_down.call(PcbPartPointerDown {
                                     scope: pointer_scope.clone(),
