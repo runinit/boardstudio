@@ -908,9 +908,7 @@ fn apply_patch(
             {
                 return Err("The linked gasket support selection is invalid.".into());
             }
-            if configuration.mount != MechanicalMount::Gasket
-                || configuration.internal_gasket.is_none()
-            {
+            if configuration.mount != MechanicalMount::Gasket {
                 return Err("The current configuration no longer contains gasket supports.".into());
             }
             let layout = configuration
