@@ -60,8 +60,13 @@ try {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async url => {
       const location = String(url);
-      if (location.startsWith('/@fs/')) return new Response(await readFile(location.slice(4).split('?')[0]));
-      if (location.startsWith('/')) return new Response(await readFile(path.join(root, 'app', location.split('?')[0])));
+      if (location.startsWith('/')) {
+        const pathname = decodeURIComponent(new URL(location, 'http://fixture.local').pathname);
+        const filename = pathname.startsWith('/@fs/')
+          ? pathname.slice(4)
+          : path.join(root, 'app', pathname);
+        return new Response(await readFile(filename));
+      }
       return originalFetch(url);
     };
     try {
