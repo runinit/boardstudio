@@ -3593,7 +3593,7 @@
         {
           "id": "F5.2-C03",
           "requirement": "Apply validates existing revision/fingerprint checks and commits exactly one undoable edit.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/pcb_wiring/apply.rs",
@@ -3603,7 +3603,7 @@
             ".scratch/dioxus-pcb-view/evidence/pcb-apply-ui-20261002/receipt.md"
           ],
           "blockers": [],
-          "next_action": "Reuse current-plan source settlement and paired Apply evidence; qualify that Apply contributes exactly one history step and Undo/Redo restores the accepted board state.",
+          "next_action": "Retain source current-plan/outcome checks and paired34780 portable exports: exactly one Apply, Undo restores normalized accepted board state, Redo restores applied state. Pin conflicts and other lifecycle branches remain under their own criteria.",
           "finish_condition": "Receipt proves exact accepted current plan, one normal edit, exact operation settlement and rejected-edit feedback; paired journey confirms one history step and Undo/Redo.",
           "owned_files": [
             "web/src/presentation/pcb_wiring.rs",

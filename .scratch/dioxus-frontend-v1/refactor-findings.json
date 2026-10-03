@@ -1018,6 +1018,13 @@
           "observation": "Creating a placement from a Parts definition requires different accepted-result admission from reopening an already-selected placement. Reusing the latter callback would reject a valid new instance because no MountedModule tree context exists yet. The narrow creation callback explicitly validates scope, accepted token/revision and Parts selection generation before selecting the new instance. Existing ID generation is exposed through a project-named UUID helper, while entity collision checks remain per consumer.",
           "status": "Private attachment boundary being implemented; the prior cross-board connector guard is now qualified on34780.",
           "post_port_proposal": "Consider shared typed accepted-result navigation and entity identity allocation, keeping logical selection lifetime separate from accepted document freshness. Avoid broad unguarded navigation callbacks or a second document owner."
+        },
+        {
+          "source": "a0bd90ca candidate34781; attachment public export",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/modules/vik-splitter-gnd-join-ad26b07a.md",
+          "observation": "Accepted edits change the catalogue request token. Hiding all entries until its async resource catches up unmounts the attachment owner and resets selected variant, dropping successful feedback/navigation. Two attempted clicks each created a valid separate module and connector; the apparent missing module from the Layout tree was a projection mistake, not partial persistence.",
+          "status": "Reproduced accepted-save/navigation regression; fixing synchronous projection from immutable bundled cache plus current accepted project overrides.",
+          "post_port_proposal": "Separate immutable catalogue loading from current project override projection and transient request freshness. Accepted document updates must not erase logical selection or command owners while an unchanged library reload is scheduled."
         }
       ],
       "resumed_wave_20261002": "2026-10-02: Physical setup controls need rendered identity envelopes and live guide-stage predicates across asynchronous normalization; stale handlers and bare feedback can retarget/leak across scopes. Astra production regression repair active; public guide join remains open.",

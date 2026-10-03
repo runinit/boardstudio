@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T22:41:02.631986+00:00",
+    "updated_at": "2026-10-03T22:50:47.733704+00:00",
     "parent_counts": {
       "accepted": 10,
       "implementing": 41,
@@ -25,20 +25,20 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-module-ownership-20261003",
-      "source_commit": "7ddd10e32d24b474366d995171dde89e1577d7fe",
-      "root_url": "http://127.0.0.1:34780/",
-      "subpath_url": "http://127.0.0.1:34780/boardstudio/",
-      "provenance": "web/target/builds/frontend-module-ownership-20261003/provenance.json",
-      "provenance_sha256": "242621ba1d56f8d270b4410c6d3ea1f79a4c49b2c1c314fcf7760db105d3f951",
+      "build_id": "frontend-module-attachment-20261003",
+      "source_commit": "a0bd90ca579e0139acf5d63c251bc8a8290276d5",
+      "root_url": "http://127.0.0.1:34781/",
+      "subpath_url": "http://127.0.0.1:34781/boardstudio/",
+      "provenance": "web/target/builds/frontend-module-attachment-20261003/provenance.json",
+      "provenance_sha256": "44db0b238e6fb771e4512ea124d2786b13a1f22e04f9c5fd76a2b0e7b40bd88a",
       "fresh_commands": 8,
       "inherited_commands": 22,
-      "source_inputs": 1389,
+      "source_inputs": 1390,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 141.121047,
+      "command_span_seconds": 126.26576,
       "package_qualification": "Combined package provenance, current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-module-ownership-20261003/package-proof.json",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-module-attachment-20261003/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -48,8 +48,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "7ddd10e32d24b474366d995171dde89e1577d7fe",
-      "state": "Attachment route integrated and locked Dioxus page compiler passes; packaging next. Baseline Case error characterized; Apply history qualification running.",
+      "source_commit": "a0bd90ca579e0139acf5d63c251bc8a8290276d5",
+      "state": "Catalogue refresh regression corrected; focused WASM Chrome red/green verified. Repaired candidate packaging next.",
       "packets": [
         {
           "stream": "Layout",
@@ -307,7 +307,7 @@
         }
       ],
       "qualification": "Tooling and encoder checks retained; latest ownership browser WASM regression 1 passed. Final package source/assets match, root/subpath warnings zero. Paired bounded journeys recorded; parent joins and explicit remaining lifecycle branches stay open.",
-      "application_candidate_source": "7ddd10e32d24b474366d995171dde89e1577d7fe"
+      "application_candidate_source": "a0bd90ca579e0139acf5d63c251bc8a8290276d5"
     },
     "journeys": [
       {
@@ -327,6 +327,13 @@
         "state": "retained reusable evidence",
         "history": "docs/migration/history/dioxus-frontend-v1-run-before-20261003-streamline.json",
         "field": "current_progress.journeys"
+      },
+      {
+        "journey": "Apply wiring one-step Undo/Redo",
+        "candidate": "34780",
+        "state": "passed",
+        "receipt": ".scratch/dioxus-pcb-view/evidence/pcb-apply-ui-20261002/receipt.md",
+        "verified": "Paired portable exports show before==Undo (P5/pad14), Apply==Redo (P101/pad24) for normalized accepted board state."
       }
     ],
     "heavy_slots": {
@@ -543,15 +550,16 @@
     "qualification": {
       "trigger": "functional_scope",
       "active_scope": {
-        "id": "functional-module-ownership-20261003",
-        "source_commit": "7ddd10e32d24b474366d995171dde89e1577d7fe",
+        "id": "module-attachment-20261003",
+        "source_commit": "a0bd90ca579e0139acf5d63c251bc8a8290276d5",
         "streams": [
-          "PCB"
+          "PCB",
+          "Parts/Project"
         ],
         "journeys": [
           {
-            "id": "module-actions",
-            "scope": "F5.5-C02 reject foreign-board connector reuse; fresh automatic creation and repeat Save; reuse unchanged circuit/constituent evidence.",
+            "id": "fresh-module-attachment",
+            "scope": "Haptic3V3 empty-board attach, automatic connector, accepted navigation, repeat Save, Undo/Redo and reopen.",
             "spec": ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md"
           }
         ]
@@ -1034,38 +1042,90 @@
               }
             ]
           }
+        },
+        {
+          "trigger": "functional_scope",
+          "active_scope": {
+            "id": "functional-module-ownership-20261003",
+            "source_commit": "7ddd10e32d24b474366d995171dde89e1577d7fe",
+            "streams": [
+              "PCB"
+            ],
+            "journeys": [
+              {
+                "id": "module-actions",
+                "scope": "F5.5-C02 reject foreign-board connector reuse; fresh automatic creation and repeat Save; reuse unchanged circuit/constituent evidence.",
+                "spec": ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md"
+              }
+            ]
+          },
+          "phase": "partial",
+          "unmet_start_conditions": [],
+          "candidate_build_id": "frontend-module-ownership-20261003",
+          "source_commit": "7ddd10e32d24b474366d995171dde89e1577d7fe",
+          "journeys": [
+            {
+              "id": "module-actions",
+              "scope": "F5.5-C02 reject foreign-board connector reuse; fresh automatic creation and repeat Save; reuse unchanged circuit/constituent evidence.",
+              "spec": ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md",
+              "state": "partial",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/modules/vik-splitter-gnd-join-ad26b07a.md",
+              "verified": "Paired circuit join/copy/remove and constituent Place/history; final 34780 foreign-connector rejection preserves both boards, clearing connection permits Save.",
+              "remaining": "Fresh module attachment route, full archive reopen, and broader module lifecycle/constituent coverage remain unqualified."
+            }
+          ],
+          "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
+          "started_at": "2026-10-03T22:20:27.126223+00:00",
+          "review": {
+            "profile": "sol-review",
+            "model": "gpt-6.1-sol",
+            "reasoning": "high",
+            "state": "completed",
+            "verdict": "source_and_scoped_repairs_pass_with_remaining_qualification",
+            "source_commit": "7ddd10e32d24b474366d995171dde89e1577d7fe",
+            "review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/consolidated-review.md",
+            "review_sha256": "b148f7fafa9a2ba04c1242f3d88ce972e4c808a7ca3046090f2c30e72bbb553a"
+          },
+          "next_scope": {
+            "id": "module-attachment-20261003",
+            "source_commit": "a0bd90ca579e0139acf5d63c251bc8a8290276d5",
+            "streams": [
+              "PCB",
+              "Parts/Project"
+            ],
+            "journeys": [
+              {
+                "id": "fresh-module-attachment",
+                "scope": "Haptic3V3 empty-board attach, automatic connector, accepted navigation, repeat Save, Undo/Redo and reopen.",
+                "spec": ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md"
+              }
+            ]
+          }
         }
       ],
-      "phase": "partial",
+      "phase": "repairing",
       "unmet_start_conditions": [],
-      "candidate_build_id": "frontend-module-ownership-20261003",
-      "source_commit": "7ddd10e32d24b474366d995171dde89e1577d7fe",
+      "candidate_build_id": "frontend-module-attachment-20261003",
+      "source_commit": "a0bd90ca579e0139acf5d63c251bc8a8290276d5",
       "journeys": [
         {
-          "id": "module-actions",
-          "scope": "F5.5-C02 reject foreign-board connector reuse; fresh automatic creation and repeat Save; reuse unchanged circuit/constituent evidence.",
+          "id": "fresh-module-attachment",
+          "scope": "Haptic3V3 empty-board attach, automatic connector, accepted navigation, repeat Save, Undo/Redo and reopen.",
           "spec": ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md",
-          "state": "partial",
+          "state": "failed",
           "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/modules/vik-splitter-gnd-join-ad26b07a.md",
-          "verified": "Paired circuit join/copy/remove and constituent Place/history; final 34780 foreign-connector rejection preserves both boards, clearing connection permits Save.",
-          "remaining": "Fresh module attachment route, full archive reopen, and broader module lifecycle/constituent coverage remain unqualified."
+          "finding": "Accepted attachment persists complete module/connector, but catalogue token refresh unmounts the command owner and resets selection before navigation. Focused catalogue projection regression reproduced; correction under test."
         }
       ],
       "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
-      "started_at": "2026-10-03T22:20:27.126223+00:00",
+      "started_at": "2026-10-03T22:43:56.483561+00:00",
       "review": {
         "profile": "sol-review",
-        "model": "gpt-6.1-sol",
-        "reasoning": "high",
-        "state": "completed",
-        "verdict": "source_and_scoped_repairs_pass_with_remaining_qualification",
-        "source_commit": "7ddd10e32d24b474366d995171dde89e1577d7fe",
-        "review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/consolidated-review.md",
-        "review_sha256": "b148f7fafa9a2ba04c1242f3d88ce972e4c808a7ca3046090f2c30e72bbb553a"
+        "state": "pending"
       },
       "next_scope": {
-        "id": "module-attachment-20261003",
-        "source_commit": "7ddd10e32d24b474366d995171dde89e1577d7fe",
+        "id": "module-attachment-repair-20261003",
+        "source_commit": "a0bd90ca579e0139acf5d63c251bc8a8290276d5",
         "streams": [
           "PCB",
           "Parts/Project"
@@ -1073,7 +1133,7 @@
         "journeys": [
           {
             "id": "fresh-module-attachment",
-            "scope": "Haptic3V3 empty-board attach, automatic connector, accepted navigation, repeat Save, Undo/Redo and reopen.",
+            "scope": "Fresh Haptic3V3 attachment retains selected variant and opens accepted PCB placement; automatic connector, repeat Save, attach Undo/Redo and reopen.",
             "spec": ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md"
           }
         ]
