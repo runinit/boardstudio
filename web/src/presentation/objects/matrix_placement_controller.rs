@@ -140,7 +140,13 @@ pub(in crate::presentation) fn use_matrix_placement(
                         | TerminalOutcome::BlockedByRecovery(message)
                         | TerminalOutcome::ExecutorFailed(message) => {
                             pending.set(None);
-                            if placement_selection_is_current(&runtime, &selected_context, &waiting)
+                            if current_workspace == "Layout"
+                                && current_generation == waiting.owner.scope_generation
+                                && placement_selection_is_current(
+                                    &runtime,
+                                    &selected_context,
+                                    &waiting,
+                                )
                             {
                                 error.set(Some(message));
                             } else {
@@ -151,7 +157,13 @@ pub(in crate::presentation) fn use_matrix_placement(
                         | TerminalOutcome::Cancelled
                         | TerminalOutcome::Closed => {
                             pending.set(None);
-                            if placement_selection_is_current(&runtime, &selected_context, &waiting)
+                            if current_workspace == "Layout"
+                                && current_generation == waiting.owner.scope_generation
+                                && placement_selection_is_current(
+                                    &runtime,
+                                    &selected_context,
+                                    &waiting,
+                                )
                             {
                                 error.set(Some(
                                     "Matrix placement was superseded before it was saved.".into(),
@@ -331,10 +343,14 @@ pub(in crate::presentation) fn use_matrix_placement(
 
     let on_move = use_callback({
         let runtime = runtime.clone();
+        let workspace = workspace;
+        let scope_generation = scope_generation;
         let canvas_interaction = canvas_interaction.clone();
         let mut placement = placement;
         move |movement: MatrixPlacementMove| {
             if !canvas_interaction.is_owner(CanvasInteractionOwner::MatrixPlacement)
+                || workspace() != "Layout"
+                || scope_generation() != movement.owner.scope_generation
                 || !movement.center.x.is_finite()
                 || !movement.center.y.is_finite()
                 || !same_session_scope(&runtime, &movement.owner)
@@ -377,6 +393,8 @@ pub(in crate::presentation) fn use_matrix_placement(
 
     let on_commit = use_callback({
         let runtime = runtime.clone();
+        let workspace = workspace;
+        let scope_generation = scope_generation;
         let canvas_interaction = canvas_interaction.clone();
         let mut placement = placement;
         let mut pending = pending;
@@ -385,6 +403,8 @@ pub(in crate::presentation) fn use_matrix_placement(
         move |movement: MatrixPlacementMove| {
             if !canvas_interaction.is_owner(CanvasInteractionOwner::MatrixPlacement)
                 || pending.read().is_some()
+                || workspace() != "Layout"
+                || scope_generation() != movement.owner.scope_generation
                 || !movement.center.x.is_finite()
                 || !movement.center.y.is_finite()
                 || !same_session_scope(&runtime, &movement.owner)
