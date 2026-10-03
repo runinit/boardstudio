@@ -1,0 +1,8 @@
+# Keycaps inherited/blank legend replay — 2026-10-03
+
+- Reference: React `http://127.0.0.1:5173/`, source `5a472a9426e6e38993361da402cd4ec730feb369`.
+- Candidate: Dioxus `http://127.0.0.1:34757/`, source `d7742d46` (root-provided candidate).
+- Viewport: 1280×577. Fixture: `/home/chris/.local/share/boardstudio/retained-tmp/20261002/keycaps-findings-f6c4-c6.boardstudio`, SHA-256 `9027125846d2878176f127ec39b60c9ab605a0eb2a4b9019e10dbba846fe87a6`.
+- Each app used a separately named `agent-browser` session and imported the same fixture. On both, the `keys` matrix profile was Cherry and SW1 retained its SA per-key profile override. To make inheritance observable, SW1’s base-layer binding was set to Key press `A`. The SW1 legend input had empty value and placeholder `A` (inherit). Clicking **Blank keycap** showed a dash for SW1 in the 2D canvas; clicking **Use binding legend** restored `A`. Matrix Cherry and per-key SA remained distinct.
+- Paired screenshots: [`react-legend-blank.png`](react-legend-blank.png) (SHA-256 `189b73762014e5df9afe6fa3f0a714fa0e1899d9eb587283a995a41cd1769c3a`), [`react-legend-inherited-a.png`](react-legend-inherited-a.png) (`5f423e2e112e68afa6672cce09f07e536b97c0db6eefd6ce6d7d505e58b4b019`), [`dioxus-legend-blank.png`](dioxus-legend-blank.png) (`1c74cd34588dbd6f77af1edee90b9c6ca4ba1a4b8b1d4a6640e3619fd62e3458`), [`dioxus-legend-inherited-a.png`](dioxus-legend-inherited-a.png) (`1e3b77b968a9320179fe6743a6208dfbfedd10de3a58a24ea5938292e0d884a7`).
+- This is only the focused visible transition. It does not qualify the edit revision/history timing, Undo/Redo for `null` versus `Some("")`, save/reopen, active-layer behavior, or errors. No source change was needed based on this replay.
