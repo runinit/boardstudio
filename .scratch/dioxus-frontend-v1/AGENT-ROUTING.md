@@ -1,5 +1,14 @@
 # Agent models and dispatch policy
 
+## Candidate-first execution — user update 2026-10-02
+
+The user directed: “structure this for speed, less review handoffs” and proposed reviewing when a candidate is complete. This supersedes earlier mandatory per-child planning, source and root-composition approval sequences for routine frontend work.
+
+Authors pin the React journey, refine the existing spec/ticket, implement the mounted workflow and run focused affected checks. They do not wait for separate independent planning or source approvals. The coordinator serially joins ready work and builds one frozen integrated candidate. Sol6.1 High reviewers divide that candidate in parallel, covering Standards and Spec alongside paired browser verification. Return consolidated findings; recheck affected repairs rather than repeat unchanged evidence or the entire approval sequence.
+
+Known correctness/parity defects still need repair. A completed candidate is a reviewable build, not a claim that its parents are accepted. Preserve all62 parent criteria, blocker/history records, paired edit/Undo/save-reopen gates and RF ledger. Public API/visibility/schema decisions and external cutover approval remain separate. Private composition, callback ownership and internal adapters can be implemented within existing authority and reviewed in the candidate.
+
+
 **Latest user decision, 2026-10-02:** use Sol 6.1 High (`gpt-6.1-sol`, `high`) for independent contract, Standards and Spec reviews. Luna low/medium/high remains the implementation allocation; the earlier Astra bug-fixing allocation remains available. Keep Fast/priority execution where available. This decision supersedes Astra review defaults in older execution/portfolio prose. Retained Astra review profiles and completed reviews are historical compatibility evidence; new reviews use Sol 6.1 High. Existing running agents retain their launched model until an explicitly configured replacement is dispatched. This policy changes routing, not frontend scope, acceptance gates or host configuration.
 
 The [62-task graph](tasks.json) remains the workflow/acceptance authority. Its rows are work packages, not 62 one-shot agent prompts. The specs are sufficient for much of the implementation once the coordinator supplies a small, source-checked dispatch packet. Known boundary questions still require their own proof. This is a starting allocation to calibrate on the first tranche, not a measured claim about model speed, cost or correctness.

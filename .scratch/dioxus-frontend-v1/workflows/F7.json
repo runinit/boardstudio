@@ -30,14 +30,14 @@
       "agent_routing": {
         "author_profile": "luna-high",
         "verifier_profile": "luna-high",
-        "reviewer_profile": "astra-review",
-        "review_mode": "dedicated",
-        "contract_review_before_implementation": true,
+        "reviewer_profile": "sol-review",
+        "review_mode": "integrated_candidate_batch",
+        "contract_review_before_implementation": false,
         "requires_dispatch_packet": true,
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true,
-        "contract_review_reuse": "Accept an exact, still-applicable previously reviewed contract; otherwise review new/changed boundary before edits."
+        "contract_review_reuse": "Reuse current contract; routine private frontend work proceeds to integrated candidate review."
       }
     },
     {
@@ -70,8 +70,8 @@
       "agent_routing": {
         "author_profile": "luna-medium",
         "verifier_profile": "luna-medium",
-        "reviewer_profile": "astra-review",
-        "review_mode": "workflow_batch_eligible",
+        "reviewer_profile": "sol-review",
+        "review_mode": "integrated_candidate_batch",
         "contract_review_before_implementation": false,
         "requires_dispatch_packet": true,
         "policy": "AGENT-ROUTING.md",
@@ -118,14 +118,14 @@
       "agent_routing": {
         "author_profile": "luna-high",
         "verifier_profile": "luna-high",
-        "reviewer_profile": "astra-review",
-        "review_mode": "dedicated",
-        "contract_review_before_implementation": true,
+        "reviewer_profile": "sol-review",
+        "review_mode": "integrated_candidate_batch",
+        "contract_review_before_implementation": false,
         "requires_dispatch_packet": true,
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true,
-        "contract_review_reuse": "Accept an exact, still-applicable previously reviewed contract; otherwise review new/changed boundary before edits."
+        "contract_review_reuse": "Reuse current contract; routine private frontend work proceeds to integrated candidate review."
       }
     },
     {
@@ -162,8 +162,8 @@
       "agent_routing": {
         "author_profile": "luna-medium",
         "verifier_profile": "luna-medium",
-        "reviewer_profile": "astra-review",
-        "review_mode": "workflow_batch_eligible",
+        "reviewer_profile": "sol-review",
+        "review_mode": "integrated_candidate_batch",
         "contract_review_before_implementation": false,
         "requires_dispatch_packet": true,
         "policy": "AGENT-ROUTING.md",
@@ -203,8 +203,8 @@
       "agent_routing": {
         "author_profile": "luna-high",
         "verifier_profile": "luna-high",
-        "reviewer_profile": "astra-review",
-        "review_mode": "dedicated",
+        "reviewer_profile": "sol-review",
+        "review_mode": "integrated_candidate_batch",
         "contract_review_before_implementation": false,
         "requires_dispatch_packet": true,
         "policy": "AGENT-ROUTING.md",
@@ -245,8 +245,8 @@
       "agent_routing": {
         "author_profile": "luna-high",
         "verifier_profile": "luna-high",
-        "reviewer_profile": "astra-review",
-        "review_mode": "dedicated",
+        "reviewer_profile": "sol-review",
+        "review_mode": "integrated_candidate_batch",
         "contract_review_before_implementation": false,
         "requires_dispatch_packet": true,
         "policy": "AGENT-ROUTING.md",
@@ -291,8 +291,8 @@
       "agent_routing": {
         "author_profile": "luna-high",
         "verifier_profile": "luna-high",
-        "reviewer_profile": "astra-review",
-        "review_mode": "dedicated",
+        "reviewer_profile": "sol-review",
+        "review_mode": "integrated_candidate_batch",
         "contract_review_before_implementation": false,
         "requires_dispatch_packet": true,
         "policy": "AGENT-ROUTING.md",
@@ -346,8 +346,8 @@
       "agent_routing": {
         "author_profile": "luna-medium",
         "verifier_profile": "luna-medium",
-        "reviewer_profile": "astra-review",
-        "review_mode": "workflow_batch_eligible",
+        "reviewer_profile": "sol-review",
+        "review_mode": "integrated_candidate_batch",
         "contract_review_before_implementation": false,
         "requires_dispatch_packet": true,
         "policy": "AGENT-ROUTING.md",

@@ -9,6 +9,14 @@ a full-Rust application; backend/kernel rewrites and the major structural refact
 are separate phases. These requirements govern plans, implementation, review,
 cutover and removal. Read them before changing migration code.
 
+## Candidate-first execution — user update 2026-10-02
+
+The user directed: “structure this for speed, less review handoffs” and proposed reviewing when a candidate is complete. This supersedes earlier mandatory per-child planning, source and root-composition approval sequences for routine frontend work.
+
+Authors pin the React journey, refine the existing spec/ticket, implement the mounted workflow and run focused affected checks. They do not wait for separate independent planning or source approvals. The coordinator serially joins ready work and builds one frozen integrated candidate. Sol6.1 High reviewers divide that candidate in parallel, covering Standards and Spec alongside paired browser verification. Return consolidated findings; recheck affected repairs rather than repeat unchanged evidence or the entire approval sequence.
+
+Known correctness/parity defects still need repair. A completed candidate is a reviewable build, not a claim that its parents are accepted. Preserve all62 parent criteria, blocker/history records, paired edit/Undo/save-reopen gates and RF ledger. Public API/visibility/schema decisions and external cutover approval remain separate. Private composition, callback ownership and internal adapters can be implemented within existing authority and reviewed in the candidate.
+
 ## Confirmed frontend execution authority — 2026-10-02
 
 The user confirmed six parallel workbench streams, automatic specification/ticket
@@ -43,7 +51,8 @@ migration requirements; they do not authorize hiding failures or deleting work.
   is not a prerequisite to porting a frontend workflow. Record temporary boundaries,
   owners, retirement criteria and RF takeaways instead of inventing a new provider.
 - Necessary private module extraction, crate-local helpers and narrowly scoped
-  internal Rust interfaces may be adjusted after documented independent review.
+  internal Rust interfaces may be adjusted within existing authority and reviewed
+  as part of the integrated candidate.
   Routine private or `pub(crate)` composition does not need repeated user approval.
   Preserve externally consumed public APIs, shared wire contracts and saved formats;
   changes to those contracts still require a separate explicit decision and tests.
