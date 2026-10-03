@@ -1,9 +1,9 @@
 //! Definition-level model attachment and alignment in the selected Parts Inspector.
 
-use super::{PartsSelection, PartsSelectionGeneration, WorkspaceState};
+use super::{PartsSelection, PartsSelectionGeneration};
 use crate::{
     operation_outcomes::OutcomeSlot,
-    presentation::{SelectionAdapter, model_asset_import::read_model_file},
+    presentation::{SelectionAdapter, WorkspaceState, model_asset_import::read_model_file},
     runtime::Runtime,
 };
 use boardstudio_application::{AcceptedSnapshot, Event, Scope, SessionEpoch, TerminalOutcome};
@@ -15,7 +15,7 @@ use dioxus_web::WebEventExt;
 use std::{cell::Cell, rc::Rc};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use web_sys::{HtmlInputElement, KeyboardEvent};
+use web_sys::HtmlInputElement;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct ModelEditorOwner {
@@ -854,11 +854,12 @@ fn ModelVectorEditor(
                             if number != current[index] { on_commit.call((axis, number)); }
                         },
                         onkeydown: move |event: KeyboardEvent| {
-                            if event.key() == "Enter"
+                            let key = event.key().to_string();
+                            if key == "Enter"
                                 && let Some(input) = event.data().try_as_web_event().and_then(|event| event.target()).and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
                             {
                                 let _ = input.blur();
-                            } else if event.key() == "Escape" {
+                            } else if key == "Escape" {
                                 draft.with_mut(|values| values[index] = current[index].to_string());
                                 error.set(None);
                             }

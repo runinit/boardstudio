@@ -1244,6 +1244,12 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
         .board_outlines
         .iter()
         .find(|state| state.board_id == *board_id);
+    let generated = snapshot
+        .document
+        .boards
+        .iter()
+        .find(|board| board.id == *board_id)
+        .and_then(|board| generated_feature(&snapshot.document, board));
     let operation_id = runtime.operation();
     let (operation, kind, target_ids) = match &action {
         OutlineAction::Activate {
@@ -2487,9 +2493,11 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
                                 },
                             }
                             if !connection.points.is_empty() {
+                                {
                                 let index = selected_point().min(connection.points.len() - 1);
                                 let point = &connection.points[index];
                                 let world = connection_point_world(point, &projection.outline_parts);
+                                rsx! {
                                 h4 { "Connection point {index + 1} of {connection.points.len()}" }
                                 div { class: "m1-outline-coordinate-fields",
                                     OutlineCoordinate {
@@ -2546,12 +2554,13 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
                                         }
                                     }
                                 }
+                                }
+                                }
                             }
                         }
                     }
                 }
                 if let Some(tool) = drawing_operation() {
-                    let minimum_points = if tool == OutlineDrawTool::Connect { 2 } else { 3 };
                     p { role: "status", "Click the canvas to add points. Enter finishes; Escape cancels." }
                     p { "{drawing_points.read().len()} points" }
                     div { class: "m1-outline-actions",
@@ -2564,13 +2573,14 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
                         button { r#type: "button", onclick: move |_| { drawing_operation.set(None); drawing_points.set(Vec::new()); }, "Cancel drawing" }
                         button {
                             r#type: "button",
-                            disabled: !enabled || drawing_points.read().len() < minimum_points
+                            disabled: !enabled || drawing_points.read().len() < if tool == OutlineDrawTool::Connect { 2 } else { 3 }
                                 || matches!(tool, OutlineDrawTool::Polygon(_)) && polygon_area(&drawing_points.read()).abs() < 1e-6,
                             onclick: {
                                 let action_context = action_context.clone();
                                 let board_id = projection.board_id.clone();
                                 let revision = projection.revision;
                                 move |_| {
+                                    let minimum_points = if tool == OutlineDrawTool::Connect { 2 } else { 3 };
                                     let points = drawing_points.read().clone();
                                     if points.len() < minimum_points { return; }
                                     match tool {
