@@ -35,6 +35,7 @@ struct BoardInspectorOwner {
 #[derive(Clone, PartialEq)]
 pub(super) struct BoardInspectorProjection {
     owner: BoardInspectorOwner,
+    pub(super) board_name: String,
     pub(super) outline_status: &'static str,
     pub(super) placed_parts: usize,
     pub(super) editable: bool,
@@ -222,6 +223,7 @@ fn project_current(
             board_id: board.id.clone(),
             accepted_name: board.name.clone(),
         },
+        board_name: board.name.clone(),
         outline_status,
         placed_parts,
         editable: model.lifecycle == Lifecycle::Ready,
@@ -260,7 +262,10 @@ pub(super) fn BoardInspector(
     let owner = projection.owner.clone();
     let accepted_name = projection.owner.accepted_name.clone();
     let name = draft()
-        .filter(|draft| draft.owner == owner && draft.baseline == accepted_name)
+        .filter(|draft| {
+            draft.identity == BoardNameDraftIdentity::from(&owner)
+                && draft.baseline == accepted_name
+        })
         .map(|draft| draft.value)
         .unwrap_or_else(|| accepted_name.clone());
     let input_owner = owner.clone();
@@ -296,7 +301,7 @@ pub(super) fn BoardInspector(
                     value: "{name}",
                     disabled: !projection.editable,
                     oninput: move |event| draft.set(Some(NameDraft {
-                        owner: input_owner.clone(),
+                        identity: BoardNameDraftIdentity::from(&input_owner),
                         baseline: input_name.clone(),
                         value: event.value(),
                         submitted: false,
@@ -319,10 +324,29 @@ pub(super) fn BoardInspector(
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct NameDraft {
-    owner: BoardInspectorOwner,
+    identity: BoardNameDraftIdentity,
     baseline: String,
     value: String,
     submitted: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct BoardNameDraftIdentity {
+    scope: Scope,
+    context: ContextIdentity,
+    generation: u64,
+    board_id: String,
+}
+
+impl From<&BoardInspectorOwner> for BoardNameDraftIdentity {
+    fn from(owner: &BoardInspectorOwner) -> Self {
+        Self {
+            scope: owner.scope.clone(),
+            context: owner.context.clone(),
+            generation: owner.generation,
+            board_id: owner.board_id.clone(),
+        }
+    }
 }
 
 fn commit_draft(
@@ -334,7 +358,10 @@ fn commit_draft(
     let Some(mut value) = draft.read().clone() else {
         return;
     };
-    if value.owner != *owner || value.baseline != accepted_name || value.submitted {
+    if value.identity != BoardNameDraftIdentity::from(owner)
+        || value.baseline != accepted_name
+        || value.submitted
+    {
         return;
     }
     let name = value.value.trim();

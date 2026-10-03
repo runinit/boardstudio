@@ -152,10 +152,11 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
             }
         };
     }
+    let board_context_header = input.board_inspector.is_some();
     rsx! {
         if input.outline_inspector.is_none() && input.component_inspector.is_none() {
         if let Some(title) = input.context_title.as_ref() {
-            section { class: "m1-selected-context", "aria-label": "Selected context",
+            section { class: if board_context_header { "m1-selected-context m1-board-context" } else { "m1-selected-context" }, "aria-label": "Selected context",
                 h2 { "{title}" }
                 if let Some(detail) = input.context_detail.as_ref() { p { "{detail}" } }
             }

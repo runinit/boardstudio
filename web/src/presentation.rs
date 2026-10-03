@@ -6623,10 +6623,12 @@ fn Editor() -> Element {
                 }),
                 context_title: context_summary
                     .as_ref()
-                    .map(|summary| summary.title.clone()),
+                    .map(|summary| summary.title.clone())
+                    .or_else(|| board_inspector_projection.as_ref().map(|board| board.board_name.clone())),
                 context_detail: context_summary
                     .as_ref()
-                    .and_then(|summary| summary.detail.clone()),
+                    .and_then(|summary| summary.detail.clone())
+                    .or_else(|| board_inspector_projection.as_ref().map(|_| "Layout".to_owned())),
                 show_position_inspector,
                 component_inspector: component_inspector.clone(),
                 on_component_inspector_action,

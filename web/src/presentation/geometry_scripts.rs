@@ -31,20 +31,38 @@ pub(super) fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
             script.enabled,
         )
     });
-    use_effect(use_reactive((&active_identity,), {
+    let draft_owner = (snapshot.document.id.clone(), snapshot.session_epoch);
+    let accepted_identity = (draft_owner.0.clone(), draft_owner.1, active_identity.clone());
+    let observed_identity = use_hook(|| {
+        std::rc::Rc::new(std::cell::RefCell::new(None::<(
+            String,
+            u64,
+            Option<(String, String, String, bool)>,
+        )>))
+    });
+    use_effect(use_reactive((&accepted_identity,), {
         let mut name = name;
         let mut source = source;
         let mut enabled = enabled;
-        move |(identity,)| match identity {
+        let observed_identity = observed_identity.clone();
+        move |(identity,)| {
+            let owner_changed = observed_identity.borrow().as_ref() != Some(&identity);
+            *observed_identity.borrow_mut() = Some(identity.clone());
+            match identity.2 {
             Some((_, accepted_name, accepted_source, accepted_enabled)) => {
-                name.set(accepted_name);
-                source.set(accepted_source);
-                enabled.set(accepted_enabled);
+                if owner_changed {
+                    name.set(accepted_name);
+                    source.set(accepted_source);
+                    enabled.set(accepted_enabled);
+                }
             }
             None => {
-                name.set(String::new());
-                source.set(String::new());
-                enabled.set(true);
+                if owner_changed {
+                    name.set(String::new());
+                    source.set(String::new());
+                    enabled.set(true);
+                }
+            }
             }
         }
     }));
@@ -85,8 +103,11 @@ pub(super) fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
                             }
                             let operation_id = runtime.operation();
                             let mut next = (*snapshot.document).clone();
+                            let Ok(script_identity) = crate::runtime::new_project_id() else {
+                                return;
+                            };
                             let script = Script {
-                                id: format!("geometry-script-{}", operation_id.0),
+                                id: format!("geometry-script-{script_identity}"),
                                 name: format!("Script {}", next.scripts.len() + 1),
                                 source: String::new(),
                                 enabled: false,
