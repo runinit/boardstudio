@@ -12,7 +12,25 @@ mod modules_catalogue;
 mod physical_setup;
 mod preview;
 mod standard_profile_lifetime;
+pub(in crate::presentation) use assembly_presets::MatrixPresetId;
 pub(in crate::presentation) use assembly_presets::SwitchOrientation;
+
+pub(super) fn matrix_setup_preset(
+    preset: assembly_presets::MatrixPresetId,
+) -> crate::matrix_setup_operation::MatrixSetupPreset {
+    use crate::matrix_setup_operation::MatrixSetupPreset as SetupPreset;
+    use assembly_presets::MatrixPresetId as PartsPreset;
+    match preset {
+        PartsPreset::MxSolder => SetupPreset::MxSolder,
+        PartsPreset::MxHotswap => SetupPreset::MxHotswap,
+        PartsPreset::ChocSolder => SetupPreset::ChocSolder,
+        PartsPreset::ChocHotswap => SetupPreset::ChocHotswap,
+        PartsPreset::MxRgb => SetupPreset::MxRgb,
+        PartsPreset::ChocRgb => SetupPreset::ChocRgb,
+        PartsPreset::MxHotswapRgb => SetupPreset::MxHotswapRgb,
+        PartsPreset::ChocHotswapRgb => SetupPreset::ChocHotswapRgb,
+    }
+}
 pub(super) use generator_settings::GeneratorPreviewStatus;
 
 #[cfg(any(target_arch = "wasm32", test))]
@@ -977,7 +995,9 @@ pub(super) fn PartsInspectorPanel(
     placement_busy: bool,
     placement_error: Option<String>,
     mut layout_target: Signal<Option<String>>,
+    on_place_assembly: EventHandler<assembly_presets::MatrixPresetId>,
 ) -> Element {
+    let active_assembly = use_context::<PartsAssemblySelection>().0();
     let catalogue = use_catalogue(&snapshot, &scope);
     let selected_module_id = modules_catalogue::selected_id(selected(), &scope);
     let module_catalogue = modules_catalogue::use_catalogue(
@@ -1063,6 +1083,15 @@ pub(super) fn PartsInspectorPanel(
                 p { class: "m1-parts-loading", role: "status", "Loading component catalogue…" }
             }
             SelectedDefinition { entry: entry.clone() }
+            if let Some(preset) = active_assembly {
+                button {
+                    class: "m1-parts-place-assembly",
+                    r#type: "button",
+                    disabled: placement_busy,
+                    onclick: move |_| on_place_assembly.call(preset),
+                    "Place assembly"
+                }
+            }
             if let Some(definition) = editable_definition {
                 crate::parts_definition_name::DefinitionNameEditor {
                     snapshot: snapshot.clone(),

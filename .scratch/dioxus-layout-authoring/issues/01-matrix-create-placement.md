@@ -19,3 +19,9 @@
 **Parent acceptance:** F3.2 remains open for its full matrix/component authoring criteria. The canonical F3.1 start edge and all F3.2/F3.3/F3.7 joins are unchanged; this ticket does not close F3.2 or F3.
 
 **Suggested routing:** Luna Medium author/verifier; Astra independent Spec/Standards review.
+
+## Current Layout implementation slice
+
+The Dioxus immediate-origin Matrix Setup already owns its positive-integer/4096-cell validation and existing `SetMatrix` path. The remaining source-confirmed daily-workflow gap is the Parts-library assembly action: pinned React `5a472a9426e6e38993361da402cd4ec730feb369`, `app/src/ui/Workbench.tsx:1041` delegates to `beginMatrixPlacement(1, 1, preset)`; `createWorkbenchPlacementActions.ts:29-52` prepares the selected preset, switches to Design, and starts the existing matrix ghost. This slice ports that route through the existing `MatrixSetupPreset`, Parts template and Runtime matrix projection contracts.
+
+The changed journey is one selected preset and orientation from Parts → Place assembly → Layout ghost; move with the pointer and the active-snap arrow step, verify Escape leaves the accepted document/history unchanged, then place with pointer or Enter and verify one saved matrix, Undo/Redo and reopen. Reuse existing guided-form and multi-matrix evidence; do not repeat an invalid-dimension matrix. F3.2 remains open for the entire published criterion set, including guided-create public acceptance, multiple preset/orientation and compact/theme coverage. No new refactoring takeaway is observed; the RF ledger stays unchanged.

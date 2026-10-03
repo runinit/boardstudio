@@ -1737,12 +1737,17 @@ fn dispatch_layout_component_inspector_action(
     }
 }
 
+struct LayoutPlacementCancellation {
+    parts: part_placement::PartPlacementMount,
+    matrices: objects::MatrixPlacementMount,
+    interactions: CanvasInteractionArbiter,
+}
+
 fn layout_view_mode_handler(
     is_owner_current: impl Fn() -> bool + 'static,
     is_assembly_3d: Signal<bool>,
     mut set_assembly_3d: impl FnMut(bool) + 'static,
-    placement: part_placement::PartPlacementMount,
-    canvas_interaction: CanvasInteractionArbiter,
+    placements: LayoutPlacementCancellation,
     before_placement_cancel: impl Fn() + 'static,
     after_placement_cancel: impl Fn() + 'static,
 ) -> EventHandler<bool> {
@@ -1752,16 +1757,25 @@ fn layout_view_mode_handler(
         }
         if assembly_3d && !is_assembly_3d() {
             before_placement_cancel();
-            if placement.busy || placement.projection.is_some() {
-                placement.on_cancel.call(());
+            if placements.parts.busy || placements.parts.projection.is_some() {
+                placements.parts.on_cancel.call(());
             }
             after_placement_cancel();
-            match canvas_interaction.current() {
+            match placements.interactions.current() {
                 Some(CanvasInteractionOwner::PartPlacement) => {
-                    canvas_interaction.release(CanvasInteractionOwner::PartPlacement);
+                    placements
+                        .interactions
+                        .release(CanvasInteractionOwner::PartPlacement);
                 }
                 Some(CanvasInteractionOwner::OutlinePerimeter) => {
-                    canvas_interaction.release(CanvasInteractionOwner::OutlinePerimeter);
+                    placements
+                        .interactions
+                        .release(CanvasInteractionOwner::OutlinePerimeter);
+                }
+                Some(CanvasInteractionOwner::MatrixPlacement) => {
+                    if let Some(owner) = placements.matrices.cancel_owner.clone() {
+                        placements.matrices.on_cancel.call(owner);
+                    }
                 }
                 Some(CanvasInteractionOwner::MirroredPair) | None => {}
             }
@@ -2443,7 +2457,49 @@ fn Editor() -> Element {
         workspace,
         adapter.generation,
     );
+    let parts_assembly_orientation = use_signal(|| parts::SwitchOrientation::South);
     let canvas_interaction = use_hook(CanvasInteractionArbiter::default);
+    let matrix_placement = objects::use_matrix_placement(
+        runtime.clone(),
+        objects::MatrixPlacementInput {
+            version,
+            selected_context: adapter.selected_context,
+            anchor_scope: adapter.anchor_scope,
+            workspace,
+            scope_generation: adapter.generation,
+            assembly_orientation: parts::PartsAssemblyOrientation(parts_assembly_orientation),
+            canvas_interaction: canvas_interaction.clone(),
+        },
+    );
+    let on_place_matrix_assembly = {
+        let on_place = matrix_placement.on_place;
+        let runtime = runtime.clone();
+        let mut workspace = workspace;
+        let mut selected_context = adapter.selected_context;
+        let mut anchor_scope = adapter.anchor_scope;
+        let mut layout_assembly_3d = layout_assembly_3d;
+        let mut objects_open = objects_open;
+        let mut inspect_open = inspect_open;
+        let canvas_interaction = canvas_interaction.clone();
+        EventHandler::new(move |preset| {
+            if workspace() != "Parts" || canvas_interaction.current().is_some() {
+                return;
+            }
+            on_place.call(preset);
+            workspace.set("Layout");
+            layout_assembly_3d.set(false);
+            selected_context.set(None);
+            anchor_scope.set(None);
+            objects_open.set(false);
+            inspect_open.set(false);
+            runtime.submit(Event::SelectParts {
+                operation_id: runtime.operation(),
+                part_ids: Vec::new(),
+                range_part_ids: Vec::new(),
+                mode: SelectionMode::Replace,
+            });
+        })
+    };
     let pair_created_selection = use_signal(|| None::<objects::MirroredPairCreated>);
     let on_mirrored_pair_created = use_callback({
         let runtime = runtime.clone();
@@ -2552,7 +2608,6 @@ fn Editor() -> Element {
     let parts_selection: PartsSelection = use_signal(|| None);
     let parts_assembly_selection = use_signal(|| None);
     use_context_provider(|| parts::PartsAssemblySelection(parts_assembly_selection));
-    let parts_assembly_orientation = use_signal(|| parts::SwitchOrientation::South);
     use_context_provider(|| parts::PartsAssemblyOrientation(parts_assembly_orientation));
     let parts_selection_generation = use_signal(|| 0u64);
     use_context_provider(|| parts::PartsSelectionGeneration(parts_selection_generation));
@@ -4897,7 +4952,15 @@ fn Editor() -> Element {
             }
         }
     };
-    let placement_active = part_placement.projection.is_some();
+    let placement_active = part_placement.projection.is_some()
+        || part_placement.busy
+        || matrix_placement.placement.is_some()
+        || matrix_placement.busy;
+    let canvas_aria_label = if matrix_placement.placement.is_some() || matrix_placement.busy {
+        "Matrix placement canvas. Move the pointer or use arrow keys; click or press Enter to place, Escape to cancel."
+    } else {
+        "Keyboard layout; drag components, hold Shift for range selection, hold Space and drag to pan, or use position controls"
+    };
     let focus_svg = svg.clone();
     use_effect(use_reactive!(|placement_active| {
         if !placement_active {
@@ -4918,6 +4981,7 @@ fn Editor() -> Element {
         let owner = layout_owner.clone();
         let snap_settings = layout_snap_settings;
         let placement = part_placement.clone();
+        let matrix_placement = matrix_placement.clone();
         let tree_cell_anchor = tree_cell_anchor.clone();
         let mirrored_pair = mirrored_pair.clone();
         let canvas_interaction = canvas_interaction.clone();
@@ -4925,6 +4989,27 @@ fn Editor() -> Element {
             let Some(pointer) = event.data().try_as_web_event() else {
                 return;
             };
+            if canvas_interaction.is_owner(CanvasInteractionOwner::MatrixPlacement) {
+                let Some(active) = matrix_placement.placement.as_ref() else {
+                    pointer.prevent_default();
+                    pointer.stop_propagation();
+                    return;
+                };
+                let owner = active.owner.clone();
+                if workspace() != "Layout"
+                    || runtime.scope().as_ref() != Some(&owner.scope)
+                    || (adapter.generation)() != owner.scope_generation
+                {
+                    matrix_placement.on_cancel.call(owner);
+                    return;
+                }
+                if let Some(center) = coordinates(&svg, &pointer, view_x, view_y, width, height) {
+                    matrix_placement
+                        .on_move
+                        .call(objects::MatrixPlacementMove { owner, center });
+                }
+                return;
+            }
             if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair) {
                 let Some(placement) = mirrored_pair.placement.as_ref() else {
                     pointer.prevent_default();
@@ -5111,6 +5196,7 @@ fn Editor() -> Element {
         let adapter = adapter.clone();
         let owner = layout_owner.clone();
         let placement = part_placement.clone();
+        let matrix_placement = matrix_placement.clone();
         let snap_settings = layout_snap_settings;
         let render_scope = render_scope.clone();
         let canvas_interaction = canvas_interaction.clone();
@@ -5118,6 +5204,28 @@ fn Editor() -> Element {
             let Some(pointer) = event.data().try_as_web_event() else {
                 return;
             };
+            if canvas_interaction.is_owner(CanvasInteractionOwner::MatrixPlacement) {
+                pointer.prevent_default();
+                pointer.stop_propagation();
+                if pointer.button() == 0
+                    && let Some(active) = matrix_placement.placement.as_ref()
+                {
+                    let owner = active.owner.clone();
+                    if workspace() != "Layout"
+                        || runtime.scope().as_ref() != Some(&owner.scope)
+                        || (adapter.generation)() != owner.scope_generation
+                    {
+                        matrix_placement.on_cancel.call(owner);
+                    } else if let Some(center) =
+                        coordinates(&svg, &pointer, view_x, view_y, width, height)
+                    {
+                        matrix_placement
+                            .on_commit
+                            .call(objects::MatrixPlacementMove { owner, center });
+                    }
+                }
+                return;
+            }
             if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair) {
                 pointer.prevent_default();
                 pointer.stop_propagation();
@@ -5255,10 +5363,17 @@ fn Editor() -> Element {
         let svg = svg.clone();
         let drag = drag.clone();
         let placement = part_placement.clone();
+        let matrix_placement = matrix_placement.clone();
         let render_scope = render_scope.clone();
         let canvas_interaction = canvas_interaction.clone();
         move |event: PointerEvent| {
             match canvas_interaction.current() {
+                Some(CanvasInteractionOwner::MatrixPlacement) => {
+                    if let Some(owner) = matrix_placement.cancel_owner.clone() {
+                        matrix_placement.on_cancel.call(owner);
+                    }
+                    return;
+                }
                 Some(CanvasInteractionOwner::MirroredPair) => return,
                 Some(CanvasInteractionOwner::PartPlacement) => {
                     if placement.projection.is_some() {
@@ -5317,12 +5432,68 @@ fn Editor() -> Element {
         let space_down = space_down.clone();
         let mirrored_pair = mirrored_pair.clone();
         let placement = part_placement.clone();
+        let matrix_placement = matrix_placement.clone();
         let canvas_interaction = canvas_interaction.clone();
         let snap_settings = layout_snap_settings;
         move |event: KeyboardEvent| {
             let key = event.data().key().to_string();
             let code = event.data().code().to_string();
             let modifiers = event.data().modifiers();
+            if canvas_interaction.is_owner(CanvasInteractionOwner::MatrixPlacement) {
+                let Some(active) = matrix_placement.placement.as_ref() else {
+                    if key == "Escape"
+                        && let Some(owner) = matrix_placement.cancel_owner.clone()
+                    {
+                        event.prevent_default();
+                        matrix_placement.on_cancel.call(owner);
+                    } else {
+                        event.prevent_default();
+                    }
+                    return;
+                };
+                let owner = active.owner.clone();
+                if key == "Escape" {
+                    event.prevent_default();
+                    matrix_placement.on_cancel.call(owner);
+                    return;
+                }
+                if key == "Enter" {
+                    event.prevent_default();
+                    matrix_placement
+                        .on_commit
+                        .call(objects::MatrixPlacementMove {
+                            owner,
+                            center: active.matrix.origin,
+                        });
+                    return;
+                }
+                let (dx, dy) = match key.as_str() {
+                    "ArrowLeft" => (-1.0, 0.0),
+                    "ArrowRight" => (1.0, 0.0),
+                    "ArrowDown" => (0.0, -1.0),
+                    "ArrowUp" => (0.0, 1.0),
+                    _ => (0.0, 0.0),
+                };
+                if dx != 0.0 || dy != 0.0 {
+                    event.prevent_default();
+                    let fraction = snap_settings.read().snap_fraction;
+                    let step = |pitch: f64| {
+                        if fraction.is_sign_negative() {
+                            -fraction
+                        } else {
+                            pitch * if fraction == 0.0 { 0.25 } else { fraction }
+                        }
+                    };
+                    matrix_placement.on_move.call(objects::MatrixPlacementMove {
+                        owner,
+                        center: Vec2 {
+                            x: active.matrix.origin.x + dx * step(active.matrix.pitch.x),
+                            y: active.matrix.origin.y + dy * step(active.matrix.pitch.y),
+                        },
+                    });
+                    return;
+                }
+            }
             if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair)
                 && let Some(placement) = mirrored_pair.placement.as_ref()
             {
@@ -5465,6 +5636,11 @@ fn Editor() -> Element {
             let Some(pointer) = event.data().try_as_web_event() else {
                 return;
             };
+            if canvas_interaction.is_owner(CanvasInteractionOwner::MatrixPlacement) {
+                pointer.prevent_default();
+                pointer.stop_propagation();
+                return;
+            }
             if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair)
                 && let Some(placement) = mirrored_pair.placement.as_ref()
                 && pointer.button() == 0
@@ -6084,7 +6260,10 @@ fn Editor() -> Element {
                 layout_target,
                 parts_query,
                 on_browse_parts,
-                placement_error: part_placement.error.clone(),
+                placement_error: matrix_placement
+                    .error
+                    .clone()
+                    .or_else(|| part_placement.error.clone()),
             },
         )),
         "Keymap" => workspace_composition::WorkspaceObjectsInput::Keymap(shared_objects),
@@ -6127,7 +6306,10 @@ fn Editor() -> Element {
                 layout_target,
                 parts_query,
                 on_browse_parts,
-                placement_error: part_placement.error.clone(),
+                placement_error: matrix_placement
+                    .error
+                    .clone()
+                    .or_else(|| part_placement.error.clone()),
             },
         )),
     };
@@ -6140,8 +6322,11 @@ fn Editor() -> Element {
         },
         layout_assembly_3d,
         move |assembly_3d| layout_assembly_3d.set(assembly_3d),
-        part_placement.clone(),
-        canvas_interaction.clone(),
+        LayoutPlacementCancellation {
+            parts: part_placement.clone(),
+            matrices: matrix_placement.clone(),
+            interactions: canvas_interaction.clone(),
+        },
         {
             let runtime = runtime.clone();
             let drag = drag.clone();
@@ -6156,6 +6341,7 @@ fn Editor() -> Element {
         {
             let mirrored_pair = mirrored_pair.clone();
             let matrix_setup = matrix_setup.clone();
+            let matrix_placement = matrix_placement.clone();
             move || {
                 if let Some(active) = mirrored_pair.placement.as_ref() {
                     mirrored_pair.on_cancel.call(active.owner.clone());
@@ -6164,6 +6350,9 @@ fn Editor() -> Element {
                 }
                 if let Some(projection) = matrix_setup.projection.as_ref() {
                     matrix_setup.on_cancel.call(projection.owner.clone());
+                }
+                if let Some(owner) = matrix_placement.cancel_owner.clone() {
+                    matrix_placement.on_cancel.call(owner);
                 }
             }
         },
@@ -6502,9 +6691,13 @@ fn Editor() -> Element {
                 on_place_controller: part_placement.on_place_controller,
                 on_place_component: part_placement.on_place_component,
                 controller_placement_enabled: part_placement.controller_placement_enabled,
-                placement_busy: part_placement.busy,
-                placement_error: part_placement.error.clone(),
+                placement_busy: part_placement.busy || matrix_placement.busy,
+                placement_error: matrix_placement
+                    .error
+                    .clone()
+                    .or_else(|| part_placement.error.clone()),
                 layout_target,
+                on_place_assembly: on_place_matrix_assembly,
             },
         )),
         "PCB" => {
@@ -6623,11 +6816,19 @@ fn Editor() -> Element {
                 context_title: context_summary
                     .as_ref()
                     .map(|summary| summary.title.clone())
-                    .or_else(|| board_inspector_projection.as_ref().map(|board| board.board_name.clone())),
+                    .or_else(|| {
+                        board_inspector_projection
+                            .as_ref()
+                            .map(|board| board.board_name.clone())
+                    }),
                 context_detail: context_summary
                     .as_ref()
                     .and_then(|summary| summary.detail.clone())
-                    .or_else(|| board_inspector_projection.as_ref().map(|_| "Layout".to_owned())),
+                    .or_else(|| {
+                        board_inspector_projection
+                            .as_ref()
+                            .map(|_| "Layout".to_owned())
+                    }),
                 show_position_inspector,
                 component_inspector: component_inspector.clone(),
                 on_component_inspector_action,
@@ -6683,6 +6884,8 @@ fn Editor() -> Element {
     });
     let controller_guide_hidden = part_placement.projection.is_some()
         || part_placement.busy
+        || matrix_placement.placement.is_some()
+        || matrix_placement.busy
         || (active_workspace == "Parts"
             && parts_query().trim() == "controller"
             && guide_preferences()
@@ -6695,6 +6898,8 @@ fn Editor() -> Element {
             // Objects panel; the guide preference remains intact and returns on cancel.
             && !(active_workspace == "Layout"
                 && (matrix_setup.projection.is_some()
+                    || matrix_placement.placement.is_some()
+                    || matrix_placement.busy
                     || mirrored_pair.form.is_some()
                     || mirrored_pair.placement.is_some()))
             && !controller_guide_hidden
@@ -6710,6 +6915,8 @@ fn Editor() -> Element {
         && mirrored_pair.placement.is_none()
         && part_placement.projection.is_none()
         && !part_placement.busy;
+    let show_empty_board =
+        show_empty_board && matrix_placement.placement.is_none() && !matrix_placement.busy;
     let outline_pitch = {
         let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &layout_owner);
         matrix_snap_parameters(&model, &render_scope, &adapter, retained.as_ref())
@@ -6972,7 +7179,7 @@ fn Editor() -> Element {
                             },
                         }
                     } else if active_workspace == "Layout" {
-                        svg { class: "m1-canvas", view_box: "{view_box}", preserve_aspect_ratio: "xMidYMid meet", tabindex: "0", role: "group", "aria-label": "Keyboard layout; drag components, hold Shift for range selection, hold Space and drag to pan, or use position controls", onmounted: mount,
+                    svg { class: "m1-canvas", view_box: "{view_box}", preserve_aspect_ratio: "xMidYMid meet", tabindex: "0", role: "group", "aria-label": "{canvas_aria_label}", onmounted: mount,
                     onpointerdown: start_pan, onpointermove: move_pointer, onpointerup: end_pointer, onpointercancel: cancel_pointer.clone(), onlostpointercapture: cancel_pointer, onkeydown: keyboard, onkeyup: key_up, onwheel: wheel,
                     g { transform: "scale(1,-1)",
                         if !(layer_visibility.hidden)().contains("Board") {
@@ -7002,6 +7209,21 @@ fn Editor() -> Element {
                             polygon { points: polygon_points(&bridge.points), class: "m1-outline-bridge-selected", "data-outline-bridge": bridge.id.clone() }
                         }
                         if !(layer_visibility.hidden)().contains("Keys") {
+                            if let Some(active) = matrix_placement.placement.as_ref() {
+                                let cells = crate::mirrored_pair_geometry::preview_cells(&active.scene, &active.matrix);
+                                rsx! {
+                                    g {
+                                        class: "m1-mirrored-pair-preview m1-matrix-placement-preview",
+                                        "aria-label": "Matrix placement preview",
+                                        transform: "translate({active.matrix.origin.x} {active.matrix.origin.y})",
+                                        for cell in cells {
+                                            g { key: "{cell.row}-{cell.column}", transform: "translate({cell.center.x} {cell.center.y}) rotate({cell.rotation})",
+                                                rect { class: "m1-mirrored-pair-cell", x: "{-cell.size.x / 2.0}", y: "{-cell.size.y / 2.0}", width: "{cell.size.x}", height: "{cell.size.y}", rx: "1" }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                             if let Some(active_pair) = mirrored_pair.placement.as_ref() {
                                 {
                                     let pair = &active_pair.pair;

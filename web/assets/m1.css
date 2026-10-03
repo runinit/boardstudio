@@ -294,7 +294,7 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
   .m1-mirrored-pair-canvas-overlay { padding: 8px; }
   .m1-mirrored-pair-canvas-overlay > .m1-mirrored-pair-setup { width: min(380px, calc(100% - 8px)); max-height: 100%; padding: 18px; }
 }
-.m1-mirrored-pair-preview { pointer-events: none; }
+.m1-mirrored-pair-preview, .m1-matrix-placement-preview { pointer-events: none; }
 .m1-mirror-pair-axis { stroke: var(--wb-accent); stroke-dasharray: 2 2; stroke-width: .35; }
 .m1-mirrored-pair-cell { fill: color-mix(in srgb, var(--wb-accent) 20%, transparent); stroke: var(--wb-accent); stroke-width: .35; }
 .m1-object-tree-heading { display: flex; justify-content: space-between; gap: 8px; padding: 9px 10px; border-bottom: 1px solid var(--wb-rule); font-weight: 650; }

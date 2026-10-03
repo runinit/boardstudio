@@ -7,6 +7,7 @@ use std::{cell::Cell, rc::Rc};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum CanvasInteractionOwner {
     MirroredPair,
+    MatrixPlacement,
     PartPlacement,
     OutlinePerimeter,
 }

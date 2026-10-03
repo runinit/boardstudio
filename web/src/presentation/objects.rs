@@ -14,6 +14,7 @@ mod layout_toolbar;
 mod layout_transform_toolbar;
 mod matrix_inspector;
 mod matrix_inspector_controller;
+mod matrix_placement_controller;
 mod matrix_setup;
 mod matrix_setup_controller;
 mod matrix_transform_controller;
@@ -35,10 +36,15 @@ pub(in crate::presentation) use layout_toolbar::{
 };
 pub(in crate::presentation) use layout_transform_toolbar::LayoutTransformMenuMount;
 pub(in crate::presentation) use matrix_inspector::MatrixInspector;
+pub(in crate::presentation) use matrix_inspector::SwitchOrientation as MatrixSwitchOrientation;
+pub(in crate::presentation) use matrix_inspector_controller::matrix_with_preset;
 pub(in crate::presentation) use matrix_inspector_controller::{
     MatrixInspectorMount, use_matrix_inspector,
 };
-pub(in crate::presentation) use matrix_setup::{MatrixSetup, MatrixSetupMount};
+pub(in crate::presentation) use matrix_placement_controller::use_matrix_placement;
+pub(in crate::presentation) use matrix_setup::{
+    MatrixPlacementInput, MatrixSetup, MatrixSetupMount,
+};
 pub(in crate::presentation) use matrix_setup_controller::use_matrix_setup;
 pub(in crate::presentation) use matrix_transform_controller::{
     MatrixTransformInspectorMount, use_workspace_matrix_transform,

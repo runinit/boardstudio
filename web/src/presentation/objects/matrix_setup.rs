@@ -40,6 +40,54 @@ pub(in crate::presentation) struct MatrixSetupMount {
     pub on_create: EventHandler<MatrixSetupCreateRequest>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::presentation) struct MatrixPlacementOwner {
+    pub editor_instance_id: u64,
+    pub request_id: u64,
+    pub scope_generation: u64,
+    pub scope: Scope,
+    pub board_id: String,
+    pub snapshot_token: SnapshotToken,
+    pub revision: u64,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::presentation) struct MatrixPlacementProjection {
+    pub owner: MatrixPlacementOwner,
+    pub matrix: boardstudio_core::model::Matrix,
+    pub scene: boardstudio_core::model::MatrixScene,
+    pub definitions: Vec<boardstudio_core::model::PartDefinition>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::presentation) struct MatrixPlacementMove {
+    pub owner: MatrixPlacementOwner,
+    pub center: boardstudio_core::model::Vec2,
+}
+
+#[derive(Clone, PartialEq)]
+pub(in crate::presentation) struct MatrixPlacementMount {
+    pub cancel_owner: Option<MatrixPlacementOwner>,
+    pub placement: Option<MatrixPlacementProjection>,
+    pub busy: bool,
+    pub error: Option<String>,
+    pub on_place: EventHandler<crate::presentation::parts::MatrixPresetId>,
+    pub on_move: EventHandler<MatrixPlacementMove>,
+    pub on_commit: EventHandler<MatrixPlacementMove>,
+    pub on_cancel: EventHandler<MatrixPlacementOwner>,
+}
+
+#[derive(Clone)]
+pub(in crate::presentation) struct MatrixPlacementInput {
+    pub version: Signal<u64>,
+    pub selected_context: Signal<Option<super::ScopedTreeContext>>,
+    pub anchor_scope: Signal<Option<Scope>>,
+    pub workspace: Signal<&'static str>,
+    pub scope_generation: Signal<u64>,
+    pub assembly_orientation: crate::presentation::parts::PartsAssemblyOrientation,
+    pub canvas_interaction: crate::presentation::canvas_interaction::CanvasInteractionArbiter,
+}
+
 #[derive(Props, Clone, PartialEq)]
 pub(in crate::presentation) struct MatrixSetupProps {
     pub projection: MatrixSetupProjection,

@@ -27,6 +27,7 @@ pub(super) struct InspectorInput {
     pub(super) placement_busy: bool,
     pub(super) placement_error: Option<String>,
     pub(super) layout_target: Signal<Option<String>>,
+    pub(super) on_place_assembly: EventHandler<super::parts::MatrixPresetId>,
 }
 
 pub(super) struct CanvasInput {
@@ -93,6 +94,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
             placement_busy: input.placement_busy,
             placement_error: input.placement_error,
             layout_target: input.layout_target,
+            on_place_assembly: input.on_place_assembly,
         }
     }
 }

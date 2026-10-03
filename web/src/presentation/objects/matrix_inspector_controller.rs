@@ -2405,7 +2405,7 @@ fn matrix_setup_preset(preset: MatrixPreset) -> crate::matrix_setup_operation::M
 
 /// Mirrors the pinned `matrixWithPreset` recipe while retaining matrix-only fields and each
 /// pre-existing cell's enabled state, local pose and non-diode/non-LED assembly membership.
-fn matrix_with_preset(
+pub(in crate::presentation) fn matrix_with_preset(
     matrix: &Matrix,
     prepared: &Matrix,
     variant: &str,
