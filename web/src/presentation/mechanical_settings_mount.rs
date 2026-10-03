@@ -18,7 +18,9 @@ use crate::mechanical_feedback::{
     FeedbackRecord, field_feedback, relevant_summary, same_feedback_owner,
 };
 use crate::runtime::{CadScene, Runtime};
-use boardstudio_application::{AcceptedSnapshot, Durability, Event, Lifecycle, OperationId, Scope};
+use boardstudio_application::{
+    AcceptedSnapshot, Durability, Event, Lifecycle, OperationId, Scope, SnapshotToken,
+};
 use boardstudio_core::model::{
     EditCommand, EditOperation, EditPhase, HardwareTransport, MechanicalAssembly,
     MechanicalBottomStyle, MechanicalConfiguration, MechanicalMount, Mount, Part, PartKind,
@@ -63,6 +65,15 @@ pub(crate) struct MechanicalSettingsMount {
     pub(crate) generation_ready: bool,
 }
 
+#[derive(Clone)]
+pub(crate) struct MechanicalFindingNavigation {
+    pub(crate) scope: Scope,
+    pub(crate) token: SnapshotToken,
+    pub(crate) revision: u64,
+    pub(crate) resolution: Option<Rc<MechanicalResolution>>,
+    pub(crate) finding_id: String,
+}
+
 /// Keep the controller and its request sequence alive for the whole Editor,
 /// even when the Case workspace or its panel is hidden.
 pub(crate) fn use_mechanical_settings_mount(
@@ -71,7 +82,7 @@ pub(crate) fn use_mechanical_settings_mount(
     workspace: Signal<&'static str>,
     instance_selection: InstanceSelection,
     case_selection: CaseSelection,
-    on_show_finding: EventHandler<String>,
+    on_show_finding: EventHandler<MechanicalFindingNavigation>,
     on_show_configured_board: EventHandler<String>,
 ) -> MechanicalSettingsMount {
     let editor_instance_id = use_hook({
@@ -596,12 +607,37 @@ pub(crate) fn use_mechanical_settings_mount(
             let current_reader = current_reader.clone();
             let rendered_identity = current.identity.clone();
             let alive = alive.clone();
+            let current_resolution = current_resolution.clone();
             move |id: String| {
                 if alive.get()
                     && workspace() == "Case"
                     && current_reader().is_some_and(|live| live.identity == rendered_identity)
                 {
-                    on_show_finding.call(id);
+                    let resolution = current_resolution
+                        .as_ref()
+                        .filter(|projection| {
+                            projection.identity == rendered_identity
+                                && projection.key.scope == rendered_identity.scope
+                                && projection.key.token == rendered_identity.snapshot_token
+                                && projection.key.revision == rendered_identity.revision
+                        })
+                        .map(|projection| projection.resolution.clone());
+                    if resolution.as_ref().is_some_and(|resolution| {
+                        !resolution
+                            .assembly
+                            .diagnostics
+                            .iter()
+                            .any(|finding| finding.id == id)
+                    }) {
+                        return;
+                    }
+                    on_show_finding.call(MechanicalFindingNavigation {
+                        scope: rendered_identity.scope.clone(),
+                        token: rendered_identity.snapshot_token,
+                        revision: rendered_identity.revision,
+                        resolution,
+                        finding_id: id,
+                    });
                 }
             }
         });
