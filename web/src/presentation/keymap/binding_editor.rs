@@ -538,13 +538,12 @@ pub(in crate::presentation) fn BindingEditor(props: BindingEditorProps) -> Eleme
                 {
                     let field = if field == "tap" { BindingField::Tap } else { BindingField::Keycode };
                     let draft_key = format!(
-                        "{:?}:{}:{}:{:?}:{}:{}",
+                        "{:?}:{}:{}:{:?}:{}",
                         props.scope,
                         props.editor_instance_id,
                         props.active_layer_id,
                         field,
                         target_key,
-                        accepted_value,
                     );
                     rsx! {
                         KeycodeField {
@@ -708,6 +707,11 @@ fn code_draft_failure_visible(draft: &str, accepted_value: &str) -> bool {
 #[component]
 fn KeycodeField(props: KeycodeFieldProps) -> Element {
     let mut draft = use_signal(|| props.accepted_value.clone());
+    let accepted_for_effect = props.accepted_value.clone();
+    use_effect(use_reactive(&props.accepted_value, {
+        let mut draft = draft;
+        move |_| draft.set(accepted_for_effect.clone())
+    }));
     let mut request_sequence = props.request_sequence;
     let context = props.context.clone();
     let binding = props.binding.clone();
