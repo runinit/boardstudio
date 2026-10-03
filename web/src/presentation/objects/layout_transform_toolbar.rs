@@ -266,7 +266,9 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
             return;
         }
         let Some(capture) = pointer
-            .current_target()
+            .target()
+            .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
+            .and_then(|target| target.closest(".m1-transform-handle").ok().flatten())
             .and_then(|target| target.dyn_into::<SvgElement>().ok())
         else {
             arbiter_for_start.release(CanvasInteractionOwner::MatrixTransform);
