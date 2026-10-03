@@ -6,7 +6,9 @@
 
 **Blocked by:** Canonical F3.1 remains the parent dependency. This child is startable when the accepted selected standalone-part identity, current document/scope/token/revision owner and existing edit/navigation ports are available; it does not wait for full F3.1 qualification or another F3.5 child.
 
-**Status:** planning review pending
+**Status:** implementing in isolation; corrected planning commit `41173297` independently CLEAR on Standards and Spec. Private start gates are proven; shared mount proceeds after the Parts reservation is released. Source integration and paired public acceptance remain open.
+
+**Planning review:** [exact packet review](../../dioxus-frontend-v1/evidence/sol-review-wave-20261002/f35a-component-inspector-planning-review-41173297-sol-20261002.md).
 
 - [ ] A single live standalone component selected in the active Layout board shows a component reference heading, definition name/kind, any existing Locked badge and definition envelope notice, and accessible Properties and Relations tabs. Stale scope, missing identity, matrix-attached parts, non-Layout workspaces and ambiguous multi-selection do not expose these controls.
 - [ ] Properties show Position X/Y in millimetres; when board layouts exist, a standalone component can be assigned to a named layout or Board / ungrouped. Position and membership changes preserve unrelated parts/layouts and commit through the existing MoveParts or accepted-document edit path.
