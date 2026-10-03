@@ -457,10 +457,10 @@ def _module_base(path):
     return path.parent / path.stem
 
 
-def rust_module_graph(repo_root, root_relative, features):
+def rust_module_graph(repo_root, root_relative, features, *, allow_opaque_macros=False):
     """Resolve supported Rust input edges; ambiguous registrations require full builds."""
     repo_root = Path(repo_root).resolve()
-    src_root = (repo_root / "web/src").resolve()
+    web_root = (repo_root / "web").resolve()
     found = set()
     active = set()
     generated_includes = {
@@ -471,9 +471,9 @@ def rust_module_graph(repo_root, root_relative, features):
     def walk(module_path, included=False):
         module_path = module_path.resolve()
         try:
-            module_path.relative_to(src_root)
+            module_path.relative_to(web_root)
         except ValueError as error:
-            raise ValueError(f"Rust module escapes web/src: {module_path}") from error
+            raise ValueError(f"Rust module escapes web/: {module_path}") from error
         relative = module_path.relative_to(repo_root).as_posix()
         if relative in active:
             raise ValueError(f"recursive Rust module graph: {relative}")
@@ -483,7 +483,7 @@ def rust_module_graph(repo_root, root_relative, features):
         # Included code inherits its call site's module context. Rather than
         # guess directory semantics, only module-free literal includes qualify.
         if included and any(kind == "ident" and value in {"mod", "macro", "macro_rules"}
-                            for kind, value in tokens):
+                            for kind, value in tokens) and not allow_opaque_macros:
             raise ValueError(f"unsupported module registration in included Rust source: {relative}")
         if relative in found:
             return
@@ -532,6 +532,17 @@ def rust_module_graph(repo_root, root_relative, features):
                 index = end
                 continue
             item = index
+            if allow_opaque_macros and value == "macro_rules" and values[index + 1:index + 2] == ["!"]:
+                group = index + 2
+                while group < len(values) and values[group] != "{":
+                    group += 1
+                if group >= len(values):
+                    raise ValueError(f"malformed macro_rules definition in {relative}")
+                index = _rust_group_end(values, group)
+                if index < len(values) and values[index] == ";":
+                    index += 1
+                pending_attributes.clear()
+                continue
             if values[item] == "pub":
                 item += 1
                 if item < len(values) and values[item] == "(":
@@ -577,13 +588,25 @@ def rust_module_graph(repo_root, root_relative, features):
                 macro += 3
             if macro + 1 < len(values) and values[macro + 1] == "!":
                 if values[macro] not in {"include", "thread_local", "wasm_bindgen_test_configure"}:
-                    raise ValueError(f"unsupported item macro in Rust module graph: {relative}")
+                    if not allow_opaque_macros:
+                        raise ValueError(f"unsupported item macro in Rust module graph: {relative}")
+                    group = macro + 2
+                    while group < len(values) and values[group] not in ("(", "[", "{"):
+                        group += 1
+                    if group >= len(values):
+                        raise ValueError(f"malformed macro invocation in {relative}")
+                    index = _rust_group_end(values, group)
+                    if index < len(values) and values[index] == ";":
+                        index += 1
+                    pending_attributes.clear()
+                    continue
             cursor = index
             while cursor < len(values):
                 if values[cursor] in ("[", "(", "{"):
                     end = _rust_group_end(values, cursor)
-                    if any(kind == "ident" and token in {"mod", "macro", "macro_rules"}
-                           for kind, token in tokens[cursor + 1:end - 1]):
+                    if (not allow_opaque_macros and
+                            any(kind == "ident" and token in {"mod", "macro", "macro_rules"}
+                                for kind, token in tokens[cursor + 1:end - 1])):
                         raise ValueError(f"unsupported nested registration in Rust module graph: {relative}")
                     closing = values[end - 1]
                     cursor = end
@@ -622,7 +645,21 @@ def page_test_only_rust_paths(repo_root):
         release_graph.update(rust_module_graph(repo_root, "web/src/lib.rs", features))
     test_graph = set(rust_module_graph(repo_root, "web/src/lib.rs", configurations[0] | {"__test__"}))
     test_graph.update(rust_module_graph(repo_root, "web/src/main.rs", configurations[0] | {"__test__"}))
+    test_graph.update(
+        path
+        for root in standalone_web_test_roots(repo_root)
+        for path in rust_module_graph(
+            repo_root, root, configurations[0] | {"__test__"}, allow_opaque_macros=True
+        )
+    )
     return frozenset((test_graph - release_graph) - NON_PAGE_RUST_ALIASES)
+
+
+def standalone_web_test_roots(repo_root):
+    """Return Cargo's top-level web integration-test crate roots."""
+    repo_root = Path(repo_root).resolve()
+    tests_dir = repo_root / "web/tests"
+    return tuple(path.relative_to(repo_root).as_posix() for path in sorted(tests_dir.glob("*.rs")))
 
 
 def page_feature_ownership(repo_root):
@@ -635,6 +672,13 @@ def page_feature_ownership(repo_root):
     providers = set().union(*provider_graphs.values()) if provider_graphs else set()
     test_graph = set(rust_module_graph(repo_root, "web/src/lib.rs", configurations[0] | {"__test__"}))
     test_graph.update(rust_module_graph(repo_root, "web/src/main.rs", configurations[0] | {"__test__"}))
+    test_graph.update(
+        path
+        for root in standalone_web_test_roots(repo_root)
+        for path in rust_module_graph(
+            repo_root, root, configurations[0] | {"__test__"}, allow_opaque_macros=True
+        )
+    )
     release_graph = page_graph | providers
     return {
         "page_feature_rust_inputs": sorted(page_graph - providers - NON_PAGE_RUST_ALIASES - {PAGE_ONLY_MAIN_PATH}),

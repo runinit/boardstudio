@@ -598,6 +598,38 @@ class PageOnlyReuseTests(TestCase):
                 checked = BUILD.validate_reuse("candidate", "full-fixture")
                 self.assertEqual(checked[6], [path])
 
+    def test_standalone_web_integration_test_is_owned_only_when_release_graph_excludes_it(self):
+        path = "web/tests/standalone_regression.rs"
+        body = b'#[path = "../src/presentation/keymap/binding_editor.rs"]\nmod page_leaf;\n#[test]\nfn regression() {}\n'
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.make_baseline(root)
+            head = dict(HEAD_BYTES)
+            head[path] = body
+            current = {name: sha(data) for name, data in SOURCE_BYTES.items()}
+            current[path] = sha(body)
+            with self._patches(self.mock_environment(root, {}, current, head)):
+                checked = BUILD.validate_reuse("candidate", "full-fixture")
+                ownership = checked[10]
+                self.assertIn(path, ownership["test_only_rust_inputs"])
+                self.assertNotIn(path, set().union(*map(set, ownership["provider_rust_inputs"].values())))
+
+        provider_lib = SOURCE_BYTES["web/src/lib.rs"] + (
+            b'#[cfg(feature = "core-worker")]\n'
+            b'#[path = "../tests/standalone_regression.rs"]\nmod provider_test;\n'
+        )
+        with TemporaryDirectory() as temporary, patch.dict(SOURCE_BYTES, {"web/src/lib.rs": provider_lib}):
+            root = Path(temporary)
+            self.make_baseline(root)
+            head = dict(SOURCE_BYTES)
+            head[path] = b"#[test]\nfn provider_reachable_test() {}\n"
+            current = {name: sha(data) for name, data in SOURCE_BYTES.items()}
+            current[path] = sha(head[path])
+            with self._patches(self.mock_environment(root, {}, current, head)):
+                with self.assertRaisesRegex(ValueError, "outside page/test-only ownership"):
+                    BUILD.validate_reuse("candidate", "full-fixture")
+            self.assertFalse((root / "web/target/builds/candidate").exists())
+
     def test_page_leaf_inventory_is_exact_and_excludes_worker_test_alias(self):
         expected = {
             "layout-command-pill": {
