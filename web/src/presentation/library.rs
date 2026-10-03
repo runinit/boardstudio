@@ -604,8 +604,8 @@ pub(super) fn Library(
                             },
                             }
                         }
-                    }
                     span { class: "m1-project-current-status", "Revision {current_revision} · {current_durability}" }
+                    }
                 }
             div { class: if project_menu { "m1-library-content m1-library-scroll" } else { "m1-library-content" },
                 header { class: "m1-library-heading",
