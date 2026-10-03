@@ -44,7 +44,7 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "642d5474",
+      "source_commit": "b2ed62f8",
       "state": "Source integration first: Add-object/VIK joined; PCB/compact-shell/next Layout and Case packets in progress. Packaging/public qualification/review deferred until larger coherent candidate.",
       "packets": [
         {
@@ -60,6 +60,12 @@
           "integrated_commit": "7345cbfb",
           "receipt": ".scratch/dioxus-frontend-tranche-1/evidence/vik-module-review-source-20261003/FIXTURE-PREP.md",
           "state": "joined; changed card journey pending"
+        },
+        {
+          "stream": "Packaging support",
+          "author_commit": "b7dd1d1a",
+          "integrated_commit": "d6380df5+b2ed62f8",
+          "state": "explicit fixture refresh joined; no package launched; root explicit-mode guard correction awaits deferred check"
         }
       ]
     },
@@ -123,41 +129,35 @@
       {
         "stream": "Layout",
         "priority": "first",
-        "state": "F3.1 accepted; selected-matrix Add object fix joined; transform final changed leg open."
+        "state": "F3.1 accepted; selected-matrix Add object correction joined. Mirror existing half and linked-partner/Unlink Inspector actions authoring in separate private files."
       },
       {
         "stream": "PCB",
-        "state": "Mounted-module route and placement return verified; intended marker filtering matches TS source; reference DOM duplicate-key bug recorded. Next real gap/parent reconciliation underway."
+        "state": "Matrix/Mirrored-pair Add-object owner admission authoring; route/placement and intended marker filtering evidence retained."
       },
       {
         "stream": "Keymap",
-        "state": "Bindings/macros accepted; F6K.1 recommended ready by consolidated Sol review; final decision pending."
+        "state": "Bindings/macros accepted; F6K.1 ready recommendation retained. Compact topbar44px source correction authoring; review deferred."
       },
       {
         "stream": "Keycaps",
-        "state": "Projection/settings/fit accepted. Linked-resize evidence reused; F6C.3/.5 unmet joins and missing behavior being reconciled."
+        "state": "Projection/settings/fit accepted; unchanged resize/STEP/preview proof reused. Author implementing shared Layout linked-state gap, preserving F6C.3/.5 joins."
       },
       {
         "stream": "Case",
-        "state": "Authored-editor parent accepted; mechanical/gasket pointer target diagnosis open. No guessed-pointer result claimed."
+        "state": "Authored-editor parent accepted. Handle drag qualification remains open; next contextual source gap inventory/implementation in progress."
       },
       {
         "stream": "Parts + Project",
-        "state": "RGB/Choc cards verified; VIK demo joined for next changed card/fresh-copy/reopen journey."
+        "state": "VIK joined; source-backed15 measured-layout cards and fixtures authoring. Browser qualification deferred."
       }
     ],
-    "pending_join_packets": [
-      {
-        "stream": "Packaging support",
-        "owner": "keycaps_geometry_repair",
-        "state": "Explicit audited fixture-only refresh helper being implemented; no heavy job."
-      }
-    ],
+    "pending_join_packets": [],
     "next_work": [
-      "Integrate ready PCB, compact shell and fixture-refresh source packets directly.",
-      "Continue six queues with next missing mounted workflows; no per-packet test/review cycle.",
-      "Package and qualify changed public journeys after the larger candidate is assembled.",
-      "Use one finalized candidate review and canonical decision references for ready parent acceptance."
+      "Join compact44px, PCB matrix/pair, Layout mirror-half/unlink and measured-demo packets directly.",
+      "Keep Case source queue moving; retain drag qualification limit without further diagnostic loop.",
+      "After coherent candidate is assembled, run one affected check/package and changed public qualification.",
+      "Finalize one candidate review and reference it for criterion-complete parent decisions."
     ]
   }
 }
