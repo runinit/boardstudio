@@ -29,22 +29,31 @@ pub(super) struct CanvasInput {
     pub(super) on_part_pointer_down: EventHandler<PcbPartPointerDown>,
 }
 
-pub(super) fn objects(input: SharedObjectsInput) -> Element {
+pub(super) struct ObjectsInput {
+    pub(super) shared: SharedObjectsInput,
+    pub(super) on_place_component: EventHandler<super::part_placement::ComponentPlacementAction>,
+    pub(super) layout_target: Signal<Option<String>>,
+    pub(super) parts_query: super::parts::PartsQuery,
+    pub(super) on_browse_parts: EventHandler<()>,
+    pub(super) placement_error: Option<String>,
+}
+
+pub(super) fn objects(input: ObjectsInput) -> Element {
     rsx! {
         objects::Objects {
-            selected_context: input.selected_context,
-            on_select: input.on_select,
-            on_navigate: input.on_navigate,
-            on_nudge: input.on_nudge,
-            board_setup: Some(input.board_setup),
+            selected_context: input.shared.selected_context,
+            on_select: input.shared.on_select,
+            on_navigate: input.shared.on_navigate,
+            on_nudge: input.shared.on_nudge,
+            board_setup: Some(input.shared.board_setup),
             matrix_setup: None,
             mirrored_pair: None,
             pair_created: None,
-            on_place_component: None,
-            layout_target: None,
-            parts_query: None,
-            on_browse_parts: None,
-            placement_error: None,
+            on_place_component: Some(input.on_place_component),
+            layout_target: Some(input.layout_target),
+            parts_query: Some(input.parts_query),
+            on_browse_parts: Some(input.on_browse_parts),
+            placement_error: input.placement_error,
             matrix_inspector: None,
         }
     }

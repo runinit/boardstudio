@@ -13,7 +13,7 @@ pub(super) struct SharedObjectsInput {
 
 pub(super) enum WorkspaceObjectsInput<'a> {
     Layout(Box<super::layout_workspace::ObjectsInput>),
-    Pcb(SharedObjectsInput),
+    Pcb(Box<super::pcb_workspace::ObjectsInput>),
     Keymap(SharedObjectsInput),
     Keycaps(SharedObjectsInput),
     Case(Box<super::case_workspace::ObjectsInput<'a>>),
@@ -69,7 +69,7 @@ pub(super) enum WorkspaceInspectorInput {
 pub(super) fn objects(input: WorkspaceObjectsInput<'_>) -> Element {
     match input {
         WorkspaceObjectsInput::Layout(input) => super::layout_workspace::objects(*input),
-        WorkspaceObjectsInput::Pcb(input) => super::pcb_workspace::objects(input),
+        WorkspaceObjectsInput::Pcb(input) => super::pcb_workspace::objects(*input),
         WorkspaceObjectsInput::Keymap(input) => super::keymap_workspace::objects(input),
         WorkspaceObjectsInput::Keycaps(input) => super::keycaps_workspace::objects(input),
         WorkspaceObjectsInput::Case(input) => super::case_workspace::objects(*input),

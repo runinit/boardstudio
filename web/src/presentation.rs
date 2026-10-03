@@ -5576,7 +5576,16 @@ fn Editor() -> Element {
         );
     });
     let objects_input = match active_workspace {
-        "PCB" => workspace_composition::WorkspaceObjectsInput::Pcb(shared_objects),
+        "PCB" => workspace_composition::WorkspaceObjectsInput::Pcb(Box::new(
+            pcb_workspace::ObjectsInput {
+                shared: shared_objects,
+                on_place_component: part_placement.on_place_component,
+                layout_target,
+                parts_query,
+                on_browse_parts,
+                placement_error: part_placement.error.clone(),
+            },
+        )),
         "Keymap" => workspace_composition::WorkspaceObjectsInput::Keymap(shared_objects),
         "Keycaps" => workspace_composition::WorkspaceObjectsInput::Keycaps(shared_objects),
         "Case" => workspace_composition::WorkspaceObjectsInput::Case(Box::new(

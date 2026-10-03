@@ -4,7 +4,7 @@
 
 **Blocked by:** None (ordinary component preparation/placement is already proven; board creation19 is independent).
 
-**Status:** ready-for-agent
+**Status:** implementation-in-progress
 
 - [ ] PCB Add object opens a contextual inventory rather than a generic Layout tree.
 - [ ] Search/categories/layout target use the accepted catalogue and current PCB board.
@@ -14,3 +14,5 @@
 - [ ] Changed paired journey, one combined affected check and consolidated review retained; no new mirrored tests.
 
 Spec: [Board and object creation](../drafts/F5.1c-board-and-object-creation.md). All parent criteria/RF history remain; the existing generic-menu placement observation belongs to RF-001.
+
+PCB component inventory is mounted through the existing chooser/placement owner; Add replaces the tree and Back/Escape restore Objects. Existing Layout/pair/matrix/script sections are retained where actually wired; PCB Layouts/Board geometry section parity is still open in the parent inventory. No placeholder completion is claimed.

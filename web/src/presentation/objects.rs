@@ -220,6 +220,16 @@ pub(super) fn Objects(
         active_scope.as_ref() == Some(&selected.scope)
             && tree::resolve_selection(&model, &selected.context).is_some()
     });
+    let mut add_menu_open = use_signal(|| false);
+    let add_menu_owner = (
+        snapshot.session_epoch,
+        document.id.clone(),
+        board_id.clone(),
+        workspace(),
+    );
+    use_effect(use_reactive((&add_menu_owner,), move |_| {
+        add_menu_open.set(false)
+    }));
     let board_name = document
         .boards
         .iter()
@@ -233,13 +243,13 @@ pub(super) fn Objects(
     rsx! {
         aside { class: "m1-objects", "aria-label": "Objects",
             header { h2 { "Objects" } }
-            if (matrix_setup.is_some() || mirrored_pair.is_some())
-                && let Some(on_place_component) = on_place_component
+            if let Some(on_place_component) = on_place_component
                 && let Some(layout_target) = layout_target
                 && let Some(parts_query) = parts_query
                 && let Some(on_browse_parts) = on_browse_parts
             {
-                LayoutAddObjectEntry {
+                AddObjectEntry {
+                    menu_open: add_menu_open,
                     matrix_setup,
                     mirrored_pair,
                     matrix_inspector,
@@ -254,6 +264,7 @@ pub(super) fn Objects(
             if let Some(error) = placement_error {
                 p { class: "m1-parts-placement-error", role: "alert", "{error}" }
             }
+            if !add_menu_open() {
             div { class: "m1-object-navigation",
                 label { "Board"
                     div { class: "m1-board-picker-actions",
@@ -449,12 +460,14 @@ pub(super) fn Objects(
                     span { if selection_count > 0 { "{selection_count} selected" } else { "Select an object to edit" } }
                 }
             }
+            }
         }
     }
 }
 
 #[component]
-fn LayoutAddObjectEntry(
+fn AddObjectEntry(
+    mut menu_open: Signal<bool>,
     matrix_setup: Option<MatrixSetupMount>,
     mirrored_pair: Option<MirroredPairMount>,
     matrix_inspector: Option<MatrixInspectorMount>,
@@ -465,7 +478,6 @@ fn LayoutAddObjectEntry(
     parts_query: super::parts::PartsQuery,
     on_browse_parts: EventHandler<()>,
 ) -> Element {
-    let mut menu_open = use_signal(|| false);
     let open_menu = menu_open();
     let mirrored_open = mirrored_pair
         .as_ref()
@@ -486,6 +498,8 @@ fn LayoutAddObjectEntry(
         div { class: "m1-layout-add-object",
             button {
                 r#type: "button",
+                id: "m1-add-object-trigger",
+                aria_label: "Add object",
                 class: "m1-layout-add-trigger",
                 aria_expanded: open_menu,
                 onclick: move |_| menu_open.set(!menu_open()),
@@ -496,11 +510,19 @@ fn LayoutAddObjectEntry(
             }
             if open_menu {
                 div { role: "dialog", "aria-label": "Add", class: "m1-layout-add-menu",
+                    onkeydown: move |event: KeyboardEvent| {
+                        if event.key().to_string() == "Escape" {
+                            event.prevent_default(); event.stop_propagation();
+                            menu_open.set(false); focus_add_object();
+                        }
+                    },
+                    button { type: "button", class: "m1-add-back", onclick: move |_| { menu_open.set(false); focus_add_object(); }, "← Back to objects" }
                     if let Some(scope) = scope.as_ref() {
                         if let Some(board) = snapshot.document.boards.iter().find(|board| board.id == scope.board_id) {
                             strong { class: "m1-add-to-board-heading", "Add to {board.name}" }
                         }
                     }
+                    if mirrored_open.is_some() || matrix_open.is_some() {
                     section { "aria-label": "Layouts",
                         h3 { "Layouts" }
                         if let Some((can_open, on_open)) = mirrored_open {
@@ -527,6 +549,7 @@ fn LayoutAddObjectEntry(
                                 small { "Rows, columns & key assemblies" }
                             }
                         }
+                    }
                     }
                     if let Some((matrix_label, on_add_row, on_add_column)) = matrix_actions {
                         section { "aria-label": "Selected matrix",
@@ -574,6 +597,17 @@ fn LayoutAddObjectEntry(
             }
           }
         }
+    }
+}
+
+fn focus_add_object() {
+    use wasm_bindgen::JsCast;
+    if let Some(element) = web_sys::window()
+        .and_then(|window| window.document())
+        .and_then(|document| document.get_element_by_id("m1-add-object-trigger"))
+        .and_then(|element| element.dyn_into::<web_sys::HtmlElement>().ok())
+    {
+        let _ = element.focus();
     }
 }
 

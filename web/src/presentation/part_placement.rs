@@ -555,7 +555,7 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
                         source_workspace != "Parts"
                     }
                     PlacementWorkflow::GeneralComponent => {
-                        !matches!(source_workspace, "Parts" | "Layout")
+                        !matches!(source_workspace, "Parts" | "Layout" | "PCB")
                     }
                 } {
                     return;
@@ -1005,7 +1005,15 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
         let selected_context = adapter.selected_context;
         move |action: ComponentPlacementAction| {
             let expected_workspace = match action {
-                ComponentPlacementAction::AddObject { .. } => "Layout",
+                ComponentPlacementAction::AddObject { .. } => {
+                    let Some(owner) = action_owner
+                        .as_ref()
+                        .filter(|owner| matches!(owner.workspace, "Layout" | "PCB"))
+                    else {
+                        return;
+                    };
+                    owner.workspace
+                }
                 ComponentPlacementAction::PartsInspector { .. } => "Parts",
             };
             if !action_owner.as_ref().is_some_and(|owner| {
