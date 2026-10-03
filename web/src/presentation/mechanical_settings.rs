@@ -224,6 +224,7 @@ pub(crate) enum MechanicalSettingsPatch {
         pair_id: Option<String>,
         anchors: Vec<MechanicalGasketAnchor>,
     },
+    ResetGasketPlacement,
     SetSwitchFamily {
         definition_id: String,
         family: MechanicalSwitchFamily,
@@ -256,6 +257,7 @@ impl MechanicalSettingsPatch {
             Self::SetGasketSupportUnlinked { support_id, .. } => {
                 format!("gasket-support:{support_id}:link")
             }
+            Self::ResetGasketPlacement => "reset-gasket-placement".to_owned(),
             Self::SetSwitchFamily { definition_id, .. } => {
                 format!("switch-family:{definition_id}")
             }
@@ -535,6 +537,26 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     feedback: props.feedback.clone(),
                     on_request: props.on_request,
                     owner_key: owner_key.clone(),
+                }
+                if values.mount == MechanicalMount::Gasket && values.internal_gasket {
+                    section { class: "m1-mechanical-option-group", aria_label: "Gasket supports",
+                        h3 { "Gasket supports" }
+                        button {
+                            r#type: "button",
+                            class: "m1-mechanical-quiet",
+                            disabled: !props.editable,
+                            onclick: {
+                                let identity = props.identity.clone();
+                                let mut sequence = request_sequence;
+                                let on_request = props.on_request;
+                                move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::ResetGasketPlacement)
+                            },
+                            "Reset gasket placement"
+                        }
+                        p { class: "m1-mechanical-help",
+                            "Reset releases manually positioned supports. Closure positions stay fixed."
+                        }
+                    }
                 }
                 button {
                     r#type: "button",

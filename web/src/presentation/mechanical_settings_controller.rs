@@ -989,6 +989,18 @@ fn apply_patch(
                 }
             }
         }
+        MechanicalSettingsPatch::ResetGasketPlacement => {
+            if configuration.mount != MechanicalMount::Gasket
+                || configuration.internal_gasket.is_none()
+            {
+                return Err("The current configuration no longer contains gasket supports.".into());
+            }
+            configuration
+                .gasket_layout
+                .get_or_insert_with(default_gasket_layout)
+                .supports
+                .clear();
+        }
         MechanicalSettingsPatch::SetSwitchFamily {
             definition_id,
             family,
@@ -1043,7 +1055,8 @@ fn apply_patch(
                 default_plate_foam_thickness(configuration.plate_to_pcb);
         }
     }
-    let battery_only_patch = matches!(patch, MechanicalSettingsPatch::SetBatteryEnabled(_))
+    let skip_process_normalization = matches!(patch, MechanicalSettingsPatch::SetBatteryEnabled(_))
+        || matches!(patch, MechanicalSettingsPatch::ResetGasketPlacement)
         || matches!(
             patch,
             MechanicalSettingsPatch::SetDimension {
@@ -1058,7 +1071,7 @@ fn apply_patch(
                 ..
             }
         );
-    if !battery_only_patch {
+    if !skip_process_normalization {
         normalize_processes(configuration, patch);
     }
     Ok(())
@@ -1349,6 +1362,7 @@ fn patch_field_id(patch: &MechanicalSettingsPatch) -> String {
         MechanicalSettingsPatch::SetGasketSupportUnlinked { support_id, .. } => {
             format!("gasket-support:{support_id}:link")
         }
+        MechanicalSettingsPatch::ResetGasketPlacement => "reset-gasket-placement".into(),
         MechanicalSettingsPatch::SetSwitchFamily { definition_id, .. } => {
             format!("switch-family:{definition_id}")
         }

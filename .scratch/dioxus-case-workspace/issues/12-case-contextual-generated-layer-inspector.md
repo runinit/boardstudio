@@ -8,7 +8,7 @@
 
 **Capability start gate:** Start after the integrated Issue09 Case tree-to-Inspector route and Case16 layer tree/shared viewer mount are proven, and the current MechanicalSettings request/outcome seam can edit an accepted field under the exact active Scope. Do not wait for all of F7.3 or F7.4. A current resolved mechanical layer projection is required for the selected-layer journey.
 
-**Status:** planning review pending; public paired journey has identified the gap. Parent acceptance remains open.
+**Status:** the contextual layer leaf is already mounted in source (`6f7aa4c1`); a focused same-original5b Plate selection journey in React and joined candidate `a76fa2bd` confirmed the `Plate` title, thickness field, resolved-thickness readout, Display controls, and `Assembly settings` return action. This observation avoids a duplicate implementation; the remaining supported-layer/edit/findings acceptance and independent review remain open. See [mounted Plate receipt](../evidence/12-generated-layer-context-public-20261003/RESULTS.md). Parent acceptance remains open.
 
 **Reviewed draft:** [Issue12 contextual generated-layer spec](../drafts/12-case-contextual-generated-layer-inspector.md).
 
