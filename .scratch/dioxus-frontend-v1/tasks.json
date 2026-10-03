@@ -2369,7 +2369,7 @@
         {
           "id": "F4.1-C02",
           "requirement": "Keyboard selection/query changes and empty/no-match/loading/source-error states match React fixtures.",
-          "state": "missing",
+          "state": "implemented",
           "classification": "functional",
           "sources": [
             "web/src/presentation/parts.rs:736",
@@ -2379,7 +2379,7 @@
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md"
           ],
           "blockers": [],
-          "next_action": "Fix reproduced assembly search omission: no-match query retains all eight candidate Key assemblies while reference filters to zero. Assigned Parts author; targeted regression required. Keyboard VIK and query/no-match feedback pass; loading/source-error remain unqualified.",
+          "next_action": "Assembly query filtering fixed in fa275d83, focused regression RED/GREEN and34783 package pass. Focused browser replay and consolidated review running; broader loading/source-error coverage remains unqualified.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts.rs",
@@ -4374,7 +4374,7 @@
           "blockers": [
             "F7.7"
           ],
-          "next_action": "Paired valid Sofle shows current geometry for selected Left/Right with corresponding board/unchecked flip controls after reload. Changed-flip geometry and broader F7.7 joins remain; prior fixture preview error is separately explained.",
+          "next_action": "Valid unflipped Case viewer proof retained. Changed Left/Right flips accepted but current candidate generation hit auto-closure envelope errors and correctly displayed Previous geometry; this does not prove fresh flipped geometry. Need mechanically valid flipped fixture/configuration for F7.7 join, not repeat same invalid setup.",
           "finish_condition": "F7.7 paired evidence shows the accepted selected physical instance and its board/flip in the shared viewer.",
           "owned_files": [
             "web/src/presentation/pcb_physical_setup.rs"
@@ -6231,7 +6231,7 @@
             ".scratch/dioxus-case-workspace/evidence/default-instance-public/README.md"
           ],
           "blockers": [],
-          "next_action": "At the next integrated Case scope receipt, record both canonical consumer and selected-instance viewer inputs on the same candidate.",
+          "next_action": "Source confirms canonical Layout capture vs instance/flip-scoped Case CAD projection. Candidate canonical Right Layout stayed unchanged after flip; fresh Case generation blocked by mechanical envelope errors and TS canonical post-flip model display differed. Complete with valid changed-flip geometry and Keymap/Keycaps canonical views; do not infer paired projection from stale display.",
           "finish_condition": "Paired public scope change demonstrates Case uses selected physical instance while Layout/Keymap/Keycaps retain canonical board.",
           "owned_files": [
             "web/src/presentation/case_viewer.rs",

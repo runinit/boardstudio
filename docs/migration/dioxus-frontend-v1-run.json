@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T23:43:54.301949+00:00",
+    "updated_at": "2026-10-03T23:48:36.991892+00:00",
     "parent_counts": {
       "accepted": 11,
       "implementing": 40,
@@ -25,20 +25,20 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-module-attachment-repair-20261003",
-      "source_commit": "733c1da2abede39a617d2eca2e42d9bd437cea41",
-      "root_url": "http://127.0.0.1:34782/",
-      "subpath_url": "http://127.0.0.1:34782/boardstudio/",
-      "provenance": "web/target/builds/frontend-module-attachment-repair-20261003/provenance.json",
-      "provenance_sha256": "63c8098131a350177233da1b67838fba1c5ca607236450aca55fcaa2cfc6c007",
+      "build_id": "frontend-parts-assembly-search-20261003",
+      "source_commit": "fa275d839ad4b1ddad182895b185f9cf76e0c18e",
+      "root_url": "http://127.0.0.1:34783/",
+      "subpath_url": "http://127.0.0.1:34783/boardstudio/",
+      "provenance": "web/target/builds/frontend-parts-assembly-search-20261003/provenance.json",
+      "provenance_sha256": "3f4f126bb8f76a0bb553868aac9362773c80d1f289b75870ba535a894a2e77c3",
       "fresh_commands": 8,
       "inherited_commands": 22,
       "source_inputs": 1390,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 130.45538,
+      "command_span_seconds": 135.957746,
       "package_qualification": "Combined package provenance, current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-module-attachment-repair-20261003/package-proof.json",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-parts-assembly-search-20261003/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -49,7 +49,7 @@
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
       "source_commit": "733c1da2abede39a617d2eca2e42d9bd437cea41",
-      "state": "Attachment creation, accepted navigation, repeat Save, history and archive reopen qualified on34782; consolidated review clear. Targeted Layout, Keycaps and Keymap unresolved legs running.",
+      "state": "Parts assembly query filter repaired and published34783; focused browser replay and consolidated review running. Prior attachment and accepted boundary evidence retained.",
       "packets": [
         {
           "stream": "Layout",
@@ -306,8 +306,8 @@
           "qualification": "Paired focused behavior passed on34775; visual/context parity findings remain."
         }
       ],
-      "qualification": "Catalogue refresh WASM regression red/green, exact compiler/package and affected public attachment journey passed. Apply one-step history additionally verified against TS portable exports. Parent joins remain open.",
-      "application_candidate_source": "733c1da2abede39a617d2eca2e42d9bd437cea41"
+      "qualification": "Assembly filter focused WASM regression red/green and compiler/package/served assets pass; public replay pending.",
+      "application_candidate_source": "fa275d839ad4b1ddad182895b185f9cf76e0c18e"
     },
     "journeys": [
       {
@@ -504,7 +504,7 @@
       },
       {
         "stream": "Case",
-        "state": "Valid-fixture F5.6 physical-instance scope, retained state and shared-preview qualification active; reuse C03 association/flip proof and recorded baseline fixture error."
+        "state": "Instance selection verified. Changed-flip Case geometry still unqualified: mechanical-envelope failure correctly labels Previous geometry; canonical source split documented, no stale-render parity inferred."
       },
       {
         "stream": "Parts + Project",
@@ -551,19 +551,18 @@
     "qualification": {
       "trigger": "functional_scope",
       "active_scope": {
-        "id": "module-attachment-repair-20261003",
-        "source_commit": "733c1da2abede39a617d2eca2e42d9bd437cea41",
+        "id": "parts-assembly-search-20261003",
         "streams": [
-          "PCB",
           "Parts/Project"
         ],
         "journeys": [
           {
-            "id": "fresh-module-attachment",
-            "scope": "Fresh Haptic3V3 attachment retains selected variant and opens accepted PCB placement; automatic connector, repeat Save, attach Undo/Redo and reopen.",
-            "spec": ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md"
+            "id": "assembly-query-filter",
+            "scope": "Parts empty/all/matching/no-match query filters assembly rows and count while retaining selection; compare pinned TypeScript.",
+            "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md"
           }
-        ]
+        ],
+        "source_commit": "fa275d839ad4b1ddad182895b185f9cf76e0c18e"
       },
       "history": [
         {
@@ -1155,47 +1154,84 @@
               }
             ]
           }
+        },
+        {
+          "trigger": "functional_scope",
+          "active_scope": {
+            "id": "module-attachment-repair-20261003",
+            "source_commit": "733c1da2abede39a617d2eca2e42d9bd437cea41",
+            "streams": [
+              "PCB",
+              "Parts/Project"
+            ],
+            "journeys": [
+              {
+                "id": "fresh-module-attachment",
+                "scope": "Fresh Haptic3V3 attachment retains selected variant and opens accepted PCB placement; automatic connector, repeat Save, attach Undo/Redo and reopen.",
+                "spec": ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md"
+              }
+            ]
+          },
+          "phase": "qualified",
+          "unmet_start_conditions": [],
+          "candidate_build_id": "frontend-module-attachment-repair-20261003",
+          "source_commit": "733c1da2abede39a617d2eca2e42d9bd437cea41",
+          "journeys": [
+            {
+              "id": "fresh-module-attachment",
+              "scope": "Fresh Haptic3V3 attachment retains selected variant and opens accepted PCB placement; automatic connector, repeat Save, attach Undo/Redo and reopen.",
+              "spec": ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md",
+              "state": "passed",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/modules/vik-splitter-gnd-join-ad26b07a.md",
+              "verified": "One fresh attachment opens the accepted PCB mounted Inspector with one connector; repeat Save retains IDs, attach Undo/Redo restores exact module and connector, fresh-session archive import reopens the same placement.",
+              "limitation": "Full F5.5-C03 profile/model/asset reuse and separate pending/failure branches remain unqualified."
+            }
+          ],
+          "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
+          "started_at": "2026-10-03T22:53:35.014707+00:00",
+          "review": {
+            "profile": "sol-review",
+            "model": "gpt-6.1-sol",
+            "reasoning": "high",
+            "state": "completed",
+            "verdict": "source_and_attachment_extension_pass",
+            "review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/module-attachment-review.md",
+            "review_sha256": "283af977b4ffb4242fe28c686571072faadb6185036cc59cea1cedb320baabcc",
+            "source_commit": "733c1da2abede39a617d2eca2e42d9bd437cea41"
+          },
+          "next_scope": {
+            "id": "parts-assembly-search-20261003",
+            "streams": [
+              "Parts/Project"
+            ],
+            "journeys": [
+              {
+                "id": "assembly-query-filter",
+                "scope": "Parts empty/all/matching/no-match query filters assembly rows and count while retaining selection; compare pinned TypeScript.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md"
+              }
+            ],
+            "source_commit": "fa275d839ad4b1ddad182895b185f9cf76e0c18e"
+          }
         }
       ],
-      "phase": "qualified",
+      "phase": "qualifying",
       "unmet_start_conditions": [],
-      "candidate_build_id": "frontend-module-attachment-repair-20261003",
-      "source_commit": "733c1da2abede39a617d2eca2e42d9bd437cea41",
+      "candidate_build_id": "frontend-parts-assembly-search-20261003",
+      "source_commit": "fa275d839ad4b1ddad182895b185f9cf76e0c18e",
       "journeys": [
         {
-          "id": "fresh-module-attachment",
-          "scope": "Fresh Haptic3V3 attachment retains selected variant and opens accepted PCB placement; automatic connector, repeat Save, attach Undo/Redo and reopen.",
-          "spec": ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md",
-          "state": "passed",
-          "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/modules/vik-splitter-gnd-join-ad26b07a.md",
-          "verified": "One fresh attachment opens the accepted PCB mounted Inspector with one connector; repeat Save retains IDs, attach Undo/Redo restores exact module and connector, fresh-session archive import reopens the same placement.",
-          "limitation": "Full F5.5-C03 profile/model/asset reuse and separate pending/failure branches remain unqualified."
+          "id": "assembly-query-filter",
+          "scope": "Parts empty/all/matching/no-match query filters assembly rows and count while retaining selection; compare pinned TypeScript.",
+          "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
+          "state": "pending"
         }
       ],
       "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
-      "started_at": "2026-10-03T22:53:35.014707+00:00",
+      "started_at": "2026-10-03T23:47:50.325613+00:00",
       "review": {
         "profile": "sol-review",
-        "model": "gpt-6.1-sol",
-        "reasoning": "high",
-        "state": "completed",
-        "verdict": "source_and_attachment_extension_pass",
-        "review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/module-attachment-review.md",
-        "review_sha256": "283af977b4ffb4242fe28c686571072faadb6185036cc59cea1cedb320baabcc",
-        "source_commit": "733c1da2abede39a617d2eca2e42d9bd437cea41"
-      },
-      "next_scope": {
-        "id": "parts-assembly-search-20261003",
-        "streams": [
-          "Parts/Project"
-        ],
-        "journeys": [
-          {
-            "id": "assembly-query-filter",
-            "scope": "Parts empty/all/matching/no-match query filters assembly rows and count while retaining selection; compare pinned TypeScript.",
-            "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md"
-          }
-        ]
+        "state": "pending"
       }
     },
     "delivery_priority": {
