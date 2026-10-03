@@ -1,0 +1,82 @@
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/pcb-host-layer-controls-20261002/web)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 9.63s
+     Running unittests src/main.rs (web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-7af3c43e9b3cea42.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:38813/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+Loading Wasm module...
+using deprecated parameters for the initialization function; pass a single object instead
+
+running 1 test
+Invoking test: presentation::pcb_scene::mounted_layer_tests::mounted_controls_toggle_only_their_accepted_pcb_scene_layers
+panicked at src/presentation/pcb_scene.rs:466:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+Stack:
+
+Error
+    at http://127.0.0.1:44311/wasm-bindgen-test:1619:25
+    at logError (http://127.0.0.1:44311/wasm-bindgen-test:2741:18)
+    at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:44311/wasm-bindgen-test:1618:57)
+    at boardstudio_web-7af3c43e9b3cea42.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:44311/wasm-bindgen-test_bg.wasm:wasm-function[134680]:0x1a83d8e)
+    at boardstudio_web-7af3c43e9b3cea42.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:44311/wasm-bindgen-test_bg.wasm:wasm-function[76272]:0x1804ac7)
+    at boardstudio_web-7af3c43e9b3cea42.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:44311/wasm-bindgen-test_bg.wasm:wasm-function[28369]:0x1299170)
+    at boardstudio_web-7af3c43e9b3cea42.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:44311/wasm-bindgen-test_bg.wasm:wasm-function[80307]:0x184258e)
+    at boardstudio_web-7af3c43e9b3cea42.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:44311/wasm-bindgen-test_bg.wasm:wasm-function[24248]:0x11b3393)
+    at boardstudio_web-7af3c43e9b3cea42.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:44311/wasm-bindgen-test_bg.wasm:wasm-function[46869]:0x157a6a5)
+    at boardstudio_web-7af3c43e9b3cea42.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:44311/wasm-bindgen-test_bg.wasm:wasm-function[136538]:0x1a896bb)
+
+
+test presentation::pcb_scene::mounted_layer_tests::mounted_controls_toggle_only_their_accepted_pcb_scene_layers ... FAIL
+
+failures:
+
+---- presentation::pcb_scene::mounted_layer_tests::mounted_controls_toggle_only_their_accepted_pcb_scene_layers output ----
+    error output:
+        panicked at src/presentation/pcb_scene.rs:466:9:
+        assertion `left == right` failed
+          left: 0
+         right: 1
+        
+        Stack:
+        
+        Error
+            at http://127.0.0.1:44311/wasm-bindgen-test:1619:25
+            at logError (http://127.0.0.1:44311/wasm-bindgen-test:2741:18)
+            at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:44311/wasm-bindgen-test:1618:57)
+            at boardstudio_web-7af3c43e9b3cea42.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:44311/wasm-bindgen-test_bg.wasm:wasm-function[134680]:0x1a83d8e)
+            at boardstudio_web-7af3c43e9b3cea42.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:44311/wasm-bindgen-test_bg.wasm:wasm-function[76272]:0x1804ac7)
+            at boardstudio_web-7af3c43e9b3cea42.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:44311/wasm-bindgen-test_bg.wasm:wasm-function[28369]:0x1299170)
+            at boardstudio_web-7af3c43e9b3cea42.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:44311/wasm-bindgen-test_bg.wasm:wasm-function[80307]:0x184258e)
+            at boardstudio_web-7af3c43e9b3cea42.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:44311/wasm-bindgen-test_bg.wasm:wasm-function[24248]:0x11b3393)
+            at boardstudio_web-7af3c43e9b3cea42.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:44311/wasm-bindgen-test_bg.wasm:wasm-function[46869]:0x157a6a5)
+            at boardstudio_web-7af3c43e9b3cea42.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:44311/wasm-bindgen-test_bg.wasm:wasm-function[136538]:0x1a896bb)
+        
+        
+    
+    JS exception that was thrown:
+        RuntimeError: unreachable
+            at boardstudio_web-7af3c43e9b3cea42.wasm.__rustc[4b1ee1ef74718a7b]::__rust_abort (http://127.0.0.1:44311/wasm-bindgen-test_bg.wasm:wasm-function[137016]:0x1a8a4f1)
+            at boardstudio_web-7af3c43e9b3cea42.wasm.__rustc[4b1ee1ef74718a7b]::__rust_start_panic (http://127.0.0.1:44311/wasm-bindgen-test_bg.wasm:wasm-function[136933]:0x1a8a379)
+            at boardstudio_web-7af3c43e9b3cea42.wasm.__rustc[4b1ee1ef74718a7b]::rust_panic (http://127.0.0.1:44311/wasm-bindgen-test_bg.wasm:wasm-function[135118]:0x1a85583)
+            at boardstudio_web-7af3c43e9b3cea42.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:44311/wasm-bindgen-test_bg.wasm:wasm-function[24248]:0x11b3406)
+            at boardstudio_web-7af3c43e9b3cea42.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:44311/wasm-bindgen-test_bg.wasm:wasm-function[46869]:0x157a6a5)
+            at boardstudio_web-7af3c43e9b3cea42.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:44311/wasm-bindgen-test_bg.wasm:wasm-function[136538]:0x1a896bb)
+            at boardstudio_web-7af3c43e9b3cea42.wasm.__rustc[4b1ee1ef74718a7b]::rust_begin_unwind (http://127.0.0.1:44311/wasm-bindgen-test_bg.wasm:wasm-function[105422]:0x1980c2c)
+            at boardstudio_web-7af3c43e9b3cea42.wasm.core[f0fd674eaa06beef]::panicking::panic_fmt (http://127.0.0.1:44311/wasm-bindgen-test_bg.wasm:wasm-function[79316]:0x18339e0)
+            at boardstudio_web-7af3c43e9b3cea42.wasm.core[f0fd674eaa06beef]::panicking::assert_failed_inner (http://127.0.0.1:44311/wasm-bindgen-test_bg.wasm:wasm-function[21094]:0x10e5f4a)
+            at boardstudio_web-7af3c43e9b3cea42.wasm.core[f0fd674eaa06beef]::panicking::assert_failed::<u32, u32> (http://127.0.0.1:44311/wasm-bindgen-test_bg.wasm:wasm-function[61824]:0x16fee99)
+
+failures:
+
+    presentation::pcb_scene::mounted_layer_tests::mounted_controls_toggle_only_their_accepted_pcb_scene_layers
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 92 filtered out; finished in 0.15s
+
+Error: some tests failed
+error: test failed, to rerun pass `--bin boardstudio-web`
+
+Caused by:
+  process didn't exit successfully: `/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner /home/chris/.local/share/boardstudio/worktrees/pcb-host-layer-controls-20261002/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-7af3c43e9b3cea42.wasm mounted_controls_toggle_only_their_accepted_pcb_scene_layers --nocapture` (exit status: 1)
