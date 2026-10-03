@@ -19,6 +19,12 @@ pub(in crate::presentation) enum TreeContext {
     Board {
         board_id: String,
     },
+    /// A source module selected from its actual PCB overlay. It deliberately
+    /// carries no host-part identity: daughterboard source parts stay module-owned.
+    MountedModule {
+        board_id: String,
+        module_id: String,
+    },
     LayoutGroup {
         board_id: String,
         layout_ids: Vec<String>,
@@ -1061,6 +1067,17 @@ pub(super) fn resolve_selection(
                 .is_some_and(|scene| scene.bridges.iter().any(|bridge| bridge.id == *bridge_id)))
         .then(Vec::new),
         TreeContext::Board { board_id } if board_id == &model.active_board_id => Some(Vec::new()),
+        TreeContext::MountedModule {
+            board_id,
+            module_id,
+        } if board_id == &model.active_board_id
+            && document
+                .modules
+                .iter()
+                .any(|module| module.id == *module_id && module.host_board_id == *board_id) =>
+        {
+            Some(Vec::new())
+        }
         TreeContext::LayoutGroup {
             board_id,
             layout_ids,
@@ -1358,6 +1375,17 @@ pub(super) fn context_label(
             .iter()
             .find(|board| board.id == *board_id)
             .map(|board| board.name.clone()),
+        TreeContext::MountedModule { module_id, .. } => document
+            .modules
+            .iter()
+            .find(|module| module.id == *module_id)
+            .and_then(|module| {
+                document
+                    .module_definitions
+                    .iter()
+                    .find(|definition| definition.id == module.definition_id)
+                    .map(|definition| definition.name.clone())
+            }),
         TreeContext::LayoutGroup { layout_ids, .. } => Some(if layout_ids.len() > 1 {
             "Linked halves".into()
         } else {

@@ -510,6 +510,19 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-pcb-part-input .m1-pcb-part-input-note { padding: 0 0 8px; }
 .m1-pcb-wiring [role="alert"] { color: var(--wb-status-error); }
 .m1-pcb-wiring .m1-pcb-wiring-empty { color: var(--wb-muted); }
+.m1-pcb-module-inspector { display: grid; gap: 10px; min-width: 0; overflow: auto; padding: 16px; color: var(--wb-ink); }
+.m1-pcb-module-inspector h2 { margin: 0; font-size: 18px; }
+.m1-pcb-module-inspector p { margin: 0; color: var(--wb-muted); font-size: var(--wb-type-label); line-height: 1.5; }
+.m1-pcb-module-inspector label { display: grid; gap: 5px; color: var(--wb-muted); font-size: var(--wb-type-label); }
+.m1-pcb-module-inspector :is(input:not([type="checkbox"]), select) { box-sizing: border-box; width: 100%; min-width: 0; min-height: 34px; padding: 6px 8px; border: 1px solid var(--wb-rule-strong); border-radius: 4px; color: var(--wb-ink); background: var(--wb-panel); font: inherit; }
+.m1-pcb-module-inspector input[type="checkbox"] { justify-self: start; }
+.m1-pcb-module-inspector :is(input, select, button):focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
+.m1-pcb-module-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.m1-pcb-module-actions button { min-height: 38px; padding: 0 12px; }
+.m1-pcb-module-actions .m1-primary-button { border-color: var(--wb-accent); color: var(--wb-on-accent); background: var(--wb-accent); font-weight: 600; }
+.m1-pcb-module-actions .m1-danger-button { color: var(--wb-status-error); }
+.m1-pcb-module-inspector [role="status"] { color: var(--wb-status-warning); }
+.m1-module-pcb-overlay[role="button"]:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
 .m1-workspace-content { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: auto; background: var(--wb-canvas); container-type: inline-size; }
 .m1-canvas-toolbar { z-index: 1; position: absolute; top: 12px; left: 12px; right: 12px; display: flex; align-items: center; gap: 8px; min-height: 42px; width: fit-content; max-width: calc(100% - 24px); padding: 4px 8px; border: 1px solid var(--wb-rule-strong); border-radius: 8px; background: var(--wb-panel); box-shadow: 0 4px 16px #18233120; }
 .m1-design-canvas-toolbar { position: relative; inset: auto; flex: 0 0 42px; width: 100%; height: 42px; max-width: none; margin-bottom: 2px; padding: 0 12px; border: 0; border-bottom: 1px solid var(--wb-rule); border-radius: 0; background: var(--wb-panel); box-shadow: none; }

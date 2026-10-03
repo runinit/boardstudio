@@ -1244,7 +1244,7 @@
       "priority": "P1",
       "effort": "L",
       "acceptance": "The PCB selection opens the mounted-placement inspector for its module/instance scope, face, pose, gap, attachment, clearance, supports, connection, circuit joins and individual-component actions. It reuses F4-owned definition selection, source readiness/profile editing and asset/model presentation. Placement identity, pending/error/cancel behavior, resolver results and board/instance scope match React.",
-      "boundary_status": "Public mounted-module edits and resolution exist; F5 Dioxus placement adapter missing. F4 owns module definitions, readiness/profile editing and library asset presentation; F5 consumes those seams without duplicating them.",
+      "boundary_status": "F5 Dioxus placement Inspector source is now an isolated first child consuming existing module definitions, physical instances, resolved scenes and Core Set/Remove edits. Root integration, changed paired public journey and remaining F5.5/F4.7 joins are open; F4 still owns definition/profile/readiness/assets.",
       "workflow": "F5",
       "owner": "F5 workflow lead",
       "start_after": [
@@ -1253,7 +1253,7 @@
       "acceptance_after": [
         "F4.7"
       ],
-      "status": "planned",
+      "status": "in_progress",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
       "shared_edit_owner": "integration coordinator",
@@ -1268,6 +1268,13 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
+      },
+      "progress_evidence": {
+        "updated_at": "2026-10-03",
+        "checkpoint": "isolated F5.5 mounted-module placement source packet; base 26ff6b9c",
+        "scope": "First placement Inspector child consumes current ProjectDoc module/definition/physical-instance data and existing Core SetMountedModule/RemoveMountedModule edits. It adds scoped mounted-module selection from the PCB overlay. Supports, connection, circuit joins, source editing, full F5.4 criteria and all parent joins remain open.",
+        "child": "PCB22 mounted-module placement Inspector",
+        "acceptance": "Source packet only; root integration, combined check/package, paired Save/Remove/Undo/Redo/reopen journey and all original parent criteria/dependencies remain open."
       }
     },
     {

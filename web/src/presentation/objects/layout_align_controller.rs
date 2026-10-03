@@ -731,7 +731,8 @@ fn context_matrix(context: &TreeContext) -> Option<String> {
         | TreeContext::LayoutGroup { .. }
         | TreeContext::Outline { .. }
         | TreeContext::OutlineVersion { .. }
-        | TreeContext::Bridge { .. } => None,
+        | TreeContext::Bridge { .. }
+        | TreeContext::MountedModule { .. } => None,
     }
 }
 
@@ -854,7 +855,7 @@ fn make_edit(
                 },
             ))
         }
-        TreeContext::Row { .. } => None,
+        TreeContext::Row { .. } | TreeContext::MountedModule { .. } => None,
         TreeContext::Key { .. } | TreeContext::Component { .. } => {
             let positions: Vec<_> = moving_ids
                 .iter()
@@ -892,7 +893,8 @@ fn make_edit(
         | TreeContext::LayoutGroup { .. }
         | TreeContext::Outline { .. }
         | TreeContext::OutlineVersion { .. }
-        | TreeContext::Bridge { .. } => None,
+        | TreeContext::Bridge { .. }
+        | TreeContext::MountedModule { .. } => None,
     }
 }
 

@@ -25,6 +25,7 @@ pub(super) fn default_hidden_layers() -> BTreeSet<String> {
 pub(super) struct ModuleSourceFootprintsProps {
     module_id: String,
     snapshot: AcceptedSnapshot,
+    on_select: EventHandler<String>,
 }
 
 #[component]
@@ -32,6 +33,7 @@ pub(super) fn ModuleSourceFootprints(props: ModuleSourceFootprintsProps) -> Elem
     let visibility = use_context::<LayerVisibility>();
     let hidden = (visibility.modules_hidden)();
     let host_hidden = (visibility.hidden)();
+    let on_select = props.on_select;
     let Some(module) = props
         .snapshot
         .scene
@@ -41,8 +43,38 @@ pub(super) fn ModuleSourceFootprints(props: ModuleSourceFootprintsProps) -> Elem
     else {
         return rsx! {};
     };
+    let module_label = props
+        .snapshot
+        .document
+        .modules
+        .iter()
+        .find(|instance| instance.id == props.module_id)
+        .and_then(|instance| {
+            props
+                .snapshot
+                .document
+                .module_definitions
+                .iter()
+                .find(|definition| definition.id == instance.definition_id)
+                .map(|definition| definition.name.clone())
+        })
+        .unwrap_or_else(|| props.module_id.clone());
     rsx! {
-        g { class: "m1-module-pcb-overlay", "data-module-id": "{props.module_id}",
+        g {
+            class: "m1-module-pcb-overlay",
+            "data-module-id": "{props.module_id}",
+            role: "button",
+            tabindex: "0",
+            "aria-label": "Select mounted module {module_label}",
+            style: "cursor: pointer",
+            onpointerdown: move |event: PointerEvent| event.stop_propagation(),
+            onclick: { let id = props.module_id.clone(); move |_| on_select.call(id.clone()) },
+            onkeydown: { let id = props.module_id.clone(); move |event: KeyboardEvent| {
+                if event.key() == "Enter" || event.key() == " " {
+                    event.prevent_default();
+                    on_select.call(id.clone());
+                }
+            } },
             if !hidden.contains("module-outlines") {
                 for (index, outline) in module.board.iter().enumerate() {
                     polygon {

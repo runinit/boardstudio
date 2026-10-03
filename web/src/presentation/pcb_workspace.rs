@@ -28,6 +28,7 @@ pub(super) struct CanvasInput {
     pub(super) on_empty_hit: EventHandler<PointerEvent>,
     pub(super) on_part_hit: EventHandler<PcbPartHit>,
     pub(super) on_part_pointer_down: EventHandler<PcbPartPointerDown>,
+    pub(super) on_module_select: EventHandler<String>,
 }
 
 pub(super) struct ObjectsInput {
@@ -110,6 +111,7 @@ pub(super) fn canvas(input: CanvasInput) -> Element {
                         generation: input.generation,
                         on_part_hit: input.on_part_hit,
                         on_part_pointer_down: input.on_part_pointer_down,
+                        on_module_select: input.on_module_select,
                     }
                 }
             }

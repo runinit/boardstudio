@@ -46,6 +46,7 @@ mod parts_import_footprint;
 mod parts_workspace;
 mod pcb_layers;
 mod pcb_module_footprints;
+mod pcb_module_inspector;
 mod pcb_physical_setup;
 mod pcb_scene;
 mod pcb_wiring;
@@ -266,6 +267,7 @@ struct WorkspaceCallbackSlots {
     pcb_empty_hit: EventHandler<PointerEvent>,
     pcb_part_hit: EventHandler<pcb_scene::PcbPartHit>,
     pcb_part_pointer_down: EventHandler<pcb_scene::PcbPartPointerDown>,
+    pcb_module_select: EventHandler<String>,
     pcb_wiring_edit_board: EventHandler<()>,
     layout_selection_kind: EventHandler<objects::LayoutSelectionKind>,
     layout_snap_intent: EventHandler<objects::LayoutSnapIntent>,
@@ -1911,6 +1913,7 @@ fn matrix_snap_parameters(
         objects::TreeContext::Outline { .. }
         | objects::TreeContext::OutlineVersion { .. }
         | objects::TreeContext::Bridge { .. }
+        | objects::TreeContext::MountedModule { .. }
         | objects::TreeContext::Board { .. }
         | objects::TreeContext::LayoutGroup { .. }
         | objects::TreeContext::Component { .. } => return (None, None),
@@ -2207,6 +2210,7 @@ fn Editor() -> Element {
         pcb_empty_hit: EventHandler::new(|_: PointerEvent| {}),
         pcb_part_hit: EventHandler::new(|_: pcb_scene::PcbPartHit| {}),
         pcb_part_pointer_down: EventHandler::new(|_: pcb_scene::PcbPartPointerDown| {}),
+        pcb_module_select: EventHandler::new(|_: String| {}),
         pcb_wiring_edit_board: EventHandler::new(|_: ()| {}),
         layout_selection_kind: EventHandler::new(|_: objects::LayoutSelectionKind| {}),
         layout_snap_intent: EventHandler::new(|_: objects::LayoutSnapIntent| {}),
@@ -3058,7 +3062,8 @@ fn Editor() -> Element {
             }
             let (close_objects, open_inspect) = match &request.context {
                 objects::TreeContext::Board { .. } => (false, false),
-                objects::TreeContext::Outline { .. }
+                objects::TreeContext::MountedModule { .. }
+                | objects::TreeContext::Outline { .. }
                 | objects::TreeContext::OutlineVersion { .. }
                 | objects::TreeContext::Bridge { .. } => (true, true),
                 objects::TreeContext::LayoutGroup { .. } => (true, false),
@@ -3545,6 +3550,58 @@ fn Editor() -> Element {
             selection::submit_canvas_selection(
                 &runtime, &adapter, &scope, generation, context, mode, range_ids,
             );
+        }
+    };
+    let on_pcb_module_select = {
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let scope = render_scope.clone();
+        let generation = render_generation;
+        let token = snapshot.token;
+        let mut objects_open = objects_open;
+        let mut inspect_open = inspect_open;
+        move |module_id: String| {
+            if workspace() != "PCB"
+                || runtime.scope().as_ref() != Some(&scope)
+                || (adapter.generation)() != generation
+            {
+                return;
+            }
+            let model = runtime.model();
+            if !active_board_scope_matches(&model, &scope) || !instance_selection.is_current(&model)
+            {
+                return;
+            }
+            let Some(snapshot) = model.accepted.as_ref().filter(|snapshot| {
+                snapshot.token == token
+                    && snapshot.document.modules.iter().any(|module| {
+                        module.id == module_id && module.host_board_id == scope.board_id
+                    })
+            }) else {
+                return;
+            };
+            let context = objects::TreeContext::MountedModule {
+                board_id: scope.board_id.clone(),
+                module_id,
+            };
+            if !selection::context_is_current(&model, &scope, &context) {
+                return;
+            }
+            adapter
+                .selected_context
+                .set(Some(objects::ScopedTreeContext {
+                    scope: scope.clone(),
+                    context,
+                }));
+            adapter.anchor_scope.set(None);
+            runtime.submit(Event::SelectParts {
+                operation_id: runtime.operation(),
+                part_ids: Vec::new(),
+                range_part_ids: Vec::new(),
+                mode: SelectionMode::Replace,
+            });
+            objects_open.set(false);
+            inspect_open.set(true);
         }
     };
     let on_pcb_wiring_edit_board = {
@@ -5762,6 +5819,9 @@ fn Editor() -> Element {
         .pcb_part_hit
         .replace(Box::new(on_pcb_part_hit));
     workspace_callbacks
+        .pcb_module_select
+        .replace(Box::new(on_pcb_module_select));
+    workspace_callbacks
         .pcb_part_pointer_down
         .replace(Box::new(on_pcb_part_pointer_down));
     workspace_callbacks
@@ -6299,6 +6359,7 @@ fn Editor() -> Element {
                 on_empty_hit: workspace_callbacks.pcb_empty_hit,
                 on_part_hit: workspace_callbacks.pcb_part_hit,
                 on_part_pointer_down: workspace_callbacks.pcb_part_pointer_down,
+                on_module_select: workspace_callbacks.pcb_module_select,
             },
         ))),
         "Keymap" => Some(workspace_composition::WorkspaceCanvasInput::Keymap(
@@ -6426,49 +6487,75 @@ fn Editor() -> Element {
             },
         )),
         "PCB" => {
-            workspace_composition::WorkspaceInspectorInput::Pcb(pcb_wiring_source.map(|source| {
-                let firmware_position_projection = pcb_wiring::firmware_position_projection(
-                    &source,
-                    render_generation,
-                    &pcb_wiring_mount.resolution,
-                );
-                let firmware_feedback =
-                    firmware_position_actions
-                        .feedback
-                        .clone()
-                        .filter(|feedback| {
-                            feedback.target.is_visible(
-                                &source.ui_scope,
-                                render_generation,
-                                &firmware_position_projection,
-                            )
-                        });
-                let firmware_controls = rsx! {
-                    firmware_positions::FirmwareKeymapPanel {
-                        projection: firmware_position_projection.clone(),
-                        feedback: firmware_feedback.clone(),
-                        editable: firmware_position_actions.editable,
-                        on_change: firmware_position_actions.on_edit,
-                    }
-                };
-                Box::new(pcb_wiring::PcbWiringInspectorProps {
-                    source,
-                    resolution: pcb_wiring_mount.resolution.clone(),
-                    firmware_positions: firmware_position_projection,
-                    firmware_feedback,
-                    firmware_controls,
-                    part_net_actions: pcb_part_net_actions.clone(),
-                    part_input_actions: part_input_actions.clone(),
-                    on_firmware_edit: firmware_position_actions.on_edit,
-                    on_resolve: pcb_wiring_mount.on_resolve,
-                    on_choose_controller: part_placement.on_choose_controller,
-                    on_edit_board_wiring: workspace_callbacks.pcb_wiring_edit_board,
-                    mode_actions: pcb_wiring_mode_actions.clone(),
-                    pin_actions: pcb_wiring_pin_actions.clone(),
-                    apply_actions: pcb_wiring_apply_actions.clone(),
-                    protected_remap_actions: pcb_wiring_protected_remap_actions.clone(),
-                })
-            }))
+            let selected_module = selected_tree_context.as_ref().and_then(|selected| {
+                if selected.scope != render_scope {
+                    return None;
+                }
+                match &selected.context {
+                    objects::TreeContext::MountedModule {
+                        board_id,
+                        module_id,
+                    } if board_id == &render_scope.board_id => Some(module_id.clone()),
+                    _ => None,
+                }
+            });
+            if let Some(module_id) = selected_module {
+                workspace_composition::WorkspaceInspectorInput::PcbModule(Box::new(
+                    pcb_module_inspector::InspectorInput {
+                        runtime: runtime.clone(),
+                        snapshot: snapshot.clone(),
+                        scope: render_scope.clone(),
+                        module_id,
+                        selected_context: adapter.selected_context,
+                    },
+                ))
+            } else {
+                workspace_composition::WorkspaceInspectorInput::Pcb(pcb_wiring_source.map(
+                    |source| {
+                        let firmware_position_projection = pcb_wiring::firmware_position_projection(
+                            &source,
+                            render_generation,
+                            &pcb_wiring_mount.resolution,
+                        );
+                        let firmware_feedback =
+                            firmware_position_actions
+                                .feedback
+                                .clone()
+                                .filter(|feedback| {
+                                    feedback.target.is_visible(
+                                        &source.ui_scope,
+                                        render_generation,
+                                        &firmware_position_projection,
+                                    )
+                                });
+                        let firmware_controls = rsx! {
+                            firmware_positions::FirmwareKeymapPanel {
+                                projection: firmware_position_projection.clone(),
+                                feedback: firmware_feedback.clone(),
+                                editable: firmware_position_actions.editable,
+                                on_change: firmware_position_actions.on_edit,
+                            }
+                        };
+                        Box::new(pcb_wiring::PcbWiringInspectorProps {
+                            source,
+                            resolution: pcb_wiring_mount.resolution.clone(),
+                            firmware_positions: firmware_position_projection,
+                            firmware_feedback,
+                            firmware_controls,
+                            part_net_actions: pcb_part_net_actions.clone(),
+                            part_input_actions: part_input_actions.clone(),
+                            on_firmware_edit: firmware_position_actions.on_edit,
+                            on_resolve: pcb_wiring_mount.on_resolve,
+                            on_choose_controller: part_placement.on_choose_controller,
+                            on_edit_board_wiring: workspace_callbacks.pcb_wiring_edit_board,
+                            mode_actions: pcb_wiring_mode_actions.clone(),
+                            pin_actions: pcb_wiring_pin_actions.clone(),
+                            apply_actions: pcb_wiring_apply_actions.clone(),
+                            protected_remap_actions: pcb_wiring_protected_remap_actions.clone(),
+                        })
+                    },
+                ))
+            }
         }
         "Keycaps" => {
             let selected_key_id = model.selected_part_ids.first().cloned();

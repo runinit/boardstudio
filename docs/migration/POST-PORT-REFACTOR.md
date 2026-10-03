@@ -84,6 +84,8 @@ The PCB Ctrl-click regression on packaged source `32a57ed3` exposed competing se
 
 The Parts preset-to-preview slice (source pending) makes one logical library choice visible through the existing selected-definition signal plus a Parts-private preset signal. A single activation updates both, while serialized ordered recipe identity and selection generation gate asynchronous sample publication. This is a bounded mitigation under RF-001; adding more library target kinds can create inconsistent owners if those signals evolve independently. After parity, assess a typed Parts library choice that distinguishes definition, assembly preset and module variant while keeping one accepted scope owner. No active-document write or new source authority is introduced.
 
+The first F5.5 mounted-placement Inspector child adds the source-overlay-to-Inspector route through a board/module-scoped `TreeContext` and reuses existing `SetMountedModule`/`RemoveMountedModule` edits. It intentionally does not reinterpret daughterboard artwork as host parts or add another durable draft store. This is another bounded addition to shared presentation composition, not evidence that the root hotspot is reduced; root composition, checks and changed public Save/Remove/history/reopen proof remain open. See [Issue 22](../../.scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md).
+
 ## RF-002
 
 **Internal browser host types are exposed as crate APIs** — architecture / API design. confirmed observation; future cost is a design risk.

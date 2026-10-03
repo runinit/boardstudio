@@ -216,6 +216,15 @@
           "status": "One affected strict check passes; changed paired public journey and consolidated candidate review pending. Owning-module navigation/shared finding focus/full F5.4 remain open; no new RF ID."
         },
         {
+          "source": "F5.5 first mounted-placement Inspector child; isolated from integration source 26ff6b9c",
+          "evidence": ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md",
+          "observation": "The first placement slice extends the existing scoped tree selection with an exact board/module context and routes one private Inspector into existing SetMountedModule/RemoveMountedModule Core edits. This responds to a concrete integration gap: rendered source artwork must be made selectable without inventing host Part identity. Root composition remains a shared hotspot; no second selection owner, durable draft store, public API or Core/schema change is introduced.",
+          "current_mitigation": "Keep selection scope tied to the accepted project/session/board and module instance; keep source artwork read-only and module placement fields in the current placement draft.",
+          "post_port_follow_up": "After parity, evaluate whether typed workspace selection projections can express module ownership without broadening Layout selection semantics; retain one Session document/history authority.",
+          "validation": "Root integration and changed paired pointer/keyboard select, placement Save/Remove, save/reopen and history qualification remain open. Do not infer F5.4 geometry completion or full F5.5 acceptance from this child.",
+          "status": "isolated source packet in progress; no new RF ID"
+        },
+        {
           "source": "PCB17 ordinary controller chooser packet",
           "evidence": ".scratch/dioxus-pcb-view/evidence/17-controller-chooser-20261003/source-handoff.md",
           "observation": "Controller entry callback shape hid a mandatory setup-guide origin and PCB return route. Reusing it from ordinary PCB would be inert; explicit accepted ordinary chooser origin now separates those private workflows while sharing transaction/lifecycle code.",

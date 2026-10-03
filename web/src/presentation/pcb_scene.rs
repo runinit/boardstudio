@@ -37,6 +37,7 @@ pub(in crate::presentation) struct PcbSceneProps {
     pub(in crate::presentation) generation: u64,
     pub(in crate::presentation) on_part_hit: EventHandler<PcbPartHit>,
     pub(in crate::presentation) on_part_pointer_down: EventHandler<PcbPartPointerDown>,
+    pub(in crate::presentation) on_module_select: EventHandler<String>,
 }
 
 #[component]
@@ -46,6 +47,7 @@ pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
     let selected_ids = props.selected_ids;
     let on_part_hit = props.on_part_hit;
     let on_part_pointer_down = props.on_part_pointer_down;
+    let on_module_select = props.on_module_select;
     let generation = props.generation;
     let hidden_layers = (use_context::<super::LayerVisibility>().hidden)();
 
@@ -247,6 +249,7 @@ pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
                     key: "{module.id}",
                     module_id: module.id.clone(),
                     snapshot: snapshot.clone(),
+                    on_select: on_module_select,
                 }
             }
             super::pcb_module_footprints::ModuleFindingMarkers {

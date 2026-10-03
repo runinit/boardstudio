@@ -367,6 +367,7 @@ pub(in crate::presentation) fn context_for_selection_kind(
         TreeContext::Outline { .. }
         | TreeContext::OutlineVersion { .. }
         | TreeContext::Bridge { .. }
+        | TreeContext::MountedModule { .. }
         | TreeContext::Board { .. }
         | TreeContext::LayoutGroup { .. }
         | TreeContext::Component { .. } => None,

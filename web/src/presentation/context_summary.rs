@@ -72,6 +72,7 @@ pub(super) fn summarize(model: &ReadModel, context: &TreeContext) -> Option<Cont
             Some(format!("{selected_count} keys selected")),
         ),
         TreeContext::Component { .. }
+        | TreeContext::MountedModule { .. }
         | TreeContext::Board { .. }
         | TreeContext::LayoutGroup { .. }
         | TreeContext::Outline { .. }
