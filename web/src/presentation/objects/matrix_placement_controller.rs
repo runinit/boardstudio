@@ -23,6 +23,8 @@ struct PendingPlacement {
     owner: MatrixPlacementOwner,
     outcome: OutcomeSlot,
     matrix_id: String,
+    selected_context: Option<ScopedTreeContext>,
+    selected_part_ids: Vec<String>,
 }
 
 pub(in crate::presentation) fn use_matrix_placement(
@@ -101,9 +103,14 @@ pub(in crate::presentation) fn use_matrix_placement(
                                 .iter()
                                 .any(|matrix| matrix.id == waiting.matrix_id);
                             pending.set(None);
+                            let selection_is_current = model.selected_part_ids
+                                == waiting.selected_part_ids
+                                && selected_context.peek().as_ref()
+                                    == waiting.selected_context.as_ref();
                             if !created
                                 || current_workspace != "Layout"
                                 || current_generation != waiting.owner.scope_generation
+                                || !selection_is_current
                             {
                                 error.set(None);
                                 return;
@@ -133,15 +140,25 @@ pub(in crate::presentation) fn use_matrix_placement(
                         | TerminalOutcome::BlockedByRecovery(message)
                         | TerminalOutcome::ExecutorFailed(message) => {
                             pending.set(None);
-                            error.set(Some(message));
+                            if placement_selection_is_current(&runtime, &selected_context, &waiting)
+                            {
+                                error.set(Some(message));
+                            } else {
+                                error.set(None);
+                            }
                         }
                         TerminalOutcome::Superseded
                         | TerminalOutcome::Cancelled
                         | TerminalOutcome::Closed => {
                             pending.set(None);
-                            error.set(Some(
-                                "Matrix placement was superseded before it was saved.".into(),
-                            ));
+                            if placement_selection_is_current(&runtime, &selected_context, &waiting)
+                            {
+                                error.set(Some(
+                                    "Matrix placement was superseded before it was saved.".into(),
+                                ));
+                            } else {
+                                error.set(None);
+                            }
                         }
                     }
                 }
@@ -228,7 +245,6 @@ pub(in crate::presentation) fn use_matrix_placement(
             let runtime = runtime.clone();
             let alive = alive.clone();
             let mut preparing = preparing;
-            let mut placement = placement;
             let mut error = error;
             let canvas_interaction = canvas_interaction.clone();
             spawn_local(async move {
@@ -319,8 +335,6 @@ pub(in crate::presentation) fn use_matrix_placement(
         let mut placement = placement;
         move |movement: MatrixPlacementMove| {
             if !canvas_interaction.is_owner(CanvasInteractionOwner::MatrixPlacement)
-                || workspace() != "Layout"
-                || scope_generation() != movement.owner.scope_generation
                 || !movement.center.x.is_finite()
                 || !movement.center.y.is_finite()
                 || !same_session_scope(&runtime, &movement.owner)
@@ -367,11 +381,10 @@ pub(in crate::presentation) fn use_matrix_placement(
         let mut placement = placement;
         let mut pending = pending;
         let mut error = error;
+        let selected_context = selected_context;
         move |movement: MatrixPlacementMove| {
             if !canvas_interaction.is_owner(CanvasInteractionOwner::MatrixPlacement)
                 || pending.read().is_some()
-                || workspace() != "Layout"
-                || scope_generation() != movement.owner.scope_generation
                 || !movement.center.x.is_finite()
                 || !movement.center.y.is_finite()
                 || !same_session_scope(&runtime, &movement.owner)
@@ -412,10 +425,13 @@ pub(in crate::presentation) fn use_matrix_placement(
                 .collect();
             let operation_id = runtime.operation();
             let outcome = runtime.observe_operation(operation_id);
+            let model = runtime.model();
             pending.set(Some(PendingPlacement {
                 owner: movement.owner.clone(),
                 outcome,
                 matrix_id: active.matrix.id.clone(),
+                selected_context: selected_context.peek().clone(),
+                selected_part_ids: model.selected_part_ids.clone(),
             }));
             placement.set(None);
             error.set(None);
@@ -500,4 +516,13 @@ fn same_accepted_source(runtime: &Runtime, owner: &MatrixPlacementOwner) -> bool
         && model.accepted.as_ref().is_some_and(|snapshot| {
             snapshot.token == owner.snapshot_token && snapshot.document.revision == owner.revision
         })
+}
+
+fn placement_selection_is_current(
+    runtime: &Runtime,
+    selected_context: &Signal<Option<ScopedTreeContext>>,
+    pending: &PendingPlacement,
+) -> bool {
+    runtime.model().selected_part_ids == pending.selected_part_ids
+        && selected_context.peek().as_ref() == pending.selected_context.as_ref()
 }
