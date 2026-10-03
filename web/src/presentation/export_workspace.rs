@@ -150,10 +150,10 @@ struct ExportRow {
 
 #[component]
 fn ExportRowView(row: ExportRow, zmk_firmware: Option<ZmkFirmwareExportPanelInput>) -> Element {
-    if row.label == "ZMK firmware" {
-        if let Some(firmware) = zmk_firmware {
-            return rsx! { ZmkFirmwareExportRow { ready: firmware.ready, on_export: firmware.on_export } };
-        }
+    if row.label == "ZMK firmware"
+        && let Some(firmware) = zmk_firmware
+    {
+        return rsx! { ZmkFirmwareExportRow { ready: firmware.ready, on_export: firmware.on_export } };
     }
     rsx! {
         div { class: "m1-export-row", "data-export-kind": "{row.label}",
@@ -179,7 +179,7 @@ fn ExportRowView(row: ExportRow, zmk_firmware: Option<ZmkFirmwareExportPanelInpu
                         on_export.call(());
                     }
                 },
-                "Export"
+                if row.ready { "Export" } else { "Needs work" }
             }
         }
     }
@@ -217,6 +217,24 @@ fn export_rows(
     let wiring_blocker =
         (!wiring_ready).then_some("Review the layout and resolve controller wiring in PCB.");
     let case_blocker = (!case_ready).then_some("Add and generate case geometry in Case.");
+    let generated_case = document
+        .mechanical
+        .as_ref()
+        .is_some_and(|configuration| configuration.board_id == board_id);
+    let step_runtime = runtime.clone();
+    let step_scope = runtime.scope();
+    let step_token = snapshot.token;
+    let step_epoch = snapshot.session_epoch;
+    let step_export = EventHandler::new(move |()| {
+        let model = step_runtime.model();
+        if step_runtime.scope() == step_scope
+            && model.accepted.as_ref().is_some_and(|accepted| {
+                accepted.token == step_token && accepted.session_epoch == step_epoch
+            })
+        {
+            step_runtime.export_step();
+        }
+    });
     let svg_runtime = runtime.clone();
     let svg_export =
         EventHandler::new(move |()| svg_runtime.export_board_outline(OutlineExportFormat::Svg));
@@ -280,24 +298,20 @@ fn export_rows(
             on_export: Some(dxf_export),
         },
         ExportRow {
-            label: if document
-                .mechanical
-                .as_ref()
-                .is_some_and(|configuration| configuration.board_id == board_id)
-            {
+            label: if generated_case {
                 "Authored Case STEP"
             } else {
                 "Case STEP"
             },
             detail: "Saved authored case bodies",
             ready: !document.case_bodies.is_empty() && case_ready,
-            available: false,
+            available: !generated_case,
             reason: if !document.case_bodies.is_empty() && case_ready {
                 None
             } else {
                 case_blocker
             },
-            on_export: None,
+            on_export: (!generated_case).then_some(step_export),
         },
     ];
     if document
