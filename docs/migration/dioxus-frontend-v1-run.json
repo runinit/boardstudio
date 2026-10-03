@@ -772,7 +772,7 @@
   "active_source_freeze": {
     "date": "2026-10-03T11:09:14.306552+00:00",
     "build_id": "frontend-board-geometry-vik-full-20261003",
-    "state": "One full package establishes source/asset baseline for added VIK catalogue; source frozen",
+    "state": "Released after exact frozen source/asset verification;34764 bytes remain immutable",
     "head_before_freeze_commit": "533501d9"
   },
   "retained_checkpoint_history": [
@@ -1273,7 +1273,7 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T11:10:42.024526+00:00",
+    "updated_at": "2026-10-03T11:19:13.593284+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
       "accepted": 3,
@@ -1283,24 +1283,24 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-ui-corrections-export-20261003",
-      "source_commit": "99ec041a2895e5ab23880be25501beb9360487db",
-      "root_url": "http://127.0.0.1:34763/",
-      "subpath_url": "http://127.0.0.1:34763/boardstudio/",
-      "provenance": "web/target/builds/frontend-ui-corrections-export-20261003/provenance.json",
-      "provenance_sha256": "d3c03d6db107ab7a55753b5798d99444f7d0843540ef96530c00d9f44296fe08",
-      "fresh_commands": 8,
-      "inherited_commands": 22,
-      "source_inputs": 1371,
+      "build_id": "frontend-board-geometry-vik-full-20261003",
+      "source_commit": "661296fe5633e2327488cd56738c14ab81c22341",
+      "root_url": "http://127.0.0.1:34764/",
+      "subpath_url": "http://127.0.0.1:34764/boardstudio/",
+      "provenance": "web/target/builds/frontend-board-geometry-vik-full-20261003/provenance.json",
+      "provenance_sha256": "f597c5d1cd45a8222b5ce8628ffbb5508e7400094cf1f53bcf6518e1681519c0",
+      "fresh_commands": 22,
+      "inherited_commands": 0,
+      "source_inputs": 1375,
       "source_mismatches": 0,
-      "assets_per_route": 145,
-      "command_span_seconds": 95.620667,
-      "package_qualification": "Strict page WASM all-target17.97s PASS.1371sources/145assets perroute0mismatch,root/subpath200COOP/COEP.Changed browser deltas active; no inferred parent closure.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34763-20261003/package-proof.json"
+      "assets_per_route": 146,
+      "command_span_seconds": 447.476376,
+      "package_qualification": "CombinedstrictpageWASMalltargets17.49s PASS/newtests0; fullpackage22commands;1375sources/146assets bothroutes0mismatch,root/subpath200COOP/COEP. Changedjourneysactive; no inferredparentclosure.",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34764-20261003/package-proof.json"
     },
     "integration": {
       "source_commit": "533501d9",
-      "state": "CombinedstrictpageWASMalltargets PASS17.49s. Page-reuse preflight correctly detects newly packaged VIK JSON; fullbaseline package34764 active, no duplicate functional tests.",
+      "state": "34764 served and source/asset proof completed. Board/Geometry/VIK changedlegs active; nextbatchKeycapsclearancedisclosure,Casecontextualselection,Layoutfindings,Exportfootprints,PCBmountedInspector. All62parents/RFhistory retained.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1929,9 +1929,7 @@
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "heavy_slots": {
       "policy": "Coordinator assigned; maximum2 heavy jobs/1package",
-      "active": [
-        "34764package"
-      ],
+      "active": [],
       "check": {
         "source_commit": "533501d9",
         "log": ".scratch/dioxus-frontend-v1/evidence/candidate-34764-20261003/frontend-board-geometry-vik-combined-check-settled.log",
@@ -1942,10 +1940,10 @@
     },
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "next_work": [
-      "Join the next contextual frontend batch; one combined affected check/package.",
-      "Confirm changed Geometry, VIK catalogue, Board Inspector and Export context journeys; reuse all unchanged history/reopen proof.",
-      "Finish real Layout findings control/navigation and continue six workbench queues.",
-      "One consolidated Sol candidate review; preserve all remaining parent criteria and RF observations."
+      "Complete34764 changed Board/Geometry/VIK/Exportstatus journeys and one consolidated Sol delta review.",
+      "Integrate next ready UI packet serially; use this freshfullbaseline for fast provider reuse.",
+      "Layout-first next: presetassembly1\u00d71matrix preview/action, realLayoutfindings and contextual navigation.",
+      "ContinuePCBmountedplacementInspector, Keycapsdisclosure/legend, Casecontextualpanes, PartsProjectdemoidentity/cards, Exportfootprints."
     ],
     "execution_policy": "Ordinary reversible UI gets no new tests. Run one required affected compile/check per integrated batch, inspect only changed paired browser journeys, and use one consolidated candidate review. Reuse unchanged history/reopen evidence. Real reproduced bugs retain one focused regression. Parent criteria, blocker history and RF ledger remain explicit.",
     "served_candidate_history": [
@@ -2157,6 +2155,22 @@
         "assets_per_route": 145,
         "command_span_seconds": 96.365056,
         "package_qualification": "Strict page WASM all-target17.54s;1370sources/145assets-route0mismatch,root/subpath200COOP/COEP. Changed Boardoutline route, empty entry/cancel/Browse and placementhintGREEN. Sharedshell/footer/Parts receipts active; visual corrections staged. No parent closure."
+      },
+      {
+        "build_id": "frontend-ui-corrections-export-20261003",
+        "source_commit": "99ec041a2895e5ab23880be25501beb9360487db",
+        "root_url": "http://127.0.0.1:34763/",
+        "subpath_url": "http://127.0.0.1:34763/boardstudio/",
+        "provenance": "web/target/builds/frontend-ui-corrections-export-20261003/provenance.json",
+        "provenance_sha256": "d3c03d6db107ab7a55753b5798d99444f7d0843540ef96530c00d9f44296fe08",
+        "fresh_commands": 8,
+        "inherited_commands": 22,
+        "source_inputs": 1371,
+        "source_mismatches": 0,
+        "assets_per_route": 145,
+        "command_span_seconds": 95.620667,
+        "package_qualification": "Strict page WASM all-target17.97s PASS.1371sources/145assets perroute0mismatch,root/subpath200COOP/COEP.Changed browser deltas active; no inferred parent closure.",
+        "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34763-20261003/package-proof.json"
       }
     ],
     "consolidated_reviews": [
