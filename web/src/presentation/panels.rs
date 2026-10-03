@@ -38,8 +38,8 @@ pub(super) fn CompactPanelControls() -> Element {
     let workspace = use_context::<super::WorkspaceState>().0;
     let objects_compact = use_compact_viewport(PanelSide::Objects);
     let inspector_compact = use_compact_viewport(PanelSide::Inspector);
-    let mut objects_open = state.objects_open;
-    let mut inspector_open = state.inspector_open;
+    let objects_open = state.objects_open;
+    let inspector_open = state.inspector_open;
     rsx! {
         nav { class: "m1-compact-panel-controls", "aria-label": "Panel visibility",
             if objects_compact() && workspace() != "Export" {

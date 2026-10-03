@@ -32,7 +32,7 @@ pub(super) fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) 
         let runtime = runtime.clone();
         move || runtime.operation().0
     });
-    let body_edit_portal = use_context::<super::case_viewer::CaseSelection>().body_edit_portal;
+    let mut body_edit_portal = use_context::<super::case_viewer::CaseSelection>().body_edit_portal;
     let request_sequence = use_signal(|| 0_u64);
     let pending = use_signal(|| None::<PendingBodyEdit>);
     let feedback = use_signal(|| None::<CaseBodyEditFeedback>);
@@ -49,7 +49,7 @@ pub(super) fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) 
                       scope: boardstudio_application::Scope,
                       snapshot_token: boardstudio_application::SnapshotToken,
                       revision: u64| {
-                    if !portal.editable() {
+                    if !(portal.editable)() {
                         return;
                     }
                     let Some(request_id) = request_sequence().checked_add(1) else {
@@ -96,7 +96,7 @@ pub(super) fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) 
         }
     }
     use_drop({
-        let portal = body_edit_portal;
+        let mut portal = body_edit_portal;
         let dispatch = body_edit_dispatch.clone();
         move || {
             if portal
@@ -302,7 +302,7 @@ pub(super) fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) 
         && model.gesture.is_none()
         && pending.read().is_none()
         && !generated_stack;
-    if body_edit_portal.editable() != editable {
+    if (body_edit_portal.editable)() != editable {
         body_edit_portal.editable.set(editable);
     }
     let editor_scope_key = format!(

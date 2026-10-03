@@ -1449,13 +1449,14 @@ mod mounted_live_scene_tests {
         let selected_body = use_signal(|| None::<BodySelection>);
         let selected_layer = use_signal(|| None);
         let display = use_signal(std::collections::BTreeMap::new);
-        let body_edit_dispatch = use_signal(|| None::<super::case_viewer::CaseBodyEditDispatch>);
+        let body_edit_dispatch =
+            use_signal(|| None::<super::super::case_viewer::CaseBodyEditDispatch>);
         let body_editable = use_signal(|| false);
         let case_selection = CaseSelection {
             body: selected_body,
             layer: selected_layer,
             display,
-            body_edit_portal: super::case_viewer::CaseBodyEditPortal {
+            body_edit_portal: super::super::case_viewer::CaseBodyEditPortal {
                 dispatch: body_edit_dispatch,
                 editable: body_editable,
             },

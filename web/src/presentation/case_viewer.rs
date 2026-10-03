@@ -139,7 +139,7 @@ pub(crate) fn CaseViewer(
     let direct_handles = case_viewer_handles(
         &scene,
         mechanical_settings.as_ref(),
-        selection.body_edit_portal.editable(),
+        (selection.body_edit_portal.editable)(),
     );
     let gesture = use_hook(|| Rc::new(RefCell::new(None::<CaseGestureDraft>)));
     let handle_preview = use_signal(|| None::<Vec<ViewerHandle>>);
@@ -612,7 +612,6 @@ fn handle_case_gesture(
     let identity_current = scene.exact
         && scene.scope == identity.scope
         && scene.token == identity.snapshot_token
-        && scene.snapshot.document.revision == identity.revision
         && scene.prepared.revision == scene.snapshot.document.revision;
     let settings = settings.filter(|settings| {
         settings.editable
@@ -686,7 +685,7 @@ fn handle_case_gesture(
                     })
                 }
                 ViewerHandleTarget::AuthoredMount { body_id, mount_id } => {
-                    if !identity_current || !selection.body_edit_portal.editable() {
+                    if !identity_current || !(selection.body_edit_portal.editable)() {
                         return;
                     }
                     let Ok(document) = captured_case_document(&scene.snapshot, &scene.scope) else {
@@ -910,7 +909,7 @@ fn handle_case_gesture(
                         edit,
                         identity.scope.clone(),
                         identity.snapshot_token,
-                        identity.revision,
+                        scene.snapshot.document.revision,
                     );
                     message.set(Some("Saving body mount position…".into()));
                 } else {
