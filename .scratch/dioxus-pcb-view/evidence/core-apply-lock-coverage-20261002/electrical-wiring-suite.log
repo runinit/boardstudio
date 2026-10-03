@@ -1,0 +1,17 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.38s
+     Running tests/electrical_wiring.rs (core/target/debug/deps/electrical_wiring-35fdb641ab246f99)
+
+running 11 tests
+test missing_controller_is_reported_without_inventing_one ... ok
+test reverse_diode_direction_places_cathodes_on_matrix_rows ... ok
+test handoff_cannot_be_silently_overridden_by_new_locks ... ok
+test resolver_scopes_board_and_honors_controller_and_locks ... ok
+test apply_materializes_switch_diode_and_controller_pins_and_preserves_manual_net ... ok
+test surface_mount_contacts_are_electrical_without_plated_drills ... ok
+test direct_mode_constructs_controller_and_ground_nets_deterministically ... ok
+test unmanaged_nets_are_not_removed_by_automatic_wiring ... ok
+test rgb_chain_and_battery_power_switch_map_to_shared_power_nets ... ok
+test apply_request_is_reversible ... ok
+test apply_request_reuses_persisted_selected_board_locks ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

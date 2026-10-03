@@ -639,6 +639,89 @@ fn apply_request_is_reversible() {
 }
 
 #[test]
+fn apply_request_reuses_persisted_selected_board_locks() {
+    let mut engine = CoreEngine::new();
+    let mut doc = wired_document();
+    let locks = BTreeMap::from([("row/0".into(), "P1".into())]);
+    doc.hardware
+        .get_or_insert_with(Default::default)
+        .boards
+        .push(ElectricalBoardConfiguration {
+            board_id: "board-a".into(),
+            controller_part_id: Some("mcu-left".into()),
+            mode: ElectricalMode::Matrix,
+            locks: locks.clone(),
+            ..Default::default()
+        });
+    doc.hardware
+        .as_mut()
+        .unwrap()
+        .boards
+        .push(ElectricalBoardConfiguration {
+            board_id: "board-b".into(),
+            mode: ElectricalMode::Matrix,
+            locks: BTreeMap::from([("row/0".into(), "P2".into())]),
+            ..Default::default()
+        });
+    let opened = engine.handle(CoreRequest::Open {
+        id: "open-locked".into(),
+        document: doc,
+    });
+    let doc = match opened {
+        CoreReply::Scene { document, .. } => document,
+        other => panic!("{other:?}"),
+    };
+    let base_revision = doc.revision;
+    let plan = boardstudio_core::electrical::resolve(ElectricalPlanRequest {
+        instance_id: None,
+        document: (*doc).clone(),
+        mode: ElectricalMode::Matrix,
+        // The resolver must load the target board's persisted map even when the request adds
+        // none, as in Core's own ApplyElectrical re-resolution.
+        locks: BTreeMap::new(),
+        controller_profile: Some("ceoloide/mcu_nice_nano".into()),
+        board_id: Some("board-a".into()),
+        controller_part_id: Some("mcu-left".into()),
+    });
+    assert!(plan.assignments.iter().any(|assignment| {
+        assignment.row == 0 && assignment.row_pin == "P1" && assignment.locked
+    }));
+
+    let applied = engine.handle(CoreRequest::ApplyElectrical {
+        id: "apply-locked".into(),
+        base_revision,
+        plan,
+        draft: false,
+    });
+    let CoreReply::Scene { document, .. } = applied else {
+        panic!("persisted target-board lock must survive ApplyElectrical: {applied:?}");
+    };
+    assert_eq!(document.revision, base_revision + 1);
+    let target = document
+        .hardware
+        .as_ref()
+        .unwrap()
+        .boards
+        .iter()
+        .find(|config| config.board_id == "board-a")
+        .unwrap();
+    assert_eq!(target.locks.get("row/0").map(String::as_str), Some("P1"));
+    assert_eq!(target.mode, ElectricalMode::Matrix);
+    let other = document
+        .hardware
+        .as_ref()
+        .unwrap()
+        .boards
+        .iter()
+        .find(|config| config.board_id == "board-b")
+        .unwrap();
+    assert_eq!(other.locks.get("row/0").map(String::as_str), Some("P2"));
+    assert!(document.nets.iter().any(|net| {
+        net.id.contains("/row/0") && net.pins.iter().any(|pin| pin.part_id == "mcu-left")
+    }));
+}
+
+#[test]
 fn handoff_cannot_be_silently_overridden_by_new_locks() {
     let mut doc = wired_document();
     doc.hardware = Some(HardwareConfiguration {
