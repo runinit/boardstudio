@@ -1,0 +1,58 @@
+    Checking boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web)
+error: use of deprecated method `presentation::objects::AddObjectEntryPropsBuilder::<((dioxus::prelude::Signal<bool>,), (dioxus::prelude::Callback<presentation::objects::TreeSelectRequest>,), (), __matrix_setup, __mirrored_pair, __matrix_inspector, __snapshot, __scope, __on_place_component, __layout_target, __parts_query, __on_browse_parts)>::build`: Missing required field on_open_geometry_scripts
+   --> src/presentation/objects/mirrored_pair/canvas_overlay_tests.rs:89:42
+    |
+ 89 |               super::super::AddObjectEntry {
+    |  __________________________________________^
+ 90 | |                 menu_open,
+ 91 | |                 on_select: EventHandler::default(),
+ 92 | |                 snapshot: snapshot(),
+...   |
+110 | |                 }),
+111 | |             }
+    | |_____________^
+    |
+    = note: `-D deprecated` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(deprecated)]`
+
+error[E0061]: this method takes 1 argument but 0 arguments were supplied
+   --> src/presentation/objects/mirrored_pair/canvas_overlay_tests.rs:89:42
+    |
+ 89 |               super::super::AddObjectEntry {
+    |  __________________________________________^
+ 90 | |                 menu_open,
+ 91 | |                 on_select: EventHandler::default(),
+ 92 | |                 snapshot: snapshot(),
+...   |
+110 | |                 }),
+111 | |             }
+    | |_____________^ argument #1 of type `presentation::objects::AddObjectEntryPropsBuilder_Error_Missing_required_field_on_open_geometry_scripts` is missing
+    |
+note: method defined here
+   --> src/presentation/objects.rs:472:1
+    |
+472 | #[component]
+    | ^^^^^^^^^^^^
+    = note: this error originates in the derive macro `Props` (in Nightly builds, run with -Z macro-backtrace for more info)
+help: provide the argument
+    |
+111 |             }(/* presentation::objects::AddObjectEntryPropsBuilder_Error_Missing_required_field_on_open_geometry_scripts */)
+    |              +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+error[E0596]: cannot borrow `selected` as mutable, as it is not declared as mutable
+   --> src/presentation/parts.rs:906:37
+    |
+906 | ...                   selected.set(Some((scope.clone(), module_selection_id.clone())));
+    |                       ^^^^^^^^ cannot borrow as mutable
+    |
+help: consider changing this to be mutable
+    |
+894 |                           let mut selected = selected;
+    |                               +++
+
+For more information about this error, try `rustc --explain E0596`.
+error: could not compile `boardstudio-web` (bin "boardstudio-web") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+Some errors have detailed explanations: E0061, E0596.
+For more information about an error, try `rustc --explain E0061`.
+error: could not compile `boardstudio-web` (bin "boardstudio-web" test) due to 3 previous errors

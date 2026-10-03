@@ -770,8 +770,10 @@
     "package_qualification": "Guarded reuse passed; root/subpath HTTP200 COEP verified. Main header, Inspector and Ctrl-add fixes served; measured spacing and Ctrl-remove follow-ups joined for next build."
   },
   "active_source_freeze": {
-    "state": "released",
-    "source_commit": "22b9b06331eaf1505131cc3bfef65dcf81b2ffb2"
+    "date": "2026-10-03T11:09:14.306552+00:00",
+    "build_id": "frontend-board-geometry-vik-20261003",
+    "state": "Pagepackage inprogress; no integration source mutation until provenance proof",
+    "head_before_freeze_commit": "533501d9"
   },
   "retained_checkpoint_history": [
     {
@@ -1271,7 +1273,7 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T11:05:57.293824+00:00",
+    "updated_at": "2026-10-03T11:09:14.306552+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
       "accepted": 3,
@@ -1297,8 +1299,8 @@
       "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34763-20261003/package-proof.json"
     },
     "integration": {
-      "source_commit": "dd71c27b",
-      "state": "34763 served; F7.2 accepted. Next joined batch contains Geometry scripts, Parts VIK catalogue and footer status nesting; Board Inspector and changed-only follow-up are active.",
+      "source_commit": "533501d9",
+      "state": "Frozen nextbatch: Layout BoardInspector and Geometryscripts, PartsVIK catalogue, Projectstatus nesting, Exportcontext repair. CombinedstrictpageWASMalltargets PASS17.49s; package34764starting.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1926,9 +1928,17 @@
     ],
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "heavy_slots": {
-      "root_target": "No package/check active; next shared Layout batch will use cached target.",
-      "secondary_target": "No agent compiler assigned.",
-      "dispatch": "Max2heavyjobs/1package; ordinaryUI nonewtests; changedjourneys only."
+      "policy": "Coordinator assigned; maximum2 heavy jobs/1package",
+      "active": [
+        "34764package"
+      ],
+      "check": {
+        "source_commit": "533501d9",
+        "log": ".scratch/dioxus-frontend-v1/evidence/candidate-34764-20261003/frontend-board-geometry-vik-combined-check-settled.log",
+        "result": "PASS",
+        "duration_seconds": 17.49,
+        "new_tests": 0
+      }
     },
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "next_work": [
@@ -2212,6 +2222,16 @@
         "build_id": "frontend-ui-corrections-export-lint-check",
         "source_commit": "6968719e",
         "result": "Strict Clippy caught ZMK collapsible_if and now-unreferenced productionexport_step.65d49442 wires existing ordinary authored Case STEP path rather than suppressing dead code; generated-stack authored-only export remains a separate provider gap."
+      },
+      {
+        "build_id": "frontend-board-geometry-vik-source-check",
+        "source_commit": "9a3638cc",
+        "result": "Combinedcheck failed Geometry callback threading/mutablecapture/non-Copyseverity and VIK RSXformat/Rctype/sliceadapter; direct02bf8bde correction. Logretained."
+      },
+      {
+        "build_id": "frontend-board-geometry-vik-source-check-followup",
+        "source_commit": "02bf8bde",
+        "result": "Remaining mutableVIKselection/existingtestfixture callback corrected533501d9. No newtests added. Finalstrictcheck PASS17.49s."
       }
     ],
     "parent_acceptances": [
