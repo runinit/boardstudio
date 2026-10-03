@@ -135,19 +135,31 @@ fn PcbMountedModuleInspector(
             return;
         };
         let value = draft();
-        let needs_automatic_connector = value
-            .connection
-            .as_ref()
-            .filter(|connection| {
-                connection.host_connector_part_id == format!("{}/vik-host-connector", value.id)
-            })
-            .is_some_and(|connection| {
-                !snapshot
+        let automatic_id = format!("{}/vik-host-connector", value.id);
+        let connector_admission = value.connection.as_ref().map(|connection| {
+            connector_admission(
+                &connection.host_connector_part_id,
+                &automatic_id,
+                host_connector_is_on_board(
+                    &snapshot.document,
+                    &value.host_board_id,
+                    &connection.host_connector_part_id,
+                ),
+                snapshot
                     .document
                     .parts
                     .iter()
-                    .any(|part| part.id == connection.host_connector_part_id)
-            });
+                    .any(|part| part.id == connection.host_connector_part_id),
+            )
+        });
+        let needs_automatic_connector = matches!(
+            connector_admission,
+            Some(ConnectorAdmission::CreateAutomatic)
+        );
+        if matches!(connector_admission, Some(ConnectorAdmission::Reject)) {
+            feedback.set("Choose a VIK host connector on this board, or clear the connection. This connector ID is missing, belongs to another board, or is not a host connector.".into());
+            return;
+        }
         saving.set(true);
         if needs_automatic_connector {
             feedback.set("Loading the source-backed horizontal VIK connector…".into());
@@ -344,8 +356,13 @@ fn PcbMountedModuleInspector(
         })
         .map(|part| (part.id.clone(), part.reference.clone()))
         .collect::<Vec<_>>();
+    let automatic_connector_can_be_created = !document
+        .parts
+        .iter()
+        .any(|part| part.id == automatic_connector_id);
     let available_connectors = connectors.clone();
     let automatic_connector_id_for_toggle = automatic_connector_id.clone();
+    let create_automatic_connector_on_toggle = automatic_connector_can_be_created;
     let default_module_port_id = definition
         .interfaces
         .iter()
@@ -651,7 +668,7 @@ fn PcbMountedModuleInspector(
                     onchange: move |event| {
                         if event.checked() {
                             draft.with_mut(|value| value.connection = Some(ModuleConnection {
-                                host_connector_part_id: if available_connectors.is_empty() { automatic_connector_id_for_toggle.clone() } else { String::new() },
+                                host_connector_part_id: if available_connectors.is_empty() && create_automatic_connector_on_toggle { automatic_connector_id_for_toggle.clone() } else { String::new() },
                                 module_port_id: default_module_port_id.clone(),
                                 bus_id: format!("vik/{}", value.id),
                                 assignments: BTreeMap::new(),
@@ -674,14 +691,18 @@ fn PcbMountedModuleInspector(
                             disabled: !editable,
                             onchange: move |event| draft.with_mut(|value| if let Some(connection) = &mut value.connection { connection.host_connector_part_id = event.value(); }),
                             option { value: "", "Select VIK host connector" }
-                            if connectors.is_empty() {
+                            if connectors.is_empty() && automatic_connector_can_be_created {
                                 option { value: "{automatic_connector_id}", "Add source-backed horizontal VIK connector beside module" }
                             }
                             for (id, reference) in &connectors { option { value: "{id}", "{reference}" } }
                         }
                     }
                     if connectors.is_empty() {
-                        p { "No source-backed host-role VIK connector is present on this board. Add one before saving a connected placement." }
+                        if automatic_connector_can_be_created {
+                            p { "No source-backed host-role VIK connector is present on this board. Add one before saving a connected placement." }
+                        } else {
+                            p { "The automatic connector ID is already used by a part outside this board. Choose a valid host connector or clear the connection." }
+                        }
                     }
                     label { "Module port"
                         select {
@@ -854,6 +875,49 @@ fn vik_signals() -> [(VikSignal, &'static str); 12] {
     ]
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ConnectorAdmission {
+    Reuse,
+    CreateAutomatic,
+    Reject,
+}
+
+fn connector_admission(
+    connector_id: &str,
+    automatic_id: &str,
+    is_host_connector_on_board: bool,
+    exists_in_document: bool,
+) -> ConnectorAdmission {
+    if is_host_connector_on_board {
+        ConnectorAdmission::Reuse
+    } else if connector_id == automatic_id && !exists_in_document {
+        ConnectorAdmission::CreateAutomatic
+    } else {
+        ConnectorAdmission::Reject
+    }
+}
+
+fn host_connector_is_on_board(
+    document: &boardstudio_core::model::ProjectDoc,
+    board_id: &str,
+    connector_id: &str,
+) -> bool {
+    document.boards.iter().any(|board| {
+        board.id == board_id && board.part_ids.iter().any(|part_id| part_id == connector_id)
+    }) && document
+        .parts
+        .iter()
+        .find(|part| part.id == connector_id)
+        .and_then(|part| {
+            document
+                .definitions
+                .iter()
+                .find(|definition| definition.id == part.definition_id)
+        })
+        .and_then(|definition| definition.hardware_profile.as_ref())
+        .is_some_and(|profile| profile.vik_role == Some(VikRole::Host))
+}
+
 fn mounted_owner_current(
     runtime: &Rc<Runtime>,
     selected_context: Signal<Option<super::objects::ScopedTreeContext>>,
@@ -905,4 +969,36 @@ fn mounted_selection_current(
             snapshot.document.id == scope.document_id
                 && snapshot.session_epoch == scope.session_epoch
         })
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod wasm_tests {
+    use super::{ConnectorAdmission, connector_admission};
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    #[wasm_bindgen_test]
+    fn connector_admission_reuses_local_host_and_rejects_foreign_automatic_ids() {
+        let automatic_id = "module-a/vik-host-connector";
+
+        assert_eq!(
+            connector_admission("host-on-board", automatic_id, true, true),
+            ConnectorAdmission::Reuse
+        );
+        assert_eq!(
+            connector_admission(automatic_id, automatic_id, false, true),
+            ConnectorAdmission::Reject
+        );
+        assert_eq!(
+            connector_admission("wrong-role", automatic_id, false, true),
+            ConnectorAdmission::Reject
+        );
+        assert_eq!(
+            connector_admission("missing-host", automatic_id, false, false),
+            ConnectorAdmission::Reject
+        );
+        assert_eq!(
+            connector_admission(automatic_id, automatic_id, false, false),
+            ConnectorAdmission::CreateAutomatic
+        );
+    }
 }

@@ -2852,20 +2852,22 @@
         {
           "id": "F4.4-C03",
           "requirement": "Provider/model conversion failures have an existing retry path for the isolated Parts sample. Renderer initialization/context loss instead reports/stops cleanly and preserves the 2D return; no canvas-retry control is required.",
-          "state": "unassessed",
+          "state": "implemented",
           "classification": "functional",
           "sources": [
-            "web/src/runtime.rs:3311",
-            "web/src/presentation/model_delivery.rs:573",
-            "web/src/presentation/model_delivery.rs:774",
+            "web/src/model_delivery.rs:573",
+            "web/src/model_delivery.rs:916",
             "web/src/presentation/parts/preview.rs:191",
-            "web/src/presentation/shared_viewer.rs:1490",
-            "web/src/renderer_host_page_base.rs:92",
-            ".scratch/dioxus-shared-viewer/evidence/source-contract-reviewed-20261002/reviewed-contract.md:62"
+            "web/src/presentation/parts/preview.rs:307",
+            "web/src/runtime.rs:3311",
+            "web/src/presentation/shared_viewer.rs:1497",
+            "web/src/renderer_host_page_base.rs:198"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/parts/F4.4-C03-34779.md"
+          ],
           "blockers": [],
-          "next_action": "Verify the existing Parts provider/model retry path after a provider/decode failure (including whether leaving 3D and reopening it reissues the scoped sample); keep renderer/context failure limited to status/stop and 2D return.",
+          "next_action": "Qualify actual model/provider failure and 2D-to-3D retry, plus renderer initialization failure. Actual WebGL context loss, reported stop and usable 2D return passed on34779; attempted request abort still returned200 and proves no failure/retry.",
           "finish_condition": "Current public evidence demonstrates provider/model failure then retry/recovery for the isolated Parts sample, and confirms renderer initialization/context loss reports/stops with the 2D route available and no canvas retry control.",
           "owned_files": [
             "web/src/runtime.rs",
@@ -4096,10 +4098,11 @@
             "web/src/presentation.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md"
+            ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md",
+            ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/modules/vik-splitter-gnd-join-ad26b07a.md"
           ],
           "blockers": [],
-          "next_action": "Qualify VIK connection Save, explicit circuit net join/copy/remove, and exact nested constituent footprint placement; Undo/Redo/reopen and stale scope.",
+          "next_action": "Qualify repaired same-board connector admission and fresh creation/repeat Save on a genuinely new module attachment. Reuse paired circuit joins/copy/remove and constituent placement/history evidence; exported archive reopen remains unqualified.",
           "finish_condition": "Each action matches React, is correctly scoped, undoable where existing Core semantics allow, and retains unrelated project data.",
           "owned_files": [
             "web/src/presentation/pcb_module_inspector.rs",
@@ -4272,17 +4275,18 @@
         {
           "id": "F5.6-C03",
           "requirement": "Case exposes controls to change an instance\u2019s associated PCB design and flip that PCB.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/case_workspace.rs",
             "web/src/presentation/pcb_physical_setup/controller.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-pcb-view/issues/06-editor-owned-physical-setup-intents.md"
+            ".scratch/dioxus-pcb-view/issues/06-editor-owned-physical-setup-intents.md",
+            ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/case/receipt.md"
           ],
           "blockers": [],
-          "next_action": "Qualify selected Case instance PCB reassignment and flip, accepted navigation, Undo/Redo/reopen, and unrelated-instance preservation.",
+          "next_action": "None for this control criterion. Broader controller/mechanical retention and shared-preview joins remain F5.6-C04/C05; history focus behavior is recorded without unqualified TS parity claims.",
           "finish_condition": "Case controls change the selected instance\u2019s board and flip state as React does, with correct scope, Undo/Redo, and reload behavior.",
           "owned_files": [
             "web/src/presentation/case_workspace.rs",
@@ -4304,7 +4308,8 @@
           ],
           "evidence": [
             ".scratch/dioxus-pcb-view/evidence/physical-setup-20261002/ticket05-implementation.md",
-            ".scratch/dioxus-pcb-view/evidence/physical-setup-20261002/ticket06-implementation.md"
+            ".scratch/dioxus-pcb-view/evidence/physical-setup-20261002/ticket06-implementation.md",
+            ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/case/receipt.md"
           ],
           "blockers": [],
           "next_action": "Use the same paired physical-instance journey to qualify identity and retained-state behavior through switching, Undo/Redo and reload.",
@@ -4327,11 +4332,13 @@
           "sources": [
             "web/src/presentation/pcb_physical_setup.rs"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/case/receipt.md"
+          ],
           "blockers": [
             "F7.7"
           ],
-          "next_action": "Join current physical-instance projection to the F7 shared viewer and record selected instance/board/flip effect.",
+          "next_action": "Qualify the physical-instance shared-viewer join. First characterize the recorded left/U1/P2 \u2192 LEFT_SW25_ENCODER-PUSH preview validation error on the retained fixture before/after PCB reassignment; baseline versus edit causality is unassessed. Ordinary control edits/history passed; preview did not.",
           "finish_condition": "F7.7 paired evidence shows the accepted selected physical instance and its board/flip in the shared viewer.",
           "owned_files": [
             "web/src/presentation/pcb_physical_setup.rs"
