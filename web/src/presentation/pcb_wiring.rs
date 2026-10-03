@@ -983,7 +983,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
             if let Some(review) = existing_connections.as_ref() {
                 div { class: "m1-pcb-wiring-protected",
                     strong { "Review existing connections" }
-                    p { "{review.pin_count} pin connections already belong to {connection_names.join(\", \")}. Switching them to automatic wiring removes these assignments so the board plan can replace them. Other connections stay in place. You can undo this change." }
+                    p { "{review.pin_count} pin connections already belong to {existing_connection_names}. Switching them to automatic wiring removes these assignments so the board plan can replace them. Other connections stay in place. You can undo this change." }
                     button {
                         type: "button",
                         disabled: !mode_actions.editable || review_connections_identity.is_none(),
