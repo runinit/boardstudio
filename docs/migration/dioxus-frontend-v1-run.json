@@ -1271,7 +1271,7 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T10:15:15.200678+00:00",
+    "updated_at": "2026-10-03T10:28:03.173871+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
       "accepted": 2,
@@ -1297,8 +1297,8 @@
       "package_qualification": "Strict page WASM all-target Clippy PASS6.85s; package/root+subpath200 COEP PASS. Same-context Outline Undo and Case Enter/blur GREEN. PCB component search\u2192Layout preview/cancel/commit GREEN; placement hint missing and staged next. No full parent closure."
     },
     "integration": {
-      "source_commit": "12efc8e07e1d6f04248c8d299cb1d465e4ae481a",
-      "state": "34761 served. Next coherent batch integrates empty-board canvas entry, shared2D footer, Parts8assemblypresets/2D3Drecipe and placement instructions. Parts mechanical compiler corrections active; one check slot, no extra tests.",
+      "source_commit": "d5f9cff4935bc7727cc67143c6bdc2791e6f209d",
+      "state": "Combined Parts normalized assembly recipes, shared footer, empty-board entry, component hint, Board outline Add entry and project shell integrated. Strict page WASM all-target check PASS17.54s after two mechanical integration corrections. Source frozen for next package;34761 remains alive.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1538,7 +1538,7 @@
           "slice": "PCB Add object component placement",
           "original_source": "0ce1873a",
           "integrated_source": "6d1aaa66",
-          "state": "34761 changed route/cancel/commit GREEN; hint and Browse delta pending; broader menu criteria retained."
+          "state": "34761 route/cancel/commit/focus/Browse GREEN; reference placement hint joined6abde653 for34762; broader menu criteria retained."
         },
         {
           "slice": "Outline scalar draft Undo reconciliation",
@@ -1564,17 +1564,31 @@
             "5bd5c916",
             "79af180f",
             "3e70173c",
-            "0c62cb72"
+            "0c62cb72",
+            "6bf5510d"
           ],
-          "state": "Integrated source; Parts mechanical compiler corrections active; next public candidate pending."
+          "state": "Combined strict WASM check PASS; source frozen for34762, changed public receipt pending."
+        },
+        {
+          "slice": "Layout Board outline Add entry",
+          "original_source": "de177b75",
+          "integrated_source": "764fc237+de67bc5b+dbc58eb0",
+          "state": "Combined compile PASS; changed PCB\u2192Layout Outline route pending34762."
+        },
+        {
+          "slice": "Project/status/workspace header and Appearance menu",
+          "original_source": "2d2306f7",
+          "integrated_source": "a41a3634+d5f9cff4",
+          "state": "Combined compile PASS; changed shell/menu journey pending34762."
         }
       ],
       "checks": {
         "strict_wasm_clippy": {
-          "command": "cargo clippy --locked --manifest-path web/Cargo.toml --target wasm32-unknown-unknown --all-targets -- -D warnings",
-          "source_commit": "3685daff",
-          "result": "pass,19.78seconds; later2selected-optionflags willcompileinpackage",
-          "failures_repaired": "DioxusSVGaria attribute, boxedprivatecamera action, test-onlyroutewrapper, needlessborrow"
+          "command": "CARGO_TARGET_DIR=<assigned cached target> cargo clippy --manifest-path web/Cargo.toml --locked --target wasm32-unknown-unknown --no-default-features --features page --all-targets -- -D warnings",
+          "source_commit": "d5f9cff4935bc7727cc67143c6bdc2791e6f209d",
+          "result": "PASS17.54s; no tests executed or added",
+          "log": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/frontend-footer-empty-assemblies-shell-combined-clippy-final.log",
+          "corrections": "Retained scope for Parts/Board outline menu; used existing Element DOM features for status disclosure Escape."
         },
         "author_evidence": "Reuse focused passing packet checks; no additional broad suites.",
         "outline_coordinate_regression": {
@@ -1871,16 +1885,16 @@
     ],
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "heavy_slots": {
-      "root_target": "No package active;34761 alive. Next combined batch source integration in progress.",
-      "secondary_target": "Parts author assigned sole cached strict page WASM all-target check for mechanical compiler repairs; root no competing heavy command.",
+      "root_target": "One page/provider-reuse package scheduled; source freeze held.34761 stays alive.",
+      "secondary_target": "No agent compiler assigned; cached target free after combined check.",
       "dispatch": "Max2heavy jobs/1package; ordinaryUI no newtests; only changed pairedjourneys."
     },
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "next_work": [
-      "Finish current combined Parts/footer/emptycanvas source and serve one candidate.",
-      "Qualify only changed footer/emptyentry/preset2D3D/hint journeys; reuse unchanged history and source evidence.",
-      "Finish Layout Boardoutline menu and realGeometryscripts editor; preserve remaining criteria.",
-      "Keep sixqueues with one waitingpacket; consolidatedSol report after candidate, preserveRFledger."
+      "Serve combined footer/emptyboard/normalizedParts/Boardoutline/hint/projectshell candidate34762.",
+      "Run only changed paired journeys; reuse unchanged history/source/delivery evidence; one consolidatedSol review.",
+      "Qualify current coordinator packet, then implement source-pinned Layout board Inspector child15.",
+      "Continue isolated Export and Geometry scripts work; repair observed Case duplicate configured-board action; retain all parents/RF."
     ],
     "execution_policy": "Ordinary reversible UI gets no new tests. Run one required affected compile/check per integrated batch, inspect only changed paired browser journeys, and use one consolidated candidate review. Reuse unchanged history/reopen evidence. Real reproduced bugs retain one focused regression. Parent criteria, blocker history and RF ledger remain explicit.",
     "served_candidate_history": [
