@@ -2,8 +2,8 @@
 use super::matrix_inspector::{
     MatrixDeleteRequest, MatrixDuplicateRequest, MatrixEditFeedback, MatrixEditField,
     MatrixEditRequest, MatrixEditState, MatrixEditValue, MatrixInspectorOwner,
-    MatrixInspectorProjection, MatrixNameTarget, MatrixPreset, MatrixPresetRequest,
-    SwitchOrientation,
+    MatrixInspectorProjection, MatrixLayoutRelation, MatrixNameTarget, MatrixPreset,
+    MatrixPresetRequest, MatrixUnlinkRequest, SwitchOrientation,
 };
 use super::{ScopedTreeContext, TreeContext};
 use crate::{operation_outcomes::OutcomeSlot, runtime::Runtime};
@@ -83,6 +83,7 @@ pub(in crate::presentation) struct MatrixInspectorMount {
     pub on_add_column: EventHandler<()>,
     pub on_apply_preset: EventHandler<MatrixPresetRequest>,
     pub on_delete: EventHandler<MatrixDeleteRequest>,
+    pub on_unlink: EventHandler<MatrixUnlinkRequest>,
     pub on_duplicate: EventHandler<MatrixDuplicateRequest>,
 }
 
@@ -853,6 +854,87 @@ pub(in crate::presentation) fn use_matrix_inspector(
         }
     });
 
+    let on_unlink = use_callback({
+        let runtime = runtime.clone();
+        let context_generation = context_generation.clone();
+        move |request: MatrixUnlinkRequest| {
+            if request.owner.editor_instance_id != editor_instance_id
+                || request.owner.context_generation != context_generation.borrow().value
+                || request.owner.scope_generation != scope_generation()
+                || workspace() != "Layout"
+                || pending.read().is_some()
+                || pending_preset.read().is_some()
+                || pending_delete.read().is_some()
+                || preparing_preset()
+                || duplicating()
+            {
+                return;
+            }
+            let selected = selected_context.read().clone();
+            let model = runtime.model();
+            let scope = runtime.scope();
+            let Some((projection, editable)) = project_current_for(
+                &runtime,
+                &model,
+                scope.as_ref(),
+                selected.as_ref(),
+                MatrixProjectionContext {
+                    editor_instance_id,
+                    context_generation: context_generation.borrow().value,
+                    scope_generation: scope_generation(),
+                    workspace: workspace(),
+                },
+            ) else {
+                return;
+            };
+            let Some(snapshot) = model.accepted.as_ref() else {
+                return;
+            };
+            if projection.owner != request.owner
+                || !editable
+                || snapshot.token != request.snapshot_token
+                || snapshot.document.revision != request.revision
+                || projection
+                    .layout_relation
+                    .as_ref()
+                    .and_then(|relation| relation.unlink_layout_id.as_deref())
+                    != Some(request.layout_id.as_str())
+            {
+                runtime.report(
+                    "The selected layout relationship changed. Reopen the inspector before unlinking the halves.",
+                );
+                return;
+            }
+            let Some(mut layout) = snapshot
+                .document
+                .layouts
+                .iter()
+                .find(|layout| {
+                    layout.id == request.layout_id
+                        && layout.board_id == request.owner.scope.board_id
+                })
+                .cloned()
+            else {
+                return;
+            };
+            if layout.mirror_link.is_none() {
+                return;
+            }
+            layout.mirror_link = None;
+            let operation_id = runtime.operation();
+            runtime.submit(Event::Edit {
+                operation_id,
+                command: EditCommand {
+                    base_revision: snapshot.document.revision,
+                    transaction_id: format!("matrix-inspector-unlink-{}", operation_id.0),
+                    phase: EditPhase::Commit,
+                    target_ids: vec![layout.id.clone()],
+                    operation: EditOperation::SetLayout { layout },
+                },
+            });
+        }
+    });
+
     MatrixInspectorMount {
         projection,
         request_sequence,
@@ -868,6 +950,7 @@ pub(in crate::presentation) fn use_matrix_inspector(
         on_add_column,
         on_apply_preset,
         on_delete,
+        on_unlink,
         on_duplicate,
     }
 }
@@ -1176,6 +1259,36 @@ fn project_current_for(
         .find(|cell| cell.definition_id.as_deref() == Some(matrix.definition_id.as_str()))
         .and_then(|cell| cell.variant.clone());
     let (preset, orientation) = parse_preset_variant(baseline_variant.as_deref());
+    let unlink_layout = layout.and_then(|active_layout| {
+        if active_layout.mirror_link.is_some() {
+            Some(active_layout)
+        } else {
+            snapshot.document.layouts.iter().find(|candidate| {
+                candidate.board_id == scope.board_id
+                    && candidate
+                        .mirror_link
+                        .as_ref()
+                        .is_some_and(|link| link.source_id == active_layout.id)
+            })
+        }
+    });
+    let partner_layout = unlink_layout.and_then(|linked_layout| {
+        if layout.is_some_and(|active_layout| active_layout.id == linked_layout.id) {
+            linked_layout.mirror_link.as_ref().and_then(|link| {
+                snapshot.document.layouts.iter().find(|candidate| {
+                    candidate.board_id == scope.board_id && candidate.id == link.source_id
+                })
+            })
+        } else {
+            Some(linked_layout)
+        }
+    });
+    let layout_relation = layout.map(|_| MatrixLayoutRelation {
+        partner_name: partner_layout.map(|partner| partner.name.clone()),
+        unlink_layout_id: unlink_layout
+            .filter(|linked_layout| linked_layout.mirror_link.is_some())
+            .map(|linked_layout| linked_layout.id.clone()),
+    });
     Some((
         MatrixInspectorProjection {
             owner: MatrixInspectorOwner {
@@ -1205,6 +1318,7 @@ fn project_current_for(
             preset,
             orientation,
             baseline_variant,
+            layout_relation,
         },
         editable,
     ))

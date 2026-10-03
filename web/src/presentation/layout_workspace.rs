@@ -180,6 +180,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                 on_edit: input.matrix_inspector.on_edit,
                 on_apply_preset: input.matrix_inspector.on_apply_preset,
                 on_delete: input.matrix_inspector.on_delete,
+                on_unlink: input.matrix_inspector.on_unlink,
                 on_duplicate: input.matrix_inspector.on_duplicate,
             }
         }

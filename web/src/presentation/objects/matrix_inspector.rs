@@ -157,6 +157,13 @@ pub(in crate::presentation) struct MatrixInspectorProjection {
     pub preset: Option<MatrixPreset>,
     pub orientation: Option<SwitchOrientation>,
     pub baseline_variant: Option<String>,
+    pub layout_relation: Option<MatrixLayoutRelation>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::presentation) struct MatrixLayoutRelation {
+    pub partner_name: Option<String>,
+    pub unlink_layout_id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -186,6 +193,14 @@ pub(in crate::presentation) struct MatrixDeleteRequest {
     pub owner: MatrixInspectorOwner,
     pub snapshot_token: SnapshotToken,
     pub revision: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::presentation) struct MatrixUnlinkRequest {
+    pub owner: MatrixInspectorOwner,
+    pub snapshot_token: SnapshotToken,
+    pub revision: u64,
+    pub layout_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -223,6 +238,7 @@ pub(in crate::presentation) struct MatrixInspectorProps {
     pub on_edit: EventHandler<MatrixEditRequest>,
     pub on_apply_preset: EventHandler<MatrixPresetRequest>,
     pub on_delete: EventHandler<MatrixDeleteRequest>,
+    pub on_unlink: EventHandler<MatrixUnlinkRequest>,
     pub on_duplicate: EventHandler<MatrixDuplicateRequest>,
 }
 
@@ -291,6 +307,16 @@ pub(in crate::presentation) fn MatrixInspector(props: MatrixInspectorProps) -> E
         preset: preset_draft(),
         orientation: orientation_draft(),
     };
+    let unlink_request = projection
+        .layout_relation
+        .as_ref()
+        .and_then(|relation| relation.unlink_layout_id.as_ref())
+        .map(|layout_id| MatrixUnlinkRequest {
+            owner: projection.owner.clone(),
+            snapshot_token: projection.snapshot_token,
+            revision: projection.revision,
+            layout_id: layout_id.clone(),
+        });
     let preset_feedback = props.feedback.iter().find(|feedback| {
         feedback.owner == projection.owner
             && feedback.field == MatrixEditField::ApplyPreset
@@ -378,6 +404,29 @@ pub(in crate::presentation) fn MatrixInspector(props: MatrixInspectorProps) -> E
                     feedback: pitch_y_feedback, on_edit: props.on_edit,
                 }
                 }}
+            }
+            if let Some(relation) = projection.layout_relation.as_ref() {
+                div { class: "m1-layout-link",
+                    strong {
+                        if let Some(partner_name) = relation.partner_name.as_ref() {
+                            "Linked to {partner_name}"
+                        } else {
+                            "Independent layout"
+                        }
+                    }
+                    if relation.partner_name.is_some() {
+                        p { "Key assemblies, diodes and components mirror across both halves. Replace a component on one half to keep it local." }
+                    } else {
+                        p { "Geometry and components can be edited independently." }
+                    }
+                    if let Some(request) = unlink_request.clone() {
+                        button {
+                            disabled: !props.editable || props.busy,
+                            onclick: move |_| props.on_unlink.call(request.clone()),
+                            "Unlink halves"
+                        }
+                    }
+                }
             }
             details { class: "m1-matrix-inspector-section",
                 summary { span { "Key assembly" } small { "{definition_label}" } }
