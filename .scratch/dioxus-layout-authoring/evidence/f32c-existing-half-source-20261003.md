@@ -1,0 +1,9 @@
+# F3.2c existing-half Layout action source receipt
+
+This source packet mounts the existing “Mirror existing half…” action from the Layout Add Object menu. It retains the current React contract in `app/src/ui/Workbench.tsx` and `app/src/ui/ExistingHalfSetup.tsx`: choose all eligible unpaired layouts or one source, enter a finite X axis, cancel, or create one linked copy operation. The default axis follows `selectionOutline` over active-board parts, uses accepted scene poses when present, and formats the initial input to two decimal places.
+
+The private owner in `web/src/presentation/objects/existing_half.rs` admits only the current saved Layout scope with no preview or active gesture. It builds a cloned document, preserves each original matrix, allocates a source layout when an eligible matrix has none, adds copied matrix/layout identities, and submits one `ReplaceDocument` commit targeting the selected source matrices. Core’s existing `layout::resolve` remains responsible for reflected matrix and assembly geometry. The form stays open with an error on a rejected operation and closes after the accepted saved result is observed. Cancel remains available for stale owners and is disabled only while the operation is pending.
+
+Source parity checks included the React eligibility and copy rules in `app/src/ui/existingHalf.ts` and the canonical reflection path in `core/src/matrix/layout.rs`. No Core/API/schema or mirror-algorithm change was needed. No new refactoring takeaway observed; preserve existing Runtime/Core/history ownership and existing RF findings.
+
+Formatting and `git diff --check` were run on the changed Rust source. No Cargo check, browser run, or acceptance claim is included in this isolated author packet; the integrated candidate owns mounted behavior and history/reopen qualification. F3.2 and F3.2b criteria remain open until that evidence is recorded.

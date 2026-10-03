@@ -1,9 +1,11 @@
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, ReadModel, Scope, SelectionMode};
 use dioxus::prelude::*;
+use existing_half::use_existing_half;
 use std::{collections::BTreeSet, rc::Rc};
 
 mod board_setup_controller;
+mod existing_half;
 mod keycap_resize;
 mod keycap_size;
 mod keycap_size_controller;
@@ -23,6 +25,7 @@ mod mirrored_pair;
 mod mirrored_pair_controller;
 mod tree;
 pub(in crate::presentation) use board_setup_controller::{BoardSetupMount, use_board_setup};
+pub(in crate::presentation) use existing_half::{ExistingHalfMount, ExistingHalfSetup};
 pub(in crate::presentation) use keycap_size::KeySizeControls;
 pub(in crate::presentation) use keycap_size_controller::{KeySizeMount, use_key_size};
 pub(in crate::presentation) use layout_align::{
@@ -193,8 +196,11 @@ pub(super) fn Objects(
     let workspace = use_context::<super::WorkspaceState>().0;
     let case_workspace = workspace() == "Case";
     let pcb_workspace = workspace() == "PCB";
-    let generation = (use_context::<super::SelectionAdapter>().generation)();
-    let _ = use_context::<Signal<u64>>()();
+    let scope_generation = use_context::<super::SelectionAdapter>().generation;
+    let generation = scope_generation();
+    let version = use_context::<Signal<u64>>();
+    let _ = version();
+    let existing_half = use_existing_half(runtime.clone(), version, workspace, scope_generation);
     let local_pair_created = use_signal(|| None::<MirroredPairCreated>);
     let mut pair_created = pair_created.unwrap_or(local_pair_created);
     let model = runtime.model();
@@ -334,6 +340,7 @@ pub(super) fn Objects(
                     matrix_setup,
                     mirrored_pair,
                     matrix_inspector,
+                    existing_half,
                     snapshot: snapshot.clone(),
                     scope: active_scope.clone(),
                     selected_matrix_action: selected_matrix_action.clone(),
@@ -526,6 +533,7 @@ fn AddObjectEntry(
     matrix_setup: Option<MatrixSetupMount>,
     mirrored_pair: Option<MirroredPairMount>,
     matrix_inspector: Option<MatrixInspectorMount>,
+    existing_half: ExistingHalfMount,
     snapshot: AcceptedSnapshot,
     scope: Option<Scope>,
     selected_matrix_action: Option<(Scope, String, String)>,
@@ -541,6 +549,7 @@ fn AddObjectEntry(
     let matrix_open = matrix_setup
         .as_ref()
         .map(|mount| (mount.can_open, mount.on_open));
+    let existing_half_open = (existing_half.can_open, existing_half.on_open);
     let matrix_actions = matrix_inspector
         .as_ref()
         .and_then(|mount| {
@@ -591,9 +600,20 @@ fn AddObjectEntry(
                             strong { class: "m1-add-to-board-heading", "Add to {board.name}" }
                         }
                     }
-                    if mirrored_open.is_some() || matrix_open.is_some() {
                     section { "aria-label": "Layouts",
                         h3 { "Layouts" }
+                        if existing_half.visible {
+                            button {
+                                r#type: "button",
+                                disabled: !existing_half_open.0,
+                                onclick: move |_| {
+                                    menu_open.set(false);
+                                    existing_half_open.1.call(());
+                                },
+                                "Mirror existing half…"
+                                small { "Create a linked half from an existing layout" }
+                            }
+                        }
                         if let Some((can_open, on_open)) = mirrored_open {
                             button {
                                 r#type: "button",
@@ -618,7 +638,6 @@ fn AddObjectEntry(
                                 small { "Rows, columns & key assemblies" }
                             }
                         }
-                    }
                     }
                     if let Some((matrix_label, on_add_row, on_add_column, selection)) = matrix_actions {
                         {
@@ -720,6 +739,13 @@ fn AddObjectEntry(
                 on_create: mount.on_create,
             }
           }
+        }
+        if let Some(projection) = existing_half.projection.clone() {
+            ExistingHalfSetup {
+                projection,
+                on_cancel: existing_half.on_cancel,
+                on_create: existing_half.on_create,
+            }
         }
     }
 }
