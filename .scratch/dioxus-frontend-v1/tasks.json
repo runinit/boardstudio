@@ -1687,7 +1687,7 @@
       "acceptance_after": [
         "F3.1"
       ],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
@@ -1710,14 +1710,34 @@
           "from": "planned",
           "to": "implementing",
           "reason": "Reconciled already-mounted implementation and retained evidence; no acceptance gate waived."
+        },
+        {
+          "at": "2026-10-03T13:54:52.103726+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Accepted by coordinator from sufficient retained and changed evidence and consolidated Sol6.1High assessment; canonical criteria and joins retained.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/keycaps-f6c1-acceptance-20261003/DECISION.json"
         }
       ],
       "progress_evidence": {
-        "updated_at": "2026-10-03T08:59:38.988296+00:00",
-        "checkpoint": "Served d7742d46/34757; next batch source38757073+84fbf801+ead8fe7c+0c17fd37",
-        "scope": "Physical2D Keycaps canvas, selected-key projection and contextual controls mounted; empty guidance34751 and current34757 selected24-cap fixture receipts retained.",
-        "remaining": "Remaining standalone/mixed projections, complete keyboard/range cases and acceptance joins remain.",
-        "acceptance": "Existing acceptance/dependencies unchanged. Boundary_status is the historical planning statement; this progress entry describes current implementation."
+        "updated_at": "2026-10-03T13:54:52.103726+00:00",
+        "checkpoint": "Qualified34770 physical Keycaps canvas",
+        "scope": "Unchanged canonical physical-canvas/projection/selection clause. Board/supported-key/matrix filtering, stable IDs, effective size/color, blank/inherited legend and read-only/default-free projection from exact candidate source; existing mixed/standalone/default tests, empty guidance and accepted settings/history; same-fixture trusted SW1 click and SW2 Enter selection GREEN34770. F3.1 acceptance join met. No every-key/board/AT matrix claimed; broader visual/Inspector, F6C.3/.5 and full Keycaps remain open.",
+        "remaining": "None for unchanged F6C.1 clause; broader visual and other Keycaps parents remain open.",
+        "acceptance": "Canonical criteria/dependencies unchanged."
+      },
+      "completion_evidence": {
+        "parent": "F6C.1",
+        "at": "2026-10-03T13:54:52.103726+00:00",
+        "candidate_source": "47623521afaf96fb54690e2eaf873c1f0e7d2db5",
+        "candidate_url": "http://127.0.0.1:34770/boardstudio/",
+        "review": ".scratch/dioxus-frontend-v1/evidence/keycaps-f6c1-acceptance-20261003/REVIEW.md",
+        "review_sha256": "12e56f75a1470933f65600fb3c0daf03d2376896c949a6dc0cd2f0804033dc54",
+        "audit": ".scratch/dioxus-frontend-v1/evidence/keycaps-f6c1-acceptance-20261003/AUDIT.json",
+        "audit_sha256": "577ce8892cc1751c80a20ae429e1a30d70e58eb7bdd19341fae8f59a64dcf165",
+        "criteria_accounting": ".scratch/dioxus-frontend-v1/evidence/keycaps-2d-selection-20261003/f6c1-criteria-reconciliation.md",
+        "scope": "Unchanged canonical physical-canvas/projection/selection clause. Board/supported-key/matrix filtering, stable IDs, effective size/color, blank/inherited legend and read-only/default-free projection from exact candidate source; existing mixed/standalone/default tests, empty guidance and accepted settings/history; same-fixture trusted SW1 click and SW2 Enter selection GREEN34770. F3.1 acceptance join met. No every-key/board/AT matrix claimed; broader visual/Inspector, F6C.3/.5 and full Keycaps remain open.",
+        "decision": "Accepted by coordinator from sufficient retained and changed evidence and consolidated Sol6.1High assessment; canonical criteria and joins retained."
       }
     },
     {
@@ -3111,9 +3131,9 @@
     "integration_slices": 2,
     "boundary_slices": 2,
     "status": {
-      "accepted": 8,
+      "accepted": 9,
       "planned": 23,
-      "implementing": 31
+      "implementing": 30
     }
   },
   "agent_policy": ".scratch/dioxus-frontend-v1/agent-policy.json",

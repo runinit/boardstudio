@@ -185,3 +185,8 @@ The current F6C.1 source/evidence reconciliation and paired canvas pointer-plus-
 ### BND.1 current package continuation — candidate 34769
 
 The current worker sends the existing Rust WASM keycap builder groups of eight with an event-loop yield and per-batch revision check. Candidate 34769 on the retained c6 fixture qualified one visible product lifecycle path: begin a real pending keycap preview, switch to 2D, observe no late 3D result, then retry 3D successfully with no browser errors. Runtime currently terminates its feature-owned worker immediately on unmount/supersession, so the worker's explicit cancellation message branch is unreachable from this Keycaps route. Preserve that observed immediate-disposal policy; a second Runtime cancellation/settlement owner is deferred absent a measured user benefit. This route does not claim mid-batch or STEP kernel preemption and does not close BND.1, F6C.5, or their existing joins.
+
+
+### Current F6C.1 acceptance — 2026-10-03
+
+F6C.1 is accepted from its unchanged canonical canvas/projection/selection criteria. Its F3.1 acceptance join is met. [Immutable decision](../evidence/keycaps-f6c1-acceptance-20261003/DECISION.json) combines exact candidate source, existing mixed/standalone/default projection tests and the changed trusted pointer/Enter journey on34770. Earlier open-status entries remain historical; broader visual, F6C.3/.5 and full Keycaps criteria remain open. No additional every-key browser matrix was required.

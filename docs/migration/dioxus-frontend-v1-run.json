@@ -1273,34 +1273,34 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T13:49:57.514700+00:00",
+    "updated_at": "2026-10-03T13:54:52.103726+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
-      "accepted": 8,
+      "accepted": 9,
       "planned": 23,
-      "implementing": 31,
+      "implementing": 30,
       "total": 62
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-compact-authored-mounts-20261003",
-      "source_commit": "47623521afaf96fb54690e2eaf873c1f0e7d2db5",
-      "root_url": "http://127.0.0.1:34770/",
-      "subpath_url": "http://127.0.0.1:34770/boardstudio/",
-      "provenance": "web/target/builds/frontend-compact-authored-mounts-20261003/provenance.json",
-      "provenance_sha256": "a4677af663c0e8286ae5e923bf1884b0230bcc6dc852a3030cc35a68d453365c",
+      "build_id": "frontend-compact-transform-repair-20261003",
+      "source_commit": "7938a895a6d2a9c3b8c09dda25ce70cd45f7d328",
+      "root_url": "http://127.0.0.1:34771/",
+      "subpath_url": "http://127.0.0.1:34771/boardstudio/",
+      "provenance": "web/target/builds/frontend-compact-transform-repair-20261003/provenance.json",
+      "provenance_sha256": "717968702d722ed257f4bf5096360b7f8776eaf70ee3f056223f1fd7d0ece48f",
       "fresh_commands": 8,
       "inherited_commands": 22,
       "source_inputs": 1373,
       "source_mismatches": 0,
       "assets_per_route": 154,
-      "command_span_seconds": 116.920869,
-      "package_qualification": "Verified unchanged full34769 providers, fresh page/offline routes, zero source/asset drift; changed compact/transform/Keycaps/Export journeys observed. Desktop scrim and compact Export selector regressions found and repaired for34771; no full parity claim.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34770-20261003/package-proof.json"
+      "command_span_seconds": 116.500545,
+      "package_qualification": "Full34769 providers retained; fresh page/offline routes verified. Desktop1280 scrim absent after import; changed transform geometry/Arrow/global Escape and compact Export selector legs in progress.",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34771-20261003/package-proof.json"
     },
     "integration": {
       "source_commit": "49fce611 plus docs-only Keycaps reconciliation",
-      "state": "34770 source/asset verified. Changed three trusted transform gestures match TypeScript accepted values and single Undo; desktop scrim requires actual Close panels workaround, and global Escape/handle geometry need fixes. Corrected next34771: compact scrim gating, dynamic Export option selection, Stagger/Splay selected-part handle geometry, global Escape, Arrow edits and focus. One combined strict page PASS10.467s; provider reuse package now starts. Six queues continue; F3.1 accepted, F6C.1 reconciliation now ready for the same consolidated review.",
+      "state": "34771 source/asset verified and served; bounded desktop scrim absence observed. F6C.1 accepted, nine parents complete. Changed transform geometry/Arrow/Escape and compact Export selector legs ongoing; six queues continue.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -2024,14 +2024,7 @@
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "heavy_slots": {
       "policy": "Coordinator assigned; maximum2 heavy jobs/1package",
-      "active": [
-        {
-          "owner": "root",
-          "job": "34771 guarded page/provider-reuse package",
-          "build_id": "frontend-compact-transform-repair-20261003",
-          "state": "starting after combined strict check"
-        }
-      ],
+      "active": [],
       "check": {
         "source_commit": "49fce6114deba042c2d02eea305d252ec8e44a66",
         "result": "PASS",
@@ -2040,7 +2033,7 @@
         "new_ui_tests": 0,
         "unchanged_worker": "34769 deployed library strict check reused"
       },
-      "next": "Changed paired browser journeys; next compact shell/authored mounts page batch uses verified34769 full providers.",
+      "next": "Changed34771 public legs; one next combined packet for Add object default, VIK demo and maintained fixture-only refresh.",
       "completed_focused_regression": {
         "owner": "keycaps_geometry_repair",
         "source": "be4ec412 / integrated31a7f3d0",
@@ -2371,6 +2364,24 @@
         "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/package-proof.json",
         "superseded_at": "2026-10-03T13:49:57.514700+00:00",
         "reason": "34770 source/asset proof passed; retain earlier qualified journeys."
+      },
+      {
+        "build_id": "frontend-compact-authored-mounts-20261003",
+        "source_commit": "47623521afaf96fb54690e2eaf873c1f0e7d2db5",
+        "root_url": "http://127.0.0.1:34770/",
+        "subpath_url": "http://127.0.0.1:34770/boardstudio/",
+        "provenance": "web/target/builds/frontend-compact-authored-mounts-20261003/provenance.json",
+        "provenance_sha256": "a4677af663c0e8286ae5e923bf1884b0230bcc6dc852a3030cc35a68d453365c",
+        "fresh_commands": 8,
+        "inherited_commands": 22,
+        "source_inputs": 1373,
+        "source_mismatches": 0,
+        "assets_per_route": 154,
+        "command_span_seconds": 116.920869,
+        "package_qualification": "Verified unchanged full34769 providers, fresh page/offline routes, zero source/asset drift; changed compact/transform/Keycaps/Export journeys observed. Desktop scrim and compact Export selector regressions found and repaired for34771; no full parity claim.",
+        "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34770-20261003/package-proof.json",
+        "superseded_at": "2026-10-03T13:54:52.103726+00:00",
+        "reason": "34771 verified source and both served routes; retain prior bounded receipts."
       }
     ],
     "consolidated_reviews": [
@@ -2617,6 +2628,19 @@
         "criteria_accounting": ".scratch/dioxus-layout-authoring/evidence/f31-canonical-criteria-reconciliation-20261003.md",
         "scope": "All four unchanged canonical tree/selection/scope/keyboard clauses. Retained T1-10 hierarchy/disclosure/tree-canvas/Ctrl-Cmd/membership/keyboard, outline/version/bridge and scoped cancellation authority; changed34768desktop/compact Objects/focus; changed34769primary rectangle/clicked anchor plus focused native disabled/companion regression. BrowserCLI heldShift not forwarded, both paired handlers use documented syntheticmodifierfallback. No exhaustiveeverymodifier/race claim. F3.6Transform no-op is separate, fixedsourceaa33bc80 awaiting34770GREEN; fullLayout/otherparents/cutover remain open.",
         "decision": "Accepted by coordinator from sufficient retained and changed public evidence and consolidated Sol6.1High assessment; canonicalcriteria/dependencies/history retained."
+      },
+      {
+        "parent": "F6C.1",
+        "at": "2026-10-03T13:54:52.103726+00:00",
+        "candidate_source": "47623521afaf96fb54690e2eaf873c1f0e7d2db5",
+        "candidate_url": "http://127.0.0.1:34770/boardstudio/",
+        "review": ".scratch/dioxus-frontend-v1/evidence/keycaps-f6c1-acceptance-20261003/REVIEW.md",
+        "review_sha256": "12e56f75a1470933f65600fb3c0daf03d2376896c949a6dc0cd2f0804033dc54",
+        "audit": ".scratch/dioxus-frontend-v1/evidence/keycaps-f6c1-acceptance-20261003/AUDIT.json",
+        "audit_sha256": "577ce8892cc1751c80a20ae429e1a30d70e58eb7bdd19341fae8f59a64dcf165",
+        "criteria_accounting": ".scratch/dioxus-frontend-v1/evidence/keycaps-2d-selection-20261003/f6c1-criteria-reconciliation.md",
+        "scope": "Unchanged canonical physical-canvas/projection/selection clause. Board/supported-key/matrix filtering, stable IDs, effective size/color, blank/inherited legend and read-only/default-free projection from exact candidate source; existing mixed/standalone/default tests, empty guidance and accepted settings/history; same-fixture trusted SW1 click and SW2 Enter selection GREEN34770. F3.1 acceptance join met. No every-key/board/AT matrix claimed; broader visual/Inspector, F6C.3/.5 and full Keycaps remain open.",
+        "decision": "Accepted by coordinator from sufficient retained and changed evidence and consolidated Sol6.1High assessment; canonical criteria and joins retained."
       }
     ],
     "active_streams": [

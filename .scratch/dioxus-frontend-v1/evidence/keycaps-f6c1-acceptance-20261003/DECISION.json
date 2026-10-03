@@ -1,0 +1,13 @@
+{
+  "parent": "F6C.1",
+  "at": "2026-10-03T13:54:52.103726+00:00",
+  "candidate_source": "47623521afaf96fb54690e2eaf873c1f0e7d2db5",
+  "candidate_url": "http://127.0.0.1:34770/boardstudio/",
+  "review": ".scratch/dioxus-frontend-v1/evidence/keycaps-f6c1-acceptance-20261003/REVIEW.md",
+  "review_sha256": "12e56f75a1470933f65600fb3c0daf03d2376896c949a6dc0cd2f0804033dc54",
+  "audit": ".scratch/dioxus-frontend-v1/evidence/keycaps-f6c1-acceptance-20261003/AUDIT.json",
+  "audit_sha256": "577ce8892cc1751c80a20ae429e1a30d70e58eb7bdd19341fae8f59a64dcf165",
+  "criteria_accounting": ".scratch/dioxus-frontend-v1/evidence/keycaps-2d-selection-20261003/f6c1-criteria-reconciliation.md",
+  "scope": "Unchanged canonical physical-canvas/projection/selection clause. Board/supported-key/matrix filtering, stable IDs, effective size/color, blank/inherited legend and read-only/default-free projection from exact candidate source; existing mixed/standalone/default tests, empty guidance and accepted settings/history; same-fixture trusted SW1 click and SW2 Enter selection GREEN34770. F3.1 acceptance join met. No every-key/board/AT matrix claimed; broader visual/Inspector, F6C.3/.5 and full Keycaps remain open.",
+  "decision": "Accepted by coordinator from sufficient retained and changed evidence and consolidated Sol6.1High assessment; canonical criteria and joins retained."
+}

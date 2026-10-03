@@ -1472,3 +1472,6 @@ The coordinator accepts F6C.4 from sufficient retained paired fit/finding naviga
 
 
 Current frontend parent accounting: F3.1 accepted from unchanged canonical criteria and sufficient retained/changed public evidence; **8 accepted / 31 implementing / 23 planned / 62 total**. The authority remains `dioxus-frontend-v1-run.json:current_progress`; F3.6 transform repair and full Layout remain open. Immutable decision: `.scratch/dioxus-frontend-v1/evidence/layout-f31-acceptance-20261003/DECISION.json`.
+
+
+F6C.1 accepted from sufficient unchanged canonical criteria and its accepted F3.1 join: **9 accepted / 30 implementing / 23 planned / 62 total**. Current served candidate34771 is source/asset verified. The authoritative progress record and immutable acceptance decisions retain all remaining joins and refactoring findings.
