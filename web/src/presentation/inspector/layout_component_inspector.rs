@@ -1,4 +1,5 @@
 //! Contextual Properties and Relations for one accepted standalone Layout part.
+use crate::presentation::layout_workspace::LayoutInspectorTab;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{Constraint, MirrorAxis, PartOutline, Vec2};
 use dioxus::prelude::*;
@@ -120,7 +121,7 @@ pub enum LayoutComponentInspectorAction {
 #[derive(Props, Clone, PartialEq)]
 pub struct LayoutComponentInspectorProps {
     pub projection: LayoutComponentInspectorProjection,
-    pub inspector_tab: Signal<super::layout_workspace::LayoutInspectorTab>,
+    pub inspector_tab: Signal<LayoutInspectorTab>,
     pub on_action: EventHandler<LayoutComponentInspectorAction>,
 }
 
@@ -472,10 +473,10 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                 if projection.locked { span { class: "m1-inspector-lock", "Locked" } }
             }
             div { role: "tablist", aria_label: "Inspector details", class: "m1-layout-component-tabs",
-                button { r#type: "button", role: "tab", aria_selected: "{tab() == super::layout_workspace::LayoutInspectorTab::Properties}", onclick: { let mut reset = reset_properties_drafts; move |_| { if *tab.peek() != super::layout_workspace::LayoutInspectorTab::Properties { reset(); } tab.set(super::layout_workspace::LayoutInspectorTab::Properties); } }, "Properties" }
-                button { r#type: "button", role: "tab", aria_selected: "{tab() == super::layout_workspace::LayoutInspectorTab::Relations}", onclick: move |_| tab.set(super::layout_workspace::LayoutInspectorTab::Relations), "Relations" }
+                button { r#type: "button", role: "tab", aria_selected: "{tab() == LayoutInspectorTab::Properties}", onclick: { let mut reset = reset_properties_drafts; move |_| { if *tab.peek() != LayoutInspectorTab::Properties { reset(); } tab.set(LayoutInspectorTab::Properties); } }, "Properties" }
+                button { r#type: "button", role: "tab", aria_selected: "{tab() == LayoutInspectorTab::Relations}", onclick: move |_| tab.set(LayoutInspectorTab::Relations), "Relations" }
             }
-            if tab() == super::layout_workspace::LayoutInspectorTab::Properties {
+            if tab() == LayoutInspectorTab::Properties {
                 p { class: "m1-layout-component-definition", "{projection.definition_name}", span { "{projection.definition_kind}" } }
                 if let Some(notice) = projection.envelope_notice.as_ref() { p { class: "m1-layout-component-notice", "{notice}" } }
                 if !projection.layouts.is_empty() {
@@ -643,7 +644,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
             } else {
                 h2 { "Relationships" }
                 p { class: "m1-layout-component-relation-summary", "{projection.relationship_summary}" }
-                button { r#type: "button", onclick: move |_| tab.set(super::layout_workspace::LayoutInspectorTab::Properties), "Edit placement relationship" }
+                button { r#type: "button", onclick: move |_| tab.set(LayoutInspectorTab::Properties), "Edit placement relationship" }
                 p { class: "m1-layout-component-matrix-note", "Matrix rows and columns share pitch, stagger and splay. Edit those in Properties." }
             }
         }
