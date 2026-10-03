@@ -6,7 +6,7 @@
 
 **Blocked by:** T1-01, “Isolate the existing workspace UI for parallel work” (INT.1; accepted).
 
-**Status:** ready-for-agent
+**Status:** partial public workflow qualified. The retained evidence covers representative body selection/filtering, Tray fields, Mount/Gasket CRUD, one authored edit's Undo/Redo/reload, and mismatch return. Lid behavior, portable body round-trip, remaining authored-field validation, and stale in-flight scope transitions remain open; see the current reconciliation below. Root retains the child and parent acceptance decisions.
 
 - [ ] On the pinned React fixtures, match the Case stack's body list, add-body defaults, supported body kinds, body selection, no-body copy and selected-board filtering through the public Dioxus route. If the selected board has a matching active mechanical configuration, render the generated assembly panel/note and keep its authored body records saved but hide their editor until F7.4 disables that stack. Do not expose simultaneous generated-stack and authored-body editing.
 - [ ] Edit thickness, clearance, z offset and non-plate wall dimensions. Add, edit and remove mounting holes/bosses and add, edit and remove gasket channels with the same supported fields and validation behavior as the reference.
