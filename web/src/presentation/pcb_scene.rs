@@ -32,6 +32,7 @@ pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
     let selected_ids = props.selected_ids;
     let on_part_hit = props.on_part_hit;
     let generation = props.generation;
+    let hidden_layers = (use_context::<super::LayerVisibility>().hidden)();
 
     if snapshot.session_epoch != scope.session_epoch || snapshot.document.id != scope.document_id {
         return rsx! {
@@ -63,11 +64,13 @@ pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
 
     rsx! {
         g { class: "m1-pcb-scene", "data-board-id": board_id, "data-scene-status": "ready",
-            for (index, contour) in contours.iter().enumerate() {
-                polygon {
-                    key: "outline-{index}",
-                    points: points(&contour.points),
-                    class: if contour.hole { "m1-outline is-hole" } else { "m1-outline" },
+            if !hidden_layers.contains("Edge.Cuts") {
+                for (index, contour) in contours.iter().enumerate() {
+                    polygon {
+                        key: "outline-{index}",
+                        points: points(&contour.points),
+                        class: if contour.hole { "m1-outline is-hole" } else { "m1-outline" },
+                    }
                 }
             }
             for part in document.parts.iter().filter(|part| member_ids.contains(part.id.as_str())) {
@@ -140,12 +143,17 @@ pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
                                     range: modifiers.shift(),
                                 });
                             },
-                            if !courtyard.is_empty() {
+                            if !courtyard.is_empty() && !hidden_layers.contains("Courtyards") {
                                 polygon { points: "{courtyard}", class: if selected { "m1-part selected" } else { "m1-part" } }
                             }
                             if let Some(definition) = definition {
                                 if definition.generator.is_some() {
-                                    FootprintGraphics { definition: definition.clone(), parameters: generator_parameters.clone() }
+                                    FootprintGraphics {
+                                        definition: definition.clone(),
+                                        parameters: generator_parameters.clone(),
+                                        hidden_layers: Some(hidden_layers.clone()),
+                                        part_side: Some(part.side.clone()),
+                                    }
                                 }
                                 for pad in &definition.pads {
                                     {
@@ -154,14 +162,13 @@ pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
                                             PadShape::Roundrect => pad.size.x.min(pad.size.y) / 4.0,
                                             PadShape::Rect => 0.0,
                                         };
-                                        let plated = pad.plated != Some(false);
                                         let drill = pad.drill;
                                         let pad_rotation = pad.rotation.unwrap_or(0.0);
                                         rsx! {
                                             g {
                                                 key: "pad-{part_id}-{pad.id}",
                                                 transform: "translate({pad.at.x} {pad.at.y}) rotate({pad_rotation})",
-                                                if plated {
+                                                if super::pcb_layers::pad_is_visible(pad, &part.side, &hidden_layers) {
                                                     rect {
                                                         class: "m1-part-pad",
                                                         x: "{-pad.size.x / 2.0}",
@@ -171,7 +178,7 @@ pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
                                                         rx: "{radius}",
                                                     }
                                                 }
-                                                if let Some(drill) = drill {
+                                                if let Some(drill) = drill.filter(|_| !hidden_layers.contains("Holes")) {
                                                     circle { class: "m1-part-drill", r: "{drill / 2.0}" }
                                                 }
                                             }
@@ -179,7 +186,9 @@ pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
                                     }
                                 }
                             }
-                            text { transform: "scale(1,-1)", text_anchor: "middle", class: "m1-part-label", x: "0", y: "-5.2", "{reference}" }
+                            if !hidden_layers.contains("References") {
+                                text { transform: "scale(1,-1)", text_anchor: "middle", class: "m1-part-label", x: "0", y: "-5.2", "{reference}" }
+                            }
                             rect {
                                 class: "m1-part-hit-area",
                                 style: "cursor: pointer",
@@ -218,4 +227,317 @@ fn courtyard_bounds(points: &[Vec2]) -> (f64, f64, f64, f64) {
         max_y = max_y.max(point.y);
     }
     (min_x, min_y, max_x - min_x, max_y - min_y)
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod mounted_layer_tests {
+    use super::*;
+    use crate::presentation::canvas_layers::{CanvasLayer, CanvasLayers};
+    use boardstudio_application::{Scope, SessionEpoch};
+    use boardstudio_core::model::{
+        Board, BoardContours, Contour, Pad, Part, PartDefinition, PartKind, Pose2, ProjectDoc,
+        Readiness, SceneDelta,
+    };
+    use std::{collections::BTreeMap, sync::Arc};
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    fn fixture() -> (AcceptedSnapshot, Scope) {
+        let scope = Scope {
+            session_epoch: SessionEpoch(2),
+            document_id: "layer-doc".into(),
+            board_id: "board".into(),
+            instance_id: None,
+        };
+        let mut document = ProjectDoc::empty("layer-doc", "Layer controls");
+        document.boards.push(Board {
+            id: "board".into(),
+            name: "Board".into(),
+            outline_ids: vec![],
+            part_ids: vec!["part".into()],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        let pad = |id: &str, side: Option<Side>, drill| Pad {
+            id: id.into(),
+            number: id.into(),
+            at: Vec2 { x: 0.0, y: 0.0 },
+            size: Vec2 { x: 2.0, y: 2.0 },
+            shape: PadShape::Rect,
+            drill,
+            plated: Some(true),
+            side,
+            rotation: None,
+            net_id: None,
+        };
+        document.definitions.push(PartDefinition {
+            hardware_profile: None,
+            input_profile: None,
+            id: "definition".into(),
+            name: "Test footprint".into(),
+            kind: PartKind::Custom,
+            keycap: None,
+            envelope_source: None,
+            kicad_source: None,
+            terminals: BTreeMap::new(),
+            matrix_terminals: None,
+            envelope_notice: None,
+            courtyard: vec![
+                Vec2 { x: -2.0, y: -2.0 },
+                Vec2 { x: 2.0, y: -2.0 },
+                Vec2 { x: 2.0, y: 2.0 },
+                Vec2 { x: -2.0, y: 2.0 },
+            ],
+            pads: vec![
+                pad("front", Some(Side::Front), None),
+                pad("back", Some(Side::Back), None),
+                pad("through", Some(Side::Front), Some(0.8)),
+            ],
+            models: None,
+            generator: None,
+            mechanical_profile: None,
+        });
+        document.parts.push(Part {
+            keycap: None,
+            outline: None,
+            id: "part".into(),
+            definition_id: "definition".into(),
+            reference: "U1".into(),
+            pose: Pose2 {
+                at: Vec2 { x: 0.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            locked: None,
+            properties: None,
+            generator_parameters: None,
+        });
+        let contour = Contour {
+            points: vec![
+                Vec2 { x: -10.0, y: -10.0 },
+                Vec2 { x: 10.0, y: -10.0 },
+                Vec2 { x: 10.0, y: 10.0 },
+                Vec2 { x: -10.0, y: 10.0 },
+            ],
+            hole: false,
+        };
+        let scene = SceneDelta {
+            module_scenes: vec![],
+            revision: 1,
+            transaction_id: String::new(),
+            changed_ids: vec![],
+            transforms: vec![],
+            matrix_scenes: vec![],
+            contours: vec![],
+            board_contours: vec![BoardContours {
+                board_id: "board".into(),
+                contours: vec![contour],
+            }],
+            board_readiness: vec![],
+            board_outline_scenes: vec![],
+            finding_markers: vec![],
+            findings: vec![],
+            readiness: Readiness {
+                layout: true,
+                outline: true,
+                pcb: true,
+                case_ready: false,
+            },
+        };
+        (
+            AcceptedSnapshot {
+                token: SnapshotToken(11),
+                session_epoch: scope.session_epoch,
+                document: Arc::new(document),
+                scene: Arc::new(scene),
+            },
+            scope,
+        )
+    }
+
+    fn mounted_scene() -> Element {
+        let (snapshot, scope) = fixture();
+        let hidden = use_signal(BTreeSet::new);
+        let footprints = use_signal(|| true);
+        use_context_provider(|| super::super::LayerVisibility { hidden, footprints });
+        let groups = crate::presentation::pcb_layers::layer_groups_for_scene(
+            &snapshot.document,
+            &snapshot.scene.board_contours,
+            &snapshot.scene.contours,
+            &scope,
+            BTreeSet::new(),
+        );
+        rsx! {
+            div { id: "pcb-layer-mount",
+                CanvasLayers {
+                    trigger_id: String::from("pcb-layer-trigger"),
+                    list_id: String::from("pcb-layer-list"),
+                    groups,
+                }
+                svg { PcbScene {
+                    snapshot,
+                    scope,
+                    selected_ids: Vec::new(),
+                    generation: 0,
+                    on_part_hit: |_| {},
+                } }
+            }
+        }
+    }
+
+    fn count(selector: &str) -> u32 {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector_all(&format!("#pcb-layer-mount {selector}"))
+            .unwrap()
+            .length()
+    }
+
+    fn click(selector: &str) {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector(&format!("#pcb-layer-mount {selector}"))
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+    }
+
+    async fn settle() {
+        gloo_timers::future::TimeoutFuture::new(40).await;
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_controls_toggle_only_their_accepted_pcb_scene_layers() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("pcb-layer-test-root");
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(mounted_scene),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        settle().await;
+
+        assert_eq!(count(".m1-outline"), 1);
+        assert_eq!(count(".m1-part"), 1);
+        assert_eq!(count(".m1-part-pad"), 3);
+        assert_eq!(count(".m1-part-drill"), 1);
+        assert_eq!(count(".m1-part-label"), 1);
+
+        click("#pcb-layer-trigger");
+        settle().await;
+        assert_eq!(count("button[aria-label='Hide F.Cu']"), 1);
+        assert_eq!(count("button[aria-label='Hide B.Cu']"), 1);
+        click("button[aria-label='Hide F.Cu']");
+        settle().await;
+        assert_eq!(
+            count(".m1-part-pad"),
+            2,
+            "back and through-hole pads remain"
+        );
+        click("button[aria-label='Hide B.Cu']");
+        settle().await;
+        assert_eq!(
+            count(".m1-part-pad"),
+            0,
+            "through-hole needs either copper face"
+        );
+
+        click("button[aria-label='Show F.Cu']");
+        settle().await;
+        assert_eq!(count(".m1-part-pad"), 2);
+        click("button[aria-label='Hide Pads']");
+        settle().await;
+        assert_eq!(count(".m1-part-pad"), 0);
+        assert_eq!(count(".m1-part-drill"), 1, "Pads and Holes are independent");
+        click("button[aria-label='Hide Holes']");
+        settle().await;
+        assert_eq!(count(".m1-part-drill"), 0);
+        assert_eq!(count(".m1-part-label"), 1);
+
+        click("button[aria-label='Hide Edge.Cuts']");
+        click("button[aria-label='Hide Courtyards']");
+        click("button[aria-label='Hide References']");
+        settle().await;
+        assert_eq!(count(".m1-outline"), 0);
+        assert_eq!(count(".m1-part"), 0);
+        assert_eq!(count(".m1-part-label"), 0);
+
+        let row = document
+            .query_selector("#pcb-layer-mount button[aria-label='Show References']")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap();
+        row.focus().unwrap();
+        let event_init = web_sys::KeyboardEventInit::new();
+        event_init.set_key("Escape");
+        event_init.set_bubbles(true);
+        let event =
+            web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event_init)
+                .unwrap();
+        row.dispatch_event(&event).unwrap();
+        settle().await;
+        assert!(count("#pcb-layer-list[hidden]") > 0);
+        assert_eq!(document.active_element().unwrap().id(), "pcb-layer-trigger");
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    fn pcb_rows_do_not_offer_the_layout_only_footprints_toggle() {
+        let (snapshot, scope) = fixture();
+        let groups = crate::presentation::pcb_layers::layer_groups_for_scene(
+            &snapshot.document,
+            &snapshot.scene.board_contours,
+            &snapshot.scene.contours,
+            &scope,
+            BTreeSet::new(),
+        );
+        assert!(groups.iter().flat_map(|group| &group.layers).all(|layer| {
+            !matches!(
+                layer.target,
+                crate::presentation::canvas_layers::LayerTarget::LayoutFootprints
+            ) && layer.id != "Footprints"
+        }));
+        assert!(!groups.iter().flat_map(|group| &group.layers).any(|layer| {
+            layer.id == "Board" || layer.id == "Components" || layer.id == "Keys"
+        }));
+        assert!(
+            groups
+                .iter()
+                .flat_map(|group| &group.layers)
+                .any(|layer| { layer == &CanvasLayer::hidden("F.Cu", "F.Cu") })
+        );
+
+        let generated_layers = ["F.SilkS".to_owned(), "B.Mask".to_owned()]
+            .into_iter()
+            .collect();
+        let groups = crate::presentation::pcb_layers::layer_groups_for_scene(
+            &snapshot.document,
+            &snapshot.scene.board_contours,
+            &snapshot.scene.contours,
+            &scope,
+            generated_layers,
+        );
+        let rows = groups
+            .iter()
+            .flat_map(|group| &group.layers)
+            .collect::<Vec<_>>();
+        assert!(rows.iter().any(|layer| layer.id == "F.SilkS"));
+        assert!(rows.iter().any(|layer| layer.id == "B.Mask"));
+        assert_eq!(
+            crate::presentation::footprint_graphics::resolve_board_layer("F.SilkS", &Side::Back),
+            "B.SilkS"
+        );
+    }
 }

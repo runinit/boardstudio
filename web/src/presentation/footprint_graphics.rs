@@ -1,11 +1,11 @@
 //! Dioxus owns drawing; the unchanged catalogue service owns generator execution.
 use crate::footprint_forms::{self as forms, Graphic, Shape};
-use boardstudio_core::model::PartDefinition;
+use boardstudio_core::model::{PartDefinition, Side};
 use dioxus::prelude::*;
 use js_sys::{Function, Promise, Reflect};
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, VecDeque},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     rc::Rc,
 };
 use wasm_bindgen::{JsCast, JsValue};
@@ -193,6 +193,8 @@ pub(super) async fn generator_drawings(
 pub(super) fn FootprintGraphics(
     definition: PartDefinition,
     parameters: Option<BTreeMap<String, serde_json::Value>>,
+    #[props(default)] hidden_layers: Option<BTreeSet<String>>,
+    #[props(default)] part_side: Option<Side>,
 ) -> Element {
     let graphics = use_resource(use_reactive(
         (&definition, &parameters),
@@ -202,7 +204,12 @@ pub(super) fn FootprintGraphics(
         Some(Ok(Some(items))) => rsx! {
             g { class: "m1-footprint-graphics", "data-status": "ready", "aria-hidden": "true",
                 for (index, graphic) in items.iter().enumerate() {
-                    GraphicElement { key: "{index}", graphic: graphic.clone(), hidden: false }
+                    {
+                        let hidden = hidden_layers.as_ref().zip(part_side.as_ref()).is_some_and(|(hidden_layers, side)| {
+                            hidden_layers.contains(&resolve_board_layer(&graphic.layer, side))
+                        });
+                        rsx! { GraphicElement { key: "{index}", graphic: graphic.clone(), hidden } }
+                    }
                 }
             }
         },
@@ -217,6 +224,18 @@ pub(super) fn FootprintGraphics(
         },
         None => rsx! { g { class: "m1-footprint-graphics", "data-status": "loading" } },
     }
+}
+
+pub(super) fn resolve_board_layer(layer: &str, side: &Side) -> String {
+    if matches!(side, &Side::Back) {
+        if let Some(rest) = layer.strip_prefix("F.") {
+            return format!("B.{rest}");
+        }
+        if let Some(rest) = layer.strip_prefix("B.") {
+            return format!("F.{rest}");
+        }
+    }
+    layer.to_owned()
 }
 
 #[component]

@@ -381,6 +381,11 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-layer-swatch[data-layer='Keycaps'] { background: var(--wb-ink); }
 .m1-layer-swatch[data-layer='Footprints'] { background: var(--wb-geometry-part); }
 .m1-layer-swatch[data-layer='Board'] { background: var(--wb-geometry-board); }
+.m1-layer-swatch[data-layer='Edge.Cuts'] { background: var(--wb-geometry-board); }
+.m1-layer-swatch[data-layer='F.Cu'] { background: var(--wb-accent); }
+.m1-layer-swatch[data-layer='B.Cu'] { background: var(--wb-status-warning); }
+.m1-layer-swatch[data-layer='Courtyards'] { background: var(--wb-geometry-part); }
+.m1-layer-swatch[data-layer='References'] { background: var(--wb-geometry-text); }
 .m1-layer-list button[aria-pressed='false'] .m1-layer-swatch { opacity: .35; }
 .m1-inspector { overflow: auto; padding-bottom: 16px; }
 .m1-inspector > h2, .m1-inspector > p, .m1-inspector > label, .m1-inspector > button { margin-left: 16px; margin-right: 16px; }

@@ -1,5 +1,6 @@
 //! Presentation drafts and DOM input are separate from the durable session state.
 mod canvas_interaction;
+mod canvas_layers;
 mod case_assembly_layers;
 mod case_bodies;
 mod case_controller;
@@ -31,6 +32,7 @@ mod panels;
 mod part_placement;
 mod parts;
 mod parts_workspace;
+mod pcb_layers;
 mod pcb_physical_setup;
 mod pcb_scene;
 mod pcb_wiring;
@@ -42,6 +44,7 @@ mod workspace_composition;
 mod zmk_firmware_export;
 
 use canvas_interaction::{CanvasInteractionArbiter, CanvasInteractionOwner};
+use canvas_layers::CanvasLayers;
 pub(crate) use case_viewer::{CasePreviewViewer, CaseViewer};
 use library::Library;
 pub(crate) use mechanical_settings::MechanicalSettings;
@@ -576,62 +579,6 @@ fn ThemePicker() -> Element {
             option { value: "dark", "Dark" }
         }
     } }
-}
-
-#[component]
-fn CanvasLayers() -> Element {
-    let layers = use_context::<LayerVisibility>();
-    let mut open = use_signal(|| false);
-    let toggle = move |id: &'static str| {
-        if id == "Footprints" {
-            let mut footprints = layers.footprints;
-            footprints.set(!footprints());
-        } else {
-            let mut hidden = layers.hidden;
-            let mut next = (hidden)();
-            if !next.insert(id.to_owned()) {
-                next.remove(id);
-            }
-            hidden.set(next);
-        }
-    };
-    let keydown = move |event: KeyboardEvent| {
-        if event.data().key().to_string() == "Escape" && open() {
-            event.prevent_default();
-            open.set(false);
-            if let Some(trigger) = web_sys::window()
-                .and_then(|window| window.document())
-                .and_then(|document| document.get_element_by_id("m1-layers-trigger"))
-                .and_then(|element| element.dyn_into::<HtmlElement>().ok())
-            {
-                let _ = trigger.focus();
-            }
-        }
-    };
-    let hidden = (layers.hidden)();
-    let entries = ["Keys", "Components", "Keycaps", "Footprints", "Board"];
-    rsx! {
-        section { class: "m1-layers", "data-open": "{open()}", aria_label: "Canvas layers", onkeydown: keydown,
-            button { id: "m1-layers-trigger", class: "m1-layers-trigger", aria_expanded: "{open()}", aria_controls: "m1-layers-list", onclick: move |_| open.set(!open()),
-                "Layers"
-                svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: if open() { "m5 12 5-5 5 5" } else { "m5 8 5 5 5-5" } } }
-            }
-            if open() {
-                button { class: "m1-layers-close", onclick: move |_| { open.set(false); if let Some(trigger) = web_sys::window().and_then(|window| window.document()).and_then(|document| document.get_element_by_id("m1-layers-trigger")).and_then(|element| element.dyn_into::<HtmlElement>().ok()) { let _ = trigger.focus(); } }, "Close" }
-            }
-            div { id: "m1-layers-list", class: "m1-layer-list", hidden: !open(),
-                for id in entries {
-                    { let visible = if id == "Footprints" { (layers.footprints)() } else { !hidden.contains(id) }; let name = id; let label = format!("{} {name}", if visible { "Hide" } else { "Show" });
-                        rsx! { button { key: "{id}", aria_pressed: "{visible}", aria_label: "{label}", onclick: move |_| toggle(name),
-                            span { class: "m1-layer-swatch", "data-layer": "{id}" }
-                            span { class: "m1-layer-label", "{id}" }
-                            svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M2 10q8-12 16 0-8 12-16 0Z" }, circle { cx: "10", cy: "10", r: "2.5" }, if !visible { path { d: "m3 17 14-14" } } }
-                        } }
-                    }
-                }
-            }
-        }
-    }
 }
 
 #[component]
@@ -4771,7 +4718,11 @@ fn Editor() -> Element {
                         }
                     }
                         }
-                        CanvasLayers {}
+                        CanvasLayers {
+                            trigger_id: String::from("m1-layers-trigger"),
+                            list_id: String::from("m1-layers-list"),
+                            groups: canvas_layers::layout_groups(),
+                        }
                     } else if active_workspace == "Export" {
                         ExportPanel { zmk_firmware: Some(zmk_firmware_export_panel) }
                     } else if let Some(input) = canvas_input {
