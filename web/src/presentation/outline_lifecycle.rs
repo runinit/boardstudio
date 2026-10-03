@@ -2055,6 +2055,11 @@ fn OutlineDimension(
     on_commit: EventHandler<f64>,
 ) -> Element {
     let mut field = use_signal(|| (value, value.to_string()));
+    use_effect(use_reactive!(|value| {
+        if field.peek().0 != value {
+            field.set((value, value.to_string()));
+        }
+    }));
     let draft = if field().0 == value {
         field().1
     } else {
