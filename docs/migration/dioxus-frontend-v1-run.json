@@ -1273,7 +1273,7 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T11:33:42.522228+00:00",
+    "updated_at": "2026-10-03T11:37:14.307346+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
       "accepted": 3,
@@ -1300,7 +1300,7 @@
     },
     "integration": {
       "source_commit": "e016e69e41f820775ba8246fdf9f2a5f5440507b",
-      "state": "34764 remains served. Next joined batch: Keycaps clearance disclosure, footprint ZIP action, corrected Case selection placements, source-backed VIK center preview, Layout findings/navigation and PCB mounted-module Inspector. Initial combined compile/capture corrections committed6b9c/bdc; remaining strict lint corrections active. One combined package after source settles; no new UI tests.",
+      "state": "Settled combined source96ab3eb0 passes strictpageWASMalltargets19.23s. Fastpackage34765 active, reusing verified34764 fullbaseline. JoinedPCBplacementdraft selfsubscription fixedbeforepackage; exactsourcefinding preserved, noexecutedREDclaim. Changedjourney receipts pending; no parentclosure.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1958,12 +1958,19 @@
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "heavy_slots": {
       "policy": "Coordinator assigned; maximum2 heavy jobs/1package",
-      "active": [],
+      "active": [
+        {
+          "kind": "package",
+          "build_id": "frontend-context-findings-footprints-20261003",
+          "owner": "root",
+          "reuse_baseline": "frontend-board-geometry-vik-full-20261003"
+        }
+      ],
       "check": {
-        "source_commit": "533501d9",
-        "log": ".scratch/dioxus-frontend-v1/evidence/candidate-34764-20261003/frontend-board-geometry-vik-combined-check-settled.log",
+        "source_commit": "96ab3eb0",
+        "log": ".scratch/dioxus-frontend-v1/evidence/candidate-34765-20261003/frontend-context-findings-footprints-combined-check-green.log",
         "result": "PASS",
-        "duration_seconds": 17.49,
+        "duration_seconds": 19.23,
         "new_tests": 0
       },
       "next": "One combined strict page WASM all-target check and fast package using34764 full provider baseline."
@@ -2280,6 +2287,11 @@
         "build_id": "frontend-board-geometry-vik-20261003",
         "source_commit": "26ff6b9c",
         "result": "Page/provider reuse preflight rejected new web/assets/imported-modules.json. No artifact created. Existing guard preserved; one full package will establish the new static-asset baseline, after which routine page reuse resumes."
+      },
+      {
+        "build_id": "frontend-context-findings-footprints-source-check",
+        "source_commit": "6a1c5657..418b9bdc",
+        "result": "Joined Parts SVGaria/typecapturing, Layoutfinding Key/Arc/callback/argumentbundle and PCBprops/key/mutability/fixture/finitecondition compile/lint corrections. Failurelogsretained; finalstrict96ab3eb0 PASS19.23s. No newtests."
       }
     ],
     "parent_acceptances": [

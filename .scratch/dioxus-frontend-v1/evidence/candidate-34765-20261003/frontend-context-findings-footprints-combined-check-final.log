@@ -1,0 +1,75 @@
+    Checking boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web)
+error: this function has too many arguments (8/7)
+  --> src/export_footprints.rs:20:1
+   |
+20 | / pub(crate) async fn build_zip(
+21 | |     operation_id: OperationId,
+22 | |     snapshot: &AcceptedSnapshot,
+23 | |     scope: &Scope,
+...  |
+28 | |     preview_generator: impl FnOnce() -> Result<Rc<PreviewGeneratorClient>, String>,
+29 | | ) -> Result<Vec<u8>, String> {
+   | |____________________________^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#too_many_arguments
+   = note: `-D clippy::too-many-arguments` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::too_many_arguments)]`
+
+error: this function has too many arguments (16/7)
+    --> src/presentation.rs:1098:1
+     |
+1098 | / fn perform_layout_finding_navigation(
+1099 | |     runtime: Rc<Runtime>,
+1100 | |     adapter: SelectionAdapter,
+1101 | |     owner: LayoutOwnerIdentity,
+...    |
+1114 | |     resumed_after_board_navigation: bool,
+1115 | | ) {
+     | |_^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#too_many_arguments
+
+error: redundant redefinition of a binding `workspace`
+    --> src/presentation.rs:4411:9
+     |
+4411 |         let workspace = workspace;
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+help: `workspace` is initially defined here
+    --> src/presentation.rs:2356:9
+     |
+2356 |     let workspace = use_context::<WorkspaceState>().0;
+     |         ^^^^^^^^^
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#redundant_locals
+     = note: `-D clippy::redundant-locals` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::redundant_locals)]`
+
+error: redundant redefinition of a binding `case_selection`
+    --> src/presentation.rs:4421:9
+     |
+4421 |         let case_selection = case_selection;
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+help: `case_selection` is initially defined here
+    --> src/presentation.rs:2349:9
+     |
+2349 |     let case_selection = case_viewer::CaseSelection {
+     |         ^^^^^^^^^^^^^^
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#redundant_locals
+
+error: redundant redefinition of a binding `case_selection`
+    --> src/presentation.rs:4490:13
+     |
+4490 |             let case_selection = case_selection;
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+help: `case_selection` is initially defined here
+    --> src/presentation.rs:2349:9
+     |
+2349 |     let case_selection = case_viewer::CaseSelection {
+     |         ^^^^^^^^^^^^^^
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#redundant_locals
+
+error: could not compile `boardstudio-web` (bin "boardstudio-web") due to 5 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `boardstudio-web` (bin "boardstudio-web" test) due to 5 previous errors

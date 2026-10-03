@@ -1,0 +1,85 @@
+    Checking boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web)
+error[E0507]: cannot move out of `runtime`, a captured variable in an `FnMut` closure
+    --> src/presentation.rs:4457:17
+     |
+4408 |         let runtime = runtime.clone();
+     |             -------   --------------- move occurs because `runtime` has type `std::rc::Rc<runtime::Runtime>`, which does not implement the `Copy` trait
+     |             |
+     |             captured outer variable
+...
+4424 |         move |request: layout_findings::Request| {
+     |         ---------------------------------------- captured by this `FnMut` closure
+...
+4457 |                 runtime,
+     |                 ^^^^^^^ `runtime` is moved here
+     |
+     = help: `Fn` and `FnMut` closures require captured values to be able to be consumed multiple times, but `FnOnce` closures may consume them only once
+
+error[E0507]: cannot move out of `adapter`, a captured variable in an `FnMut` closure
+    --> src/presentation.rs:4458:17
+     |
+4409 |         let adapter = adapter.clone();
+     |             -------   --------------- move occurs because `adapter` has type `presentation::selection::SelectionAdapter`, which does not implement the `Copy` trait
+     |             |
+     |             captured outer variable
+...
+4424 |         move |request: layout_findings::Request| {
+     |         ---------------------------------------- captured by this `FnMut` closure
+...
+4458 |                 adapter,
+     |                 ^^^^^^^ `adapter` is moved here
+     |
+     = help: `Fn` and `FnMut` closures require captured values to be able to be consumed multiple times, but `FnOnce` closures may consume them only once
+
+error[E0507]: cannot move out of `owner`, a captured variable in an `FnMut` closure
+    --> src/presentation.rs:4459:17
+     |
+4410 |         let owner = layout_owner.clone();
+     |             -----   -------------------- move occurs because `owner` has type `presentation::LayoutOwnerIdentity`, which does not implement the `Copy` trait
+     |             |
+     |             captured outer variable
+...
+4424 |         move |request: layout_findings::Request| {
+     |         ---------------------------------------- captured by this `FnMut` closure
+...
+4459 |                 owner,
+     |                 ^^^^^ `owner` is moved here
+     |
+     = help: `Fn` and `FnMut` closures require captured values to be able to be consumed multiple times, but `FnOnce` closures may consume them only once
+
+error[E0507]: cannot move out of `svg`, a captured variable in an `FnMut` closure
+    --> src/presentation.rs:4467:17
+     |
+4418 |         let svg = svg.clone();
+     |             ---   ----------- move occurs because `svg` has type `std::rc::Rc<std::cell::RefCell<std::option::Option<web_sys::SvgElement>>>`, which does not implement the `Copy` trait
+     |             |
+     |             captured outer variable
+...
+4424 |         move |request: layout_findings::Request| {
+     |         ---------------------------------------- captured by this `FnMut` closure
+...
+4467 |                 svg,
+     |                 ^^^ `svg` is moved here
+     |
+     = help: `Fn` and `FnMut` closures require captured values to be able to be consumed multiple times, but `FnOnce` closures may consume them only once
+
+error[E0507]: cannot move out of `alive`, a captured variable in an `FnMut` closure
+    --> src/presentation.rs:4468:17
+     |
+4419 |         let alive = keycaps_navigation_alive.clone();
+     |             -----   -------------------------------- move occurs because `alive` has type `std::rc::Rc<std::cell::Cell<bool>>`, which does not implement the `Copy` trait
+     |             |
+     |             captured outer variable
+...
+4424 |         move |request: layout_findings::Request| {
+     |         ---------------------------------------- captured by this `FnMut` closure
+...
+4468 |                 alive,
+     |                 ^^^^^ `alive` is moved here
+     |
+     = help: `Fn` and `FnMut` closures require captured values to be able to be consumed multiple times, but `FnOnce` closures may consume them only once
+
+For more information about this error, try `rustc --explain E0507`.
+error: could not compile `boardstudio-web` (bin "boardstudio-web") due to 5 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `boardstudio-web` (bin "boardstudio-web" test) due to 5 previous errors
