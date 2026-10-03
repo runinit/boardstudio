@@ -1271,7 +1271,7 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T09:42:07.126211+00:00",
+    "updated_at": "2026-10-03T10:00:26.417620+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
       "accepted": 2,
@@ -1281,23 +1281,23 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-previews-contexts-20261003",
-      "source_commit": "04c85b88eae2894b416979f785a1f0060d2eb27d",
-      "root_url": "http://127.0.0.1:34759/",
-      "subpath_url": "http://127.0.0.1:34759/boardstudio/",
-      "provenance": "web/target/builds/frontend-previews-contexts-20261003/provenance.json",
-      "provenance_sha256": "81ee87aead500473ae22f79834a2bc921618442a081719860a08188c063e49aa",
+      "build_id": "frontend-board-case-matrix-settlement-20261003",
+      "source_commit": "9718ea4aa3b29f1ae2f53d049a411928e65656bc",
+      "root_url": "http://127.0.0.1:34760/",
+      "subpath_url": "http://127.0.0.1:34760/boardstudio/",
+      "provenance": "web/target/builds/frontend-board-case-matrix-settlement-20261003/provenance.json",
+      "provenance_sha256": "d4e061e44423839546c370a71f4548b81db8dc7bbb5a27474dff39456928243c",
       "fresh_commands": 8,
       "inherited_commands": 22,
-      "source_inputs": 1366,
+      "source_inputs": 1367,
       "source_mismatches": 0,
       "assets_per_route": 145,
-      "command_span_seconds": 95.720626,
-      "package_qualification": "Guarded page package/root+subpath200 COEP PASS; strict page WASM all-target Clippy PASS16.58s. Changed Layout Key/Component form and PCB SW3/R1 wiring composition GREEN. Parts/Keymap3D and native Tab deltas active. Matrix terminal recovery and blocked Case finding navigation fixes awaited. Full parent criteria retained."
+      "command_span_seconds": 91.798235,
+      "package_qualification": "Strict page WASM all-target Clippy PASS14.78s; guarded package/root+subpath200 COEP PASS. Newboard paired create/select/history/reload GREEN. Matrix Right/noninitial-instance duplicate GREEN reported; receipt incoming. Case Show/disclosure deltas active. Unchanged34759 consumer/focus/Inspector evidence reused. Full parent criteria remain."
     },
     "integration": {
-      "source_commit": "e6842ec431b903210254833ee75ca830b538e520",
-      "state": "34759 served; changed Inspector deltas GREEN. Case blocked Show navigation dfd8c143 joined for next candidate; Matrix terminal recovery/scope repair in progress. Six streams continue without duplicate tests.",
+      "source_commit": "8746265bdd01a1c5bb34ac9b35125ff6d74b616e",
+      "state": "Served34760 with final Matrix recovery/report guards, blocked Case Show, authored Case disclosures and contextual Newboard. Keymap3D/Keycaps settings receipt8746265b joined. Next ready source: PCB Addobject0ce1873a; shared footer and outline Undo projection repairs active.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1489,19 +1489,19 @@
           "slice": "Parts isolated library3D",
           "original_source": "9a819a2a",
           "integrated_source": "05ed9389",
-          "state": "Served34759; one changed paired consumer journey in progress."
+          "state": "Actual34759 MX3D/no-model/2Dreturn GREEN; receipt3c04551 joined7b6057e6. Utility_text empty2D RED retained for next companion-preview packet."
         },
         {
           "slice": "Keymap controls pending focus",
           "original_source": "d6e575c3",
           "integrated_source": "7f8c70b2+6b93a81a",
-          "state": "Served34759; native Tab delta replay active; handler still rejects pending/stale edits."
+          "state": "Actual34759 A\u2192Y nativeTab focus/save GREEN; receipt1796a9ec; fixture setup difference disclosed. No second edit."
         },
         {
           "slice": "Keymap3D cap/legend consumer",
           "original_source": "3ca17919",
           "integrated_source": "f2ec8239",
-          "state": "Served34759; one changed paired consumer journey in progress."
+          "state": "Actual34759 accepted cap/legend shared consumer GREEN; receiptc39e1460 joined8746265b. Wider lifecycle/pick gates retained."
         },
         {
           "slice": "PCB wiring contextual Inspector",
@@ -1513,13 +1513,25 @@
           "slice": "Matrix duplicate settlement and draft identity",
           "original_source": "8e9a4450",
           "integrated_source": "51ab7668+91e152db",
-          "state": "First guard/presentation repair served34759; original-source recovery/report ownership and nondefault scope navigation need follow-up repair. Normal34758 structural journey retained."
+          "state": "Final2ed/80c/7fd exact recovery, reset-scope navigation and exact feedback owner repairs served34760; Right/right-half duplicate GREEN reported. Retained34758 normal structural history unchanged."
         },
         {
           "slice": "Case blocked findings Show navigation",
           "original_source": "e8424c6b",
           "integrated_source": "dfd8c143",
-          "state": "Joined typed exact current resolution/scope/token/revision route; generated mount targets map to containing layer. Actual RED and React Plate oracle retained; next candidate GREEN pending."
+          "state": "Served34760; typed current resolution and generated-mount layer routing source coherent. Actual changed GREEN in progress."
+        },
+        {
+          "slice": "Contextual New board",
+          "original_source": "a6414557",
+          "integrated_source": "9718ea4a",
+          "state": "Actual34760 paired create/select/Undo/Redo/reload GREEN; source owner/outcome safeguards clear in consolidated review."
+        },
+        {
+          "slice": "Case authored Mounting/Gasket disclosures",
+          "original_source": "889bb4db",
+          "integrated_source": "471b87e7",
+          "state": "Served34760; reference default open/closed owner retention source coherent, changed browser delta active."
         }
       ],
       "checks": {
@@ -1764,22 +1776,50 @@
         "candidate": "04c85b88/34759",
         "receipt": ".scratch/dioxus-layout-authoring/evidence/f33b-matrix-transform-paired-20261003/",
         "remaining": "Broader transforms/constraints/snapping parent criteria."
+      },
+      {
+        "journey": "PCB Newboard\u2192selection\u2192Undo/Redo\u2192reload",
+        "state": "Actual paired34760 GREEN; candidate settled Undo11 removesBoard2, Redo12 restores; both profiles reopen both boards.",
+        "candidate": "9718ea4a/34760",
+        "receipt": ".scratch/dioxus-pcb-view/evidence/19-new-board-20261003/public-34760.json",
+        "remaining": "Addobject and empty-canvas guidance/footer/context style; complete parent criteria."
+      },
+      {
+        "journey": "Keymap selected ModTapA\u2192Y\u2192nativeTab\u2192saved",
+        "state": "Actual34759 paired focus GREEN, one candidate revision29\u219230, no second edit; fixture setup differences disclosed.",
+        "candidate": "04c85b88/34759",
+        "receipt": ".scratch/dioxus-keymap-layers/evidence/keymap-binding-tab-focus-20261003/RESULTS.md",
+        "remaining": "Broader Keymap parent and footer controls."
+      },
+      {
+        "journey": "Parts MX isolated3D\u2192no-model\u21922Dreturn",
+        "state": "Actual34759 bounded paired GREEN; projectRevision9Saved unchanged. Utility_text empty0\u00d70 reference versus candidate2Derror RED retained.",
+        "candidate": "04c85b88/34759",
+        "receipt": ".scratch/dioxus-parts-catalogue/evidence/parts-03-preview-34759/RESULTS.md",
+        "remaining": "Assembly/companion preview and utility_text empty surface correction; broader parent criteria."
+      },
+      {
+        "journey": "Keymap3D accepted caps/legend consumer",
+        "state": "Actual34759 GREEN with current accepted layers; shared viewer reused.",
+        "candidate": "04c85b88/34759",
+        "receipt": ".scratch/dioxus-frontend-v1/evidence/keymap-3d-consumer-20261003/paired-receipt.md",
+        "remaining": "Shared3D lifecycle and complete parent gates."
       }
     ],
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "heavy_slots": {
-      "root_target": "No active package. Next combined page package uses guarded full baseline frontend-keycaps-controller-layout-20261003 when source graph allows.",
-      "secondary_target": "No active check. One combined page WASM all-target Clippy after ready source batch joins.",
+      "root_target": "No active package;34760 source/assets verified and server running. Next batch combines PCB Addobject/footer/outline-ready repairs.",
+      "secondary_target": "No active check. Last strict page all-target WASM pass14.78s on served9718 source.",
       "dispatch": "Max two heavy jobs, one package; ordinary reversible UI gets no new tests and only changed paired browser deltas."
     },
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "next_work": {
-      "Layout": "Finish matrix recovery/report exact original owner and Right/nondefault scope duplicate navigation; normal structural34758 evidence retained. Next real daily Layout gap inventory active.",
-      "PCB": "Implement Addobject/Newboard and contextual wiring presentation/footer from the pinned TS journey; repaired Inspector34759 GREEN retained.",
-      "Keymap": "Native Tab during pending save changed replay34759; then macro/encoder real remaining frontier using existing evidence.",
-      "Keycaps": "Keymap3D consumer replay34759; finish coherent F6C.2 settings/legend history journey, repair confirmed numeric formatting if needed.",
-      "Case": "Next candidate blocked finding Show repair; author next coherent New case body/stack daily workflow.",
-      "Parts_Project": "Standalone Parts3D/header/2Dreturn replay34759; next assembly recipe/variant and companion preview workflow."
+      "Layout": "34760 Right/noninitial-instance variant context GREEN; normal structural history retained. F3.4b same-context Undo Fillet-radius Inspector stale rendering actual34759 RED under projection repair; shell parity author active.",
+      "PCB": "Addobject0ce1873a is ready for next source batch; Newboard34760 GREEN. Empty-board guidance and board-aware matrix menu remain explicit UI gaps; shared footer author active.",
+      "Keymap": "34759 Tab and3Dconsumer GREEN; shared footer/menu state and actual contextual controls source author active.",
+      "Keycaps": "34759 coherent settings receipt joined; preserve inconclusive React legend history observation as setup limit. Next linked-half sizing frontier reuses existing ordinary sizing evidence.",
+      "Case": "34760 blocked Show and authored disclosure deltas active; all unchanged mechanical/history evidence reused.",
+      "Parts_Project": "34759 standalone3D GREEN; assembly preset/variant selector, companion preview and empty2D surface repair active."
     },
     "execution_policy": "Ordinary reversible UI gets no new tests. Run one required affected compile/check per integrated batch, inspect only changed paired browser journeys, and use one consolidated candidate review. Reuse unchanged history/reopen evidence. Real reproduced bugs retain one focused regression. Parent criteria, blocker history and RF ledger remain explicit.",
     "served_candidate_history": [
@@ -1930,6 +1970,21 @@
         "assets_per_route": 145,
         "command_span_seconds": 94.921907,
         "package_qualification": "Guarded page package/source/assets/root+subpath HTTP200 COEP PASS; strict page WASM all-target Clippy PASS15.81s. Matrix gap edit/Undo/Redo/reopen GREEN; blocked Case current suggestions/adopt GREEN; PCB flat inventory/selection/footer/disclosures GREEN. Keymap pending-save Tab focus RED; duplicate navigation/draft-owner findings under repair. Full parent gates stay open."
+      },
+      {
+        "build_id": "frontend-previews-contexts-20261003",
+        "source_commit": "04c85b88eae2894b416979f785a1f0060d2eb27d",
+        "root_url": "http://127.0.0.1:34759/",
+        "subpath_url": "http://127.0.0.1:34759/boardstudio/",
+        "provenance": "web/target/builds/frontend-previews-contexts-20261003/provenance.json",
+        "provenance_sha256": "81ee87aead500473ae22f79834a2bc921618442a081719860a08188c063e49aa",
+        "fresh_commands": 8,
+        "inherited_commands": 22,
+        "source_inputs": 1366,
+        "source_mismatches": 0,
+        "assets_per_route": 145,
+        "command_span_seconds": 95.720626,
+        "package_qualification": "Guarded page package/root+subpath200 COEP PASS; strict page WASM all-target Clippy PASS16.58s. Changed Layout Key/Component form and PCB SW3/R1 wiring composition GREEN. Parts/Keymap3D and native Tab deltas active. Matrix terminal recovery and blocked Case finding navigation fixes awaited. Full parent criteria retained."
       }
     ],
     "consolidated_reviews": [
@@ -1955,6 +2010,18 @@
         "scope": "34758/34759 joined matrix/context/preview deltas",
         "review": "/home/chris/.local/share/boardstudio/reviews/candidate-37d81320-20261003/REVIEW.md",
         "result": "Sol6.1High consolidated scan retained; terminal matrix ownership P1 under repair, Case blocked Show P1 source joined. Root moved-matrix-ID compile repair already passed strict16.58. Final candidate delta review pending."
+      }
+    ],
+    "build_attempt_history": [
+      {
+        "build_id": "frontend-matrix-case-owner-repairs-20261003",
+        "source_commit": "e0fa8ba6",
+        "result": "Failed page compile: reversible capture scope; all-target callback type also failed. Correctedc5042d6f; failure retained."
+      },
+      {
+        "build_id": "frontend-case-matrix-context-settlement-20261003",
+        "source_commit": "fc3a6b97",
+        "result": "Preflight rejected uncommitted main.rs formatter sorting; no page artifact. Strictcheck lint errors corrected83b49eca/5c2f. Current successful build supersedes this attempt without erasing it."
       }
     ]
   }
