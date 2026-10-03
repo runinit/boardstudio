@@ -1107,7 +1107,7 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
                 return;
             }
             if let Some(version_id) = state.and_then(|state| state.active_version_id.as_deref()) {
-                let mut document = snapshot.document.clone();
+                let mut document = snapshot.document.as_ref().clone();
                 let Some(version) = document
                     .board_outlines
                     .iter_mut()
@@ -2272,7 +2272,7 @@ pub(super) fn OutlineDraftCanvasOverlay(
     let board_id = projection.board_id.clone();
     let revision = projection.revision;
     let finish = {
-        let points = points;
+        let mut points = points;
         let runtime = runtime.clone();
         move || {
             let draft = points.read().clone();
@@ -2298,8 +2298,9 @@ pub(super) fn OutlineDraftCanvasOverlay(
             rect {
                 x: "{view_x}", y: "{view_y}", width: "{width}", height: "{height}",
                 fill: "transparent", tabindex: "0", role: "application",
-                aria_label: "Outline drawing canvas. Click to add points. Enter finishes; Escape cancels.",
+                "aria-label": "Outline drawing canvas. Click to add points. Enter finishes; Escape cancels.",
                 onpointerdown: move |event: PointerEvent| {
+                    let mut points = points;
                     let Some(pointer) = event.data().try_as_web_event() else { return; };
                     pointer.stop_propagation();
                     if !enabled || pointer.button() != 0 || !arbiter.try_acquire(CanvasInteractionOwner::OutlinePerimeter) { return; }
@@ -2320,6 +2321,8 @@ pub(super) fn OutlineDraftCanvasOverlay(
                 },
                 onkeydown: {
                     let finish = finish.clone();
+                    let mut points = points;
+                    let mut drawing_operation = drawing_operation;
                     move |event: KeyboardEvent| {
                         let Some(key) = event.data().try_as_web_event() else { return; };
                         match key.key().as_str() {
