@@ -656,8 +656,8 @@ pub(super) fn Editor(
         (&reference, &owner, &disabled, &busy(), &discovery_retry()),
         {
             let runtime = runtime.clone();
-            let mut model_paths = model_paths;
-            let mut paths_asset_id = paths_asset_id;
+            let model_paths = model_paths;
+            let paths_asset_id = paths_asset_id;
             let mut attempted_discovery = attempted_discovery;
             let mut request_generation = request_generation;
             let mut busy_signal = busy;
