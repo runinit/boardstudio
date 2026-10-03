@@ -435,6 +435,12 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                         }
                     }
                     p { class: "m1-mechanical-help", "Prefer 10 mm cuts; use 5 mm increments for a tighter fit. Foam thickness and compression are shared by the floating stack." }
+                    button {
+                        r#type: "button",
+                        class: "m1-mechanical-context-settings",
+                        onclick: move |_| props.on_select_layer.call("gaskets".to_owned()),
+                        "All gasket settings"
+                    }
                 }
                 if !support.is_previous {
                     {gasket_fit_issues(props.findings.clone(), props.on_show_finding)}
