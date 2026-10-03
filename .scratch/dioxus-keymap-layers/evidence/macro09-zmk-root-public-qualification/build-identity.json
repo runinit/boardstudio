@@ -1,0 +1,24 @@
+{
+  "react": {
+    "source_commit": "5a472a9426e6e38993361da402cd4ec730feb369",
+    "url": "http://127.0.0.1:5173/",
+    "session": "macro-zmk-react-exact-20261002"
+  },
+  "dioxus": {
+    "source_commit": "7d09d0a60fbb2cc12e259541614b9483ee618d29",
+    "url": "http://127.0.0.1:34735/",
+    "subpath_url": "http://127.0.0.1:34735/boardstudio/",
+    "build": "frontend-authoring-layers-integrated-20261002",
+    "build_provenance_sha256": "aabc367a69f40dce0601226a7909a21f71950824534137a2d41a7253d66b7a66",
+    "session": "macro-zmk-dioxus-20261002"
+  },
+  "browser": {
+    "user_agent": "HeadlessChrome/154.0.0.0",
+    "viewport_css_px": [
+      1280,
+      577
+    ],
+    "device_scale_factor": 1,
+    "theme_for_primary_screenshots": "System (light)"
+  }
+}

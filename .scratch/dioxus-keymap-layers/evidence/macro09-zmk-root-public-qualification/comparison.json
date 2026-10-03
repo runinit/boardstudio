@@ -1,0 +1,29 @@
+{
+  "fixture_sha256": "5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df",
+  "react_export_zip_sha256": "a8bb5a2852a63c2c496f529fb868494934153948dd01cccd044c0de22a3d302c",
+  "react_local_zip_sha256": "a8bb5a2852a63c2c496f529fb868494934153948dd01cccd044c0de22a3d302c",
+  "dioxus_export_zip_sha256": "22aa411a017e2e9b8b0982d4b7481d538ec3de39c88a7a45c5d31b3b7e218252",
+  "dioxus_local_zip_sha256": "22aa411a017e2e9b8b0982d4b7481d538ec3de39c88a7a45c5d31b3b7e218252",
+  "entry_count_react": 15,
+  "entry_count_dioxus": 15,
+  "entry_paths_equal": true,
+  "changed_entry_contents": [
+    "electrical-plan.json"
+  ],
+  "boardstudio_keymap_sha256_react": "0c90b67a3775e68e50875d68846381691a94bfade05da3ff09168f398696aa9c",
+  "boardstudio_keymap_sha256_dioxus": "0c90b67a3775e68e50875d68846381691a94bfade05da3ff09168f398696aa9c",
+  "parsed_electrical_plan_equal": true,
+  "raw_electrical_plan_sha256_react": "60669ee207a39fe12c81098435ac5c366bf61c7785bf79fc061840f293aef548",
+  "raw_electrical_plan_sha256_dioxus": "0c2e5bc1eb132fedcd033dbafc9e13e2b6f5602317da9506f10aaa18e2b3927e",
+  "plan_revisions": {
+    "react": {
+      "central": 13,
+      "peripheral": 13
+    },
+    "dioxus": {
+      "central": 13,
+      "peripheral": 13
+    }
+  },
+  "macro_keymap_snippet": "<&macro_tap>, <&kp A>, <&macro_wait_time 100>, <&macro_press &none>, <&macro_wait_time 0>"
+}

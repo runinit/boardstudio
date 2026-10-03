@@ -1,0 +1,67 @@
+# BoardStudio
+
+Sofle v2
+
+## Your keyboards1
+
+Saved in this browser
+
+＋
+
+New keyboardStart with guided setup
+
+Sofle v258 keys · 2 boardsCurrent
+
+New projectSetup guideREVIUNG41 copySofle v2 copyImport .boardstudio
+
+Saved
+
+LayoutPCBKeymapKeycapsCaseParts
+
+LayoutPCBKeymapKeycapsCasePartsExport
+
+ExportThemeSystemLightDark
+
+Objects
+
+## Objects
+
+Options
+
+## Objects
+
+Add object
+
+BoardLeft PCBRight PCBPhysical instanceleft halfGroup objectsColumnsRows
+
+Sofle v270 parts
+
+⌄Left PCB70 parts
+
+›OutlineGenerated
+
+›keysIndependent
+
+›thumbsIndependent
+
+# Export
+
+Create files from the saved keyboard in the current board and instance scope.
+
+Export STEP
+
+## Design files
+
+ZMK firmwareZMK v0.3.0 configuration and editable starter keymapExport
+
+## Portable project
+
+Keep an editable copy of the whole project, including all boards.
+
+Embed used modelsInclude attached 3D model files used in this project.Save .boardstudio project
+
+Saved locally.
+
+Sofle v2 · Revision 13 · Saved100%
+
+Saved locally.

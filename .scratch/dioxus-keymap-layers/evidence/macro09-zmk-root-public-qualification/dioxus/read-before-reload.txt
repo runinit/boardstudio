@@ -1,0 +1,81 @@
+# BoardStudio
+
+Sofle v2
+
+## Your keyboards1
+
+Saved in this browser
+
+＋
+
+New keyboardStart with guided setup
+
+Sofle v258 keys · 2 boardsCurrent
+
+New projectSetup guideREVIUNG41 copySofle v2 copyImport .boardstudio
+
+Saved
+
+LayoutPCBKeymapKeycapsCaseParts
+
+LayoutPCBKeymapKeycapsCasePartsExport
+
+ExportThemeSystemLightDark
+
+ObjectsInspect
+
+## Objects
+
+Options
+
+## Objects
+
+BoardLeft PCBRight PCBPhysical instanceleft halfGroup objectsColumnsRows
+
+Sofle v270 parts
+
+⌄Left PCB70 parts
+
+›OutlineGenerated
+
+›keysIndependent
+
+›thumbsIndependent
+
+## Inspect
+
+Options
+
+## Keymap
+
+2 layers · 29 keys
+
+### Layers
+
+0Main1Function
+
+Add layerLayer name
+
+The first layer cannot be removed.
+
+Higher layers take precedence. Transparent keys fall through to the layer below.
+
+KeysMacrosEncoders
+
+Export ZMK source
+
+### Macros
+
+Macro saved
+
+Kitchen macroNameTap duration (ms)Between actions (ms)
+
+Step 1tappressreleasewaitKeycodeRemove step 1
+
+Step 2tappressreleasewaitDelay (ms)Remove step 2
+
+Add stepRemove macroAdd macro
+
+Sofle v2 · Revision 13 · Saved100%
+
+Saved locally.

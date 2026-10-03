@@ -1,0 +1,8 @@
+config SHIELD_BOARDSTUDIO
+    def_bool $(shields_list_contains,boardstudio)
+
+config SHIELD_BOARDSTUDIO_LEFT
+    def_bool $(shields_list_contains,boardstudio_left)
+
+config SHIELD_BOARDSTUDIO_RIGHT
+    def_bool $(shields_list_contains,boardstudio_right)
