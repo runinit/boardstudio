@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T17:04:46.388801+00:00",
+    "updated_at": "2026-10-03T17:15:30.882183+00:00",
     "parent_counts": {
       "accepted": 10,
       "implementing": 41,
@@ -49,7 +49,7 @@
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
       "source_commit": "5c8161cf80d2c93c6214cb7caed6dffc4463f64d",
-      "state": "Candidate34774 contains the queued Layout source and passes its retained compiler/package checks. Delivery-tooling fixes are being integrated separately; focused Layout qualification starts through the verified candidate trigger.",
+      "state": "Delivery fixes committed067af1be+0943ae9e. Candidate34774 remains served; Layout qualification started and identified a shortcut routing repair. Browser journeys remain unexecuted; source/package success does not accept parents.",
       "packets": [
         {
           "stream": "Layout",
@@ -431,12 +431,13 @@
     },
     "execution_policy": "docs/agents/issue-tracker.md#frontend-delivery-records",
     "candidate_review": {
-      "review": ".scratch/dioxus-frontend-v1/evidence/candidate-34771-20261003/consolidated-review.md",
-      "review_sha256": "2ccabda19fe98a345e80b3662a3da546eebfb75e8a48b01d8df1761a4aee4c4c",
-      "audit": ".scratch/dioxus-frontend-v1/evidence/candidate-34771-20261003/consolidated-audit.json",
-      "audit_sha256": "a8352d86c1093cc5d3b2f7c63d02a3910788650d67fc4619a7a62317a58b1b67",
-      "state": "Finalized34771 scope assessments with explicit unqualified broader limits; next source batch review deferred.",
-      "candidate": "34771 retained review;34772/34773/34774 and later source have no new review yet."
+      "candidate": "frontend-source-batch-20261003-5",
+      "review": ".scratch/dioxus-frontend-v1/evidence/candidate-34774-20261003/consolidated-review.md",
+      "review_sha256": "2f94e04b24bb9a6e9da64e34d10b1d1906f7cca04a056d111506376a4a44b4d8",
+      "audit": ".scratch/dioxus-frontend-v1/evidence/candidate-34774-20261003/consolidated-audit.json",
+      "audit_sha256": "fe2c074338dcd5b33f27a6db459cc331a7c1e3ad298dc1b38a82055e85bf12f3",
+      "state": "Finalized single Sol 6.1 High review. Delivery workflow PASS at0943ae9e; Layout source NEEDS_REPAIR; paired browser journeys UNEXECUTED. No acceptance added.",
+      "previous_review": ".scratch/dioxus-frontend-v1/evidence/candidate-34771-20261003/consolidated-review.md"
     },
     "parent_acceptances": [
       {
@@ -485,19 +486,19 @@
     ],
     "pending_join_packets": [],
     "next_work": [
-      "record-candidate verifies the frozen package and starts focused Layout journeys plus one consolidated Sol 6.1 High review when its start conditions pass.",
-      "Other workbench queues continue. Route concrete findings to existing source/tickets; reuse unchanged evidence and repair only affected behavior.",
-      "Preserve all 62 parent criteria, blocker history and RF observations. Compiler/package success and qualification start do not accept parents."
+      "Repair the source-proven Layout Properties shortcut in existing F3.3 issue09; integrate with the normal next source batch.",
+      "Collect final browser command outcomes with retained execution session IDs, then finish the two focused paired Layout journeys and have Sol reassess only the affected repair.",
+      "Continue six queues and preserve all62 parent criteria and RF history. The delivery workflow fixes are complete; Layout acceptance remains open."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
       "implementation": "CONSTRAINTS.md; scripts/migration-deliver.py; scripts/build-m1.py; .scratch/dioxus-frontend-v1/progress.py; .scratch/dioxus-frontend-v1/qualification.py",
       "architectural_observation": ".scratch/dioxus-frontend-v1/refactor-findings.json:RF-009.delivery_retro_20261003",
-      "qualification": "Focused tooling checks passed; local commit guard installed and candidate34774 reverified on both routes. Layout-ready trigger entered qualifying; paired browser journey started. No parent acceptance added.",
+      "qualification": "All five workflow fixes implemented and exercised; Sol workflow approval with full-build-lineage repair. Candidate34774 entered focused qualification. Layout source shortcut finding open; paired browser attempt unexecuted due verifier session-result handling. No parent acceptance added.",
       "checks": {
         "build_reuse": 33,
         "source_inventory": 3,
-        "progress": 15,
+        "progress": 17,
         "qualification": 6,
         "commit_guard": 9
       },
@@ -507,36 +508,64 @@
         "role": "coordinator",
         "installed": true,
         "scope": "Migration shared Git directory only; no global config or primary React repo hook changed"
-      }
+      },
+      "retained_provider_preflight": {
+        "baseline": "frontend-six-stream-tools-handles-20261003",
+        "eligible_changed_inputs": 56,
+        "inherited_commands": 22,
+        "result": "PASS using committed workflow fix067af1be; no output reserved or rebuild executed"
+      },
+      "installed_guard_smoke": "PASS: direct coordinator intent rejected; integration rejected during freeze; lease released; guarded commits067af1be/0943ae9e succeeded.",
+      "commits": [
+        "067af1be",
+        "0943ae9e"
+      ]
     },
     "qualification": {
       "trigger": "layout_ready",
-      "phase": "qualifying",
+      "phase": "repairing",
       "layout_source_commit": "5c8161cf80d2c93c6214cb7caed6dffc4463f64d",
       "unmet_start_conditions": [],
       "journeys": [
         {
           "id": "layout-selection-inspector",
-          "state": "running",
+          "state": "unexecuted",
           "scope": "Sofle selection, contextual Objects/Inspector Properties and Relations, matrix/key edits, Undo and reopen",
-          "spec": ".scratch/dioxus-layout-authoring/spec.md"
+          "spec": ".scratch/dioxus-layout-authoring/spec.md",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/candidate-34774-20261003/layout-journey.md",
+          "limitation": "Verifier lost yielded execution session IDs; later command outcomes unknown. This is not evidence of a product defect."
         },
         {
           "id": "layout-outline-authoring",
-          "state": "pending",
+          "state": "unexecuted",
           "scope": "Generated outline copy/edit; perimeter/feature controls; snap/grid; Undo and reopen",
-          "spec": ".scratch/dioxus-layout-authoring/spec.md"
+          "spec": ".scratch/dioxus-layout-authoring/spec.md",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/candidate-34774-20261003/layout-journey.md",
+          "limitation": "Verifier lost yielded execution session IDs; later command outcomes unknown. This is not evidence of a product defect."
         }
       ],
       "review": {
         "profile": "sol-review",
-        "state": "pending"
+        "state": "completed",
+        "workflow_verdict": "pass",
+        "layout_verdict": "needs_repair",
+        "review": ".scratch/dioxus-frontend-v1/evidence/candidate-34774-20261003/consolidated-review.md",
+        "audit": ".scratch/dioxus-frontend-v1/evidence/candidate-34774-20261003/consolidated-audit.json"
       },
       "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
       "candidate_build_id": "frontend-source-batch-20261003-5",
       "source_commit": "5c8161cf80d2c93c6214cb7caed6dffc4463f64d",
       "started_at": "2026-10-03T17:03:19.310659+00:00",
-      "browser_agent": "/root/layout_ready_browser"
+      "browser_agent": "/root/layout_ready_browser",
+      "unmet_acceptance_conditions": [
+        "Repair source-proven Relations-to-Properties toolbar routing (existing F3.3 issue09).",
+        "Complete focused paired Layout journeys; previous attempt unexecuted due tooling-result handling."
+      ],
+      "tool_session_cleanup": {
+        "layoutready-react-20261003": "closed",
+        "layoutready-dioxus-outline-20261003": "closed",
+        "layoutready-dioxus-20261003": "close command pending; exec session13690 retained; no product verdict inferred"
+      }
     }
   }
 }

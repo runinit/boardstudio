@@ -483,6 +483,14 @@
         "observation": "The placement callback accepted only preset IDs, so saved assembly recipes could not use the same projection/drag/commit owner. A separate Parts writer would duplicate accepted-scope and transaction policy.",
         "current_mitigation": "Private MatrixPlacementSource carries preset or assembly plus definition snapshots through the existing placement lifecycle and Core SetMatrix. Shared workspace mount propagated the same payload. No public schema or wire change. The distinct direct-board X/Y action now creates operation-scoped definition/part snapshots, normalizes generators and rebases only operation additions onto the latest accepted project before one existing ReplaceDocument edit. Accepted-only root callback sets Part selection mode; no duplicate Session owner or public schema introduced.",
         "post_port_follow_up": "Keep one accepted edit owner and deepen its typed placement interface. Core AddPart accepts one part, so atomic multi-member placement currently requires a full-document proposal and private conflict/rebase policy; introduce a typed multi-part operation or transaction builder after parity. Behavioral Undo/reopen/conflict qualification remains later."
+      },
+      "layout_shortcut_context_20261003": {
+        "observation": "Shared Properties shortcut opens the Inspector but does not set the newly shared Properties/Relations tab, leaving numeric controls hidden after Relations. Context-routing state needs one complete navigation operation.",
+        "during_port": "Open correction stays in F3.3 issue09, identified by consolidated candidate34774 review.",
+        "evidence": [
+          ".scratch/dioxus-frontend-v1/evidence/candidate-34774-20261003/consolidated-review.md",
+          ".scratch/dioxus-layout-authoring/issues/09-layout-command-pill.md"
+        ]
       }
     },
     {
@@ -1530,7 +1538,8 @@
           ".scratch/dioxus-frontend-v1/progress.py",
           ".scratch/dioxus-frontend-v1/qualification.py",
           "CONSTRAINTS.md"
-        ]
+        ],
+        "qualification_tooling_observation": "The first Layout browser verifier discarded exec_command session IDs and mistook yielded calls for timeouts. Its receipt was corrected to unexecuted. Retain the full command result/session ID and await a final exit before assigning a browser verdict; no product failure follows from a tool yield."
       }
     },
     {

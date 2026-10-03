@@ -24,3 +24,7 @@ Start only after the existing F3.3a Select/Snap child and the Transform and Alig
 ## Suggested graph
 
 Proposed ID F3.3d. `start_after=[F3.3a,F3.3b,F3.3c leaf controls ready for composition]`; acceptance retains canonical parent joins. This ticket adds no new canonical dependency edge until the coordinator publishes its reviewed task graph.
+
+## Candidate 34774 review follow-up — 2026-10-03
+
+The consolidated candidate review identifies a remaining Properties shortcut route after selecting Relations. Repair and qualify this within the existing F3.3 issue; source finding and exact references live in [the candidate review](../../dioxus-frontend-v1/evidence/candidate-34774-20261003/consolidated-review.md). Browser qualification remains unexecuted; this does not reopen accepted F3.1 selection evidence.
