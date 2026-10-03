@@ -163,8 +163,18 @@ def validate_provenance(proof_path):
             or any(not isinstance(command, dict) for command in provenance["commands"])):
         raise ValueError("Candidate provenance has no executed commands")
     commands = list(provenance["commands"])
-    lineage = provenance.get("inherited_full_build_lineage")
-    inherited_count = provenance.get("inherited_full_build_commands")
+    lineage_fields = {"inherited_full_build_lineage", "inherited_full_build_commands"}
+    reuse_markers = {"reuse_mode", "base_build", "base_source_commit",
+                     "base_provenance", "base_provenance_sha256"}
+    if lineage_fields.issubset(provenance):
+        lineage = provenance["inherited_full_build_lineage"]
+        inherited_count = provenance["inherited_full_build_commands"]
+    elif not (lineage_fields & provenance.keys()) and not (reuse_markers & provenance.keys()):
+        if proof.get("inherited_commands") != 0:
+            raise ValueError("Full-build candidate must report zero inherited commands")
+        lineage, inherited_count = [], 0
+    else:
+        raise ValueError("Candidate provenance has incomplete inherited command lineage")
     if (not isinstance(lineage, list) or any(not isinstance(command, dict) for command in lineage)
             or type(inherited_count) is not int
             or type(proof.get("inherited_commands")) is not int):

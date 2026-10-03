@@ -193,6 +193,34 @@ class ProgressTests(unittest.TestCase):
         self.write_proof()
         self.assert_rejected_without_write(lambda: None)
 
+    def test_accepts_full_build_with_23_commands_and_no_reuse_lineage(self):
+        self.provenance["commands"] = [
+            {"label": f"full-{index}", "exit": 0} for index in range(23)
+        ]
+        self.provenance.pop("inherited_full_build_commands")
+        self.provenance.pop("inherited_full_build_lineage")
+        self.proof["fresh_commands"] = 23
+        self.proof["inherited_commands"] = 0
+        self.write_provenance()
+        self.proof["provenance_sha256"] = sha(self.provenance_path.read_bytes())
+        self.write_proof()
+        with patch.object(progress, "ROOT", self.root):
+            proof, provenance = progress.validate_provenance(self.proof_path)
+        self.assertEqual(len(provenance["commands"]), 23)
+        self.assertEqual(proof["inherited_commands"], 0)
+
+    def test_reuse_provenance_still_requires_inherited_lineage(self):
+        self.provenance["reuse_mode"] = "page-only-provider-reuse"
+        self.provenance["base_build"] = "full-build"
+        self.provenance.pop("inherited_full_build_commands")
+        self.provenance.pop("inherited_full_build_lineage")
+        self.proof["inherited_commands"] = 0
+        self.write_provenance()
+        self.proof["provenance_sha256"] = sha(self.provenance_path.read_bytes())
+        self.write_proof()
+        with patch.object(progress, "ROOT", self.root), self.assertRaises(ValueError):
+            progress.validate_provenance(self.proof_path)
+
     def test_rejects_absent_source_mismatch_list_without_write(self):
         del self.proof["source_mismatches"]
         self.write_proof()
