@@ -210,10 +210,7 @@ fn export_rows(
         .find(|item| item.board_id == board_id);
     let pcb_ready =
         selected_readiness.map_or(board_count <= 1 && scene.readiness.pcb, |item| item.pcb);
-    let outline_ready = selected_readiness
-        .map_or(board_count <= 1 && scene.readiness.outline, |item| {
-            item.outline
-        });
+    let outline_ready = selected_readiness.map_or(scene.readiness.outline, |item| item.outline);
     let case_ready = selected_readiness
         .map_or(board_count <= 1 && scene.readiness.case_ready, |item| {
             item.case_ready
@@ -222,7 +219,11 @@ fn export_rows(
         (!outline_ready).then_some("Review the board outline and layout findings.");
     let wiring_blocker =
         (!wiring_ready).then_some("Review the layout and resolve controller wiring in PCB.");
-    let case_blocker = (!case_ready).then_some("Add and generate case geometry in Case.");
+    let authored_case_ready = document
+        .case_bodies
+        .iter()
+        .any(|body| body.board_id == board_id)
+        && case_ready;
     let mechanical_scope = runtime.scope();
     let mechanical_document = mechanical_scope
         .as_ref()
@@ -336,13 +337,9 @@ fn export_rows(
                 "Case STEP"
             },
             detail: "Saved authored case bodies",
-            ready: !document.case_bodies.is_empty() && case_ready,
+            ready: authored_case_ready,
             available: true,
-            reason: if !document.case_bodies.is_empty() && case_ready {
-                None
-            } else {
-                case_blocker
-            },
+            reason: (!authored_case_ready).then_some("Add and generate case geometry in Case."),
             on_export: Some(step_export),
         },
     ];
