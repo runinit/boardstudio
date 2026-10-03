@@ -1485,7 +1485,6 @@ mod mounted_live_scene_tests {
                 expanded,
                 on_action: EventHandler::new(|_| {}),
                 on_select: EventHandler::new(|_| {}),
-                on_navigate: EventHandler::new(|_| {}),
                 on_display: EventHandler::new(|_| {}),
             })
         } else {

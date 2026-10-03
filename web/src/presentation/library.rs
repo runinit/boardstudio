@@ -426,7 +426,7 @@ fn DemoKeyboardCard(name: &'static str, fixture: &'static str) -> Element {
                     super::close_project_menu();
                     runtime.open_fixture(fixture);
                 },
-                DemoKeyboardPreview { preview: graphic, fallback: fallback.into() }
+                DemoKeyboardPreview { preview: graphic, fallback }
                 span { class: "m1-keyboard-title", "{name}" }
                 span { class: "m1-keyboard-detail", "{detail}" }
             }
@@ -493,7 +493,10 @@ pub(super) fn Library(
         .as_ref()
         .map(|snapshot| snapshot.document.clone());
     let has_current = current.is_some();
-    let current_revision = current.as_ref().map(|document| document.revision).unwrap_or_default();
+    let current_revision = current
+        .as_ref()
+        .map(|document| document.revision)
+        .unwrap_or_default();
     let current_durability = super::durability_label(&runtime.model().durability);
     let name_owner = current_snapshot.as_ref().map(ProjectNameOwner::from);
     let current_name = current

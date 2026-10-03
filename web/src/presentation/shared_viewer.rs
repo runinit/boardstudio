@@ -279,7 +279,7 @@ pub(crate) fn CaseSharedViewer(
     on_signal: EventHandler<ScopedViewerSignal>,
     on_display_change: EventHandler<ScopedDisplayChange>,
     mechanical_settings: Option<super::MechanicalSettingsProps>,
-    inline_case_controls: bool,
+    #[props(default)] inline_case_controls: bool,
 ) -> Element {
     let runtime = use_context::<Rc<crate::runtime::Runtime>>();
     let _ = use_context::<Signal<u64>>()();
@@ -1966,6 +1966,10 @@ fn SharedViewer(
     let top = host.clone();
     let bottom = host.clone();
     let iso = host.clone();
+    let case_fit = host.clone();
+    let case_top = host.clone();
+    let case_bottom = host.clone();
+    let case_iso = host.clone();
     let left = host.clone();
     let right = host.clone();
     let zoom_in = host.clone();
@@ -2285,10 +2289,10 @@ fn SharedViewer(
                 }
                 if inline_case_controls {
                     div { class: "m1-case-camera-controls", role: "group", "aria-label": "Assembly camera",
-                        button { onclick: move |_| run_host(&fit, |host| host.fit(), &mut status), "Fit" }
-                        button { onclick: move |_| run_host(&top, |host| host.view("top"), &mut status), "Top" }
-                        button { onclick: move |_| run_host(&bottom, |host| host.view("bottom"), &mut status), "Bottom" }
-                        button { onclick: move |_| run_host(&iso, |host| host.view("isometric"), &mut status), "Isometric" }
+                        button { onclick: move |_| run_host(&case_fit, |host| host.fit(), &mut status), "Fit" }
+                        button { onclick: move |_| run_host(&case_top, |host| host.view("top"), &mut status), "Top" }
+                        button { onclick: move |_| run_host(&case_bottom, |host| host.view("bottom"), &mut status), "Bottom" }
+                        button { onclick: move |_| run_host(&case_iso, |host| host.view("isometric"), &mut status), "Isometric" }
                     }
                 }
                 CaseAssemblyLayers {
