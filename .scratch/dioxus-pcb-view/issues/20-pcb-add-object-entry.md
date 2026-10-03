@@ -9,6 +9,7 @@
 - [ ] PCB Add object opens a contextual inventory rather than a generic Layout tree.
 - [ ] Search/categories/layout target use the accepted catalogue and current PCB board.
 - [ ] Choosing a component reaches existing Layout placement; completing/cancelling retains the current-board/history rules.
+- [ ] The pending component has the reference placement instruction, including target layout where applicable and Click/Enter/Esc actions.
 - [ ] Back/Escape and Browse return through existing owners; retained stale action cannot retarget a newer project/board.
 - [ ] Missing broader Layout/Board geometry menu capabilities remain explicitly tracked, never represented as completed placeholders.
 - [ ] Changed paired journey, one combined affected check and consolidated review retained; no new mirrored tests.

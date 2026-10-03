@@ -6738,6 +6738,20 @@ fn Editor() -> Element {
                             on_parts: on_browse_parts,
                         }
                     }
+                    if active_workspace == "Layout"
+                        && let Some(placement) = part_placement.projection.as_ref()
+                    {
+                        div { class: "m1-canvas-placement-hint", role: "status",
+                            "Place {placement.pending.definition.name}"
+                            if let Some(layout_name) = placement.pending.part.layout_id.as_ref()
+                                .and_then(|id| document.layouts.iter().find(|layout| &layout.id == id))
+                                .map(|layout| layout.name.as_str())
+                            {
+                                " in {layout_name}"
+                            }
+                            " · Click or Enter to place · Esc cancels"
+                        }
+                    }
                 }
                 if has_inspector {
                     InspectorPanel { compact_open: inspect_open, settings: inspector_panel_settings,
