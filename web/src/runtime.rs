@@ -2065,6 +2065,7 @@ impl Runtime {
                 } else if is_footprint_export {
                     self.footprint_export_bytes(operation_id, &snapshot, &scope)
                         .await
+                        .map(|bytes| (bytes, snapshot.token))
                 } else {
                     let work: Result<ArchiveWorkFuture<'_>, String> =
                         self.archive_export_options.dispatch(
@@ -2095,7 +2096,7 @@ impl Runtime {
                             },
                         );
                     match work {
-                        Ok(future) => future.await,
+                        Ok(future) => future.await.map(|bytes| (bytes, snapshot.token)),
                         Err(reason) => Err(reason),
                     }
                 };
@@ -2103,13 +2104,18 @@ impl Runtime {
                     let owner_is_current =
                         self.export_current(operation_id, snapshot.token, &scope);
                     let cancelled = self.cancelled_exports.borrow_mut().remove(&operation_id);
-                    firmware_export_bytes_for_delivery(result, owner_is_current, cancelled)
+                    firmware_export_bytes_for_delivery(
+                        result.map(|(bytes, _)| bytes),
+                        owner_is_current,
+                        cancelled,
+                    )
+                    .map(|bytes| (bytes, snapshot.token))
                 } else {
                     result
                 };
                 match result {
-                    Ok(bytes) => {
-                        let current = self.export_current(operation_id, snapshot.token, &scope);
+                    Ok((bytes, delivery_token)) => {
+                        let current = self.export_current(operation_id, delivery_token, &scope);
                         let cancelled = self.cancelled_exports.borrow_mut().remove(&operation_id);
                         if !current || cancelled {
                             return self.complete(Completion::ExportFailed {
@@ -2160,14 +2166,14 @@ impl Runtime {
                                 filename,
                                 media_type,
                                 scope: scope.clone(),
-                                token: snapshot.token,
+                                token: delivery_token,
                                 firmware: is_firmware_export,
                                 keycaps_step: is_keycaps_step_export,
                             },
                         );
                         self.complete(Completion::ExportFinished {
                             operation_id,
-                            token: snapshot.token,
+                            token: delivery_token,
                             scope: scope.clone(),
                             artifact_id,
                         })
@@ -3817,7 +3823,7 @@ impl Runtime {
         initial_snapshot: &AcceptedSnapshot,
         scope: &Scope,
         draft: bool,
-    ) -> Result<Vec<u8>, String> {
+    ) -> Result<(Vec<u8>, SnapshotToken), String> {
         let mut capture = self
             .pcb_handoff_exports
             .borrow()
@@ -3964,7 +3970,7 @@ impl Runtime {
         if !self.pcb_handoff_capture_is_current(operation_id, &capture, &core) {
             return Err("KiCad handoff was superseded before delivery.".into());
         }
-        Ok(archive)
+        Ok((archive, capture.token))
     }
 
     async fn resolve_pcb_handoff_plan(

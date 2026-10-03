@@ -5065,7 +5065,8 @@ fn Editor() -> Element {
         let mut owner_state = layout_transform_tool_owner;
         let mut active_tool = layout_transform_tool;
         move |(transform_tool_owner,)| {
-            if owner_state()
+            if owner_state
+                .peek()
                 .as_ref()
                 .is_some_and(|previous| previous != &transform_tool_owner)
             {
