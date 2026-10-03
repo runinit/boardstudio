@@ -553,12 +553,6 @@ pub fn App() -> Element {
         .as_ref()
         .map(|snapshot| snapshot.document.name.clone())
         .unwrap_or_else(|| "Open project".into());
-    let save_label = runtime
-        .model()
-        .accepted
-        .as_ref()
-        .map(|_| durability_label(&runtime.model().durability))
-        .unwrap_or("Ready");
     let save_state = if runtime.model().accepted.is_none() {
         "ready"
     } else {
@@ -576,7 +570,7 @@ pub fn App() -> Element {
                         close_project_menu();
                     }
                 },
-                    summary { "aria-label": "Project", "aria-controls": "m1-project-menu-dropdown", title: "Project menu — {project_name}", onclick: move |_| project_menu_page.set(ProjectMenuPage::Project),
+                    summary { role: "button", "aria-label": "Project", "aria-controls": "m1-project-menu-dropdown", title: "Project menu — {project_name}", onclick: move |_| project_menu_page.set(ProjectMenuPage::Project),
                         svg { class: "m1-project-mark", view_box: "0 0 30 30", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true", path { d: "M4 4h22v22H4z" }, path { d: "m8 20 5-10 4 8 3-5 3 7" }, circle { cx: "13", cy: "10", r: "1.3" } }
                         span { class: "m1-project-name", "{project_name}" }
                         svg { class: "m1-project-chevron", view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true", path { d: "m5 7 5 5 5-5" } }
@@ -597,7 +591,6 @@ pub fn App() -> Element {
                     summary {
                         aria_label: match save_state { "saved" => "Saved locally", "saving" => "Saving locally", "failed" => "Local save failed", _ => "Local save status unavailable" },
                         i { "aria-hidden": "true" }
-                        span { class: "m1-visually-hidden", "{save_label}" }
                     }
                     div { role: "status",
                         if save_state == "saved" { "Changes are saved in this browser. Use Save project copy for a portable backup." }
