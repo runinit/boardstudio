@@ -1493,7 +1493,14 @@
           "post_port_follow_up": "Keep one indexed criterion-to-journey map and explicit source/build identity; review shared-shell ownership after parity rather than extracting another Keymap-specific panel owner.",
           "status": "evidence/ownership reconciliation only; no new RF finding or production change"
         }
-      ]
+      ],
+      "delivery_retro_20261003": {
+        "source": "Current session package failures -1/-2; cached source-compile logs; .github/workflows/check.yaml; package.json/.githooks/pre-commit; author messages requesting base confirmation and document-only isolate",
+        "observation": "Packaging ran fixture preparation before discovering basic Rust/RSX types; the existing CI check command covers React/Core/renderer but omits the Dioxus page. Blanket source-base/isolated-worktree wording also produced needless confirmation waits and a proposed document-only isolate. These are concrete process delays, not a reason to repeat accepted user journeys.",
+        "current_mitigation": "Wire the existing locked WASM page cargo check into CI and use the cached command once per joined batch before package retry. Authors advance within unchanged ownership, publish shared helper signatures early, and report no-gap source audits through existing pointers. Preserve original failed package outputs and unrelated work.",
+        "post_port_follow_up": "Keep compilation, immutable candidate packaging and behavioral qualification as separate stages with one typed progress/evidence index; evaluate stable scoped callback/view interfaces to reduce RSX capture boilerplate.",
+        "validation": "Source/CI/workflow changes applied. Source compiler loop remains in progress; application tests, browser journeys and consolidated review are deferred."
+      }
     },
     {
       "id": "RF-010",

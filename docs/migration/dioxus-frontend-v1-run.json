@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T15:04:11.803308+00:00",
+    "updated_at": "2026-10-03T15:13:56.031909+00:00",
     "parent_counts": {
       "accepted": 10,
       "implementing": 41,
@@ -44,8 +44,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "b13983c6",
-      "state": "Larger source batch joined, including complete closure dimensions and Critical fits. Original compiler errors repaired together; next preview package pending. Application tests/browser/review deferred.",
+      "source_commit": "46cfebd7df924dbb6669c99e93d2c540b24e3a03",
+      "state": "Source-first integration continues. Full bridge/feature editor and component model controls joined. Cached source compilation clears type errors before packaging; behavioral tests/review deferred.",
       "packets": [
         {
           "stream": "Layout",
@@ -189,6 +189,24 @@
           "stream": "Layout",
           "integrated_commit": "b13983c6",
           "change": "Retain polygon draft compiler captures and document/SVG typing repairs"
+        },
+        {
+          "stream": "Parts",
+          "integrated_commit": "fcaedd4d+02fa6ba0",
+          "change": "Shared verified model-file import/store helper; component attach/detach and transform Inspector",
+          "receipt": ".scratch/dioxus-parts-catalogue/evidence/component-model-editor-source-20261003/RECEIPT.md",
+          "preservation": "Existing untracked model draft remains intact. Incoming author draft retained in365913c3; joined only source/receipt."
+        },
+        {
+          "stream": "Layout",
+          "integrated_commit": "46cfebd7",
+          "change": "Connect/bridge drafts, saved feature selection/remove, polygon perimeter route, rectangle/connection controls",
+          "receipt": ".scratch/dioxus-layout-authoring/evidence/f34e-manual-polygon-drafts-source-20261003.md"
+        },
+        {
+          "stream": "Export support",
+          "integrated_commit": "bdcff5bd",
+          "change": "Selected-board authored readiness and aggregate outline fallback"
         }
       ],
       "qualification": "Joined source is not acceptance. No new application tests or browser qualification were run for this batch."
@@ -215,14 +233,7 @@
     ],
     "heavy_slots": {
       "policy": "Coordinator assigned; maximum 2 heavy jobs / 1 package",
-      "active": [
-        {
-          "kind": "package",
-          "build_id": "frontend-source-batch-20261003-2",
-          "source_commit": "pending frozen HEAD",
-          "mode": "fixture refresh and shared-provider reuse; no application tests"
-        }
-      ],
+      "active": [],
       "check": {
         "source_commit": "3dbcdb38",
         "result": "Failed strict check: two needless Option borrow conversions in Add-object source. Repaired at642d5474; recheck deferred until larger candidate.",
@@ -260,8 +271,27 @@
             }
           ],
           "qualification": "Fresh demo fixtures prepared. Page compilation failed; no tests or browser journeys executed. Original compiler log retained; retry gets a fresh build ID."
+        },
+        {
+          "build_id": "frontend-source-batch-20261003-2",
+          "source_commit": "6cfe367fdd9b42d4502828e8237877a3f4f09f4a",
+          "exit_code": 1,
+          "result": "failed-page-root",
+          "provenance": "web/target/builds/frontend-source-batch-20261003-2/provenance.json",
+          "provenance_sha256": "7b4b15198bc560850fae7ebf043745a9e1e4ac83a59754ba3013fb8cc4fcf7a0",
+          "qualification": "Failed source compilation after fresh fixtures. Retained logs; switched to cached compile-only pass before next packaging attempt. No tests/browser/review."
         }
-      ]
+      ],
+      "source_compile": {
+        "source_commit": "3dccf2a2",
+        "result": "Compile-only passes exposed RSX declaration/capture errors. Direct repairs joined, plus model/outline source; next combined compile pending.",
+        "command": "cargo check --manifest-path web/Cargo.toml --locked --target wasm32-unknown-unknown --no-default-features --features page --bin boardstudio-web",
+        "logs": [
+          "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003.log",
+          "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-2.log"
+        ],
+        "new_tests": 0
+      }
     },
     "execution_policy": "docs/agents/issue-tracker.md#frontend-delivery-records",
     "candidate_review": {
@@ -293,7 +323,7 @@
       {
         "stream": "Layout",
         "priority": "first",
-        "state": "Selection accepted; matrix Add object, linked Inspector, mirror-half creation and background dot grid joined. Outline polygon drafts joined; compiler repair and bridge/feature-list editor authoring. Properties/Relations Inspector tabs authoring."
+        "state": "Selection accepted. Matrix authoring/linked Inspector/mirror-half/grid and full polygon/bridge/feature controls joined. Properties/Relations tabs awaiting source join; further real outline source gaps checked."
       },
       {
         "stream": "PCB",
@@ -301,7 +331,7 @@
       },
       {
         "stream": "Keymap",
-        "state": "F6K.1/.2/.3 accepted; encoder/firmware-position/export consumers retain final joins. New source parity pass for genuine remaining GUI gaps; global history shortcut joined."
+        "state": "Source comparison found all Keymap-owned UI mounted; no new code/receipt/isolate created. F6K.1/.2/.3 accepted; T1-11/F3.4, F5.2/F8.2 and F7.3 final joins remain."
       },
       {
         "stream": "Keycaps",
@@ -313,7 +343,7 @@
       },
       {
         "stream": "Parts + Project",
-        "state": "Fifteen measured demos, module profiles and saved assembly recipe/member editor joined. Component model import/pose/scale and advanced assembly model/parameter controls authoring."
+        "state": "Demos/module profiles/saved assembly/component models joined. Shared file helper unblocks PCB/Assembly. Generator file-parameter attachment and advanced Assembly controls authoring."
       }
     ],
     "pending_join_packets": [],
@@ -321,6 +351,12 @@
       "Join ready outline drafts/grid, routed-board import, remaining mechanical settings, assembly authoring and component model controls without per-packet tests or reviews.",
       "Freeze the larger candidate, compile/package once, then qualify changed public journeys and review once; retain unchanged proof.",
       "Use assigned relevant source bases across record-only commits. Publish only this live record and new RF deltas; preserve all final criteria and joins."
-    ]
+    ],
+    "process_retro": {
+      "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
+      "implementation": ".github/workflows/check.yaml; docs/agents/issue-tracker.md#frontend-delivery-records",
+      "architectural_observation": ".scratch/dioxus-frontend-v1/refactor-findings.json:RF-009.delivery_retro_20261003",
+      "qualification": "Workflow fixes applied; no behavioral qualification or source-gap inventory counted as acceptance."
+    }
   }
 }
