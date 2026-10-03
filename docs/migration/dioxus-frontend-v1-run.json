@@ -1273,7 +1273,7 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T12:47:50.284433+00:00",
+    "updated_at": "2026-10-03T13:03:28.269356+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
       "accepted": 6,
@@ -1283,24 +1283,24 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-six-stream-parity-recovery-20261003",
-      "source_commit": "3a080e0e99d0638ddc1b562b3fc5a8ac91f3fefd",
-      "root_url": "http://127.0.0.1:34767/",
-      "subpath_url": "http://127.0.0.1:34767/boardstudio/",
-      "provenance": "web/target/builds/frontend-six-stream-parity-recovery-20261003/provenance.json",
-      "provenance_sha256": "96d7bc6289aedaadd8198bb9038c67d24fc659fde847362b24c7504313cbc733",
-      "fresh_commands": 22,
-      "inherited_commands": 0,
+      "build_id": "frontend-contextual-panes-followup-20261003",
+      "source_commit": "9e6f9b62e33d7dc22412cf5793a3f4b857e219c3",
+      "root_url": "http://127.0.0.1:34768/",
+      "subpath_url": "http://127.0.0.1:34768/boardstudio/",
+      "provenance": "web/target/builds/frontend-contextual-panes-followup-20261003/provenance.json",
+      "provenance_sha256": "0d04905a8dbd66e961595fbae3702124e2f7d2784cfbe5bc3e8dab85dc81d290",
+      "fresh_commands": 8,
+      "inherited_commands": 22,
       "source_inputs": 1372,
       "source_mismatches": 0,
       "assets_per_route": 146,
-      "command_span_seconds": 459.672795,
-      "package_qualification": "Full 22-command package and maintained inputs/assets qualified. Seven changed paired journeys are bounded GREEN and consolidated Sol-reviewed. The preset completion repair and Objects/Keymap UI follow-up are joined for 34768; broader parents remain open.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34767-20261003/package-proof.json"
+      "command_span_seconds": 112.463208,
+      "package_qualification": "Strict page all-targets PASS20.046s, verified full34767 provider reuse; changed Objects/Keymap, encoder output and native custom-editor journeys qualified and consolidated-reviewed with visual/parent limits retained.",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34768-20261003/package-proof.json"
     },
     "integration": {
-      "source_commit": "6d9320f2fc8b8cd38643243efd6f51abfb4b191c",
-      "state": "34767 changed journeys qualified and reviewed. UI-only 34768 batch frozen: contextual Objects menu/composition and compact focus, preset completion guards/label, Keymap disclosure spacing. Combined strict page WASM all-targets PASS 20.046s; no new UI tests. Range/tools/Case/PCB/Parts/export substantive packets remain isolated for next full candidate.",
+      "source_commit": "698cee6077afd407c424cc8a1296a2758457ec8d",
+      "state": "34768 bounded changed journeys and consolidated review complete. Full34769 six-stream source batch integrated: real transforms, primary rectangular selection, Case mechanical/gasket handles, PCB source route/host markers, Keymap disclosure styling, Keycaps cancellation batches, RGB/Choc demos. Combined affected page/CAD-worker checks underway; first page parse failure retained and corrected. Full workbench/parent gates stay open.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1658,11 +1658,9 @@
         "log": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/frontend-ui-corrections-export-combined-clippy-final.log"
       },
       "next_candidate": {
-        "build_id": "frontend-contextual-panes-followup-20261003",
-        "port": 34768,
-        "source_commit": "6d9320f2fc8b8cd38643243efd6f51abfb4b191c",
-        "provider_baseline": "frontend-six-stream-parity-recovery-20261003",
-        "state": "combined check passed; guarded page/provider reuse packaging next"
+        "build_id": "frontend-six-stream-tools-handles-20261003",
+        "port": 34769,
+        "state": "combined affected checks in progress; full provider/fixture package next"
       }
     },
     "journeys": [
@@ -1961,6 +1959,30 @@
         "candidate": "661296fe/34764",
         "evidence": ".scratch/dioxus-parts-catalogue/evidence/issue02-vik-modules-34764/RESULTS.md",
         "remaining": "Changed center source-preview journey; full Parts parent criteria."
+      },
+      {
+        "candidate": "34768",
+        "evidence": ".scratch/dioxus-frontend-v1/evidence/candidate-34768-20261003/objects-pane-receipt.md",
+        "result": "Objects grouping/menu dismissal and compact tree-to-Inspector handoff qualified; compact topbar/drawer visuals remain.",
+        "parent_acceptance": "bounded criterion evidence only"
+      },
+      {
+        "candidate": "34768",
+        "evidence": ".scratch/dioxus-keymap-layers/evidence/keymap-inspector-parity-20261003/RESULTS.md",
+        "result": "Keys/Macros disclosure vertical spacing matches; encoder flat-style correction queued.",
+        "parent_acceptance": "bounded criterion evidence only"
+      },
+      {
+        "candidate": "34768",
+        "evidence": ".scratch/dioxus-keymap-layers/evidence/keymap-firmware-encoder-output-20261003/RESULTS.md",
+        "result": "Paired encoder rotation/push ZMK provider output:15paths,14exactentries, parsed plan equal; ZIPbytes differ.",
+        "parent_acceptance": "bounded criterion evidence only"
+      },
+      {
+        "candidate": "34768",
+        "evidence": ".scratch/dioxus-parts-catalogue/evidence/04-custom-footprint-candidate-34768/RESULTS.md",
+        "result": "Native custom definition create/default pad/courtyard edit/UndoRedo/reopen paired GREEN; broader criteria retained.",
+        "parent_acceptance": "bounded criterion evidence only"
       }
     ],
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
@@ -1969,8 +1991,8 @@
       "active": [
         {
           "owner": "root",
-          "job": "guarded page/provider reuse package 34768",
-          "target": "integration web/target"
+          "job": "combined affected page/CAD-worker strict checks",
+          "target": "case-current-result-status-repair-20261003/web/target"
         }
       ],
       "check": {
@@ -1996,10 +2018,10 @@
     },
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "next_work": [
-      "Serve guarded-reuse34768 and inspect only changed Objects/menu/focus and Keymap/preset paths.",
-      "Serially join ready rectangle-selection, real transform tools, Case handles, PCB navigation and Parts variants into one full candidate.",
-      "Implement full/draft KiCad exports through existing providers and Session-owned commit/adopt seam.",
-      "Close parents only from existing canonical criteria/joins and consolidated review; retain architecture/refactoring takeaways."
+      "Finish combined affected34769 checks and one full provider/fixture package; inspect only changed tools/range/handles/routes/previews/variants.",
+      "Compact shared-shell author ports actual topbar toggles/Export/drawers independently; full/draft KiCad Session-owned commit/adopt work continues.",
+      "CaseBody handles and canonical Keycaps/Keymap/Parts acceptance frontier continue in parallel.",
+      "Retain all62parents, exact criteria/joins/history and RF ledger; close ready parents from sufficient consolidated evidence."
     ],
     "execution_policy": "Ordinary reversible UI gets no new tests. Run one required affected compile/check per integrated batch, inspect only changed paired browser journeys, and use one consolidated candidate review. Reuse unchanged history/reopen evidence. Real reproduced bugs retain one focused regression. Parent criteria, blocker history and RF ledger remain explicit.",
     "served_candidate_history": [
@@ -2259,6 +2281,22 @@
         "command_span_seconds": 100.874479,
         "package_qualification": "Strict page WASM all-targets19.23s PASS; newtests0. Fast package8fresh/22inherited,1378sources/146assets-route0mismatch,root/subpath200COOP/COEP. Changed journeys active; no parentclosure.",
         "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34765-20261003/package-proof.json"
+      },
+      {
+        "build_id": "frontend-six-stream-parity-recovery-20261003",
+        "source_commit": "3a080e0e99d0638ddc1b562b3fc5a8ac91f3fefd",
+        "root_url": "http://127.0.0.1:34767/",
+        "subpath_url": "http://127.0.0.1:34767/boardstudio/",
+        "provenance": "web/target/builds/frontend-six-stream-parity-recovery-20261003/provenance.json",
+        "provenance_sha256": "96d7bc6289aedaadd8198bb9038c67d24fc659fde847362b24c7504313cbc733",
+        "fresh_commands": 22,
+        "inherited_commands": 0,
+        "source_inputs": 1372,
+        "source_mismatches": 0,
+        "assets_per_route": 146,
+        "command_span_seconds": 459.672795,
+        "package_qualification": "Full 22-command package and maintained inputs/assets qualified. Seven changed paired journeys are bounded GREEN and consolidated Sol-reviewed. The preset completion repair and Objects/Keymap UI follow-up are joined for 34768; broader parents remain open.",
+        "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34767-20261003/package-proof.json"
       }
     ],
     "consolidated_reviews": [
@@ -2300,6 +2338,14 @@
         "audit": ".scratch/dioxus-frontend-v1/evidence/candidate-34767-20261003/consolidated-audit.json",
         "audit_sha256": "c77e28c48a85485533a2b72f60db7e4bf6cd530fb58ccb6278dfe5dcbd20953d",
         "result": "Seven changed journeys bounded GREEN. Preset stale-selection source repair queued next candidate; broader parent criteria retained."
+      },
+      {
+        "candidate": "34768",
+        "review": ".scratch/dioxus-frontend-v1/evidence/candidate-34768-20261003/consolidated-review.md",
+        "review_sha256": "72729f18fdd6ed88ade7fce7c3478a493d6cecd5ae1cf83cfe2dc2f9aca817e1",
+        "audit": ".scratch/dioxus-frontend-v1/evidence/candidate-34768-20261003/consolidated-audit.json",
+        "audit_sha256": "04ec2884449c8b5365bdfba4cd392f2d9d1b225c5b52fecca591c6b2c0bb37c8",
+        "result": "Four bounded changed/frontier receipts incorporated, no new source defect; compact topbar/drawer/Inspector/footer and encoder style follow-up remain. ZIPsemantic parity only; no parent closures."
       }
     ],
     "build_attempt_history": [
