@@ -33,20 +33,55 @@ Cancellation needs a deliberate port, not a blanket claim of worker preemption. 
 
 Suggested status label: **Existing engine/provider function; missing Dioxus private host adapter.** This is not a missing CAD algorithm or an established public-contract gap. If feasibility shows the existing module cannot be loaded/invoked or the private wrapper cannot return/validate required data, record the exact blocker for a separate contract decision; do not drop keycap preview/export or ship a permanent placeholder.
 
-## Session-owned export commits: what the current lifecycle does and does not provide
+## Session-owned export commits: implemented path and remaining proof
 
-Current `Session::start_export_now` captures one accepted snapshot token and registers `(operation_id, scope, token)`. `ExportFinished` delivers only if that exact operation/scope/token still matches. Every successful persisted commit calls `cancel_exports` before installing a new accepted snapshot/token, and `Event::Navigate` also cancels current exports. Therefore a single `Event::StartExport` cannot span the React PCB sequence and adopt its own `apply-electrical` and post-package `protect-electrical-handoff` commits. The existing Session event is sufficient for archive/STEP jobs that don't commit their own document changes, but it does not implement React `ExportContext.adopt()` lineage.
+The earlier planning diagnosis was correct for the pre-F8.3a Session, but
+is superseded by the mounted full/draft KiCad adapter. `application::Event::ExportCommit`
+and `ExportCommitRequest::{ApplyElectrical, ProtectElectricalHandoff}` now carry
+the child operation ID plus the owning export's operation ID, captured snapshot
+token and `Scope` (`application/src/session.rs`, lines 266–285, 875–896). Session
+rejects a stale owner at submission and again when pumping the queued intent,
+requires the plan's accepted document revision, and routes the request through
+the ordinary Core queue (`session.rs`, lines 1228–1237, 1392–1409, 1475–1492).
 
-A **candidate private Runtime orchestration** is possible without changing Core/CAD APIs: track a private F8 operation and captured scope; use ordinary Session edit/commit operations for React's required accepted preparation; adopt only the accepted result of each owner-issued transaction into that private operation's expected snapshot; create/package from the currently adopted immutable snapshot; commit protection only after package construction succeeds; then deliver only if current accepted document/scope still equals the last owner-adopted snapshot. Any unrelated edit, board/instance navigation, project reopen, or stale provider reply cancels/rejects it. The F8 operation must not register a long-lived `StartExport` whose token is invalidated by its own accepted commits.
+The active Core request and pending persistence retain that exact owner. On a
+successful save, Session cancels other exports, installs the new accepted
+snapshot, and advances only the matching export's token when operation, scope
+and old token all match (`session.rs`, lines 1540–1549, 1568–1600). Failed
+persistence does not install or adopt a snapshot; unrelated accepted commits,
+navigation, close, or stale scope/token continue to cancel the operation. This
+uses normal Core application, persistence, accepted-state, and undo/history
+ownership; it does not introduce another document writer or Core protocol.
 
-This is a **design candidate, not proof that the current Runtime can safely implement it**. The existing Runtime's effect loop does not yet expose a typed artifact-operation lifecycle or a demonstrated private “await this exact accepted edit completion and adopt it” helper. The early feasibility task must establish a race-safe way to correlate those normal edit/persistence completions with the owning private export operation while keeping concurrent user edits and scope changes invalidating. If that requires an application Session event or public crate API change, write the exact need and obtain separate authorization before doing so; don't smuggle it into the frontend task.
+`Runtime::pcb_handoff_bytes` consumes this seam in the required order: resolve
+the selected-board electrical plan, apply only when not already present, adopt
+the accepted result and resolve again, build/package from that accepted
+snapshot, then protect only after packaging succeeds. It captures session,
+document, board/instance scope, token/revision, executor epoch and Core worker
+identity and rechecks them around awaits and before delivery
+(`web/src/runtime.rs`, lines 3820–3974, 4052–4125). The final archive is paired
+with the post-protection token and that token is used by the last owner check,
+artifact record and `ExportFinished` (`runtime.rs`, lines 2116–2179). This
+post-commit delivery-token handoff was corrected in the integrated source after
+the initial 34769 candidate.
+
+The actual full/draft downloads and assembly correction are retained in the
+[34769 receipt](../evidence/export-pcb-handoff-20261003/34769-RECEIPT.md) and
+[34770 correction leg](../evidence/export-pcb-handoff-20261003/34770-HEADING-GREEN.md).
+Those journeys used a fixture whose generated wiring was already applied, so
+they do **not** qualify the branch that applies wiring, a packaging failure's
+no-protection behavior, stale/external-mutation races, or persisted history,
+undo/redo and reopen. These are remaining behavioral/evidence limits, not an
+unresolved API feasibility or missing owner-token transition. BND.2's source
+boundary is implemented; task status and remaining acceptance stay with the
+root task ledger.
 
 ## Actionable early feasibility tasks
 
 1. **Keycap CAD host feasibility (F7.1, before consumer completion):** trace built asset import/worker startup; identify a crate-private request/result route to `build_keycaps`; verify existing wasm bindings, KeycapSpec serialization, body/legend ID mapping, STEP result validation, job/revision/scope correlation, and preview cancellation granularity. Use an already-built package/fixture for the later implementation check; this review itself did not build or invoke WASM.
 2. **F6C.5 split/readiness:** keep resolver findings and 2D edits fixture-ready. Mark live CAD preview meshes and keycap STEP as dependent on the private CAD adapter; preserve them as required acceptance, not an out-of-scope feature.
 3. **F7.3 integration:** define the shared viewer input as already-resolved body meshes plus source IDs/material/display metadata. Make Keycap preview a consumer of the shared adapter and delay only the real generated-mesh join, not all viewer development.
-4. **PCB export sequencing feasibility (F8.2):** before implementation, map Session edit commit, persistence, token advancement, cancellation, and Runtime callbacks. Decide whether a private Runtime-owned lineage guard can safely adopt only its own accepted preparation/protection commits while the operation is unregistered from Session exports. Keep package-before-protection and suppress delivery for all external mutations. No application API expansion until this feasibility work establishes it is necessary and separately approved.
+4. **PCB export sequencing (BND.2/F8.2):** source implementation is present in `Event::ExportCommit`, `ExportCommitRequest`, Session's retained `ExportCommitOwner` through Core/persistence, and the Runtime's `commit_pcb_handoff`/capture guards. Reuse the exact owner/token/scope behavior described above; do not re-open API feasibility. Remaining qualification is specifically the conditional apply branch, failed-package-before-protection behavior, stale/external mutation suppression, and accepted history/reopen evidence. See the bounded 34769/34770 receipts and their stated limits.
 
 ## Source evidence index
 

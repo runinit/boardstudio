@@ -39,11 +39,17 @@ never deliver an older board or session result.
 The current mounted providers are project archive, SVG/DXF, ZMK firmware,
 standalone footprint ZIP, full/draft KiCad board handoff, and ordinary authored Case STEP. Public evidence is
 bounded to the actual SVG/DXF downloads on 34763, the footprint ZIP on 34767,
-the Keymap-local ZMK download, and local Keycaps STEP; see the [parent criteria
-map](08-export.md#current-f8-evidence-and-remaining-criteria-2026-10-03).
+the Keymap-local ZMK download, local Keycaps STEP, and the full/draft KiCad
+downloads on 34769 with the corrected assembly heading on 34770; see the
+[parent criteria map](08-export.md#current-f8-evidence-and-remaining-criteria-2026-10-03)
+and [F8.3a receipts](../evidence/export-pcb-handoff-20261003/34769-RECEIPT.md).
 Project archive remains without paired Export-route verification. Full/draft
-KiCad now use a private Session-owned accepted-snapshot transition around
-apply → package → protect; their changed Dioxus journey remains pending.
+KiCad use the Session `ExportCommit`/`ExportCommitRequest` path for accepted
+wiring and protection mutations. The matching owner advances its token only
+after persisted acceptance, and the post-protection token reaches final owner
+validation, artifact identity, and `ExportFinished`. The receipts qualify ZIP
+outputs but the fixture already had wiring applied; the own-apply branch,
+failure ordering, stale races and persisted history/reopen remain unqualified.
 Generated mechanical package is still unavailable. Ordinary
 authored Case STEP works only when the selected board has no generated
 mechanical configuration; the configured path resolves the generated stack
