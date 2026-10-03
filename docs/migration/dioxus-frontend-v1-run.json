@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T14:28:21.135546+00:00",
+    "updated_at": "2026-10-03T14:34:02.375363+00:00",
     "parent_counts": {
       "accepted": 10,
       "implementing": 32,
@@ -37,49 +37,91 @@
       "source_mismatches": 0,
       "assets_per_route": 154,
       "command_span_seconds": 116.500545,
-      "package_qualification": "Full34769 providers retained; fresh page/offline routes verified. Desktop1280 scrim absent after import; changed transform geometry/Arrow/global Escape and compact Export selector legs in progress.",
+      "package_qualification": "Retained34771 package proof and bounded paired journeys; source batch below is newer and not yet packaged or browser-qualified.",
       "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34771-20261003/package-proof.json"
     },
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "b2ed62f8",
-      "state": "Source integration first: Add-object/VIK joined; PCB/compact-shell/next Layout and Case packets in progress. Packaging/public qualification/review deferred until larger coherent candidate.",
+      "source_commit": "54f627b1",
+      "state": "Larger source batch joined directly. Application checks, packaging, browser qualification and consolidated review are deferred until the coherent candidate is frozen.",
       "packets": [
         {
           "stream": "Layout",
-          "author_commit": "e46747bb",
-          "integrated_commit": "1a4d2044",
-          "receipt": ".scratch/dioxus-frontend-v1/evidence/f32c-selected-matrix-add-20261003/receipt.md",
-          "state": "joined; changed browser GREEN pending"
+          "integrated_commit": "1a4d2044+642d5474",
+          "change": "Selected-matrix Add object context",
+          "receipt": ".scratch/dioxus-frontend-v1/evidence/f32c-selected-matrix-add-20261003/receipt.md"
         },
         {
           "stream": "Parts + Project",
-          "author_commit": "3714b26b",
           "integrated_commit": "7345cbfb",
-          "receipt": ".scratch/dioxus-frontend-tranche-1/evidence/vik-module-review-source-20261003/FIXTURE-PREP.md",
-          "state": "joined; changed card journey pending"
+          "change": "VIK module-review demo",
+          "receipt": ".scratch/dioxus-frontend-tranche-1/evidence/vik-module-review-source-20261003/FIXTURE-PREP.md"
         },
         {
           "stream": "Packaging support",
-          "author_commit": "b7dd1d1a",
           "integrated_commit": "d6380df5+b2ed62f8",
-          "state": "explicit fixture refresh joined; no package launched; root explicit-mode guard correction awaits deferred check"
+          "change": "Explicit fixture refresh with retained provider baseline; fresh output still pending"
+        },
+        {
+          "stream": "PCB",
+          "integrated_commit": "fcf28684",
+          "change": "Matrix and mirrored-pair authoring admission"
+        },
+        {
+          "stream": "Shared shell",
+          "integrated_commit": "047a33d8",
+          "change": "Reference44px compact topbar"
+        },
+        {
+          "stream": "Parts + Project",
+          "integrated_commit": "7842edad",
+          "change": "Fifteen measured keyboard demos",
+          "receipt": ".scratch/dioxus-frontend-tranche-1/evidence/issue05-measured-demo-source-20261003.md"
+        },
+        {
+          "stream": "Layout",
+          "integrated_commit": "def206d4",
+          "change": "Linked-layout Inspector and Unlink halves"
+        },
+        {
+          "stream": "PCB",
+          "integrated_commit": "2c6c46a6",
+          "change": "Board outline and Geometry scripts routes"
+        },
+        {
+          "stream": "Shared shell",
+          "integrated_commit": "3b6dbcd7",
+          "change": "Setup-guide readiness and stage detail",
+          "receipt": ".scratch/dioxus-frontend-v1/evidence/setup-guide-readiness-20261003/receipt.md"
+        },
+        {
+          "stream": "Layout",
+          "integrated_commit": "11289ba5",
+          "change": "Mirror existing half",
+          "receipt": ".scratch/dioxus-layout-authoring/evidence/f32c-existing-half-source-20261003.md"
+        },
+        {
+          "stream": "Case",
+          "integrated_commit": "54f627b1",
+          "change": "Access-opening add/remove, vertices and dimensions",
+          "receipt": ".scratch/dioxus-case-workspace/issues/05-mechanical-enclosure-fit.md"
         }
-      ]
+      ],
+      "qualification": "Joined source is not acceptance. No new application tests or browser qualification were run for this batch."
     },
     "journeys": [
       {
         "journey": "Compact drawers and Export selector",
         "candidate": "34770/34771",
-        "state": "paired verified; 4 px topbar difference retained",
+        "state": "Retained paired verified drawers/Export selector;4px topbar correction is joined source, not yet qualified.",
         "receipt": ".scratch/dioxus-keymap-layers/evidence/keymap-compact-inspector-20261003/paired-receipt.md"
       },
       {
         "journey": "Stagger/Splay/Origin and Undo",
         "candidate": "34770",
-        "state": "bounded paired verified; changed34771 geometry/Arrow/Escape qualification remains open",
+        "state": "Retained34770 paired values/Undo plus34771 trusted Stagger drag; remaining Arrow/Splay geometry and global Escape legs deferred.",
         "receipt": ".scratch/dioxus-frontend-v1/evidence/root-transform-encoder-20261003/receipt-34770.json"
       },
       {
@@ -135,35 +177,34 @@
       {
         "stream": "Layout",
         "priority": "first",
-        "state": "F3.1 accepted; selected-matrix Add object correction joined. Mirror existing half and linked-partner/Unlink Inspector actions authoring in separate private files."
+        "state": "F3.1 accepted; matrix Add object, linked Inspector and Mirror existing half joined. Authors completing accepted-create camera reset and remaining outline/refinement controls."
       },
       {
         "stream": "PCB",
-        "state": "Matrix/Mirrored-pair Add-object owner admission authoring; route/placement and intended marker filtering evidence retained."
+        "state": "Matrix/pair and board geometry routes joined; next actual physical-setup source gap assigned."
       },
       {
         "stream": "Keymap",
-        "state": "Bindings/macros accepted; F6K.1 ready recommendation retained. Compact topbar44px source correction authoring; review deferred."
+        "state": "F6K.1/.2/.3 accepted; F6K.4 implemented consumers retain F5.2/F8.2 final joins. Shared menu/shortcut source queue active."
       },
       {
         "stream": "Keycaps",
-        "state": "Projection/settings/fit accepted; unchanged resize/STEP/preview proof reused. Author implementing shared Layout linked-state gap, preserving F6C.3/.5 joins."
+        "state": "F6C.1/.2/.4 accepted; resize/STEP/preview proof retained, F6C.3/.5 joins open. Dedicated worker boundary map reconciled; author implementing missing mechanical-export consumer."
       },
       {
         "stream": "Case",
-        "state": "Authored-editor parent accepted. Handle drag qualification remains open; next contextual source gap inventory/implementation in progress."
+        "state": "Authored-editor parent accepted; access-opening controls joined. Next missing mechanical Inspector control authoring; handle pointer-hit/drag qualification still open."
       },
       {
         "stream": "Parts + Project",
-        "state": "VIK joined; source-backed15 measured-layout cards and fixtures authoring. Browser qualification deferred."
+        "state": "VIK and fifteen measured-demo source joined. Module-definition profile controls authoring; fixture refresh/card qualification deferred."
       }
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Join compact44px, PCB matrix/pair, Layout mirror-half/unlink and measured-demo packets directly.",
-      "Keep Case source queue moving; retain drag qualification limit without further diagnostic loop.",
-      "After coherent candidate is assembled, run one affected check/package and changed public qualification.",
-      "Finalize one candidate review and reference it for criterion-complete parent decisions."
+      "Join ready outline, accepted-create camera, physical-setup, mechanical Inspector, module-profile and generated mechanical-export source packets serially.",
+      "Freeze the larger candidate, compile/package once, then qualify changed public journeys and review once; retain unchanged proof.",
+      "Publish only this live progress record and RF deltas; final criteria and parent joins remain intact."
     ]
   }
 }

@@ -18,6 +18,16 @@ Ordinary reversible UI does not require TDD, a merger agent, per-child review, w
 reset or cleanup. Review the completed candidate once and recheck affected repairs.
 These user-authorized overrides govern conflicting historical skill/workflow defaults.
 
+## Source integration first — latest user update 2026-10-03
+
+The user directed: “Let's integrate more and test much later.” For the current
+source batch, authors implement and freeze mounted changes without new per-packet
+Cargo, browser or review runs. The coordinator joins ready work serially and
+assembles a larger coherent candidate before the combined affected check, preview
+package and changed-journey qualification. This sequencing supersedes earlier
+per-slice check timing below; it does not mark unperformed checks as passing or
+remove final acceptance criteria, history/reopen joins or the RF ledger.
+
 ## Delivery priority and reduced repeated testing — user update 2026-10-03
 
 The user chose Layout-first delivery, six persistent queues, one implemented
