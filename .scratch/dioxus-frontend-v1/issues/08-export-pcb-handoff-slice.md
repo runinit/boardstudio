@@ -2,7 +2,7 @@
 
 **Parent:** [F8.3 and F8.6](08-export.md), [private coordinator](08-export-coordinator-dispatch.md). This is one mounted selected-board provider slice; it does not accept any F8 parent.
 
-**State:** source implemented in the current isolated export-workspace packet; integrated strict check and changed paired Dioxus download journey remain pending root's combined candidate. The pinned React behavior and actual outputs are recorded in [the receipt](../evidence/export-pcb-handoff-20261003/REACT-RECEIPT.md).
+**State:** integrated candidate 34769 passed the actual full and draft downloads on the retained fixture; a source-visible assembly heading delta was corrected and the full handoff's `ASSEMBLY.md` was rechecked byte-for-byte against React on 34770. The pinned React baseline, 34769 pair and 34770 correction leg are recorded in the [receipts](../evidence/export-pcb-handoff-20261003/REACT-RECEIPT.md). The corrected draft click was not repeated; full/draft inner board ZIPs and reports matched at 34769.
 
 ## Source-backed behavior
 
