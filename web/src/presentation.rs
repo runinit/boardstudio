@@ -6742,7 +6742,7 @@ fn Editor() -> Element {
                         && let Some(placement) = part_placement.projection.as_ref()
                     {
                         div { class: "m1-canvas-placement-hint", role: "status",
-                            "Place {placement.pending.definition.name}"
+                            {format!("Place {}", parts::placement_label(&placement.pending.definition))}
                             if let Some(layout_name) = placement.owner.layout_id.as_ref()
                                 .and_then(|id| document.layouts.iter().find(|layout| &layout.id == id))
                                 .map(|layout| layout.name.as_str())
