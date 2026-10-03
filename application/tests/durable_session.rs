@@ -46,25 +46,33 @@ fn fixture() -> ProjectDoc {
 fn protected_fixture() -> ProjectDoc {
     let mut document = fixture();
     document.hardware = Some(HardwareConfiguration {
-        boards: vec![ElectricalBoardConfiguration {
-            board_id: "board-a".into(),
-            controller_part_id: Some("mcu-left".into()),
-            locks: BTreeMap::from([("row/0".into(), "P1".into())]),
-            assignments: BTreeMap::from([
-                ("row/0".into(), "P1".into()),
-                ("column/0".into(), "P2".into()),
-            ]),
-            key_bindings: BTreeMap::from([("key".into(), "KC_A".into())]),
-            protected_handoff: Some(ElectricalHandoffBaseline {
-                fingerprint: "handoff-1".into(),
-                revision: 0,
+        boards: vec![
+            ElectricalBoardConfiguration {
+                board_id: "board-a".into(),
+                controller_part_id: Some("mcu-left".into()),
+                locks: BTreeMap::from([("row/0".into(), "P1".into())]),
                 assignments: BTreeMap::from([
                     ("row/0".into(), "P1".into()),
                     ("column/0".into(), "P2".into()),
                 ]),
-            }),
-            ..Default::default()
-        }],
+                key_bindings: BTreeMap::from([("key".into(), "KC_A".into())]),
+                protected_handoff: Some(ElectricalHandoffBaseline {
+                    fingerprint: "handoff-1".into(),
+                    revision: 0,
+                    assignments: BTreeMap::from([
+                        ("row/0".into(), "P1".into()),
+                        ("column/0".into(), "P2".into()),
+                    ]),
+                }),
+                ..Default::default()
+            },
+            ElectricalBoardConfiguration {
+                board_id: "board-b".into(),
+                locks: BTreeMap::from([("row/1".into(), "P9".into())]),
+                assignments: BTreeMap::from([("row/1".into(), "P9".into())]),
+                ..Default::default()
+            },
+        ],
         ..Default::default()
     });
     document
@@ -178,6 +186,10 @@ fn protected_handoff_review_uses_core_operation_after_normal_edits_preserve_it()
     assert_eq!(configuration.assignments["row/0"], "P1");
     assert_eq!(configuration.assignments["column/0"], "P2");
     assert_eq!(configuration.key_bindings["key"], "KC_A");
+    assert_eq!(
+        &reviewed.hardware.as_ref().unwrap().boards[1],
+        &opened.hardware.as_ref().unwrap().boards[1]
+    );
     let settled = session.complete(Completion::Persist {
         save_attempt_id,
         result: SaveResult::Committed,
