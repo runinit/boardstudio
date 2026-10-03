@@ -5132,7 +5132,7 @@
         {
           "id": "F6K.4-C07",
           "requirement": "Verify Undo/Redo, save/reload, compact controls, and recovery.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/keymap/encoder_editor.rs",
@@ -5143,7 +5143,7 @@
             ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md"
           ],
           "blockers": [],
-          "next_action": "Compact430x900 public CW F5/CCW Q controls showed Binding saved; Push SPACE retained after blur. Post-edit export stalled with no downloaded ZIP, so compact accepted archive/output confirmation remains open. Reuse prior full-size history/reopen and C05 recovery; module recovery needs a fixture containing modules.",
+          "next_action": "Retain combined real-plan history/reload, actual compact CW/CCW saves and Push operability, field validation recovery and C05 request failure/correction evidence. Compact duplicate-export observation is explicitly unqualified; no viewport cross-product or unspecified module recovery gate is added. F5.2/F8.2 final parent joins remain.",
           "finish_condition": "Encoder edits survive Undo/Redo and save/reload; compact controls remain operable and failure/recovery returns to current accepted state.",
           "owned_files": [
             "web/src/presentation/keymap/encoder_editor.rs",

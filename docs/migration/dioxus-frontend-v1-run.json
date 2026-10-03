@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T23:27:40.830047+00:00",
+    "updated_at": "2026-10-03T23:29:01.991131+00:00",
     "parent_counts": {
       "accepted": 11,
       "implementing": 40,
@@ -496,7 +496,7 @@
       },
       {
         "stream": "Keymap",
-        "state": "Compact430x900 controls exercised; CW/CCW saved acknowledgements, Push DOM retained. Export/download stalled without output; no application defect inferred. Exact remaining accepted-output confirmation recorded under C07."
+        "state": "All F6K.4 criteria verified from complementary history/reload, compact edit and failure/recovery evidence; parent F5.2/F8.2 joins remain. Stalled duplicate compact export is retained without a success or app-defect claim."
       },
       {
         "stream": "Keycaps",
