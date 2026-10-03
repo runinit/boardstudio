@@ -1986,6 +1986,8 @@ mod tests {
         mounted: Rc<Cell<bool>>,
         unmounted: Rc<Cell<bool>>,
         latest: Rc<RefCell<Option<PartPlacementMount>>>,
+        assembly_3d: Rc<RefCell<Option<Signal<bool>>>>,
+        view_mode: Rc<RefCell<Option<EventHandler<bool>>>>,
         workspace: Rc<RefCell<Option<Signal<&'static str>>>>,
         selected_context: Rc<RefCell<Option<Signal<Option<ScopedTreeContext>>>>>,
         guide: Rc<RefCell<Option<Signal<Option<SetupGuidePreferences>>>>>,
@@ -2062,6 +2064,19 @@ mod tests {
             canvas_interaction: probe.canvas_interaction.clone(),
         });
         *probe.latest.borrow_mut() = Some(mount.clone());
+        let assembly_3d = use_signal(|| false);
+        let assembly_3d_read = assembly_3d;
+        let mut assembly_3d_write = assembly_3d;
+        *probe.assembly_3d.borrow_mut() = Some(assembly_3d);
+        *probe.view_mode.borrow_mut() = Some(crate::presentation::layout_view_mode_handler(
+            || true,
+            assembly_3d_read,
+            move |value| assembly_3d_write.set(value),
+            mount,
+            probe.canvas_interaction.clone(),
+            || {},
+            || {},
+        ));
         rsx! { div {} }
     }
 
@@ -2084,6 +2099,8 @@ mod tests {
             mounted: Rc::new(Cell::new(true)),
             unmounted: Rc::new(Cell::new(false)),
             latest: Rc::default(),
+            assembly_3d: Rc::default(),
+            view_mode: Rc::default(),
             workspace: Rc::default(),
             selected_context: Rc::default(),
             guide: Rc::default(),
@@ -2654,6 +2671,61 @@ mod tests {
         assert_eq!(workspace(&probe), "PCB");
         assert!(probe.latest.borrow().as_ref().unwrap().projection.is_none());
         assert_eq!(probe.canvas_interaction.current(), None);
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn layout_3d_transition_cancels_suspended_component_preparation_without_ghost() {
+        let (probe, mut dom) = hook_mounted();
+        probe
+            .latest
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .on_place_component
+            .call(ComponentPlacementAction::AddObject {
+                definition_id: "catalog:reset-switch".into(),
+                kind: PartKind::Passive,
+            });
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+
+        let preparing = probe.latest.borrow().as_ref().unwrap().clone();
+        assert!(preparing.busy);
+        assert!(preparing.projection.is_none());
+        assert!(probe.loader_waker.borrow().is_some());
+        assert_eq!(
+            probe.canvas_interaction.current(),
+            Some(CanvasInteractionOwner::PartPlacement)
+        );
+
+        probe.view_mode.borrow().as_ref().unwrap().call(true);
+        flush_hook(&mut dom);
+        assert!(probe.assembly_3d.borrow().as_ref().unwrap()());
+        assert!(!probe.latest.borrow().as_ref().unwrap().busy);
+        assert_eq!(probe.canvas_interaction.current(), None);
+        let cancellation_events = probe.runtime.events.borrow().len();
+        assert_eq!(cancellation_events, 1);
+        assert!(matches!(
+            probe.runtime.events.borrow().first(),
+            Some(SessionEvent::SelectParts { part_ids, range_part_ids, .. })
+                if part_ids.is_empty() && range_part_ids.is_empty()
+        ));
+
+        resolve_loader(&probe, Ok(passive_definition("catalog:reset-switch")));
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+        let settled = probe.latest.borrow().as_ref().unwrap().clone();
+        assert!(!settled.busy);
+        assert!(settled.projection.is_none());
+        assert_eq!(probe.runtime.events.borrow().len(), cancellation_events);
+        assert!(
+            !probe
+                .runtime
+                .events
+                .borrow()
+                .iter()
+                .any(|event| matches!(event, SessionEvent::Edit { .. }))
+        );
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]

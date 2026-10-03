@@ -911,6 +911,36 @@ fn layout_owner_is_current(
         .is_some_and(|scope| active_board_scope_matches(&model, scope))
 }
 
+fn layout_view_mode_handler(
+    is_owner_current: impl Fn() -> bool + 'static,
+    is_assembly_3d: Signal<bool>,
+    mut set_assembly_3d: impl FnMut(bool) + 'static,
+    placement: part_placement::PartPlacementMount,
+    canvas_interaction: CanvasInteractionArbiter,
+    before_placement_cancel: impl Fn() + 'static,
+    after_placement_cancel: impl Fn() + 'static,
+) -> EventHandler<bool> {
+    EventHandler::new(move |assembly_3d| {
+        if !is_owner_current() {
+            return;
+        }
+        if assembly_3d && !is_assembly_3d() {
+            before_placement_cancel();
+            if placement.busy || placement.projection.is_some() {
+                placement.on_cancel.call(());
+            }
+            after_placement_cancel();
+            match canvas_interaction.current() {
+                Some(CanvasInteractionOwner::PartPlacement) => {
+                    canvas_interaction.release(CanvasInteractionOwner::PartPlacement);
+                }
+                Some(CanvasInteractionOwner::MirroredPair) | None => {}
+            }
+        }
+        set_assembly_3d(assembly_3d);
+    })
+}
+
 fn tree_cell_anchor_for_owner(
     anchor: &Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
     owner: &LayoutOwnerIdentity,
@@ -3930,28 +3960,32 @@ fn Editor() -> Element {
             },
         )),
     };
-    let on_layout_view_mode = EventHandler::new({
-        let runtime = runtime.clone();
-        let adapter = adapter.clone();
-        let owner = layout_owner.clone();
-        let placement = part_placement.clone();
-        let mirrored_pair = mirrored_pair.clone();
-        let matrix_setup = matrix_setup.clone();
-        let drag = drag.clone();
-        let svg = svg.clone();
-        let render_scope = render_scope.clone();
-        let canvas_interaction = canvas_interaction.clone();
-        move |assembly_3d: bool| {
-            if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
-                return;
-            }
-            if assembly_3d && !layout_assembly_3d() {
+    let on_layout_view_mode = layout_view_mode_handler(
+        {
+            let runtime = runtime.clone();
+            let adapter = adapter.clone();
+            let owner = layout_owner.clone();
+            move || layout_owner_is_current(&runtime, workspace, &adapter, &owner)
+        },
+        layout_assembly_3d,
+        move |assembly_3d| layout_assembly_3d.set(assembly_3d),
+        part_placement.clone(),
+        canvas_interaction.clone(),
+        {
+            let runtime = runtime.clone();
+            let drag = drag.clone();
+            let svg = svg.clone();
+            let render_scope = render_scope.clone();
+            move || {
                 selection::cancel_scoped_drag(&runtime, &drag, &svg, Some(&render_scope));
                 let mut interaction_version = interaction_version;
                 interaction_version += 1;
-                if placement.projection.is_some() {
-                    placement.on_cancel.call(());
-                }
+            }
+        },
+        {
+            let mirrored_pair = mirrored_pair.clone();
+            let matrix_setup = matrix_setup.clone();
+            move || {
                 if let Some(active) = mirrored_pair.placement.as_ref() {
                     mirrored_pair.on_cancel.call(active.owner.clone());
                 } else if let Some(form) = mirrored_pair.form.as_ref() {
@@ -3960,16 +3994,9 @@ fn Editor() -> Element {
                 if let Some(projection) = matrix_setup.projection.as_ref() {
                     matrix_setup.on_cancel.call(projection.owner.clone());
                 }
-                match canvas_interaction.current() {
-                    Some(CanvasInteractionOwner::PartPlacement) => {
-                        canvas_interaction.release(CanvasInteractionOwner::PartPlacement);
-                    }
-                    Some(CanvasInteractionOwner::MirroredPair) | None => {}
-                }
             }
-            layout_assembly_3d.set(assembly_3d);
-        }
-    });
+        },
+    );
     let toolbar_input = match active_workspace {
         "Layout" => {
             let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &layout_owner);
