@@ -669,11 +669,13 @@ pub(super) fn Editor(
                     if already_busy {
                         return;
                     }
-                    model_paths.set(Vec::new());
-                    paths_asset_id.set(None);
-                    attempted_discovery.set(None);
-                    request_generation.set(request_generation().wrapping_add(1));
-                    error.set(None);
+                    super::board_reference_effect::clear_missing_reference(
+                        model_paths,
+                        paths_asset_id,
+                        attempted_discovery,
+                        request_generation,
+                        error,
+                    );
                     return;
                 };
                 if disabled || already_busy || paths_asset_id() == Some(reference.asset_id.clone())

@@ -109,6 +109,14 @@ fn composition() -> Element {
                     on_commit: EventHandler::default(),
                     on_created: EventHandler::default(),
                 }),
+                existing_half: super::super::ExistingHalfMount {
+                    projection: None,
+                    visible: false,
+                    can_open: false,
+                    on_open: EventHandler::default(),
+                    on_cancel: EventHandler::default(),
+                    on_create: EventHandler::default(),
+                },
             }
         }
         section { id: "mirror-overlay-workspace", class: "m1-workspace-content",

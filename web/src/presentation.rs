@@ -1,5 +1,6 @@
 //! Presentation drafts and DOM input are separate from the durable session state.
 mod board_inspector;
+mod board_reference_effect;
 mod canvas_interaction;
 mod canvas_layers;
 mod canvas_status_footer;
@@ -7096,14 +7097,13 @@ fn Editor() -> Element {
                 let owner = layout_owner.clone();
                 let mut objects_open = objects_open;
                 let mut inspect_open = inspect_open;
+                let mut layout_context_tab = layout_context_tab;
                 move |_| {
                     if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
                         return;
                     }
-                    if !properties_available {
-                        return;
-                    }
                     pin_inspector_on_desktop(inspector_panel_settings);
+                    layout_context_tab.set(layout_workspace::LayoutInspectorTab::Properties);
                     objects_open.set(false);
                     inspect_open.set(true);
                 }

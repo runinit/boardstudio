@@ -463,8 +463,13 @@ fn fixed_perimeter_finds_the_first_polygon_after_primitive_features() {
         *id = "later-polygon".into();
     }
     features.push(later_polygon);
-    let perimeter = editable_perimeter(&snapshot, &probe.scope.board_id, Some("fixed-outline-v1"))
-        .expect("primitive features must not hide the first editable polygon");
+    let perimeter = editable_perimeter(
+        &snapshot,
+        &probe.scope.board_id,
+        Some("fixed-outline-v1"),
+        None,
+    )
+    .expect("primitive features must not hide the first editable polygon");
     assert!(
         matches!(perimeter.target, OutlinePointTarget::Fixed { feature_id, .. } if feature_id == "fixed-contour")
     );
@@ -477,7 +482,13 @@ fn fixed_perimeter_finds_the_first_polygon_after_primitive_features() {
         .features
         .retain(|feature| !matches!(feature, OutlineFeature::Polygon { .. }));
     assert!(
-        editable_perimeter(&snapshot, &probe.scope.board_id, Some("fixed-outline-v1")).is_none()
+        editable_perimeter(
+            &snapshot,
+            &probe.scope.board_id,
+            Some("fixed-outline-v1"),
+            None,
+        )
+        .is_none()
     );
     root.remove();
 }

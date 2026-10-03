@@ -1264,6 +1264,7 @@ pub(in crate::presentation) fn LayoutTransformToolbar(
                     disabled: !mount.column_available,
                     "data-close-menu": "true",
                     onclick: move |_| {
+                        mount.on_show_properties.call(());
                         mount.on_selection_kind.call(LayoutSelectionKind::Column);
                         close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
                     },
@@ -1274,6 +1275,7 @@ pub(in crate::presentation) fn LayoutTransformToolbar(
                     disabled: !mount.row_available,
                     "data-close-menu": "true",
                     onclick: move |_| {
+                        mount.on_show_properties.call(());
                         mount.on_selection_kind.call(LayoutSelectionKind::Row);
                         close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
                     },
@@ -1284,5 +1286,108 @@ pub(in crate::presentation) fn LayoutTransformToolbar(
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod shortcut_tests {
+    use super::*;
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::*;
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    #[component]
+    fn shortcut_test_host() -> Element {
+        let mut properties_tab = use_signal(|| false);
+        let mut owner_current = use_signal(|| true);
+        let mut selection_changes = use_signal(|| 0_u32);
+        let mut open_menu = use_signal(|| Some(LayoutCommandMenu::Transform));
+        let on_show_properties = EventHandler::new(move |()| {
+            if owner_current() {
+                properties_tab.set(true);
+            }
+        });
+        let on_selection_kind = EventHandler::new(move |_: LayoutSelectionKind| {
+            owner_current.set(false);
+            selection_changes += 1;
+        });
+        let mount = LayoutTransformMenuMount {
+            properties_available: true,
+            column_available: true,
+            row_available: true,
+            pointer_tools_visible: false,
+            pointer_tools_available: false,
+            active_tool: None,
+            on_selection_kind,
+            on_show_properties,
+            on_transform_tool: EventHandler::new(|_: LayoutTransformTool| {}),
+        };
+
+        rsx! {
+            LayoutTransformToolbar { mount, open_menu }
+            button {
+                id: "reset-shortcut-probe",
+                onclick: move |_| {
+                    properties_tab.set(false);
+                    owner_current.set(true);
+                    selection_changes.set(0);
+                    open_menu.set(Some(LayoutCommandMenu::Transform));
+                },
+                "Reset"
+            }
+            output { id: "shortcut-probe-state", "{properties_tab()}:{selection_changes()}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn all_transform_property_shortcuts_route_to_properties_before_selection_changes_owner() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(shortcut_test_host);
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(40).await;
+
+        for (label, expected) in [
+            ("Position & rotation", "true:0"),
+            ("Splay & origin", "true:1"),
+            ("Row offsets", "true:1"),
+        ] {
+            let button = root.query_selector_all("button").unwrap();
+            let target = (0..button.length())
+                .filter_map(|index| button.item(index))
+                .find(|element| {
+                    element
+                        .text_content()
+                        .is_some_and(|text| text.trim() == label)
+                })
+                .expect("transform shortcut button exists")
+                .dyn_into::<web_sys::HtmlElement>()
+                .unwrap();
+            target.click();
+            gloo_timers::future::TimeoutFuture::new(40).await;
+            assert_eq!(
+                root.query_selector("#shortcut-probe-state")
+                    .unwrap()
+                    .unwrap()
+                    .text_content()
+                    .as_deref(),
+                Some(expected),
+                "{label} must select Properties before any selection transition"
+            );
+            root.query_selector("#reset-shortcut-probe")
+                .unwrap()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlElement>()
+                .unwrap()
+                .click();
+            gloo_timers::future::TimeoutFuture::new(40).await;
+        }
+
+        root.remove();
     }
 }
