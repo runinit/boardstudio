@@ -136,7 +136,7 @@ impl PartsPreviewCapture {
         sample_document.assets.clone_from(&snapshot.document.assets);
         sample_document.definitions.push(definition.clone());
         let sample_part = Part {
-            keycap: definition.keycap.clone(),
+            keycap: definition.keycap,
             outline: None,
             id: "parts-sample-0".into(),
             definition_id: definition.id.clone(),
