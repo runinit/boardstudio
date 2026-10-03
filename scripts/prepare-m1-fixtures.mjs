@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Copy accepted fixtures and prepare Sofle with the reference's public services. */
+/** Copy accepted fixtures and prepare keyboard demos with the reference's public services. */
 import { createHash } from 'node:crypto';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -39,6 +39,7 @@ try {
   await writeFile(path.join(output, 'reviung41.json'), reply.projectJson);
 
   const { openSofleDemo, sofleDemos } = await server.ssrLoadModule('/src/demos/sofle.ts');
+  const { keyboardDemos, openKeyboardDemo } = await server.ssrLoadModule('/src/demos/keyboards.ts');
   const { createMechanicalConfiguration } = await server.ssrLoadModule('/src/mechanicalPresets.ts');
   const request = async input => {
     if (input.kind === 'open') input.document.id = `m1-${input.document.parameters.demo}-copy`;
@@ -129,16 +130,40 @@ try {
   }
   await writeFile(path.join(output, 'vik-module-review.json'), moduleReviewJson);
   await writeFile(path.join(output, 'vik-module-review.boardstudio'), moduleReviewArchive);
-  const inputs = ['scripts/prepare-m1-fixtures.mjs', 'app/src/demos/sofle.ts', 'app/src/demos/sofle-layouts.json', 'app/src/demos/moduleReview.ts', 'app/src/demo.ts', 'app/src/modules/imported-modules.json', 'app/src/modules/hostConnector.ts', 'app/src/parts/imported-parts.json', 'app/src/demos/physicalLayout.ts', 'app/src/mechanicalPresets.ts', 'app/src/storage.ts', 'app/src/bundledModels.ts', 'core/Cargo.toml', 'core/Cargo.lock'];
+  const measuredFixtures = [];
+  for (const demo of keyboardDemos) {
+    const openedDemo = await openKeyboardDemo(demo.id, request);
+    const demoArchive = await packWithUsedModels(openedDemo.document);
+    const demoFiles = unzipSync(demoArchive);
+    const demoJson = new TextDecoder().decode(demoFiles['project.json']);
+    const demoDocument = JSON.parse(demoJson);
+    const fixture = `measured-${demo.id}`;
+    const demoAssets = [];
+    for (const asset of demoDocument.assets) {
+      const bytes = demoFiles[`assets/${asset.sha256}`];
+      if (!bytes || hash(bytes) !== asset.sha256) throw new Error(`${demo.name} asset missing or mismatched: ${asset.id}`);
+      await writeFile(path.join(output, asset.sha256), bytes);
+      demoAssets.push({ sha256: asset.sha256, bytes: bytes.length });
+    }
+    await writeFile(path.join(output, `${fixture}.json`), demoJson);
+    await writeFile(path.join(output, `${fixture}.boardstudio`), demoArchive);
+    measuredFixtures.push({ name: demo.name, fixture, source: 'app/src/demos/keyboard-layouts.json', demo_source: 'app/src/demos/keyboards.ts',
+      id: demo.id, document_id: demoDocument.id, revision: demoDocument.revision,
+      boards: demoDocument.boards.map(board => ({ id: board.id, name: board.name, part_count: board.partIds.length })),
+      key_count: demoDocument.matrices.reduce((count, matrix) => count + matrix.cells.filter(cell => cell.enabled).length, 0),
+      archive_sha256: hash(demoArchive), assets: demoAssets });
+  }
+  const inputs = ['scripts/prepare-m1-fixtures.mjs', 'app/src/demos/sofle.ts', 'app/src/demos/sofle-layouts.json', 'app/src/demos/keyboards.ts', 'app/src/demos/keyboard-layouts.json', 'app/src/demos/moduleReview.ts', 'app/src/demo.ts', 'app/src/modules/imported-modules.json', 'app/src/modules/hostConnector.ts', 'app/src/parts/imported-parts.json', 'app/src/demos/physicalLayout.ts', 'app/src/mechanicalPresets.ts', 'app/src/storage.ts', 'app/src/bundledModels.ts', 'core/Cargo.toml', 'core/Cargo.lock'];
   const sourceHashes = Object.fromEntries(await Promise.all(inputs.map(async file => [file, hash(await readFile(path.join(root, file)))])));
   const provenance = { schema: 1, source_commit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(), source_hashes: sourceHashes, core_wasm_sha256: hash(coreBytes),
-    preparation: 'Reference openSofleDemo for v2/RGB/Choc and openModuleReviewDemo for VIK, public set-mechanical gasket edit for v2, and reference packProject with embedded used models',
+    preparation: 'Reference openSofleDemo for v2/RGB/Choc, openKeyboardDemo for measured layouts with the existing electrical resolver, and openModuleReviewDemo for VIK; public set-mechanical gasket edit for v2; reference packProject with embedded used models',
     fixtures: [
       { name: 'REVIUNG41', source: archivePath, source_sha256: hash(archive),
         document_id: reviung.id, revision: reviung.revision, assets },
       { name: 'Sofle v2 gasket', source: 'app/src/demos/sofle.ts', document_id: sofle.id,
         variant: 'v2', revision: sofle.revision, archive_sha256: hash(sofleArchive), assets: sofleAssets },
       ...sofleVariantFixtures,
+      ...measuredFixtures,
       { name: 'VIK module review · above and below', source: 'app/src/demos/moduleReview.ts',
         document_id: moduleReviewDocument.id, revision: moduleReviewDocument.revision,
         archive_sha256: hash(moduleReviewArchive), assets: moduleReviewAssets,

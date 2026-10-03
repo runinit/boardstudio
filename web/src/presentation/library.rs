@@ -446,7 +446,21 @@ fn DemoKeyboardCards(project_menu: bool) -> Element {
                 DemoKeyboardCard { key: "sofle", name: "Sofle v2", fixture: "sofle" }
                 DemoKeyboardCard { key: "sofle-rgb", name: "Sofle RGB", fixture: "sofle-rgb" }
                 DemoKeyboardCard { key: "sofle-choc", name: "Sofle Choc", fixture: "sofle-choc" }
-                DemoKeyboardCard { key: "reviung41", name: "REVIUNG41", fixture: "reviung41" }
+                DemoKeyboardCard { key: "corne", name: "Corne", fixture: "measured-corne" }
+                DemoKeyboardCard { key: "lily58", name: "Lily58", fixture: "measured-lily58" }
+                DemoKeyboardCard { key: "sweep", name: "Ferris Sweep", fixture: "measured-sweep" }
+                DemoKeyboardCard { key: "chocofi", name: "Chocofi", fixture: "measured-chocofi" }
+                DemoKeyboardCard { key: "reviung41", name: "REVIUNG41", fixture: "measured-reviung41" }
+                DemoKeyboardCard { key: "totem", name: "TOTEM", fixture: "measured-totem" }
+                DemoKeyboardCard { key: "klor", name: "KLOR", fixture: "measured-klor" }
+                DemoKeyboardCard { key: "cantor", name: "Cantor", fixture: "measured-cantor" }
+                DemoKeyboardCard { key: "gh60", name: "GH60 · ANSI", fixture: "measured-gh60" }
+                DemoKeyboardCard { key: "discipline", name: "Discipline · ANSI", fixture: "measured-discipline" }
+                DemoKeyboardCard { key: "mysterium", name: "Mysterium · ANSI", fixture: "measured-mysterium" }
+                DemoKeyboardCard { key: "voyager97", name: "Voyager97 · 103-key layout", fixture: "measured-voyager97" }
+                DemoKeyboardCard { key: "voyager104", name: "Voyager104 · ANSI", fixture: "measured-voyager104" }
+                DemoKeyboardCard { key: "plaid", name: "Plaid", fixture: "measured-plaid" }
+                DemoKeyboardCard { key: "lumberjack", name: "Lumberjack", fixture: "measured-lumberjack" }
                 DemoKeyboardCard { key: "vik-module-review", name: "VIK module review · above and below", fixture: "vik-module-review" }
             }
         }
