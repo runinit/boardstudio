@@ -6,7 +6,7 @@ This focused public journey compares the pinned React Layout with the integrated
 
 - React source pin: `5a472a9426e6e38993361da402cd4ec730feb369`, served at `http://127.0.0.1:5173/`.
 - Dioxus candidate before the focused composition repair: `37d81320712b16cd6901f8e8ea3c80a0833ce576`, served at `http://127.0.0.1:34758/boardstudio/`.
-- Candidate build: `frontend-layout-matrix-20261003`; provider provenance SHA-256 `540bccd3ef9eab93cdc521191acd918d3ca1b605ec0969ba6a139ec517fa391f`.
+- Candidate provider provenance SHA-256 `540bccd3ef9eab93cdc521191acd918d3ca1b605ec0969ba6a139ec517fa391f`.
 - Fixture: `layered-sofle-export.boardstudio`, SHA-256 `5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df`.
 - Independent browser sessions: `f33b-react-20261003` and `f33b-dioxus-20261003`.
 
