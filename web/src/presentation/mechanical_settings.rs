@@ -727,6 +727,11 @@ fn MountingControls(props: MountingControlsProps) -> Element {
     let values = &props.values;
     let suspension_mounts = &values.suspension_mounts;
     let closure_mounts = values.closure_mounts.as_deref().unwrap_or_default();
+    let reserved_mount_ids = suspension_mounts
+        .iter()
+        .chain(closure_mounts.iter())
+        .map(|mount| mount.id.clone())
+        .collect::<Vec<_>>();
     let suggestions = &props.suggested_mounts;
     rsx! {
         section { class: "m1-mechanical-option-group", aria_label: "Mounting and hardware",
@@ -741,6 +746,7 @@ fn MountingControls(props: MountingControlsProps) -> Element {
                     collection: MechanicalMountCollection::Suspension,
                     label: "Suspension mounts",
                     mounts: suspension_mounts.clone(),
+                    reserved_mount_ids: reserved_mount_ids.clone(),
                     allow_add: true,
                 }
             }
@@ -753,6 +759,7 @@ fn MountingControls(props: MountingControlsProps) -> Element {
                 collection: MechanicalMountCollection::Closure,
                 label: "Closure screws",
                 mounts: closure_mounts.to_vec(),
+                reserved_mount_ids: reserved_mount_ids.clone(),
                 allow_add: !values.internal_gasket,
             }
             details { class: "m1-mechanical-group", aria_label: "Suggested mount locations",
@@ -832,12 +839,14 @@ struct MountCollectionControlsProps {
     collection: MechanicalMountCollection,
     label: &'static str,
     mounts: Vec<Mount>,
+    reserved_mount_ids: Vec<String>,
     allow_add: bool,
 }
 
 #[component]
 fn MountCollectionControls(props: MountCollectionControlsProps) -> Element {
     let mounts = props.mounts.clone();
+    let reserved_mount_ids = props.reserved_mount_ids.clone();
     rsx! {
         details { class: "m1-mechanical-group", aria_label: "{props.label}",
             summary { "{props.label} · {mounts.len()}" }
@@ -866,7 +875,7 @@ fn MountCollectionControls(props: MountCollectionControlsProps) -> Element {
                         let callback = props.on_request;
                         let collection = props.collection;
                         let mut next_mounts = mounts.clone();
-                        let all = next_mounts.iter().map(|mount| mount.id.clone()).collect::<std::collections::HashSet<_>>();
+                        let all = reserved_mount_ids.iter().cloned().collect::<std::collections::HashSet<_>>();
                         let mut ordinal = 1usize;
                         let id = loop {
                             let candidate = format!("case-mechanical-mount-{ordinal}");
