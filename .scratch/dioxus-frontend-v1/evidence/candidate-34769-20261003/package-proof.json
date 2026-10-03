@@ -1,0 +1,98 @@
+{
+  "source_commit": "bbd4da1b7cc0609dd4ae6d8ec0332031b0690ea1",
+  "provenance_sha256": "38e1980f3c38f31af1d66676a56d2d6cf57c7a3e4130dea6be2d1cb0eeb2f680",
+  "source_count": 1373,
+  "source_mismatches": [],
+  "source_verification": "Frozen integration files against recorded source hashes before further source joins.",
+  "routes": {
+    "root": {
+      "http": 200,
+      "headers": {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp"
+      },
+      "asset_count": 154,
+      "mismatches": []
+    },
+    "subpath": {
+      "http": 200,
+      "headers": {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp"
+      },
+      "asset_count": 154,
+      "mismatches": []
+    }
+  },
+  "fresh_commands": 11,
+  "inherited_commands": 11,
+  "bounded_resume": {
+    "kind": "fixture-only-failure-continuation",
+    "original_source_commit": "4a69b7a4f4fa1c3ad1c30d96d6b20599d2c4914e",
+    "original_provenance": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-six-stream-tools-handles-20261003/failed-original-provenance.json",
+    "original_provenance_sha256": "49d04181102dc0e4cde7adf28b59a0025dc108115be809ebeef33835d4b3ff06",
+    "failed_log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-six-stream-tools-handles-20261003/fixtures-failed-original.log",
+    "preserved_partial_fixtures": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-six-stream-tools-handles-20261003/failed-fixtures-original",
+    "changed_maintained_inputs": [
+      "scripts/prepare-m1-fixtures.mjs"
+    ],
+    "inherited_commands": 11,
+    "fresh_commands": 11,
+    "reason": "Only the fixture script changed; all maintained provider/page/contract inputs match the successful original prefix exactly. Original commands/logs/artifacts are retained; remaining command identities and staging use the unchanged maintained builder.",
+    "provider_outputs_unchanged_after_continuation": true
+  },
+  "duration_seconds": 711.910653,
+  "affected_strict_checks": {
+    "source_commit": "2c33e57f521ee71f1ad124a22859c9ade250d44f",
+    "checks": [
+      {
+        "feature": "page",
+        "command": [
+          "cargo",
+          "clippy",
+          "--manifest-path",
+          "web/Cargo.toml",
+          "--locked",
+          "--target",
+          "wasm32-unknown-unknown",
+          "--no-default-features",
+          "--features",
+          "page",
+          "--all-targets",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "source_commit": "2c33e57f521ee71f1ad124a22859c9ade250d44f",
+        "exit_code": 0,
+        "seconds": 11.793434,
+        "log": ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/combined-page-review-repair-check.log"
+      },
+      {
+        "feature": "cad-worker",
+        "command": [
+          "cargo",
+          "clippy",
+          "--manifest-path",
+          "web/Cargo.toml",
+          "--locked",
+          "--target",
+          "wasm32-unknown-unknown",
+          "--no-default-features",
+          "--features",
+          "cad-worker",
+          "--lib",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "source_commit": "d64ab74104bea253bce2ab508192297fe265155b",
+        "exit_code": 0,
+        "seconds": 19.879196,
+        "log": ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/combined-cad-worker-lib-check.log"
+      }
+    ],
+    "worker_reuse": "No CAD-worker/library source changed after passing d64ab741 deployed library strict check.",
+    "scope_note": "Page all-targets includes application/presentation tests. Worker check selects its deployed cdylib: the earlier worker all-targets attempt pulled page-only integration tests without the page feature and failed optional dependency imports. Preserved as command-scope failure; no tests changed or skipped under their applicable page target."
+  }
+}

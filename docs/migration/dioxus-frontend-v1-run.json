@@ -1273,7 +1273,7 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T13:27:25.933941+00:00",
+    "updated_at": "2026-10-03T13:36:26.507570+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
       "accepted": 7,
@@ -1283,24 +1283,24 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-contextual-panes-followup-20261003",
-      "source_commit": "9e6f9b62e33d7dc22412cf5793a3f4b857e219c3",
-      "root_url": "http://127.0.0.1:34768/",
-      "subpath_url": "http://127.0.0.1:34768/boardstudio/",
-      "provenance": "web/target/builds/frontend-contextual-panes-followup-20261003/provenance.json",
-      "provenance_sha256": "0d04905a8dbd66e961595fbae3702124e2f7d2784cfbe5bc3e8dab85dc81d290",
-      "fresh_commands": 8,
-      "inherited_commands": 22,
-      "source_inputs": 1372,
+      "build_id": "frontend-six-stream-tools-handles-20261003",
+      "source_commit": "bbd4da1b7cc0609dd4ae6d8ec0332031b0690ea1",
+      "root_url": "http://127.0.0.1:34769/",
+      "subpath_url": "http://127.0.0.1:34769/boardstudio/",
+      "provenance": "web/target/builds/frontend-six-stream-tools-handles-20261003/provenance.json",
+      "provenance_sha256": "38e1980f3c38f31af1d66676a56d2d6cf57c7a3e4130dea6be2d1cb0eeb2f680",
+      "fresh_commands": 11,
+      "inherited_commands": 11,
+      "source_inputs": 1373,
       "source_mismatches": 0,
-      "assets_per_route": 146,
-      "command_span_seconds": 112.463208,
-      "package_qualification": "Strict page all-targets PASS20.046s, verified full34767 provider reuse; changed Objects/Keymap, encoder output and native custom-editor journeys qualified and consolidated-reviewed with visual/parent limits retained.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34768-20261003/package-proof.json"
+      "assets_per_route": 154,
+      "command_span_seconds": 711.910653,
+      "package_qualification": "22 exact full command records PASS, bounded fixture-only continuation preserved original11-success/1-failure lineage and identical provider outputs; zero maintained-source/served-asset drift on both routes. Changed browser journeys active; broad parent gates unchanged.",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/package-proof.json"
     },
     "integration": {
-      "source_commit": "bbd4da1b",
-      "state": "34769 successful provider prefix preserved after actual RGB model-URL fixture failure. Narrow filesystem decode repairedbbd4da1b and actual fixture preparation GREEN; bounded full-command continuation validates exactly one changed fixture input, tags original/fresh command source identities and preserves failures. Remaining fresh fixture/page/root/subpath packaging active. Sol source report has no remaining code finding and recommends readyF6C.4 from sufficient retained evidence.",
+      "source_commit": "4940515e",
+      "state": "34769 served and source/asset-qualified. Next34770 includes compact shell170d856d, authored mounts a4a68ac2, bounded callback/type repairs38ac34fc/fb9c57f0/1ee0364c, assembly heading053b07ef, trusted transform capture regression repair aa33bc80 and range receipt4940515e. Combined strict page PASS8.977s; guarded page-only provider reuse packaging next.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1588,6 +1588,30 @@
           "original_source": "c97f1b24",
           "integrated_source": "a74b67f2",
           "state": "Mounted export buttons, Session-owned electrical/protection commits, existing Core/worker artifact route and nested handoff archive joined; changed paired output/history pending34769."
+        },
+        {
+          "slice": "Compact contextual shell",
+          "original_source": "95241219",
+          "integrated_source": "170d856d",
+          "state": "Next34770; combined page strict passed, paired compact journey pending."
+        },
+        {
+          "slice": "Authored Case mount handles",
+          "original_source": "adbf20ba",
+          "integrated_source": "a4a68ac2+38ac34fc+fb9c57f0+1ee0364c",
+          "state": "Next34770; existing SetCase terminal owner, matched scope/token/scene revision, combined strict passed; changed journey pending."
+        },
+        {
+          "slice": "Layout trusted transform handle capture",
+          "original_source": "root browser regression",
+          "integrated_source": "aa33bc80",
+          "state": "34769 trusted drag RED OffsetX0 versus React4.7625; delegated current_target failed to identify mounted SVG handle. Target.closest capture correction next34770; browser GREEN pending."
+        },
+        {
+          "slice": "PCB assembly handoff reference heading",
+          "original_source": "e82f24b1",
+          "integrated_source": "053b07ef",
+          "state": "34769 full/draft nested KiCad bytes match reference; only27byte ASSEMBLY heading mismatch. Minimal correction next34770."
         }
       ],
       "checks": {
@@ -1997,18 +2021,17 @@
       "active": [
         {
           "owner": "root",
-          "job": "bounded34769 full-command continuation after fixture-only repair",
-          "build_id": "frontend-six-stream-tools-handles-20261003",
-          "source_commit": "bbd4da1b",
-          "inherited_successful_commands": 11,
-          "fresh_remaining_commands": 11
+          "job": "34770 guarded page/provider-reuse package",
+          "build_id": "frontend-compact-authored-mounts-20261003",
+          "source_commit": "4940515e",
+          "state": "scheduled after passing strict page check"
         }
       ],
       "check": {
-        "source_commit": "2c33e57f521ee71f1ad124a22859c9ade250d44f",
+        "source_commit": "4940515e",
         "result": "PASS",
-        "log": ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/strict-check-final.json",
-        "page_seconds": 11.793434,
+        "log": ".scratch/dioxus-frontend-v1/evidence/candidate-34770-20261003/strict-check-final.json",
+        "page_seconds": 8.977097,
         "unchanged_cad_worker_seconds": 19.879196,
         "new_ui_tests": 0
       },
@@ -2023,7 +2046,7 @@
       },
       "completed_layout_range_regression": {
         "owner": "layout_perimeter_canvas_delivery",
-        "result": "Expected flat-list/companion RED then typed primary matrix rectangle GREEN; one focused native public Session test, repeated Shift anchor preserved. Packet isolated, not served yet."
+        "result": "Focused native Session RED/GREEN passed; paired34769 three-primary-cell rectangle/clicked anchor GREEN. Browser CLI held Shift not propagated; explicitly recorded synthetic modifier fallback in both apps; bounded F3.1 reconciliation active."
       }
     },
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
@@ -2307,6 +2330,24 @@
         "command_span_seconds": 459.672795,
         "package_qualification": "Full 22-command package and maintained inputs/assets qualified. Seven changed paired journeys are bounded GREEN and consolidated Sol-reviewed. The preset completion repair and Objects/Keymap UI follow-up are joined for 34768; broader parents remain open.",
         "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34767-20261003/package-proof.json"
+      },
+      {
+        "build_id": "frontend-contextual-panes-followup-20261003",
+        "source_commit": "9e6f9b62e33d7dc22412cf5793a3f4b857e219c3",
+        "root_url": "http://127.0.0.1:34768/",
+        "subpath_url": "http://127.0.0.1:34768/boardstudio/",
+        "provenance": "web/target/builds/frontend-contextual-panes-followup-20261003/provenance.json",
+        "provenance_sha256": "0d04905a8dbd66e961595fbae3702124e2f7d2784cfbe5bc3e8dab85dc81d290",
+        "fresh_commands": 8,
+        "inherited_commands": 22,
+        "source_inputs": 1372,
+        "source_mismatches": 0,
+        "assets_per_route": 146,
+        "command_span_seconds": 112.463208,
+        "package_qualification": "Strict page all-targets PASS20.046s, verified full34767 provider reuse; changed Objects/Keymap, encoder output and native custom-editor journeys qualified and consolidated-reviewed with visual/parent limits retained.",
+        "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34768-20261003/package-proof.json",
+        "superseded_at": "2026-10-03T13:36:26.507570+00:00",
+        "reason": "34769 full source/asset proof passed; historical qualified evidence retained."
       }
     ],
     "consolidated_reviews": [
@@ -2464,6 +2505,12 @@
         "source_commit": "4a69b7a4",
         "result": "Provider/version prefix11/11 PASS; fixture ENOENT URL-encoded space RED. Existing asset retained; Node FS decode fixbbd4da1b actual fixture command GREEN. Original failure/logs/provenance/partialfixtures preserved; continuing exact unchanged provider prefix rather than repeating CAD optimization.",
         "check_receipt": ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/fixture-url-decoding-regression.json"
+      },
+      {
+        "build_id": "frontend-compact-authored-mounts-20261003",
+        "source_commit": "a4a68ac2..4940515e",
+        "result": "Authored portal Signal calls/module path/revision access/shared Fn captures and one let-return lint corrected. Failures retained; final strict page PASS8.977s. No newUItests; unchanged worker check reused.",
+        "check_receipt": ".scratch/dioxus-frontend-v1/evidence/candidate-34770-20261003/strict-check-final.json"
       }
     ],
     "parent_acceptances": [
@@ -2540,45 +2587,47 @@
       {
         "stream": "Layout",
         "priority": "first",
-        "candidate": "34767",
-        "state": "Findings/preset paired journeys GREEN 34767; Objects composition and terminal selection repair next34768. Range native RED/GREEN passed; real transform tools in progress."
+        "candidate": "34769",
+        "state": "First priority: anchored primary-cell range paired GREEN; Stagger trusted pointer RED found/fixed for34770; other transform changes paired qualification active."
       },
       {
         "stream": "PCB",
-        "candidate": "34767",
-        "state": "Mounted clearance/support paired journey GREEN34767; owning-module source navigation in progress."
+        "candidate": "34769",
+        "state": "Owning-module Parts navigation/host marker layer changed journey active34769; prior placement/support preserved."
       },
       {
         "stream": "Keymap",
-        "candidate": "34767",
-        "state": "Export order/insets qualified34767; final disclosure spacing next34768; bindings/macros accepted."
+        "candidate": "34769",
+        "state": "Bindings/macros accepted; only flat encoder disclosure styling changed for34769; other Inspector/export controls retained."
       },
       {
         "stream": "Keycaps",
-        "candidate": "34767",
-        "state": "Inspector spacing qualified34767; settings/legends accepted; canonical fit/CAD frontier reconciliation active."
+        "candidate": "34769",
+        "state": "Settings/legends/fit parents accepted; only batching/unmount cancellation changed journey active34769; broader CAD boundary and visual parents open."
       },
       {
         "stream": "Case",
-        "candidate": "34767",
-        "state": "Contextual shell paired GREEN34767; authored editing accepted; actual gasket/mount handles in progress."
+        "candidate": "34769",
+        "state": "Authored editor parent accepted;34769 mechanical/gasket handles changed journey active; authored mount handle packet next34770."
       },
       {
         "stream": "Parts + Project",
-        "candidate": "34767",
-        "state": "Two demo cards/fresh copy identity/reopen paired GREEN34767; RGB/Choc variant packet ready for next full build; next Parts UI frontier active."
+        "candidate": "34769",
+        "state": "34769 RGB/Choc demo variants changed journey active; prior fresh-copy identity/custom editor qualified. Exact fixture URL space repair GREEN."
       }
     ],
     "pending_join_packets": [
       {
         "stream": "shared shell",
         "commit": "9524121991fbebd5b24f4ed0c69bf43255dc954f",
-        "state": "Mounted compact topbar/exclusive drawers/Export/focus packet frozen; join after source proof."
+        "state": "Joined into next34770; changed browser journey pending.",
+        "integrated_commit": "170d856d"
       },
       {
         "stream": "Case",
         "commit": "adbf20ba",
-        "state": "Authored body mounts through existing SetCase owner; join after source proof; changed journey open."
+        "state": "Joined into next34770; changed browser journey pending.",
+        "integrated_commit": "a4a68ac2"
       }
     ]
   }

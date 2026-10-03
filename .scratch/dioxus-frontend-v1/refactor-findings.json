@@ -289,6 +289,12 @@
           "post_port_follow_up": "Assess whether a typed private panel controller can keep topbar routing thin while preserving panel-local draft owners, persisted mode/width policy and Session/Core authority.",
           "validation": "Use one paired 720x640 Objects-to-Inspect drawer journey and the combined affected check after integration; exercise 980px/820px threshold controls and reuse unchanged desktop evidence.",
           "status": "source implementation is isolated; integrated build and changed paired journey remain open; RF-001 retained without a new ID"
+        },
+        {
+          "source": "aa33bc80",
+          "evidence": "web/src/presentation/objects/layout_transform_toolbar.rs",
+          "observation": "Actual trusted34769 Stagger handle pointerdown reached the mounted path but no pointer capture/up/edit occurred: native current_target belongs to delegated Dioxus listener rather than SVG handle. Narrow event-target.closest mounted-handle capture correction; one changed paired browser regression only. Repeated event/capture owner assumptions across shared presentation remain a refactor takeaway.",
+          "status": "Current parity repair in next34770; browser GREEN pending; no general event framework added."
         }
       ],
       "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted.",
