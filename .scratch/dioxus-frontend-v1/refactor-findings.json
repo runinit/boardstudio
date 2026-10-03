@@ -847,6 +847,11 @@
         "observation": "Fresh linked-half assembly replacement requires assemblies_local; otherwise canonical Core synchronization restores inherited data. Preseeded local fixtures hid this omission.",
         "during_port": "Author repair exercises actual Core acceptance and Undo/Redo from a non-local linked cell; expected-red evidence must pass through Core synchronization.",
         "post_port": "Assess whether private edit construction can encode explicit override intent without scattered flag handling."
+      },
+      "key_size_roundtrip_20261003": {
+        "observation": "Matched settled Sofle matrix width 1\u21921.25\u21921 changes outline min X from -3.82 to -3.97 in both frontends; final SVG bytes are identical. Earlier mismatch compared different histories, not a proven migration regression.",
+        "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
+        "status": "Migration discrepancy resolved; common edit normalization merits later characterization, no engine fix claimed."
       }
     },
     {
@@ -1557,6 +1562,12 @@
         "observation": "Provider-reuse graph covered lib/main cfg(test) modules but omitted standalone Cargo integration tests, so adding an isolated regression blocked packaging before output reservation.",
         "mitigation": "Discover standalone test roots and exclude release/provider graphs when proving test-only ownership; preserve provider hash validation.",
         "evidence": "scripts/build-m1.py rejected web/tests/board_reference_effect.rs after cbce292b; focused classifier correction with provider-exclusion regression."
+      },
+      "functional_candidate_scope_20261003": {
+        "observation": "Qualification was hard-coded to a Layout source pin and pending Layout packets despite user shifting to functional work across streams.",
+        "mitigation": "Optional next_scope in existing qualification record selects source, streams and journeys; previous scope/results archived and new candidate verdicts reset.",
+        "validation": "12 focused qualification checks passed, including scoped blocking, retained legacy behavior and no stale result attribution.",
+        "evidence": ".scratch/dioxus-frontend-v1/qualification.py; .scratch/dioxus-frontend-v1/test-qualification.py"
       }
     },
     {

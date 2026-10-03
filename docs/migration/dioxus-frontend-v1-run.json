@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T18:16:29.338204+00:00",
+    "updated_at": "2026-10-03T18:30:43.832827+00:00",
     "parent_counts": {
       "accepted": 10,
       "implementing": 41,
@@ -48,8 +48,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "e0e89924",
-      "state": "Candidate34775/2caace52 served and verified. Startup freeze and all three Properties shortcuts repaired; paired key-size and copied-outline edit/Undo/Redo/reopen behaviors pass. Visual/context parity remains open. Source-only warning cleanup e0e89924 compiles clean.",
+      "source_commit": "6f8ee398386e1a6ffb6b08346fd85cdd0dacbf7a",
+      "state": "Selection-mode correction and explicit functional qualification scopes integrated; combined candidate pending. Six streams exercised, no cosmetic matching included.",
       "packets": [
         {
           "stream": "Layout",
@@ -615,7 +615,21 @@
         "Relations to each of three Transform Properties routes",
         "Key width edit, Undo, Redo and reload",
         "Copied outline point edit, Undo, Redo and reload"
-      ]
+      ],
+      "next_scope": {
+        "id": "functional-selection-20261003",
+        "source_commit": "6f8ee398386e1a6ffb6b08346fd85cdd0dacbf7a",
+        "streams": [
+          "Layout"
+        ],
+        "journeys": [
+          {
+            "id": "objects-selection-mode",
+            "scope": "Objects Matrix/Row/Column/Key/Component selection updates actual canvas interaction mode; excluded contexts retain mode.",
+            "spec": ".scratch/dioxus-layout-authoring/issues/09-layout-command-pill.md"
+          }
+        ]
+      }
     },
     "delivery_priority": {
       "authority": "User on 2026-10-03: make the app work; layout parity last; improve UI along the way because the design will change.",
@@ -631,6 +645,22 @@
       "retained_functional_work": "Layout authoring, actual selection semantics, outline geometry correctness, usable snapping/grid controls and all other workbench capabilities remain in scope.",
       "acceptance": "Retain all 62 parent criteria, statuses and prior evidence. Functional progress is reported separately from unfinished visual/design criteria; no parent is accepted by reprioritization.",
       "previous_priority": "Layout-first closure and contextual visual parity packet."
+    },
+    "functional_batch": {
+      "receipt": ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
+      "verified_candidate": "frontend-layout-ready-repair-20261003",
+      "implemented": [
+        "Objects tree to canvas selection mode synchronization",
+        "Functional-scope candidate qualification without Layout visual gate"
+      ],
+      "verified_behaviors": [
+        "SVG/DXF/footprints/ZMK/archive download and archive integrity",
+        "Paired key-size roundtrip produces identical SVG",
+        "Project create/archive import/assembly placement/footprint import with reopen",
+        "Case generation/view controls/mechanical package download",
+        "Paired Keycaps 3D preview and byte-identical STEP download"
+      ],
+      "remaining": "Keymap/PCB diagnostic settlement; new selection fix public replay; broader parent criteria remain."
     }
   }
 }
