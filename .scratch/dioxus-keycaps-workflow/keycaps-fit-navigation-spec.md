@@ -41,6 +41,10 @@ Browser acceptance remains paired and source-stamped. Component/native tests sup
 
 This child does not complete F6C.2 settings acceptance, F6C.3 Layout overlap/resize acceptance, F6C.5 3D/STEP integration, F7 viewer acceptance, or F6.6 shared Keymap/Keycaps integration. It does not authorize public API/schema/member visibility changes or broad shared-shell refactoring.
 
+## Focused marker continuation
+
+Issue [07 — Show the focused Keycaps finding marker in Layout](issues/07-keycaps-focused-finding-marker.md) and its [focused-marker specification](keycaps-focused-finding-marker-spec.md) refine the existing focused-finding acceptance without changing this F6C.4 contract. The child may start once issue05's current accepted navigation owner and delayed-focus source/target guards have independent source clearance; it does not wait for the full issue05 paired journey or close F6C.4/INT.2. It consumes current Core scene markers and preserves Core geometry ownership.
+
 ## Refactor record
 
 Carry RF-001 and RF-005 from the Keycaps implementation scope. No new RF is proposed: the missing action is a required parity behavior and the remedy is to reuse the existing accepted navigation owner. If implementation reveals that the root callback cannot represent one target kind or has a second selection owner, record the concrete seam evidence before proposing structural cleanup.
