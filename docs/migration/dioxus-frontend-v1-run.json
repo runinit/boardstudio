@@ -1271,33 +1271,34 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T10:00:26.417620+00:00",
+    "updated_at": "2026-10-03T10:15:15.200678+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
       "accepted": 2,
-      "planned": 27,
-      "implementing": 33,
+      "planned": 26,
+      "implementing": 34,
       "total": 62
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-board-case-matrix-settlement-20261003",
-      "source_commit": "9718ea4aa3b29f1ae2f53d049a411928e65656bc",
-      "root_url": "http://127.0.0.1:34760/",
-      "subpath_url": "http://127.0.0.1:34760/boardstudio/",
-      "provenance": "web/target/builds/frontend-board-case-matrix-settlement-20261003/provenance.json",
-      "provenance_sha256": "d4e061e44423839546c370a71f4548b81db8dc7bbb5a27474dff39456928243c",
+      "build_id": "frontend-pcb-add-outline-undo-case-blur-20261003",
+      "source_commit": "2107f980e9b45c341bff10548c7156b28de0e388",
+      "root_url": "http://127.0.0.1:34761/",
+      "subpath_url": "http://127.0.0.1:34761/boardstudio/",
+      "provenance": "web/target/builds/frontend-pcb-add-outline-undo-case-blur-20261003/provenance.json",
+      "provenance_sha256": "2d218936e847ba8f4d8680e5ecc4b3f5a05c3ce88c85a2152e2397cd84020ac9",
       "fresh_commands": 8,
       "inherited_commands": 22,
       "source_inputs": 1367,
       "source_mismatches": 0,
+      "source_verification": "Recorded commit for tracked inputs;7 generated untracked inputs compared to retained files. Current next-batch source differs intentionally.",
       "assets_per_route": 145,
-      "command_span_seconds": 91.798235,
-      "package_qualification": "Strict page WASM all-target Clippy PASS14.78s; guarded package/root+subpath200 COEP PASS. Newboard paired create/select/history/reload GREEN. Matrix Right/noninitial-instance duplicate GREEN reported; receipt incoming. Case Show/disclosure deltas active. Unchanged34759 consumer/focus/Inspector evidence reused. Full parent criteria remain."
+      "command_span_seconds": 96.103273,
+      "package_qualification": "Strict page WASM all-target Clippy PASS6.85s; package/root+subpath200 COEP PASS. Same-context Outline Undo and Case Enter/blur GREEN. PCB component search\u2192Layout preview/cancel/commit GREEN; placement hint missing and staged next. No full parent closure."
     },
     "integration": {
-      "source_commit": "8746265bdd01a1c5bb34ac9b35125ff6d74b616e",
-      "state": "Served34760 with final Matrix recovery/report guards, blocked Case Show, authored Case disclosures and contextual Newboard. Keymap3D/Keycaps settings receipt8746265b joined. Next ready source: PCB Addobject0ce1873a; shared footer and outline Undo projection repairs active.",
+      "source_commit": "12efc8e07e1d6f04248c8d299cb1d465e4ae481a",
+      "state": "34761 served. Next coherent batch integrates empty-board canvas entry, shared2D footer, Parts8assemblypresets/2D3Drecipe and placement instructions. Parts mechanical compiler corrections active; one check slot, no extra tests.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1532,6 +1533,40 @@
           "original_source": "889bb4db",
           "integrated_source": "471b87e7",
           "state": "Served34760; reference default open/closed owner retention source coherent, changed browser delta active."
+        },
+        {
+          "slice": "PCB Add object component placement",
+          "original_source": "0ce1873a",
+          "integrated_source": "6d1aaa66",
+          "state": "34761 changed route/cancel/commit GREEN; hint and Browse delta pending; broader menu criteria retained."
+        },
+        {
+          "slice": "Outline scalar draft Undo reconciliation",
+          "original_source": "c32bda1d",
+          "integrated_source": "fc0a5349",
+          "state": "34761 same-context Undo GREEN;4e75 receipt joinedb721."
+        },
+        {
+          "slice": "Case duplicate Enter/blur guard",
+          "original_source": "cd4b2ae9",
+          "integrated_source": "2107f980",
+          "state": "34761 valid field Savedrev13/no false busy warning GREEN;0087 receipt joined2512."
+        },
+        {
+          "slice": "Shared2Dfooter/emptyboard/Partsassembly preview",
+          "original_source": [
+            "77e5bff5",
+            "0badcdd7",
+            "590fd840",
+            "33b40339"
+          ],
+          "integrated_source": [
+            "5bd5c916",
+            "79af180f",
+            "3e70173c",
+            "0c62cb72"
+          ],
+          "state": "Integrated source; Parts mechanical compiler corrections active; next public candidate pending."
         }
       ],
       "checks": {
@@ -1804,23 +1839,49 @@
         "candidate": "04c85b88/34759",
         "receipt": ".scratch/dioxus-frontend-v1/evidence/keymap-3d-consumer-20261003/paired-receipt.md",
         "remaining": "Shared3D lifecycle and complete parent gates."
+      },
+      {
+        "journey": "Outline radius edit\u2192Undo in the same mounted Inspector",
+        "state": "bounded paired verified",
+        "candidate": "2107f980/34761",
+        "evidence": ".scratch/dioxus-layout-authoring/evidence/f34b-outline-inspector-settings-20261003/evidence.md",
+        "remaining": "Full outline/canvas criteria retained."
+      },
+      {
+        "journey": "Case number Enter\u2192native blur\u2192Saved",
+        "state": "bounded paired verified; no false busy warning; both disclosures remain open",
+        "candidate": "2107f980/34761",
+        "evidence": ".scratch/dioxus-case-workspace/evidence/issue-12-show-and-f72-disclosure-34760/public-receipt.md",
+        "remaining": "Mount/gasket CRUD and mismatch transition frontier; broader F7.2 criteria."
+      },
+      {
+        "journey": "PCB Add object\u2192component preview\u2192cancel/commit",
+        "state": "changed navigation and placement transitions verified; missing hint staged",
+        "candidate": "2107f980/34761",
+        "evidence": ".scratch/dioxus-pcb-view/evidence/20-add-object-20261003/public-34761.json",
+        "remaining": "Hint/Browse delta and consolidated review; full inventory and parent criteria remain."
+      },
+      {
+        "journey": "Linked key width\u2192mirrored counterpart/reflow\u2192history/reopen",
+        "state": "bounded paired verified",
+        "candidate": "04c85b88/34759",
+        "evidence": ".scratch/dioxus-frontend-v1/evidence/keycaps-size-reflow-20261003/paired-linked-resize.md",
+        "remaining": "Selecting both halves together; F3.2/F3.5 joins and full F6C.3 remain."
       }
     ],
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "heavy_slots": {
-      "root_target": "No active package;34760 source/assets verified and server running. Next batch combines PCB Addobject/footer/outline-ready repairs.",
-      "secondary_target": "No active check. Last strict page all-target WASM pass14.78s on served9718 source.",
-      "dispatch": "Max two heavy jobs, one package; ordinary reversible UI gets no new tests and only changed paired browser deltas."
+      "root_target": "No package active;34761 alive. Next combined batch source integration in progress.",
+      "secondary_target": "Parts author assigned sole cached strict page WASM all-target check for mechanical compiler repairs; root no competing heavy command.",
+      "dispatch": "Max2heavy jobs/1package; ordinaryUI no newtests; only changed pairedjourneys."
     },
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
-    "next_work": {
-      "Layout": "34760 Right/noninitial-instance variant context GREEN; normal structural history retained. F3.4b same-context Undo Fillet-radius Inspector stale rendering actual34759 RED under projection repair; shell parity author active.",
-      "PCB": "Addobject0ce1873a is ready for next source batch; Newboard34760 GREEN. Empty-board guidance and board-aware matrix menu remain explicit UI gaps; shared footer author active.",
-      "Keymap": "34759 Tab and3Dconsumer GREEN; shared footer/menu state and actual contextual controls source author active.",
-      "Keycaps": "34759 coherent settings receipt joined; preserve inconclusive React legend history observation as setup limit. Next linked-half sizing frontier reuses existing ordinary sizing evidence.",
-      "Case": "34760 blocked Show and authored disclosure deltas active; all unchanged mechanical/history evidence reused.",
-      "Parts_Project": "34759 standalone3D GREEN; assembly preset/variant selector, companion preview and empty2D surface repair active."
-    },
+    "next_work": [
+      "Finish current combined Parts/footer/emptycanvas source and serve one candidate.",
+      "Qualify only changed footer/emptyentry/preset2D3D/hint journeys; reuse unchanged history and source evidence.",
+      "Finish Layout Boardoutline menu and realGeometryscripts editor; preserve remaining criteria.",
+      "Keep sixqueues with one waitingpacket; consolidatedSol report after candidate, preserveRFledger."
+    ],
     "execution_policy": "Ordinary reversible UI gets no new tests. Run one required affected compile/check per integrated batch, inspect only changed paired browser journeys, and use one consolidated candidate review. Reuse unchanged history/reopen evidence. Real reproduced bugs retain one focused regression. Parent criteria, blocker history and RF ledger remain explicit.",
     "served_candidate_history": [
       {
@@ -1985,6 +2046,21 @@
         "assets_per_route": 145,
         "command_span_seconds": 95.720626,
         "package_qualification": "Guarded page package/root+subpath200 COEP PASS; strict page WASM all-target Clippy PASS16.58s. Changed Layout Key/Component form and PCB SW3/R1 wiring composition GREEN. Parts/Keymap3D and native Tab deltas active. Matrix terminal recovery and blocked Case finding navigation fixes awaited. Full parent criteria retained."
+      },
+      {
+        "build_id": "frontend-board-case-matrix-settlement-20261003",
+        "source_commit": "9718ea4aa3b29f1ae2f53d049a411928e65656bc",
+        "root_url": "http://127.0.0.1:34760/",
+        "subpath_url": "http://127.0.0.1:34760/boardstudio/",
+        "provenance": "web/target/builds/frontend-board-case-matrix-settlement-20261003/provenance.json",
+        "provenance_sha256": "d4e061e44423839546c370a71f4548b81db8dc7bbb5a27474dff39456928243c",
+        "fresh_commands": 8,
+        "inherited_commands": 22,
+        "source_inputs": 1367,
+        "source_mismatches": 0,
+        "assets_per_route": 145,
+        "command_span_seconds": 91.798235,
+        "package_qualification": "Strict page WASM all-target Clippy PASS14.78s; guarded package/root+subpath200 COEP PASS. Newboard paired create/select/history/reload GREEN. Matrix Right/noninitial-instance duplicate GREEN reported; receipt incoming. Case Show/disclosure deltas active. Unchanged34759 consumer/focus/Inspector evidence reused. Full parent criteria remain."
       }
     ],
     "consolidated_reviews": [
@@ -2022,6 +2098,16 @@
         "build_id": "frontend-case-matrix-context-settlement-20261003",
         "source_commit": "fc3a6b97",
         "result": "Preflight rejected uncommitted main.rs formatter sorting; no page artifact. Strictcheck lint errors corrected83b49eca/5c2f. Current successful build supersedes this attempt without erasing it."
+      },
+      {
+        "build_id": "frontend-pcb-add-outline-undo-case-blur-20261003",
+        "source_commit": "05d988e7",
+        "result": "Existing pair overlay fixture used old component name; b2476692 adapts existingfixture, next strict check passed12.50s. Case2107 final strict6.85s. No newtests."
+      },
+      {
+        "build_id": "next-footer-emptyboard-Parts-source-check",
+        "source_commit": "40f891a8",
+        "result": "Combined source check failed Parts mechanical visibility/types/moves/oldfixture signatures and root nonexistentready_saved helper. RootReadModelguard correctionef80062e joined; Parts compiler corrections active. Failure retained; no public artifact claimed."
       }
     ]
   }

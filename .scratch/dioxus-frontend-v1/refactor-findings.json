@@ -327,6 +327,15 @@
         "evidence": ".scratch/dioxus-case-workspace/evidence/current-mechanical-resolution-diagnosis-20261003/README.md; .scratch/dioxus-case-workspace/evidence/15-mounting-controls-20261003/public-receipt.md",
         "status": "Blocked-result diagnostics/suggestions display and Issue 15 adoption are corrected for their bounded current-scope journey; candidate 37d81320 strict all-target check passed and the paired X=128 action retained 76 diagnostics/four suggestions while adoption persisted four suspension mounts and four closure rows. A separate Show-navigation RED showed the blocked current finding could not select its generated Plate because the root route required an exact CadScene and direct layer target. The isolated Case source now passes exact current resolver identity into that route and matches generated mount targets to their containing layer; integrated check and changed GREEN remain pending. The earlier transient Gasket zero-row observation remains unconfirmed. Full Issue 15/12 and parent acceptance remain open.",
         "post_port_follow_up": "Keep current resolver diagnostics/supports/suggestions independent from CAD preview delivery, keyed by the current settings owner and accepted scope/token/revision. Continue to use CadScene for geometry layers and preview delivery; avoid a second authority, geometry-kernel change, or provider change."
+      },
+      "canvas_entry_wave_20261003": {
+        "date": "2026-10-03",
+        "source": "2107f980;79af180f;0bfa0bc4;83b49eca",
+        "evidence": ".scratch/dioxus-pcb-view/evidence/20-add-object-20261003/public-34761.json",
+        "observation": "Paired actualbrowser found missing empty-board and pending-placement entry/help despite accepted editing capabilities. Sharedroot composition still obscures workbench board Inspector and menu parity. Matrix recovery/report had independent scope/token/epoch/revision arguments; source83b bundles existing accepted request identity. Cargo fmt wholemodule registration changed main.rs during a frozen packaging attempt; strict compiler caught outdated fixture adapters after private component extraction.",
+        "current_mitigation": "Private emptyboard/footer leaves, reuse existing scoped controllers, callback acceptance guards, focused sharedcheck and changedbrowserdeltas; targetrustfmt withskip_children. Preserve all failures and unprovedcriteria.",
+        "post_port_proposal": "Consolidate contextual projection/action ownership and boardidentity bundles after parity; define one formatting/build publisher and one progress/evidence record toreduce accidental sharedfile changes.",
+        "validation": "Exercise same UI journeys acrosscontext/history/reopen; maintain source/asset provenance, no inventedacceptance or newduplicated tests."
       }
     },
     {
@@ -775,7 +784,16 @@
           "mitigation": "Matrix captures/revalidates logical clone/draft owner; Keymap retains admitted focus while pending handler rejects additional edit. Changed candidate proof awaited.",
           "post_port": "Separate durable edit admission from focus availability; standardize captured async and draft lifetimes."
         }
-      ]
+      ],
+      "canvas_entry_wave_20261003": {
+        "date": "2026-10-03",
+        "source": "2107f980;79af180f;0bfa0bc4;83b49eca",
+        "evidence": ".scratch/dioxus-pcb-view/evidence/20-add-object-20261003/public-34761.json",
+        "observation": "Paired actualbrowser found missing empty-board and pending-placement entry/help despite accepted editing capabilities. Sharedroot composition still obscures workbench board Inspector and menu parity. Matrix recovery/report had independent scope/token/epoch/revision arguments; source83b bundles existing accepted request identity. Cargo fmt wholemodule registration changed main.rs during a frozen packaging attempt; strict compiler caught outdated fixture adapters after private component extraction.",
+        "current_mitigation": "Private emptyboard/footer leaves, reuse existing scoped controllers, callback acceptance guards, focused sharedcheck and changedbrowserdeltas; targetrustfmt withskip_children. Preserve all failures and unprovedcriteria.",
+        "post_port_proposal": "Consolidate contextual projection/action ownership and boardidentity bundles after parity; define one formatting/build publisher and one progress/evidence record toreduce accidental sharedfile changes.",
+        "validation": "Exercise same UI journeys acrosscontext/history/reopen; maintain source/asset provenance, no inventedacceptance or newduplicated tests."
+      }
     },
     {
       "id": "RF-007",
@@ -1143,7 +1161,16 @@
           "observation": "Read-only audit: shared source joins and stale duplicate progress/routing rules increase queue and rework; required acceptance remains distinct from code presence.",
           "mitigation": "Integrate ready batch; Layout-first, one waiting packet/stream; fewer repeated checks, one candidate review, unified current_progress; all history and criteria retained."
         }
-      ]
+      ],
+      "canvas_entry_wave_20261003": {
+        "date": "2026-10-03",
+        "source": "2107f980;79af180f;0bfa0bc4;83b49eca",
+        "evidence": ".scratch/dioxus-pcb-view/evidence/20-add-object-20261003/public-34761.json",
+        "observation": "Paired actualbrowser found missing empty-board and pending-placement entry/help despite accepted editing capabilities. Sharedroot composition still obscures workbench board Inspector and menu parity. Matrix recovery/report had independent scope/token/epoch/revision arguments; source83b bundles existing accepted request identity. Cargo fmt wholemodule registration changed main.rs during a frozen packaging attempt; strict compiler caught outdated fixture adapters after private component extraction.",
+        "current_mitigation": "Private emptyboard/footer leaves, reuse existing scoped controllers, callback acceptance guards, focused sharedcheck and changedbrowserdeltas; targetrustfmt withskip_children. Preserve all failures and unprovedcriteria.",
+        "post_port_proposal": "Consolidate contextual projection/action ownership and boardidentity bundles after parity; define one formatting/build publisher and one progress/evidence record toreduce accidental sharedfile changes.",
+        "validation": "Exercise same UI journeys acrosscontext/history/reopen; maintain source/asset provenance, no inventedacceptance or newduplicated tests."
+      }
     },
     {
       "id": "RF-010",

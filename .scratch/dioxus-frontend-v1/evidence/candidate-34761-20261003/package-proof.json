@@ -1,0 +1,34 @@
+{
+  "source_commit": "2107f980e9b45c341bff10548c7156b28de0e388",
+  "provenance_sha256": "2d218936e847ba8f4d8680e5ecc4b3f5a05c3ce88c85a2152e2397cd84020ac9",
+  "source_count": 1367,
+  "source_at_recorded_commit_mismatches": [],
+  "untracked_generated_source_fallback": [
+    "core/pkg/.gitignore",
+    "core/pkg/README.md",
+    "core/pkg/boardstudio_core.d.ts",
+    "core/pkg/boardstudio_core.js",
+    "core/pkg/boardstudio_core_bg.wasm",
+    "core/pkg/boardstudio_core_bg.wasm.d.ts",
+    "core/pkg/package.json"
+  ],
+  "routes": {
+    "root": {
+      "asset_count": 145,
+      "mismatches": []
+    },
+    "subpath": {
+      "asset_count": 145,
+      "mismatches": []
+    }
+  },
+  "fresh_commands": 8,
+  "inherited_commands": 22,
+  "duration_seconds": 96.103273,
+  "strict_page_all_targets": {
+    "exit": 0,
+    "duration_seconds": 6.85,
+    "new_tests": 0
+  },
+  "root_and_subpath_http": 200
+}
