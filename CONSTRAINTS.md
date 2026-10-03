@@ -9,13 +9,19 @@ a full-Rust application; backend/kernel rewrites and the major structural refact
 are separate phases. These requirements govern plans, implementation, review,
 cutover and removal. Read them before changing migration code.
 
+## Necessary API and design changes — user authorization 2026-10-02
+
+The user explicitly directed: “if you need to change things (APIs, design) change them.” Necessary Rust/public API, visibility, wire-contract and design changes within this migration are authorized without another permission round. This supersedes earlier separate-decision restrictions for those necessary changes; it does not authorize unrelated work, discarding work, history rewrites or external publication/cutover.
+
+Implement the smallest coherent solution rather than preserving an unsuitable interface. Update affected callers, generated contracts, tests and documentation together. Record the design reason, changed behavior and compatibility strategy in the migration/refactor ledger. Existing saved projects and exports remain acceptance inputs; if a format must change, supply and verify the required migration/recovery behavior. Review API/design changes in the integrated candidate, alongside frontend behavior. TypeScript user-visible parity remains the default goal, with deliberate necessary deviations documented and tested.
+
 ## Candidate-first execution — user update 2026-10-02
 
 The user directed: “structure this for speed, less review handoffs” and proposed reviewing when a candidate is complete. This supersedes earlier mandatory per-child planning, source and root-composition approval sequences for routine frontend work.
 
 Authors pin the React journey, refine the existing spec/ticket, implement the mounted workflow and run focused affected checks. They do not wait for separate independent planning or source approvals. The coordinator serially joins ready work and builds one frozen integrated candidate. Sol6.1 High reviewers divide that candidate in parallel, covering Standards and Spec alongside paired browser verification. Return consolidated findings; recheck affected repairs rather than repeat unchanged evidence or the entire approval sequence.
 
-Known correctness/parity defects still need repair. A completed candidate is a reviewable build, not a claim that its parents are accepted. Preserve all62 parent criteria, blocker/history records, paired edit/Undo/save-reopen gates and RF ledger. Public API/visibility/schema decisions and external cutover approval remain separate. Private composition, callback ownership and internal adapters can be implemented within existing authority and reviewed in the candidate.
+Known correctness/parity defects still need repair. A completed candidate is a reviewable build, not a claim that its parents are accepted. Preserve all62 parent criteria, blocker/history records, paired edit/Undo/save-reopen gates and RF ledger. Necessary API/visibility/schema changes are authorized by the user section above; external publication/cutover approval remains separate. Private composition, callback ownership and internal adapters can be implemented within existing authority and reviewed in the candidate.
 
 ## Confirmed frontend execution authority — 2026-10-02
 
@@ -54,8 +60,9 @@ migration requirements; they do not authorize hiding failures or deleting work.
   internal Rust interfaces may be adjusted within existing authority and reviewed
   as part of the integrated candidate.
   Routine private or `pub(crate)` composition does not need repeated user approval.
-  Preserve externally consumed public APIs, shared wire contracts and saved formats;
-  changes to those contracts still require a separate explicit decision and tests.
+  Necessary public API and shared-contract changes are authorized by the user
+  section above. Update callers/generated contracts coherently and verify saved
+  project compatibility or the required migration; do not change formats accidentally.
 - Check each slice's affected targets/features and behavior. Global performance,
   full-application assistive-technology/corpus qualification, cutover and retirement
   gates remain with their relevant milestones; do not demand their completion
@@ -162,9 +169,9 @@ assertions or lowering a threshold to hide a failure.
   dependency direction; preserve agreed public/API contracts. Update boundary
   checks to assert an approved replacement architecture, with negative tests,
   rather than deleting checks or exempting a violating implementation. Changing
-  externally consumed public APIs still requires explicit user approval. Necessary
-  private/crate-local visibility changes follow the reviewed internal-interface
-  authorization above; use the narrowest visibility and record consumers.
+  externally consumed public APIs when necessary is covered by the user
+  authorization above. Use the narrowest sufficient visibility, record consumers
+  and review the coherent replacement in the integrated candidate.
 - Keep expensive core/CAD work off the UI thread; an async function alone is
   not evidence of background execution. Preserve cancellation, caller
   settlement, stale-result rejection and worker/renderer disposal.
@@ -200,8 +207,9 @@ assertions or lowering a threshold to hide a failure.
   units, precision and error behavior. Rust owns shared contracts; regenerate
   TypeScript bindings from them and check freshness instead of hand-editing
   generated types. Intentional externally consumed API, wire-contract or file-format
-  changes need a separate explicit decision, compatibility strategy and tests before
-  use. Reviewed internal Rust interface adjustments follow the authority above.
+  changes necessary to this migration are authorized; document the decision,
+  compatibility strategy and tests before acceptance. Internal Rust interface
+  adjustments follow the same candidate-level review authority.
 - Preserve keyboard and mouse semantics: shortcuts and modifiers, focus,
   selection, snapping, hit testing, drag thresholds and pointer capture,
   pan/zoom, preview/commit/cancel, Escape, Undo/redo and final pointer samples.

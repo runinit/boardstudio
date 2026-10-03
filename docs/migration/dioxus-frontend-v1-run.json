@@ -995,5 +995,6 @@
     "subpath_url": "http://127.0.0.1:34739/boardstudio/",
     "package_review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/chooser-pcb-navigation-package-review-a8fd8988-sol-20261002.md"
   },
-  "review_execution_policy": "2026-10-02 user update: candidate-first batching; routine frontend planning/source/root joins no longer require separate approvals. Authors implement and verify; reviewers assess frozen integrated candidates and paired browser journeys; affected repair rechecks only. All62 parent criteria and explicit public API/cutover gates retained."
+  "review_execution_policy": "2026-10-02 user update: candidate-first batching; routine frontend planning/source/root joins no longer require separate approvals. Authors implement and verify; reviewers assess frozen integrated candidates and paired browser journeys; affected repair rechecks only. All62 parent criteria and explicit public API/cutover gates retained.",
+  "api_design_authority": "2026-10-02 user explicitly authorizes necessary APIs/design changes; update consumers/contracts/tests and document compatibility/refactor reasoning, review in integrated candidate without another permission round."
 }

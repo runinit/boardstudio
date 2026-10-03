@@ -104,7 +104,7 @@
   },
   "review_rules": {
     "batching": "Default: one integrated candidate receives consolidated Standards+Spec review and paired browser journeys. Reviewers split the candidate by workflow/file ownership in parallel and return one actionable finding list.",
-    "dedicated": "Dedicated preimplementation review only for a necessary unresolved public API/visibility/schema decision or an evidenced boundary that cannot be implemented safely within existing authority. Private frontend composition/identity changes are reviewed in the candidate.",
+    "dedicated": "Routine and necessary API/design changes proceed under user authority to candidate review. Escalate only a concrete unresolved requirement that prevents meaningful implementation, not a blanket API permission gate.",
     "preimplementation": "Authors refine specs/tickets and implement immediately from pinned React behavior and proven consumed capabilities; routine frontend slices do not wait for an independent planning approval.",
     "author_cannot_approve": true,
     "repair_independence": "If any reviewer/debugger edits a repair, a different Sol reviewer assesses the exact integrated delta.",
@@ -117,7 +117,7 @@
     "mechanical_errors": "Author may fix obvious compiler/type/format errors normally; recurring failure with no new evidence triggers diagnosis.",
     "behavioral_regression": "Retain failing public reproduction and candidate; Astra High diagnoses/fixes instead of repeated speculative Luna rewrites.",
     "high_to_xhigh": "Escalate unresolved material reasoning/bug with prior hypotheses and evidence.",
-    "approval_boundaries": "Existing public API/visibility/schema/cutover approvals are unchanged."
+    "approval_boundaries": "Necessary migration APIs/design changes authorized by latest user instruction; unrelated destructive/history/external cutover actions retain their separate authority."
   },
   "concurrency": {
     "max_total_agents": 30,
@@ -921,5 +921,20 @@
     "build_window": "Freeze root integration inputs through before/after source hashes; isolated authors continue.",
     "provider_reuse_spec": "specs/page-only-packaging-reuse.md (proposed, not activated)",
     "acceptance": "Independent integrated Standards and Spec reviews plus paired browser gates remain required; no parent closes from docs/mounting/packaging."
+  },
+  "api_design_authority": {
+    "user_instruction": "if you need to change things (APIs, design) change them",
+    "scope": "Necessary migration API/design/visibility/contracts changes; no repeated permission round",
+    "requirements": [
+      "coherent callers/generated contracts/tests/docs",
+      "compatibility or verified migration for saved projects",
+      "candidate-level review",
+      "record architectural/refactor rationale"
+    ],
+    "excluded": [
+      "unrelated changes",
+      "discarding work/history rewrites",
+      "external publication/cutover"
+    ]
   }
 }
