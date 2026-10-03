@@ -1022,9 +1022,9 @@
         }
       ],
       "component_owner_keys_20261003": {
-        "evidence": "WASM page compiler deprecated-key warnings; web/src/presentation/mechanical_settings.rs OpeningControls/CriticalFitControls",
+        "evidence": "WASM page compiler deprecated-key warnings; web/src/presentation/mechanical_settings.rs OpeningControls/CriticalFitControls; release34773 encoder_editor.rs CW/CCW/push keys; a62d4fda+c95b3dea; source compiler logs15/16",
         "observation": "Keys placed on later sibling component nodes are ignored by Dioxus. The intended owner-remount boundary was therefore not provided by those keys; no saved-state loss is inferred from the warning.",
-        "current_mitigation": "Used existing scoped single-item keyed boundaries, matching the mounting control pattern; source compiles atd5f915b7. Behavioral scope/Undo/reopen qualification remains later.",
+        "current_mitigation": "Existing single-item keyed iteration boundaries applied to Case owners and encoder binding editors. The added FnMut iterations require cloned owned target/label/binding props; the compiler found nine moves, repaired together without new tickets/review. Combined c95b3dea source compiles with zero warnings. Changed owner/Undo/reopen behavior and release warning removal remain for later candidate qualification.",
         "post_port_follow_up": "Use one small scoped-owner component boundary for forms so selection/scope retirement does not rely on repeated RSX key-placement details."
       }
     },

@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T16:01:28.996387+00:00",
+    "updated_at": "2026-10-03T16:10:53.883295+00:00",
     "parent_counts": {
       "accepted": 10,
       "implementing": 41,
@@ -44,8 +44,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "ef087c7485b67e08463f1fcb9ece7b7c937dd2d1",
-      "state": "Assembly bindings/Matrix Apply/Layout placement plus PCB manual-net release and Outline connection controls packaged and served34773. Direct board X/Y action continues in its original issue. Browser qualification/review deferred.",
+      "source_commit": "c95b3dea",
+      "state": "34773 serves ef087c74. Encoder identity fix joined afterward at a62d4fda+c95b3dea; cached combined source compile passes with zero warnings. Assembly direct board X/Y action continues in its original issue; browser qualification/review deferred.",
       "packets": [
         {
           "stream": "Layout",
@@ -278,6 +278,13 @@
           "change": "Ergogen model defaults, saved assembly Matrix Apply and existing Layout drag placement; coherent private workspace mount",
           "receipt": ".scratch/dioxus-frontend-v1/evidence/f46-assembly-authoring-20261003/RECEIPT.md",
           "qualification": "Combined source compile passes; package pending. Separate TS board X/Y action remains open."
+        },
+        {
+          "stream": "Keymap",
+          "integrated_commit": "a62d4fda+c95b3dea",
+          "change": "Effective keyed encoder editor boundaries and cloned iteration captures",
+          "receipt": ".scratch/dioxus-keymap-layers/evidence/encoder-mounted-integration/README.md",
+          "qualification": "Combined source compile only; next package/browser qualification pending."
         }
       ],
       "qualification": "Joined source is not acceptance. No new application tests or browser qualification were run for this batch."
@@ -372,8 +379,8 @@
         }
       ],
       "source_compile": {
-        "source_commit": "6ae8e609",
-        "result": "PASS: Assembly joins compile; three unused-mut warnings mechanically removed immediately afterward.",
+        "source_commit": "c95b3dea",
+        "result": "PASS: cached combined source compiler; zero warnings. Earlier keyed-iteration ownership errors repaired in one source list.",
         "command": "cargo check --manifest-path web/Cargo.toml --locked --target wasm32-unknown-unknown --no-default-features --features page --bin boardstudio-web",
         "logs": [
           "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003.log",
@@ -389,12 +396,14 @@
           "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-11.log",
           "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-12.log",
           "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-13.log",
-          "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-14.log"
+          "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-14.log",
+          "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-15.log",
+          "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-16.log"
         ],
         "new_tests": 0,
         "exit_code": 0,
-        "latest_log": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-14.log",
-        "warnings": 3
+        "latest_log": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-16.log",
+        "warnings": 0
       }
     },
     "execution_policy": "docs/agents/issue-tracker.md#frontend-delivery-records",
@@ -436,7 +445,7 @@
       },
       {
         "stream": "Keymap",
-        "state": "Source comparison found all Keymap-owned UI mounted; no new code/receipt/isolate created. F6K.1/.2/.3 accepted; T1-11/F3.4, F5.2/F8.2 and F7.3 final joins remain."
+        "state": "Encoder identity/capture repair joined after34773; cached source compile passes. No duplicate receipt or ticket created. F6K.1/.2/.3 accepted; existing cross-workflow joins and later behavioral qualification remain."
       },
       {
         "stream": "Keycaps",
