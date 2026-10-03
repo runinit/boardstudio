@@ -1271,7 +1271,7 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T10:50:09.612866+00:00",
+    "updated_at": "2026-10-03T10:52:40.840783+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
       "accepted": 2,
@@ -1281,23 +1281,24 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-footer-empty-assemblies-shell-20261003",
-      "source_commit": "900068a0df413059732f9f365abd598734b7f86c",
-      "root_url": "http://127.0.0.1:34762/",
-      "subpath_url": "http://127.0.0.1:34762/boardstudio/",
-      "provenance": "web/target/builds/frontend-footer-empty-assemblies-shell-20261003/provenance.json",
-      "provenance_sha256": "319f378ba0d2eb0855059d2368e1e8028c0c6267e0a50a22b9ed8e8a195e1251",
+      "build_id": "frontend-ui-corrections-export-20261003",
+      "source_commit": "99ec041a2895e5ab23880be25501beb9360487db",
+      "root_url": "http://127.0.0.1:34763/",
+      "subpath_url": "http://127.0.0.1:34763/boardstudio/",
+      "provenance": "web/target/builds/frontend-ui-corrections-export-20261003/provenance.json",
+      "provenance_sha256": "d3c03d6db107ab7a55753b5798d99444f7d0843540ef96530c00d9f44296fe08",
       "fresh_commands": 8,
       "inherited_commands": 22,
-      "source_inputs": 1370,
+      "source_inputs": 1371,
       "source_mismatches": 0,
       "assets_per_route": 145,
-      "command_span_seconds": 96.365056,
-      "package_qualification": "Strict page WASM all-target17.54s;1370sources/145assets-route0mismatch,root/subpath200COOP/COEP. Changed Boardoutline route, empty entry/cancel/Browse and placementhintGREEN. Sharedshell/footer/Parts receipts active; visual corrections staged. No parent closure."
+      "command_span_seconds": 95.620667,
+      "package_qualification": "Strict page WASM all-target17.97s PASS.1371sources/145assets perroute0mismatch,root/subpath200COOP/COEP.Changed browser deltas active; no inferred parent closure.",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34763-20261003/package-proof.json"
     },
     "integration": {
       "source_commit": "65d49442",
-      "state": "Joined UI/Export corrections pass strict page WASM all-target Clippy17.97s at65d49442; no new tests or test execution. Frozen package34763 starts next.34762 retained.",
+      "state": "34763 verified/live; shared UI/Export changed journeys and one consolidated review active. Geometry scripts next source join;34762 retained.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1905,7 +1906,7 @@
     ],
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "heavy_slots": {
-      "root_target": "Single frozen UI/Export package assigned; no agent heavy job assigned.",
+      "root_target": "No package/check active; next shared Layout batch will use cached target.",
       "secondary_target": "No agent compiler assigned.",
       "dispatch": "Max2heavyjobs/1package; ordinaryUI nonewtests; changedjourneys only."
     },
@@ -2111,6 +2112,21 @@
         "assets_per_route": 145,
         "command_span_seconds": 96.103273,
         "package_qualification": "Strict page WASM all-target Clippy PASS6.85s; package/root+subpath200 COEP PASS. Same-context Outline Undo and Case Enter/blur GREEN. PCB component search\u2192Layout preview/cancel/commit GREEN; placement hint missing and staged next. No full parent closure."
+      },
+      {
+        "build_id": "frontend-footer-empty-assemblies-shell-20261003",
+        "source_commit": "900068a0df413059732f9f365abd598734b7f86c",
+        "root_url": "http://127.0.0.1:34762/",
+        "subpath_url": "http://127.0.0.1:34762/boardstudio/",
+        "provenance": "web/target/builds/frontend-footer-empty-assemblies-shell-20261003/provenance.json",
+        "provenance_sha256": "319f378ba0d2eb0855059d2368e1e8028c0c6267e0a50a22b9ed8e8a195e1251",
+        "fresh_commands": 8,
+        "inherited_commands": 22,
+        "source_inputs": 1370,
+        "source_mismatches": 0,
+        "assets_per_route": 145,
+        "command_span_seconds": 96.365056,
+        "package_qualification": "Strict page WASM all-target17.54s;1370sources/145assets-route0mismatch,root/subpath200COOP/COEP. Changed Boardoutline route, empty entry/cancel/Browse and placementhintGREEN. Sharedshell/footer/Parts receipts active; visual corrections staged. No parent closure."
       }
     ],
     "consolidated_reviews": [

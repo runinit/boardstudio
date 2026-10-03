@@ -1,0 +1,36 @@
+{
+  "source_commit": "99ec041a2895e5ab23880be25501beb9360487db",
+  "provenance_sha256": "d3c03d6db107ab7a55753b5798d99444f7d0843540ef96530c00d9f44296fe08",
+  "source_count": 1371,
+  "source_mismatches": [],
+  "source_verification": "Frozen integration files against recorded source hashes before further source joins.",
+  "routes": {
+    "root": {
+      "http": 200,
+      "headers": {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp"
+      },
+      "asset_count": 145,
+      "mismatches": []
+    },
+    "subpath": {
+      "http": 200,
+      "headers": {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp"
+      },
+      "asset_count": 145,
+      "mismatches": []
+    }
+  },
+  "fresh_commands": 8,
+  "inherited_commands": 22,
+  "duration_seconds": 95.620667,
+  "strict_page_all_targets": {
+    "exit": 0,
+    "duration_seconds": 17.97,
+    "new_tests": 0,
+    "source_commit": "65d49442"
+  }
+}
