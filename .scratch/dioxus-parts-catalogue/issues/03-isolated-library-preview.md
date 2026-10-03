@@ -47,6 +47,14 @@ The first implementation packet wires the already-mounted selected-definition pr
 
 This slice does not yet claim companion assemblies, same-definition recipe projection, paired React geometry parity, supported responsive/theme coverage, provider retry parity, or F7.3/INT.2 joins. Those criteria remain unchecked until the specific mounted public journey and their source/provider contracts are verified. The selected-definition path is not full F4.4 parent acceptance.
 
+## Next assembly/companion input boundary
+
+The pinned React Library path selects one of the eight `matrixPresetDefinitions` through the Issue 02 assembly catalogue, resolves it with `assemblyPreset(preset, libraryDefinitions, assemblyOrientation, matrixConstruction)`, and projects its ordered members into the library preview. Each member carries its resolved definition, merged generator parameters, position, rotation, and front/back side; the first member remains the title/lead definition and the rest are companions. React `sampleAssembly` creates a separate sample Part and source definition for each member, clears each member's terminal-net overrides, and frames the sample from all member courtyard/keycap envelopes. `LibraryWorkspace` then shows the same recipe in 2D and its isolated sample project in 3D.
+
+The current Dioxus Parts selection owner supplies only one selected accepted catalogue definition; it has no selected assembly preset/orientation input. This ticket's first producer likewise builds one definition and one part at the origin. Issue 02 owns making the reference preset/variant selection callable; Issue 03 owns consuming those accepted inputs as a read-only companion recipe in both views. Do not manufacture a preset control inside the preview or reinterpret a hidden assembly snapshot as a user selection. After the Issue 02 inputs are mounted, the next Issue 03 slice should preserve member ordering and transforms, normalize member generator parameters through the existing source-backed path, frame all member envelopes, and key stale-result retirement to the full recipe identity as well as the accepted source scope. No new model editor or active-project placement action is implied.
+
+The selected-definition 3D route has a changed-only public receipt at `../evidence/parts-03-preview-34759/RESULTS.md`. The MX ready → 2D return and missing-model sample paths passed. The same receipt retains a separate `utility_text` empty-geometry 2D parity failure for the next Issue 03 packet; it is not reported as green and remains outside the frozen 3D source slice.
+
 ## RF handoff
 
 No new refactoring takeaway observed during this ticket draft. Keep existing RF-006 (canonical versus isolated sample scope), RF-009 (parity/acceptance accounting) and RF-012 (renderer-host capability wrapper) as relevant evidence/owners; do not add a new RF item based only on this planning pass.
