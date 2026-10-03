@@ -1,0 +1,43 @@
+{
+  "build_id": "frontend-source-batch-20261003-5",
+  "source_commit": "5c8161cf80d2c93c6214cb7caed6dffc4463f64d",
+  "provenance": "web/target/builds/frontend-source-batch-20261003-5/provenance.json",
+  "provenance_sha256": "ef5f71c5086563dfefb6b53ed8e2108485b30d0d7072214a67c47794b86321bd",
+  "source_count": 1381,
+  "source_mismatches": [],
+  "source_verification": "Frozen integration file bytes against source manifest before next joins.",
+  "routes": {
+    "root": {
+      "http": 200,
+      "headers": {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp"
+      },
+      "asset_count": 190,
+      "mismatches": []
+    },
+    "subpath": {
+      "http": 200,
+      "headers": {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp"
+      },
+      "asset_count": 190,
+      "mismatches": []
+    }
+  },
+  "fresh_commands": 7,
+  "inherited_commands": 22,
+  "duration_seconds": 150.27312,
+  "source_compile": {
+    "source_commit": "9f12d32a",
+    "exit_code": 0,
+    "log": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-18.log",
+    "warnings": 0
+  },
+  "release_warnings": {
+    "root": 0,
+    "subpath": 0
+  },
+  "qualification": "Package/source/HTTP assets only. No new application tests, browser journeys or review."
+}

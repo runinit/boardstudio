@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T16:16:30.669196+00:00",
+    "updated_at": "2026-10-03T16:20:35.518489+00:00",
     "parent_counts": {
       "accepted": 10,
       "implementing": 41,
@@ -25,27 +25,31 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-source-batch-20261003-4",
-      "source_commit": "ef087c7485b67e08463f1fcb9ece7b7c937dd2d1",
-      "root_url": "http://127.0.0.1:34773/",
-      "subpath_url": "http://127.0.0.1:34773/boardstudio/",
-      "provenance": "web/target/builds/frontend-source-batch-20261003-4/provenance.json",
-      "provenance_sha256": "ccf51ea6746b96891e4242edbd260d41e39b49c3a7bb5a2b0107edccefa5b2b6",
+      "build_id": "frontend-source-batch-20261003-5",
+      "source_commit": "5c8161cf80d2c93c6214cb7caed6dffc4463f64d",
+      "root_url": "http://127.0.0.1:34774/",
+      "subpath_url": "http://127.0.0.1:34774/boardstudio/",
+      "provenance": "web/target/builds/frontend-source-batch-20261003-5/provenance.json",
+      "provenance_sha256": "ef5f71c5086563dfefb6b53ed8e2108485b30d0d7072214a67c47794b86321bd",
       "fresh_commands": 7,
       "inherited_commands": 22,
       "source_inputs": 1381,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 125.485402,
+      "command_span_seconds": 150.27312,
       "package_qualification": "Package/source/HTTP assets only. No new application tests, browser journeys or review.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34773-20261003/package-proof.json"
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34774-20261003/package-proof.json",
+      "release_warnings": {
+        "root": 0,
+        "subpath": 0
+      }
     },
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "9f12d32a",
-      "state": "Exact TS board-origin Assembly X/Y placement plus accepted Part-mode callback and encoder identity fixes joined. Combined source compiler passes with zero warnings; larger candidate packaging next.34773 remains available; behavior/review deferred.",
+      "source_commit": "5c8161cf80d2c93c6214cb7caed6dffc4463f64d",
+      "state": "Larger Assembly/encoder candidate packaged and served34774. All bounded source passes completed; source/release compilers have zero warnings. Tests, changed public journeys and one consolidated Sol review remain deferred; no parent acceptance added.",
       "packets": [
         {
           "stream": "Layout",
@@ -319,15 +323,7 @@
     ],
     "heavy_slots": {
       "policy": "Coordinator assigned; maximum 2 heavy jobs / 1 package",
-      "active": [
-        {
-          "kind": "preview package",
-          "build_id": "frontend-source-batch-20261003-5",
-          "log": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/frontend-source-batch-20261003-5-package.log",
-          "qualification": "Source/package only; application tests/browser/review deferred.",
-          "source_commit": "9f12d32a"
-        }
-      ],
+      "active": [],
       "check": {
         "source_commit": "3dbcdb38",
         "result": "Failed strict check: two needless Option borrow conversions in Add-object source. Repaired at642d5474; recheck deferred until larger candidate.",
@@ -392,6 +388,15 @@
           "provenance": "web/target/builds/frontend-source-batch-20261003-4/provenance.json",
           "provenance_sha256": "ccf51ea6746b96891e4242edbd260d41e39b49c3a7bb5a2b0107edccefa5b2b6",
           "qualification": "Package/source/HTTP assets only. No new application tests, browser journeys or review."
+        },
+        {
+          "build_id": "frontend-source-batch-20261003-5",
+          "source_commit": "5c8161cf80d2c93c6214cb7caed6dffc4463f64d",
+          "exit_code": 0,
+          "result": "complete",
+          "provenance": "web/target/builds/frontend-source-batch-20261003-5/provenance.json",
+          "provenance_sha256": "ef5f71c5086563dfefb6b53ed8e2108485b30d0d7072214a67c47794b86321bd",
+          "qualification": "Package/source/HTTP assets only. No new application tests, browser journeys or review."
         }
       ],
       "source_compile": {
@@ -431,7 +436,7 @@
       "audit": ".scratch/dioxus-frontend-v1/evidence/candidate-34771-20261003/consolidated-audit.json",
       "audit_sha256": "a8352d86c1093cc5d3b2f7c63d02a3910788650d67fc4619a7a62317a58b1b67",
       "state": "Finalized34771 scope assessments with explicit unqualified broader limits; next source batch review deferred.",
-      "candidate": "34771 retained review;34772/34773 and later source have no new review yet."
+      "candidate": "34771 retained review;34772/34773/34774 and later source have no new review yet."
     },
     "parent_acceptances": [
       {
@@ -455,15 +460,15 @@
       {
         "stream": "Layout",
         "priority": "first",
-        "state": "Properties/Relations, outline feature/bridge/gap focus/rectangle positions and generated connection attachment/insert/remove/selection retention served34773. Browser qualification remains."
+        "state": "Properties/Relations, outline feature/bridge/gap focus/rectangle positions and generated connection attachment/insert/remove/selection retention served34774. Browser qualification remains."
       },
       {
         "stream": "PCB",
-        "state": "Reference import/model attachments and manual-net conflict/release served34773. Source pass found no further owned controller/pin/jumper/profile control gap; final behavioral joins remain."
+        "state": "Reference import/model attachments and manual-net conflict/release served34774. Source pass found no further owned controller/pin/jumper/profile control gap; final behavioral joins remain."
       },
       {
         "stream": "Keymap",
-        "state": "Encoder identity/capture repair joined after34773; cached source compile passes. No duplicate receipt or ticket created. F6K.1/.2/.3 accepted; existing cross-workflow joins and later behavioral qualification remain."
+        "state": "Effective encoder identity/capture repair served34774 with zero source/release compiler warnings. Existing F6K.1/.2/.3 acceptances retained; new delta/cross-workflow qualification remains."
       },
       {
         "stream": "Keycaps",
@@ -475,14 +480,14 @@
       },
       {
         "stream": "Parts + Project",
-        "state": "Exact TS board-origin Assembly X/Y placement and accepted Part-mode selection callback joined; combined source compile passes. All bounded source passes now return existing pointers; final behavior/cross-workflow joins remain."
+        "state": "Exact TS board-origin Assembly X/Y placement and accepted Part-mode callback served34774. All bounded Parts source passes complete; no speculative audit or ticket added. Final behavior/cross-workflow joins remain."
       }
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Package the larger compiled Assembly/encoder source; preserve34773 while the new candidate is built.",
-      "Later qualify changed public journeys and conduct one consolidated Sol review, reusing unchanged evidence.",
-      "Preserve every parent criterion, historical blocker and RF finding; source presence/compilation/package are not acceptance."
+      "Use the larger34774 candidate for the later changed-public-journey and single consolidated Sol qualification phase; reuse unchanged evidence.",
+      "Repair proven defects in existing source/tickets, preserving integrated fixes and relevant source bases. No repeated planning or per-packet approval cycle.",
+      "Preserve all62 parent criteria, blocker history and RF ledger. Source inventory, compiler and package proof do not establish browser behavior or acceptance."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
