@@ -22,6 +22,6 @@
 
 **Ownership:** Private Keymap panel composition and scoped Keymap presentation styles. Do not change shared Runtime/Core composition or existing editor callback ownership.
 
-**Status:** implementing from the mounted Keymap panel source on `fe86fa05598dee6ef8ffb02f9f6fcfaa6810f10d`. The combined change reuses the existing native disclosure behavior; no new ordinary UI test is planned under the current reduced-test instruction.
+**Status:** source implementation is frozen in `141144484cb9070236e5e461c2d83492b9b525d3`. The first paired public click journey on candidate `ab532f275cb14385db3e4e52e5adcb5fb7c3ee18` found that static `open: true` reopened each section after a click; the repair uses per-pane open signals and resets a pane only when switching to it. Formatting and diff checks pass; the repaired paired click journey is pending the next packaged candidate under the reduced-test instruction. Evidence: `../evidence/keymap-editor-disclosures-20261003/paired-browser-journey.md`.
 
 **Refactoring handoff:** Update RF-009 follow-up evidence or record no new architectural finding. Preserve the existing F6K.1/F6K.2/3/4 acceptance boundaries.
