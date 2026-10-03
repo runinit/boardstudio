@@ -1914,7 +1914,6 @@ async fn duplicate_design_variant(
                     &request.owner.scope,
                     request.snapshot_token,
                     request.revision,
-                    None,
                     &report_scope,
                 )
                 .await
@@ -1957,7 +1956,6 @@ async fn duplicate_design_variant(
                     &request.owner.scope,
                     request.snapshot_token,
                     request.revision,
-                    None,
                     &report_scope,
                 )
                 .await
@@ -2049,11 +2047,6 @@ async fn duplicate_design_variant(
                 &request.owner.scope,
                 request.snapshot_token,
                 request.revision,
-                Some(&preset_variant(
-                    request.preset,
-                    request.orientation,
-                    reversible,
-                )),
                 &report_scope,
             )
             .await
@@ -2189,7 +2182,6 @@ async fn restore_source_after_variant_failure(
     source_scope: &Scope,
     source_token: SnapshotToken,
     source_revision: u64,
-    expected_variant: Option<&str>,
     report_scope: &Rc<RefCell<Option<Scope>>>,
 ) -> Result<bool, String> {
     let model = runtime.model();
@@ -2208,25 +2200,8 @@ async fn restore_source_after_variant_failure(
                 && scope.document_id == variant_id
                 && scope.board_id == source_scope.board_id
                 && scope.instance_id == source_scope.instance_id
-        }) && (current.token == owned.token && current.document.revision == owned.document.revision
-            || (model.lifecycle == Lifecycle::RecoveryRequired
-                && current.document.revision == owned.document.revision.saturating_add(1)
-                && expected_variant.is_some_and(|variant| {
-                    owned.document.matrices.iter().any(|before| {
-                        let was_variant = before
-                            .cells
-                            .iter()
-                            .any(|cell| cell.variant.as_deref() == Some(variant));
-                        !was_variant
-                            && current.document.matrices.iter().any(|matrix| {
-                                matrix.id == before.id
-                                    && matrix
-                                        .cells
-                                        .iter()
-                                        .any(|cell| cell.variant.as_deref() == Some(variant))
-                            })
-                    })
-                })))
+        }) && current.token == owned.token
+            && current.document.revision == owned.document.revision
     });
     let failed_open_is_current = owned_clone.is_none()
         && current.session_epoch == variant_session_epoch
@@ -2246,7 +2221,7 @@ async fn restore_source_after_variant_failure(
     let Some(recovery_scope) = current_scope else {
         return Ok(false);
     };
-    runtime
+    let restored = runtime
         .reopen_saved_if_current(
             source_id.to_owned(),
             current.session_epoch,
@@ -2257,7 +2232,14 @@ async fn restore_source_after_variant_failure(
             &recovery_scope,
         )
         .await?;
-    *report_scope.borrow_mut() = Some(source_scope.clone());
+    let restored_scope = runtime
+        .scope()
+        .filter(|scope| {
+            scope.session_epoch == restored.session_epoch
+                && scope.document_id == restored.document.id
+        })
+        .ok_or_else(|| "The saved original reopened without an active project scope.".to_owned())?;
+    *report_scope.borrow_mut() = Some(restored_scope);
     Ok(true)
 }
 
@@ -2284,15 +2266,12 @@ async fn navigate_variant_to_source_context(
     {
         return Err("The duplicated project changed before its board context was selected.".into());
     }
-    let observed_scope = runtime
-        .scope()
-        .filter(|scope| {
-            scope.session_epoch == accepted.session_epoch && scope.document_id == variant_id
-        })
-        .ok_or_else(|| {
-            "The duplicated project no longer owns its active board context.".to_owned()
-        })?;
-    if runtime.scope().as_ref() != Some(&observed_scope) {
+    if !runtime.scope().is_some_and(|scope| {
+        scope.session_epoch == accepted.session_epoch
+            && scope.document_id == variant_id
+            && scope.board_id == source_scope.board_id
+            && scope.instance_id.is_none()
+    }) {
         return Err("A newer board navigation superseded matrix variant setup.".into());
     }
     let operation_id = runtime.operation();
