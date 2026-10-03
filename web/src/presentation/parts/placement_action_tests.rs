@@ -74,6 +74,14 @@ async fn inspector_disables_a_non_input_definition_for_a_selected_key() {
     let (action, button) = mounted_action("parts-passive-test", passive, true).await;
 
     assert!(button.has_attribute("disabled"));
+    assert!(
+        button
+            .parent_element()
+            .unwrap()
+            .text_content()
+            .unwrap()
+            .contains("Clear the key selection to place it as a standalone component.")
+    );
     button.click();
     gloo_timers::future::TimeoutFuture::new(20).await;
     assert!(action.borrow().is_none());
@@ -81,7 +89,9 @@ async fn inspector_disables_a_non_input_definition_for_a_selected_key() {
 
 #[wasm_bindgen_test]
 async fn inspector_click_routes_a_switch_to_the_selected_key_action() {
-    let switch = definition("ergogen:switch", "switch");
+    let mut switch = definition("ergogen:switch", "switch");
+    switch.pads = vec![input_pad("one", "1"), input_pad("two", "2")];
+    assert!(matrix_input_available(&switch));
     let (action, button) = mounted_action("parts-switch-test", switch, true).await;
 
     assert!(!button.has_attribute("disabled"));
@@ -100,4 +110,31 @@ async fn inspector_click_routes_a_switch_to_the_selected_key_action() {
             }
         )
     );
+}
+
+#[wasm_bindgen_test]
+async fn inspector_disables_a_switch_without_independent_press_contacts() {
+    let switch = definition("ergogen:switch-no-input", "switch");
+    assert!(!matrix_input_available(&switch));
+    let (action, button) = mounted_action("parts-switch-no-input-test", switch, true).await;
+
+    assert!(button.has_attribute("disabled"));
+    button.click();
+    gloo_timers::future::TimeoutFuture::new(20).await;
+    assert!(action.borrow().is_none());
+}
+
+fn input_pad(id: &str, number: &str) -> boardstudio_core::model::Pad {
+    boardstudio_core::model::Pad {
+        id: id.into(),
+        number: number.into(),
+        at: boardstudio_core::model::Vec2::default(),
+        size: boardstudio_core::model::Vec2 { x: 1.0, y: 1.0 },
+        shape: boardstudio_core::model::PadShape::Rect,
+        drill: None,
+        plated: None,
+        side: None,
+        rotation: None,
+        net_id: None,
+    }
 }

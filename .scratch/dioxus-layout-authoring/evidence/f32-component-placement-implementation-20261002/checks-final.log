@@ -1,50 +1,45 @@
+
 $ cargo clippy --manifest-path web/Cargo.toml --all-targets --no-default-features --features page --target wasm32-unknown-unknown -- -D warnings
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.14s
-$ CHROMEDRIVER=/usr/bin/chromedriver wasm-pack test --headless --chrome --mode no-install web --no-default-features --features page --bin boardstudio-web -- inspector_disables_a_non_input_definition_for_a_selected_key
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.16s
+    Checking boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/parts-f32c-placement-20261002/web)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 6.27s
+
+$ env CHROMEDRIVER=/usr/bin/chromedriver wasm-pack test --headless --chrome --mode no-install web --no-default-features --features page --bin boardstudio-web -- placement_action_tests
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/parts-f32c-placement-20261002/web)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 8.92s
 [INFO]: ⬇️  Installing wasm-bindgen...
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+    Blocking waiting for file lock on package cache
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.23s
      Running unittests src/main.rs (target/wasm32-unknown-unknown/debug/deps/boardstudio_web-cbf7f97023eaa3ce.wasm)
-Running headless tests in Chrome on `http://127.0.0.1:43979/`
+Running headless tests in Chrome on `http://127.0.0.1:44325/`
 Try find `webdriver.json` for configure browser's capabilities:
 Not found
 Loading Wasm module...
 
-running 1 test
+running 3 tests
+test presentation::parts::placement_action_tests::inspector_disables_a_switch_without_independent_press_contacts ... ok
 test presentation::parts::placement_action_tests::inspector_disables_a_non_input_definition_for_a_selected_key ... ok
-
-test result: ok. 1 passed; 0 failed; 0 ignored; 75 filtered out; finished in 0.08s
-
-$ CHROMEDRIVER=/usr/bin/chromedriver wasm-pack test --headless --chrome --mode no-install web --no-default-features --features page --bin boardstudio-web -- inspector_click_routes_a_switch_to_the_selected_key_action
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.15s
-[INFO]: ⬇️  Installing wasm-bindgen...
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
-     Running unittests src/main.rs (target/wasm32-unknown-unknown/debug/deps/boardstudio_web-cbf7f97023eaa3ce.wasm)
-Running headless tests in Chrome on `http://127.0.0.1:42963/`
-Try find `webdriver.json` for configure browser's capabilities:
-Not found
-Loading Wasm module...
-
-running 1 test
 test presentation::parts::placement_action_tests::inspector_click_routes_a_switch_to_the_selected_key_action ... ok
 
-test result: ok. 1 passed; 0 failed; 0 ignored; 75 filtered out; finished in 0.08s
+test result: ok. 3 passed; 0 failed; 0 ignored; 77 filtered out; finished in 0.23s
 
-$ CHROMEDRIVER=/usr/bin/chromedriver wasm-pack test --headless --chrome --mode no-install web --no-default-features --features page --bin boardstudio-web -- part_placement
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.15s
+
+$ env CHROMEDRIVER=/usr/bin/chromedriver wasm-pack test --headless --chrome --mode no-install web --no-default-features --features page --bin boardstudio-web -- part_placement
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.14s
 [INFO]: ⬇️  Installing wasm-bindgen...
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.13s
      Running unittests src/main.rs (target/wasm32-unknown-unknown/debug/deps/boardstudio_web-cbf7f97023eaa3ce.wasm)
-Running headless tests in Chrome on `http://127.0.0.1:42615/`
+Running headless tests in Chrome on `http://127.0.0.1:41567/`
 Try find `webdriver.json` for configure browser's capabilities:
 Not found
 Loading Wasm module...
 
-running 31 tests
+running 34 tests
 test presentation::part_placement::tests::terminal_cancellation_does_not_redirect_but_rejection_can_return_to_source_panel ... ok
 test presentation::part_placement::tests::standalone_placement_accepts_a_non_controller_and_updates_memberships_atomically ... ok
 test presentation::part_placement::tests::selected_key_edit_rejection_is_reported_to_the_current_parts_owner ... ok
 test presentation::part_placement::tests::selected_key_application_uses_set_matrix_and_preserves_other_cell_fields ... ok
+test presentation::part_placement::tests::retained_object_action_cannot_start_for_a_refreshed_snapshot ... ok
+test presentation::part_placement::tests::retained_component_action_cannot_retarget_a_new_owner_or_wrong_workspace ... ok
 test presentation::part_placement::tests::production_hook_waits_through_saving_before_returning_to_wiring ... ok
 test presentation::part_placement::tests::production_hook_suppresses_actionable_failure_after_board_or_project_switch ... ok
 test presentation::part_placement::tests::production_hook_routes_persistence_failure_back_but_terminal_cancel_does_not_redirect ... ok
@@ -64,6 +59,7 @@ test presentation::part_placement::tests::mounted_controller_start_is_rejected_w
 test presentation::part_placement::tests::linked_target_key_replacement_stays_local_through_core_sync_and_history ... ok
 test presentation::part_placement::tests::initial_placement_uses_world_view_center_after_pan ... ok
 test presentation::part_placement::tests::general_component_placement_starts_without_the_setup_guide_and_uses_kind_reference ... ok
+test presentation::part_placement::tests::delayed_selected_key_load_error_is_ignored_after_accepted_snapshot_refresh ... ok
 test presentation::part_placement::tests::cursor_placement_uses_project_grid_and_alt_free_position_policy ... ok
 test presentation::part_placement::tests::controller_references_follow_existing_u_sequence_without_reusing_occupied_numbers ... ok
 test presentation::part_placement::tests::controller_creation_is_one_document_edit_with_board_and_envelope_membership ... ok
@@ -73,6 +69,7 @@ test presentation::part_placement::tests::component_references_use_react_kind_pr
 test presentation::part_placement::tests::commit_observer_matches_exact_operation_slot_and_retains_terminal_after_owner_drop ... ok
 test presentation::part_placement::tests::captured_owner_rejects_changed_snapshot_scope_generation_or_guide_stage ... ok
 
-test result: ok. 31 passed; 0 failed; 0 ignored; 45 filtered out; finished in 0.93s
+test result: ok. 34 passed; 0 failed; 0 ignored; 46 filtered out; finished in 1.02s
+
 
 $ git diff --check

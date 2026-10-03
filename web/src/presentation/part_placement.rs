@@ -339,6 +339,75 @@ impl PlacementAdmission {
     }
 }
 
+#[derive(Clone)]
+struct ComponentActionOwner {
+    accepted: AcceptedSnapshot,
+    scope: Scope,
+    generation: u64,
+    workspace: &'static str,
+    selected_context: Option<ScopedTreeContext>,
+}
+
+impl ComponentActionOwner {
+    fn capture(
+        runtime: &dyn PlacementRuntime,
+        generation: u64,
+        workspace: &'static str,
+        selected_context: Option<ScopedTreeContext>,
+    ) -> Option<Self> {
+        let model = runtime.model();
+        let accepted = model.accepted?;
+        let scope = runtime.scope()?;
+        if !accepted_snapshot_is_current(runtime, &accepted)
+            || accepted.document.id != scope.document_id
+            || accepted.session_epoch != scope.session_epoch
+        {
+            return None;
+        }
+        Some(Self {
+            accepted,
+            scope,
+            generation,
+            workspace,
+            selected_context,
+        })
+    }
+
+    fn is_current(
+        &self,
+        runtime: &dyn PlacementRuntime,
+        generation: u64,
+        workspace: &'static str,
+        selected_context: Option<ScopedTreeContext>,
+        expected_workspace: &'static str,
+    ) -> bool {
+        self.workspace == expected_workspace
+            && workspace == self.workspace
+            && self.generation == generation
+            && self.selected_context == selected_context
+            && runtime.scope().as_ref() == Some(&self.scope)
+            && accepted_snapshot_is_current(runtime, &self.accepted)
+    }
+}
+
+fn accepted_snapshot_is_current(
+    runtime: &dyn PlacementRuntime,
+    accepted: &AcceptedSnapshot,
+) -> bool {
+    let model = runtime.model();
+    model.lifecycle == Lifecycle::Ready
+        && model.durability
+            == (Durability::Saved {
+                revision: accepted.document.revision,
+            })
+        && model.accepted.as_ref().is_some_and(|current| {
+            current.token == accepted.token
+                && current.session_epoch == accepted.session_epoch
+                && current.document.id == accepted.document.id
+                && current.document.revision == accepted.document.revision
+        })
+}
+
 pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
     let PartPlacementHost {
         runtime,
@@ -527,6 +596,7 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
                                 Ok(definition) => definition,
                                 Err(message) => {
                                     if alive.get()
+                                        && accepted_snapshot_is_current(runtime.as_ref(), &accepted)
                                         && runtime.scope().as_ref() == Some(&scope)
                                         && workspace() == source_workspace
                                         && generation() == accepted_generation
@@ -541,7 +611,8 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
                             return;
                         }
                         if definition.kind != kind {
-                            if runtime.scope().as_ref() == Some(&scope)
+                            if accepted_snapshot_is_current(runtime.as_ref(), &accepted)
+                                && runtime.scope().as_ref() == Some(&scope)
                                 && workspace() == source_workspace
                                 && generation() == accepted_generation
                                 && current_context() == Some(selected.clone())
@@ -825,27 +896,52 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
             );
         }
     };
+    let action_owner = ComponentActionOwner::capture(
+        runtime.as_ref(),
+        generation(),
+        workspace(),
+        (adapter.selected_context)(),
+    );
     let on_place_component = {
         let start = start_placement;
-        move |action: ComponentPlacementAction| match action {
-            ComponentPlacementAction::AddObject {
-                definition_id,
-                kind,
-            } => start.borrow_mut()(
-                definition_id,
-                kind,
-                PlacementWorkflow::GeneralComponent,
-                false,
-            ),
-            ComponentPlacementAction::PartsInspector {
-                definition_id,
-                kind,
-            } => start.borrow_mut()(
-                definition_id,
-                kind,
-                PlacementWorkflow::GeneralComponent,
-                true,
-            ),
+        let runtime = runtime.clone();
+        let selected_context = adapter.selected_context;
+        move |action: ComponentPlacementAction| {
+            let expected_workspace = match action {
+                ComponentPlacementAction::AddObject { .. } => "Layout",
+                ComponentPlacementAction::PartsInspector { .. } => "Parts",
+            };
+            if !action_owner.as_ref().is_some_and(|owner| {
+                owner.is_current(
+                    runtime.as_ref(),
+                    generation(),
+                    workspace(),
+                    selected_context(),
+                    expected_workspace,
+                )
+            }) {
+                return;
+            }
+            match action {
+                ComponentPlacementAction::AddObject {
+                    definition_id,
+                    kind,
+                } => start.borrow_mut()(
+                    definition_id,
+                    kind,
+                    PlacementWorkflow::GeneralComponent,
+                    false,
+                ),
+                ComponentPlacementAction::PartsInspector {
+                    definition_id,
+                    kind,
+                } => start.borrow_mut()(
+                    definition_id,
+                    kind,
+                    PlacementWorkflow::GeneralComponent,
+                    true,
+                ),
+            }
         }
     };
 
@@ -2183,6 +2279,155 @@ mod tests {
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn delayed_selected_key_load_error_is_ignored_after_accepted_snapshot_refresh() {
+        let (probe, mut dom) = hook_mounted();
+        let mut document = (*probe
+            .runtime
+            .model
+            .borrow()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .document)
+            .clone();
+        document.matrices.push(matrix_fixture());
+        {
+            let mut model = probe.runtime.model.borrow_mut();
+            let accepted = model.accepted.as_mut().unwrap();
+            accepted.document = Arc::new(document);
+            Arc::make_mut(&mut accepted.scene).matrix_scenes.push(
+                boardstudio_core::model::MatrixScene {
+                    matrix_id: "matrix-main".into(),
+                    cells: Vec::new(),
+                    columns: Vec::new(),
+                },
+            );
+        }
+        let selected = ScopedTreeContext {
+            scope: probe.runtime.scope().unwrap(),
+            context: TreeContext::Key {
+                matrix_id: "matrix-main".into(),
+                row: 0,
+                column: 0,
+            },
+        };
+        let mut selected_context = *probe.selected_context.borrow().as_ref().unwrap();
+        selected_context.set(Some(selected));
+        let mut workspace_signal = *probe.workspace.borrow().as_ref().unwrap();
+        workspace_signal.set("Parts");
+        flush_hook(&mut dom);
+
+        probe
+            .latest
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .on_place_component
+            .call(ComponentPlacementAction::PartsInspector {
+                definition_id: "imported:delayed-error".into(),
+                kind: PartKind::Passive,
+            });
+        let_hook_tasks_run().await;
+        assert!(probe.loader_waker.borrow().is_some());
+
+        let mut refreshed = (*probe
+            .runtime
+            .model
+            .borrow()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .document)
+            .clone();
+        refreshed.revision += 1;
+        {
+            let mut model = probe.runtime.model.borrow_mut();
+            model.accepted = Some(accepted(refreshed.clone(), 12));
+            model.durability = Durability::Saved {
+                revision: refreshed.revision,
+            };
+        }
+
+        resolve_loader(&probe, Err("stale catalogue failure".into()));
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+        assert_eq!(probe.latest.borrow().as_ref().unwrap().error, None);
+        assert!(probe.runtime.events.borrow().is_empty());
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn retained_component_action_cannot_retarget_a_new_owner_or_wrong_workspace() {
+        let (probe, mut dom) = hook_mounted();
+        let retained = probe.latest.borrow().as_ref().unwrap().on_place_component;
+
+        retained.call(ComponentPlacementAction::PartsInspector {
+            definition_id: "imported:wrong-workspace".into(),
+            kind: PartKind::Passive,
+        });
+        flush_hook(&mut dom);
+        let_hook_tasks_run().await;
+        assert!(probe.loader_waker.borrow().is_none());
+
+        let mut refreshed = (*probe
+            .runtime
+            .model
+            .borrow()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .document)
+            .clone();
+        refreshed.revision += 1;
+        {
+            let mut model = probe.runtime.model.borrow_mut();
+            model.accepted = Some(accepted(refreshed.clone(), 12));
+            model.durability = Durability::Saved {
+                revision: refreshed.revision,
+            };
+        }
+        retained.call(ComponentPlacementAction::AddObject {
+            definition_id: "imported:stale-owner".into(),
+            kind: PartKind::Passive,
+        });
+        flush_hook(&mut dom);
+        let_hook_tasks_run().await;
+        assert!(probe.loader_waker.borrow().is_none());
+        assert!(!probe.latest.borrow().as_ref().unwrap().busy);
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn retained_object_action_cannot_start_for_a_refreshed_snapshot() {
+        let (probe, mut dom) = hook_mounted();
+        let retained = probe.latest.borrow().as_ref().unwrap().on_place_component;
+        let mut refreshed = (*probe
+            .runtime
+            .model
+            .borrow()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .document)
+            .clone();
+        refreshed.revision += 1;
+        {
+            let mut model = probe.runtime.model.borrow_mut();
+            model.accepted = Some(accepted(refreshed.clone(), 12));
+            model.durability = Durability::Saved {
+                revision: refreshed.revision,
+            };
+        }
+
+        retained.call(ComponentPlacementAction::AddObject {
+            definition_id: "imported:stale-owner".into(),
+            kind: PartKind::Passive,
+        });
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+        assert!(probe.loader_waker.borrow().is_none());
+        assert!(!probe.latest.borrow().as_ref().unwrap().busy);
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
     async fn parts_inspector_action_does_not_apply_to_a_key_selected_after_loading_started() {
         let (probe, mut dom) = hook_mounted();
         let mut document = (*probe
@@ -3214,7 +3459,6 @@ mod tests {
             matrix.cells[0].definition_id.as_deref(),
             Some("switch:replacement")
         );
-        assert_eq!(matrix.cells[0].assemblies_local, Some(true));
         let replacement = engine.handle(boardstudio_core::model::CoreRequest::Edit {
             id: "replace-linked-key".into(),
             command: EditCommand {

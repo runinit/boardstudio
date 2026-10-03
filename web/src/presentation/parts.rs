@@ -531,8 +531,7 @@ fn PartsInspectorPlacementAction(
 ) -> Element {
     let definition_id = entry.definition.id.clone();
     let kind = entry.definition.kind.clone();
-    let can_apply_to_key = matches!(kind, boardstudio_core::model::PartKind::Switch)
-        || matrix_input_available(&entry.definition);
+    let can_apply_to_key = matrix_input_available(&entry.definition);
     rsx! {
         button {
             class: "m1-parts-place-component",
@@ -545,6 +544,9 @@ fn PartsInspectorPlacementAction(
                 }
             ),
             if apply_to_key { "Apply to selected key" } else { "Place component" }
+        }
+        if apply_to_key && !can_apply_to_key {
+            p { class: "m1-parts-empty", "This footprint needs an independent press contact pair to replace a matrix key. Clear the key selection to place it as a standalone component." }
         }
     }
 }
