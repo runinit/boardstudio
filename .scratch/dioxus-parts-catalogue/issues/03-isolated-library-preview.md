@@ -1,6 +1,6 @@
 # 03: Inspect isolated Parts 2D and 3D previews
 
-**Status:** implementing the standalone selected-definition 2D/3D route; later assembly/companion and full-parent criteria remain open.
+**Status:** standalone selected-definition and one bounded assembly/empty-surface journey are publicly verified; full assembly matrix and parent criteria remain open.
 
 **Parent:** F4.4, “Inspect isolated 2D and 3D library previews” in `.scratch/dioxus-frontend-v1/tasks.json`.
 
@@ -60,6 +60,8 @@ The selected-definition 3D route has a changed-only public receipt at `../eviden
 Consume the mounted Issue 02 key-assembly preset selection as an ordered, read-only recipe. Resolve the preset's lead switch, optional diode and optional LED from the same construction-normalized bundled/project-override catalogue used by Parts; merge each member's preset parameters into its source generator definition and retain its pose and side. Both 2D and the isolated 3D sample use the same recipe identity and source members. The sample remains a separate disposable document, borrows accepted project assets, clears terminal-net overrides, frames every member envelope, and never changes active project state. Preset activation resets to 2D; changing the mounted South/North orientation keeps the current view while retiring stale preview work.
 
 For a successfully loaded non-Ergogen/source-backed definition with no projected geometry, preserve the React empty-surface behavior: render an empty 0×0 SVG view box and keep the selected definition/preset context. Do not add a point, fallback courtyard or other synthetic geometry. Genuine generator/service errors remain visible as errors. The changed-only candidate journey covers one LED preset with its actual companion members in 2D and 3D, return to 2D, and `utility_text` blank-surface behavior; it does not close all eight preset acceptance, VIK modules, or F4.4/F7.3/INT.2 parent joins.
+
+The paired candidate/reference journey is recorded at `../evidence/parts-assembly-34762/RESULTS.md`. MX Hotswap RGB's ordered three-member geometry, South/North transforms, 3D-ready/2D return, and the `utility_text` `0 0 0 0` blank canvas passed on served Dioxus 34762; the matching React preview/empty-surface journey is retained in the same receipt. This evidence does not mark the broader Issue 03 acceptance list complete.
 
 ## RF handoff
 
