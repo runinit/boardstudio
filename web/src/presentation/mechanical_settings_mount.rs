@@ -667,7 +667,6 @@ pub(crate) fn use_mechanical_settings_mount(
             fit_parts,
             fit_parts_resolved,
             hardware_mounts,
-            hardware_mounts,
             suggested_mounts,
             findings,
             selected_layer,

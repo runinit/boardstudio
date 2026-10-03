@@ -1473,7 +1473,7 @@ pub(super) fn submit_board_reference_document(
     workspace: Signal<&'static str>,
     adapter: &SelectionAdapter,
     owner: &LayoutOwnerIdentity,
-    proposed: ProjectDoc,
+    proposed: boardstudio_core::model::ProjectDoc,
     transaction_label: &str,
 ) -> Result<Option<crate::operation_outcomes::OutcomeSlot>, String> {
     if !board_reference_owner_is_current(runtime, workspace, adapter, owner) {
@@ -2880,7 +2880,7 @@ fn Editor() -> Element {
     let render_generation = (adapter.generation)();
     let layout_selection_kind = use_signal(objects::LayoutSelectionKind::default);
     let layout_snap_settings = use_signal(objects::LayoutSnapSettings::default);
-    let layout_context_tab = use_signal(layout_workspace::LayoutInspectorTab::default);
+    let mut layout_context_tab = use_signal(layout_workspace::LayoutInspectorTab::default);
     let layout_command_menu = use_signal(|| None::<objects::LayoutCommandMenu>);
     let mut layout_transform_tool = use_signal(|| None::<objects::LayoutTransformTool>);
     let layout_transform_tool_owner =

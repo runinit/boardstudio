@@ -175,7 +175,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
         && input.board_inspector.is_none()
         && input.matrix_transform_inspector.projection.is_some();
     let show_matrix_relations =
-        matrix_context_tabs && input.inspector_tab() == LayoutInspectorTab::Relations;
+        matrix_context_tabs && (input.inspector_tab)() == LayoutInspectorTab::Relations;
     rsx! {
         if input.outline_inspector.is_none() && input.component_inspector.is_none() {
         if let Some(title) = input.context_title.as_ref() {
@@ -189,13 +189,13 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
             div { class: "m1-layout-component-tabs", role: "tablist", aria_label: "Inspector details",
                 button {
                     role: "tab",
-                    aria_selected: "{input.inspector_tab() == LayoutInspectorTab::Properties}",
+                    aria_selected: "{(input.inspector_tab)() == LayoutInspectorTab::Properties}",
                     onclick: move |_| input.inspector_tab.set(LayoutInspectorTab::Properties),
                     "Properties"
                 }
                 button {
                     role: "tab",
-                    aria_selected: "{input.inspector_tab() == LayoutInspectorTab::Relations}",
+                    aria_selected: "{(input.inspector_tab)() == LayoutInspectorTab::Relations}",
                     onclick: move |_| input.inspector_tab.set(LayoutInspectorTab::Relations),
                     "Relations"
                 }
