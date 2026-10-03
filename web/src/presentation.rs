@@ -177,6 +177,11 @@ struct OwnedTreeCellAnchor {
 pub(super) struct WorkspaceState(pub(super) Signal<&'static str>);
 #[derive(Clone, Copy)]
 pub(super) struct ExportReturnWorkspace(pub(super) Signal<&'static str>);
+#[derive(Clone, Copy)]
+struct CompactPanelState {
+    objects_open: Signal<bool>,
+    inspector_open: Signal<bool>,
+}
 /// The explicit UI preference is separate from Session's effective instance.
 #[derive(Clone, Copy)]
 pub(crate) struct InstanceSelection(Signal<Option<instance_selection::Preference>>);
@@ -416,12 +421,21 @@ pub fn App() -> Element {
     use_context_provider(|| adapter.clone());
     let mut workspace = use_signal(|| "Layout");
     use_context_provider(|| WorkspaceState(workspace));
+    let mut objects_open = use_signal(|| false);
+    let mut inspector_open = use_signal(|| false);
+    use_context_provider(|| CompactPanelState {
+        objects_open,
+        inspector_open,
+    });
     let mut return_workspace = use_signal(|| "Layout");
     use_context_provider(|| ExportReturnWorkspace(return_workspace));
     use_effect(move || {
         let active = workspace();
         if active != "Export" {
             return_workspace.set(active);
+        } else {
+            objects_open.set(false);
+            inspector_open.set(false);
         }
     });
     let case_generation = CaseGenerationState {
@@ -617,6 +631,9 @@ pub fn App() -> Element {
                     }
                 }
                 WorkspaceNavigation {}
+                if runtime.model().accepted.is_some() && workspace() != "Export" {
+                    panels::CompactPanelControls {}
+                }
                 button { class: "m1-export-tab", id: "m1-tab-Export", "aria-pressed": "{workspace() == \"Export\"}", onclick: move |_| if workspace() == "Export" { workspace.set(return_workspace()) } else { workspace.set("Export") },
                     svg { view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", stroke_linecap: "round", stroke_linejoin: "round", "aria-hidden": "true", path { d: "M4 12v5h12v-5M10 13V3M6 7l4-4 4 4" } }
                     span { "Export" }
@@ -749,7 +766,7 @@ fn WorkspaceNavigation() -> Element {
             }
             select { class: "m1-workspace-select", "aria-label": "Workspace", value: "{workspace()}", onchange: move |event| workspace.set(match event.value().as_str() { "PCB" => "PCB", "Keymap" => "Keymap", "Keycaps" => "Keycaps", "Case" => "Case", "Parts" => "Parts", "Export" => "Export", _ => "Layout" }),
                 for tab in tabs { option { value: "{tab}", "{tab}" } }
-                option { value: "Export", "Export" }
+                if workspace() == "Export" { option { value: "Export", "Export" } }
             }
         }
     }
@@ -2285,8 +2302,9 @@ fn Editor() -> Element {
         open_geometry_scripts: EventHandler::new(|_: ()| {}),
     });
     let runtime = use_context::<Rc<Runtime>>();
-    let mut objects_open = use_signal(|| false);
-    let mut inspect_open = use_signal(|| false);
+    let compact_panel_state = use_context::<CompactPanelState>();
+    let mut objects_open = compact_panel_state.objects_open;
+    let mut inspect_open = compact_panel_state.inspector_open;
     let mut geometry_scripts_open = use_signal(|| false);
     let objects_panel_settings = use_panel_settings(PanelSide::Objects);
     let inspector_panel_settings = use_panel_settings(PanelSide::Inspector);
@@ -7354,11 +7372,12 @@ fn Editor() -> Element {
     };
     rsx! {
         section { class: "m1-editor", "aria-label": "Keyboard editor",
-            nav { class: "m1-compact-panel-controls", "aria-label": "Panel visibility",
-                button { "aria-controls": "m1-objects-panel", "aria-expanded": "{objects_open()}", onclick: move |_| objects_open.set(!objects_open()), "Objects" }
-                if has_inspector {
-                    button { "aria-controls": "m1-inspector-panel", "aria-expanded": "{inspect_open()}", onclick: move |_| inspect_open.set(!inspect_open()), "Inspect" }
-                }
+            if (objects_open() || inspect_open()) && active_workspace != "Export" {
+                button { class: "m1-drawer-scrim", aria_label: "Close panels", onclick: move |_| {
+                    panels::focus_panel_toggle(if objects_open() { PanelSide::Objects } else { PanelSide::Inspector });
+                    objects_open.set(false);
+                    inspect_open.set(false);
+                } }
             }
             div { class: "m1-editor-body", style: "{panel_layout_style}",
                 ObjectsPanel { compact_open: objects_open, settings: objects_panel_settings,

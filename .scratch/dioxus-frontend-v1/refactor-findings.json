@@ -280,6 +280,15 @@
           "evidence": ".scratch/dioxus-layout-authoring/evidence/f31-canonical-criteria-reconciliation-20261003.md",
           "observation": "Matched public panes exposed generic instance/grouping selectors and duplicate project summary displacing the primary Layout tree by about159px. The correction shares one private panel-owned grouping preference with the tree, composes its controls into the existing options slot and keeps physical assembly context in Case. Preset async completion separately needed current selection/context guards beyond Scope generation.",
           "status": "bounded composition and completion-owner mitigations; no duplicate document authority; changed browser proof pending next candidate"
+        },
+        {
+          "source": "Compact shell parity source packet based on 698cee60; React 5a472a94; Dioxus compact controls at 34768",
+          "evidence": ".scratch/dioxus-frontend-v1/issues/01-shell-theme.md; .scratch/dioxus-frontend-v1/specs/f24-project-shell-visible-parity.md; web/src/presentation.rs; web/src/presentation/panels.rs; web/assets/m1.css",
+          "observation": "Compact panel toggles need to sit in the shared App topbar while panel drawers remain rendered by the private panel module. The bounded wiring shares two open/closed Signals across those owners and preserves existing mode/width persistence. This exposes cross-panel visibility/focus routing in root composition; no duplicate store or Session/Core owner was added.",
+          "current_mitigation": "Keep one App-owned visibility signal pair, reuse it directly in the panel leaves and topbar toggles, and leave drafts with feature owners and mode/width persistence with panel policy.",
+          "post_port_follow_up": "Assess whether a typed private panel controller can keep topbar routing thin while preserving panel-local draft owners, persisted mode/width policy and Session/Core authority.",
+          "validation": "Use one paired 720x640 Objects-to-Inspect drawer journey and the combined affected check after integration; exercise 980px/820px threshold controls and reuse unchanged desktop evidence.",
+          "status": "source implementation is isolated; integrated build and changed paired journey remain open; RF-001 retained without a new ID"
         }
       ],
       "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted.",

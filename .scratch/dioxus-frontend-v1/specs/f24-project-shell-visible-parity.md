@@ -27,3 +27,7 @@ The Dioxus header currently places a standalone brand, text project disclosure, 
 ## Refactoring handoff
 
 No new refactoring takeaway observed. This is bounded shared-composition wiring in the existing private presentation owner and extends RF-001 only; defer any general shell extraction until post-port review.
+
+### Compact topbar continuation
+
+The shared-shell continuation keeps Export as a separate topbar action at 720×640 and removes the redundant Export option from the workspace selector except while Export is the active workspace. Compact Objects/Inspect toggles live in the topbar at the source breakpoints; their drawer layout and focus behavior remain owned by the current F1 continuation in [issue 01](../issues/01-shell-theme.md). Do not move panel mode/width preferences or feature drafts into the shell.

@@ -32,6 +32,62 @@ pub(super) fn use_workspace_panel_defaults(
     requested_workspace
 }
 
+#[component]
+pub(super) fn CompactPanelControls() -> Element {
+    let state = use_context::<super::CompactPanelState>();
+    let workspace = use_context::<super::WorkspaceState>().0;
+    let objects_compact = use_compact_viewport(PanelSide::Objects);
+    let inspector_compact = use_compact_viewport(PanelSide::Inspector);
+    let mut objects_open = state.objects_open;
+    let mut inspector_open = state.inspector_open;
+    rsx! {
+        nav { class: "m1-compact-panel-controls", "aria-label": "Panel visibility",
+            if objects_compact() && workspace() != "Export" {
+                button {
+                    class: "m1-panel-toggle",
+                    aria_label: "Objects",
+                    title: "Objects",
+                    aria_controls: "m1-objects-panel",
+                    aria_expanded: if objects_open() { "true" } else { "false" },
+                    onclick: move |_| {
+                        if objects_open() {
+                            set_bool(objects_open, false);
+                        } else {
+                            set_bool(objects_open, true);
+                            set_bool(inspector_open, false);
+                        }
+                    },
+                    svg { "aria-hidden": "true", view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", stroke_linejoin: "round",
+                        rect { x: "2.5", y: "3", width: "15", height: "14", rx: "1.5" }
+                        path { d: "M7.5 3v14" }
+                    }
+                }
+            }
+            if inspector_compact() && workspace() != "Export" {
+                button {
+                    class: "m1-panel-toggle",
+                    aria_label: "Inspect",
+                    title: "Inspect",
+                    aria_controls: "m1-inspector-panel",
+                    aria_expanded: if inspector_open() { "true" } else { "false" },
+                    onclick: move |_| {
+                        if inspector_open() {
+                            set_bool(inspector_open, false);
+                        } else {
+                            set_bool(inspector_open, true);
+                            set_bool(objects_open, false);
+                        }
+                    },
+                    svg { "aria-hidden": "true", view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", stroke_linejoin: "round",
+                        rect { x: "2.5", y: "3", width: "15", height: "14", rx: "1.5" }
+                        path { d: "M12.5 3v14" }
+                    }
+                }
+            }
+        }
+    }
+}
+
 type OutsideListener = Rc<RefCell<Option<(Document, Closure<dyn FnMut(PointerEvent)>)>>>;
 type MediaChangeListener =
     Rc<RefCell<Option<(MediaQueryList, Closure<dyn FnMut(web_sys::Event)>)>>>;
@@ -112,7 +168,7 @@ fn panel_frame(
     children: Element,
     options: Option<Element>,
 ) -> Element {
-    let compact = use_compact_viewport();
+    let compact = use_compact_viewport(side);
     let menu_open = use_signal(|| false);
     let revealed = use_signal(|| false);
     let hovered = use_signal(|| false);
@@ -406,7 +462,7 @@ impl PanelSide {
     }
 }
 
-fn focus_panel_toggle(side: PanelSide) {
+pub(super) fn focus_panel_toggle(side: PanelSide) {
     let selector = format!(
         ".m1-compact-panel-controls button[aria-controls='{}']",
         PanelIds::for_side(side).shell
@@ -420,13 +476,13 @@ fn focus_panel_toggle(side: PanelSide) {
     }
 }
 
-fn use_compact_viewport() -> Signal<bool> {
-    let compact = use_signal(|| media_query().is_some_and(|query| query.matches()));
+fn use_compact_viewport(side: PanelSide) -> Signal<bool> {
+    let compact = use_signal(|| media_query(side).is_some_and(|query| query.matches()));
     let listener = use_hook(MediaChangeListener::default);
     use_effect({
         let listener = listener.clone();
         move || {
-            if let Some(query) = media_query() {
+            if let Some(query) = media_query(side) {
                 let observed_query = query.clone();
                 let callback = Closure::wrap(Box::new(move |_event: web_sys::Event| {
                     set_bool(compact, observed_query.matches());
@@ -451,8 +507,17 @@ fn use_compact_viewport() -> Signal<bool> {
     compact
 }
 
-fn media_query() -> Option<MediaQueryList> {
-    web_sys::window().and_then(|window| window.match_media("(max-width: 760px)").ok().flatten())
+fn media_query(side: PanelSide) -> Option<MediaQueryList> {
+    let width = match side {
+        PanelSide::Objects => 980,
+        PanelSide::Inspector => 820,
+    };
+    web_sys::window().and_then(|window| {
+        window
+            .match_media(&format!("(max-width: {width}px)"))
+            .ok()
+            .flatten()
+    })
 }
 
 fn case_workspace_has_focus() -> bool {

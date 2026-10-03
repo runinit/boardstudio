@@ -47,3 +47,13 @@ full reference panel/canvas/workspace parity and actual AT remain later gates.
 ## Current shell frontier — 2026-10-03
 
 The first-increment checkboxes above are historical bounded completion, not full frontend-shell acceptance. The current paired [Objects receipt](../evidence/candidate-34768-20261003/objects-pane-receipt.md) removes the ~159 px extra-control tree displacement and qualifies desktop/compact menu dismissal and the compact Objects→Inspect selection handoff. It records remaining compact shell mismatch: separate panel-toggle row, hidden separate Export action/extra Export selector entry, and inline panels instead of the reference topbar toggles/drawers. Preserve these as required parity work under F1; do not silently call compact UI complete. Generic menu button surfaces are corrected in queued source `c56522c4`, not in served34768. Necessary frontend API/design corrections are already authorized in CONSTRAINTS.md; the old bounded-increment restrictions do not introduce a new approval round.
+
+### Compact shared-shell parity continuation
+
+Use the pinned React source `5a472a9426e6e38993361da402cd4ec730feb369` as the visual and interaction oracle. At compact widths, place Objects and Inspect toggles in the topbar beside the workspace selector and standalone Export action; keep the workspace selector limited to the six workspaces except while Export is active. Opening either panel shows a side drawer over the workspace, closes the other drawer, and leaves the opposite panel's unsaved local draft intact. Retain the existing panel mode/width preferences and Session/Core ownership.
+
+- [ ] At 720×640, the topbar exposes Objects, Inspect, the workspace selector, and a separate Export action; no always-present Export selector option or second panel-control row appears.
+- [ ] Objects and Inspect open mutually exclusive side drawers above the canvas; closing by toggle, close control, Escape, or drawer scrim returns focus to the corresponding topbar control where applicable.
+- [ ] Switching from Objects selection to Inspect preserves accepted selection and any panel-local draft; panel presentation changes do not submit Session/Core edits or change history.
+- [ ] Keep desktop pinned/autohide/collapsed behavior and persisted side/width preferences. Match the reference's independent compact thresholds: Objects at 980px and Inspect at 820px; workspace selector at 1050px and six-tab desktop navigation above it.
+- [ ] Reuse the existing paired desktop/theme/workspace evidence. Run one changed paired compact Objects→Inspect/export journey after integration; do not expand to a broad viewport/AT matrix absent a failure.
