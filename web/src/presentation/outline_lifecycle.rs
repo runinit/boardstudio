@@ -7,8 +7,8 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, Event, Lifecycle, Scope, TerminalOutcome,
 };
 use boardstudio_core::model::{
-    Contour, CornerStyle, EditCommand, EditOperation, EditPhase, OutlineGap, OutlineRepairSettings,
-    OutlineSettings,
+    Contour, CornerStyle, EditCommand, EditOperation, EditPhase, Operation, OutlineContourEdit,
+    OutlineFeature, OutlineGap, OutlineRepairSettings, OutlineSettings, Vec2,
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -50,13 +50,49 @@ pub(super) enum OutlineAction {
         board_id: String,
         edit: OutlineEdit,
     },
+    EditPerimeter {
+        scope: Scope,
+        token: boardstudio_application::SnapshotToken,
+        revision: u64,
+        generation: u64,
+        board_id: String,
+        context: super::objects::TreeContext,
+        target: OutlinePointTarget,
+        points: Vec<Vec2>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) enum OutlinePointTarget {
+    Generated {
+        contour: u32,
+    },
+    Fixed {
+        version_id: String,
+        feature_id: String,
+        anchor_part_id: Option<String>,
+        operation: Operation,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct EditablePerimeter {
+    target: OutlinePointTarget,
+    points: Vec<Vec2>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 enum PendingKind {
-    Activate { version_id: Option<String> },
-    Copy { version_id: String },
-    Delete { version_id: String },
+    Activate {
+        version_id: Option<String>,
+    },
+    Copy {
+        version_id: String,
+        edited_contour: Option<(u32, Vec<Vec2>)>,
+    },
+    Delete {
+        version_id: String,
+    },
     Edit(OutlineExpectation),
 }
 
@@ -95,6 +131,7 @@ pub(super) struct OutlineInspectorProjection {
     pub(super) version_name: String,
     pub(super) active_version_id: Option<String>,
     pub(super) contours: Vec<Contour>,
+    perimeter: Option<EditablePerimeter>,
     pub(super) versions: Vec<OutlineVersionChoice>,
     pub(super) settings: OutlineSettings,
     pub(super) repair: OutlineRepairSettings,
@@ -145,6 +182,19 @@ impl OutlineActionContext {
             version_id,
         }
     }
+
+    fn edit_perimeter(&self, target: OutlinePointTarget, points: Vec<Vec2>) -> OutlineAction {
+        OutlineAction::EditPerimeter {
+            scope: self.scope.clone(),
+            token: self.token,
+            revision: self.revision,
+            generation: self.generation,
+            board_id: self.board_id.clone(),
+            context: self.selection_context.clone(),
+            target,
+            points,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -188,6 +238,14 @@ impl OutlineAction {
                 ..
             }
             | OutlineAction::Update {
+                scope,
+                token,
+                revision,
+                generation,
+                board_id,
+                ..
+            }
+            | OutlineAction::EditPerimeter {
                 scope,
                 token,
                 revision,
@@ -341,12 +399,25 @@ pub(super) fn use_outline_lifecycle(
                             board_state.and_then(|state| state.active_version_id.as_ref())
                                 == version_id.as_ref()
                         }
-                        PendingKind::Copy { version_id } => board_state.is_some_and(|state| {
+                        PendingKind::Copy {
+                            version_id,
+                            edited_contour,
+                        } => board_state.is_some_and(|state| {
                             state.active_version_id.as_deref() == Some(version_id)
-                                && state
-                                    .versions
-                                    .iter()
-                                    .any(|version| version.id == *version_id)
+                                && state.versions.iter().any(|version| {
+                                    version.id == *version_id
+                                        && edited_contour.as_ref().is_none_or(
+                                            |(contour, points)| {
+                                                matches!(
+                                                    version.geometry.features.get(*contour as usize),
+                                                    Some(OutlineFeature::Polygon {
+                                                        points: accepted,
+                                                        ..
+                                                    }) if accepted == points
+                                                )
+                                            },
+                                        )
+                                })
                         }),
                         PendingKind::Delete { version_id } => board_state.is_none_or(|state| {
                             state.active_version_id.is_none()
@@ -532,6 +603,7 @@ fn project_inspector(
         .iter()
         .find(|board| board.board_id == board_id)
         .map_or_else(Vec::new, |board| board.contours.clone());
+    let perimeter = editable_perimeter(&snapshot, &board_id, active_version_id.as_deref());
     let editable = model.durability
         == Durability::Saved {
             revision: snapshot.document.revision,
@@ -566,6 +638,7 @@ fn project_inspector(
         version_name,
         active_version_id,
         contours,
+        perimeter,
         versions,
         settings,
         repair,
@@ -587,6 +660,56 @@ fn project_inspector(
         token: snapshot.token,
         revision: snapshot.document.revision,
         generation: captured_generation,
+    })
+}
+
+fn editable_perimeter(
+    snapshot: &AcceptedSnapshot,
+    board_id: &str,
+    active_version_id: Option<&str>,
+) -> Option<EditablePerimeter> {
+    if let Some(version_id) = active_version_id {
+        let feature = snapshot
+            .document
+            .board_outlines
+            .iter()
+            .find(|state| state.board_id == board_id)?
+            .versions
+            .iter()
+            .find(|version| version.id == version_id)?
+            .geometry
+            .features
+            .first()?;
+        let OutlineFeature::Polygon {
+            id,
+            points,
+            anchor_part_id,
+            operation,
+        } = feature
+        else {
+            return None;
+        };
+        return Some(EditablePerimeter {
+            target: OutlinePointTarget::Fixed {
+                version_id: version_id.to_owned(),
+                feature_id: id.clone(),
+                anchor_part_id: anchor_part_id.clone(),
+                operation: *operation,
+            },
+            points: points.clone(),
+        });
+    }
+
+    let source = snapshot
+        .scene
+        .board_outline_scenes
+        .iter()
+        .find(|scene| scene.board_id == board_id)?
+        .source_contours
+        .first()?;
+    Some(EditablePerimeter {
+        target: OutlinePointTarget::Generated { contour: 0 },
+        points: source.points.clone(),
     })
 }
 
@@ -710,7 +833,10 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
                     edit: None,
                     feature: None,
                 },
-                PendingKind::Copy { version_id },
+                PendingKind::Copy {
+                    version_id,
+                    edited_contour: None,
+                },
                 vec![board_id.clone()],
             )
         }
@@ -752,6 +878,131 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
                 return;
             };
             (operation, PendingKind::Edit(expectation), target_ids)
+        }
+        OutlineAction::EditPerimeter {
+            context,
+            target,
+            points,
+            ..
+        } => {
+            if !selected
+                .as_ref()
+                .is_some_and(|selected| selected.context == *context)
+            {
+                return;
+            }
+            if points.len() < 3
+                || points
+                    .iter()
+                    .any(|point| !point.x.is_finite() || !point.y.is_finite())
+            {
+                return;
+            }
+            match target {
+                OutlinePointTarget::Generated { contour } => {
+                    let Some(source_points) = snapshot
+                        .scene
+                        .board_outline_scenes
+                        .iter()
+                        .find(|scene| scene.board_id == *board_id)
+                        .and_then(|scene| scene.source_contours.get(*contour as usize))
+                        .map(|source| &source.points)
+                    else {
+                        return;
+                    };
+                    if state
+                        .and_then(|state| state.active_version_id.as_ref())
+                        .is_some()
+                        || source_points == points
+                    {
+                        return;
+                    }
+                    let version_id = format!("outline-version-{}", operation_id.0);
+                    let next_number = state
+                        .into_iter()
+                        .flat_map(|state| &state.versions)
+                        .filter_map(|version| {
+                            version
+                                .name
+                                .strip_prefix("Edited outline ")
+                                .and_then(|number| number.parse::<u32>().ok())
+                        })
+                        .max()
+                        .unwrap_or(0)
+                        .saturating_add(1);
+                    let name = format!("Edited outline {next_number}");
+                    (
+                        EditOperation::CopyOutline {
+                            board_id: board_id.clone(),
+                            version_id: version_id.clone(),
+                            name,
+                            edit: Some(OutlineContourEdit {
+                                contour: *contour,
+                                points: points.clone(),
+                            }),
+                            feature: None,
+                        },
+                        PendingKind::Copy {
+                            version_id,
+                            edited_contour: Some((*contour, points.clone())),
+                        },
+                        vec![board_id.clone()],
+                    )
+                }
+                OutlinePointTarget::Fixed {
+                    version_id,
+                    feature_id,
+                    anchor_part_id,
+                    operation,
+                } => {
+                    if state.and_then(|state| state.active_version_id.as_deref())
+                        != Some(version_id.as_str())
+                    {
+                        return;
+                    }
+                    let Some(OutlineFeature::Polygon {
+                        id,
+                        points: current,
+                        anchor_part_id: current_anchor,
+                        operation: current_operation,
+                    }) = state
+                        .into_iter()
+                        .flat_map(|state| &state.versions)
+                        .find(|version| version.id == *version_id)
+                        .and_then(|version| {
+                            version
+                                .geometry
+                                .features
+                                .iter()
+                                .find(|feature| feature.id() == *feature_id)
+                        })
+                    else {
+                        return;
+                    };
+                    if current == points
+                        || current_anchor != anchor_part_id
+                        || current_operation != operation
+                    {
+                        return;
+                    }
+                    let feature = OutlineFeature::Polygon {
+                        id: id.clone(),
+                        points: points.clone(),
+                        anchor_part_id: anchor_part_id.clone(),
+                        operation: *operation,
+                    };
+                    (
+                        EditOperation::SetOutline {
+                            feature: feature.clone(),
+                        },
+                        PendingKind::Edit(OutlineExpectation::VersionFeature {
+                            version_id: version_id.clone(),
+                            feature,
+                        }),
+                        vec![board_id.clone(), feature_id.clone()],
+                    )
+                }
+            }
         }
     };
     let outcome = runtime.observe_operation(operation_id);
@@ -821,6 +1072,8 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
     let copy_handler = projection.on_action;
     let delete_handler = projection.on_action;
     let mut version_name = use_signal(|| None::<(String, String, String)>);
+    let mut perimeter_open = use_signal(|| false);
+    let mut selected_point = use_signal(|| 0usize);
     let name_draft = version_name()
         .filter(|(id, baseline, _)| {
             Some(id) == projection.active_version_id.as_ref()
@@ -833,6 +1086,7 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
     let action_context = projection.action_context.clone();
     let enabled = projection.enabled;
     let active_value = projection.active_version_id.clone().unwrap_or_default();
+    let perimeter = projection.perimeter.clone();
     let corner_value = match projection.settings.corners {
         CornerStyle::Sharp => "sharp",
         CornerStyle::Fillet => "fillet",
@@ -842,7 +1096,127 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
         CornerStyle::Fillet => "Fillet radius",
         _ => "Chamfer size",
     };
+    let point_index = perimeter
+        .as_ref()
+        .map(|perimeter| selected_point().min(perimeter.points.len().saturating_sub(1)))
+        .unwrap_or_default();
+    let point = perimeter
+        .as_ref()
+        .and_then(|perimeter| perimeter.points.get(point_index).copied())
+        .unwrap_or(Vec2 { x: 0.0, y: 0.0 });
+    let point_count = perimeter
+        .as_ref()
+        .map(|perimeter| perimeter.points.len())
+        .unwrap_or_default();
     rsx! {
+        if perimeter_open() {
+            if let Some(perimeter) = perimeter.as_ref() {
+                section { class: "m1-outline-inspector m1-outline-point-editor", "aria-label": "Perimeter",
+                    div { class: "m1-outline-inspector-heading",
+                        h2 { "Perimeter" }
+                        button { r#type: "button", disabled: !enabled, onclick: move |_| perimeter_open.set(false), "Done" }
+                    }
+                    p { if projection.active_version_id.is_some() { "This outline stays fixed when components move. Changes save as you edit." } else { "The first point change creates and activates a fixed copy. Generated stays available." } }
+                    h3 { class: "m1-outline-point-heading", "Point {point_index + 1} of {point_count}" }
+                    div { class: "m1-outline-coordinate-fields",
+                        OutlineCoordinate {
+                            label: format!("Point {} X mm", point_index + 1),
+                            value: point.x,
+                            editable: enabled,
+                            on_commit: {
+                                let action_context = action_context.clone();
+                                let target = perimeter.target.clone();
+                                let mut points = perimeter.points.clone();
+                                move |value| {
+                                    if let Some(point) = points.get_mut(point_index) { point.x = value; }
+                                    on_action.call(action_context.edit_perimeter(target.clone(), points.clone()));
+                                }
+                            },
+                        }
+                        OutlineCoordinate {
+                            label: format!("Point {} Y mm", point_index + 1),
+                            value: point.y,
+                            editable: enabled,
+                            on_commit: {
+                                let action_context = action_context.clone();
+                                let target = perimeter.target.clone();
+                                let mut points = perimeter.points.clone();
+                                move |value| {
+                                    if let Some(point) = points.get_mut(point_index) { point.y = value; }
+                                    on_action.call(action_context.edit_perimeter(target.clone(), points.clone()));
+                                }
+                            },
+                        }
+                    }
+                    div { class: "m1-outline-point-actions",
+                        button {
+                            class: "m1-outline-insert-point",
+                            r#type: "button",
+                            disabled: !enabled,
+                            aria_label: "Insert after {point_index + 1}",
+                            onclick: {
+                                let action_context = action_context.clone();
+                                let target = perimeter.target.clone();
+                                let mut points = perimeter.points.clone();
+                                move |_| {
+                                    if point_count < 3 { return; }
+                                    let next = (point_index + 1) % point_count;
+                                    let a = points[point_index];
+                                    let b = points[next];
+                                    points.insert(point_index + 1, Vec2 { x: (a.x + b.x) / 2.0, y: (a.y + b.y) / 2.0 });
+                                    selected_point.set(point_index + 1);
+                                    on_action.call(action_context.edit_perimeter(target.clone(), points.clone()));
+                                }
+                            },
+                            "Insert after"
+                        }
+                        button {
+                            class: "m1-outline-remove-point",
+                            r#type: "button",
+                            disabled: !enabled || point_count <= 3,
+                            aria_label: "Remove point {point_index + 1}",
+                            title: if point_count <= 3 { "Keep at least three points." } else { "Remove the selected point" },
+                            onclick: {
+                                let action_context = action_context.clone();
+                                let target = perimeter.target.clone();
+                                let mut points = perimeter.points.clone();
+                                move |_| {
+                                    if point_count <= 3 { return; }
+                                    points.remove(point_index);
+                                    selected_point.set(point_index.saturating_sub(1));
+                                    on_action.call(action_context.edit_perimeter(target.clone(), points.clone()));
+                                }
+                            },
+                            "Remove point"
+                        }
+                    }
+                    div { class: "m1-outline-point-list", role: "group", aria_label: "Outline points",
+                        div { class: "m1-outline-point-columns", aria_hidden: "true",
+                            span { "Point" } span { "X · mm" } span { "Y · mm" }
+                        }
+                        for (index, point) in perimeter.points.iter().enumerate() {
+                            button {
+                                key: "outline-point-{index}",
+                                r#type: "button",
+                                aria_label: "Select outline point {index + 1}",
+                                aria_pressed: "{index == point_index}",
+                                onclick: move |_| selected_point.set(index),
+                                span { "{index + 1}" }
+                                span { "{point.x:.3}" }
+                                span { "{point.y:.3}" }
+                            }
+                        }
+                    }
+                    if let Some(feedback) = projection.feedback.as_ref() {
+                        p { role: if feedback.state == "pending" || feedback.state == "saved" { "status" } else { "alert" }, "data-state": feedback.state,
+                            if feedback.state == "pending" { "Saving outline…" }
+                            else if feedback.state == "saved" { "Saved" }
+                            else { "Outline change failed: {feedback.message.as_deref().unwrap_or_default()}" }
+                        }
+                    }
+                }
+            }
+        } else {
         section { class: "m1-outline-inspector", "aria-label": "Board outline",
             div { class: "m1-outline-inspector-heading", h2 { "Board outline" } span { class: "m1-outline-board-name", "{projection.board_name}" } }
             p { if projection.active_version_id.is_some() { "A fixed outline; component placement is shared with every version." } else { "Generated follows your keycaps and included components." } }
@@ -1076,6 +1450,18 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
                     }
                 }
             }
+            if projection.perimeter.as_ref().is_some_and(|perimeter| perimeter.points.len() >= 3) {
+                button {
+                    class: "m1-outline-action",
+                    r#type: "button",
+                    disabled: !enabled,
+                    onclick: move |_| {
+                        selected_point.set(0);
+                        perimeter_open.set(true);
+                    },
+                    "Edit perimeter points"
+                }
+            }
             div { class: "m1-outline-actions",
                 button { r#type: "button", disabled: !projection.enabled, onclick: move |_| copy_handler.call(copy.clone()), "Copy outline" }
                 if let Some(delete) = delete {
@@ -1089,6 +1475,7 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
                     else { "Outline change failed: {feedback.message.as_deref().unwrap_or_default()}" }
                 }
             }
+        }
         }
     }
 }
@@ -1149,6 +1536,64 @@ fn OutlineDimension(
                 small { "mm" }
             }
             if error { small { role: "alert", "Enter a finite value greater than or equal to {minimum} mm." } }
+        }
+    }
+}
+
+#[component]
+fn OutlineCoordinate(
+    label: String,
+    value: f64,
+    editable: bool,
+    on_commit: EventHandler<f64>,
+) -> Element {
+    let mut field = use_signal(|| (value, value.to_string()));
+    let draft = if field().0 == value {
+        field().1
+    } else {
+        value.to_string()
+    };
+    let valid = !draft.trim().is_empty()
+        && draft
+            .trim()
+            .parse::<f64>()
+            .is_ok_and(|parsed| parsed.is_finite());
+    rsx! {
+        label { class: "m1-outline-field",
+            span { "{label}" }
+            span { class: "m1-outline-number",
+                input {
+                    r#type: "number",
+                    step: "0.1",
+                    value: "{draft}",
+                    disabled: !editable,
+                    aria_label: "{label}",
+                    aria_invalid: !valid,
+                    oninput: move |event: FormEvent| field.set((value, event.value())),
+                    onblur: move |_| {
+                        if field().0 != value {
+                            field.set((value, value.to_string()));
+                        } else if let Ok(next) = field().1.trim().parse::<f64>()
+                            && next.is_finite() && next != value
+                        { on_commit.call(next); }
+                    },
+                    onkeydown: move |event: KeyboardEvent| match event.data().key().to_string().as_str() {
+                        "Enter" => {
+                            event.prevent_default();
+                            if let Some(input) = event.data().try_as_web_event()
+                                .and_then(|event| event.target())
+                                .and_then(|target| target.dyn_into::<web_sys::HtmlInputElement>().ok())
+                            { let _ = input.blur(); }
+                        }
+                        "Escape" => {
+                            event.prevent_default();
+                            field.set((value, value.to_string()));
+                        }
+                        _ => {}
+                    }
+                }
+                span { "mm" }
+            }
         }
     }
 }

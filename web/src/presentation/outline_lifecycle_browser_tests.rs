@@ -2,7 +2,10 @@ use super::*;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, Lifecycle, ReadModel, Scope, SessionEpoch, SnapshotToken,
 };
-use boardstudio_core::model::{Board, ProjectDoc, Readiness, SceneDelta};
+use boardstudio_core::model::{
+    Board, BoardContours, BoardOutline, Contour, OutlineFeature, OutlineProvenance,
+    OutlineSnapshot, OutlineVersion, ProjectDoc, Readiness, SceneDelta,
+};
 use std::sync::Arc;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::JsCast;
@@ -212,6 +215,133 @@ fn mounted_outline_inspector() -> (InspectorProbe, web_sys::Element) {
     (probe, root)
 }
 
+fn mounted_polygon_outline_inspector(fixed: bool) -> (InspectorProbe, web_sys::Element) {
+    let scope = Scope {
+        session_epoch: SessionEpoch(6),
+        document_id: "outline-points-doc".into(),
+        board_id: "outline-points-board".into(),
+        instance_id: None,
+    };
+    let points = vec![
+        boardstudio_core::model::Vec2 { x: 0.0, y: 0.0 },
+        boardstudio_core::model::Vec2 { x: 20.0, y: 0.0 },
+        boardstudio_core::model::Vec2 { x: 20.0, y: 20.0 },
+        boardstudio_core::model::Vec2 { x: 0.0, y: 20.0 },
+    ];
+    let mut document = ProjectDoc::empty("outline-points-doc", "Outline points fixture");
+    document.revision = 11;
+    document.boards.push(Board {
+        id: scope.board_id.clone(),
+        name: "Board".into(),
+        outline_ids: if fixed {
+            vec![]
+        } else {
+            vec!["generated-outline".into()]
+        },
+        part_ids: vec![],
+        net_ids: vec![],
+        thickness: 1.6,
+        traces: vec![],
+        vias: vec![],
+    });
+    if fixed {
+        document.board_outlines.push(BoardOutline {
+            board_id: scope.board_id.clone(),
+            active_version_id: Some("fixed-outline-v1".into()),
+            versions: vec![OutlineVersion {
+                id: "fixed-outline-v1".into(),
+                name: "Edited outline 1".into(),
+                source: OutlineProvenance {
+                    revision: 10,
+                    version_id: None,
+                },
+                geometry: OutlineSnapshot {
+                    features: vec![OutlineFeature::Polygon {
+                        anchor_part_id: None,
+                        id: "fixed-contour".into(),
+                        points: points.clone(),
+                        operation: boardstudio_core::model::Operation::Add,
+                    }],
+                    settings: boardstudio_core::model::OutlineSettings::default(),
+                    expected_regions: 1,
+                    bridges: vec![],
+                    protected_gaps: vec![],
+                },
+            }],
+            generated_last_valid: None,
+        });
+    } else {
+        document.outline.push(OutlineFeature::PartEnvelope {
+            connections: vec![],
+            settings: boardstudio_core::model::OutlineSettings::default(),
+            id: "generated-outline".into(),
+            part_ids: vec![],
+            margin: 4.0,
+            operation: boardstudio_core::model::Operation::Add,
+        });
+    }
+    let snapshot = AcceptedSnapshot {
+        token: SnapshotToken(21),
+        session_epoch: scope.session_epoch,
+        document: Arc::new(document),
+        scene: Arc::new(SceneDelta {
+            module_scenes: vec![],
+            revision: 11,
+            transaction_id: "outline-points-fixture".into(),
+            changed_ids: vec![],
+            transforms: vec![],
+            matrix_scenes: vec![],
+            contours: vec![],
+            board_contours: vec![BoardContours {
+                board_id: scope.board_id.clone(),
+                contours: vec![Contour {
+                    points: points.clone(),
+                    hole: false,
+                }],
+            }],
+            board_readiness: vec![],
+            board_outline_scenes: vec![boardstudio_core::model::BoardOutlineScene {
+                board_id: scope.board_id.clone(),
+                source_contours: vec![Contour {
+                    points,
+                    hole: false,
+                }],
+                bridges: vec![],
+                gaps: vec![],
+            }],
+            finding_markers: vec![],
+            findings: vec![],
+            readiness: Readiness {
+                layout: true,
+                outline: true,
+                pcb: true,
+                case_ready: false,
+            },
+        }),
+    };
+    let model = ReadModel {
+        lifecycle: Lifecycle::Ready,
+        durability: Durability::Saved { revision: 11 },
+        accepted: Some(snapshot),
+        active_board_id: scope.board_id.clone(),
+        ..ReadModel::default()
+    };
+    let runtime = crate::runtime::Runtime::new().expect("browser Runtime initializes");
+    runtime.set_layout_component_inspector_test_state(model, Some(scope.clone()));
+    let probe = InspectorProbe { runtime, scope };
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    root.set_id("outline-points-inspector-mount");
+    document.body().unwrap().append_child(&root).unwrap();
+    let dom = VirtualDom::new(mounted_outline_inspector_host);
+    dom.provide_root_context(probe.clone());
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    (probe, root)
+}
+
 #[wasm_bindgen_test]
 async fn mounted_outline_inspector_generates_through_the_production_owner() {
     let (probe, root) = mounted_outline_inspector();
@@ -270,5 +400,106 @@ async fn mounted_outline_inspector_generates_through_the_production_owner() {
             )
     );
     settle_dimension().await;
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_generated_perimeter_insert_creates_one_fixed_copy_with_edited_points() {
+    let (probe, root) = mounted_polygon_outline_inspector(false);
+    settle_dimension().await;
+    let document = web_sys::window().unwrap().document().unwrap();
+    let open = document
+        .query_selector("#outline-points-inspector-mount button.m1-outline-action")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap();
+    open.click();
+    settle_dimension().await;
+    let insert = document
+        .query_selector("#outline-points-inspector-mount button.m1-outline-insert-point")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap();
+    insert.click();
+    settle_dimension().await;
+
+    let events = probe.runtime.take_layout_component_inspector_test_events();
+    let operation = match events.as_slice() {
+        [boardstudio_application::Event::Edit { command, .. }] => &command.operation,
+        _ => panic!("inserting a Generated outline point submits one edit"),
+    };
+    let boardstudio_core::model::EditOperation::CopyOutline {
+        board_id,
+        version_id,
+        name,
+        edit: Some(edit),
+        feature: None,
+    } = operation
+    else {
+        panic!("the first Generated edit creates a fixed copy with its point edit")
+    };
+    assert_eq!(board_id, &probe.scope.board_id);
+    assert_eq!(name, "Edited outline 1");
+    assert!(version_id.starts_with("outline-version-"));
+    assert_eq!(edit.contour, 0);
+    assert_eq!(edit.points.len(), 5);
+    assert_eq!(edit.points[1].x, 10.0);
+    assert_eq!(edit.points[1].y, 0.0);
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_fixed_perimeter_coordinate_enter_updates_only_the_active_feature() {
+    let (probe, root) = mounted_polygon_outline_inspector(true);
+    settle_dimension().await;
+    let document = web_sys::window().unwrap().document().unwrap();
+    let open = document
+        .query_selector("#outline-points-inspector-mount button.m1-outline-action")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap();
+    open.click();
+    settle_dimension().await;
+    let input = document
+        .query_selector("#outline-points-inspector-mount input[aria-label='Point 1 X mm']")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlInputElement>()
+        .unwrap();
+    input.focus().unwrap();
+    send_input(&input, "9.5");
+    send_key(&input, "Escape");
+    settle_dimension().await;
+    assert_eq!(input.value(), "0");
+
+    input.focus().unwrap();
+    send_input(&input, "1.5");
+    send_key(&input, "Enter");
+    settle_dimension().await;
+
+    let events = probe.runtime.take_layout_component_inspector_test_events();
+    let operation = match events.as_slice() {
+        [boardstudio_application::Event::Edit { command, .. }] => &command.operation,
+        _ => panic!("a finite coordinate Enter submits one edit"),
+    };
+    let boardstudio_core::model::EditOperation::SetOutline {
+        feature:
+            OutlineFeature::Polygon {
+                id,
+                points,
+                operation: boardstudio_core::model::Operation::Add,
+                ..
+            },
+    } = operation
+    else {
+        panic!("a fixed edit updates its accepted outline feature")
+    };
+    assert_eq!(id, "fixed-contour");
+    assert_eq!(points.len(), 4);
+    assert_eq!(points[0].x, 1.5);
+    assert_eq!(points[0].y, 0.0);
     root.remove();
 }

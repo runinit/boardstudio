@@ -32,6 +32,10 @@ pub(crate) enum OutlineExpectation {
         settings: OutlineSettings,
     },
     GeneratedFeature(OutlineFeature),
+    VersionFeature {
+        version_id: String,
+        feature: OutlineFeature,
+    },
 }
 
 pub(crate) fn generated_feature<'a>(
@@ -100,6 +104,14 @@ pub(crate) fn expectation_applied(
                     .iter()
                     .any(|candidate| candidate == feature)
         }
+        OutlineExpectation::VersionFeature {
+            version_id,
+            feature,
+        } => state
+            .into_iter()
+            .flat_map(|state| &state.versions)
+            .find(|version| version.id == *version_id)
+            .is_some_and(|version| version.geometry.features.iter().any(|item| item == feature)),
     }
 }
 
