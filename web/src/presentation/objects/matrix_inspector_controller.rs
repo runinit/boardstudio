@@ -48,6 +48,13 @@ struct PendingMatrixDelete {
     base_revision: u64,
 }
 
+#[derive(Clone)]
+struct VariantReportOwner {
+    scope: Scope,
+    token: SnapshotToken,
+    revision: u64,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct ContextIdentity {
     scope: Scope,
@@ -710,7 +717,11 @@ pub(in crate::presentation) fn use_matrix_inspector(
                 return;
             }
             let original = (*snapshot.document).clone();
-            let report_scope = Rc::new(RefCell::new(Some(request.owner.scope.clone())));
+            let report_scope = Rc::new(RefCell::new(Some(VariantReportOwner {
+                scope: request.owner.scope.clone(),
+                token: request.snapshot_token,
+                revision: request.revision,
+            })));
             duplicating.set(true);
             let runtime = runtime.clone();
             let alive = alive.clone();
@@ -729,8 +740,21 @@ pub(in crate::presentation) fn use_matrix_inspector(
                 }
                 duplicating.set(false);
                 if let Err(message) = result {
+                    let model = runtime.model();
+                    let scope = runtime.scope();
                     let still_owned =
-                        runtime.scope().as_ref() == report_scope_for_task.borrow().as_ref();
+                        report_scope_for_task
+                            .borrow()
+                            .as_ref()
+                            .is_some_and(|owner| {
+                                scope.as_ref() == Some(&owner.scope)
+                                    && model.accepted.is_some_and(|accepted| {
+                                        accepted.session_epoch == owner.scope.session_epoch
+                                            && accepted.document.id == owner.scope.document_id
+                                            && accepted.token == owner.token
+                                            && accepted.document.revision == owner.revision
+                                    })
+                            });
                     if still_owned {
                         runtime.report(message);
                     }
@@ -1847,7 +1871,7 @@ async fn duplicate_design_variant(
     request: &MatrixDuplicateRequest,
     mut document: ProjectDoc,
     alive: Rc<Cell<bool>>,
-    report_scope: Rc<RefCell<Option<Scope>>>,
+    report_scope: Rc<RefCell<Option<VariantReportOwner>>>,
 ) -> Result<(), String> {
     if !alive.get() {
         return Err("The matrix design variant owner closed.".into());
@@ -1900,7 +1924,11 @@ async fn duplicate_design_variant(
                     && scope.session_epoch == variant_session_epoch
                     && scope.document_id == variant_id
                 {
-                    *report_scope.borrow_mut() = Some(scope);
+                    *report_scope.borrow_mut() = Some(VariantReportOwner {
+                        scope,
+                        token: active.token,
+                        revision: active.document.revision,
+                    });
                 }
             }
             let recovery = if alive.get() {
@@ -1976,7 +2004,11 @@ async fn duplicate_design_variant(
     let clone_scope = runtime
         .scope()
         .ok_or_else(|| "The duplicated project has no active scope.".to_owned())?;
-    *report_scope.borrow_mut() = Some(clone_scope);
+    *report_scope.borrow_mut() = Some(VariantReportOwner {
+        scope: clone_scope,
+        token: accepted.token,
+        revision: accepted.document.revision,
+    });
     let reversible = is_reversible(&accepted.document);
     let result = async {
         let accepted =
@@ -2182,7 +2214,7 @@ async fn restore_source_after_variant_failure(
     source_scope: &Scope,
     source_token: SnapshotToken,
     source_revision: u64,
-    report_scope: &Rc<RefCell<Option<Scope>>>,
+    report_scope: &Rc<RefCell<Option<VariantReportOwner>>>,
 ) -> Result<bool, String> {
     let model = runtime.model();
     let Some(current) = model.accepted else {
@@ -2239,7 +2271,11 @@ async fn restore_source_after_variant_failure(
                 && scope.document_id == restored.document.id
         })
         .ok_or_else(|| "The saved original reopened without an active project scope.".to_owned())?;
-    *report_scope.borrow_mut() = Some(restored_scope);
+    *report_scope.borrow_mut() = Some(VariantReportOwner {
+        scope: restored_scope,
+        token: restored.token,
+        revision: restored.document.revision,
+    });
     Ok(true)
 }
 
