@@ -66,9 +66,9 @@ use panels::{
 use parts::{PartsQuery, PartsSelection};
 use selection::{ReentrancyReset, SelectionAdapter};
 use setup_guide::{PendingNewKeyboard, SetupGuidePreferences, SetupGuideRequest, SetupGuideStage};
-use zmk_firmware_export::{
-    ZmkFirmwareExportPanelInput, ZmkFirmwareExportRow, use_export_panel_input,
-};
+use zmk_firmware_export::use_export_panel_input;
+#[cfg(test)]
+use zmk_firmware_export::{ZmkFirmwareExportPanelInput, ZmkFirmwareExportRow};
 mod footprint_graphics;
 
 use crate::runtime::Runtime;
@@ -610,7 +610,7 @@ pub fn App() -> Element {
                     }
                 }
                 WorkspaceNavigation {}
-                button { class: "m1-export-tab", id: "m1-tab-Export", "aria-pressed": "{workspace() == \"Export\"}", onclick: move |_| workspace.set("Export"),
+                button { class: "m1-export-tab", id: "m1-tab-Export", "aria-pressed": "{workspace() == \"Export\"}", onclick: move |_| if workspace() == "Export" { workspace.set(return_workspace()) } else { workspace.set("Export") },
                     svg { view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", stroke_linecap: "round", stroke_linejoin: "round", "aria-hidden": "true", path { d: "M4 12v5h12v-5M10 13V3M6 7l4-4 4 4" } }
                     span { "Export" }
                 }
@@ -771,6 +771,7 @@ fn LibraryLanding() -> Element {
     }
 }
 
+#[cfg(test)]
 #[component]
 fn ExportPanel(#[props(default)] zmk_firmware: Option<ZmkFirmwareExportPanelInput>) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
