@@ -252,6 +252,39 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-selected-context { padding: 14px 12px; border-bottom: 1px solid var(--wb-rule); }
 .m1-selected-context h2 { margin: 0; font-size: 16px; font-weight: 600; }
 .m1-selected-context p { margin: 8px 0 0; color: var(--wb-muted); }
+.m1-layout-component-inspector { display: grid; align-content: start; gap: 12px; min-width: 0; padding: 12px 16px 20px; color: var(--wb-ink); }
+.m1-layout-component-inspector h2, .m1-layout-component-inspector h3, .m1-layout-component-inspector p { margin: 0; }
+.m1-layout-component-inspector-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.m1-layout-component-inspector-heading h2 { overflow-wrap: anywhere; font-size: 16px; font-weight: 600; }
+.m1-layout-component-inspector .m1-inspector-lock { flex: none; padding: 2px 6px; border: 1px solid var(--wb-rule); border-radius: 9px; color: var(--wb-muted); font-size: 11px; }
+.m1-layout-component-tabs { display: flex; border-bottom: 1px solid var(--wb-rule); }
+.m1-layout-component-tabs button { flex: 1; min-height: 38px; padding: 0 8px; border: 0; border-bottom: 2px solid transparent; color: var(--wb-muted); background: transparent; cursor: pointer; font-size: 13px; }
+.m1-layout-component-tabs button[aria-selected="true"] { border-bottom-color: var(--wb-accent); color: var(--wb-accent); font-weight: 600; }
+.m1-layout-component-inspector :is(label, .m1-layout-component-definition) { display: grid; gap: 5px; min-width: 0; color: var(--wb-muted); font-size: 12px; }
+.m1-layout-component-definition { grid-template-columns: 1fr auto; align-items: baseline; margin: 0; color: var(--wb-ink) !important; font-size: 13px !important; }
+.m1-layout-component-definition span, .m1-layout-component-notice, .m1-layout-component-matrix-note { color: var(--wb-muted); font-size: 12px; line-height: 1.45; }
+.m1-layout-component-inspector :is(input:not([type="checkbox"]), select) { box-sizing: border-box; width: 100%; min-width: 0; min-height: 34px; padding: 6px 8px; border: 1px solid var(--wb-rule-strong); border-radius: 3px; color: var(--wb-ink); background: var(--wb-panel); font: 12px/1.4 var(--wb-body); }
+.m1-layout-component-subtitle { display: flex; align-items: baseline; justify-content: space-between; font-size: 13px; }
+.m1-layout-component-subtitle small, .m1-layout-component-inspector details summary small { color: var(--wb-muted); font-size: 11px; font-weight: 400; }
+.m1-layout-component-position, .m1-layout-component-constraint-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.m1-layout-component-inspector details { min-width: 0; border-top: 1px solid var(--wb-rule); }
+.m1-layout-component-inspector details > summary { display: flex; align-items: center; gap: 8px; min-height: 42px; cursor: pointer; list-style: none; font-size: 13px; font-weight: 600; }
+.m1-layout-component-inspector details > summary::-webkit-details-marker { display: none; }
+.m1-layout-component-inspector details > summary::before { content: ""; flex: none; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); }
+.m1-layout-component-inspector details[open] > summary::before { transform: rotate(45deg); }
+.m1-layout-component-inspector details > summary small { margin-left: auto; text-align: right; }
+.m1-layout-component-outline fieldset { display: grid; gap: 9px; min-width: 0; padding: 0 0 12px; border: 0; }
+.m1-layout-component-inspector fieldset label { display: flex; align-items: center; gap: 8px; color: var(--wb-ink); }
+.m1-layout-component-inspector fieldset input[type="checkbox"] { margin: 0; }
+.m1-layout-component-inspector fieldset small, .m1-layout-component-constraint-note { color: var(--wb-muted); font-size: 11px; line-height: 1.45; }
+.m1-layout-component-constraint { display: grid; gap: 10px; }
+.m1-layout-component-constraint > label { display: grid; gap: 5px; }
+.m1-layout-component-constraint-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.m1-layout-component-constraint-actions button, .m1-layout-component-electrical { min-height: 34px; }
+.m1-layout-component-electrical { justify-self: start; padding: 0; border: 0; color: var(--wb-accent); background: transparent; text-align: left; }
+.m1-layout-component-inspector [role="alert"] { color: var(--wb-status-error); font-size: 12px; }
+.m1-layout-component-relation-summary { font-size: 12px; line-height: 1.5; }
+.m1-layout-component-inspector :is(button, input, select, summary):focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
 .m1-outline-inspector { padding: 14px 16px; border-bottom: 1px solid var(--wb-rule); }
 .m1-outline-inspector-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .m1-outline-inspector-heading h2 { margin: 0; font-size: 16px; font-weight: 600; }

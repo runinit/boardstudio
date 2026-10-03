@@ -37,6 +37,9 @@ pub(super) struct InspectorInput {
     pub(super) context_title: Option<String>,
     pub(super) context_detail: Option<String>,
     pub(super) show_position_inspector: bool,
+    pub(super) component_inspector: Option<super::inspector::LayoutComponentInspectorProjection>,
+    pub(super) on_component_inspector_action:
+        EventHandler<super::inspector::LayoutComponentInspectorAction>,
     pub(super) matrix_inspector: objects::MatrixInspectorMount,
     pub(super) key_size: objects::KeySizeMount,
     pub(super) matrix_transform_inspector: objects::MatrixTransformInspectorMount,
@@ -118,7 +121,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
 
 pub(super) fn inspector(input: InspectorInput) -> Element {
     rsx! {
-        if input.outline_inspector.is_none() {
+        if input.outline_inspector.is_none() && input.component_inspector.is_none() {
         if let Some(title) = input.context_title.as_ref() {
             section { class: "m1-selected-context", "aria-label": "Selected context",
                 h2 { "{title}" }
@@ -126,7 +129,14 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
             }
         }
         }
-        if input.show_position_inspector { super::inspector::Inspector {} }
+        if input.outline_inspector.is_none() {
+            if let Some(projection) = input.component_inspector {
+                super::inspector::LayoutComponentInspector {
+                    projection,
+                    on_action: input.on_component_inspector_action,
+                }
+            } else if input.show_position_inspector { super::inspector::Inspector {} }
+        }
         if let Some(projection) = input.matrix_inspector.projection.clone() {
             objects::MatrixInspector {
                 projection,

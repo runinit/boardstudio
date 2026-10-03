@@ -20,6 +20,8 @@ mod keycaps_workspace;
 mod keymap;
 mod keymap_workspace;
 mod layout_camera;
+#[cfg(test)]
+mod layout_component_inspector_tests;
 mod layout_viewer;
 pub(crate) mod layout_viewer_source;
 mod layout_workspace;
@@ -65,12 +67,12 @@ mod footprint_graphics;
 
 use crate::runtime::Runtime;
 use boardstudio_application::{
-    AcceptedSnapshot, Durability, Event, Lifecycle, Scope, SelectionMode, SnapshotToken,
+    AcceptedSnapshot, Durability, Event, Lifecycle, ReadModel, Scope, SelectionMode, SnapshotToken,
     TerminalOutcome,
 };
 use boardstudio_core::model::{
-    Contour, EditCommand, EditOperation, EditPhase, Matrix, MatrixSplayAffect, Part,
-    PartDefinition, Position, Vec2,
+    Constraint, Contour, EditCommand, EditOperation, EditPhase, Matrix, MatrixSplayAffect, Part,
+    PartDefinition, PartKind, PartOutline, Position, Vec2,
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -963,6 +965,208 @@ fn layout_owner_is_current(
         .scope
         .as_ref()
         .is_some_and(|scope| active_board_scope_matches(&model, scope))
+}
+
+fn layout_component_inspector_projection(
+    model: &ReadModel,
+    selected: Option<&objects::ScopedTreeContext>,
+    context_generation: u64,
+    scope_generation: u64,
+) -> Option<inspector::LayoutComponentInspectorProjection> {
+    let selected = selected?;
+    let objects::TreeContext::Component {
+        part_id: Some(part_id),
+        matrix_id: None,
+        assembly_id: None,
+        ..
+    } = &selected.context
+    else {
+        return None;
+    };
+    if model.selected_part_ids.len() != 1
+        || model.selected_part_ids.first() != Some(part_id)
+        || !selection::context_is_current(model, &selected.scope, &selected.context)
+        || objects::context_for_part(model, part_id).as_ref() != Some(&selected.context)
+    {
+        return None;
+    }
+    let snapshot = model.accepted.as_ref()?;
+    let document = &snapshot.document;
+    let part = document.parts.iter().find(|part| part.id == *part_id)?;
+    let definition = document
+        .definitions
+        .iter()
+        .find(|definition| definition.id == part.definition_id)?;
+    let board = document
+        .boards
+        .iter()
+        .find(|board| board.id == model.active_board_id)?;
+    if !board.part_ids.iter().any(|id| id == part_id) {
+        return None;
+    }
+    let board_parts: Vec<_> = board
+        .part_ids
+        .iter()
+        .filter_map(|id| {
+            document
+                .parts
+                .iter()
+                .find(|part| part.id == *id)
+                .map(|part| inspector::BoardPartChoice {
+                    id: part.id.clone(),
+                    reference: part.reference.clone(),
+                })
+        })
+        .collect();
+    let layouts: Vec<_> = document
+        .layouts
+        .iter()
+        .filter(|layout| layout.board_id == board.id)
+        .map(|layout| inspector::LayoutChoice {
+            id: layout.id.clone(),
+            name: layout.name.clone(),
+        })
+        .collect();
+    let active_layout = document
+        .layouts
+        .iter()
+        .find(|layout| layout.board_id == board.id && layout.part_ids.contains(part_id));
+    let paired_layout = active_layout.and_then(|layout| {
+        layout
+            .mirror_link
+            .as_ref()
+            .and_then(|link| {
+                document
+                    .layouts
+                    .iter()
+                    .find(|item| item.id == link.source_id)
+            })
+            .or_else(|| {
+                document.layouts.iter().find(|item| {
+                    item.mirror_link
+                        .as_ref()
+                        .is_some_and(|link| link.source_id == layout.id)
+                })
+            })
+    });
+    let active_constraint = document
+        .constraints
+        .iter()
+        .find(|constraint| {
+            constraint.target() == part.id.as_str()
+                && board.part_ids.iter().any(|id| id == constraint.source())
+        })
+        .cloned();
+    let relationship_summary = if let Some(partner) = paired_layout {
+        format!(
+            "Key assemblies, diodes and components mirror with {}. Replace a component on one half to keep it local.",
+            partner.name
+        )
+    } else if active_layout.is_some() {
+        "This layout is independent. Its geometry and components can be edited separately."
+            .to_owned()
+    } else if let Some(constraint) = active_constraint.as_ref() {
+        let source = board_parts
+            .iter()
+            .find(|candidate| candidate.id == constraint.source())
+            .map(|candidate| candidate.reference.as_str())
+            .unwrap_or("A part");
+        format!("{source} drives {}.", part.reference)
+    } else {
+        "No saved placement relationship on this selection.".to_owned()
+    };
+    let definition_kind = match &definition.kind {
+        PartKind::Switch => "switch",
+        PartKind::Controller => "controller",
+        PartKind::Connector => "connector",
+        PartKind::Encoder => "encoder",
+        PartKind::Passive => "passive",
+        PartKind::Custom => "custom",
+        PartKind::Utility => "utility",
+    };
+    Some(inspector::LayoutComponentInspectorProjection {
+        owner: inspector::LayoutComponentInspectorOwner {
+            scope: selected.scope.clone(),
+            snapshot_token: snapshot.token,
+            revision: document.revision,
+            context_generation,
+            scope_generation,
+            part_id: part.id.clone(),
+        },
+        reference: part.reference.clone(),
+        definition_name: definition.name.clone(),
+        definition_kind: definition_kind.to_owned(),
+        envelope_notice: definition.envelope_notice.clone(),
+        locked: part.locked.unwrap_or(false),
+        position: part.pose.at,
+        layout_id: active_layout.map(|layout| layout.id.clone()),
+        layouts,
+        outline: part.outline.clone().unwrap_or_else(PartOutline::default),
+        board_parts,
+        active_constraint,
+        relationship_summary,
+    })
+}
+
+fn layout_component_inspector_owner_is_current(
+    runtime: &Runtime,
+    workspace: Signal<&'static str>,
+    adapter: &SelectionAdapter,
+    layout_owner: &LayoutOwnerIdentity,
+    owner: &inspector::LayoutComponentInspectorOwner,
+) -> bool {
+    if !layout_owner_is_current(runtime, workspace, adapter, layout_owner)
+        || owner.scope_generation != (adapter.generation)()
+        || owner.context_generation != layout_owner.generation
+        || layout_owner.scope.as_ref() != Some(&owner.scope)
+        || layout_owner.token != Some(owner.snapshot_token)
+        || layout_owner.revision != Some(owner.revision)
+    {
+        return false;
+    }
+    let model = runtime.model();
+    let Some(snapshot) = model.accepted.as_ref() else {
+        return false;
+    };
+    if snapshot.token != owner.snapshot_token || snapshot.document.revision != owner.revision {
+        return false;
+    }
+    let selected = adapter.selected_context.read();
+    let Some(selected) = selected.as_ref() else {
+        return false;
+    };
+    selected.scope == owner.scope
+        && matches!(
+            &selected.context,
+            objects::TreeContext::Component {
+                part_id: Some(part_id),
+                matrix_id: None,
+                assembly_id: None,
+                ..
+            } if part_id == &owner.part_id
+        )
+        && selection::context_is_current(&model, &owner.scope, &selected.context)
+        && model.selected_part_ids.len() == 1
+        && model.selected_part_ids.first() == Some(&owner.part_id)
+}
+
+fn submit_layout_component_edit(
+    runtime: &Rc<Runtime>,
+    owner: &inspector::LayoutComponentInspectorOwner,
+    target_ids: Vec<String>,
+    operation: EditOperation,
+) {
+    let operation_id = runtime.operation();
+    runtime.submit(Event::Edit {
+        operation_id,
+        command: EditCommand {
+            base_revision: owner.revision,
+            transaction_id: format!("layout-component-inspector-{}", operation_id.0),
+            phase: EditPhase::Commit,
+            target_ids,
+            operation,
+        },
+    });
 }
 
 fn layout_view_mode_handler(
@@ -3472,13 +3676,24 @@ fn Editor() -> Element {
         selected.scope == render_scope
             && selection::context_is_current(&model, &selected.scope, &selected.context)
     });
-    let show_position_inspector = selected_tree_context.as_ref().is_none_or(|selected| {
-        let resolved = selection::resolve_context(&model, &selected.context);
-        resolved.is_some_and(|ids| {
-            ids.len() == 1 && model.selected_part_ids.as_slice() == ids.as_slice()
-        }) && (matches!(&selected.context, objects::TreeContext::Key { .. })
-            || matches!(&selected.context, objects::TreeContext::Component { .. }))
-    });
+    let component_inspector = (active_workspace == "Layout")
+        .then(|| {
+            layout_component_inspector_projection(
+                &model,
+                selected_tree_context.as_ref(),
+                layout_owner.generation,
+                (adapter.generation)(),
+            )
+        })
+        .flatten();
+    let show_position_inspector = component_inspector.is_none()
+        && selected_tree_context.as_ref().is_none_or(|selected| {
+            let resolved = selection::resolve_context(&model, &selected.context);
+            resolved.is_some_and(|ids| {
+                ids.len() == 1 && model.selected_part_ids.as_slice() == ids.as_slice()
+            }) && (matches!(&selected.context, objects::TreeContext::Key { .. })
+                || matches!(&selected.context, objects::TreeContext::Component { .. }))
+        });
     let context_summary = selected_tree_context
         .as_ref()
         .and_then(|selected| context_summary::summarize(&model, &selected.context));
@@ -4572,6 +4787,217 @@ fn Editor() -> Element {
             },
         )),
     };
+    let on_component_inspector_action = EventHandler::new({
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let owner = layout_owner.clone();
+        let mut workspace = workspace;
+        let mut inspect_open = inspect_open;
+        move |action: inspector::LayoutComponentInspectorAction| {
+            let action_owner = match &action {
+                inspector::LayoutComponentInspectorAction::SetPosition { owner, .. }
+                | inspector::LayoutComponentInspectorAction::AssignLayout { owner, .. }
+                | inspector::LayoutComponentInspectorAction::SetOutline { owner, .. }
+                | inspector::LayoutComponentInspectorAction::SetConstraint { owner, .. }
+                | inspector::LayoutComponentInspectorAction::RemoveConstraint { owner, .. }
+                | inspector::LayoutComponentInspectorAction::NavigateElectrical { owner } => owner,
+            };
+            if !layout_component_inspector_owner_is_current(
+                &runtime,
+                workspace,
+                &adapter,
+                &owner,
+                action_owner,
+            ) {
+                return;
+            }
+            let current = runtime.model();
+            let Some(snapshot) = current.accepted.as_ref() else {
+                return;
+            };
+            let Some(board) = snapshot
+                .document
+                .boards
+                .iter()
+                .find(|board| board.id == action_owner.scope.board_id)
+            else {
+                return;
+            };
+            if !board
+                .part_ids
+                .iter()
+                .any(|part_id| part_id == &action_owner.part_id)
+            {
+                return;
+            }
+            match action {
+                inspector::LayoutComponentInspectorAction::SetPosition { owner, axis, value } => {
+                    if !value.is_finite() {
+                        return;
+                    }
+                    let Some(part) = snapshot
+                        .document
+                        .parts
+                        .iter()
+                        .find(|part| part.id == owner.part_id)
+                    else {
+                        return;
+                    };
+                    let mut at = part.pose.at;
+                    match axis {
+                        inspector::ComponentPositionAxis::X => at.x = value,
+                        inspector::ComponentPositionAxis::Y => at.y = value,
+                    }
+                    submit_layout_component_edit(
+                        &runtime,
+                        &owner,
+                        vec![owner.part_id.clone()],
+                        EditOperation::MoveParts {
+                            positions: vec![Position {
+                                id: owner.part_id.clone(),
+                                at,
+                            }],
+                        },
+                    );
+                }
+                inspector::LayoutComponentInspectorAction::AssignLayout { owner, layout_id } => {
+                    if let Some(layout_id) = layout_id.as_ref()
+                        && !snapshot
+                            .document
+                            .layouts
+                            .iter()
+                            .any(|layout| layout.id == *layout_id && layout.board_id == board.id)
+                    {
+                        return;
+                    }
+                    let current_layout = snapshot.document.layouts.iter().find(|layout| {
+                        layout.board_id == board.id && layout.part_ids.contains(&owner.part_id)
+                    });
+                    if current_layout.map(|layout| layout.id.as_str()) == layout_id.as_deref() {
+                        return;
+                    }
+                    let mut replacement = snapshot.document.as_ref().clone();
+                    for layout in &mut replacement.layouts {
+                        if layout.board_id == board.id {
+                            layout.part_ids.retain(|part_id| part_id != &owner.part_id);
+                        }
+                    }
+                    if let Some(layout_id) = layout_id.as_ref()
+                        && let Some(layout) = replacement
+                            .layouts
+                            .iter_mut()
+                            .find(|layout| layout.id == *layout_id && layout.board_id == board.id)
+                    {
+                        layout.part_ids.push(owner.part_id.clone());
+                    }
+                    let mut target_ids = vec![owner.part_id.clone()];
+                    if let Some(layout_id) = layout_id {
+                        target_ids.push(layout_id);
+                    }
+                    submit_layout_component_edit(
+                        &runtime,
+                        &owner,
+                        target_ids,
+                        EditOperation::ReplaceDocument {
+                            document: Box::new(replacement),
+                        },
+                    );
+                }
+                inspector::LayoutComponentInspectorAction::SetOutline { owner, outline } => {
+                    let mut replacement = snapshot.document.as_ref().clone();
+                    let Some(part) = replacement
+                        .parts
+                        .iter_mut()
+                        .find(|part| part.id == owner.part_id)
+                    else {
+                        return;
+                    };
+                    part.outline = Some(outline);
+                    submit_layout_component_edit(
+                        &runtime,
+                        &owner,
+                        vec![owner.part_id.clone()],
+                        EditOperation::ReplaceDocument {
+                            document: Box::new(replacement),
+                        },
+                    );
+                }
+                inspector::LayoutComponentInspectorAction::SetConstraint {
+                    owner,
+                    source_part_id,
+                    values,
+                } => {
+                    if source_part_id == owner.part_id
+                        || !board.part_ids.iter().any(|id| id == &source_part_id)
+                    {
+                        return;
+                    }
+                    let existing_id = snapshot
+                        .document
+                        .constraints
+                        .iter()
+                        .find(|constraint| {
+                            constraint.target() == owner.part_id
+                                && board.part_ids.iter().any(|id| id == constraint.source())
+                        })
+                        .map(|constraint| constraint.id().to_owned());
+                    let constraint_id = existing_id.unwrap_or_else(|| {
+                        format!("layout-component-constraint-{}", runtime.operation().0)
+                    });
+                    let constraint = match values {
+                        inspector::LayoutConstraintValues::Offset { offset, rotation } => {
+                            Constraint::Offset {
+                                id: constraint_id,
+                                source_part_id,
+                                target_part_id: owner.part_id.clone(),
+                                offset,
+                                rotation,
+                            }
+                        }
+                        inspector::LayoutConstraintValues::Mirror { axis, coordinate } => {
+                            Constraint::Mirror {
+                                id: constraint_id,
+                                source_part_id,
+                                target_part_id: owner.part_id.clone(),
+                                axis,
+                                coordinate,
+                            }
+                        }
+                    };
+                    let mut target_ids = vec![constraint.id().to_owned(), owner.part_id.clone()];
+                    if !target_ids.iter().any(|id| id == constraint.source()) {
+                        target_ids.push(constraint.source().to_owned());
+                    }
+                    submit_layout_component_edit(
+                        &runtime,
+                        &owner,
+                        target_ids,
+                        EditOperation::SetConstraint { constraint },
+                    );
+                }
+                inspector::LayoutComponentInspectorAction::RemoveConstraint {
+                    owner,
+                    constraint_id,
+                } => {
+                    if !snapshot.document.constraints.iter().any(|constraint| {
+                        constraint.id() == constraint_id && constraint.target() == owner.part_id
+                    }) {
+                        return;
+                    }
+                    submit_layout_component_edit(
+                        &runtime,
+                        &owner,
+                        vec![constraint_id.clone(), owner.part_id.clone()],
+                        EditOperation::RemoveConstraint { id: constraint_id },
+                    );
+                }
+                inspector::LayoutComponentInspectorAction::NavigateElectrical { .. } => {
+                    workspace.set("PCB");
+                    inspect_open.set(true);
+                }
+            }
+        }
+    });
     let inspector_input = match active_workspace {
         "Keymap" => workspace_composition::WorkspaceInspectorInput::Keymap(Box::new(
             keymap_workspace::InspectorInput {
@@ -4715,6 +5141,8 @@ fn Editor() -> Element {
                     .as_ref()
                     .and_then(|summary| summary.detail.clone()),
                 show_position_inspector,
+                component_inspector: component_inspector.clone(),
+                on_component_inspector_action,
                 matrix_inspector,
                 key_size,
                 matrix_transform_inspector,

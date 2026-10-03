@@ -6,6 +6,13 @@ use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::JsCast;
 use web_sys::HtmlInputElement;
 
+mod layout_component_inspector;
+pub(super) use layout_component_inspector::{
+    BoardPartChoice, ComponentPositionAxis, LayoutChoice, LayoutComponentInspector,
+    LayoutComponentInspectorAction, LayoutComponentInspectorOwner,
+    LayoutComponentInspectorProjection, LayoutConstraintValues,
+};
+
 #[derive(Clone)]
 struct NumericEdit {
     id: String,
