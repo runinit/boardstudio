@@ -915,6 +915,14 @@
           "task": "Issue 12 protected PCB remap Session/Core correction",
           "observation": "The first isolated Issue 12 packet proposed direct ReplaceDocument clearing, but actual Core settlement restored protection via preserve_handoff. Its direct-edit behavior is superseded and retained in history. The corrected receipt binds the dedicated Session event to the existing Core review request, actual saved revision, stale guards, and preserved lock/assignment data; prior evidence remains linked and unchanged.",
           "current_mitigation": "Use the strict-revision Session review event and existing Core fingerprint/base-revision checks; keep paired candidate browser/history/reopen and all parent joins open."
+        },
+        {
+          "date": "2026-10-03",
+          "task": "F6K.1 Keymap canvas fit controls",
+          "baseline": "f2d70ea627d851ea461033b44052bbf3740d37a1",
+          "evidence": ".scratch/dioxus-keymap-layers/evidence/keymap-fit-controls-20261003/paired-browser-journey.md",
+          "observation": "The settled paired Keymap route showed React Fit board and Fit selection actions while the Dioxus footer exposed only Undo/Redo and zoom percentage. The bounded repair reuses the existing camera event/state; zoom and Grid/Snap remain explicitly owned by existing viewport/Snap criteria. This is a concrete presentation control gap, not evidence for a new camera abstraction or public API.",
+          "current_mitigation": "F6K.1 ticket 01 now specifies guarded current-board/current-selection fit through the private Keymap view controls. No new refactoring takeaway observed."
         }
       ],
       "handoff_evidence": [

@@ -3762,6 +3762,118 @@ fn Editor() -> Element {
     let view_x = (min_x + max_x - width) * 0.5 + model.camera.center.x;
     let view_y = -(min_y + max_y + height) * 0.5 - model.camera.center.y;
     let view_box = format!("{view_x} {view_y} {width} {height}");
+    let keymap_canvas_bounds = workspace_rect_bounds;
+    let keymap_render_scope = render_scope.clone();
+    let keymap_token = snapshot.token;
+    let keymap_revision = snapshot.document.revision;
+    let keymap_selected_ids = model.selected_part_ids.clone();
+    let keymap_selected_set: BTreeSet<_> = keymap_selected_ids.iter().cloned().collect();
+    let keymap_selection_available = keymap_view
+        .as_deref()
+        .is_some_and(|view| keymap::selected_bounds(view, &keymap_selected_set).is_some());
+    let keymap_svg = svg.clone();
+    let keymap_runtime = runtime.clone();
+    let keymap_workspace = workspace;
+    let board_view = keymap_view.clone();
+    let board_contours = keymap_contours.clone();
+    let on_fit_keymap_board = move |_| {
+        let current = keymap_runtime.model();
+        if keymap_workspace() != "Keymap"
+            || current.active_board_id != keymap_render_scope.board_id
+            || current.active_instance_id != keymap_render_scope.instance_id
+        {
+            return;
+        }
+        let Some(accepted) = current.accepted.as_ref() else {
+            return;
+        };
+        if accepted.token != keymap_token
+            || accepted.document.revision != keymap_revision
+            || accepted.document.id != keymap_render_scope.document_id
+            || accepted.session_epoch != keymap_render_scope.session_epoch
+        {
+            return;
+        }
+        let Some(view) = board_view.as_deref() else {
+            return;
+        };
+        let Some(canvas_bounds) = keymap_canvas_bounds else {
+            return;
+        };
+        let Some(target_bounds) = keymap_bounds(view, board_contours.as_deref().unwrap_or(&[]))
+        else {
+            return;
+        };
+        let svg_ref = keymap_svg.borrow();
+        let Some(surface) = svg_ref.as_ref() else {
+            return;
+        };
+        let rect = surface.get_bounding_client_rect();
+        let Some(camera) =
+            keymap::fit_camera(canvas_bounds, target_bounds, (rect.width(), rect.height()))
+        else {
+            return;
+        };
+        keymap_runtime.submit(Event::SetCamera {
+            operation_id: keymap_runtime.operation(),
+            center: camera.center,
+            zoom: camera.zoom,
+        });
+    };
+    let selection_runtime = runtime.clone();
+    let selection_workspace = workspace;
+    let selection_scope = render_scope.clone();
+    let selection_svg = svg.clone();
+    let selection_view = keymap_view.clone();
+    let selection_canvas_bounds = keymap_canvas_bounds;
+    let selection_token = snapshot.token;
+    let selection_revision = snapshot.document.revision;
+    let selection_ids = keymap_selected_ids.clone();
+    let on_fit_keymap_selection = move |_| {
+        let current = selection_runtime.model();
+        if selection_workspace() != "Keymap"
+            || current.active_board_id != selection_scope.board_id
+            || current.active_instance_id != selection_scope.instance_id
+            || current.selected_part_ids != selection_ids
+        {
+            return;
+        }
+        let Some(accepted) = current.accepted.as_ref() else {
+            return;
+        };
+        if accepted.token != selection_token
+            || accepted.document.revision != selection_revision
+            || accepted.document.id != selection_scope.document_id
+            || accepted.session_epoch != selection_scope.session_epoch
+        {
+            return;
+        }
+        let Some(view) = selection_view.as_deref() else {
+            return;
+        };
+        let selected = selection_ids.iter().cloned().collect();
+        let Some(target_bounds) = keymap::selected_bounds(view, &selected) else {
+            return;
+        };
+        let Some(canvas_bounds) = selection_canvas_bounds else {
+            return;
+        };
+        let svg_ref = selection_svg.borrow();
+        let Some(surface) = svg_ref.as_ref() else {
+            return;
+        };
+        let rect = surface.get_bounding_client_rect();
+        let Some(camera) =
+            keymap::fit_camera(canvas_bounds, target_bounds, (rect.width(), rect.height()))
+        else {
+            return;
+        };
+        selection_runtime.submit(Event::SetCamera {
+            operation_id: selection_runtime.operation(),
+            center: camera.center,
+            zoom: camera.zoom,
+        });
+    };
     let canvas_center =
         part_placement::canvas_world_center(min_x, max_x, min_y, max_y, model.camera.center);
     let part_placement =
@@ -6554,6 +6666,14 @@ fn Editor() -> Element {
                     }
                     if let Some(guide) = model.snap_guide.as_ref() {
                         span { class: "m1-layout-snap-guide", role: "status", "{guide.label}" }
+                    }
+                }
+                if active_workspace == "Keymap" && !layout_assembly_3d() {
+                    keymap::KeymapViewControls {
+                        board_available: keymap_canvas_bounds.is_some(),
+                        selection_available: keymap_selection_available,
+                        on_fit_board: on_fit_keymap_board,
+                        on_fit_selection: on_fit_keymap_selection,
                     }
                 }
                 span { "{zoom_percent:.0}%" }

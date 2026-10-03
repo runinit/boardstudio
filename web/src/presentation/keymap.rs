@@ -10,6 +10,7 @@ mod macro_controller;
 mod macro_editor;
 mod panel;
 mod view;
+mod view_controls;
 
 pub(in crate::presentation) use binding_controller::{
     BindingActions, BindingProjectionSources, use_binding_operations,
@@ -25,3 +26,4 @@ pub(in crate::presentation) use macro_controller::{MacroActions, use_macro_opera
 pub(in crate::presentation) use macro_editor::MacroEditor;
 pub(in crate::presentation) use panel::KeymapPanel;
 pub(super) use view::{KeymapView, project};
+pub(super) use view_controls::{KeymapViewControls, fit_camera, selected_bounds};
