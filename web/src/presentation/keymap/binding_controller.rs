@@ -747,18 +747,9 @@ pub(in crate::presentation) fn use_binding_operations(
             current_encoder_projection()
                 .is_some_and(|current| current.identity == projection.input_identity)
         });
-    let admission_snapshot = current_saved_source(
-        &runtime,
-        source.as_ref(),
-        captured_generation,
-        scope_generation,
-        workspace(),
-        admission_current.as_ref(),
-    );
-    // Keep the mounted controls focusable while an edit is settling so native
-    // Tab navigation can advance after a blur commit. The event handler below
-    // still rejects every additional request while `pending` is populated.
-    let enabled = admission_snapshot.is_some();
+    // Focus follows the exact accepted display owner through Busy/Unsaved settlement.
+    // Dispatch below separately requires Saved and rejects additional pending requests.
+    let enabled = workspace() == "Keymap" && admission_current() && display_snapshot.is_some();
     let feedback_guard = feedback.read();
     let visible_feedback = feedback_guard.as_ref().and_then(|state| {
         let source = source.as_ref()?;
