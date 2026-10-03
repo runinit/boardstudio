@@ -12,7 +12,7 @@ Dioxus already has matching private layer row types and conversion in `case_asse
 
 The shared canvas markup currently hard-codes `Interactive 3D Case preview...` for every `ViewerSource`. The Layout canvas is visibly labeled in its workspace as Layout / PCB assembly and picks map to the current Layout part. Its accessible name must describe that Layout context and current Layout-part pick behavior, while Case retains the current Case name.
 
-The paired 1280×577 screenshots at `.scratch/dioxus-frontend-v1/evidence/general-placement-public-20261002/` show the Design view group at the top-right in Dioxus and directly below/left-aligned with the command pill in React. This is a current F3.6 view-group placement mismatch, not a new parent or independent layer-control feature. The existing F3.6 issue/draft now records the specific position at both required viewports.
+The paired 1280×577 screenshots at `.scratch/dioxus-frontend-v1/evidence/general-placement-public-20261002/` show a narrow 725px canvas container with both rails open: Dioxus puts the view group top-right while React puts it below/left-aligned with the command pill. Inspecting pinned `app/src/ui/unified-workbench.css` lines 371–378 shows React's exact policy: default below-left at `top:68px; left:12px`; an `@container (min-width:760px)` moves it top-right; a viewport `@media (max-width:900px)` sets the compact `top:60px; left:8px`. The mismatch is that Dioxus only keys the desktop/compact position off viewport width. This is a current F3.6 view-group placement mismatch, not a new parent or independent layer-control feature. The F3.6 issue/draft now specify the container breakpoint and require 1280 with rails open and closed, plus 375.
 
 ## Bounded implementation seam
 
