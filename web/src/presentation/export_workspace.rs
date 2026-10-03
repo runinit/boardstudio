@@ -246,12 +246,12 @@ fn export_rows(
         }
     });
     let mechanical_runtime = runtime.clone();
-    let mechanical_scope = mechanical_scope.clone();
+    let mechanical_callback_scope = mechanical_scope.clone();
     let mechanical_token = snapshot.token;
     let mechanical_session_epoch = snapshot.session_epoch;
     let mechanical_export = EventHandler::new(move |()| {
         let model = mechanical_runtime.model();
-        if mechanical_runtime.scope() == mechanical_scope
+        if mechanical_runtime.scope() == mechanical_callback_scope
             && model.accepted.as_ref().is_some_and(|accepted| {
                 accepted.token == mechanical_token
                     && accepted.session_epoch == mechanical_session_epoch

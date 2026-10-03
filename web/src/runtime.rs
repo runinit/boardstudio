@@ -2084,6 +2084,7 @@ impl Runtime {
                 } else if is_mechanical_export {
                     self.mechanical_package_bytes(operation_id, &snapshot, &scope)
                         .await
+                        .map(|bytes| (bytes, snapshot.token))
                 } else if is_footprint_export {
                     self.footprint_export_bytes(operation_id, &snapshot, &scope)
                         .await
@@ -4403,8 +4404,8 @@ impl Runtime {
                 export_board.traces.clear();
                 export_board.vias.clear();
                 for (extension, format) in [
-                    ("dxf", OutlineExportFormat::Dxf),
-                    ("svg", OutlineExportFormat::Svg),
+                    ("dxf", boardstudio_core::model::OutlineExportFormat::Dxf),
+                    ("svg", boardstudio_core::model::OutlineExportFormat::Svg),
                 ] {
                     let filename = format!("{part_name}.{extension}");
                     let request_id =
@@ -5114,7 +5115,7 @@ impl Runtime {
     ) -> Result<Vec<u8>, String> {
         let core = self.core.borrow().clone();
         let executor_epoch = self.session.borrow().core_executor_epoch();
-        let guard = || {
+        let guard = || -> Result<(), String> {
             let current_core = self.core.borrow().clone();
             let current = self.model().accepted;
             if self.export_current(operation_id, snapshot.token, scope)
