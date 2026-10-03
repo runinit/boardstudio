@@ -94,7 +94,7 @@ pub(in crate::presentation) fn PartsPreviewPanel(
         let lease_slot = lease_slot.clone();
         move || lease_slot.invalidate()
     });
-    let show_3d = use_signal(|| false);
+    let mut show_3d = use_signal(|| false);
     let previous_activation = use_hook(|| Rc::new(RefCell::new(None::<(String, u64)>)));
     let previous_preview_generation = use_hook(|| Rc::new(Cell::new(None::<u64>)));
     use_effect(use_reactive(
