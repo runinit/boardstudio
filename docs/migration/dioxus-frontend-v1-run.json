@@ -1273,12 +1273,12 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T12:05:02.137240+00:00",
+    "updated_at": "2026-10-03T12:14:08.637515+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
-      "accepted": 5,
+      "accepted": 6,
       "planned": 23,
-      "implementing": 34,
+      "implementing": 33,
       "total": 62
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
@@ -1299,8 +1299,8 @@
       "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34765-20261003/package-proof.json"
     },
     "integration": {
-      "source_commit": "91f678f1",
-      "state": "34765 remains live with bounded changed journeys GREEN. Next34766 source settled: Layoutdraft/header/UUID+findingsfooterCSS and Exporttoken+Corefilenamecollision; strictpagealltargets PASS16.16s after typedSessionEpoch correction. Full package starting; changedZIP/Layout delta qualification pending.",
+      "source_commit": "5d7d9024",
+      "state": "34765 remains live. 34766 rejected after all22commands succeed because generatedCoreWASM was mistaken for maintainedsource; originalfailure preserved and classifier96df6ee1 fixed with focusedRED/GREEN2test. Next34767 combinedLayoutpreset+drafts/footer,Case contextualshell,Demo cards/freshIDs,PCB supports/clearance,Keymap exportplacement,Keycaps insets and Export ZIP repairs. Combinedcompile corrections active; no newpublicartifact claimed.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1959,14 +1959,7 @@
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "heavy_slots": {
       "policy": "Coordinator assigned; maximum2 heavy jobs/1package",
-      "active": [
-        {
-          "kind": "full package",
-          "owner": "root",
-          "build_id": "frontend-layout-drafts-export-collision-20261003",
-          "slot_authorized_at": "2026-10-03T11:59:01.913990+00:00"
-        }
-      ],
+      "active": [],
       "check": {
         "source_commit": "91f678f1",
         "log": ".scratch/dioxus-frontend-v1/evidence/candidate-34766-20261003/combined-check-followup.log",
@@ -1986,7 +1979,7 @@
     },
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "next_work": [
-      "One combined strict check and package34766 including token+Core filename repair; verify changed ZIP and Layout draft/header/footer controls only.",
+      "Finish combined34767 compile corrections, one freshfullpackage and changed journeys. Reuse unaffected history/reopen; current34765 live.",
       "Layout-first assembly preset placement; continue six queues with Case shell, PCB advanced mounted controls, Keycaps legends, Parts demo cards/fresh copies and Keymap criterion reconciliation.",
       "Correct observed Keymap export-button placement and global findings route; no behavior/parent closure implied by UI source presence."
     ],
@@ -2322,6 +2315,11 @@
         "build_id": "frontend-layout-drafts-export-collision-source-check",
         "source_commit": "0569ee72",
         "result": "Geometrydraft typedSessionEpoch mismatched localu64; root91f678f1 corrects type. Strictpagealltargets followup PASS16.16s; no newUItests."
+      },
+      {
+        "build_id": "frontend-layout-drafts-export-collision-20261003",
+        "source_commit": "bb52b22b",
+        "result": "22commands allPASS but finalsourceinventoryREJECTED: sole drift generatedcore/pkg/boardstudio_core_bg.wasm. Notserved/notbaseline. 96df6ee1 excludesknownwasm-pack outputprefix alongsideothergeneratedpackages; focusedregressionRED\u2192GREEN2 with maintainedRustsourceguardassertion retained."
       }
     ],
     "parent_acceptances": [
@@ -2365,6 +2363,20 @@
         "criteria_accounting": ".scratch/dioxus-keymap-layers/evidence/keymap-frontier-audit-20261003/criterion-accounting.md",
         "scope": "F6K.2 binding behavior only; F6K.1/F6K.4/full Keymap UI placement and F6 remain open. No legacy-only paired UI fixture claimed; direct source-equivalent fallback plus retained public edit/history authority and Core preservation evidence accepted by Sol. No new tests/cutover.",
         "decision": "Accepted under unchanged canonical criteria; bounded representative public proof plus direct small legacy projection source equivalence sufficient. Keymap placement differences remain tracked frontend work."
+      },
+      {
+        "parent": "F6C.2",
+        "at": "2026-10-03T12:14:08.637515+00:00",
+        "candidate_source": "17ba32b984c13f3621a2145efe1dd478862ab5cd",
+        "candidate_url": "http://127.0.0.1:34765/boardstudio/",
+        "review": ".scratch/dioxus-frontend-v1/evidence/keycaps-f6c2-acceptance-20261003/REVIEW.md",
+        "review_sha256": "e9e9b0161cb623ea06ba91f673af81d0505282780e5508755f20c8d1e9cb6e56",
+        "audit": ".scratch/dioxus-frontend-v1/evidence/keycaps-f6c2-acceptance-20261003/AUDIT.json",
+        "audit_sha256": "7676bee7bea375db18154742877ec7883fd32fc86a578e25a45999bd9ef991f7",
+        "criteria_accounting": ".scratch/dioxus-keycaps-workflow/evidence/keycap-settings/reconciliation.md",
+        "legend_receipt": ".scratch/dioxus-keycaps-workflow/evidence/keycap-legend-transaction-20261003/receipt-34765.md",
+        "scope": "F6C.2 settings and legend behavior only. F6C.1/F3.1/full Keycaps and visual Inspector alignment remain open. Native OS picker and individually clicked per-key socket/row/depth not claimed. No new UI tests or cutover.",
+        "decision": "Accepted under unchanged canonical settings/legend criteria. Representative actual authority/history/error behavior plus direct shared control mappings sufficient; visual alignment and F6C.1/F3.1 retained."
       }
     ]
   }

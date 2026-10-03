@@ -1716,7 +1716,7 @@
         "F6C.1"
       ],
       "acceptance_after": [],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
@@ -1737,6 +1737,26 @@
         "checkpoint": "served a201/34740; next baseline8afaaa2f",
         "scope": "Paired profileSA\u2192Cherry/UndoRedo/reload green; headercounter child activelyporting; fullcriteriaremain.",
         "acceptance": "No criteria/dependencies waived; partial source and bounded proof only."
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T12:14:08.637515+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Unchanged canonical settings/legend clause covered by retained representative paired settings/history/reopen/error/inheritance and legend transaction journeys plus exact current profile/mount/range/command/source mapping, endorsed in consolidated Sol review. Startdependency is not an extra acceptancejoin; no every-field matrix added."
+        }
+      ],
+      "acceptance_record": {
+        "at": "2026-10-03T12:14:08.637515+00:00",
+        "candidate_source": "17ba32b984c13f3621a2145efe1dd478862ab5cd",
+        "candidate_url": "http://127.0.0.1:34765/boardstudio/",
+        "review": ".scratch/dioxus-frontend-v1/evidence/keycaps-f6c2-acceptance-20261003/REVIEW.md",
+        "review_sha256": "e9e9b0161cb623ea06ba91f673af81d0505282780e5508755f20c8d1e9cb6e56",
+        "audit": ".scratch/dioxus-frontend-v1/evidence/keycaps-f6c2-acceptance-20261003/AUDIT.json",
+        "audit_sha256": "7676bee7bea375db18154742877ec7883fd32fc86a578e25a45999bd9ef991f7",
+        "criteria_accounting": ".scratch/dioxus-keycaps-workflow/evidence/keycap-settings/reconciliation.md",
+        "legend_receipt": ".scratch/dioxus-keycaps-workflow/evidence/keycap-legend-transaction-20261003/receipt-34765.md",
+        "scope": "F6C.2 settings and legend behavior only. F6C.1/F3.1/full Keycaps and visual Inspector alignment remain open. Native OS picker and individually clicked per-key socket/row/depth not claimed. No new UI tests or cutover."
       }
     },
     {

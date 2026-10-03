@@ -1,0 +1,1021 @@
+{
+  "candidate_source": "37d81320712b16cd6901f8e8ea3c80a0833ce576",
+  "candidate_urls": [
+    "http://127.0.0.1:34758/",
+    "http://127.0.0.1:34758/boardstudio/"
+  ],
+  "reference_source": "5a472a9426e6e38993361da402cd4ec730feb369",
+  "provenance_sha256": "540bccd3ef9eab93cdc521191acd918d3ca1b605ec0969ba6a139ec517fa391f",
+  "verification": "Read-only exact source/spec inspection. Reused root strict/package and author/root public evidence. No compiler, tests, browser replay or root mutations by this review.",
+  "source_hashes": {
+    "web/src/presentation/objects/matrix_inspector.rs": "fe8235b0a664e16115c9150c9aafe06915c6173134de6b90835edc5816610334",
+    "web/src/presentation/objects/matrix_inspector_controller.rs": "e9f67132f2278e04781e5ebf79aadf073c4bb62b1310b77aed62c0e5d9c59b18",
+    "web/src/presentation/layout_workspace.rs": "80cd3a658ecc6a969ac639729c5010d3b87ff04ac489b5fa88e4d9e1920d2716",
+    "web/src/presentation/mechanical_settings_mount.rs": "ff33fcc698c10f2bc2f76b631cd9d986556ad18fc9090176da87bb330b2683f9",
+    "web/src/presentation/objects/tree.rs": "88fc92395311e9a842f1c8911414c02da6e27c881b151459fb45597cb2848257",
+    "web/src/presentation/objects.rs": "9cb91afe1d7bf7fa6472766b7c493f6407415c9f67feae4a2f934177d40949c6",
+    "web/src/presentation/keymap/binding_editor.rs": "8b149c2fb3d27ffdaa542696e67aab2a6eabcd3538473267b8bfcb589ddd65d9"
+  },
+  "receipts": [
+    {
+      "commit": "be90c78ab2a5a43dea29eae744ad81804c7ea66d",
+      "path": ".scratch/dioxus-case-workspace/evidence/15-mounting-controls-20261003/public-receipt.md",
+      "sha256": "15bdd881977bc815983c94a5e2665205874916291bad0a6e8ce776ee8a0d1901"
+    },
+    {
+      "commit": "e358c373d4ac2726ea9fb54ae120120c2a8781ea",
+      "path": ".scratch/dioxus-layout-authoring/evidence/f32d-matrix-settings-20261003/README.md",
+      "sha256": "bc660e4fa35e352f04747c8424a98bfe2300ea4cb9dea7a0a31654480b90ad05"
+    },
+    {
+      "commit": "0e54657969602cecb20790d7d1b70ff8cc32342d",
+      "path": ".scratch/dioxus-pcb-view/evidence/18-contextual-objects-20261003/public-34758.json",
+      "sha256": "193a68d307f6b084483551ff66c925af1b28d6dcbc8f48a96a7ec20eabef4f0b"
+    },
+    {
+      "commit": "d6e575c326e8d8fe756d43f0cb8832701f52443d",
+      "path": ".scratch/dioxus-keymap-layers/evidence/keymap-binding-tab-focus-20261003/RESULTS.md",
+      "sha256": "47bb1c1bcb5f31e05dd1f8af0ba42fa836220f023c27409a23a22b65b722d5b7"
+    },
+    {
+      "commit": "1796a9ec42aa44f61e710d5e69a46919f1594894",
+      "path": ".scratch/dioxus-keymap-layers/evidence/keymap-binding-tab-focus-20261003/RESULTS.md",
+      "sha256": "d37b2f3bfe1b73ed4667021288cb6ea5c7a68a0591e52683a58ce95267bd9f20"
+    },
+    {
+      "commit": "e6842ec431b903210254833ee75ca830b538e520",
+      "path": ".scratch/dioxus-layout-authoring/evidence/f33b-matrix-transform-paired-20261003/README.md",
+      "sha256": "82f5540f94352310c7ffc5780505bdddcde7647f4aa9d30ee40cc11043beb9d8"
+    },
+    {
+      "commit": "7e0302bf5d74a22d2891d792b41e23f2cbd0d2e1",
+      "path": ".scratch/dioxus-pcb-view/evidence/18-contextual-objects-20261003/public-34759.json",
+      "sha256": "8d809cb443d7ed43cc11166f16a3d338b6aeb35936756a0f002fc5a1f63bd1ed"
+    },
+    {
+      "commit": "2ed39074e1329ceab4826a8816c131b3a02f866a",
+      "path": ".scratch/dioxus-layout-authoring/evidence/f32d-matrix-settings-20261003/structural-journey-candidate37d.md",
+      "sha256": "a527c215a912ed90b3f28ab8354d0a8e7f8564b07a18f552688c3229ea278a38"
+    },
+    {
+      "commit": "7b6057e6",
+      "path": ".scratch/dioxus-parts-catalogue/evidence/parts-03-preview-34759/RESULTS.md",
+      "sha256": "b1da20318853227a8448e329ac878457699dbc0f9f5b195cdd72b96a4fc3f927",
+      "source_pin_typo": "Final d missing in receipt; full pin retained from root provenance."
+    },
+    {
+      "commit": "c39e1460c3d5ad608ff28ba26962ad7765054e29",
+      "path": "/home/chris/.local/share/boardstudio/worktrees/keycaps-geometry-repair-20261003/.scratch/dioxus-frontend-v1/evidence/keymap-3d-consumer-20261003/paired-receipt.md",
+      "sha256": "6b0c5d85712e2a3b8172327c24cdbf3f370273b1840db6864cbc0976b0059bf1"
+    },
+    {
+      "commit": "decfc367c59cdd313d587fb6ad933702a239e798",
+      "path": ".scratch/dioxus-layout-authoring/evidence/f32d-matrix-settings-20261003/structural-context-candidate34760.md",
+      "sha256": "1ff9975b2549fae97036d497fab8d99e3cd62e7817331fe79ee60d5cbcacea04"
+    },
+    {
+      "commit": "d25ade3d67a51cbf643092ffc80f2473e8c2f646",
+      "path": ".scratch/dioxus-case-workspace/evidence/issue-12-show-and-f72-disclosure-34760/public-receipt.md",
+      "sha256": "12e26a01f40c75f7883a9bb2b63051eb6cb66721e193d504d98611657d6d4831"
+    },
+    {
+      "commit": "e2c9d7598cec12419380fc03351faa5bbe706f30",
+      "path": ".scratch/dioxus-pcb-view/evidence/19-new-board-20261003/public-34760.json",
+      "sha256": "dedf6ea056749d9e65de438492cb1e233e3978d735d961efedc04842984643c7"
+    },
+    {
+      "path": "/home/chris/.local/share/boardstudio/worktrees/keycaps-geometry-repair-20261003/.scratch/dioxus-frontend-v1/evidence/keycaps-fit-navigation-20261003/paired-context-navigation.md",
+      "sha256": "89f77446270778e1dbfa7b3b06c4c9641d89764ad1d4a49bda57208c4234a6c5",
+      "source": "2107f980e9b45c341bff10548c7156b28de0e388",
+      "url": "http://127.0.0.1:34761/",
+      "scope": "SW1 finding navigation only; broader F6C.4 open"
+    },
+    {
+      "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-pcb-view/evidence/20-add-object-20261003/public-34761.json",
+      "sha256": "fb13687b4233c7023344c23e0248cb8737fed0bc36e2cb9d552d901852f00028",
+      "served_source": "2107f980e9b45c341bff10548c7156b28de0e388",
+      "served_url": "http://127.0.0.1:34761/"
+    },
+    {
+      "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-layout-authoring/evidence/f34b-outline-inspector-settings-20261003/evidence.md",
+      "sha256": "2f9cf9528a2d4761a5fe51bc96eb6e9c5264371b7cf00f5b2b917576176e36ae",
+      "served_source": "2107f980e9b45c341bff10548c7156b28de0e388",
+      "served_url": "http://127.0.0.1:34761/"
+    },
+    {
+      "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-case-workspace/evidence/issue-12-show-and-f72-disclosure-34760/public-receipt.md",
+      "sha256": "d9c13cd8ed390a8962c95324601264bc33409dbd4f7e197d955438958c2a4560",
+      "served_source": "2107f980e9b45c341bff10548c7156b28de0e388",
+      "served_url": "http://127.0.0.1:34761/"
+    },
+    {
+      "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-pcb-view/evidence/20-add-object-20261003/public-34762-hint.json",
+      "sha256": "431204077fecd5ebbed3c9846fb30ca5eee5cbe5b133b9e9f78b43146bff17dd",
+      "served_source": "900068a0df413059732f9f365abd598734b7f86c",
+      "served_url": "http://127.0.0.1:34762/"
+    },
+    {
+      "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-pcb-view/evidence/21-empty-board-entry-20261003/public-34762.json",
+      "sha256": "de379c2985c9cfa843d30a42a8c7f964e93e4050e6fc55fd13594294c5cb4e2e",
+      "served_source": "900068a0df413059732f9f365abd598734b7f86c",
+      "served_url": "http://127.0.0.1:34762/"
+    },
+    {
+      "path": "/home/chris/.local/share/boardstudio/worktrees/parts-assembly-preview-20261003/.scratch/dioxus-parts-catalogue/evidence/parts-assembly-34762/RESULTS.md",
+      "commit": "b52377310a27eab655eda75a774814cd426f3cfd",
+      "sha256": "6e30ba2e817c83f65f18d4628928fc02e092338338c968d31b96df419f928759",
+      "source": "900068a0df413059732f9f365abd598734b7f86c",
+      "scope": "One MX Hotswap RGB recipe and South/North poses, ready3D/2D return, utility empty surface; broader Parts parity open"
+    },
+    {
+      "path": ".scratch/dioxus-case-workspace/evidence/issue-01-authored-case-reconciliation-20261003/public-crud-and-mismatch-receipt.md",
+      "commit": "d2ca8d155a503c3c1205954f10b00936c91b8513",
+      "sha256": "64043dc9ae4ed795ba03b98f674fc0a87a367c8ab0ed768f28e9bdcd92a0dcfd",
+      "source": "900068a0df413059732f9f365abd598734b7f86c",
+      "scope": "Tray edits, multiple-body board filtering, representative wall history/reload"
+    }
+  ],
+  "status": "Findings retained; next integrated repairs/public deltas pending. No parent criterion closure.",
+  "joined_followup_source": "84930c9a80f579df3a572dc83d4cfbe282716a5c",
+  "followup_evidence_boundary": "Source-only; matrix repair and new public replay pending.",
+  "targeted_repairs": {
+    "matrix_author_source": "8e9a4450e3633aa8ccdb31e313a45b10e68b1ab1",
+    "matrix_root_join": "51ab7668",
+    "matrix_source_remaining": [
+      "same-session newer edit/scope recovery protection",
+      "superseded error publication",
+      "preset error visible in action section"
+    ],
+    "keymap_source": "6b93a81a043afd0b5f7386ac6f7c3f6107797496",
+    "keymap_source_assessment": "Exact displayed-owner focusability with unchanged strict dispatch; public replay pending"
+  },
+  "current_followup": {
+    "integration_source": "fc3a6b97f258a028e5dfdee2f064a751c013e19b",
+    "matrix_recovery_author": "80c9260218305d6182c4d8825fa4504be5285aed",
+    "matrix_exact_feedback_author": "7fd607a511f45098747e6cb3416e6277ca12d92f",
+    "feedback_fix_integrated_in_fc3a": false,
+    "case_show_author": "e8424c6b5ef1f4f03b1bb184b02632f2de83ad46",
+    "case_disclosures_author": "889bb4db58e805f90e581fd1ba149d9884eed4df",
+    "qualification_boundary": "Root runs combined check/package; changed Case/Matrix and new preview browser receipts remain incoming.",
+    "newer_integration_source": "7b6057e6",
+    "feedback_fix_integrated_in_newer_source": true,
+    "matrix_source_status": "Recorded source findings addressed; combined qualification/public failure branches not inferred.",
+    "served_source": "9718ea4aa3b29f1ae2f53d049a411928e65656bc",
+    "served_url": "http://127.0.0.1:34760/",
+    "provenance_sha256": "d4e061e44423839546c370a71f4548b81db8dc7bbb5a27474dff39456928243c",
+    "strict_page_wasm_seconds": 14.78,
+    "package_seconds": 91.798235,
+    "source_inputs": 1367
+  },
+  "remaining_actual_parity_findings": [
+    "34762 empty-board primary size/secondary color mismatch; bd971126 staged for next candidate",
+    "Existing authored Case mismatch has duplicate configured-board action; narrow single-action correction staged"
+  ],
+  "next_candidate_boundary": "Keep same consolidated review pending next footer/shell/empty-action/Case-label/export candidate and changed receipts; no separate34762 checkpoint handoff.",
+  "next_source_checkpoint": {
+    "source": "3e70173c",
+    "empty_board": "79af180fb91a36b9fc69832cfa9456fa12241fbb",
+    "case_duplicate_blur": "2107f980e9b45c341bff10548c7156b28de0e388",
+    "parts_recipes": "590fd840c80811a1b76ecb7f232d123d7991ed65",
+    "recipe_override_repair": "33b403399ae9393405fbe9fca7da750d3b3703f8",
+    "remaining_source_concern": "Normalize recipe generator overrides before consuming pad geometry; author repairing",
+    "boundary": "Combined qualification and changed public receipts pending; no additional checks by reviewer"
+  },
+  "previous_served_candidate": {
+    "source": "2107f980e9b45c341bff10548c7156b28de0e388",
+    "url": "http://127.0.0.1:34761/",
+    "provenance_sha256": "2d218936e847ba8f4d8680e5ecc4b3f5a05c3ce88c85a2152e2397cd84020ac9",
+    "changed_public_results": [
+      "PCB component preview/cancel/commit and menu focus GREEN, missing instruction retained",
+      "Outline same-context Undo accepted scalar refresh GREEN",
+      "Case Enter/blur duplicate warning correction GREEN"
+    ]
+  },
+  "completed_candidate_pending_receipts": {
+    "source": "900068a0df413059732f9f365abd598734b7f86c",
+    "url": "http://127.0.0.1:34762/",
+    "build": "frontend-footer-empty-assemblies-shell-20261003",
+    "provenance_sha256": "319f378ba0d2eb0855059d2368e1e8028c0c6267e0a50a22b9ed8e8a195e1251",
+    "proof_path": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/frontend-footer-empty-assemblies-shell-root-proof.json",
+    "proof_sha256": "e1e4a85ea28115af6491ad2fcd2617306a0bb1b715da41fd6ee3861bda7806b9",
+    "verification_reused": {
+      "source_commit": "900068a0df413059732f9f365abd598734b7f86c",
+      "provenance_sha256": "319f378ba0d2eb0855059d2368e1e8028c0c6267e0a50a22b9ed8e8a195e1251",
+      "source_count": 1370,
+      "source_mismatches": [],
+      "source_verification": "Frozen integration files against recorded source hashes before further source joins.",
+      "routes": {
+        "root": {
+          "http": 200,
+          "headers": {
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp"
+          },
+          "asset_count": 145,
+          "mismatches": []
+        },
+        "subpath": {
+          "http": 200,
+          "headers": {
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp"
+          },
+          "asset_count": 145,
+          "mismatches": []
+        }
+      },
+      "fresh_commands": 8,
+      "inherited_commands": 22,
+      "duration_seconds": 96.365056,
+      "strict_page_all_targets": {
+        "exit": 0,
+        "duration_seconds": 17.54,
+        "new_tests": 0,
+        "source_commit": "d5f9cff4"
+      }
+    },
+    "source_status": "Recorded Parts recipe findings addressed; no new concrete Standards/Spec defect in assigned deltas",
+    "public_boundary": "Changed assembly/empty utility/header/footer/empty entry/hint receipts incoming; no replay by reviewer",
+    "received_public": [
+      "PCB placement hint exact text/position + Escape removal GREEN",
+      "Empty Board2 matrix entry/cancel/Browse GREEN; action style mismatch correction staged",
+      "One representative normalized assembly recipe/3D/empty surface GREEN; broader visual/lifecycle/module criteria open"
+    ]
+  },
+  "f72_readiness_reconciliation": {
+    "criteria_count": 5,
+    "unchanged_contract": true,
+    "basis": "Representative supported-type/field/history plus existing shared numeric/focus/compact and exact owner source evidence; no invented every-field/theme/race matrix",
+    "pending": null,
+    "status": "Ready for canonical F7.2 acceptance under five unchanged criteria; final 34763 count/route and kind-label deltas GREEN",
+    "final_receipt": {
+      "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-case-workspace/evidence/issue-01-authored-case-reconciliation-20261003/public-crud-and-mismatch-receipt.md",
+      "sha256": "fdfda304486d5af579c8f6688646328671dd40b31d32a2e2b2cacaa160e67048"
+    },
+    "limits": "Does not accept F7.4/F7.7/full Case. Intentional approved Escape rollback correction and RF-001/RF-006 retained."
+  },
+  "candidate_34763": {
+    "source": "99ec041a2895e5ab23880be25501beb9360487db",
+    "urls": [
+      "http://127.0.0.1:34763/",
+      "http://127.0.0.1:34763/boardstudio/"
+    ],
+    "build": "frontend-ui-corrections-export-20261003",
+    "provenance_sha256": "d3c03d6db107ab7a55753b5798d99444f7d0843540ef96530c00d9f44296fe08",
+    "verification_reused": {
+      "source_commit": "99ec041a2895e5ab23880be25501beb9360487db",
+      "provenance_sha256": "d3c03d6db107ab7a55753b5798d99444f7d0843540ef96530c00d9f44296fe08",
+      "source_count": 1371,
+      "source_mismatches": [],
+      "source_verification": "Frozen integration files against recorded source hashes before further source joins.",
+      "routes": {
+        "root": {
+          "http": 200,
+          "headers": {
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp"
+          },
+          "asset_count": 145,
+          "mismatches": []
+        },
+        "subpath": {
+          "http": 200,
+          "headers": {
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp"
+          },
+          "asset_count": 145,
+          "mismatches": []
+        }
+      },
+      "fresh_commands": 8,
+      "inherited_commands": 22,
+      "duration_seconds": 95.620667,
+      "strict_page_all_targets": {
+        "exit": 0,
+        "duration_seconds": 17.97,
+        "new_tests": 0,
+        "source_commit": "65d49442"
+      }
+    },
+    "receipts": {
+      "package_proof": {
+        "path": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/frontend-ui-corrections-export-root-proof.json",
+        "sha256": "8bcc5de067ef7bd6a8f3e7afb1596fbede7d700d33782ed024a12b5f58bfb33d"
+      },
+      "export": {
+        "path": "/home/chris/.local/share/boardstudio/reviews/export-workspace-20261003/RECEIPT.md",
+        "sha256": "ac4a968b8e72aeef293a820185f762c93e528d43dcab3abd3ed7a88b1f962f52"
+      },
+      "case": {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-case-workspace/evidence/issue-01-authored-case-reconciliation-20261003/public-crud-and-mismatch-receipt.md",
+        "sha256": "fdfda304486d5af579c8f6688646328671dd40b31d32a2e2b2cacaa160e67048"
+      },
+      "shell": {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-v1/evidence/f24-shell-parity-20261003/receipt.md",
+        "sha256": "83fd70c60b7e8ad57b370d9e063a81468785f56b74ddd117bfa56afcb6f09e31"
+      },
+      "empty_styles": {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-pcb-view/evidence/21-empty-board-entry-20261003/public-34763-style.json",
+        "sha256": "70a7c586d3f09fc71794eae7d921bcff3d4ceac7572713be3a49f4dc52fee71c"
+      }
+    },
+    "standards": "Existing Session history/providers preserved; scoped outline artifact delivery suppresses replaced accepted owner or executor. One narrow selection-context clearing defect remains.",
+    "spec_findings": [
+      {
+        "priority": 2,
+        "file": "web/src/presentation/export_workspace.rs",
+        "finding": "Review wiring clears Session selected IDs but preserves valid SelectionAdapter tree context; reference clears scope and selected. Layout return can restore a previous Outline/Matrix Inspector context."
+      }
+    ],
+    "public_results": [
+      "SVG/DXF actual downloads and Back/Escape/header return GREEN",
+      "Desktop Project/Export shell and Appearance persistence/focus GREEN, measured offset <=1.47px",
+      "Empty action computed sizing/color matches React; prior navigation/cancel/Browse reused",
+      "Case one configured-board action + route and uppercase TRAY GREEN"
+    ],
+    "open": [
+      "Export Review-link context clearing source correction",
+      "Portable-copy/Review-link/ZMK/STEP downloads not exercised in this changed receipt; existing relevant provider evidence remains reusable",
+      "KiCad and generated mechanical providers unavailable; F8.2-F8.6 broad criteria open",
+      "Footer remaining group offset/current-project status placement correction pending",
+      "F2.4 responsive/guides/shortcuts and broader Parts/PCB/Case parents remain open"
+    ]
+  },
+  "parent_readiness_34763": {
+    "source": "99ec041a2895e5ab23880be25501beb9360487db",
+    "no_new_jobs": true,
+    "source_hashes": {
+      "web/src/presentation/library.rs": "c9f1703423f69ddbe1f51fedcc2caf3be31464663f1f723124bb4d99c9622915",
+      "web/src/runtime.rs": "373c595eb5bfdc25344bf02e8ac079ea530f1fcee2415c2b9497cfe8403d7417",
+      "web/src/presentation/parts.rs": "d41bee60e90bad0de628a367ac522deedb30612c210691730499c208acae140b",
+      "web/src/presentation/part_placement.rs": "1a28e4bccf8032b7a906eaf5ddb5f1c51fcf8128f97549b39f6ddc9533ced3ff",
+      "web/src/presentation.rs": "6f7ed8376c4e9b8bcea9ff635d23af4b860d6579b34070879266e66d2a2b6976"
+    },
+    "receipts": [
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-tranche-1/evidence/cards-panels-2030c9a3/library-handoff.md",
+        "sha256": "e9437b85e5dd03b3d2b32cd5d1e029ee29d2c073f00cd7521daf814026cefbf4"
+      },
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-tranche-1/evidence/review-resolution.json",
+        "sha256": "63999877ae3993248f1f482accd0848be7330d4bd0d65d25e9bd509b8b88f62f"
+      },
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-tranche-1/evidence/saved-keyboard-search-delete-20261003/implementation-checks.md",
+        "sha256": "1368b283fad2c9e2ce30d60007de900ea320f1ec5d9eb7ff4754a668536f3d29"
+      },
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-tranche-1/evidence/saved-keyboard-search-delete-20261003/library-mounted-final.log",
+        "sha256": "64a8113c7cc1d122c831021e38e2bbd528812b732c3745a67feed135c1236e05"
+      },
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-v1/evidence/general-placement-public-20261002/receipt.md",
+        "sha256": "4a7a30a4c7fdea32407d87f4125d2f2c81f682c0666ec4688f76e3c6c0acf464"
+      },
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-layout-authoring/evidence/mirrored-pair-overlay-20261002/README.md",
+        "sha256": "07f00d7010a4f9860561aa8457630c16e46e3e6a971b7d9a7f47b53d1b62cd7c"
+      },
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-layout-authoring/evidence/f32d-matrix-settings-20261003/structural-journey-candidate37d.md",
+        "sha256": "a527c215a912ed90b3f28ab8354d0a8e7f8564b07a18f552688c3229ea278a38"
+      },
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-layout-authoring/evidence/f32d-matrix-settings-20261003/structural-context-candidate34760.md",
+        "sha256": "1ff9975b2549fae97036d497fab8d99e3cd62e7817331fe79ee60d5cbcacea04"
+      },
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-v1/evidence/source-wave-20261002/matrix-focus-public-34727-20261002.json",
+        "sha256": "155c6cc724c6a73715d41859605ccf38ce9f3c9dbae5a0f2fc9e5a939b209e7b"
+      },
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-layout-authoring/evidence/matrix-setup-lifecycle-repair-20261002/repair.md",
+        "sha256": "b4c19aaf22ff0523b80ce0b3b329e5a53f4bcba7b1e299ff0d89215a1e486007"
+      },
+      {
+        "path": "/home/chris/.local/share/boardstudio/reviews/mirror-parts15-public-qualification-7d09-20261002.md",
+        "sha256": "f20fbd6199a6995fd93622f5af24dfeddbfbcc1fd4f7fae1f604342f3f31652f"
+      }
+    ],
+    "F2.1": {
+      "status": "Not ready: concrete remaining demo presentation/fresh-copy path",
+      "covered": "Saved-card/current dedupe/count/preview/fallback and loading/retry source; local search/no-match/clear mounted proof; normal saved open/reload and browsing authority via retained actual Project receipts.",
+      "remaining": "Reference demo cards/previews/counts/full catalogue and fresh editable copy identities. Existing two fixture buttons retain imported IDs. Representative fresh-copy edit/reopen and failure/list retry presentation need existing or changed public proof; no every-demo mutation matrix.",
+      "historical_limits": "Old malformed saved-record/public API approvals are historical, not automatically canonical gates. Damaged-preview fallback means a renderable record with invalid geometry, distinct from undecodable whole stored records."
+    },
+    "F3.2": {
+      "status": "Not ready: preset 1x1 assembly matrix placement entry missing",
+      "covered": "Custom setup live preview and validation source, mounted actual Session/Core commit/history/reopen; retained normal mirror create/Enter/Undo/Redo/reload plus preview Escape; general component Enter/history/reload and newer PCB menu preview cancel/commit/Browse; structural accepted matrix fields/definitions/cell override preservation source and normal changed history.",
+      "remaining": "Parts selected assembly needs beginMatrixPlacement(1,1,preset)-equivalent transient ghost rather than GeneralComponent PendingPart. After that, one representative actual arrow movement at active snap + no-edit cancel/commit and one invalid-dimension rejection fills currently unproved public criterion.",
+      "not_added": "No custom/preset/mirror keyboard Cartesian matrix, repeated unchanged history, new tests or full F3.1 acceptance join; canonical acceptance_after is empty."
+    }
+  },
+  "candidate_34764": {
+    "source": "661296fe5633e2327488cd56738c14ab81c22341",
+    "url": "http://127.0.0.1:34764/",
+    "provenance_sha256": "f597c5d1cd45a8222b5ce8628ffbb5508e7400094cf1f53bcf6518e1681519c0",
+    "proof_path": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/frontend-board-geometry-vik-root-proof.json",
+    "proof_sha256": "e9a956e17632cd6c8acddf5c9c5890b5e681b51098f9d0c867b6e98d4056654e",
+    "verification_reused": {
+      "source_commit": "661296fe5633e2327488cd56738c14ab81c22341",
+      "provenance_sha256": "f597c5d1cd45a8222b5ce8628ffbb5508e7400094cf1f53bcf6518e1681519c0",
+      "source_count": 1375,
+      "source_mismatches": [],
+      "source_verification": "Frozen integration files against recorded source hashes before further source joins.",
+      "routes": {
+        "root": {
+          "http": 200,
+          "headers": {
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp"
+          },
+          "asset_count": 146,
+          "mismatches": []
+        },
+        "subpath": {
+          "http": 200,
+          "headers": {
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp"
+          },
+          "asset_count": 146,
+          "mismatches": []
+        }
+      },
+      "fresh_commands": 22,
+      "inherited_commands": 0,
+      "duration_seconds": 447.476376,
+      "strict_page_all_targets": {
+        "exit": 0,
+        "duration_seconds": 17.49,
+        "new_tests": 0,
+        "source_commit": "533501d9"
+      }
+    },
+    "source_hashes": {
+      "web/src/presentation/board_inspector.rs": "b2c33b6358673daf64e0c6a910964f95b835491ce5d264a566186bb2c3855d1c",
+      "web/src/presentation/geometry_scripts.rs": "7939d93a558f6d92481bf0501a2c731900b48b57d0864654b866484d0bf7f910",
+      "web/src/presentation/parts/modules_catalogue.rs": "e1186d568b08cf7d79bf5b47d302c506bb274610d199db10897d935057e1722e",
+      "web/src/presentation/export_workspace.rs": "ccf21e5f635f5a3b03f9d08b020080b92e91b93544e796f4bb9fe163960e9fc7",
+      "web/src/presentation/library.rs": "a0e26bd0fbb381678b4c9004852f8b6a838e683d1af2989dc50f10ef323c3bce"
+    },
+    "source_findings": [
+      {
+        "priority": 2,
+        "file": "web/src/presentation/board_inspector.rs",
+        "finding": "NameDraft equality includes accepted token/revision, dropping same-board unchanged-name draft after unrelated accepted edit."
+      },
+      {
+        "priority": 2,
+        "file": "web/src/presentation/geometry_scripts.rs",
+        "finding": "Active-script reset identity omits document/session, so identical script IDs/accepted fields can carry draft into new document."
+      },
+      {
+        "priority": 2,
+        "file": "web/src/presentation/geometry_scripts.rs",
+        "finding": "geometry-script-operation ID uses resettable Runtime counter without document collision check; saved/imported existing script may share new ID."
+      }
+    ],
+    "repairs_confirmed": [
+      "Export Review wiring clears selected_context and anchor_scope plus Session selected IDs/anchor",
+      "Current project durability status is nested within its intended section",
+      "Actual34764 root Review wiring\u2192Layout clears Outline context and reaches Board Inspector; CurrentProject status nesting verified"
+    ],
+    "vik_source": {
+      "asset_sha256": "dce6dba69eb7f8d672f7ba499442c9e86f656a473016be56943425915d9724b8",
+      "snapshots": 38,
+      "rows": 29,
+      "projection": "Bundled cache + project override by stable ID, bundled row preserved, project-only row fallback, read-only variant/source/readiness",
+      "side_effects": "No host circuitry/project geometry writes; selection local to current scoped Parts."
+    },
+    "boundary": "Changed author/root browser receipts pending; no additional jobs/replay; excluded621198 Keycaps and2ea8 Case not reviewed. Initial reuse asset guard rejection preserved; full22 establishes the new asset baseline.",
+    "received_changed_public": [
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-v1/evidence/export-workspace-34764-20261003/current-project-status-34764-green.json",
+        "sha256": "1afbd56fd7a4b83b180566158fec86a9a1df5297719bb724856296f2b64ca4da",
+        "observed": {
+          "url": "http://127.0.0.1:34764/",
+          "currentProject": "Current project\nRevision 7 \u00b7 Saved",
+          "allStatus": [
+            {
+              "text": "Revision 7 \u00b7 Saved",
+              "insideCurrent": true
+            }
+          ]
+        }
+      },
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-v1/evidence/export-workspace-34764-20261003/export-review-wiring-dioxus-34764-green.json",
+        "sha256": "ca12a6cc7d049971b183d933dc772d073387e7fb8744b04fddb4f9ded61474cc",
+        "observed": {
+          "url": "http://127.0.0.1:34764/",
+          "outlineContext": false,
+          "boardInspector": true,
+          "inspector": "Inspect\nOptions\n\nSelect a key, component, or matrix to edit it.\n\nBoard name\nOutline\nResolved\nPlaced parts\n34"
+        }
+      },
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-v1/evidence/export-workspace-34764-20261003/export-review-wiring-react-green.json",
+        "sha256": "40133c0ffbf7f10919735f0a8a95995c2e703a394373cd8cf70be246086772b5",
+        "observed": {
+          "url": "http://127.0.0.1:5173/",
+          "inspector": "Inspect\nMain board / Layout\nMain board\n\nSelect a key, component, or matrix to edit it.\n\nBoard name\nOutline\nNot defined\nPlaced parts\n35\nRouted PCB reference",
+          "outlineContext": false,
+          "boardName": "Main board"
+        }
+      }
+    ],
+    "public_boundary": "Root context/status + author Board/Geometry normal paths GREEN on661296fe. Board heading and three draft/ID source corrections remain pending. Assigned VIK normal catalogue receipt not yet received; new source preview007f belongs to next candidate.",
+    "board_geometry_public": {
+      "results": {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-layout-authoring/evidence/f31-board-inspector-geometry-20261003/RESULTS.md",
+        "sha256": "82886af65e2f18d09611eda39d3305970148c9f8973e156c70505b49cfed187a"
+      },
+      "receipt": {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-layout-authoring/evidence/f31-board-inspector-geometry-20261003/receipt.json",
+        "sha256": "024f768fda9232faa9e9fb71438cef0f03af2813015839b060f646932b070c45"
+      },
+      "observed": {
+        "candidate": {
+          "port": 34764,
+          "source_commit": "661296fe5633e2327488cd56738c14ab81c22341",
+          "provider_provenance_sha256": "f597c5d1cd45a8222b5ce8628ffbb5508e7400094cf1f53bcf6518e1681519c0",
+          "url": "http://127.0.0.1:34764/boardstudio/",
+          "routes": [
+            "/",
+            "/boardstudio/"
+          ],
+          "affected_wasm_check": "combined all-target strict Clippy PASS in 17.49s; run by root"
+        },
+        "reference": {
+          "source_commit": "5a472a9426e6e38993361da402cd4ec730feb369",
+          "url": "http://127.0.0.1:5173/"
+        },
+        "sessions": {
+          "react": "layout-board-react-2318ea1a1376",
+          "candidate": "layout-board-candidate-2318ea1a1376"
+        },
+        "fixture": {
+          "path": ".scratch/dioxus-frontend-v1/evidence/case-keymap-current/keymap-layered-public/fixture/layered-sofle-export.boardstudio",
+          "sha256": "5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df"
+        },
+        "journey": {
+          "board_name": "F31 Board Test",
+          "board_rename": "blur/Enter trim, selector/tree/Inspector update, Escape/empty retention, Undo/Redo, candidate reload",
+          "geometry_script": {
+            "name": "F31 bounded hole",
+            "source": "rect(\"extra\", \"hole\", 30.0, -10.0, 3.0, 3.0, 0.0, \"subtract\");",
+            "enabled": true,
+            "result": "one hole outline on React and candidate; candidate reload retained script and output"
+          },
+          "browser_errors": "none observed in either session"
+        },
+        "known_gap": "With tree selection cleared, candidate Board Inspector has fields/guidance but no default Main board heading/context. Explicit Board row selection shows candidate context heading. F3.1 remains open.",
+        "screenshots": [
+          "react-board-inspector-renamed.png",
+          "candidate-board-inspector-renamed.png",
+          "candidate-board-row-selected.png",
+          "react-geometry-script-applied.png",
+          "candidate-geometry-script-applied.png",
+          "candidate-geometry-script-reopened.png"
+        ],
+        "test_policy": "No broad tests by author; root owns combined affected check and integrated candidate review."
+      },
+      "assessment": "Normal rename/trim/empty/Escape/history and candidate reload, Core script output/reload GREEN. Does not exercise unrelated accepted refresh/cross-document identical script draft or saved-ID collision; exact known source corrections/default heading remain pending."
+    }
+  },
+  "candidate_34765": {
+    "source_scan_initial": "78f076fa",
+    "source_freeze": "17ba32b984c13f3621a2145efe1dd478862ab5cd",
+    "source_hashes": {
+      "web/src/presentation/pcb_module_inspector.rs": "71187c360cd1a6005b416d0198e943d2583f38e1c2bb1d7e7ea031e40ec5e510",
+      "web/src/presentation/pcb_module_footprints.rs": "599e07aebeb62f3cd86bf3d06615f33bc0942032c805a8a08cd749fe50bd4587",
+      "web/src/presentation/layout_findings.rs": "dfe7616aa6e21805aa328c2719a51e426d895aa2d60618b1ac81d1ce132485f7",
+      "web/src/presentation/keycaps_fit.rs": "76fc10d79443d6f0703715fdd9a12dc6a8c3ed4b097261c70e8174f8447bd946",
+      "web/src/presentation/case_workspace.rs": "d76f023e82fb97600e288259f00cae0d9f4caa2fe6e3cf5539f7a9b414741e74",
+      "web/src/presentation/case_viewer.rs": "c8bf5fb8f4d658b4745053a62217c5ee8a425b1bcd194f4ef823126670cc696b",
+      "web/src/presentation/parts/modules_catalogue.rs": "e32e5d041579e606cb5f876e044d58daeffef8702744f72bf3a86679dd24dbf7",
+      "web/src/export_footprints.rs": "f087e488e01b07b42764dfbf32cfc244b66cc0edb49aa709f6e12605ffc63f4b",
+      "web/src/bundled_models.rs": "a0814eb440a1d0cc0f6a9284d8b522a19c003e3d3af1adb321c9896f2ed4ed08",
+      "web/src/runtime.rs": "5684858c87ce2161110cfa215ad9bf4c51a679deb990e5754a751d57b5a631d7",
+      "web/src/presentation.rs": "989ac1aaf1fefa01d3aa3dfea04fbb3a703b4802dfd8ab02cde97ced56c6c5a9",
+      "web/src/presentation/export_workspace.rs": "741e243e9ad66ff4e4714b640fd206e6fefd32a21a085cb300b25131cae4b1ab"
+    },
+    "standards": "Existing private presentation/Runtime seams; Core/Session remains authority; no new persistent store or host circuitry projection writes.",
+    "spec": "New module local-draft effect/owner finding corrected by96ab; changed public qualification pending.",
+    "source_finding": {
+      "priority": 1,
+      "initial_source": "78f076fa",
+      "file": "web/src/presentation/pcb_module_inspector.rs",
+      "finding": "Accepted-instance effect subscribes to and resets draft; module-only mount key lacks replacement Scope ownership.",
+      "repair": "96ab3eb0 draft.peek() and full Scope+module mount key",
+      "red_boundary": "Source-derived finding, no executed expected-red claimed."
+    },
+    "verification_reused": {
+      "strict_all_target_wasm": "Root reported PASS19.23s on frozen candidate; no independent rerun",
+      "package": "Verified served root/subpath exact17ba;8fresh+22inherited commands,1378sources/146assets perroute,no drift/mismatch,100.874479s"
+    },
+    "open_followon": [
+      "Board-name draft drops on unrelated accepted revision",
+      "Geometry draft reset lacks logical document/session ownership",
+      "Geometry script ID uses resettable operation counter without collision check",
+      "Default Board Inspector heading/context missing"
+    ],
+    "boundary": "No compiler/browser/package replay; F7.2 acceptance unchanged; broader parents and RF retained.",
+    "url": "http://127.0.0.1:34765/",
+    "subpath_url": "http://127.0.0.1:34765/boardstudio/",
+    "provenance_sha256": "273ca2fa2315b32fec91b0490d2f70fb03b5426d759310bced6e934ad73947d5",
+    "package_proof_reused": {
+      "source_commit": "17ba32b984c13f3621a2145efe1dd478862ab5cd",
+      "provenance_sha256": "273ca2fa2315b32fec91b0490d2f70fb03b5426d759310bced6e934ad73947d5",
+      "source_count": 1378,
+      "source_mismatches": [],
+      "source_verification": "Frozen integration files against recorded source hashes before further source joins.",
+      "routes": {
+        "root": {
+          "http": 200,
+          "headers": {
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp"
+          },
+          "asset_count": 146,
+          "mismatches": []
+        },
+        "subpath": {
+          "http": 200,
+          "headers": {
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp"
+          },
+          "asset_count": 146,
+          "mismatches": []
+        }
+      },
+      "fresh_commands": 8,
+      "inherited_commands": 22,
+      "duration_seconds": 100.874479,
+      "strict_page_all_targets": {
+        "exit": 0,
+        "duration_seconds": 19.23,
+        "new_tests": 0,
+        "source_commit": "96ab3eb0",
+        "note": "Package17ba32b9 adds only uncompiled ledger/evidence files after strict source96ab3eb0."
+      }
+    },
+    "received_changed_public": [
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-v1/evidence/candidate-34765-20261003/package-proof.json",
+        "sha256": "f4d255cc458eb93a4f8bcde36e1fbbfc0ea985c991188b8991ec653db7fd5920"
+      },
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-parts-catalogue/evidence/issue02-vik-module-preview-34765/RESULTS.md",
+        "sha256": "9422495be41eabeadde0e69fc73d2b4cf633509d0d5005f99b108c5f65d482f5"
+      },
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-v1/evidence/export-workspace-34765-20261003/RESULTS.md",
+        "sha256": "6702c499eb79f96d2c6ddad8f8215f980e319a3f2641c79cb8357e7c73a7f172"
+      },
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-shared-viewer/evidence/issue02-selection-summary-20261003/public-receipt-34765.md",
+        "sha256": "0cf174e55680c85eb1d7209d7c9ed4cbadb25cb14d014bc30d12e16d2e09aad9"
+      },
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-keycaps-workflow/evidence/keycaps-clearance-disclosure-20261003/receipt-34765.md",
+        "sha256": "9bf5bd4e50640b3b8850a307fc9bbbea5fad6f36c1cd16b351dbaf56e4df7578"
+      },
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-layout-authoring/evidence/17-layout-findings-navigation/public-34765.md",
+        "sha256": "65d1a2effa0ff2a44df62f75b0028167f1abb42486de67964703c267221f41ab"
+      },
+      {
+        "path": "/home/chris/.local/share/boardstudio/reviews/pcb-mounted-module-inspector-20261003/undo-redo-settled-34765.md",
+        "sha256": "90dc01973a42657cae720e46110da3250b6e8455f11aa7efe71cd1f0189ac47b"
+      }
+    ],
+    "pending_changed_public": [
+      "Corrected footprint ZIP actual download on later candidate",
+      "Layout findings footer visual correction on later candidate"
+    ],
+    "actual_disposition": {
+      "case_selection": "Current picked SW2 breadcrumb/footer/canvas and clear presentation GREEN;no document edit",
+      "keycaps_disclosure": "Default open/collapse/accepted0.5\u21920.6refresh/UndoRedo keep choice GREEN",
+      "layout_findings": "Same-board Outline Show navigation GREEN;confirmed icon-stack visual correction pending;crossboard not exercised",
+      "pcb_module": "Settled accepted X35\u219232.5 Undo\u219235 Redo GREEN; earlier immediate stale-looking display lacks settled snapshot/older provenance and is uncertain, not a confirmed RED",
+      "export_footprints": "34765 actual protocol-token RED;47c2924d token string andbe4ec412 Core filename collision repair are later source,not served34765; focused repair proof reported by root; actual corrected ZIP pending"
+    }
+  },
+  "f6k3_readiness_34765": {
+    "decision": "READY for canonical acceptance",
+    "canonical_row": {
+      "id": "F6K.3",
+      "title": "Structured macro editor",
+      "depends_on": [
+        "F6K.1",
+        "F6K.2",
+        "INT.2"
+      ],
+      "priority": "P1",
+      "effort": "M",
+      "acceptance": "Create, rename, edit, and remove macros; edit tap duration, between-action wait, and ordered tap/press/release/wait steps; respect existing non-empty and count/timing/expanded-binding limits. Prevent or report unsupported nested macros, preserve macro IDs and references, and verify Undo/Redo, persistence, validation feedback, and generated ZMK output through the existing provider.",
+      "boundary_status": "Existing KeymapChange, MacroChange, MacroStep, validation, and GenerateFirmware behavior. No macro-engine changes.",
+      "workflow": "F6",
+      "owner": "Keymap frontend lead",
+      "start_after": [
+        "F6K.1",
+        "F6K.2"
+      ],
+      "acceptance_after": [
+        "INT.2"
+      ],
+      "status": "implementing",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "sol-review",
+        "review_mode": "integrated_candidate_batch",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T09:42:07.126211+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Reconcile verified mounted source/bounded evidence; preserve all parent acceptance criteria."
+        }
+      ],
+      "progress_evidence": [
+        {
+          "at": "2026-10-03T09:42:07.126211+00:00",
+          "source_commit": "e6842ec431b903210254833ee75ca830b538e520",
+          "path": ".scratch/dioxus-keymap-layers/evidence/public-macro-editor/RESULTS.md",
+          "result": "Macro creation/rename/timings/ordered steps/history/reopen are mounted with retained actual evidence; generated ZMK and remaining error/race criteria remain.",
+          "acceptance": "No full-parent acceptance claimed."
+        }
+      ]
+    },
+    "source": "17ba32b984c13f3621a2145efe1dd478862ab5cd",
+    "unchanged_from": "7d09d0a60fbb2cc12e259541614b9483ee618d29",
+    "source_hashes": {
+      "web/src/presentation/keymap/macro_editor.rs": "91f2e48b7badcde9786736e05b00bf7aa1947eec497eebb6420bbecd415403c2",
+      "core/src/keymap.rs": "a2a0764e90efeacf74482f7a399350914e9f049511af6b4e0478ec1e9ba5538b",
+      "core/tests/keymap_workflow.rs": "15500056cd47738d7e56b47834bd679b4f8518358b8fc2b1b718a6d2ffd10f7b"
+    },
+    "evidence": [
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-keymap-layers/evidence/keymap-frontier-audit-20261003/criterion-accounting.md",
+        "sha256": "ef5a892d64461fde9e5ace7984398874d72a34b86b667ef1445381abd7c43926"
+      },
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-keymap-layers/evidence/public-macro-editor/RESULTS.md",
+        "sha256": "057b4b58859304039da31143275ea5921b24db3f77061d6540fe11970fd88ead"
+      },
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-keymap-layers/evidence/macro09-zmk-root-public-qualification/RESULTS.md",
+        "sha256": "cef2cb0e6b8f4098f7f70dd288ee4104497f6f0c881fc0e08a608d087f28835d"
+      },
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-keymap-layers/evidence/macro09-zmk-root-public-qualification/comparison.json",
+        "sha256": "fb69da1913a782ce35961c9d14df1c9176c42d84e4eed6191e5686bdc195a145"
+      },
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-keymap-layers/evidence/macro-editor/current-boundary-native.log",
+        "sha256": "ceba62ec54a04f94f0cbacc7503077cb053ade9dc4341036a639122ed38ad1c1"
+      }
+    ],
+    "criteria": {
+      "CRUD_steps_timing": "Actual34677 macro journey;paired34735 macro09 names/steps reload",
+      "limits_nested": "Current unchanged UI128 count/nonlast-step guard and Core count/nonempty/timing/nested/expanded authority; retained128-tap and64/65-wait boundary proof",
+      "IDs_references": "Stable macro ID and SW3 reference through rename; other reference unchanged",
+      "history_persistence_validation": "Actual UndoRedo/page reload/portable export-import and invalid keycode/name/timing recovery",
+      "ZMK": "Actual paired15 ZIPpaths,parsed electricalplan equal,boardstudio.keymap byte-identical with TapA/Wait100ms"
+    },
+    "joins": "INT.2 already accepted. F6K.1/2 capability starts do not impose full acceptance locks.",
+    "limits": "No whole F6K/F6 acceptance; F6K.1/2/4 remaining criteria stay separate. Older child pending-race/malformed-import/public128-ceiling bullets are retained history, not added canonical gates.",
+    "new_architectural_findings": "None; existing RF/provider ownership retained."
+  },
+  "f6k2_readiness_34765": {
+    "decision": "READY for canonical acceptance",
+    "canonical_row": {
+      "id": "F6K.2",
+      "title": "Binding editor, supported behavior fields, and keycode search",
+      "depends_on": [
+        "F6K.1"
+      ],
+      "priority": "P0",
+      "effort": "M",
+      "acceptance": "Binding choices and conditional fields match current KeyBinding and core validation: key press, mod tap, layer tap, momentary/toggle/to/sticky layer, sticky key, macro, transparent, and none. Keycode search/free-form input, applicable hold/tap/layer/macro controls, selected-layer binding labels, invalid input recovery, and legacy base bindings retain React behavior. Committed bindings use EditKeymap and survive Undo/Redo, reload, and workspace switching without losing stable IDs or collapsing transparent and none.",
+      "boundary_status": "Existing EditKeymap and KeyBinding contracts; private Dioxus editor/projection. No new behavior family, parser, or public API.",
+      "workflow": "F6",
+      "owner": "Keymap frontend lead",
+      "start_after": [
+        "F6K.1"
+      ],
+      "acceptance_after": [],
+      "status": "implementing",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "sol-review",
+        "review_mode": "integrated_candidate_batch",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T08:59:38.988296+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Reconciled already-mounted implementation and retained evidence; no acceptance gate waived."
+        }
+      ],
+      "progress_evidence": {
+        "updated_at": "2026-10-03T08:59:38.988296+00:00",
+        "checkpoint": "Served d7742d46/34757; next batch source38757073+84fbf801+ead8fe7c+0c17fd37",
+        "scope": "Typed binding editor mounted;34755 owner/disclosure GREEN retained. Existing key/macro/encoder source controls align with reference. Actual34757 changed-value Tab RED repaired38757073 for next candidate.",
+        "remaining": "Changed Tab GREEN and remaining full binding/invalid/legacy criterion accounting remain.",
+        "acceptance": "Existing acceptance/dependencies unchanged. Boundary_status is the historical planning statement; this progress entry describes current implementation."
+      }
+    },
+    "criterion_accounting_commit": "54d967a476f864372b10f0309e4b52ed4970e265",
+    "source": "17ba32b984c13f3621a2145efe1dd478862ab5cd",
+    "source_hashes": {
+      "web/src/presentation/keymap/binding_editor.rs": "8b149c2fb3d27ffdaa542696e67aab2a6eabcd3538473267b8bfcb589ddd65d9",
+      "web/src/presentation/keymap/binding_controller.rs": "5d7928a408caeb158e56578600351df43efa19961b22de7c630b1aa65f6b74e1",
+      "web/src/presentation/keymap/view.rs": "2bdc79466dd88e1a42f18158188fc74cad89cb1fef6d45450c76b9ba1c27dc9e",
+      "core/tests/keymap_workflow.rs": "15500056cd47738d7e56b47834bd679b4f8518358b8fc2b1b718a6d2ffd10f7b"
+    },
+    "receipts": [
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/keymap-frontend-queue-20261003/.scratch/dioxus-keymap-layers/evidence/keymap-frontier-audit-20261003/criterion-accounting.md",
+        "sha256": "1e08d2679338717e8bac6a76c24db2d9fddd4e565502ad93f837063c208e1fc0"
+      },
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-keymap-layers/evidence/public-binding-editor/README.md",
+        "sha256": "de5397b131ef654ea5ac386bc2beb65a2147f288e4fc18a9ab6a74dc57dcf358"
+      },
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-keymap-layers/evidence/keymap-binding-tab-focus-20261003/RESULTS.md",
+        "sha256": "d37b2f3bfe1b73ed4667021288cb6ea5c7a68a0591e52683a58ce95267bd9f20"
+      }
+    ],
+    "legacy_projection": "Pinned createKeymapWorkspace.tsx68\u201372/keycapSettings.ts8\u201315 equals current Rust editor/view typed-first;upper layer Transparent;first-layer hardware &kp, &trans,otherwise None.",
+    "legacy_proof_limit": "No legacy-only paired UI fixture claimed. Existing Core SetKeyBinding/EditKeymap/Undo path supports data/history preservation, not proof of a separate legacy-only UI journey. Direct identical small projection plus representative public behavior/history evidence sufficient.",
+    "joins": "No canonical acceptance_after join;F6K.1/F6K.4/F6 remain separate",
+    "new_architectural_findings": "None;retain RF."
+  },
+  "candidate_34766_source_followup": {
+    "source": "bb52b22bc21fef318a4eb9c3e48ccb2239665513",
+    "status": "Packaging in progress;public changed qualification pending",
+    "source_hashes": {
+      "web/src/presentation/board_inspector.rs": "c4276d034cce0c598e8212ca0e73d27c5c6bc756a11bd23ad4fed349974a8ec8",
+      "web/src/presentation/geometry_scripts.rs": "9f5cececc5a8464f1a0577789a3d2aeffd275dbb2bb7649951624999d54ea325",
+      "web/src/presentation/layout_workspace.rs": "db93036b74e8fce9ddbd8fe2ba15adcb0766bba6a795bff59d41c2223a4de16b",
+      "web/src/export_footprints.rs": "59ab1be9231808394681118fc9cae0be6b3c2f77e1cee513eeda76d3cb52f2e4",
+      "core/src/artifact/kicad/output.rs": "711e47a00733e0302f39389517fb1e85c663a3c85111db4bd46faef1d58a3d46",
+      "core/src/artifact/kicad/output/tests.rs": "de8ec704bb687f86d5ede737545a366de80be1bcff3cfcf11b7228d0ddf750ba",
+      "web/assets/m1.css": "5cb5ca5c348ead91dfc94dd8251a09ecf1e11d61531ff32af9107b7971712584"
+    },
+    "repairs": [
+      "Board draft logical Scope/context/generation/board/name baseline;latest submit capture",
+      "Geometry document/session/accepted-script reset;unrelated refresh preserved",
+      "UUID new script identity",
+      "Default Board name/Layout header",
+      "Inline findings footer styling",
+      "Accepted preview-worker token protocol string",
+      "Core-owned deterministic collision-safe standalone filenames/root names"
+    ],
+    "new_concrete_source_defects": [],
+    "verification_reused": "Root strict page all-target WASM91f678f1 PASS16.16s/no newUItests;Core focused red/green reported;no duplicate jobs",
+    "boundary": "Later source not attributed to34765 failed Export. F7.2/K3 immutable acceptance preserved;K2 recommendation independent. Actual34766 ZIP/header/footer pending."
+  },
+  "f6c2_readiness_34765": {
+    "decision": "READY for canonical acceptance",
+    "canonical_row": {
+      "id": "F6C.2",
+      "title": "Board, matrix, and per-key keycap controls",
+      "depends_on": [
+        "F6C.1"
+      ],
+      "priority": "P0",
+      "effort": "M",
+      "acceptance": "Port board keycap/legend colors and clearance, matrix profile/first row/wall thickness/socket, and per-key legend/color/profile/socket/row/width/depth controls. Preserve supported profile/mount choices, valid ranges, inheritance, and null-versus-empty legend behavior. Selection changes, blur commits, workspace switching, errors, Undo/Redo, save/reload, and visual 2D updates match the reference. All durable changes use the existing SetKeycapBoard, SetMatrixKeycaps, or SetKeycapKey command path.",
+      "boundary_status": "Existing SetKeycapBoard, SetMatrixKeycaps, SetKeycapKey, and defaults. No schema or validation changes.",
+      "workflow": "F6",
+      "owner": "Keycaps frontend lead",
+      "start_after": [
+        "F6C.1"
+      ],
+      "acceptance_after": [],
+      "status": "implementing",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "sol-review",
+        "review_mode": "integrated_candidate_batch",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      },
+      "progress_evidence": {
+        "updated_at": "2026-10-03T04:53:39.015941+00:00",
+        "checkpoint": "served a201/34740; next baseline8afaaa2f",
+        "scope": "Paired profileSA\u2192Cherry/UndoRedo/reload green; headercounter child activelyporting; fullcriteriaremain.",
+        "acceptance": "No criteria/dependencies waived; partial source and bounded proof only."
+      }
+    },
+    "source": "17ba32b984c13f3621a2145efe1dd478862ab5cd",
+    "source_hashes": {
+      "web/src/presentation/keycaps_settings.rs": "e7cea816b6ed8a1f7ef4448d887a545f7d4f195f0a6aed2950b7a192c14c8a54",
+      "web/src/presentation/keycaps_scene.rs": "3b7aec0cd86517f185e3dec3317908104cd1124382eb5a98f5a172d5f38f8661",
+      "web/src/presentation/keycaps_workspace.rs": "b1582dc3c55780cc9e257aa87205eba75ba6bccb83fe8fe02e32de6123bd5f1c"
+    },
+    "reference": "5a472a9426e6e38993361da402cd4ec730feb369:app/src/ui/KeycapPanel.tsx",
+    "receipts": [
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-keycaps-workflow/evidence/settings-20261002/source-review-manifest.json",
+        "sha256": "4b904a38e6849b63396e486877d6e57003cbaa1daba93afd501ce4057d3d7ccb"
+      },
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-keycaps-workflow/evidence/keycaps06-paired-browser-20261002.md",
+        "sha256": "d3f0b605a88dd67f14d81b995ba4291744a47a852d0cbd7862062caa459eda5b"
+      },
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-v1/evidence/keycaps-3d-preview-20261003/f6c2-settings-receipt.md",
+        "sha256": "ec95471a1169b5be1496d7b1d69f997276f761ea9259946efc792d009816534b"
+      },
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-v1/evidence/keycaps-3d-preview-20261003/RECEIPT.md",
+        "sha256": "0351d2f75841bd9b5c7af386c3541d4983a2c6bb53a1d09f10fbb9342dde660e"
+      },
+      {
+        "git_commit": "d2292f833c664aa48bffccf6abf97643df9f695f",
+        "path": ".scratch/dioxus-keycaps-workflow/evidence/keycap-legend-transaction-20261003/receipt-34765.md",
+        "sha256": "5c8d0f5f886da057f6466e602c2b6001d5d4af6e98c4e4d2d57dcd53873ddf6c"
+      }
+    ],
+    "criteria": {
+      "controls": "8profiles/4mounts;board colors+clearance;matrixprofile/row/wall/socket;perkeylegend/color/profile/socket/row/width/depth all mounted and reference-matched",
+      "ranges_inheritance": "Direct equal ranges/null defaults;latest-sibling units merge;Core validation and representative wall failure;selection/board isolation",
+      "legend": "Actual34765 valid-history Blank/null-empty/Z-blur/Usebinding UndoRedo/reload;Keymap binding and SA profile unchanged",
+      "history_visual": "Older real clearance/profile and DSA-width UndoRedo/reopen;34759 matrix/colors reload;2D dash/A/Z and inherited values;current colorprojection"
+    },
+    "limits": "Per-key socket/row/depth not individually clicked;native OS colorpicker not driven. Direct shared source plus representative accepted authority sufficient;no broadfield matrix. F6C.1/fullCaps and UI alignment inventory remain open;historical missing original size fixture gate retained separately.",
+    "joins": "acceptance_after=[];F6C.1 is capability start,itsF3.1acceptance join is not transferred toC2",
+    "new_architectural_findings": "None;existingRF and source/HOLD history retained."
+  },
+  "candidate_34766_rejection_classifier_repair": {
+    "status": "Rejected/unserved/notbaseline",
+    "failed_source": "bb52b22bc21fef318a4eb9c3e48ccb2239665513",
+    "provenance_path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-drafts-export-collision-20261003/provenance.json",
+    "provenance_sha256": "d8feabc75048dc9ce1c8a12ea91d1422e7f2c453db4471547ce9e6ebb5ba5a42",
+    "commands": 22,
+    "all_command_exit_zero": true,
+    "source_drift": [
+      "core/pkg/boardstudio_core_bg.wasm"
+    ],
+    "classifier_commit": "96df6ee1de3aff5a9a0b268bf034dbf6845c93bb",
+    "source_hashes": {
+      "scripts/build-m1.py": "f350570e89f57ade0ba87d0a891d84826b318f056fab4da518826d4a750f705f",
+      "scripts/test-build-m1-sources.py": "4976d4804c77f1f83f9037721551bc497943a421283be722c02c476341925d04"
+    },
+    "evidence": [
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-v1/evidence/candidate-34766-20261003/build.log",
+        "sha256": "85f551ca3e9511ea810b5b8bc231fcc93db297ecaba9326f206b53bef58e7d13"
+      },
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-v1/evidence/candidate-34766-20261003/source-inventory-red.log",
+        "sha256": "0fb0ee50cdad04baaacf684822fb4033740522d8c9387cb9169f939e9aad3b38"
+      },
+      {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-v1/evidence/candidate-34766-20261003/source-inventory-green.log",
+        "sha256": "24adda79e21044fef19cdc7f0606a9cd7770fc9a99c705a8622ee923c13bce5d"
+      }
+    ],
+    "decision": "Correctly exclude only wasm-pack generated core/pkg prefix;maintained inputs and asset hashes stay strict. Existing failed package not retroactively accepted.",
+    "regression_reused": "Generated WASM change RED;source inventory2GREEN;core/src/lib.rs change still invalidates source comparison",
+    "next_boundary": "Fresh34767fullbuild required;incoming newbatch controls separately candidate-qualified;no repeated compiler/test/browser here."
+  }
+}
