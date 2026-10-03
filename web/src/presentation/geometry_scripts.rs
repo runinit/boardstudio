@@ -1,6 +1,6 @@
 //! Layout presentation for the existing Core-owned Rhai script workflow.
 use crate::runtime::Runtime;
-use boardstudio_application::{AcceptedSnapshot, Event, Lifecycle};
+use boardstudio_application::{AcceptedSnapshot, Event, Lifecycle, SessionEpoch};
 use boardstudio_core::model::{
     EditCommand, EditOperation, EditPhase, Finding, ProjectDoc, Script, Severity,
 };
@@ -32,13 +32,15 @@ pub(super) fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
         )
     });
     let draft_owner = (snapshot.document.id.clone(), snapshot.session_epoch);
-    let accepted_identity = (draft_owner.0.clone(), draft_owner.1, active_identity.clone());
+    let accepted_identity = (
+        draft_owner.0.clone(),
+        draft_owner.1,
+        active_identity.clone(),
+    );
     let observed_identity = use_hook(|| {
-        std::rc::Rc::new(std::cell::RefCell::new(None::<(
-            String,
-            u64,
-            Option<(String, String, String, bool)>,
-        )>))
+        std::rc::Rc::new(std::cell::RefCell::new(
+            None::<(String, SessionEpoch, Option<(String, String, String, bool)>)>,
+        ))
     });
     use_effect(use_reactive((&accepted_identity,), {
         let mut name = name;
@@ -49,20 +51,20 @@ pub(super) fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
             let owner_changed = observed_identity.borrow().as_ref() != Some(&identity);
             *observed_identity.borrow_mut() = Some(identity.clone());
             match identity.2 {
-            Some((_, accepted_name, accepted_source, accepted_enabled)) => {
-                if owner_changed {
-                    name.set(accepted_name);
-                    source.set(accepted_source);
-                    enabled.set(accepted_enabled);
+                Some((_, accepted_name, accepted_source, accepted_enabled)) => {
+                    if owner_changed {
+                        name.set(accepted_name);
+                        source.set(accepted_source);
+                        enabled.set(accepted_enabled);
+                    }
                 }
-            }
-            None => {
-                if owner_changed {
-                    name.set(String::new());
-                    source.set(String::new());
-                    enabled.set(true);
+                None => {
+                    if owner_changed {
+                        name.set(String::new());
+                        source.set(String::new());
+                        enabled.set(true);
+                    }
                 }
-            }
             }
         }
     }));
