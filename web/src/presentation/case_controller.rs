@@ -41,7 +41,7 @@ pub(super) fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) 
         move || {
             let portal = body_edit_portal;
             let runtime = runtime.clone();
-            let dispatch = Rc::new(
+            Rc::new(
                 move |edit: CaseBodyEdit,
                       scope: boardstudio_application::Scope,
                       snapshot_token: boardstudio_application::SnapshotToken,
@@ -80,8 +80,7 @@ pub(super) fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) 
                         },
                     );
                 },
-            ) as super::case_viewer::CaseBodyEditDispatch;
-            dispatch
+            ) as super::case_viewer::CaseBodyEditDispatch
         }
     });
     {
