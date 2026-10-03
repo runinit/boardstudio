@@ -232,7 +232,6 @@ struct FirmwareAcceptedIdentity {
 struct FirmwareExportTestContext {
     accepted: AcceptedSnapshot,
     scope: Option<Scope>,
-    operation_id: Option<OperationId>,
     current_executor: Rc<dyn FirmwareExportExecutor>,
     executor_epoch: boardstudio_application::ExecutorEpoch,
 }
@@ -1040,7 +1039,6 @@ impl Runtime {
         *self.firmware_export_test_context.borrow_mut() = Some(FirmwareExportTestContext {
             accepted,
             scope,
-            operation_id: None,
             current_executor,
             executor_epoch,
         });
@@ -2161,10 +2159,6 @@ impl Runtime {
         let operation_id = self.operation();
         let (_, executor_epoch) = self.current_firmware_executor();
         self.latest_firmware_export.set(Some(operation_id));
-        #[cfg(test)]
-        if let Some(context) = self.firmware_export_test_context.borrow_mut().as_mut() {
-            context.operation_id = Some(operation_id);
-        }
         self.firmware_exports.borrow_mut().insert(
             operation_id,
             FirmwareExportCapture {
@@ -2203,9 +2197,12 @@ impl Runtime {
     ) -> bool {
         #[cfg(test)]
         if let Some(context) = self.firmware_export_test_context.borrow().as_ref() {
-            return context.operation_id == Some(operation_id)
-                && context.scope.as_ref() == Some(scope)
+            return context.scope.as_ref() == Some(scope)
                 && context.accepted.token == token
+                && self
+                    .session
+                    .borrow()
+                    .export_is_current(operation_id, token, scope)
                 && !self.cancelled_exports.borrow().contains(&operation_id);
         }
         self.session
@@ -3786,7 +3783,7 @@ mod firmware_export_tests {
     }
 
     #[wasm_bindgen_test]
-    async fn production_older_export_completion_cannot_replace_newer_report_or_delivery() {
+    async fn production_older_export_can_deliver_without_replacing_newer_report() {
         let (executor, entered, release) =
             test_support::ControlledExecutor::gated(test_support::Stage::Generation);
         let (runtime, _accepted, _scope) = runtime_fixture(executor);
@@ -3807,10 +3804,13 @@ mod firmware_export_tests {
 
         release.send(()).expect("release older generation");
         test_support::run_effects(&runtime, old_run.await).await;
-        assert!(
-            test_support::take_deliveries(&runtime).is_empty(),
-            "older completion cannot deliver after the newer attempt"
+        let older_deliveries = test_support::take_deliveries(&runtime);
+        assert_eq!(
+            older_deliveries.len(),
+            1,
+            "Session keeps a still-current concurrent export independently deliverable"
         );
+        assert_eq!(older_deliveries[0].filename, "ZMK export test-zmk.zip");
         assert_eq!(runtime.status(), "Saved locally.");
         assert!(!runtime.status_is_alert());
     }
