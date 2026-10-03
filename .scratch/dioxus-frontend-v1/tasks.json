@@ -1754,7 +1754,7 @@
         "review_sha256": "e9e9b0161cb623ea06ba91f673af81d0505282780e5508755f20c8d1e9cb6e56",
         "audit": ".scratch/dioxus-frontend-v1/evidence/keycaps-f6c2-acceptance-20261003/AUDIT.json",
         "audit_sha256": "7676bee7bea375db18154742877ec7883fd32fc86a578e25a45999bd9ef991f7",
-        "criteria_accounting": ".scratch/dioxus-keycaps-workflow/evidence/keycap-settings/reconciliation.md",
+        "criteria_accounting": ".scratch/dioxus-frontend-v1/evidence/keycaps-3d-preview-20261003/f6c2-criteria-reconciliation.md",
         "legend_receipt": ".scratch/dioxus-keycaps-workflow/evidence/keycap-legend-transaction-20261003/receipt-34765.md",
         "scope": "F6C.2 settings and legend behavior only. F6C.1/F3.1/full Keycaps and visual Inspector alignment remain open. Native OS picker and individually clicked per-key socket/row/depth not claimed. No new UI tests or cutover."
       }
