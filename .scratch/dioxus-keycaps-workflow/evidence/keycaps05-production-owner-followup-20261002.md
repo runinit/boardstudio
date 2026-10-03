@@ -34,6 +34,11 @@ On this exact source, the following checks passed:
 
 The mounted test click calls the production `admit_accepted_request` with a controlled accepted source, fit state, document, workspace, scope, and generation; it dispatches the returned production route into the same pending-fit hook used by Editor, then exercises destination fit and queued frame focus. The mounted cases cover same-scope selection replacement before fit, same-scope replacement before animation-frame focus, current-owner focus, and unmount suppression before scoped Signal reads. The accepted-navigation test separately covers a stale fit result and removed target. Route tests cover generated Case-layer precedence and desktop Inspector pin behavior. The Case layer-over-body projection test proves that a retained body does not remain a co-owner when a generated layer is active.
 
+The new shared-hook regression has an exact-source expected-red receipt. Temporarily removing only `&& live.destinations.contains(&expected.destination)` caused `mounted_layout_fit_drops_when_selection_changes_without_scope_change` to fail at the assertion that no camera effects were emitted. The mutation was then restored; the same test passed, and the source hash returned to the frozen `keycaps_navigation.rs` hash above. Captured logs:
+
+- `.scratch/dioxus-keycaps-workflow/evidence/keycaps05-mounted-owner-followup-20261002/destination-guard-expected-red.log` — SHA-256 `3b91e3a74c3c87f6e54e9b5f4a1203130c34b14af2f060934b767f473ef1338a`.
+- `.scratch/dioxus-keycaps-workflow/evidence/keycaps05-mounted-owner-followup-20261002/destination-guard-green.log` — SHA-256 `8edde0170c51e567a4af5829442c72250c85d817987233616e2c01d999ee0184`.
+
 ## Review disposition and remaining gates
 
 Sol's prior HOLD on commit `646151d59113fb1aed2f4f7434904bc81e3699cf` is preserved at `/home/chris/.local/share/boardstudio/reviews/keycaps05-mounted-owner-review-646151d5-sol-20261002.md` (SHA-256 `068c11acbf12b5c8ae0b4568a8567c5223cd84c7f9769e53a2e78b9b7024524c`). The reviewer requested accepted revision/epoch provenance and an aligned test fixture; both corrections are included in this frozen follow-up. No clearance is claimed until the exact-source re-review is recorded.
