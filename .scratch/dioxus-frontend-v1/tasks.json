@@ -4050,7 +4050,15 @@
         "checkpoint": "isolated F5.5 mounted-module placement source packet; base 26ff6b9c",
         "scope": "First placement Inspector child consumes current ProjectDoc module/definition/physical-instance data and existing Core SetMountedModule/RemoveMountedModule edits. It adds scoped mounted-module selection from the PCB overlay. Supports, connection, circuit joins, source editing, full F5.4 criteria and all parent joins remain open.",
         "child": "PCB22 mounted-module placement Inspector",
-        "acceptance": "Source packet only; root integration, combined check/package, paired Save/Remove/Undo/Redo/reopen journey and all original parent criteria/dependencies remain open."
+        "acceptance": "Source packet only; root integration, combined check/package, paired Save/Remove/Undo/Redo/reopen journey and all original parent criteria/dependencies remain open.",
+        "capability_gate_updates": [
+          {
+            "criterion": "F5.5-C03",
+            "blocker": "F4.7",
+            "resolved_for": "implementation and focused qualification start",
+            "reason": "Consumed catalogue definition/profile/readiness and existing Core SetMountedModule capabilities are present and used by the mounted attachment. Whole F4.7 remains parent acceptance_after; its unqualified criteria do not prevent exercising this concrete route."
+          }
+        ]
       },
       "status_history": [
         {
@@ -4102,7 +4110,7 @@
             ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/modules/vik-splitter-gnd-join-ad26b07a.md"
           ],
           "blockers": [],
-          "next_action": "Qualify repaired same-board connector admission and fresh creation/repeat Save on a genuinely new module attachment. Reuse paired circuit joins/copy/remove and constituent placement/history evidence; exported archive reopen remains unqualified.",
+          "next_action": "Reuse paired circuit join/copy/remove and nested constituent placement, foreign-connector rejection/clear, and34782 fresh automatic connector plus repeat Save/history/reopen. Finish remaining circuit/constituent archive-reopen and action/scope evidence; no current source gap established.",
           "finish_condition": "Each action matches React, is correctly scoped, undoable where existing Core semantics allow, and retains unrelated project data.",
           "owned_files": [
             "web/src/presentation/pcb_module_inspector.rs",
@@ -4131,10 +4139,8 @@
             ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md",
             ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/modules/vik-splitter-gnd-join-ad26b07a.md"
           ],
-          "blockers": [
-            "F4.7"
-          ],
-          "next_action": "Qualify genuinely new Haptic3V3 attachment on empty Board2, automatic connector and repeat Save, attach Undo/Redo and reopen. Reuse source/profile/readiness evidence; accepted-only navigation and stale selection/scope admission remain explicit.",
+          "blockers": [],
+          "next_action": "Fresh Haptic attachment, accepted navigation, connector creation/repeat Save, Undo/Redo and archive reopen passed34782. Remaining: qualify accepted F4 profile/model/asset edits flowing into integrated mounted placement; reuse existing variant/readiness/source-preview evidence. Pending/error scope branches remain explicit under C04.",
           "finish_condition": "Integrated PCB placement selection reuses exact F4 definition/readiness/profile/asset controls and reflects their accepted state.",
           "owned_files": [
             "web/src/presentation/pcb_module_inspector.rs",
