@@ -33,7 +33,8 @@
         "app/src/ui/Workbench.tsx",
         ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/keycaps05-navigation-owner-review-5fd4bb76-sol-20261002.md",
         "web/src/presentation/pcb_wiring/pins.rs",
-        ".scratch/dioxus-pcb-view/issues/11-board-wiring-pin-lock-controls.md"
+        ".scratch/dioxus-pcb-view/issues/11-board-wiring-pin-lock-controls.md",
+        "docs/migration/dioxus-frontend-v1-run.json:current_progress"
       ],
       "observation": "At recorded baseline c827c4e6, the presentation spanned 1,399 lines and Runtime 960 lines, with shell, workspace routing, data/service actions and lifecycle integration sharing these modules; the reference Workbench was 1,426 lines. These are historical measurements, not current line counts. Length alone is not a defect; the concrete cost is that independent workflow edits repeatedly touch the same ownership surface.",
       "impact": "Concurrent changes can conflict, and a one-to-one port could preserve broad coupling between workspace controls and service lifecycles.",
@@ -225,6 +226,13 @@
         "2026-10-02 review continuation: Layout component Inspector scope-only generation can revive retained callbacks after selection/workspace ABA; Case root stale-display join allowed old diagnostics with current finding callback. Isolated repairs underway; existing authorities and full acceptance retained.",
         "2026-10-02 paired c6 finding navigation: selected key identity reaches Layout but fit behavior differs by roughly2x from React at1280x577. Production-hook/renderer qualification does not replace equal-fixture viewport geometry acceptance. Existing navigation/marker child owners retain correction and full parent gates.",
         "2026-10-03 combined candidate a201a96a: both consolidated reviewers traced explicit finding Part intent for a primary matrix switch to a Component context rejected by the joined Layout Inspector canonical-Key equality guard. Source-local proofs passed, but feature composition still disagrees about selection intent. Repair assigned immediately; ordinary Key/Column routing must remain intact. Future refactor should centralize explicit selection intent and Inspector admission policies; full paired acceptance remains required."
+      ],
+      "execution_observations": [
+        {
+          "date": "2026-10-03",
+          "observation": "Read-only audit: shared source joins and stale duplicate progress/routing rules increase queue and rework; required acceptance remains distinct from code presence.",
+          "mitigation": "Integrate ready batch; Layout-first, one waiting packet/stream; fewer repeated checks, one candidate review, unified current_progress; all history and criteria retained."
+        }
       ]
     },
     {
@@ -742,7 +750,8 @@
         ".scratch/dioxus-frontend-v1/evidence/tsx-inventory.json",
         "CONSTRAINTS.md",
         "app/playwright.config.ts",
-        ".scratch/m1-production/ACCEPTANCE.md"
+        ".scratch/m1-production/ACCEPTANCE.md",
+        "docs/migration/dioxus-frontend-v1-run.json:current_progress"
       ],
       "observation": "The original roadmap contained invented project/export controls and coarse dependencies; UI-owned helper work was not explicit. Existing browser suites target React, bounded Dioxus evidence lives in task artifacts, and historical visual references are only in the original checkout. Actual screen-reader coverage is unavailable on this host.",
       "impact": "Plans and passing partial checks can imply unsupported completeness; evidence may not identify the delivered source and environment consistently.",
@@ -967,6 +976,13 @@
         "2026-10-02 paired public34739: initial archive5b import followed immediately by PCB retains disabled Wiring mode despite Ready/Saved; reload enables and accepted mode history/reopen passes. Reproduced independently; import/owner lifetime diagnosis remains open.",
         "2026-10-02 Apply source e687 review: exact source identity alone is insufficient; ElectricalPlan.mode must agree with accepted board configuration/default Matrix. Mode-inconsistent positive fixtures can conceal the missing boundary; legal resolved-plan and negative mismatch coverage required. Repair underway, no Apply acceptance.",
         "2026-10-03 a201 paired PCB Matrix Apply durable archives match pinned React byte-for-byte on Left and Right; visible action-group placement and primary styling still differ. Layer operations/history/reload pass, but owned layer-button spacing remains wrong. Semantic/document equality is strong bounded evidence, not whole UI or parent acceptance. Packaging feature-graph extension a57135a7 passed its author suite but independent matched-baseline negatives expose legacy-allowlist/provider-overlap, transitive-feature, include! and nested inline-module fail-open cases; actual reuse withheld pending conservative guard repairs."
+      ],
+      "execution_observations": [
+        {
+          "date": "2026-10-03",
+          "observation": "Read-only audit: shared source joins and stale duplicate progress/routing rules increase queue and rework; required acceptance remains distinct from code presence.",
+          "mitigation": "Integrate ready batch; Layout-first, one waiting packet/stream; fewer repeated checks, one candidate review, unified current_progress; all history and criteria retained."
+        }
       ]
     },
     {

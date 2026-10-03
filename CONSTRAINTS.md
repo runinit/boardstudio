@@ -1,6 +1,28 @@
 # BoardStudio migration constraints
 
-Last reviewed: 2026-10-02.
+Last reviewed: 2026-10-03.
+
+## Delivery priority and reduced repeated testing — user update 2026-10-03
+
+The user chose Layout-first delivery, six persistent queues, one implemented
+packet awaiting integration/validation per stream, and parent plus journey/criterion
+progress reporting. Their final correction was: “we need less testing and more
+moving”. Implement and integrate ready work; do not add another approval round.
+
+Reuse passing checks and paired evidence for unchanged behavior. Run the required
+affected compile/check once on the combined source and validate changed journeys
+on the integrated candidate. Add a focused regression for a reproduced bug;
+ordinary reversible UI changes do not need new tests or an exhaustive neighboring
+transition matrix. Broaden only for a failure or an identified unresolved risk.
+Sol reviews the completed candidate once, with targeted follow-up for repairs.
+
+The coordinator assigns heavy build/test slots rather than having agents race to
+infer availability from process lists. Integrate ready packets before starting
+more independent authoring in that stream. Keep all six queues supplied, favor
+Layout closure, and retain every parent criterion and RF observation. Current
+progress is `docs/migration/dioxus-frontend-v1-run.json:current_progress`; older
+checkpoints are history. Required checks, public paired acceptance and final
+cutover approval remain intact.
 
 Current scope: **100% frontend React/TSX-to-Dioxus parity**, using the existing
 engines/providers. Preserve the TypeScript workbenches' theming, control placement,

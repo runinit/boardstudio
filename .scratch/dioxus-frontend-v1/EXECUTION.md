@@ -1,5 +1,15 @@
 # Frontend workflow execution and agent ownership
 
+**Operative update, 2026-10-03:** follow CONSTRAINTS.md's Layout-first delivery
+and reduced repeated testing policy. Keep six queues and at most one waiting
+packet per stream; finish integration/validation before adding its next packet.
+Reuse sufficient existing evidence, perform the required affected combined check
+and one candidate review, and add only a focused regression for an actual bug.
+No exhaustive transition matrix or per-child review sequence is required. Root
+assigns heavy test/build slots. Current candidate, journey/criterion progress and
+parent counts are authoritative in `docs/migration/dioxus-frontend-v1-run.json`
+under `current_progress`; older checkpoint paragraphs below are history.
+
 **Scope:** complete the existing React interface in Dioxus, including UI-owned TypeScript controllers, styles, themes, assets and interaction behavior. **Planning baseline:** `c827c4e6`; current integration source snapshot `3c83cc0f` with active coordinator/feature work; React reference `5a472a9426e6e38993361da402cd4ec730feb369`. F1 and F3a are verified increments. Full F2–F9 remain open. 48 bounded ticket records are published, 47 non-superseded; the retained superseded aggregate is excluded from the latter count. All 62 parent tasks and graph joins remain intact.
 
 **Current six-stream refinement:** Follow [the confirmed parity spec](../dioxus-workbench-parity/spec.md) and [stream ownership/status map](../dioxus-workbench-parity/stream-reconciliation.md). Six clean stream worktrees have disjoint first-slice ownership; the root owns the reviewed composition dispatcher, shared mount/CSS and build windows. Every stream reports observed, implemented, wired and paired-verified separately, preserves the original canonical parent starts and final joins, and records an RF handoff or scoped no-new-takeaway note. Capability-level child dispatch is authorized only with source/evidence for that child’s consumed seam; it never closes or waives a parent. Composition preparation and Case issue09 are implementing after exact private-contract clearance; no feature parent is thereby accepted.

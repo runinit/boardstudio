@@ -1,12 +1,12 @@
 {
   "run": "dioxus-frontend-v1-20261001",
   "scope": "100% frontend: all TSX, UI state, theming and responsive/interaction behavior",
-  "status": "Candidate frontend-candidate-batch-20261003 served at34740 root/subpath, source a201a96a. Full22 commands passed;1354 inputs zero source drift;145 assets per route zero mismatches. Eight joined source slices undergoing consolidated Sol review and paired journeys. Known Parts accepted-refresh draft loss, Keycaps Part Inspector rejection and Layout unrelated-revision draft reset under repair; PCB pin/lock frozen for next batch. Parent acceptance remains1/62; RF001\u2013015 retained.",
+  "status": "Layout-first integration batch underway; current served package19525578 at34742 independently qualified. Parents2 accepted/12 implementing/48 planned. Ready source joins and changed journey acceptance tracked in current_progress.",
   "six_stream_parity": {
     "spec": ".scratch/dioxus-workbench-parity/spec.md",
     "stream_reconciliation": ".scratch/dioxus-workbench-parity/stream-reconciliation.md",
     "confirmed_at": "2026-10-02",
-    "status": "Candidate frontend-candidate-batch-20261003 served at34740 root/subpath, source a201a96a. Full22 commands passed;1354 inputs zero source drift;145 assets per route zero mismatches. Eight joined source slices undergoing consolidated Sol review and paired journeys. Known Parts accepted-refresh draft loss, Keycaps Part Inspector rejection and Layout unrelated-revision draft reset under repair; PCB pin/lock frozen for next batch. Parent acceptance remains1/62; RF001\u2013015 retained.",
+    "status": "Layout-first integration batch underway; current served package19525578 at34742 independently qualified. Parents2 accepted/12 implementing/48 planned. Ready source joins and changed journey acceptance tracked in current_progress.",
     "active_feature_contracts": {
       "composition": {
         "ticket": ".scratch/dioxus-workbench-parity/issues/01-private-workbench-composition.md",
@@ -443,20 +443,18 @@
   "bounded_ticket_count": 44,
   "non_superseded_bounded_ticket_count": 43,
   "latest_demo": {
-    "id": "frontend-inspector-idb-integrated-20261002",
-    "source_commit": "71a144ec3a58c8e7fe8169fae5fbe8429f995f6a",
-    "url": "http://127.0.0.1:34729/",
-    "subpath": "http://127.0.0.1:34729/boardstudio/",
-    "commands": 22,
-    "source_hashes": 1291,
-    "source_mismatches": 0,
-    "assets_per_site": {
-      "root": 145,
-      "subpath": 145
-    },
-    "provenance": "web/target/builds/frontend-inspector-idb-integrated-20261002/provenance.json",
-    "scope": "Fresh full build with reviewed IndexedDB observer/shared Inspector integrated. Paired Sofle fixture wheel receipt: React inspector scrollTop 288, Dioxus inspector scrollTop 515; bounded Inspector scroll acceptance only. Real keyboard Find a key flow selects left-thumbs-SW5 after typing, Tab, ArrowDown, Enter. No edit/Undo/save qualification.",
-    "status": "Served current verified candidate. Source HEAD is 8cd53167; this package predates the newly integrated Case issues 09e+0c+e72 and Firmware 192+c98+ff+af and Objects heading 830, so those changes are not attributed to this build."
+    "build_id": "frontend-parts-outline-keycaps-reuse-20261003",
+    "source_commit": "19525578207ff66bfb51a6c7a6483a0bb7905029",
+    "root_url": "http://127.0.0.1:34742/",
+    "subpath_url": "http://127.0.0.1:34742/boardstudio/",
+    "provenance": "web/target/builds/frontend-parts-outline-keycaps-reuse-20261003/provenance.json",
+    "provenance_sha256": "31e7a0e255656aa798c9ce0da35d93ea1213ab3f0002c56e811e448a790d7d74",
+    "fresh_commands": 8,
+    "inherited_commands": 22,
+    "assets_per_route": 145,
+    "package_qualification": "Independent CLEAR; documented profile/environment-sensitive offline limitation retained.",
+    "independent_review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/frontend-reuse-19525578-package-review-sol-20261003.md",
+    "command_finished_at": "2026-10-03T05:09:15.357062+00:00"
   },
   "mechanical_clearance_ticket": {
     "issue": ".scratch/dioxus-case-workspace/issues/08-mechanical-clearance-projection.md",
@@ -736,7 +734,9 @@
     "assets_per_route": 145,
     "elapsed_seconds": 524.315853,
     "provenance_sha256": "4612d6c4915b36e901fa031c6a44f6efb95f342f136bb305f26447ca48fafb80",
-    "qualification": "Root fullbuild/input/assetsverified; independent package/paired repairedjourneys underway."
+    "qualification": "Independent package CLEAR; actual repaired Case blocked\u2192Undo/current output and saved reload GREEN. Other parent criteria and camera framing gate remain open.",
+    "independent_review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/frontend-baseline-8afaaa2f-case-package-review-sol-20261003.md",
+    "independent_review_sha256": "983cf1f80c459ed9df45f0c81a95af488d3d7ee872f1c27fb4be6207154b7665"
   },
   "pending_integration_wave_20261002": {
     "source": "d585492012a60937879e89a8618c1d533fddba4e",
@@ -752,39 +752,22 @@
     ]
   },
   "current_comparison_build": {
-    "url": "http://127.0.0.1:34741/",
-    "root_url": "http://127.0.0.1:34741/",
-    "subpath": "http://127.0.0.1:34741/boardstudio/",
-    "subpath_url": "http://127.0.0.1:34741/boardstudio/",
-    "build": "frontend-parity-repairs-full-baseline-20261003",
-    "source": "8afaaa2f38da73bce2e61de246fda92c6fe96db8",
-    "source_commit": "8afaaa2f38da73bce2e61de246fda92c6fe96db8",
-    "commands": 22,
-    "source_hashes": 1357,
+    "build_id": "frontend-parts-outline-keycaps-reuse-20261003",
+    "source_commit": "19525578207ff66bfb51a6c7a6483a0bb7905029",
+    "root_url": "http://127.0.0.1:34742/",
+    "subpath_url": "http://127.0.0.1:34742/boardstudio/",
+    "provenance": "web/target/builds/frontend-parts-outline-keycaps-reuse-20261003/provenance.json",
+    "provenance_sha256": "31e7a0e255656aa798c9ce0da35d93ea1213ab3f0002c56e811e448a790d7d74",
+    "fresh_commands": 8,
+    "inherited_commands": 22,
     "assets_per_route": 145,
-    "elapsed_seconds": 524.315853,
-    "provenance_sha256": "4612d6c4915b36e901fa031c6a44f6efb95f342f136bb305f26447ca48fafb80",
-    "qualification": "Root fullbuild/input/assetsverified; independent package/paired repairedjourneys underway."
+    "package_qualification": "Independent CLEAR; documented profile/environment-sensitive offline limitation retained.",
+    "independent_review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/frontend-reuse-19525578-package-review-sol-20261003.md",
+    "command_finished_at": "2026-10-03T05:09:15.357062+00:00"
   },
   "active_source_freeze": {
-    "url": "http://127.0.0.1:34736/",
-    "subpath": "http://127.0.0.1:34736/boardstudio/",
-    "build": "frontend-ready-export-theme-reuse-20261002",
-    "source": "d7ff5e3dcae67a719caf6660cfcff57c3811df34",
-    "reuse_mode": "page-only-provider-reuse",
-    "commands": 8,
-    "inherited_full_build_commands": 22,
-    "source_hashes": 1342,
-    "assets_per_route": 145,
-    "reused_providers_per_route": 126,
-    "elapsed_seconds": 88.785166,
-    "provenance_sha256": "60f51e4b5775b1541131d661046fb9b751f77d812569eb366018c94f70640fe9",
-    "qualification": "Independently verified CSS-only correction; ready indicator paired Light/Dark match. Full-workbench acceptance open.",
-    "full_build_baseline": "frontend-authoring-layers-integrated-20261002",
-    "full_build_source": "7d09d0a60fbb2cc12e259541614b9483ee618d29",
-    "commit": "d7ff5e3dcae67a719caf6660cfcff57c3811df34",
-    "state": "complete and independently verified; source lease released",
-    "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/ready-export-theme-package-review-d7ff5e3d-sol-20261002.md"
+    "state": "released",
+    "source_commit": "19525578207ff66bfb51a6c7a6483a0bb7905029"
   },
   "retained_checkpoint_history": [
     {
@@ -920,6 +903,158 @@
     {
       "previous_status": "Current execution checkpoint (2026-10-02): six workbench streams continue. Served comparison remains frontend-ready-export-theme-reuse-20261002, source d7ff5e3dcae67a719caf6660cfcff57c3811df34 at http://127.0.0.1:34736/ and /boardstudio/. Integration b9e74e37 includes independently reviewed Layout model-layer ownership/responsive controls and Case wireless transport admission repairs; strict combined page/core-worker WASM all-target Clippy passed in 8.00s. Full candidate frontend-layout-case-transport-integrated-20261002 is building; it is not served or publicly accepted yet. Parts chooser, PCB Wiring mode, Keycaps finding navigation, Case live preview and Project menu name remain under source repair/review. Layout contextual component Inspector planning advances from proven capabilities. Sol 6.1 High reviews; configured ceiling30/runtime11 including coordinator. All62 canonical parents and RF-001\u2013RF-015 retained; paired browser and full parent acceptance gates remain open.",
       "superseded_by": "34737 full package served and independently verified"
+    },
+    {
+      "recorded_at": "2026-10-03T06:03:59.457368+00:00",
+      "reason": "Historical duplicate current fields retained before unified20261003 update",
+      "fields": {
+        "status": "Candidate frontend-candidate-batch-20261003 served at34740 root/subpath, source a201a96a. Full22 commands passed;1354 inputs zero source drift;145 assets per route zero mismatches. Eight joined source slices undergoing consolidated Sol review and paired journeys. Known Parts accepted-refresh draft loss, Keycaps Part Inspector rejection and Layout unrelated-revision draft reset under repair; PCB pin/lock frozen for next batch. Parent acceptance remains1/62; RF001\u2013015 retained.",
+        "latest_demo": {
+          "id": "frontend-inspector-idb-integrated-20261002",
+          "source_commit": "71a144ec3a58c8e7fe8169fae5fbe8429f995f6a",
+          "url": "http://127.0.0.1:34729/",
+          "subpath": "http://127.0.0.1:34729/boardstudio/",
+          "commands": 22,
+          "source_hashes": 1291,
+          "source_mismatches": 0,
+          "assets_per_site": {
+            "root": 145,
+            "subpath": 145
+          },
+          "provenance": "web/target/builds/frontend-inspector-idb-integrated-20261002/provenance.json",
+          "scope": "Fresh full build with reviewed IndexedDB observer/shared Inspector integrated. Paired Sofle fixture wheel receipt: React inspector scrollTop 288, Dioxus inspector scrollTop 515; bounded Inspector scroll acceptance only. Real keyboard Find a key flow selects left-thumbs-SW5 after typing, Tab, ArrowDown, Enter. No edit/Undo/save qualification.",
+          "status": "Served current verified candidate. Source HEAD is 8cd53167; this package predates the newly integrated Case issues 09e+0c+e72 and Firmware 192+c98+ff+af and Objects heading 830, so those changes are not attributed to this build."
+        },
+        "current_comparison_build": {
+          "url": "http://127.0.0.1:34741/",
+          "root_url": "http://127.0.0.1:34741/",
+          "subpath": "http://127.0.0.1:34741/boardstudio/",
+          "subpath_url": "http://127.0.0.1:34741/boardstudio/",
+          "build": "frontend-parity-repairs-full-baseline-20261003",
+          "source": "8afaaa2f38da73bce2e61de246fda92c6fe96db8",
+          "source_commit": "8afaaa2f38da73bce2e61de246fda92c6fe96db8",
+          "commands": 22,
+          "source_hashes": 1357,
+          "assets_per_route": 145,
+          "elapsed_seconds": 524.315853,
+          "provenance_sha256": "4612d6c4915b36e901fa031c6a44f6efb95f342f136bb305f26447ca48fafb80",
+          "qualification": "Independent package CLEAR; actual repaired Case blocked\u2192Undo/current output and saved reload GREEN. Other parent criteria and camera framing gate remain open.",
+          "independent_review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/frontend-baseline-8afaaa2f-case-package-review-sol-20261003.md",
+          "independent_review_sha256": "983cf1f80c459ed9df45f0c81a95af488d3d7ee872f1c27fb4be6207154b7665"
+        },
+        "active_source_freeze": {
+          "url": "http://127.0.0.1:34736/",
+          "subpath": "http://127.0.0.1:34736/boardstudio/",
+          "build": "frontend-ready-export-theme-reuse-20261002",
+          "source": "d7ff5e3dcae67a719caf6660cfcff57c3811df34",
+          "reuse_mode": "page-only-provider-reuse",
+          "commands": 8,
+          "inherited_full_build_commands": 22,
+          "source_hashes": 1342,
+          "assets_per_route": 145,
+          "reused_providers_per_route": 126,
+          "elapsed_seconds": 88.785166,
+          "provenance_sha256": "60f51e4b5775b1541131d661046fb9b751f77d812569eb366018c94f70640fe9",
+          "qualification": "Independently verified CSS-only correction; ready indicator paired Light/Dark match. Full-workbench acceptance open.",
+          "full_build_baseline": "frontend-authoring-layers-integrated-20261002",
+          "full_build_source": "7d09d0a60fbb2cc12e259541614b9483ee618d29",
+          "commit": "d7ff5e3dcae67a719caf6660cfcff57c3811df34",
+          "state": "complete and independently verified; source lease released",
+          "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/ready-export-theme-package-review-d7ff5e3d-sol-20261002.md"
+        },
+        "current_build_in_progress": {
+          "build_id": "frontend-parts-outline-keycaps-reuse-20261003",
+          "source_commit": "19525578",
+          "status": "building",
+          "started_at": "2026-10-03T05:08:57.187253+00:00",
+          "mode": "guarded page-feature provider reuse",
+          "baseline": "frontend-parity-repairs-full-baseline-20261003",
+          "command": "python3 -u scripts/build-m1.py frontend-parts-outline-keycaps-reuse-20261003 --reuse-providers-from frontend-parity-repairs-full-baseline-20261003",
+          "source_lease": "Root source joins paused until completion; isolated six-stream authors continue.",
+          "qualification": "Actual changed-source preflight passed; real packaging/timing/provider-byte/route checks pending."
+        },
+        "latest_candidate_batch": {
+          "build_id": "frontend-candidate-batch-20261003",
+          "source_commit": "a201a96a",
+          "started_at": "2026-10-03T04:21:52.545014+00:00",
+          "status": "complete",
+          "command": "python3 -u scripts/build-m1.py frontend-candidate-batch-20261003",
+          "source_lease": "No root source joins until pipeline completion; isolated streams continue.",
+          "known_open_defects": [
+            "Parts accepted-refresh dirty draft retention",
+            "PCB import-time disabled mode controls"
+          ],
+          "acceptance": "Source integration only; paired candidate journeys pending.",
+          "build": "frontend-candidate-batch-20261003",
+          "source": "a201a96a76c0d908580793e36e4c7d315155fbb3",
+          "commands": 22,
+          "failed_commands": [],
+          "inputs": 1354,
+          "source_drift": [],
+          "asset_counts": {
+            "root": 145,
+            "subpath": 145
+          },
+          "asset_mismatches": {
+            "root": [],
+            "subpath": []
+          },
+          "provenance_sha256": "a94e2c6989ea98664f31e5dd2f57d62a853b40fcdce348c701f0c80d40eafc7f",
+          "url": "http://127.0.0.1:34740/",
+          "subpath_url": "http://127.0.0.1:34740/boardstudio/",
+          "verification": "Root source/asset proof complete; independent package and paired browser review running."
+        },
+        "next_candidate_batch_20261003": {
+          "integrated": [
+            {
+              "slice": "PCB pin/lock controls",
+              "source": "03914b14",
+              "evidence": "3210e1b0"
+            },
+            {
+              "slice": "Page-feature provider reuse helper",
+              "source": "a57135a7",
+              "status": "independent guard HOLD; full path unaffected; actual reuse withheld"
+            },
+            {
+              "slice": "Case current-result title after Undo",
+              "source": "85d0a736"
+            },
+            {
+              "slice": "Project menu composition",
+              "source": "7ae521b6",
+              "test_api_fix": "30045911"
+            },
+            {
+              "slice": "Keycaps explicit Part Inspector/pill",
+              "source": "bd7f1c11"
+            },
+            {
+              "slice": "PCB Apply actions / Keymap Layers visual correction",
+              "source": "2cb8e70c"
+            },
+            {
+              "slice": "Layout accepted-refresh draft lifetime",
+              "source": "78cc436a"
+            },
+            {
+              "slice": "PCB remap dedicated Session/Core operation",
+              "source": "23effad6"
+            },
+            {
+              "slice": "Saved keyboard search",
+              "source": "3c75ba51"
+            }
+          ],
+          "pending": [
+            "Parts accepted-refresh pad-row/draft repair",
+            "Packaging fail-closed graph guards",
+            "Saved-search mounted verification"
+          ],
+          "checks": "28 repaired packaging guard tests, fmt and combined strict WASM all-target Clippy pass at8afaaa2f. Full22 helper baseline currentlybuilding; actual page-feature reuse qualification follows Partsjoin.",
+          "acceptance": "No parent closure from source-only joins; currentserved a201 at34740."
+        }
+      }
     }
   ],
   "current_build_in_progress": null,
@@ -1046,35 +1181,9 @@
   "review_execution_policy": "2026-10-02 user update: candidate-first batching; routine frontend planning/source/root joins no longer require separate approvals. Authors implement and verify; reviewers assess frozen integrated candidates and paired browser journeys; affected repair rechecks only. All62 parent criteria and explicit public API/cutover gates retained.",
   "api_design_authority": "2026-10-02 user explicitly authorizes necessary APIs/design changes; update consumers/contracts/tests and document compatibility/refactor reasoning, review in integrated candidate without another permission round.",
   "latest_candidate_batch": {
-    "build_id": "frontend-candidate-batch-20261003",
-    "source_commit": "a201a96a",
-    "started_at": "2026-10-03T04:21:52.545014+00:00",
-    "status": "complete",
-    "command": "python3 -u scripts/build-m1.py frontend-candidate-batch-20261003",
-    "source_lease": "No root source joins until pipeline completion; isolated streams continue.",
-    "known_open_defects": [
-      "Parts accepted-refresh dirty draft retention",
-      "PCB import-time disabled mode controls"
-    ],
-    "acceptance": "Source integration only; paired candidate journeys pending.",
-    "build": "frontend-candidate-batch-20261003",
-    "source": "a201a96a76c0d908580793e36e4c7d315155fbb3",
-    "commands": 22,
-    "failed_commands": [],
-    "inputs": 1354,
-    "source_drift": [],
-    "asset_counts": {
-      "root": 145,
-      "subpath": 145
-    },
-    "asset_mismatches": {
-      "root": [],
-      "subpath": []
-    },
-    "provenance_sha256": "a94e2c6989ea98664f31e5dd2f57d62a853b40fcdce348c701f0c80d40eafc7f",
-    "url": "http://127.0.0.1:34740/",
-    "subpath_url": "http://127.0.0.1:34740/boardstudio/",
-    "verification": "Root source/asset proof complete; independent package and paired browser review running."
+    "state": "source-integrated",
+    "source_commit": "66ab12d35c90b17af95c6301717f2f534bda7ffc",
+    "details": "current_progress.integration"
   },
   "comparison_history_before_batch_20261003": {
     "url": "http://127.0.0.1:34739/",
@@ -1093,54 +1202,8 @@
     "independent_review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/chooser-pcb-navigation-package-review-a8fd8988-sol-20261002.md"
   },
   "next_candidate_batch_20261003": {
-    "integrated": [
-      {
-        "slice": "PCB pin/lock controls",
-        "source": "03914b14",
-        "evidence": "3210e1b0"
-      },
-      {
-        "slice": "Page-feature provider reuse helper",
-        "source": "a57135a7",
-        "status": "independent guard HOLD; full path unaffected; actual reuse withheld"
-      },
-      {
-        "slice": "Case current-result title after Undo",
-        "source": "85d0a736"
-      },
-      {
-        "slice": "Project menu composition",
-        "source": "7ae521b6",
-        "test_api_fix": "30045911"
-      },
-      {
-        "slice": "Keycaps explicit Part Inspector/pill",
-        "source": "bd7f1c11"
-      },
-      {
-        "slice": "PCB Apply actions / Keymap Layers visual correction",
-        "source": "2cb8e70c"
-      },
-      {
-        "slice": "Layout accepted-refresh draft lifetime",
-        "source": "78cc436a"
-      },
-      {
-        "slice": "PCB remap dedicated Session/Core operation",
-        "source": "23effad6"
-      },
-      {
-        "slice": "Saved keyboard search",
-        "source": "3c75ba51"
-      }
-    ],
-    "pending": [
-      "Parts accepted-refresh pad-row/draft repair",
-      "Packaging fail-closed graph guards",
-      "Saved-search mounted verification"
-    ],
-    "checks": "28 repaired packaging guard tests, fmt and combined strict WASM all-target Clippy pass at8afaaa2f. Full22 helper baseline currentlybuilding; actual page-feature reuse qualification follows Partsjoin.",
-    "acceptance": "No parent closure from source-only joins; currentserved a201 at34740."
+    "state": "source-integrated",
+    "details": "current_progress.integration"
   },
   "parent_progress_20261003": {
     "accepted": 2,
@@ -1174,5 +1237,138 @@
     "qualification": "Independent package verification CLEAR; actual paired Case Undo exposed stale blocked title (repair integrated85d0a736). Paired PCB Apply durable documents byte-identical; button placement remains open. Keymap layer edits/history/reload pass; owned spacing gap under repair. Project name bounded trim/history/reload green; menuvisual correction underway. Known Parts and Layout draft issues/Keycaps Inspector and mode pending nextcandidate.",
     "independent_review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/frontend-batch-a201a96a-case-package-review-sol-20261003.md",
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
+  },
+  "current_progress": {
+    "updated_at": "2026-10-03T06:06:17.220521+00:00",
+    "authority": "Latest user: Layout first, six queues, one waiting packet/stream, journey/criterion reporting, less testing/more implementation.",
+    "parent_counts": {
+      "accepted": 2,
+      "implementing": 12,
+      "planned": 48,
+      "total": 62
+    },
+    "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
+    "served_candidate": {
+      "build_id": "frontend-parts-outline-keycaps-reuse-20261003",
+      "source_commit": "19525578207ff66bfb51a6c7a6483a0bb7905029",
+      "root_url": "http://127.0.0.1:34742/",
+      "subpath_url": "http://127.0.0.1:34742/boardstudio/",
+      "provenance": "web/target/builds/frontend-parts-outline-keycaps-reuse-20261003/provenance.json",
+      "provenance_sha256": "31e7a0e255656aa798c9ce0da35d93ea1213ab3f0002c56e811e448a790d7d74",
+      "fresh_commands": 8,
+      "inherited_commands": 22,
+      "assets_per_route": 145,
+      "package_qualification": "Independent CLEAR; documented profile/environment-sensitive offline limitation retained.",
+      "independent_review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/frontend-reuse-19525578-package-review-sol-20261003.md",
+      "command_finished_at": "2026-10-03T05:09:15.357062+00:00"
+    },
+    "integration": {
+      "source_commit": "1c200c23c14c15aa34e63f351f5a9f122b4bd149",
+      "state": "eight mounted integrations ready for production package; no per-child approval queue",
+      "packets": [
+        {
+          "slice": "Layout perimeter editing",
+          "original_source": "a4f51c57",
+          "integrated_source": "d17cbd6f",
+          "state": "integrated; candidate acceptance pending"
+        },
+        {
+          "slice": "Keymap design view controls",
+          "original_source": "working authored packet",
+          "integrated_source": "722c8641",
+          "state": "integrated; candidate acceptance pending"
+        },
+        {
+          "slice": "Keycaps finding camera",
+          "original_source": "96900cab",
+          "integrated_source": "83a9af53",
+          "state": "integrated; candidate acceptance pending"
+        },
+        {
+          "slice": "Parts pad row identity",
+          "original_source": "08fcf1b2",
+          "integrated_source": "9d7c41bd",
+          "state": "integrated; candidate acceptance pending"
+        },
+        {
+          "slice": "Project deletion",
+          "original_source": "49ceb996",
+          "integrated_source": "a64f9c56",
+          "state": "integrated; candidate acceptance pending"
+        },
+        {
+          "slice": "PCB command pill",
+          "original_source": "d01c18af",
+          "integrated_source": "b00c3045",
+          "state": "integrated; candidate acceptance pending"
+        },
+        {
+          "slice": "Keycaps shared view controls",
+          "original_source": "root integration",
+          "integrated_source": "66ab12d3",
+          "state": "integrated; candidate acceptance pending"
+        },
+        {
+          "slice": "Outline reopened native active-option display",
+          "original_source": "e3ea603a",
+          "integrated_source": "1c200c23",
+          "state": "integrated; focused old-source RED captured, publiccandidatepending"
+        }
+      ],
+      "checks": {
+        "strict_wasm_clippy": {
+          "command": "cargo clippy --locked --manifest-path web/Cargo.toml --target wasm32-unknown-unknown --all-targets -- -D warnings",
+          "source_commit": "3685daff",
+          "result": "pass,19.78seconds; later2selected-optionflags willcompileinpackage",
+          "failures_repaired": "DioxusSVGaria attribute, boxedprivatecamera action, test-onlyroutewrapper, needlessborrow"
+        },
+        "author_evidence": "Reuse focused passing packet checks; no additional broad suites."
+      }
+    },
+    "journeys": [
+      {
+        "journey": "Case blocked generation -> Undo -> current geometry -> reopen",
+        "state": "bounded paired verified",
+        "candidate": "8afaaa2f/34741",
+        "remaining": "Full F7.6 readiness/export/cancellation criteria."
+      },
+      {
+        "journey": "Project name edit -> history -> reopen",
+        "state": "bounded paired verified",
+        "candidate": "a201a96a/34740",
+        "remaining": "Project library/lifecycle criteria; deliberate React Escape bug deviation retained."
+      },
+      {
+        "journey": "PCB mode application and Keymap layers",
+        "state": "bounded paired verified",
+        "candidate": "a201a96a/34740",
+        "remaining": "Protected handoff fixture, additional mode criteria and parent joins."
+      },
+      {
+        "journey": "Outline copy/rename -> active selection -> reopen",
+        "state": "open: native Active outline select mismatch",
+        "candidate": "19525578/34742",
+        "remaining": "Perimeter editing, durable active-option display and full F3.4/F3.7."
+      },
+      {
+        "journey": "Parts pad rename and deletion",
+        "state": "served deletion regression; repaired source awaiting candidate",
+        "candidate": "19525578/34742",
+        "remaining": "Public repaired deletion journey; full F4.2 import/edit/history criteria."
+      },
+      {
+        "journey": "Keycaps finding -> Layout selection/Inspector/camera",
+        "state": "Inspector paired verified; camera repair awaiting candidate",
+        "candidate": "8afaaa2f/34741",
+        "remaining": "Fresh camera comparison and F6C.4 criteria."
+      }
+    ],
+    "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
+    "heavy_slots": {
+      "root_target": "combined strict WASM check, then one production package build",
+      "secondary_target": "Sol outline selected-option regression, one focused test",
+      "dispatch": "Root assigned; no additional self-dispatched heavy suites."
+    },
+    "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json"
   }
 }

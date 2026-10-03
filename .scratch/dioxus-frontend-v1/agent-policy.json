@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "date": "2026-10-02",
+  "date": "2026-10-03",
   "baseline": "7b7b004e717ce9976d60cc8c0326627b64caa04b",
-  "authority": "Latest user decision2026-10-02: structure for speed, fewer review handoffs, review a completed integrated candidate. Sol6.1 High reviews; six Luna implementation streams remain active.",
+  "authority": "User confirmed Layout-first, six queues, one waiting packet per stream, journey/criterion reporting; final direction: less testing and more moving.",
   "status": "Effective: candidate-level review batching supersedes per-child planning/source/composition approval queues; historical reviews and known defects retained.",
   "profiles": {
     "luna-low": {
@@ -132,7 +132,10 @@
     "three_builders": "Historical three-author proposal superseded by six persistent workbench streams; simultaneous dispatch bounded by actual capacity and review/verification queues.",
     "shared_files": "coordinator serializes; browser sessions/stores isolated; CAD-heavy checks serial",
     "runtime_change": "User/configured ceiling30; collaboration metadata exposes11 total slots. Actual spawn rejection remains binding; queue or reuse suitable agents. No host configuration changed.",
-    "observed_runtime_slots": 11
+    "observed_runtime_slots": 11,
+    "max_waiting_packets_per_stream": 1,
+    "integration_priority": "Layout first, six persistent queues",
+    "heavy_jobs": "Coordinator grants target-specific leases; at most two active heavy jobs, including at most one package build. No process-list-based self-dispatch."
   },
   "runtime_observation": {
     "checked": "2026-10-02",
@@ -881,8 +884,8 @@
   "allocation_counts": {
     "luna-high": 34,
     "luna-medium": 28,
-    "preimplementation_contract_review": 7,
-    "dedicated_review_tasks": 28
+    "preimplementation_contract_review": 0,
+    "dedicated_review_tasks": 0
   },
   "integration_process": {
     "owner": "root coordinator",
@@ -919,8 +922,8 @@
       "build_and_fingerprints"
     ],
     "build_window": "Freeze root integration inputs through before/after source hashes; isolated authors continue.",
-    "provider_reuse_spec": "specs/page-only-packaging-reuse.md (proposed, not activated)",
-    "acceptance": "Independent integrated Standards and Spec reviews plus paired browser gates remain required; no parent closes from docs/mounting/packaging."
+    "provider_reuse_spec": "specs/page-only-packaging-reuse.md; implemented and actual changed-source qualified at19525578",
+    "acceptance": "One integrated Standards/Spec candidate review with affected paired journeys. All parent criteria remain; no per-child approval chain."
   },
   "api_design_authority": {
     "user_instruction": "if you need to change things (APIs, design) change them",
@@ -936,5 +939,18 @@
       "discarding work/history rewrites",
       "external publication/cutover"
     ]
+  },
+  "historical_allocation_counts_before_20261003": {
+    "luna-high": 34,
+    "luna-medium": 28,
+    "preimplementation_contract_review": 7,
+    "dedicated_review_tasks": 28
+  },
+  "testing_policy": {
+    "ordinary_ui": "Required affected check on combined source; no new test by default.",
+    "bug_fix": "Reuse actual reproduction, focused regression and affected verification.",
+    "candidate": "One consolidated Sol review and changed paired journeys; reuse unchanged evidence.",
+    "broaden": "Only a failure or identified unresolved risk justifies more checks.",
+    "parent_gates": "All62 acceptance criteria and RF history retained."
   }
 }
