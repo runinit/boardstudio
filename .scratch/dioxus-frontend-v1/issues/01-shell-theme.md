@@ -43,3 +43,7 @@ Workbench tree/canvas/inspector and workspace orchestration continue in F3–F8.
 Executable source `24218450`; [handoff and evidence](../evidence/handoff.md).
 All six reviewed shell fixes are resolved. This closes the bounded F1 increment;
 full reference panel/canvas/workspace parity and actual AT remain later gates.
+
+## Current shell frontier — 2026-10-03
+
+The first-increment checkboxes above are historical bounded completion, not full frontend-shell acceptance. The current paired [Objects receipt](../evidence/candidate-34768-20261003/objects-pane-receipt.md) removes the ~159 px extra-control tree displacement and qualifies desktop/compact menu dismissal and the compact Objects→Inspect selection handoff. It records remaining compact shell mismatch: separate panel-toggle row, hidden separate Export action/extra Export selector entry, and inline panels instead of the reference topbar toggles/drawers. Preserve these as required parity work under F1; do not silently call compact UI complete. Generic menu button surfaces are corrected in queued source `c56522c4`, not in served34768. Necessary frontend API/design corrections are already authorized in CONSTRAINTS.md; the old bounded-increment restrictions do not introduce a new approval round.
