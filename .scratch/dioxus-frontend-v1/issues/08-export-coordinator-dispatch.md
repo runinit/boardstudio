@@ -36,23 +36,20 @@ identity/epoch, and relevant UI/workspace generation. It uses existing
 After every await, reject a result whose captured owner is no longer current;
 never deliver an older board or session result.
 
-The first coordinator packet covers the provider-backed outputs whose full
-provider paths are already present in the React reference and current Rust
-owners: project archive; SVG/DXF; ZMK firmware; full/draft board package; and
-standalone footprint ZIP. It reuses the existing Core artifact prepare/finish
-requests and preview-generator conversions, then uses Core archive packing for
-the existing package entries. It preserves the exact React names, bytes,
-media types, model-file inclusion and scope, and does not add a public Rust
-contract. Authored Case STEP, generated mechanical package and local Keycaps
-STEP stay with their F7/F6 owners and are integrated as separate coordinator
-intents only when their current provider adapters are ready. Source review of
-`Runtime::export_step` confirms the existing Core `CasePrepared` path can
-provide authored Case STEP when the selected board has no generated mechanical
-configuration; that exact branch should be reused and must remain guarded by
-the current accepted owner. It does not establish authored-only STEP semantics
-when a generated configuration is present, because the current path resolves
-the generated stack. Keep that latter capability explicit until an owned
-provider path is confirmed.
+The current mounted providers are project archive, SVG/DXF, ZMK firmware,
+standalone footprint ZIP, and ordinary authored Case STEP. Public evidence is
+bounded to the actual SVG/DXF downloads on 34763, the footprint ZIP on 34767,
+the Keymap-local ZMK download, and local Keycaps STEP; see the [parent criteria
+map](08-export.md#current-f8-evidence-and-remaining-criteria-2026-10-03).
+Project archive remains without paired Export-route verification. Full/draft
+KiCad rows and generated mechanical package are deliberately unavailable in
+the mounted source, so do not describe them as connected merely because Core
+providers or readiness data exist. The full/draft ordering requirements below
+are still the implementation boundary for wiring those rows. Ordinary
+authored Case STEP works only when the selected board has no generated
+mechanical configuration; the configured path resolves the generated stack
+and does not establish authored-only STEP semantics. Generated mechanical ZIP
+remains a separate provider gap. Local Keycaps STEP stays with F6.
 
 For full/draft PCB, preserve this ordering from `exports/pcb.ts`:
 

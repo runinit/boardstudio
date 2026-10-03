@@ -2,7 +2,7 @@
 
 **Parent:** [F8.2 private export coordinator](08-export-coordinator-dispatch.md) and [F8 export](08-export.md). This child is a runnable provider slice, not F8.2/F8.3/F8 acceptance.
 
-**State:** implementing in the isolated Export worktree after the 34763 route/SVG/DXF/return journey was frozen. Root owns the integrated candidate check/build; author evidence is one changed real ZIP download. No new ordinary-UI test suite.
+**State:** bounded child qualified on candidate source `3a080e0e99d0638ddc1b562b3fc5a8ac91f3fefd` (34767); this does not accept F8.2/F8.3 or any F8 parent. The durable in-worktree browser receipt and archive identity are recorded in [the receipt](../evidence/export-footprints-20261003/RECEIPT.md); the ZIP remains retained outside Git at its recorded path/hash. No new ordinary-UI test suite.
 
 ## Pinned behavior and provider boundary
 
@@ -25,4 +25,4 @@ On the retained Sofle fixture, pinned React currently rejects the four `switch m
 
 This child does not complete generic F8.2 coordination, full/draft KiCad, model-asset parity for unrelated formats, firmware, portable archive, case/mechanical/keycaps outputs, stale-race matrix, or any F8 parent. The JS preview-generator remains the existing Ergogen conversion provider, invoked only for its accepted Core plan jobs. The browser remains responsible only for IndexedDB asset retrieval and file delivery. Any missing model-binding or file-path capability must remain an explicit blocker rather than being approximated.
 
-The shared Ergogen worker's missing per-request cancellation is retained as a continuation of [RF-010](../refactor-findings.json); the adapter suppresses stale delivery but does not promise to stop in-flight CPU work. The source freeze should replace the pending-source note with its commit and point to the [architecture boundary](../../../docs/architecture.md). No new finding is introduced beyond RF-001/RF-003/RF-004 and this RF-010 continuation.
+The shared Ergogen worker's missing per-request cancellation is retained as a continuation of [RF-010](../refactor-findings.json); the adapter suppresses stale delivery but does not promise to stop in-flight CPU work. Its Core output-name correction is recorded under RF-008 and the [architecture boundary](../../../docs/architecture.md). No new finding is introduced beyond RF-001/RF-003/RF-004/RF-008/RF-010.

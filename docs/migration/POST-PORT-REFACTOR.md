@@ -234,9 +234,14 @@ same ambiguity after its worker identity is corrected. Core now preserves ordina
 unique names and adds a stable definition-ID suffix only for colliding names, with
 the internal KiCad footprint name matching the new stem. The archive packer's
 duplicate-path check remains strict. One focused Core regression proves the
-collision and repair; paired candidate ZIP verification is pending. See the
-[retained paired pin](../../.scratch/dioxus-frontend-v1/issues/08-export-footprints-slice.md)
-and the candidate RED captured in `/home/chris/.local/share/boardstudio/reviews/export-workspace-20261003/react-footprints-baseline.md`.
+collision and repair; candidate 34767 downloaded a valid 22-entry ZIP with all
+14 footprints, six content-hash-verified models, the library table and
+utilities note. The durable [browser receipt](../../.scratch/dioxus-frontend-v1/evidence/export-footprints-20261003/RECEIPT.md)
+records the source/provenance and externally retained archive path/hash. This
+qualifies the bounded footprint child only; generic export coordination,
+full/draft KiCad, and the broader F8 parent remain open. The pinned React RED
+and candidate 34765 owner-token RED are preserved in the adjacent external
+review directory and the child ticket.
 
 ## RF-009
 
