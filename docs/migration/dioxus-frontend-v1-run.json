@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T21:25:57.510765+00:00",
+    "updated_at": "2026-10-03T21:48:35.018219+00:00",
     "parent_counts": {
       "accepted": 10,
       "implementing": 41,
@@ -25,20 +25,20 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-criteria-encoder-20261003",
-      "source_commit": "287cd2665f0ec1165ab0e3f8fb76ececdc0febc4",
-      "root_url": "http://127.0.0.1:34777/",
-      "subpath_url": "http://127.0.0.1:34777/boardstudio/",
-      "provenance": "web/target/builds/frontend-criteria-encoder-20261003/provenance.json",
-      "provenance_sha256": "96afb5d367640c68886b13597409a384977f866ffba02da69bb2dda5517e073c",
+      "build_id": "frontend-functional-controls-20261003",
+      "source_commit": "ad26b07a7ada49aed1d7ac686fb32a8dbcf2ded6",
+      "root_url": "http://127.0.0.1:34778/",
+      "subpath_url": "http://127.0.0.1:34778/boardstudio/",
+      "provenance": "web/target/builds/frontend-functional-controls-20261003/provenance.json",
+      "provenance_sha256": "ff94f428112368b51e49f065d0726a1ef8ef65140f28154a41d18a909bf76a7f",
       "fresh_commands": 8,
       "inherited_commands": 22,
       "source_inputs": 1389,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 139.566504,
+      "command_span_seconds": 144.737528,
       "package_qualification": "Combined package provenance, current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-criteria-encoder-20261003/package-proof.json",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-functional-controls-20261003/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -49,7 +49,7 @@
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
       "source_commit": "9548c3f06153008da68400b6fc566e35101a20dd",
-      "state": "Integrating concrete criterion implementations: preference fallback, module connection/circuit/constituent actions, Case association/flip, and confirmed Layout small-drag repair. Combined regression/compiler pass underway; no new acceptance claimed.",
+      "state": "Module/Case review repairs integrated; source review clear. Layout regression and real preference storage-failure journeys passed on34778. Preparing repaired candidate for connector and Case navigation retests.",
       "packets": [
         {
           "stream": "Layout",
@@ -572,24 +572,34 @@
     "qualification": {
       "trigger": "functional_scope",
       "active_scope": {
-        "id": "functional-criteria-encoder-20261003",
-        "source_commit": "9f9085852c98f66ef37aa669359ab3f3e49306c5",
+        "id": "functional-controls-20261003",
+        "source_commit": "f410ce9902a9b0c3b1a3467ff33c6a3dd85b5f7d",
         "streams": [
-          "Keymap",
+          "Layout",
           "PCB",
-          "Keycaps",
-          "Case"
+          "Case",
+          "Parts/Project"
         ],
         "journeys": [
           {
-            "id": "encoder-f5-handoff",
-            "scope": "PCB current-plan encoder edits and push, Undo/Redo/reopen and ZMK output",
-            "spec": ".scratch/dioxus-keymap-layers/issues/06-encoder-rotation-editor.md"
+            "id": "layout-small-drag",
+            "scope": "F3.3-C02 one-pixel Alt drag, stationary click/reflow, modified selection and Undo",
+            "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md"
           },
           {
-            "id": "shared-preview-export-lifecycle",
-            "scope": "Remaining shared 3D scope/unmount and STEP/export readiness/retry transitions",
-            "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md"
+            "id": "module-actions",
+            "scope": "F5.5-C02 VIK connection, circuit joins/copy/remove and exact constituent placement",
+            "spec": ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md"
+          },
+          {
+            "id": "case-instance-controls",
+            "scope": "F5.6-C03 Case PCB association/flip, selected-instance navigation, history and reopen",
+            "spec": ".scratch/dioxus-pcb-view/issues/06-editor-owned-physical-setup-intents.md"
+          },
+          {
+            "id": "preference-fallback",
+            "scope": "F2.4-C05 storage failure notice and usable in-memory theme/panel controls",
+            "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md"
           }
         ]
       },
@@ -764,51 +774,157 @@
               }
             ]
           }
-        }
-      ],
-      "phase": "qualifying",
-      "unmet_start_conditions": [],
-      "candidate_build_id": "frontend-criteria-encoder-20261003",
-      "source_commit": "287cd2665f0ec1165ab0e3f8fb76ececdc0febc4",
-      "journeys": [
-        {
-          "id": "encoder-f5-handoff",
-          "scope": "PCB current-plan encoder edits and push, Undo/Redo/reopen and ZMK output",
-          "spec": ".scratch/dioxus-keymap-layers/issues/06-encoder-rotation-editor.md",
-          "state": "passed",
-          "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md",
-          "verified": "Real PCB plan reports left-SW25; CW F5/CCW F6/Push SPACE settle; paired ZMK source matches; fresh in-place Undo/Redo, reload and board/project round trips pass.",
-          "limitation": "ZIPs differ only in electrical-plan central/peripheral revision: React 16 versus Dioxus 15. F5.2 Apply history, negative provider outcomes and compact encoder-edit qualification are separate."
         },
         {
-          "id": "shared-preview-export-lifecycle",
-          "scope": "Remaining shared 3D scope/unmount and STEP/export readiness/retry transitions",
-          "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
-          "state": "partial",
-          "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md",
-          "verified": "Pending preview board/project switches suppress the old result; paired empty-profile STEP error and restored-profile retry pass; retained unmount evidence reused.",
-          "remaining": "In-flight revision change, genuine provider-failure recovery and export lifecycle branches not covered by existing receipts remain unverified."
+          "trigger": "functional_scope",
+          "active_scope": {
+            "id": "functional-criteria-encoder-20261003",
+            "source_commit": "9f9085852c98f66ef37aa669359ab3f3e49306c5",
+            "streams": [
+              "Keymap",
+              "PCB",
+              "Keycaps",
+              "Case"
+            ],
+            "journeys": [
+              {
+                "id": "encoder-f5-handoff",
+                "scope": "PCB current-plan encoder edits and push, Undo/Redo/reopen and ZMK output",
+                "spec": ".scratch/dioxus-keymap-layers/issues/06-encoder-rotation-editor.md"
+              },
+              {
+                "id": "shared-preview-export-lifecycle",
+                "scope": "Remaining shared 3D scope/unmount and STEP/export readiness/retry transitions",
+                "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md"
+              }
+            ]
+          },
+          "phase": "qualifying",
+          "unmet_start_conditions": [],
+          "candidate_build_id": "frontend-criteria-encoder-20261003",
+          "source_commit": "287cd2665f0ec1165ab0e3f8fb76ececdc0febc4",
+          "journeys": [
+            {
+              "id": "encoder-f5-handoff",
+              "scope": "PCB current-plan encoder edits and push, Undo/Redo/reopen and ZMK output",
+              "spec": ".scratch/dioxus-keymap-layers/issues/06-encoder-rotation-editor.md",
+              "state": "passed",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md",
+              "verified": "Real PCB plan reports left-SW25; CW F5/CCW F6/Push SPACE settle; paired ZMK source matches; fresh in-place Undo/Redo, reload and board/project round trips pass.",
+              "limitation": "ZIPs differ only in electrical-plan central/peripheral revision: React 16 versus Dioxus 15. F5.2 Apply history, negative provider outcomes and compact encoder-edit qualification are separate."
+            },
+            {
+              "id": "shared-preview-export-lifecycle",
+              "scope": "Remaining shared 3D scope/unmount and STEP/export readiness/retry transitions",
+              "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+              "state": "partial",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md",
+              "verified": "Pending preview board/project switches suppress the old result; paired empty-profile STEP error and restored-profile retry pass; retained unmount evidence reused.",
+              "remaining": "In-flight revision change, genuine provider-failure recovery and export lifecycle branches not covered by existing receipts remain unverified."
+            }
+          ],
+          "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
+          "started_at": "2026-10-03T19:54:05.167118+00:00",
+          "review": {
+            "profile": "sol-review",
+            "model": "gpt-6.1-sol",
+            "reasoning": "high",
+            "state": "completed",
+            "verdict": "pass",
+            "qualification_verdict": "bounded; remaining lifecycle branches recorded",
+            "review": ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md",
+            "review_sha256": "810b7332db44067e50c40f746dd5ad1bb701149d13819099f814134901e26b24"
+          },
+          "unmet_acceptance_conditions": [
+            "Finish the explicitly remaining preview/export lifecycle criteria; the bounded in-flight revision attempt settled before mutation.",
+            "Complete remaining parent criteria and final joins; this scoped candidate does not accept additional parents."
+          ],
+          "next_scope": {
+            "id": "functional-controls-20261003",
+            "source_commit": "f410ce9902a9b0c3b1a3467ff33c6a3dd85b5f7d",
+            "streams": [
+              "Layout",
+              "PCB",
+              "Case",
+              "Parts/Project"
+            ],
+            "journeys": [
+              {
+                "id": "layout-small-drag",
+                "scope": "F3.3-C02 one-pixel Alt drag, stationary click/reflow, modified selection and Undo",
+                "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md"
+              },
+              {
+                "id": "module-actions",
+                "scope": "F5.5-C02 VIK connection, circuit joins/copy/remove and exact constituent placement",
+                "spec": ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md"
+              },
+              {
+                "id": "case-instance-controls",
+                "scope": "F5.6-C03 Case PCB association/flip, selected-instance navigation, history and reopen",
+                "spec": ".scratch/dioxus-pcb-view/issues/06-editor-owned-physical-setup-intents.md"
+              },
+              {
+                "id": "preference-fallback",
+                "scope": "F2.4-C05 storage failure notice and usable in-memory theme/panel controls",
+                "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md"
+              }
+            ]
+          }
+        }
+      ],
+      "phase": "repairing",
+      "unmet_start_conditions": [
+        "Parts/Project, PCB, Case, Layout still has a queued implementation packet"
+      ],
+      "candidate_build_id": "frontend-functional-controls-20261003",
+      "source_commit": "ad26b07a7ada49aed1d7ac686fb32a8dbcf2ded6",
+      "journeys": [
+        {
+          "id": "layout-small-drag",
+          "scope": "F3.3-C02 one-pixel Alt drag, stationary click/reflow, modified selection and Undo",
+          "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+          "state": "passed",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/layout/RESULTS.md",
+          "verified": "Paired 1 px Alt drag with one Undo/Redo; stationary held pointer across Inspector reflow creates no edit; Shift/Ctrl selection with 8 px travel creates no movement.",
+          "limitation": "Reflow was triggered by keyboard while the pointer was held, rather than by the selection gesture; broader pointer lifecycle criteria remain separate."
+        },
+        {
+          "id": "module-actions",
+          "scope": "F5.5-C02 VIK connection, circuit joins/copy/remove and exact constituent placement",
+          "spec": ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md",
+          "state": "pending"
+        },
+        {
+          "id": "case-instance-controls",
+          "scope": "F5.6-C03 Case PCB association/flip, selected-instance navigation, history and reopen",
+          "spec": ".scratch/dioxus-pcb-view/issues/06-editor-owned-physical-setup-intents.md",
+          "state": "pending"
+        },
+        {
+          "id": "preference-fallback",
+          "scope": "F2.4-C05 storage failure notice and usable in-memory theme/panel controls",
+          "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
+          "state": "passed",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/preferences/receipt.md",
+          "verified": "Actual absent localStorage and write-quota failure each show one preference notice while theme/panel controls remain usable. Independent project edit survives quota-test reload."
         }
       ],
       "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
-      "started_at": "2026-10-03T19:54:05.167118+00:00",
       "review": {
         "profile": "sol-review",
         "model": "gpt-6.1-sol",
         "reasoning": "high",
-        "state": "completed",
-        "verdict": "pass",
-        "qualification_verdict": "bounded; remaining lifecycle branches recorded",
-        "review": ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md",
-        "review_sha256": "810b7332db44067e50c40f746dd5ad1bb701149d13819099f814134901e26b24"
+        "state": "in_progress",
+        "findings": [
+          "Automatic VIK connector repeat Save rejection",
+          "Automatic connector source lookup incorrectly restricted to selected module",
+          "Case reassignment own-result navigation invalidated by scope-generation change"
+        ]
       },
-      "unmet_acceptance_conditions": [
-        "Finish the explicitly remaining preview/export lifecycle criteria; the bounded in-flight revision attempt settled before mutation.",
-        "Complete remaining parent criteria and final joins; this scoped candidate does not accept additional parents."
-      ],
       "next_scope": {
-        "id": "functional-controls-20261003",
-        "source_commit": "f410ce9902a9b0c3b1a3467ff33c6a3dd85b5f7d",
+        "id": "functional-controls-repair-20261003",
+        "source_commit": "ad26b07a7ada49aed1d7ac686fb32a8dbcf2ded6",
         "streams": [
           "Layout",
           "PCB",
@@ -897,7 +1013,11 @@
         "log": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/functional-controls-green.log",
         "result": "2 Canvas interaction WASM Chrome tests passed; changed application source compiled without warnings."
       },
-      "qualification": "pending combined package"
+      "qualification": "pending combined package",
+      "case_repair": {
+        "result": "Production ScopeTransition predicate passed its WASM Chrome regression, distinguishing own accepted normalization from user clearing/navigation or a wrong generation. The package compiler will check the final busy-value dependency capture.",
+        "log": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/functional-controls-repair-check-3.log"
+      }
     }
   }
 }

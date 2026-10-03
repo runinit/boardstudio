@@ -163,6 +163,7 @@ mod physical_setup_owner_tests {
             token: SnapshotToken(23),
             revision: 21,
             generation: 4,
+            scope_transition: None,
         };
         assert!(
             case_setup_context_is_current(&identity, true, "Case", Some(&scope)),
@@ -315,6 +316,14 @@ pub fn App() -> Element {
         let runtime = runtime.clone();
         move || Rc::new(RefCell::new(runtime.scope()))
     });
+    let observed_token = use_hook({
+        let runtime = runtime.clone();
+        move || {
+            Rc::new(RefCell::new(
+                runtime.model().accepted.as_ref().map(|s| s.token),
+            ))
+        }
+    });
     let reconciling_scope = use_hook(|| Rc::new(Cell::new(false)));
     use_hook({
         let runtime = runtime.clone();
@@ -338,6 +347,15 @@ pub fn App() -> Element {
                 let mut anchor_scope = adapter.anchor_scope;
                 let mut generation = adapter.generation;
                 let next_scope = runtime.scope();
+                let next_token = runtime
+                    .model()
+                    .accepted
+                    .as_ref()
+                    .map(|snapshot| snapshot.token);
+                let previous_token = {
+                    let mut observed = observed_token.borrow_mut();
+                    std::mem::replace(&mut *observed, next_token)
+                };
                 let previous_scope = {
                     let mut observed = observed_scope.borrow_mut();
                     std::mem::replace(&mut *observed, next_scope.clone())
@@ -345,7 +363,16 @@ pub fn App() -> Element {
                 if previous_scope != next_scope {
                     selected_context.set(None);
                     anchor_scope.set(None);
+                    let previous_generation = *generation.peek();
                     generation += 1;
+                    adapter.record_scope_transition(selection::ScopeTransition {
+                        previous_scope,
+                        previous_token,
+                        next_scope: next_scope.clone(),
+                        next_token,
+                        previous_generation,
+                        next_generation: *generation.peek(),
+                    });
                     let cleanup = adapter
                         .cleanup
                         .borrow()
@@ -3305,11 +3332,23 @@ fn Editor() -> Element {
             let runtime = runtime.clone();
             let generation = adapter.generation;
             let project_setup_active = project_setup_active;
+            let adapter = adapter.clone();
             move |identity: &pcb_physical_setup::OwnerIdentity, strict: bool| {
                 let model = runtime.model();
                 let Some(accepted) = model.accepted.as_ref() else {
                     return false;
                 };
+                let accepted_transition_current =
+                    identity.scope_transition.as_ref().is_none_or(|expected| {
+                        identity.context == pcb_physical_setup::OwnerContext::CaseInspector
+                            && !strict
+                            && expected.matches_current(
+                                adapter.scope_transition().as_ref(),
+                                Some(accepted.token),
+                                generation(),
+                            )
+                            && runtime.scope() == expected.next_scope
+                    });
                 let context_current = match identity.context {
                     pcb_physical_setup::OwnerContext::ProjectGuide => {
                         project_setup_active()
@@ -3325,7 +3364,8 @@ fn Editor() -> Element {
                         )
                     }
                 };
-                context_current
+                accepted_transition_current
+                    && context_current
                     && generation() == identity.generation
                     && accepted.session_epoch == identity.session_epoch
                     && accepted.document.id == identity.document_id
@@ -5405,11 +5445,14 @@ fn Editor() -> Element {
         },
     );
     let preference_version = instance_preference();
+    let physical_setup_busy = physical_setup_mount.busy;
+    let physical_setup_busy_value = physical_setup_busy();
     use_effect(use_reactive(
         (
             &observed_version,
             &preference_version,
             &observed_interaction_version,
+            &physical_setup_busy_value,
         ),
         {
             let runtime = runtime.clone();
@@ -5419,12 +5462,14 @@ fn Editor() -> Element {
             let revision = snapshot.document.revision;
             let generation = render_generation;
             let drag = drag.clone();
+            let physical_setup_busy = physical_setup_busy;
             let mut navigate_scoped = navigate_scoped.clone();
             move |_| {
                 let model = runtime.model();
                 if runtime.scope().as_ref() != Some(&scope)
                     || (adapter.generation)() != generation
                     || !instance_selection::can_reconcile(&model)
+                    || physical_setup_busy.peek().is_some()
                     || drag.borrow().is_some()
                 {
                     return;

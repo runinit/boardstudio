@@ -1,6 +1,6 @@
 use crate::{physical_setup::SetupIntent, runtime::Runtime};
 use boardstudio_application::{
-    AcceptedSnapshot, Event, Lifecycle, OperationId, SnapshotToken, TerminalOutcome,
+    AcceptedSnapshot, Event, Lifecycle, OperationId, Scope, SnapshotToken, TerminalOutcome,
 };
 use boardstudio_core::model::{
     EditCommand, EditOperation, EditPhase, HardwareTopology, HardwareTransport, ProjectDoc,
@@ -31,6 +31,7 @@ pub(in crate::presentation) struct OwnerIdentity {
     pub token: SnapshotToken,
     pub revision: u64,
     pub generation: u64,
+    pub scope_transition: Option<super::super::selection::ScopeTransition>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -74,6 +75,7 @@ pub(in crate::presentation) struct PhysicalSetupProjection {
 #[derive(Clone)]
 pub(in crate::presentation) struct PhysicalSetupMount {
     pub projection: PhysicalSetupProjection,
+    pub busy: Signal<Option<OperationId>>,
     project_owner: Option<OwnerIdentity>,
     case_owner: Option<OwnerIdentity>,
     on_intent: EventHandler<PhysicalSetupRequest>,
@@ -152,6 +154,7 @@ struct SubmittedSetup {
     owner: OwnerIdentity,
     proposal: ProjectDoc,
     navigate_to: Option<(String, String)>,
+    case_reassignment: bool,
 }
 
 pub(in crate::presentation) fn use_controller(
@@ -221,16 +224,18 @@ pub(in crate::presentation) fn use_controller(
                 return;
             }
             let operation_id = runtime.operation();
-            let (proposal_future, navigate_to) = match request.intent {
+            let (proposal_future, navigate_to, case_reassignment) = match request.intent {
                 PhysicalSetupIntent::CasePcbDesign(board_id) => {
                     let proposal = propose_case_instance_edit(
                         &accepted.document,
                         &identity,
                         CaseInstanceEdit::PcbDesign(board_id.clone()),
                     );
+                    let case_reassignment = board_id != identity.board_id;
                     (
                         Box::pin(async move { proposal }) as ProposalFuture,
                         Some((board_id, identity.instance_id.clone().unwrap_or_default())),
+                        case_reassignment,
                     )
                 }
                 PhysicalSetupIntent::CaseFlip(flipped) => {
@@ -239,7 +244,11 @@ pub(in crate::presentation) fn use_controller(
                         &identity,
                         CaseInstanceEdit::Flip(flipped),
                     );
-                    (Box::pin(async move { proposal }) as ProposalFuture, None)
+                    (
+                        Box::pin(async move { proposal }) as ProposalFuture,
+                        None,
+                        false,
+                    )
                 }
                 intent => {
                     let setup_intent = match intent {
@@ -271,7 +280,7 @@ pub(in crate::presentation) fn use_controller(
                     let navigate_to = matches!(setup_intent, SetupIntent::Topology { .. })
                         .then(|| (identity.board_id.clone(), String::new()));
                     let future = prepare((*accepted.document).clone(), setup_intent.clone());
-                    (future, navigate_to)
+                    (future, navigate_to, false)
                 }
             };
             let runtime = runtime.clone();
@@ -353,6 +362,7 @@ pub(in crate::presentation) fn use_controller(
                     owner: identity,
                     proposal: proposed,
                     navigate_to,
+                    case_reassignment,
                 };
                 loop {
                     if let Some(outcome) = outcome.borrow_mut().take() {
@@ -362,6 +372,7 @@ pub(in crate::presentation) fn use_controller(
                             outcome,
                             &activity,
                             instance_selection,
+                            generation,
                             &mut ui,
                         );
                         break;
@@ -373,6 +384,7 @@ pub(in crate::presentation) fn use_controller(
     });
     PhysicalSetupMount {
         projection,
+        busy,
         project_owner,
         case_owner,
         on_intent,
@@ -480,6 +492,95 @@ fn propose_case_instance_edit(
     Ok(proposed)
 }
 
+fn expected_case_reassignment_owner(
+    owner: &OwnerIdentity,
+    target_board_id: &str,
+    accepted_token: SnapshotToken,
+    current_generation: u64,
+) -> Option<OwnerIdentity> {
+    if owner.context != OwnerContext::CaseInspector || target_board_id == owner.board_id {
+        return None;
+    }
+    let instance_id = owner.instance_id.clone()?;
+    let next_generation = owner.generation.checked_add(1)?;
+    if current_generation != next_generation {
+        return None;
+    }
+    let previous_scope = Scope {
+        session_epoch: owner.session_epoch,
+        document_id: owner.document_id.clone(),
+        board_id: owner.board_id.clone(),
+        instance_id: Some(instance_id),
+    };
+    let next_scope = Scope {
+        instance_id: None,
+        ..previous_scope.clone()
+    };
+    let transition = super::super::selection::ScopeTransition {
+        previous_scope: Some(previous_scope),
+        previous_token: Some(owner.token),
+        next_scope: Some(next_scope),
+        next_token: Some(accepted_token),
+        previous_generation: owner.generation,
+        next_generation,
+    };
+    let mut current_owner = owner.clone();
+    current_owner.instance_id = None;
+    current_owner.generation = next_generation;
+    current_owner.scope_transition = Some(transition);
+    Some(current_owner)
+}
+
+#[cfg(test)]
+mod case_reassignment_scope_transition_tests {
+    use super::*;
+    use boardstudio_application::SessionEpoch;
+
+    fn owner() -> OwnerIdentity {
+        OwnerIdentity {
+            context: OwnerContext::CaseInspector,
+            session_epoch: SessionEpoch(3),
+            document_id: "project".into(),
+            board_id: "board-a".into(),
+            instance_id: Some("right-half".into()),
+            token: SnapshotToken(41),
+            revision: 8,
+            generation: 12,
+            scope_transition: None,
+        }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn only_the_accepted_reassignment_scope_transition_admits_followup_navigation() {
+        let owner = owner();
+        let accepted_token = SnapshotToken(42);
+        let normalized_owner =
+            expected_case_reassignment_owner(&owner, "board-b", accepted_token, 13)
+                .expect("one accepted scope normalization advances generation once");
+        let expected = normalized_owner
+            .scope_transition
+            .as_ref()
+            .expect("reassignment identity carries its exact transition");
+
+        assert!(expected.matches_current(Some(expected), Some(accepted_token), 13));
+
+        let mut user_cleared = expected.clone();
+        user_cleared.next_token = Some(owner.token);
+        assert!(!expected.matches_current(Some(&user_cleared), Some(accepted_token), 13));
+
+        let mut user_navigated = expected.clone();
+        user_navigated.next_scope = Some(Scope {
+            instance_id: Some("left-half".into()),
+            ..expected
+                .next_scope
+                .clone()
+                .expect("same-board scope exists")
+        });
+        assert!(!expected.matches_current(Some(&user_navigated), Some(accepted_token), 13));
+        assert!(!expected.matches_current(Some(expected), Some(accepted_token), 12));
+    }
+}
+
 fn current_source(
     runtime: &Runtime,
     generation: u64,
@@ -524,6 +625,7 @@ fn current_source(
         token: accepted.token,
         revision: accepted.document.revision,
         generation,
+        scope_transition: None,
     };
     Some((accepted, board_id, instance_id, identity))
 }
@@ -610,6 +712,7 @@ fn finish_operation(
     outcome: TerminalOutcome,
     activity: &OwnerActivity,
     instance_selection: super::super::InstanceSelection,
+    generation: Signal<u64>,
     ui: &mut OperationUi,
 ) {
     if !ui.alive.get() {
@@ -622,13 +725,35 @@ fn finish_operation(
         accepted.session_epoch == identity.session_epoch
             && accepted.document.id == identity.document_id
     });
-    let current_owner = activity.matches(identity, false);
     let accepted_proposal = crate::physical_setup::can_reconcile_primary(
-        &TerminalOutcome::Completed,
+        &outcome,
         true,
         accepted.map(|accepted| accepted.document.as_ref()),
         proposal,
     );
+    let accepted_token = accepted.map(|snapshot| snapshot.token);
+    let reassignment_owner = if accepted_proposal && submitted.case_reassignment {
+        submitted
+            .navigate_to
+            .as_ref()
+            .and_then(|(target_board_id, _)| {
+                expected_case_reassignment_owner(
+                    identity,
+                    target_board_id,
+                    accepted_token?,
+                    *generation.peek(),
+                )
+            })
+    } else {
+        None
+    };
+    let current_owner = activity.matches(identity, false)
+        || reassignment_owner
+            .as_ref()
+            .is_some_and(|owner| activity.matches(owner, false));
+    let navigation_target = (accepted_proposal && current_owner)
+        .then(|| submitted.navigate_to.clone())
+        .flatten();
     // A hidden owner still owns its exact accepted result. Visibility gates navigation,
     // not attribution; projection will hide feedback until this owner is visible again.
     let mut feedback_owner = identity.clone();
@@ -636,14 +761,27 @@ fn finish_operation(
         let accepted = accepted.expect("accepted proposal checked above");
         feedback_owner.token = accepted.token;
         feedback_owner.revision = accepted.document.revision;
-        if let Some((board_id, _)) = &submitted.navigate_to {
+        if let Some((board_id, instance_id)) = &navigation_target {
             feedback_owner.board_id = board_id.clone();
+            feedback_owner.instance_id = Some(instance_id.clone());
+            feedback_owner.scope_transition = None;
+            let target_scope = Scope {
+                session_epoch: accepted.session_epoch,
+                document_id: accepted.document.id.clone(),
+                board_id: board_id.clone(),
+                instance_id: Some(instance_id.clone()),
+            };
+            let navigation_changes_scope = runtime.scope().as_ref() != Some(&target_scope);
+            let current_generation = *generation.peek();
+            feedback_owner.generation = current_generation
+                .checked_add(if navigation_changes_scope { 1 } else { 0 })
+                .unwrap_or(current_generation);
         }
     }
     let message = match outcome {
         TerminalOutcome::Completed if accepted_proposal => {
             let accepted = accepted.expect("accepted proposal checked above");
-            if current_owner && let Some((board_id, explicit_id)) = &submitted.navigate_to {
+            if let Some((board_id, explicit_id)) = &navigation_target {
                     instance_selection.reconcile(accepted.session_epoch, accepted.document.id.clone(), explicit_id.clone());
                     runtime.submit(Event::Navigate { operation_id: runtime.operation(), board_id: board_id.clone(), instance_id: Some(explicit_id.clone()) });
             }

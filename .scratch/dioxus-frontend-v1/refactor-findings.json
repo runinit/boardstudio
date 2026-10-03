@@ -1002,8 +1002,8 @@
         {
           "source": "functional-controls batch based on f410ce99",
           "evidence": "web/src/presentation/pcb_physical_setup/controller.rs",
-          "observation": "Case board reassignment/flip uses a scoped private proposal over the accepted ProjectDoc and existing ReplaceDocument because dedicated physical-instance field edits are absent. Reassignment must update mechanical board ownership and navigate only after exact acceptance. Module constituent placement also requires carrying the nested source definition, with collision-safe materialization, rather than resolving by global catalogue ID.",
-          "status": "bounded behavior implemented; browser qualification pending; typed domain edits and definition identity policy remain post-port design topics"
+          "observation": "Case board reassignment/flip uses a scoped private proposal over the accepted ProjectDoc and existing ReplaceDocument because dedicated physical-instance field edits are absent. Reassignment must update mechanical board ownership and navigate only after exact acceptance. Module constituent placement also requires carrying the nested source definition, with collision-safe materialization, rather than resolving by global catalogue ID. Candidate34778 reproduced accepted Case reassignment dropping selection: generic scope-generation invalidation and automatic fallback raced the edit owner. Repair records exact before/after scope-token provenance and defers automatic fallback during owned physical edits; broad selection authority consolidation remains deferred.",
+          "status": "Case own-result scope bug reproduced; narrow repair under qualification. Keep typed domain edits, selection transition provenance and module definition identity policy for post-port design review."
         }
       ],
       "resumed_wave_20261002": "2026-10-02: Physical setup controls need rendered identity envelopes and live guide-stage predicates across asynchronous normalization; stale handlers and bare feedback can retarget/leak across scopes. Astra production regression repair active; public guide join remains open.",

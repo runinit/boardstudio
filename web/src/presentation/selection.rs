@@ -1,6 +1,6 @@
 use super::objects::{self, ScopedTreeContext, TreeContext, TreeSelectRequest};
 use crate::runtime::Runtime;
-use boardstudio_application::{Event, Scope, SelectionMode};
+use boardstudio_application::{Event, Scope, SelectionMode, SnapshotToken};
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -9,6 +9,29 @@ use std::{
 
 pub(super) type Cleanup = Rc<dyn Fn()>;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct ScopeTransition {
+    pub previous_scope: Option<Scope>,
+    pub previous_token: Option<SnapshotToken>,
+    pub next_scope: Option<Scope>,
+    pub next_token: Option<SnapshotToken>,
+    pub previous_generation: u64,
+    pub next_generation: u64,
+}
+
+impl ScopeTransition {
+    pub fn matches_current(
+        &self,
+        observed: Option<&Self>,
+        accepted_token: Option<SnapshotToken>,
+        generation: u64,
+    ) -> bool {
+        observed == Some(self)
+            && accepted_token == self.next_token
+            && generation == self.next_generation
+    }
+}
+
 #[derive(Clone)]
 pub(super) struct SelectionAdapter {
     pub selected_context: Signal<Option<ScopedTreeContext>>,
@@ -16,6 +39,7 @@ pub(super) struct SelectionAdapter {
     pub generation: Signal<u64>,
     pub cleanup: Rc<RefCell<Option<(u64, Cleanup)>>>,
     pub next_cleanup_id: Rc<Cell<u64>>,
+    scope_transition: Rc<RefCell<Option<ScopeTransition>>>,
 }
 
 impl SelectionAdapter {
@@ -30,7 +54,16 @@ impl SelectionAdapter {
             generation,
             cleanup: Rc::new(RefCell::new(None)),
             next_cleanup_id: Rc::new(Cell::new(1)),
+            scope_transition: Rc::new(RefCell::new(None)),
         }
+    }
+
+    pub fn scope_transition(&self) -> Option<ScopeTransition> {
+        self.scope_transition.borrow().clone()
+    }
+
+    pub fn record_scope_transition(&self, transition: ScopeTransition) {
+        *self.scope_transition.borrow_mut() = Some(transition);
     }
 }
 

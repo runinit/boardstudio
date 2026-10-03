@@ -281,6 +281,11 @@ pub(super) async fn load_component_definition(
     Ok((*definition.definition).clone())
 }
 
+pub(super) async fn load_horizontal_host_connector_definition()
+-> Result<boardstudio_core::model::PartDefinition, String> {
+    modules_catalogue::load_horizontal_host_connector_definition().await
+}
+
 pub(in crate::presentation) fn placement_label(
     definition: &boardstudio_core::model::PartDefinition,
 ) -> &str {

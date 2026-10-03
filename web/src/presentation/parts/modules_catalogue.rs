@@ -1,7 +1,9 @@
 //! Lazy, read-only projection of the packaged VIK module catalogue.
 use super::module_profile_editor::ModuleProfileEditor;
 use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
-use boardstudio_core::model::{HardwareOutput, ModuleDefinition, Side};
+use boardstudio_core::model::{
+    HardwareOutput, ModuleDefinition, PartDefinition, PartModel, Side, Vec3, VikRole,
+};
 use dioxus::prelude::*;
 use js_sys::Uint8Array;
 use serde::Deserialize;
@@ -180,6 +182,96 @@ async fn load_bundled() -> Result<Rc<Vec<ModuleEntry>>, String> {
     );
     BUNDLED_MODULES.with(|cache| *cache.borrow_mut() = Some(entries.clone()));
     Ok(entries)
+}
+
+pub(super) async fn load_horizontal_host_connector_definition() -> Result<PartDefinition, String> {
+    let entries = load_bundled().await?;
+    let source = entries
+        .iter()
+        .flat_map(|entry| {
+            entry
+                .definition
+                .circuit
+                .iter()
+                .flat_map(|circuit| circuit.definitions.iter())
+        })
+        .find(|definition| {
+            definition
+                .hardware_profile
+                .as_ref()
+                .is_some_and(|profile| profile.vik_role == Some(VikRole::Host))
+                && definition.name.to_ascii_lowercase().contains("horizontal")
+        })
+        .cloned()
+        .ok_or_else(|| {
+            "The source catalogue has no horizontal VIK host connector footprint.".to_string()
+        })?;
+
+    normalize_host_connector_definition(source)
+}
+
+fn normalize_host_connector_definition(
+    mut definition: PartDefinition,
+) -> Result<PartDefinition, String> {
+    const MODEL_ASSET: &str =
+        "ergogen:model:vik/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal.stp";
+    definition.id = "vik:source:horizontal-host-connector".into();
+    definition.name = "VIK horizontal host connector".into();
+    definition.models = Some(vec![PartModel {
+        asset_id: MODEL_ASSET.into(),
+        offset: Vec3 {
+            x: -2.75,
+            y: 2.3,
+            z: 0.0,
+        },
+        rotation: Vec3::default(),
+        scale: Vec3 {
+            x: 1.0,
+            y: 1.0,
+            z: 1.0,
+        },
+    }]);
+    if let Some(source) = &mut definition.kicad_source {
+        source.source = without_embedded_connector_model(&source.source)?;
+    }
+    Ok(definition)
+}
+
+fn without_embedded_connector_model(source: &str) -> Result<String, String> {
+    const MARKER: &str = "(model \"../../kicad/3dmodels/vik-connector-horizontal.stp\"";
+    let Some(start) = source.find(MARKER) else {
+        return Ok(source.to_owned());
+    };
+    let mut depth = 0usize;
+    let mut quoted = false;
+    let mut escaped = false;
+    for (offset, character) in source[start..].char_indices() {
+        if quoted {
+            if escaped {
+                escaped = false;
+            } else if character == '\\' {
+                escaped = true;
+            } else if character == '"' {
+                quoted = false;
+            }
+            continue;
+        }
+        match character {
+            '"' => quoted = true,
+            '(' => depth += 1,
+            ')' => {
+                depth = depth.checked_sub(1).ok_or_else(|| {
+                    "The source VIK host connector has a malformed embedded model form.".to_string()
+                })?;
+                if depth == 0 {
+                    let end = start + offset + character.len_utf8();
+                    return Ok(format!("{}{}", &source[..start], &source[end..]));
+                }
+            }
+            _ => {}
+        }
+    }
+    Err("The source VIK host connector has a malformed embedded model form.".into())
 }
 
 fn merge_project_overrides(

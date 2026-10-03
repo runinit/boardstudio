@@ -4,11 +4,12 @@ use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Event, Lifecycle, Scope};
 use boardstudio_core::model::{
     EditCommand, EditOperation, EditPhase, ModuleAttachment, ModuleConnection, ModuleSupport,
-    PartDefinition, PartModel, Side, Vec3, VikRole, VikSignal,
+    PartDefinition, Side, VikRole, VikSignal,
 };
 use dioxus::prelude::*;
-use std::collections::BTreeMap;
 use std::rc::Rc;
+use std::{cell::Cell, collections::BTreeMap};
+use wasm_bindgen_futures::spawn_local;
 
 #[derive(Clone)]
 struct RuntimeHandle(Rc<Runtime>);
@@ -97,6 +98,12 @@ fn PcbMountedModuleInspector(
     let mut feedback = use_signal(String::new);
     let mut support_draft = use_signal(SupportDraft::default);
     let mut joins = use_signal(BTreeMap::<String, String>::new);
+    let mut saving = use_signal(|| false);
+    let alive = use_hook(|| Rc::new(Cell::new(true)));
+    use_drop({
+        let alive = alive.clone();
+        move || alive.set(false)
+    });
     let accepted_instance = instance.clone();
     use_effect(use_reactive!(|accepted_instance| {
         if *draft.peek() != accepted_instance {
@@ -106,15 +113,16 @@ fn PcbMountedModuleInspector(
     }));
     let module_name = definition.name.clone();
     let automatic_connector_id = format!("{}/vik-host-connector", instance.id);
-    let automatic_connector_definition = source_vik_host_connector(definition);
     let scope = input.scope.clone();
     let module_id = input.module_id.clone();
     let owner_token = input.snapshot.token;
     let owner_revision = input.snapshot.document.revision;
     let runtime = input.runtime.clone();
     let selected_context = input.selected_context;
-    let save_connector_definition = automatic_connector_definition.clone();
     let save = move |_| {
+        if saving() {
+            return;
+        }
         let Some(snapshot) = mounted_owner_current(
             &runtime,
             selected_context,
@@ -127,44 +135,128 @@ fn PcbMountedModuleInspector(
             return;
         };
         let value = draft();
-        let connector_definition = value
+        let needs_automatic_connector = value
             .connection
             .as_ref()
             .filter(|connection| {
                 connection.host_connector_part_id == format!("{}/vik-host-connector", value.id)
-                    && !snapshot
-                        .document
-                        .parts
-                        .iter()
-                        .any(|part| part.id == connection.host_connector_part_id)
             })
-            .and(save_connector_definition.clone());
-        if value.connection.as_ref().is_some_and(|connection| {
-            connection.host_connector_part_id == format!("{}/vik-host-connector", value.id)
-        }) && connector_definition.is_none()
-        {
-            feedback.set(
-                "This module has no source-backed horizontal VIK connector definition to place."
-                    .into(),
-            );
-            return;
+            .is_some_and(|connection| {
+                !snapshot
+                    .document
+                    .parts
+                    .iter()
+                    .any(|part| part.id == connection.host_connector_part_id)
+            });
+        saving.set(true);
+        if needs_automatic_connector {
+            feedback.set("Loading the source-backed horizontal VIK connector…".into());
+        } else {
+            feedback.set("Saving placement…".into());
         }
-        let operation_id = runtime.operation();
-        runtime.submit(Event::Edit {
-            operation_id,
-            command: EditCommand {
-                base_revision: snapshot.document.revision,
-                transaction_id: format!("mounted-module-placement-{}", operation_id.0),
-                phase: EditPhase::Commit,
-                target_ids: vec![value.id.clone()],
-                operation: EditOperation::SetMountedModule {
-                    instance: Box::new(value),
-                    definition: None,
-                    host_connector_definition: connector_definition.map(Box::new),
+        let runtime = runtime.clone();
+        let scope = scope.clone();
+        let module_id = module_id.clone();
+        let alive = alive.clone();
+        let draft_signal = draft;
+        let mut feedback = feedback;
+        let mut saving = saving;
+        spawn_local(async move {
+            let connector_definition = if needs_automatic_connector {
+                Some(super::parts::load_horizontal_host_connector_definition().await)
+            } else {
+                None
+            };
+            if !alive.get() {
+                return;
+            }
+            if !mounted_selection_current(&runtime, selected_context, &scope, &module_id) {
+                saving.set(false);
+                return;
+            }
+            let connector_definition = match connector_definition {
+                Some(Ok(definition)) => Some(definition),
+                Some(Err(message)) => {
+                    feedback.set(format!(
+                        "Could not load the source-backed VIK connector: {message}"
+                    ));
+                    saving.set(false);
+                    return;
+                }
+                None => None,
+            };
+            let Some(snapshot) = mounted_owner_current(
+                &runtime,
+                selected_context,
+                &scope,
+                &module_id,
+                owner_token,
+                owner_revision,
+            ) else {
+                feedback.set("The selected module or accepted project changed while the connector was loading. Reopen its placement before saving.".into());
+                saving.set(false);
+                return;
+            };
+            if *draft_signal.peek() != value {
+                feedback.set("The placement draft changed while the connector was loading. Save the current draft again.".into());
+                saving.set(false);
+                return;
+            }
+            if needs_automatic_connector && connector_definition.is_none() {
+                feedback.set("This module has no source-backed horizontal VIK connector definition to place.".into());
+                saving.set(false);
+                return;
+            }
+            let operation_id = runtime.operation();
+            let outcome = runtime.observe_operation(operation_id);
+            runtime.submit(Event::Edit {
+                operation_id,
+                command: EditCommand {
+                    base_revision: snapshot.document.revision,
+                    transaction_id: format!("mounted-module-placement-{}", operation_id.0),
+                    phase: EditPhase::Commit,
+                    target_ids: vec![value.id.clone()],
+                    operation: EditOperation::SetMountedModule {
+                        instance: Box::new(value),
+                        definition: None,
+                        host_connector_definition: connector_definition.map(Box::new),
+                    },
                 },
-            },
+            });
+            while outcome.borrow().is_none() {
+                gloo_timers::future::TimeoutFuture::new(16).await;
+                if !alive.get() {
+                    return;
+                }
+            }
+            if !alive.get() {
+                return;
+            }
+            if !mounted_selection_current(&runtime, selected_context, &scope, &module_id) {
+                saving.set(false);
+                return;
+            }
+            match outcome.borrow().clone() {
+                Some(boardstudio_application::TerminalOutcome::Completed) => {
+                    feedback.set("Placement saved.".into());
+                }
+                Some(
+                    boardstudio_application::TerminalOutcome::Rejected(message)
+                    | boardstudio_application::TerminalOutcome::PersistenceFailed(message)
+                    | boardstudio_application::TerminalOutcome::BlockedByRecovery(message)
+                    | boardstudio_application::TerminalOutcome::ExecutorFailed(message),
+                ) => {
+                    feedback.set(message);
+                }
+                Some(boardstudio_application::TerminalOutcome::Superseded)
+                | Some(boardstudio_application::TerminalOutcome::Cancelled)
+                | Some(boardstudio_application::TerminalOutcome::Closed)
+                | None => {
+                    feedback.set("Placement save was interrupted before it completed.".into())
+                }
+            }
+            saving.set(false);
         });
-        feedback.set("Placement submitted for save.".into());
     };
     let scope = input.scope.clone();
     let module_id = input.module_id.clone();
@@ -582,7 +674,7 @@ fn PcbMountedModuleInspector(
                             disabled: !editable,
                             onchange: move |event| draft.with_mut(|value| if let Some(connection) = &mut value.connection { connection.host_connector_part_id = event.value(); }),
                             option { value: "", "Select VIK host connector" }
-                            if connectors.is_empty() && automatic_connector_definition.is_some() {
+                            if connectors.is_empty() {
                                 option { value: "{automatic_connector_id}", "Add source-backed horizontal VIK connector beside module" }
                             }
                             for (id, reference) in &connectors { option { value: "{id}", "{reference}" } }
@@ -729,7 +821,7 @@ fn PcbMountedModuleInspector(
                 }
             }
             div { class: "m1-pcb-module-actions",
-                button { class: "m1-primary-button", r#type: "button", disabled: !editable || draft().connection.as_ref().is_some_and(|connection| connection.host_connector_part_id.is_empty()), onclick: save, "Save placement" }
+                button { class: "m1-primary-button", r#type: "button", disabled: !editable || saving() || draft().connection.as_ref().is_some_and(|connection| connection.host_connector_part_id.is_empty()), onclick: save, "Save placement" }
                 button { class: "m1-danger-button", r#type: "button", disabled: !editable, onclick: remove, "Remove module" }
             }
             if !feedback().is_empty() { p { role: "status", "{feedback()}" } }
@@ -762,81 +854,6 @@ fn vik_signals() -> [(VikSignal, &'static str); 12] {
     ]
 }
 
-fn source_vik_host_connector(
-    module: &boardstudio_core::model::ModuleDefinition,
-) -> Option<PartDefinition> {
-    const MODEL_ASSET: &str =
-        "ergogen:model:vik/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal.stp";
-    let mut definition = module
-        .circuit
-        .as_ref()?
-        .definitions
-        .iter()
-        .find(|definition| {
-            definition
-                .hardware_profile
-                .as_ref()
-                .is_some_and(|profile| profile.vik_role == Some(VikRole::Host))
-                && definition.name.to_ascii_lowercase().contains("horizontal")
-        })?
-        .clone();
-    definition.id = "vik:source:horizontal-host-connector".into();
-    definition.name = "VIK horizontal host connector".into();
-    definition.models = Some(vec![PartModel {
-        asset_id: MODEL_ASSET.into(),
-        offset: Vec3 {
-            x: -2.75,
-            y: 2.3,
-            z: 0.0,
-        },
-        rotation: Vec3::default(),
-        scale: Vec3 {
-            x: 1.0,
-            y: 1.0,
-            z: 1.0,
-        },
-    }]);
-    if let Some(source) = &mut definition.kicad_source {
-        source.source = without_embedded_connector_model(&source.source)?;
-    }
-    Some(definition)
-}
-
-fn without_embedded_connector_model(source: &str) -> Option<String> {
-    const MARKER: &str = "(model \"../../kicad/3dmodels/vik-connector-horizontal.stp\"";
-    let Some(start) = source.find(MARKER) else {
-        return Some(source.to_owned());
-    };
-    let mut depth = 0usize;
-    let mut quoted = false;
-    let mut escaped = false;
-    for (offset, character) in source[start..].char_indices() {
-        if quoted {
-            if escaped {
-                escaped = false;
-            } else if character == '\\' {
-                escaped = true;
-            } else if character == '"' {
-                quoted = false;
-            }
-            continue;
-        }
-        match character {
-            '"' => quoted = true,
-            '(' => depth += 1,
-            ')' => {
-                depth = depth.checked_sub(1)?;
-                if depth == 0 {
-                    let end = start + offset + character.len_utf8();
-                    return Some(format!("{}{}", &source[..start], &source[end..]));
-                }
-            }
-            _ => {}
-        }
-    }
-    None
-}
-
 fn mounted_owner_current(
     runtime: &Rc<Runtime>,
     selected_context: Signal<Option<super::objects::ScopedTreeContext>>,
@@ -845,23 +862,11 @@ fn mounted_owner_current(
     token: boardstudio_application::SnapshotToken,
     revision: u64,
 ) -> Option<AcceptedSnapshot> {
-    if runtime.scope().as_ref() != Some(scope) {
-        return None;
-    }
-    let selected = selected_context.read().clone()?;
-    if selected.scope != *scope
-        || selected.context
-            != (super::objects::TreeContext::MountedModule {
-                board_id: scope.board_id.clone(),
-                module_id: module_id.to_owned(),
-            })
-    {
+    if !mounted_selection_current(runtime, selected_context, scope, module_id) {
         return None;
     }
     let model = runtime.model();
-    if model.lifecycle != Lifecycle::Ready
-        || !super::selection::context_is_current(&model, scope, &selected.context)
-    {
+    if model.lifecycle != Lifecycle::Ready {
         return None;
     }
     let snapshot = model.accepted?;
@@ -870,4 +875,34 @@ fn mounted_owner_current(
         && snapshot.document.id == scope.document_id
         && snapshot.session_epoch == scope.session_epoch)
         .then_some(snapshot)
+}
+
+fn mounted_selection_current(
+    runtime: &Rc<Runtime>,
+    selected_context: Signal<Option<super::objects::ScopedTreeContext>>,
+    scope: &Scope,
+    module_id: &str,
+) -> bool {
+    if runtime.scope().as_ref() != Some(scope) {
+        return false;
+    }
+    let Some(selected) = selected_context.read().clone() else {
+        return false;
+    };
+    if selected.scope != *scope
+        || selected.context
+            != (super::objects::TreeContext::MountedModule {
+                board_id: scope.board_id.clone(),
+                module_id: module_id.to_owned(),
+            })
+    {
+        return false;
+    }
+    let model = runtime.model();
+    model.lifecycle == Lifecycle::Ready
+        && super::selection::context_is_current(&model, scope, &selected.context)
+        && model.accepted.as_ref().is_some_and(|snapshot| {
+            snapshot.document.id == scope.document_id
+                && snapshot.session_epoch == scope.session_epoch
+        })
 }
