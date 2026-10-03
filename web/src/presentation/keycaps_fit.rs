@@ -666,6 +666,47 @@ pub(super) fn layout_navigation_bounds(
     Some((min_x - 12.0, max_x + 12.0, min_y - 12.0, max_y + 12.0))
 }
 
+/// React fits a finding's complete Core marker contours after fitting the primary
+/// target. Reuse the accepted scene projection rather than reconstructing finding
+/// geometry from its target IDs or message.
+pub(super) fn finding_marker_bounds(
+    scene: &SceneDelta,
+    finding_id: &str,
+    board_id: &str,
+) -> Option<(f64, f64, f64, f64)> {
+    let mut bounds: Option<(f64, f64, f64, f64)> = None;
+    for point in scene
+        .finding_markers
+        .iter()
+        .filter(|marker| marker.finding_id == finding_id && marker.board_id == board_id)
+        .flat_map(|marker| marker.contours.iter())
+        .flat_map(|contour| contour.points.iter())
+        .filter(|point| point.x.is_finite() && point.y.is_finite())
+    {
+        bounds = Some(match bounds {
+            Some((min_x, max_x, min_y, max_y)) => (
+                min_x.min(point.x),
+                max_x.max(point.x),
+                min_y.min(point.y),
+                max_y.max(point.y),
+            ),
+            None => (point.x, point.x, point.y, point.y),
+        });
+    }
+    let (min_x, max_x, min_y, max_y) = bounds?;
+    Some((min_x - 12.0, max_x + 12.0, min_y - 12.0, max_y + 12.0))
+}
+
+pub(super) fn finding_navigation_bounds(
+    document: &ProjectDoc,
+    scene: &SceneDelta,
+    finding_id: &str,
+    target: &FindingNavigationTarget,
+) -> Option<(f64, f64, f64, f64)> {
+    finding_marker_bounds(scene, finding_id, target_board_id(target))
+        .or_else(|| layout_navigation_bounds(document, scene, target))
+}
+
 fn include_layout_part_bounds(
     document: &ProjectDoc,
     scene: &SceneDelta,
@@ -905,7 +946,8 @@ mod tests {
     use super::*;
     use boardstudio_application::{SessionEpoch, SnapshotToken};
     use boardstudio_core::model::{
-        Board, KeycapResolution, Part, Pose2, Readiness, SceneDelta, Side, Transform, Vec2,
+        Board, Contour, FindingMarker, KeycapResolution, Part, Pose2, Readiness, SceneDelta, Side,
+        Transform, Vec2,
     };
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
@@ -1246,7 +1288,14 @@ mod tests {
             board_contours: vec![],
             board_readiness: vec![],
             board_outline_scenes: vec![],
-            finding_markers: vec![],
+            finding_markers: vec![FindingMarker {
+                finding_id: "overlap:SW1-SW2".into(),
+                board_id: "board".into(),
+                contours: vec![Contour {
+                    points: vec![Vec2 { x: -20.0, y: -10.0 }, Vec2 { x: 80.0, y: 110.0 }],
+                    hole: false,
+                }],
+            }],
             findings: vec![],
             readiness: Readiness {
                 layout: true,
@@ -1265,6 +1314,93 @@ mod tests {
                 },
             ),
             Some((28.0, 52.0, 58.0, 82.0))
+        );
+        let part_target = FindingNavigationTarget::Part {
+            board_id: "board".into(),
+            part_id: "matrix/keys/diode-1".into(),
+        };
+        assert_eq!(
+            finding_navigation_bounds(&document, &scene, "overlap:SW1-SW2", &part_target),
+            Some((-32.0, 92.0, -22.0, 122.0)),
+            "the marker contour is the final camera target even when the primary Part has narrower bounds"
+        );
+        assert_eq!(
+            finding_navigation_bounds(&document, &scene, "different-finding", &part_target),
+            Some((28.0, 52.0, 58.0, 82.0)),
+            "an absent matching marker falls back to target bounds"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    fn finding_marker_bounds_include_every_contour_of_the_current_board_finding() {
+        let mut scene = SceneDelta {
+            module_scenes: vec![],
+            revision: 11,
+            transaction_id: "accepted".into(),
+            changed_ids: vec![],
+            transforms: vec![],
+            matrix_scenes: vec![],
+            contours: vec![],
+            board_contours: vec![],
+            board_readiness: vec![],
+            board_outline_scenes: vec![],
+            finding_markers: vec![
+                FindingMarker {
+                    finding_id: "overlap:sw1-sw2".into(),
+                    board_id: "left".into(),
+                    contours: vec![
+                        Contour {
+                            points: vec![Vec2 { x: 0.0, y: 0.0 }, Vec2 { x: 18.0, y: 0.0 }],
+                            hole: false,
+                        },
+                        Contour {
+                            points: vec![Vec2 { x: 42.0, y: 10.0 }, Vec2 { x: 60.0, y: 30.0 }],
+                            hole: false,
+                        },
+                    ],
+                },
+                FindingMarker {
+                    finding_id: "overlap:sw1-sw2".into(),
+                    board_id: "right".into(),
+                    contours: vec![Contour {
+                        points: vec![Vec2 {
+                            x: -500.0,
+                            y: -500.0,
+                        }],
+                        hole: false,
+                    }],
+                },
+                FindingMarker {
+                    finding_id: "other-finding".into(),
+                    board_id: "left".into(),
+                    contours: vec![Contour {
+                        points: vec![Vec2 {
+                            x: -100.0,
+                            y: -100.0,
+                        }],
+                        hole: false,
+                    }],
+                },
+            ],
+            findings: vec![],
+            readiness: Readiness {
+                layout: true,
+                outline: false,
+                pcb: false,
+                case_ready: false,
+            },
+        };
+
+        assert_eq!(
+            finding_marker_bounds(&scene, "overlap:sw1-sw2", "left"),
+            Some((-12.0, 72.0, -12.0, 42.0)),
+            "the fit includes all same-finding contours and excludes other boards/findings"
+        );
+        scene.finding_markers[0].contours.clear();
+        assert_eq!(
+            finding_marker_bounds(&scene, "overlap:sw1-sw2", "left"),
+            None,
+            "an empty marker leaves target-bounds fallback available"
         );
     }
 

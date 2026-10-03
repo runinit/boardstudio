@@ -1081,13 +1081,28 @@ mod tests {
     fn mounted_delayed_focus_runs_for_current_owner_and_stops_after_unmount() {
         let owner = owner_fixture();
         let (probe, mut dom) = mounted_probe(owner);
+        assert_eq!(
+            probe.workspace.borrow().expect("mounted workspace")(),
+            "Keycaps"
+        );
         probe.schedule.borrow().as_ref().unwrap().call(());
         flush(&mut dom);
         probe.frame_effects.borrow_mut().pop().unwrap()();
         assert_eq!(probe.focus_count.get(), 1);
 
         // A second queued callback from this mounted owner must stop before reading its scoped
-        // live-owner Signal when the component is removed.
+        // live-owner Signal when the component is removed. Return to Keycaps before submitting
+        // a second finding request; accepted navigation correctly rejects requests from Layout.
+        probe
+            .workspace
+            .borrow()
+            .expect("mounted workspace")
+            .set("Keycaps");
+        let mut live = probe.live.borrow().expect("mounted owner signal");
+        let mut keycaps_owner = live.read().clone();
+        keycaps_owner.workspace = "Keycaps";
+        keycaps_owner.destinations.clear();
+        live.set(keycaps_owner);
         probe.schedule.borrow().as_ref().unwrap().call(());
         flush(&mut dom);
         assert_eq!(probe.frame_effects.borrow().len(), 1);

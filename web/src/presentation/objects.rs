@@ -79,6 +79,13 @@ pub(super) fn context_for_part(model: &ReadModel, part_id: &str) -> Option<TreeC
     tree::context_for_part(model, part_id)
 }
 
+pub(super) fn component_context_for_finding_part(
+    model: &ReadModel,
+    part_id: &str,
+) -> Option<TreeContext> {
+    tree::component_context_for_finding_part(model, part_id)
+}
+
 pub(super) fn context_for_cell(
     model: &ReadModel,
     matrix_id: &str,

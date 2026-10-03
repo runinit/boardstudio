@@ -3650,7 +3650,7 @@ fn Editor() -> Element {
                 },
                 |target| match target {
                     keycaps_fit::FindingNavigationTarget::Part { part_id, .. } => {
-                        objects::context_for_part(&model, part_id)
+                        objects::component_context_for_finding_part(&model, part_id)
                     }
                     _ => None,
                 },
@@ -3771,9 +3771,10 @@ fn Editor() -> Element {
                 {
                     return None;
                 }
-                let target_bounds = keycaps_fit::layout_navigation_bounds(
+                let target_bounds = keycaps_fit::finding_navigation_bounds(
                     &snapshot.document,
                     &snapshot.scene,
+                    &request.finding.id,
                     &request.target,
                 )?;
                 let surface = surface.borrow().clone()?;

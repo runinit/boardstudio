@@ -1189,6 +1189,35 @@ pub(super) fn context_for_part(
     })
 }
 
+/// Build the explicit component/Part Inspector context used by a finding action.
+/// Ordinary hit testing still calls `context_for_part` and therefore keeps primary
+/// matrix members in Key mode; a finding has already resolved a Part target and
+/// React deliberately opens that part's component Inspector instead.
+pub(super) fn component_context_for_finding_part(
+    model: &boardstudio_application::ReadModel,
+    part_id: &str,
+) -> Option<TreeContext> {
+    let context = context_for_part(model, part_id)?;
+    component_context_for_explicit_part(part_id, &context)
+}
+
+fn component_context_for_explicit_part(
+    part_id: &str,
+    ordinary: &TreeContext,
+) -> Option<TreeContext> {
+    matches!(
+        ordinary,
+        TreeContext::Key { .. } | TreeContext::Component { .. }
+    )
+    .then(|| TreeContext::Component {
+        part_id: Some(part_id.to_owned()),
+        matrix_id: None,
+        row: None,
+        column: None,
+        assembly_id: None,
+    })
+}
+
 pub(super) fn context_for_cell(
     model: &boardstudio_application::ReadModel,
     matrix_id: &str,

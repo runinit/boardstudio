@@ -2,6 +2,7 @@ use super::{Grouping, TreeContext, TreeKind, build_tree};
 use boardstudio_application::ReadModel;
 use boardstudio_core::model::{BoardOutlineScene, OutlineBridge, ProjectDoc};
 use std::collections::BTreeSet;
+use wasm_bindgen_test::wasm_bindgen_test;
 
 fn reviung_document() -> ProjectDoc {
     serde_json::from_str(include_str!(
@@ -56,6 +57,45 @@ fn stored_row_grouping_and_empty_model_projection_remain_defined() {
         None
     );
     assert_eq!(super::context_label(&empty, &matrix), None);
+}
+
+#[wasm_bindgen_test]
+fn explicit_finding_part_route_uses_component_context_without_changing_key_hit_context() {
+    let ordinary_key = TreeContext::Key {
+        matrix_id: "left-keys".into(),
+        row: 0,
+        column: 0,
+    };
+    assert_eq!(
+        super::component_context_for_explicit_part("left-keys-SW1", &ordinary_key),
+        Some(TreeContext::Component {
+            part_id: Some("left-keys-SW1".into()),
+            matrix_id: None,
+            row: None,
+            column: None,
+            assembly_id: None,
+        }),
+        "an explicit Part finding action enters the component Inspector for that part"
+    );
+    assert_eq!(
+        ordinary_key,
+        TreeContext::Key {
+            matrix_id: "left-keys".into(),
+            row: 0,
+            column: 0,
+        },
+        "the projection leaves ordinary canvas Key context intact"
+    );
+    assert_eq!(
+        super::component_context_for_explicit_part(
+            "left-keys-SW1",
+            &TreeContext::Board {
+                board_id: "left".into(),
+            },
+        ),
+        None,
+        "non-part contexts cannot be converted into component selection"
+    );
 }
 
 #[test]
