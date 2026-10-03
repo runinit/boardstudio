@@ -2,6 +2,7 @@
 mod assembly_editor;
 mod assembly_presets;
 mod catalogue;
+mod component_model_editor;
 mod details;
 mod generator_settings;
 #[cfg(any(target_arch = "wasm32", test))]
@@ -1145,6 +1146,17 @@ pub(super) fn PartsInspectorPanel(
                     scope: scope.clone(),
                     selected,
                     definition: (*entry.definition).clone(),
+                }
+            }
+            if active_assembly.is_none()
+                && let Some(entry) = entry.as_ref().filter(|entry| entry.definition.generator.is_none())
+            {
+                component_model_editor::ComponentModelEditor {
+                    snapshot: snapshot.clone(),
+                    scope: scope.clone(),
+                    selected,
+                    definition: (*entry.definition).clone(),
+                    project_owned: entry.source == catalogue::CatalogueSource::Project,
                 }
             }
             if !controller_placement_enabled && let Some(entry) = entry.as_ref() {

@@ -223,7 +223,7 @@ pub(super) fn SavedAssembliesEditor(
             } else {
                 div { class: "m1-parts-assembly-saved-list", role: "list", "aria-label": "Saved assemblies",
                     for assembly in saved_assemblies {
-                        { let open_existing = open_existing.clone(); let duplicate = duplicate.clone();
+                        { let mut open_existing = open_existing.clone(); let mut duplicate = duplicate.clone();
                           let existing_assembly = assembly.clone(); let duplicate_assembly = assembly.clone();
                           rsx! {
                             div { class: "m1-parts-assembly-saved-row", key: "{assembly.id}",
