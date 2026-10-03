@@ -765,8 +765,8 @@ fn WorkspaceNavigation() -> Element {
                 }
             }
             select { class: "m1-workspace-select", "aria-label": "Workspace", value: "{workspace()}", onchange: move |event| workspace.set(match event.value().as_str() { "PCB" => "PCB", "Keymap" => "Keymap", "Keycaps" => "Keycaps", "Case" => "Case", "Parts" => "Parts", "Export" => "Export", _ => "Layout" }),
-                for tab in tabs { option { value: "{tab}", "{tab}" } }
-                if workspace() == "Export" { option { value: "Export", "Export" } }
+                for tab in tabs { option { value: "{tab}", selected: workspace() == tab, "{tab}" } }
+                if workspace() == "Export" { option { value: "Export", selected: true, "Export" } }
             }
         }
     }
