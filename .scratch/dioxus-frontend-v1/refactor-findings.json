@@ -187,6 +187,15 @@
         "observation": "Independent review found Layout model terminal errors and selected-key loader failures checking weaker ownership than successful delivery; isolated repairs require the same captured accepted source/lease guard and suspended production regressions.",
         "during_port": "Fix reproduced stale feedback before integration; source holds remain until reviewed.",
         "post_port": "Assess one private delivery authority for success, failure and cancellation after parity."
+      },
+      "cross_stream_composition_20261002": {
+        "source": "F3 generic component placement6c9 + F7 canonical viewer53b2 + Mirror48bd, integrated root e6dc6c53",
+        "observations": [
+          "Preparing component placement has busy=true/projection=None; checking only visible projection on 3D entry can allow late loader publication. Existing owner cancellation must cover preparing work. Combined production regression is required before acceptance.",
+          "Private props/owner removal broke retained older mounted compositions during root strict checks. Root repaired obsolete return callback and supplied consistent accepted snapshot props while preserving previous mounted assertions."
+        ],
+        "during_port": "Retain explicit cross-stream integration tests and independently review final join; no failing gate waived.",
+        "post_port": "Assess shared interaction retirement and composition fixture ownership after parity instead of spreading conditional cancellation and ad hoc fixture glue."
       }
     },
     {
@@ -885,6 +894,10 @@
         ],
         "during_port": "Retain raw probes, exact pinned call-site evidence, production authority tests and independent review; no broader acceptance inferred.",
         "post_port": "Improve browser input adapters and test authority reuse to reduce false failures and false parity claims."
+      },
+      "pcb_layer_oracle_20261002": {
+        "observation": "PCB02 initial interpretation conflated accessibility IDs with visible layer labels/order. Independent pinned source review requires exact visible labels/group ordering; author is repairing alongside hook ownership and stale/failure isolation.",
+        "during_port": "Keep source192d HOLD and validate actual visible DOM plus aria labels separately; independent strict compile success is not parity completion."
       }
     },
     {
