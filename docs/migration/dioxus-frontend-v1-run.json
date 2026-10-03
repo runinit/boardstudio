@@ -724,39 +724,35 @@
     "result": "Fresh React archive has0 local assets: unchecked export0 assets, checked6 assets, each digest verified. Bounded archive-option proof only; STEP/firmware/full export parent remain open."
   },
   "current_served_frontier_20261002": {
-    "url": "http://127.0.0.1:34730/",
-    "subpath": "http://127.0.0.1:34730/boardstudio/",
-    "build": "frontend-case-firmware-parity-integrated-20261002",
-    "source": "d320b6ecadbea5ad6f337c3a650bea7cb528e74b",
+    "url": "http://127.0.0.1:34734/",
+    "subpath": "http://127.0.0.1:34734/boardstudio/",
+    "build": "frontend-contextual-case-mirror-keycaps-20261002",
+    "source": "f261a327858f51a1de4928374bc65b669e2792a3",
     "commands": 22,
-    "source_hashes": 1296,
+    "source_hashes": 1331,
     "assets_per_route": 145,
     "mismatches": 0,
-    "qualification": "Bounded same-archive paired Case 90/90; full UI and persistence acceptance open."
+    "qualification": "Bounded paired Case12/Keycaps06 receipts under review; Mirror visual fixes in progress; full workbench acceptance open."
   },
   "pending_integration_wave_20261002": {
-    "source": "e3566700b155c500a3ae9687bc92a6d9003a5e39",
-    "full_build": "frontend-ui-integration-reuse-baseline-20261002",
-    "status": "Full baseline building; served candidate remains34730/d320. Layout command-pill source review is in progress; Controller placement and Keycaps ordering repairs require independent clearance. All browser/parent gates retained.",
-    "ready_integrated": [
-      "PCB07 connections and PCB08 inputs composed under one contextual heading",
-      "Parts12 accepted definition-name edit",
-      "Reviewed guarded page/CSS provider reuse helper"
-    ],
+    "source": "d585492012a60937879e89a8618c1d533fddba4e",
+    "status": "Parts15 and ZMK integrated, independently reviewed, strict supported WASM all-target Clippy passed15.66s. No active build lease; batching next cleared source packets.",
     "parallel_additions": [
-      "Parts13 new custom component and Parts14 fit profile separate authors",
-      "Case16 per-model layer visibility",
-      "Keycaps mixed-selection ordering and overlap warning",
-      "Keymap current public qualification"
-    ],
-    "next_packaging_improvement": "Bounded contextual page-leaf reuse expansion draft under independent planning review; no wildcard or applied change."
+      "PCB host layers",
+      "Layout canonical3D owner repairs",
+      "Generic component placement owner repairs",
+      "Case battery settings",
+      "Keycaps finding navigation",
+      "Keymap macro accessible labels",
+      "Mirror form visual fidelity"
+    ]
   },
   "current_comparison_build": {
-    "build_id": "frontend-layout-pill-css-reuse-20261002",
-    "source_commit": "792e88afecefa032d17b7540fa316e24b709c5ae",
-    "root_url": "http://127.0.0.1:34731/",
-    "subpath_url": "http://127.0.0.1:34731/boardstudio/",
-    "receipt": ".scratch/dioxus-frontend-v1/evidence/packaging-reuse-public-20261002.json",
+    "build_id": "frontend-contextual-case-mirror-keycaps-20261002",
+    "source_commit": "f261a327858f51a1de4928374bc65b669e2792a3",
+    "root_url": "http://127.0.0.1:34734/",
+    "subpath_url": "http://127.0.0.1:34734/boardstudio/",
+    "provenance_sha256": "f77c5920371ae6a69e42ae42e20f0eef2519f7822f1eb404f4b580c17b38e066",
     "acceptance": "partial comparison; full workbench gates remain open"
   },
   "active_source_freeze": {
@@ -772,5 +768,52 @@
     "assets_per_route": 145,
     "elapsed_seconds": 576.574183,
     "public_acceptance": "paired journeys in progress; no full parent closure"
-  }
+  },
+  "retained_checkpoint_history": [
+    {
+      "former_key": "current_served_frontier_20261002",
+      "checkpoint": {
+        "url": "http://127.0.0.1:34730/",
+        "subpath": "http://127.0.0.1:34730/boardstudio/",
+        "build": "frontend-case-firmware-parity-integrated-20261002",
+        "source": "d320b6ecadbea5ad6f337c3a650bea7cb528e74b",
+        "commands": 22,
+        "source_hashes": 1296,
+        "assets_per_route": 145,
+        "mismatches": 0,
+        "qualification": "Bounded same-archive paired Case 90/90; full UI and persistence acceptance open."
+      }
+    },
+    {
+      "former_key": "pending_integration_wave_20261002",
+      "checkpoint": {
+        "source": "e3566700b155c500a3ae9687bc92a6d9003a5e39",
+        "full_build": "frontend-ui-integration-reuse-baseline-20261002",
+        "status": "Full baseline building; served candidate remains34730/d320. Layout command-pill source review is in progress; Controller placement and Keycaps ordering repairs require independent clearance. All browser/parent gates retained.",
+        "ready_integrated": [
+          "PCB07 connections and PCB08 inputs composed under one contextual heading",
+          "Parts12 accepted definition-name edit",
+          "Reviewed guarded page/CSS provider reuse helper"
+        ],
+        "parallel_additions": [
+          "Parts13 new custom component and Parts14 fit profile separate authors",
+          "Case16 per-model layer visibility",
+          "Keycaps mixed-selection ordering and overlap warning",
+          "Keymap current public qualification"
+        ],
+        "next_packaging_improvement": "Bounded contextual page-leaf reuse expansion draft under independent planning review; no wildcard or applied change."
+      }
+    },
+    {
+      "former_key": "current_comparison_build",
+      "checkpoint": {
+        "build_id": "frontend-layout-pill-css-reuse-20261002",
+        "source_commit": "792e88afecefa032d17b7540fa316e24b709c5ae",
+        "root_url": "http://127.0.0.1:34731/",
+        "subpath_url": "http://127.0.0.1:34731/boardstudio/",
+        "receipt": ".scratch/dioxus-frontend-v1/evidence/packaging-reuse-public-20261002.json",
+        "acceptance": "partial comparison; full workbench gates remain open"
+      }
+    }
+  ]
 }
