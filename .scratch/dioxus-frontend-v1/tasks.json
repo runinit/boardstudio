@@ -4145,7 +4145,7 @@
         {
           "id": "F5.5-C03",
           "requirement": "Reuse F4-owned definition selection, source readiness/profile editing and asset/model presentation.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/parts/modules_catalogue.rs",
@@ -4159,7 +4159,7 @@
             ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/modules/vik-splitter-gnd-join-ad26b07a.md"
           ],
           "blockers": [],
-          "next_action": "Fresh Haptic attachment, accepted navigation, connector creation/repeat Save, Undo/Redo and archive reopen passed34782. Remaining: qualify accepted F4 profile/model/asset edits flowing into integrated mounted placement; reuse existing variant/readiness/source-preview evidence. Pending/error scope branches remain explicit under C04.",
+          "next_action": "Retain paired source profile/model binding edit, exact asset bytes, persistent module/connector identity and fresh public archive reopen on34782/5175. Candidate physical alignment remains unverified and is not asserted by this F4-control-reuse criterion; pending/error scope branches remain C04 and F4.7 parent join remains.",
           "finish_condition": "Integrated PCB placement selection reuses exact F4 definition/readiness/profile/asset controls and reflects their accepted state.",
           "owned_files": [
             "web/src/presentation/pcb_module_inspector.rs",
