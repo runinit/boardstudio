@@ -49,13 +49,11 @@ branches are maintained once in [BND.2 source reconciliation](../evidence/planni
 The generated-mechanical row now captures the selected physical-instance
 projection and routes through the existing Core resolver, CAD worker, outline
 and FR4 plate artifact providers, and Core archive provider in
-`web/src/runtime.rs::mechanical_package_bytes`. The Export row is mounted in
-`web/src/presentation/export_workspace.rs`. This is source-backed wiring, not
-public output qualification: selected-instance naming, ZIP entries, generated
-body contents, and stale-delivery behavior still need one bounded paired
-journey. Ordinary authored Case STEP remains a separate selected-board path;
-configured authored-only STEP semantics are not claimed. Local Keycaps STEP
-stays with F6.
+`web/src/runtime.rs::mechanical_package_bytes`. Authored Case STEP separately
+prepares canonical saved case bodies through Core `PrepareCase`, regardless of
+whether generated mechanics are configured; see the [source map](../evidence/export-workspace-20261003/authored-case-step-source-map.md).
+Both actions retain selected-context/source guards and still need public output
+qualification. Local Keycaps STEP stays with F6.
 
 For full/draft PCB, preserve this ordering from `exports/pcb.ts`:
 

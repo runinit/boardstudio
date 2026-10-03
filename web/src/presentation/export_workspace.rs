@@ -337,13 +337,13 @@ fn export_rows(
             },
             detail: "Saved authored case bodies",
             ready: !document.case_bodies.is_empty() && case_ready,
-            available: !generated_case,
+            available: true,
             reason: if !document.case_bodies.is_empty() && case_ready {
                 None
             } else {
                 case_blocker
             },
-            on_export: (!generated_case).then_some(step_export),
+            on_export: Some(step_export),
         },
     ];
     if generated_case {

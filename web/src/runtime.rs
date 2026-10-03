@@ -11,10 +11,11 @@ use boardstudio_core::{
     electrical::{ElectricalMode, ElectricalPlan, ElectricalPlanRequest},
     model::{
         ArchiveEntry, ArchiveReply, ArchiveRequest, ArtifactReply, ArtifactRequest, Board,
-        CompiledFootprint, CoreReply, CoreRequest, ErgogenJobResult, FinishExportRequest,
-        HardwareTopology, KeycapSpec, Material, MechanicalAssembly, MechanicalBuiltinProfile,
-        MechanicalConfiguration, MechanicalPartProfile, MechanicalSwitchFamily, Operation,
-        OutlineFeature, OutlineSettings, PcbPreview, PrepareExportRequest, ProjectDoc,
+        CaseAssemblyIR, CaseIR, CompiledFootprint, CoreReply, CoreRequest, ErgogenJobResult,
+        FinishExportRequest, HardwareTopology, KeycapSpec, Material, MechanicalAssembly,
+        MechanicalBuiltinProfile, MechanicalConfiguration, MechanicalPartProfile,
+        MechanicalSwitchFamily, Operation, OutlineFeature, OutlineSettings, PcbPreview,
+        PrepareExportRequest, ProjectDoc,
     },
 };
 use boardstudio_web::host::{BrowserStore, CoreWorker};
@@ -2161,7 +2162,10 @@ impl Runtime {
                                 Some("model/step".to_owned()),
                             )
                         } else if is_step_export {
-                            ("keyboard.step".to_owned(), None)
+                            (
+                                authored_case_filename(&snapshot.document, &scope),
+                                Some("model/step".to_owned()),
+                            )
                         } else if is_pcb_handoff_export {
                             let draft = self
                                 .pcb_handoff_exports
@@ -3681,15 +3685,48 @@ impl Runtime {
     }
 
     pub fn export_step(self: &Rc<Self>) {
-        if self.mechanical_mount_initialization_pending() {
-            self.report(
-                "Finish preparing mounting locations before exporting the mechanical assembly.",
-            );
-            return;
-        }
         let Some(scope) = self.scope() else {
+            self.apply_report(RuntimeReport::alert(
+                "Select a board before exporting authored case geometry.",
+            ));
             return;
         };
+        let model = self.model();
+        let Some(snapshot) = model.accepted.as_ref() else {
+            self.apply_report(RuntimeReport::alert(
+                "Authored Case STEP requires a ready accepted snapshot.",
+            ));
+            return;
+        };
+        let case_ready = snapshot
+            .scene
+            .board_readiness
+            .iter()
+            .find(|item| item.board_id == scope.board_id)
+            .map_or(
+                snapshot.document.boards.len() <= 1 && snapshot.scene.readiness.case_ready,
+                |item| item.case_ready,
+            );
+        if model.active_board_id != scope.board_id
+            || snapshot.scene.revision != snapshot.document.revision
+            || !snapshot
+                .document
+                .boards
+                .iter()
+                .any(|board| board.id == scope.board_id)
+            || !snapshot
+                .document
+                .case_bodies
+                .iter()
+                .any(|body| body.board_id == scope.board_id)
+            || !case_ready
+        {
+            self.apply_report(RuntimeReport::alert(
+                "Resolve authored case findings for the selected board before export.",
+            ));
+            return;
+        }
+        self.clear_alert();
         let operation_id = self.operation();
         self.step_exports.borrow_mut().insert(operation_id);
         self.submit(Event::StartExport {
@@ -5075,25 +5112,86 @@ impl Runtime {
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
     ) -> Result<Vec<u8>, String> {
+        let core = self.core.borrow().clone();
+        let executor_epoch = self.session.borrow().core_executor_epoch();
         let guard = || {
-            if !self.export_current(operation_id, snapshot.token, scope) {
-                Err("STEP export was cancelled or superseded.".to_owned())
-            } else {
+            let current_core = self.core.borrow().clone();
+            let current = self.model().accepted;
+            if self.export_current(operation_id, snapshot.token, scope)
+                && self.scope().as_ref() == Some(scope)
+                && self.session.borrow().core_executor_epoch() == executor_epoch
+                && Rc::ptr_eq(&core, &current_core)
+                && current.as_ref().is_some_and(|accepted| {
+                    accepted.token == snapshot.token
+                        && accepted.session_epoch == snapshot.session_epoch
+                        && accepted.document.id == snapshot.document.id
+                        && accepted.document.revision == snapshot.document.revision
+                        && accepted.scene.revision == snapshot.document.revision
+                })
+            {
                 Ok(())
+            } else {
+                Err("Authored Case STEP was cancelled, superseded, or its source changed.".into())
             }
         };
         guard()?;
-        let core = self.core.borrow().clone();
-        let epoch = self.session.borrow().core_executor_epoch().0.to_string();
-        let prepared = prepare_captured_step_assembly(
-            &core,
-            &epoch,
-            &format!("step-{}", operation_id.0),
-            snapshot,
-            scope,
-        )
-        .await
-        .map_err(|e| format!("{e:?}"))?;
+        let bodies = snapshot
+            .document
+            .case_bodies
+            .iter()
+            .filter(|body| body.board_id == scope.board_id)
+            .cloned()
+            .map(|body| CaseIR {
+                revision: snapshot.document.revision,
+                body,
+                contours: snapshot
+                    .scene
+                    .board_contours
+                    .iter()
+                    .find(|entry| entry.board_id == scope.board_id)
+                    .map_or_else(Vec::new, |entry| entry.contours.clone()),
+            })
+            .collect::<Vec<_>>();
+        if bodies.is_empty() {
+            return Err("The selected board has no saved authored case bodies.".into());
+        }
+        let request_id = format!("authored-case-step-{}", operation_id.0);
+        let request = CoreRequest::PrepareCase {
+            id: request_id.clone(),
+            ir: CaseAssemblyIR {
+                revision: snapshot.document.revision,
+                bodies,
+            },
+        };
+        let prepared = core
+            .request(&request_id, &executor_epoch.0.to_string(), &request)
+            .await
+            .map_err(|error| format!("Authored case preparation failed: {error}"))?;
+        guard()?;
+        let prepared = match prepared {
+            CoreReply::CasePrepared { id, ir } if id == request_id => ir,
+            CoreReply::Error { id, message, .. } if id == request_id => return Err(message),
+            _ => return Err("Core returned an unexpected authored case preparation.".into()),
+        };
+        if prepared.revision != snapshot.document.revision
+            || prepared
+                .bodies
+                .iter()
+                .any(|body| body.revision != snapshot.document.revision)
+        {
+            return Err("Core prepared authored case bodies for another revision.".into());
+        }
+        if prepared.bodies.is_empty() {
+            return Err("Core prepared no authored case bodies.".into());
+        }
+        let identity = CadSnapshotIdentity {
+            token: snapshot.token.0,
+            session_epoch: snapshot.session_epoch.0,
+            document_id: snapshot.document.id.clone(),
+            board_id: scope.board_id.clone(),
+            instance_id: scope.instance_id.clone(),
+            revision: snapshot.document.revision,
+        };
         guard()?;
         let worker = Rc::new(
             CadWorker::new(&resource_url("assets/cad-worker/entry.js")?)
@@ -5106,11 +5204,11 @@ impl Runtime {
             worker.ready().await.map_err(|e| e.to_string())?;
             guard()?;
             let request = CadRequest {
-                request_id: format!("step-{}", operation_id.0),
-                job_id: format!("step-{}", operation_id.0),
-                identity: prepared.identity.clone(),
+                request_id: format!("authored-case-step-{}", operation_id.0),
+                job_id: format!("authored-case-step-{}", operation_id.0),
+                identity: identity.clone(),
                 operation: CadOperation::ExportStep,
-                prepared: Some(prepared.prepared),
+                prepared: Some(prepared),
                 input_bytes: vec![],
             };
             let reply = worker
@@ -5118,7 +5216,7 @@ impl Runtime {
                 .await
                 .map_err(|e| e.to_string())?;
             guard()?;
-            validate_reply(&request, reply, &prepared.identity)
+            validate_reply(&request, reply, &identity)
                 .map(|result| result.step)
                 .map_err(|e| format!("{e:?}"))
         }
@@ -6409,6 +6507,35 @@ fn mechanical_filename_component(value: &str) -> String {
             in_replacement = false;
         } else if !in_replacement {
             result.push('-');
+            in_replacement = true;
+        }
+    }
+    result
+}
+
+fn authored_case_filename(document: &ProjectDoc, scope: &Scope) -> String {
+    let suffix = if document.boards.len() == 1 {
+        String::new()
+    } else {
+        document
+            .boards
+            .iter()
+            .find(|board| board.id == scope.board_id)
+            .map(|board| format!("-{}", authored_case_filename_component(&board.name)))
+            .unwrap_or_default()
+    };
+    format!("{}{suffix}-case.step", document.name)
+}
+
+fn authored_case_filename_component(value: &str) -> String {
+    let mut result = String::with_capacity(value.len());
+    let mut in_replacement = false;
+    for character in value.chars() {
+        if character.is_ascii_alphanumeric() || matches!(character, '_' | '.' | '-') {
+            result.push(character);
+            in_replacement = false;
+        } else if !in_replacement {
+            result.push('_');
             in_replacement = true;
         }
     }

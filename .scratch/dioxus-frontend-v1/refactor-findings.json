@@ -316,6 +316,12 @@
           "current_mitigation": "Keep feature-owned captures and existing Session/Core authority; integrate shared source serially, with one later candidate qualification/review.",
           "post_port_follow_up": "Assess a deep mechanical-export module with a typed accepted source and format/provider boundaries; compare feature edit owners for consolidation only after parity.",
           "validation": "Preserve exact package entries/body content, snapshot/error/cancellation behavior, accepted history and cleanup; measure source churn and repeated guard logic before restructuring."
+        },
+        {
+          "source": "F8.5 authored/generated Case STEP source packet in export-workspace-20261003",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/export-workspace-20261003/authored-case-step-source-map.md",
+          "observation": "Pinned React keeps authored Case STEP available with generated mechanics active: it exports canonical saved caseBodies while the generated ZIP uses the selected-instance mechanical projection. Dioxus now has two mounted Runtime paths over the same export owner; their geometry inputs remain explicitly separate. This confirms the shared Runtime is an integration hotspot, while the private owner guards and existing Core/CAD providers are the bounded mitigation. No performance or parity qualification is claimed.",
+          "status": "source-backed behavior implemented; public authored/generated output qualification remains open; retain canonical-versus-instance separation and defer broader Runtime extraction until post-port review"
         }
       ],
       "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted.",
