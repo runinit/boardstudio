@@ -10,6 +10,8 @@
 
 **Acceptance joins:** F6C.4 `INT.2`; unchanged.
 
+**Source status:** the Keycaps-owned findings disclosure is implemented in `codex/keycaps-next-20261003`; combined-candidate compile and paired post-fix behavior remain pending. The bounded pre-fix observation is recorded in [the paired source read](../evidence/keycaps-clearance-disclosure-20261003/paired-read.md). Existing issue05 navigation and all F6C.4/INT.2 acceptance remain open.
+
 ## Acceptance criteria
 
 - [ ] Action labels and visibility follow React `FindingList` target resolution: `Show outline` or `Select affected geometry`; unresolved/targetless findings remain readable without a dead action.
@@ -17,6 +19,7 @@
 - [ ] For findings with a current Core `finding_marker`, Layout camera fit includes that marker's complete contours (all target parts) using the marker as the final fit target, as React `showFinding` does after selecting its primary target. Fall back to the accepted target bounds only when no non-empty matching marker exists.
 - [ ] A finding whose resolved target is a part explicitly selects that part in component/Part mode, including a matrix-attached primary switch. Do not let the ordinary canvas hit-test's Key context silently turn this route into a keycap/Key Inspector; ordinary Key selection remains unchanged.
 - [ ] Current finding/document identity is revalidated at click time. Deleted, replaced or stale targets do not navigate to another object; displayed stale/current/error state remains accurate.
+- [ ] Present `Clearance findings` and its current count in a native Inspector disclosure matching React. It opens by default when findings arrive, follows asynchronous default-open changes until the user chooses its state, and preserves that choice through later accepted refreshes; pending/error/empty feedback stays inside it.
 - [ ] Navigation does not edit the document or create a history entry. Dedupe/grouping retains all target IDs required for action parity.
 - [ ] Meaningful regressions cover target types, cross-board routing, removed targets, keyboard activation, stale result and no history mutation at the production composition seam.
 - [ ] Paired pinned-React/Dioxus same-fixture browser journey records fixture/build/source hashes, route and selection, action labels, camera/Inspector behavior, stale target behavior, and no page errors. Full F6C.4 edit/Undo/Redo/save/reopen criteria remain required.
@@ -25,4 +28,4 @@
 - [ ] On accepted finding navigation, reset the Inspector's scroll owner before focusing its first available control so the selected component heading and Properties/Relations context are visible after routing from Keycaps. Ordinary selection and editing do not reset the Inspector scroll or drafts.
 - [ ] Preserve RF-001/RF-005 carry-forward and the original F6C.4/INT.2 parent joins. The shared RF ledger and task graph remain coordinator-owned.
 
-**Status:** planning packet prepared; independent planning review and source/browser acceptance remain open. No implementation or parent closure implied.
+**Status:** source implementation candidate includes the findings disclosure correction; combined affected check and post-fix candidate journey remain open. Full issue05, F6C.4 and INT.2 acceptance remain open.

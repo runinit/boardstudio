@@ -9,6 +9,7 @@ From the Keycaps Inspector, a designer can follow each actionable current fit fi
 1. As a keyboard designer, I want each fit finding with a resolvable target to offer the same action as React (`Show outline` or `Select affected geometry`), so I can move from the Keycaps warning to the object that needs attention.
 2. As a keyboard designer, I want findings whose targets no longer exist to remain readable without navigating to stale geometry.
 3. As a keyboard designer, I want navigation from an earlier retained assessment to identify its stale revision and avoid presenting it as a current result.
+4. As a keyboard designer, I want the Clearance findings title and count in a collapsible Inspector section, so I can reclaim space while retaining a clear path back to the accepted findings.
 
 ## Source-backed behavior
 
@@ -19,6 +20,7 @@ From the Keycaps Inspector, a designer can follow each actionable current fit fi
 - `KeycapPanel` supplies Keycaps resolver findings filtered from scene findings. The source-stamped Dioxus `KeycapsFitInspector` already owns presentation of the `ResolveKeycaps` assessment, but `InspectorInput` has no find-target callback. Root `WorkspaceCallbackSlots` supplies tree navigation and `on_show_configured_board`; neither implements React `Workbench.showFinding` for target selection, outline reveal, camera fit and focused Inspector state.
 - Existing grouped/deduplicated presentation can combine equivalent Core feature findings. Preserve the presented finding identity and all target IDs when routing.
 - Safe suppression of an action after its retained result's target is removed is a correctness guard for Dioxus's explicit stale-result retention; React derives action visibility from the current document and may already have cleared or replaced that result. This guard prevents a stale retained finding from selecting an unrelated object and does not claim literal React stale-state parity.
+- The findings list is a React `InspectorSection` titled `Clearance findings` with the current finding count as its detail. It opens by default when findings exist, follows asynchronous default-open changes until the user chooses the disclosure state, and then preserves that choice for the mounted section. Dioxus should reuse the existing private Inspector disclosure presentation; the accepted fit state and navigation owner remain unchanged.
 
 ## Requirements
 
@@ -27,6 +29,7 @@ From the Keycaps Inspector, a designer can follow each actionable current fit fi
 - [ ] For `Part` targets, dispatch an explicit component/Part Inspector context for the resolved part, including matrix-attached primary switches. Do not alter ordinary canvas pointer selection: it continues to select the `Key` context. For accepted marker contours, compute fit bounds from all marker contour points using the existing camera fit calculation and the pinned React padding/fitting behavior; use current target geometry as fallback only if the marker is absent or empty.
 - [ ] Resolve the action target from the same accepted document snapshot and accepted finding result used for display. Revalidate the root's live project/board/scope identity before applying navigation. A result that has become stale while the UI is open must not select unrelated or deleted geometry; it leaves the finding visible with its existing stale status and safely declines navigation.
 - [ ] Keep targetless and unresolved findings readable; do not render a button that cannot navigate. Preserve stable order, severity, target grouping, labels, deduplication and all target IDs from the existing React `FindingList` oracle.
+- [ ] Show `Clearance findings` with the current count as a keyboard-accessible native Inspector disclosure; open it by default while findings are present, follow async default-open updates until the user chooses a state, and preserve that choice when accepted findings refresh. Empty/pending/error messaging remains inside the section.
 - [ ] Preserve current/pending/error/retry and stale-case messages. A navigation click must not mark an old accepted result current, clear a pending failure, or mutate the project document.
 - [ ] Keep the Keycaps Inspector's contextual grouping, labels and keyboard-accessible controls consistent with React. Do not alter the F6C.2 settings operation owner.
 - [ ] When an accepted Keycaps finding route opens or changes the destination workspace, reset the Inspector's own scroll container before focusing its first available control so the selected object's heading and Properties/Relations context are visible. Do not reset scroll during ordinary selection, editing, or draft changes.

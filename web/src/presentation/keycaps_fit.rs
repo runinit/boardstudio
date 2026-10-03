@@ -249,13 +249,26 @@ pub(super) fn KeycapsFitInspector(
     let groups = grouped_findings(findings, &document);
     let visible_finding_count: usize = groups.iter().map(|group| group.findings.len()).sum();
     let title_detail = visible_finding_count.to_string();
+    let default_open = visible_finding_count > 0;
+    let mut findings_open = use_signal(|| default_open);
+    let mut findings_open_chosen = use_signal(|| false);
+    use_effect(use_reactive!(|default_open| {
+        if !findings_open_chosen() {
+            findings_open.set(default_open);
+        }
+    }));
 
     rsx! {
-        section { class: "m1-keycaps-fit", "aria-label": "Clearance findings",
-            div { class: "m1-keycaps-fit-heading",
-                h2 { "Clearance findings" }
-                span { "{title_detail}" }
+        details { class: "m1-keycaps-disclosure m1-keycaps-fit-disclosure", open: findings_open(),
+            summary {
+                onclick: move |_| {
+                    findings_open_chosen.set(true);
+                    findings_open.set(!findings_open());
+                },
+                span { "Clearance findings" }
+                small { "{title_detail}" }
             }
+            section { class: "m1-keycaps-fit", "aria-label": "Clearance findings details",
             if let Some(state) = state.as_ref() {
                 if state.refreshing {
                     p { class: "m1-keycaps-fit-status", role: "status",
@@ -317,6 +330,7 @@ pub(super) fn KeycapsFitInspector(
                 }
             }
             p { class: "m1-keycaps-fit-note", "Checks use conservative keycap envelopes through full switch travel. Case walls and solids are included only for a current Case preview." }
+            }
         }
     }
 }
