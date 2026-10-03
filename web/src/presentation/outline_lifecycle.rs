@@ -234,6 +234,37 @@ fn move_connection_point(
     next
 }
 
+fn feature_anchor(part_id: Option<&str>, parts: &[Part]) -> Option<PerimeterAnchor> {
+    part_id
+        .and_then(|id| parts.iter().find(|part| part.id == id))
+        .map(|part| PerimeterAnchor {
+            at: part.pose.at,
+            rotation: part.pose.rotation,
+            back: part.side == Side::Back,
+        })
+}
+
+fn attach_connection_point(
+    feature: &OutlineFeature,
+    connection_id: &str,
+    point_index: usize,
+    next_part_id: Option<&str>,
+    parts: &[Part],
+) -> OutlineFeature {
+    let mut next = feature.clone();
+    if let OutlineFeature::PartEnvelope { connections, .. } = &mut next
+        && let Some(point) = connections
+            .iter_mut()
+            .find(|connection| connection.id == connection_id)
+            .and_then(|connection| connection.points.get_mut(point_index))
+    {
+        let world = connection_point_world(point, parts);
+        point.at = feature_anchor(next_part_id, parts).map_or(world, |anchor| anchor.local(world));
+        point.part_id = next_part_id.map(str::to_owned);
+    }
+    next
+}
+
 #[derive(Clone, Debug, PartialEq)]
 enum PendingKind {
     Activate {
@@ -655,6 +686,28 @@ pub(super) fn use_outline_lifecycle(
     let selected_connection_id = use_signal(|| None::<String>);
     let draft_owner = selected_context.read().clone();
     let draft_workspace = workspace();
+    let draft_active_version = runtime
+        .model()
+        .accepted
+        .as_ref()
+        .and_then(|snapshot| {
+            let board_id = draft_owner
+                .as_ref()
+                .and_then(|owner| match &owner.context {
+                    super::objects::TreeContext::Outline { board_id }
+                    | super::objects::TreeContext::OutlineVersion { board_id, .. } => {
+                        Some(board_id)
+                    }
+                    _ => None,
+                })?;
+            snapshot
+                .document
+                .board_outlines
+                .iter()
+                .find(|state| &state.board_id == board_id)
+        })
+        .and_then(|state| state.active_version_id.clone());
+    let draft_scope = runtime.scope();
     use_effect(use_reactive(
         (
             &version,
@@ -671,14 +724,23 @@ pub(super) fn use_outline_lifecycle(
             }
         },
     ));
-    use_effect(use_reactive((&version, &draft_owner, &draft_workspace), {
-        let mut selected_feature_id = selected_feature_id;
-        let mut selected_connection_id = selected_connection_id;
-        move |_| {
-            selected_feature_id.set(None);
-            selected_connection_id.set(None);
-        }
-    }));
+    use_effect(use_reactive(
+        (
+            &draft_owner,
+            &draft_workspace,
+            &draft_active_version,
+            &draft_scope,
+            &captured_generation,
+        ),
+        {
+            let mut selected_feature_id = selected_feature_id;
+            let mut selected_connection_id = selected_connection_id;
+            move |_| {
+                selected_feature_id.set(None);
+                selected_connection_id.set(None);
+            }
+        },
+    ));
     let action_state = ActionState {
         pending,
         feedback,
@@ -2052,7 +2114,7 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
         .map(|perimeter| perimeter.points.len())
         .unwrap_or_default();
     rsx! {
-        if perimeter_open() {
+                if perimeter_open() {
             if let Some(perimeter) = perimeter.as_ref() {
                 section { class: "m1-outline-inspector m1-outline-point-editor", "aria-label": "Perimeter",
                     div { class: "m1-outline-inspector-heading",
@@ -2706,6 +2768,89 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
                                                         on_action.call(action_context.set_feature(version_id.clone(), before.clone(), next));
                                                     }
                                                 },
+                                            }
+                                        }
+                                        label { class: "m1-outline-field",
+                                            span { "Point attachment" }
+                                            select {
+                                                aria_label: "Point {index + 1} attachment",
+                                                value: "{point.part_id.as_deref().unwrap_or_default()}",
+                                                disabled: !enabled,
+                                                onchange: {
+                                                    let action_context = action_context.clone();
+                                                    let before = before.clone();
+                                                    let version_id = active_version.clone();
+                                                    let connection_id = connection.id.clone();
+                                                    let parts = projection.outline_parts.clone();
+                                                    move |event: FormEvent| {
+                                                        let value = event.value();
+                                                        let next = attach_connection_point(&before, &connection_id, index, (!value.is_empty()).then_some(value.as_str()), &parts);
+                                                        on_action.call(action_context.set_feature(version_id.clone(), before.clone(), next));
+                                                    }
+                                                },
+                                                option { value: "", "Fixed on board" }
+                                                if let Some(id) = point.part_id.as_ref().filter(|id| !projection.outline_parts.iter().any(|part| &part.id == *id)) {
+                                                    option { value: "{id}", "Missing component" }
+                                                }
+                                                for part in projection.outline_parts.iter() {
+                                                    option { key: "{part.id}", value: "{part.id}", "{part.reference}" }
+                                                }
+                                            }
+                                        }
+                                        div { class: "m1-outline-point-actions",
+                                            button {
+                                                r#type: "button",
+                                                disabled: !enabled || index + 1 == connection.points.len(),
+                                                aria_label: "Insert after connection point {index + 1}",
+                                                title: if index + 1 == connection.points.len() { "A connection needs its final endpoint." } else { "Insert a fixed point after this point." },
+                                                onclick: {
+                                                    let action_context = action_context.clone();
+                                                    let before = before.clone();
+                                                    let version_id = active_version.clone();
+                                                    let connection_id = connection.id.clone();
+                                                    let parts = projection.outline_parts.clone();
+                                                    move |_| {
+                                                        let mut after = before.clone();
+                                                        if let OutlineFeature::PartEnvelope { connections, .. } = &mut after
+                                                            && let Some(connection) = connections.iter_mut().find(|connection| connection.id == connection_id)
+                                                            && index + 1 < connection.points.len()
+                                                        {
+                                                            let a = connection_point_world(&connection.points[index], &parts);
+                                                            let b = connection_point_world(&connection.points[index + 1], &parts);
+                                                            connection.points.insert(index + 1, OutlineControlPoint {
+                                                                at: Vec2 { x: (a.x + b.x) * 0.5, y: (a.y + b.y) * 0.5 },
+                                                                part_id: None,
+                                                            });
+                                                            selected_point.set(index + 1);
+                                                            on_action.call(action_context.set_feature(version_id.clone(), before.clone(), after));
+                                                        }
+                                                    }
+                                                },
+                                                "Insert after"
+                                            }
+                                            button {
+                                                r#type: "button",
+                                                disabled: !enabled || connection.points.len() <= 2,
+                                                aria_label: "Remove connection point {index + 1}",
+                                                title: if connection.points.len() <= 2 { "Keep at least two points." } else { "Remove the selected point" },
+                                                onclick: {
+                                                    let action_context = action_context.clone();
+                                                    let before = before.clone();
+                                                    let version_id = active_version.clone();
+                                                    let connection_id = connection.id.clone();
+                                                    move |_| {
+                                                        if connection.points.len() <= 2 { return; }
+                                                        let mut after = before.clone();
+                                                        if let OutlineFeature::PartEnvelope { connections, .. } = &mut after
+                                                            && let Some(connection) = connections.iter_mut().find(|connection| connection.id == connection_id)
+                                                        {
+                                                            connection.points.remove(index);
+                                                            selected_point.set(index.saturating_sub(1));
+                                                            on_action.call(action_context.set_feature(version_id.clone(), before.clone(), after));
+                                                        }
+                                                    }
+                                                },
+                                                "Remove point"
                                             }
                                         }
                                         div { class: "m1-outline-point-list", role: "group", aria_label: "Connection points",
