@@ -13,7 +13,7 @@ use std::{
 use wasm_bindgen_futures::spawn_local;
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct GeneratorOwner {
+pub(crate) struct GeneratorOwner {
     pub(super) scope: Option<Scope>,
     pub(super) selection: Option<(Option<Scope>, String)>,
     pub(super) session_epoch: boardstudio_application::SessionEpoch,
@@ -27,7 +27,7 @@ pub(super) struct GeneratorOwner {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) enum GeneratorPreviewStatus {
+pub(crate) enum GeneratorPreviewStatus {
     Pending,
     Ready,
     Failed(String),
@@ -351,7 +351,7 @@ fn remap_terminal_nets(
         .collect::<Vec<_>>();
     let mut assignments = Vec::<(String, Vec<String>, Vec<String>, String)>::new();
     for part in instances {
-        for (terminal, old_pads) in original.terminals.iter().flatten() {
+        for (terminal, old_pads) in &original.terminals {
             let net_ids = snapshot
                 .document
                 .nets
@@ -366,10 +366,7 @@ fn remap_terminal_nets(
             if net_ids.is_empty() {
                 continue;
             }
-            let new_pads = candidate
-                .terminals
-                .as_ref()
-                .and_then(|terminals| terminals.get(terminal));
+            let new_pads = candidate.terminals.get(terminal);
             if net_ids.len() > 1 || new_pads.is_none_or(Vec::is_empty) {
                 return Err(format!(
                     "Cannot apply these generator settings: assigned {terminal} terminal pads would be lost or are split across nets."
@@ -444,22 +441,18 @@ fn remap_terminal_nets(
     Ok(nets)
 }
 
-pub(super) fn prepare_generator_edit(
+fn prepare_generator_edit(
     current: &AcceptedSnapshot,
-    runtime_scope: Option<Scope>,
     owner: &GeneratorOwner,
-    current_selection: Option<(Option<Scope>, String)>,
-    current_scope_generation: u64,
-    current_selection_generation: u64,
-    workspace: &'static str,
+    view: &GeneratorView,
     candidate: PartDefinition,
     operation_id: OperationId,
 ) -> Result<Event, String> {
-    if workspace != "Parts"
-        || runtime_scope != owner.scope
-        || current_selection != owner.selection
-        || current_scope_generation != owner.scope_generation
-        || current_selection_generation != owner.selection_generation
+    if view.workspace != "Parts"
+        || view.scope != owner.scope
+        || view.selection != owner.selection
+        || view.scope_generation != owner.scope_generation
+        || view.selection_generation != owner.selection_generation
         || current.session_epoch != owner.session_epoch
         || current.document.id != owner.document_id
         || candidate.id != owner.definition_id
@@ -519,6 +512,15 @@ pub(super) fn prepare_generator_edit(
     })
 }
 
+#[derive(Clone)]
+struct GeneratorView {
+    scope: Option<Scope>,
+    selection: Option<(Option<Scope>, String)>,
+    scope_generation: u64,
+    selection_generation: u64,
+    workspace: &'static str,
+}
+
 /// Dynamic settings form. Each field remains a local JSON draft until Apply; every
 /// candidate preview uses the same retained generator renderer as the Parts canvas.
 #[component]
@@ -532,7 +534,7 @@ pub(super) fn GeneratorSettingsEditor(
     let store = use_context::<GeneratorDraftStore>().0;
     let scope_generation = use_context::<super::super::SelectionAdapter>().generation;
     let selection_generation = use_context::<super::PartsSelectionGeneration>().0;
-    let workspace = use_context::<super::WorkspaceState>().0;
+    let workspace = use_context::<super::super::WorkspaceState>().0;
     let version = use_context::<Signal<u64>>();
     let generator_source = definition
         .generator
@@ -543,9 +545,9 @@ pub(super) fn GeneratorSettingsEditor(
         super::catalogue::ergogen_parameter_schema(&source).await
     }));
     let schema_result = schema.read().clone();
-    let mut edits = use_signal(BTreeMap::<String, Value>::new);
+    let edits = use_signal(BTreeMap::<String, Value>::new);
     let mut feedback = use_signal(|| None::<ScopedFeedback>);
-    let mut pending_apply = use_signal(|| None::<PendingApply>);
+    let pending_apply = use_signal(|| None::<PendingApply>);
     let sequence = use_hook(|| Rc::new(Cell::new(0_u64)));
     let owner = make_owner(
         &snapshot,
@@ -579,10 +581,6 @@ pub(super) fn GeneratorSettingsEditor(
         let mut pending_apply = pending_apply;
         let mut feedback = feedback;
         let mut store = store;
-        let selected = selected;
-        let scope_generation = scope_generation;
-        let selection_generation = selection_generation;
-        let workspace = workspace;
         move |_| {
             let Some(pending) = pending_apply.read().clone() else {
                 return;
@@ -645,13 +643,16 @@ pub(super) fn GeneratorSettingsEditor(
     };
     let entries = parameters(&definition, &schema);
     let mut changed = edits;
+    let callback_owner = owner.clone();
+    let callback_runtime = runtime.clone();
     let change_parameter = use_callback(move |(key, value): (String, Value)| {
         let mut next = changed();
         next.insert(key, value);
         changed.set(next.clone());
         feedback.set(None);
-        let request_owner = owner.clone();
-        store.set(Some(GeneratorPreviewDraft {
+        let request_owner = callback_owner.clone();
+        let mut preview_store = store;
+        preview_store.set(Some(GeneratorPreviewDraft {
             owner: request_owner.clone(),
             definition: None,
             status: GeneratorPreviewStatus::Pending,
@@ -662,8 +663,8 @@ pub(super) fn GeneratorSettingsEditor(
         let selection_generation = selection_generation;
         let selected = selected;
         let workspace = workspace;
-        let runtime = runtime.clone();
-        let store = store;
+        let runtime = callback_runtime.clone();
+        let mut store = store;
         let task = sequence.clone();
         let ticket = task.get().wrapping_add(1);
         task.set(ticket);
@@ -705,9 +706,6 @@ pub(super) fn GeneratorSettingsEditor(
         let mut feedback = feedback;
         let current_owner = owner.clone();
         let selected = selected;
-        let scope_generation = scope_generation;
-        let selection_generation = selection_generation;
-        let workspace = workspace;
         let active_draft = active_draft.clone();
         move |_| {
             let Some(candidate) = active_draft
@@ -725,14 +723,17 @@ pub(super) fn GeneratorSettingsEditor(
                 }));
                 return;
             };
+            let view = GeneratorView {
+                scope: runtime.scope(),
+                selection: selected(),
+                scope_generation: scope_generation(),
+                selection_generation: selection_generation(),
+                workspace: workspace(),
+            };
             match prepare_generator_edit(
                 current,
-                runtime.scope(),
                 &current_owner,
-                selected(),
-                scope_generation(),
-                selection_generation(),
-                workspace(),
+                &view,
                 candidate.clone(),
                 runtime.operation(),
             ) {
@@ -768,7 +769,8 @@ pub(super) fn GeneratorSettingsEditor(
         section { class: "m1-generator-settings", "aria-label": "Generator settings",
             for group in groups {
                 { let group_entries = entries.iter().filter(|entry| entry.group == group).cloned().collect::<Vec<_>>();
-                  if !group_entries.is_empty() {
+                  rsx! {
+                    if !group_entries.is_empty() {
                     details { open: group == "Footprint options" || group == "Keycap dimensions",
                         summary { "{group}" }
                         fieldset {
@@ -784,14 +786,15 @@ pub(super) fn GeneratorSettingsEditor(
                             }
                         }
                     }
+                    }
                   }
                 }
             }
             if let Some(draft) = active_draft.as_ref() {
                 match &draft.status {
-                    GeneratorPreviewStatus::Pending => p { role: "status", "Generating footprint preview…" },
-                    GeneratorPreviewStatus::Ready => p { role: "status", "Current generator preview is ready to apply." },
-                    GeneratorPreviewStatus::Failed(error) => p { class: "m1-parts-load-error", role: "alert", "Generator preview failed: {error}" },
+                    GeneratorPreviewStatus::Pending => rsx! { p { role: "status", "Generating footprint preview…" } },
+                    GeneratorPreviewStatus::Ready => rsx! { p { role: "status", "Current generator preview is ready to apply." } },
+                    GeneratorPreviewStatus::Failed(error) => rsx! { p { class: "m1-parts-load-error", role: "alert", "Generator preview failed: {error}" } },
                 }
             }
             if let Some(message) = feedback()

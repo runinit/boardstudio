@@ -42,9 +42,9 @@ pub(super) struct PartsSelectionGeneration(pub(super) Signal<u64>);
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct GeneratorPreviewDraft {
-    pub(super) owner: generator_settings::GeneratorOwner,
-    pub(super) definition: Option<boardstudio_core::model::PartDefinition>,
-    pub(super) status: generator_settings::GeneratorPreviewStatus,
+    owner: generator_settings::GeneratorOwner,
+    definition: Option<boardstudio_core::model::PartDefinition>,
+    status: generator_settings::GeneratorPreviewStatus,
 }
 
 #[derive(Clone, Copy)]

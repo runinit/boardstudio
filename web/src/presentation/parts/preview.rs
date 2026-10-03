@@ -77,7 +77,7 @@ pub(in crate::presentation) fn PartsPreviewPanel(
             .map_or_else(String::new, |definition| definition.id.clone()),
         definition_json: definition
             .as_ref()
-            .and_then(|definition| serde_json::to_string(definition).ok())
+            .and_then(|definition| serde_json::to_string(definition.as_ref()).ok())
             .unwrap_or_default(),
     };
     let last_input = use_hook(|| Rc::new(RefCell::new(None::<PreviewInput>)));
@@ -127,9 +127,9 @@ pub(in crate::presentation) fn PartsPreviewPanel(
         section { class: "m1-workspace-content m1-parts-preview", "aria-label": "Parts footprint preview",
             if let Some(draft) = generator_draft.as_ref() {
                 match &draft.status {
-                    GeneratorPreviewStatus::Pending => p { class: "m1-parts-preview-status", role: "status", "Generating the current generator preview…" },
-                    GeneratorPreviewStatus::Ready => p { class: "m1-parts-preview-status", role: "status", "Unapplied generator preview" },
-                    GeneratorPreviewStatus::Failed(error) => p { class: "m1-parts-preview-error", role: "alert", "Generator preview failed; showing the accepted footprint: {error}" },
+                    GeneratorPreviewStatus::Pending => rsx! { p { class: "m1-parts-preview-status", role: "status", "Generating the current generator preview…" } },
+                    GeneratorPreviewStatus::Ready => rsx! { p { class: "m1-parts-preview-status", role: "status", "Unapplied generator preview" } },
+                    GeneratorPreviewStatus::Failed(error) => rsx! { p { class: "m1-parts-preview-error", role: "alert", "Generator preview failed; showing the accepted footprint: {error}" } },
                 }
             }
             match matching {
@@ -820,6 +820,7 @@ mod tests {
             }),
             snapshot_token: SnapshotToken(7),
             definition_id: "ergogen:ceoloide/switch_mx".into(),
+            definition_json: String::new(),
         };
         let last_input = Rc::new(RefCell::new(None));
         let generation_counter = Rc::new(Cell::new(0));
