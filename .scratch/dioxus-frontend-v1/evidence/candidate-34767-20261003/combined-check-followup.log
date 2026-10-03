@@ -1,0 +1,100 @@
+    Checking boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web)
+error[E0502]: cannot borrow `pending` as mutable because it is also borrowed as immutable
+   --> src/presentation/objects/matrix_placement_controller.rs:77:25
+    |
+ 72 |                 if let Some(waiting) = pending.read().clone() {
+    |                                        --------------
+    |                                        |
+    |                                        immutable borrow occurs here
+    |                                        a temporary with access to the immutable borrow is created here ...
+...
+ 77 |                         pending.set(None);
+    |                         ^^^^^^^^^^^^^^^^^ mutable borrow occurs here
+...
+146 |                 }
+    |                 - ... and the immutable borrow might be used here, when that temporary is dropped and runs the destructor for type `dioxus::dioxus_core::internal::generational_box::references::GenerationalRef<std::cell::Ref<'_, std::option::Option<presentation::objects::matrix_placement_controller::PendingPlacement>>>`
+
+error[E0502]: cannot borrow `pending` as mutable because it is also borrowed as immutable
+   --> src/presentation/objects/matrix_placement_controller.rs:102:29
+    |
+ 72 |                 if let Some(waiting) = pending.read().clone() {
+    |                                        --------------
+    |                                        |
+    |                                        immutable borrow occurs here
+    |                                        a temporary with access to the immutable borrow is created here ...
+...
+102 |                             pending.set(None);
+    |                             ^^^^^^^^^^^^^^^^^ mutable borrow occurs here
+...
+146 |                 }
+    |                 - ... and the immutable borrow might be used here, when that temporary is dropped and runs the destructor for type `dioxus::dioxus_core::internal::generational_box::references::GenerationalRef<std::cell::Ref<'_, std::option::Option<presentation::objects::matrix_placement_controller::PendingPlacement>>>`
+
+error[E0502]: cannot borrow `pending` as mutable because it is also borrowed as immutable
+   --> src/presentation/objects/matrix_placement_controller.rs:134:29
+    |
+ 72 |                 if let Some(waiting) = pending.read().clone() {
+    |                                        --------------
+    |                                        |
+    |                                        immutable borrow occurs here
+    |                                        a temporary with access to the immutable borrow is created here ...
+...
+134 |                             pending.set(None);
+    |                             ^^^^^^^^^^^^^^^^^ mutable borrow occurs here
+...
+146 |                 }
+    |                 - ... and the immutable borrow might be used here, when that temporary is dropped and runs the destructor for type `dioxus::dioxus_core::internal::generational_box::references::GenerationalRef<std::cell::Ref<'_, std::option::Option<presentation::objects::matrix_placement_controller::PendingPlacement>>>`
+
+error[E0502]: cannot borrow `pending` as mutable because it is also borrowed as immutable
+   --> src/presentation/objects/matrix_placement_controller.rs:140:29
+    |
+ 72 |                 if let Some(waiting) = pending.read().clone() {
+    |                                        --------------
+    |                                        |
+    |                                        immutable borrow occurs here
+    |                                        a temporary with access to the immutable borrow is created here ...
+...
+140 |                             pending.set(None);
+    |                             ^^^^^^^^^^^^^^^^^ mutable borrow occurs here
+...
+146 |                 }
+    |                 - ... and the immutable borrow might be used here, when that temporary is dropped and runs the destructor for type `dioxus::dioxus_core::internal::generational_box::references::GenerationalRef<std::cell::Ref<'_, std::option::Option<presentation::objects::matrix_placement_controller::PendingPlacement>>>`
+
+error[E0502]: cannot borrow `placement` as mutable because it is also borrowed as immutable
+   --> src/presentation/objects/matrix_placement_controller.rs:339:17
+    |
+333 |               if let Some(mut active) = placement
+    |                                         ---------
+    |                                         |
+    |  _______________________________________immutable borrow occurs here
+    | |
+334 | |                 .read()
+    | |_______________________- a temporary with access to the immutable borrow is created here ...
+...
+339 |                   placement.set(Some(active));
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^ mutable borrow occurs here
+340 |               }
+    |               - ... and the immutable borrow might be used here, when that temporary is dropped and runs the destructor for type `dioxus::dioxus_core::internal::generational_box::references::GenerationalRef<std::cell::Ref<'_, std::option::Option<presentation::objects::matrix_setup::MatrixPlacementProjection>>>`
+
+error: variable does not need to be mutable
+   --> src/presentation/objects/matrix_placement_controller.rs:173:13
+    |
+173 |         let mut placement = placement;
+    |             ----^^^^^^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `-D unused-mut` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(unused_mut)]`
+
+error: variable does not need to be mutable
+   --> src/presentation/objects/matrix_placement_controller.rs:348:13
+    |
+348 |         let mut pending = pending;
+    |             ----^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+For more information about this error, try `rustc --explain E0502`.
+error: could not compile `boardstudio-web` (bin "boardstudio-web") due to 7 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `boardstudio-web` (bin "boardstudio-web" test) due to 7 previous errors

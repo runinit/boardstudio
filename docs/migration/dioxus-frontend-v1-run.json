@@ -1273,7 +1273,7 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T12:14:08.637515+00:00",
+    "updated_at": "2026-10-03T12:17:20.444089+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
       "accepted": 6,
@@ -1299,8 +1299,8 @@
       "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34765-20261003/package-proof.json"
     },
     "integration": {
-      "source_commit": "5d7d9024",
-      "state": "34765 remains live. 34766 rejected after all22commands succeed because generatedCoreWASM was mistaken for maintainedsource; originalfailure preserved and classifier96df6ee1 fixed with focusedRED/GREEN2test. Next34767 combinedLayoutpreset+drafts/footer,Case contextualshell,Demo cards/freshIDs,PCB supports/clearance,Keymap exportplacement,Keycaps insets and Export ZIP repairs. Combinedcompile corrections active; no newpublicartifact claimed.",
+      "source_commit": "4483ed4d",
+      "state": "Sixstreamfrontendbatch joined. StrictpageWASMalltargets PASS18.35s/no newUItests after sharedprop/fixture/presetRSX/types/signalborrow/capture corrections. CorrectedgeneratedCoreoutputclassifier alreadyfocusedRED/GREEN2tests and Solreviewed. Freshfull34767 package starts;34765 remainslive,34766 rejected/notbaseline.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1959,13 +1959,20 @@
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "heavy_slots": {
       "policy": "Coordinator assigned; maximum2 heavy jobs/1package",
-      "active": [],
+      "active": [
+        {
+          "kind": "fullpackage",
+          "owner": "root",
+          "build_id": "frontend-six-stream-parity-recovery-20261003",
+          "slot_authorized_at": "2026-10-03T12:17:20.444089+00:00"
+        }
+      ],
       "check": {
-        "source_commit": "91f678f1",
-        "log": ".scratch/dioxus-frontend-v1/evidence/candidate-34766-20261003/combined-check-followup.log",
+        "source_commit": "4483ed4d",
+        "log": ".scratch/dioxus-frontend-v1/evidence/candidate-34767-20261003/combined-check-green.log",
         "result": "PASS",
-        "duration_seconds": 16.16,
-        "new_tests": 0
+        "duration_seconds": 18.35,
+        "new_ui_tests": 0
       },
       "next": "Next combined source after ready packets; no heavy author job assigned.",
       "completed_focused_regression": {
@@ -1979,7 +1986,7 @@
     },
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "next_work": [
-      "Finish combined34767 compile corrections, one freshfullpackage and changed journeys. Reuse unaffected history/reopen; current34765 live.",
+      "Qualify freshfull34767, then parallel onlychanged frontendjourneys: presetplacement,globalfindings/header,Casepanes/viewslots,PCBsupports/clearance,Demo freshcopies,Keymap/Keycaps styles,actualZIP. One consolidated Sol review.",
       "Layout-first assembly preset placement; continue six queues with Case shell, PCB advanced mounted controls, Keycaps legends, Parts demo cards/fresh copies and Keymap criterion reconciliation.",
       "Correct observed Keymap export-button placement and global findings route; no behavior/parent closure implied by UI source presence."
     ],
@@ -2320,6 +2327,11 @@
         "build_id": "frontend-layout-drafts-export-collision-20261003",
         "source_commit": "bb52b22b",
         "result": "22commands allPASS but finalsourceinventoryREJECTED: sole drift generatedcore/pkg/boardstudio_core_bg.wasm. Notserved/notbaseline. 96df6ee1 excludesknownwasm-pack outputprefix alongsideothergeneratedpackages; focusedregressionRED\u2192GREEN2 with maintainedRustsourceguardassertion retained."
+      },
+      {
+        "build_id": "frontend-six-stream-parity-recovery-source-check",
+        "source_commit": "1283aff2..4483ed4d",
+        "result": "JoinedCaseRc/defaultprops+Libraryfallback+existingCasefixture; presetmoduleexports/ownedSnapshot/RSX/existingplacementfixture and Signalreads/captures corrected. Failuresretained; finalstrictPASS18.35s. No newUItests."
       }
     ],
     "parent_acceptances": [
