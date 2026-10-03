@@ -16,11 +16,11 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T14:35:01.328185+00:00",
+    "updated_at": "2026-10-03T14:36:06.025057+00:00",
     "parent_counts": {
       "accepted": 10,
-      "implementing": 32,
-      "planned": 20,
+      "implementing": 39,
+      "planned": 13,
       "total": 62
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",

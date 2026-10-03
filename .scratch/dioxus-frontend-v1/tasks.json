@@ -298,7 +298,7 @@
         "F2.3"
       ],
       "acceptance_after": [],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
       "shared_edit_owner": "integration coordinator",
@@ -314,7 +314,15 @@
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true,
         "packet_override_note": "Use High for newly implemented range/focus/scope/lifecycle state; Medium for projection/rendering and proven callback composition."
-      }
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T14:36:06.024980+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Current source contains mounted guide/readiness, mechanical-fit editing, module inspection, physical-setup ownership, guarded export coordination and PCB/Case export consumers; remaining source completion and candidate qualification are active. This corrects stale planned status without accepting any parent or waiving its final joins."
+        }
+      ]
     },
     {
       "id": "F3.1",
@@ -1001,7 +1009,7 @@
       "acceptance_after": [
         "INT.2"
       ],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
       "shared_edit_owner": "integration coordinator",
@@ -1016,7 +1024,15 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      }
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T14:36:06.025005+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Current source contains mounted guide/readiness, mechanical-fit editing, module inspection, physical-setup ownership, guarded export coordination and PCB/Case export consumers; remaining source completion and candidate qualification are active. This corrects stale planned status without accepting any parent or waiving its final joins."
+        }
+      ]
     },
     {
       "id": "F4.6",
@@ -1083,7 +1099,7 @@
         "INT.2",
         "F4.4"
       ],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
       "shared_edit_owner": "integration coordinator",
@@ -1098,7 +1114,15 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      }
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T14:36:06.025011+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Current source contains mounted guide/readiness, mechanical-fit editing, module inspection, physical-setup ownership, guarded export coordination and PCB/Case export consumers; remaining source completion and candidate qualification are active. This corrects stale planned status without accepting any parent or waiving its final joins."
+        }
+      ]
     },
     {
       "id": "F5.1",
@@ -1346,7 +1370,7 @@
         "INT.1"
       ],
       "acceptance_after": [],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
       "shared_edit_owner": "integration coordinator",
@@ -1361,7 +1385,15 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      }
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T14:36:06.025016+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Current source contains mounted guide/readiness, mechanical-fit editing, module inspection, physical-setup ownership, guarded export coordination and PCB/Case export consumers; remaining source completion and candidate qualification are active. This corrects stale planned status without accepting any parent or waiving its final joins."
+        }
+      ]
     },
     {
       "id": "F5.7",
@@ -2581,7 +2613,7 @@
         "INT.2",
         "BND.2"
       ],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md",
       "shared_edit_owner": "integration coordinator",
@@ -2597,7 +2629,15 @@
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true,
         "contract_review_reuse": "Reuse current contract; routine private frontend work proceeds to integrated candidate review."
-      }
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T14:36:06.025019+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Current source contains mounted guide/readiness, mechanical-fit editing, module inspection, physical-setup ownership, guarded export coordination and PCB/Case export consumers; remaining source completion and candidate qualification are active. This corrects stale planned status without accepting any parent or waiving its final joins."
+        }
+      ]
     },
     {
       "id": "F8.3",
@@ -2631,7 +2671,7 @@
         "F5.3",
         "F5.5"
       ],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md",
       "shared_edit_owner": "integration coordinator",
@@ -2646,7 +2686,15 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      }
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T14:36:06.025023+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Current source contains mounted guide/readiness, mechanical-fit editing, module inspection, physical-setup ownership, guarded export coordination and PCB/Case export consumers; remaining source completion and candidate qualification are active. This corrects stale planned status without accepting any parent or waiving its final joins."
+        }
+      ]
     },
     {
       "id": "F8.4",
@@ -2738,7 +2786,7 @@
         "F7.6",
         "F7.7"
       ],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md",
       "shared_edit_owner": "integration coordinator",
@@ -2753,7 +2801,15 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      }
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T14:36:06.025027+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Current source contains mounted guide/readiness, mechanical-fit editing, module inspection, physical-setup ownership, guarded export coordination and PCB/Case export consumers; remaining source completion and candidate qualification are active. This corrects stale planned status without accepting any parent or waiving its final joins."
+        }
+      ]
     },
     {
       "id": "F8.6",
@@ -3170,8 +3226,8 @@
     "boundary_slices": 2,
     "status": {
       "accepted": 10,
-      "implementing": 32,
-      "planned": 20
+      "implementing": 39,
+      "planned": 13
     }
   },
   "agent_policy": ".scratch/dioxus-frontend-v1/agent-policy.json",
