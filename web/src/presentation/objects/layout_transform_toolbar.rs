@@ -15,8 +15,17 @@ use boardstudio_core::model::{
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::{cell::RefCell, rc::Rc};
-use wasm_bindgen::JsCast;
+use wasm_bindgen::{JsCast, closure::Closure};
 use web_sys::SvgElement;
+
+type TransformEscapeListener = Rc<
+    RefCell<
+        Option<(
+            web_sys::Document,
+            Closure<dyn FnMut(web_sys::KeyboardEvent)>,
+        )>,
+    >,
+>;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::presentation) enum LayoutTransformTool {
@@ -132,6 +141,57 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
             &mut guide_for_drop,
         );
     });
+    let escape_listener = use_hook(TransformEscapeListener::default);
+    use_effect({
+        let listener = escape_listener.clone();
+        let runtime = runtime.0.clone();
+        let drag = drag.clone();
+        let arbiter = arbiter.clone();
+        move || {
+            let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+                return;
+            };
+            let runtime = runtime.clone();
+            let drag = drag.clone();
+            let arbiter = arbiter.clone();
+            let callback = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
+                if event.key() != "Escape" || event.default_prevented() {
+                    return;
+                }
+                if event
+                    .target()
+                    .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
+                    .is_some_and(|target| {
+                        target
+                            .closest("input, textarea, select, [contenteditable='true']")
+                            .ok()
+                            .flatten()
+                            .is_some()
+                    })
+                {
+                    return;
+                }
+                event.prevent_default();
+                let mut guide = snap_guide;
+                cancel_transform_drag(&runtime, &drag, &arbiter, &mut guide);
+                on_finish.call(());
+            }) as Box<dyn FnMut(_)>);
+            let _ = document
+                .add_event_listener_with_callback("keydown", callback.as_ref().unchecked_ref());
+            *listener.borrow_mut() = Some((document, callback));
+        }
+    });
+    use_drop({
+        let listener = escape_listener.clone();
+        move || {
+            if let Some((document, callback)) = listener.borrow_mut().take() {
+                let _ = document.remove_event_listener_with_callback(
+                    "keydown",
+                    callback.as_ref().unchecked_ref(),
+                );
+            }
+        }
+    });
     let active_owner = owner.clone();
     let active_context = context.clone();
     let active_tool = tool;
@@ -177,38 +237,9 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
                         .iter()
                         .find(|cell| cell.enabled && cell.row == 0 && cell.column == index)
                 };
-                cell.map(|cell| {
-                    let basis = projection
-                        .columns
-                        .iter()
-                        .find(|basis| basis.column == selected_column);
-                    let offset = if row_axis {
-                        basis.map_or(
-                            Vec2 {
-                                x: -matrix.pitch.x * 0.9,
-                                y: 0.0,
-                            },
-                            |basis| Vec2 {
-                                x: -matrix.pitch.x * 0.9 * basis.axis_x.x,
-                                y: -matrix.pitch.x * 0.9 * basis.axis_x.y,
-                            },
-                        )
-                    } else {
-                        basis.map_or(
-                            Vec2 {
-                                x: 0.0,
-                                y: -matrix.pitch.y * 0.9,
-                            },
-                            |basis| Vec2 {
-                                x: -matrix.pitch.y * 0.9 * basis.axis_y.x,
-                                y: -matrix.pitch.y * 0.9 * basis.axis_y.y,
-                            },
-                        )
-                    };
-                    Vec2 {
-                        x: cell.pose.at.x + offset.x,
-                        y: cell.pose.at.y + offset.y,
-                    }
+                cell.map(|cell| Vec2 {
+                    x: cell.pose.at.x,
+                    y: cell.pose.at.y + 12.0,
                 })
             }
             LayoutTransformTool::Splay | LayoutTransformTool::Origin => projection
@@ -566,7 +597,7 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
                 onpointercancel: { let handler = cancel_drag.clone(); move |event| handler(event) },
                 onlostpointercapture: { let handler = cancel_drag.clone(); move |event| handler(event) },
                 onkeydown: { let handler = on_key_down.clone(); move |event| handler(event) },
-                circle { r: "{width / 120.0}" }
+                circle { r: "4" }
                 path { d: "M0 -3v6M-1.5 -1.5 0 -3l1.5 1.5M-1.5 1.5 0 3l1.5 -1.5" }
             }
         } else {
