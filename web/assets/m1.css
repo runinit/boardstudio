@@ -1200,6 +1200,15 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-layout-command-menu-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .m1-layout-command-menu-header button:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
 
+.m1-transform-handle { color: var(--wb-accent); fill: var(--wb-panel); stroke: currentColor; stroke-width: .4; cursor: grab; outline: none; pointer-events: all; touch-action: none; }
+.m1-transform-handle:active { cursor: grabbing; }
+.m1-transform-handle:focus-visible { stroke: var(--wb-ink); }
+.m1-transform-handle path { fill: none; }
+.m1-transform-handle-target { fill: transparent; stroke: none; }
+.m1-transform-splay-guide { fill: none; stroke: var(--wb-accent); stroke-dasharray: 2 1.5; opacity: .7; pointer-events: none; }
+.m1-transform-snap-guide { fill: none; stroke: var(--wb-accent); stroke-width: .45; pointer-events: none; }
+.m1-transform-snap-guide circle { fill: var(--wb-panel); }
+
 /* Keep Design view switching separate from the Layout command-pill owner. */
 .m1-layout-view-group, .m1-design-view-group { position: absolute; z-index: 11; top: 68px; right: auto; left: 12px; display: flex; gap: 2px; padding: 3px; border: 1px solid var(--wb-rule); border-radius: 8px; background: var(--wb-panel); box-shadow: 0 3px 10px rgb(0 0 0 / 10%); }
 .m1-design-view-group { top: 52px; }

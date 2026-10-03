@@ -1,7 +1,7 @@
 //! The Layout canvas admits one owner-backed placement interaction at a time.
 //!
-//! This is intentionally limited to the existing mirrored-pair and controller
-//! placement workflows; it is not a general gesture framework.
+//! This arbitrates the Layout canvas' owner-backed pointer workflows. It is not
+//! a general gesture framework.
 use std::{cell::Cell, rc::Rc};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -10,6 +10,7 @@ pub(super) enum CanvasInteractionOwner {
     MatrixPlacement,
     PartPlacement,
     OutlinePerimeter,
+    MatrixTransform,
 }
 
 #[derive(Clone, Default)]
@@ -63,6 +64,14 @@ mod tests {
             (
                 CanvasInteractionOwner::PartPlacement,
                 CanvasInteractionOwner::MirroredPair,
+            ),
+            (
+                CanvasInteractionOwner::MatrixTransform,
+                CanvasInteractionOwner::OutlinePerimeter,
+            ),
+            (
+                CanvasInteractionOwner::OutlinePerimeter,
+                CanvasInteractionOwner::MatrixTransform,
             ),
         ] {
             let arbiter = CanvasInteractionArbiter::default();

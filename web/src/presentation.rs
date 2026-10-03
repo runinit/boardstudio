@@ -1797,6 +1797,9 @@ fn layout_view_mode_handler(
                         placements.matrices.on_cancel.call(owner);
                     }
                 }
+                Some(CanvasInteractionOwner::MatrixTransform) => {
+                    canvas_interaction.release(CanvasInteractionOwner::MatrixTransform);
+                }
                 Some(CanvasInteractionOwner::MirroredPair) | None => {}
             }
         }
@@ -2421,6 +2424,9 @@ fn Editor() -> Element {
     let layout_selection_kind = use_signal(objects::LayoutSelectionKind::default);
     let layout_snap_settings = use_signal(objects::LayoutSnapSettings::default);
     let layout_command_menu = use_signal(|| None::<objects::LayoutCommandMenu>);
+    let mut layout_transform_tool = use_signal(|| None::<objects::LayoutTransformTool>);
+    let mut layout_transform_tool_owner =
+        use_signal(|| None::<(Option<Scope>, u64, Option<String>, &'static str, bool)>);
     let mut layout_assembly_3d = use_signal(|| false);
     let tree_cell_anchor = use_hook(|| Rc::new(RefCell::new(None::<OwnedTreeCellAnchor>)));
     let matrix_inspector = objects::use_matrix_inspector(
@@ -2687,6 +2693,14 @@ fn Editor() -> Element {
         generation: render_generation,
         workspace: active_workspace,
     };
+    use_effect(use_reactive!((&active_workspace,), {
+        let mut active_tool = layout_transform_tool;
+        move |_| {
+            if active_workspace != "Layout" {
+                active_tool.set(None);
+            }
+        }
+    }));
     use_effect(use_reactive((&layout_owner,), {
         let tree_cell_anchor = tree_cell_anchor.clone();
         move |(owner,)| {
@@ -5016,6 +5030,51 @@ fn Editor() -> Element {
         selected.scope == render_scope
             && selection::context_is_current(&model, &selected.scope, &selected.context)
     });
+    let layout_transform_target = selected_tree_context
+        .as_ref()
+        .filter(|selected| selected.scope == render_scope && active_workspace == "Layout")
+        .and_then(|selected| {
+            let matrix_id = match &selected.context {
+                objects::TreeContext::Matrix { matrix_id }
+                | objects::TreeContext::Row { matrix_id, .. }
+                | objects::TreeContext::Column { matrix_id, .. }
+                | objects::TreeContext::Key { matrix_id, .. } => matrix_id.as_str(),
+                objects::TreeContext::Component {
+                    matrix_id: Some(matrix_id),
+                    ..
+                } => matrix_id.as_str(),
+                _ => return None,
+            };
+            let matrix = matrices.iter().find(|matrix| matrix.id == matrix_id)?;
+            let projection = matrix_scenes.get(matrix_id)?;
+            Some((
+                (**matrix).clone(),
+                (**projection).clone(),
+                selected.context.clone(),
+            ))
+        });
+    let transform_tool_owner = (
+        layout_owner.scope.clone(),
+        layout_owner.generation,
+        layout_transform_target
+            .as_ref()
+            .map(|(matrix, _, _)| matrix.id.clone()),
+        active_workspace,
+        layout_assembly_3d(),
+    );
+    use_effect(use_reactive!((&transform_tool_owner,), {
+        let mut owner_state = layout_transform_tool_owner;
+        let mut active_tool = layout_transform_tool;
+        move |_| {
+            if owner_state()
+                .as_ref()
+                .is_some_and(|previous| previous != &transform_tool_owner)
+            {
+                active_tool.set(None);
+            }
+            owner_state.set(Some(transform_tool_owner.clone()));
+        }
+    }));
     let component_inspector_key = layout_component_inspector_owner_key(
         &model,
         active_workspace,
@@ -5504,6 +5563,7 @@ fn Editor() -> Element {
                     return;
                 }
                 Some(CanvasInteractionOwner::OutlinePerimeter) => return,
+                Some(CanvasInteractionOwner::MatrixTransform) => return,
                 None => {}
             }
             let pointer_id = event
@@ -6443,7 +6503,13 @@ fn Editor() -> Element {
             move || layout_owner_is_current(&runtime, workspace, &adapter, &owner)
         },
         layout_assembly_3d,
-        move |assembly_3d| layout_assembly_3d.set(assembly_3d),
+        {
+            let mut active_tool = layout_transform_tool;
+            move |assembly_3d| {
+                active_tool.set(None);
+                layout_assembly_3d.set(assembly_3d);
+            }
+        },
         LayoutPlacementCancellation {
             parts: part_placement.clone(),
             matrices: matrix_placement.clone(),
@@ -6522,12 +6588,67 @@ fn Editor() -> Element {
                     inspect_open.set(true);
                 }
             });
+            let pointer_tools_available = layout_transform_target.is_some();
+            let on_transform_tool = EventHandler::new({
+                let runtime = runtime.clone();
+                let adapter = adapter.clone();
+                let owner = layout_owner.clone();
+                let mut active_tool = layout_transform_tool;
+                let on_selection_kind = workspace_callbacks.layout_selection_kind;
+                let matrix_ids: BTreeSet<_> =
+                    matrices.iter().map(|matrix| matrix.id.clone()).collect();
+                move |tool| {
+                    if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
+                        return;
+                    }
+                    let Some(selected) =
+                        adapter.selected_context.read().clone().filter(|selected| {
+                            owner.scope.as_ref() == Some(&selected.scope)
+                                && selection::context_is_current(
+                                    &runtime.model(),
+                                    &selected.scope,
+                                    &selected.context,
+                                )
+                        })
+                    else {
+                        return;
+                    };
+                    let matrix_id = match &selected.context {
+                        objects::TreeContext::Matrix { matrix_id }
+                        | objects::TreeContext::Row { matrix_id, .. }
+                        | objects::TreeContext::Column { matrix_id, .. }
+                        | objects::TreeContext::Key { matrix_id, .. } => matrix_id.as_str(),
+                        objects::TreeContext::Component {
+                            matrix_id: Some(matrix_id),
+                            ..
+                        } => matrix_id.as_str(),
+                        _ => return,
+                    };
+                    if !matrix_ids.contains(matrix_id) || active_tool() == Some(tool) {
+                        active_tool.set(None);
+                        return;
+                    }
+                    active_tool.set(Some(tool));
+                    let next_kind = match (tool, &selected.context) {
+                        (
+                            objects::LayoutTransformTool::Stagger,
+                            objects::TreeContext::Row { .. },
+                        ) => objects::LayoutSelectionKind::Row,
+                        _ => objects::LayoutSelectionKind::Column,
+                    };
+                    on_selection_kind.call(next_kind);
+                }
+            });
             let transform = objects::LayoutTransformMenuMount {
                 properties_available,
                 column_available: supports_kind(objects::LayoutSelectionKind::Column),
                 row_available: supports_kind(objects::LayoutSelectionKind::Row),
+                pointer_tools_visible: true,
+                pointer_tools_available,
+                active_tool: layout_transform_tool(),
                 on_selection_kind: workspace_callbacks.layout_selection_kind,
                 on_show_properties,
+                on_transform_tool,
             };
             let footprints_pressed = (layer_visibility.footprints)()
                 && !(layer_visibility.hidden)().contains("Footprints");
@@ -6607,8 +6728,12 @@ fn Editor() -> Element {
                 properties_available,
                 column_available: supports_kind(objects::LayoutSelectionKind::Column),
                 row_available: supports_kind(objects::LayoutSelectionKind::Row),
+                pointer_tools_visible: false,
+                pointer_tools_available: false,
+                active_tool: None,
                 on_selection_kind: workspace_callbacks.pcb_selection_kind,
                 on_show_properties: workspace_callbacks.pcb_transform_properties,
+                on_transform_tool: EventHandler::new(|_| {}),
             };
             workspace_composition::WorkspaceToolbarInput::Pcb(Box::new(
                 pcb_workspace::ToolbarInput {
@@ -7549,6 +7674,34 @@ fn Editor() -> Element {
                                     }
                                     if show_keycap.is_none() { text { transform: "scale(1,-1)", text_anchor: "middle", class: "m1-part-label", x: "0", y: "-5.2", "{part.reference}" } }
                                 }} }
+                            }
+                        }
+                        if active_workspace == "Layout"
+                            && !layout_assembly_3d()
+                            && let Some(tool) = layout_transform_tool()
+                            && let Some((matrix, projection, context)) = layout_transform_target.clone()
+                        {
+                            let mut active_tool = layout_transform_tool;
+                            objects::LayoutTransformToolOverlay {
+                                runtime: objects::LayoutTransformRuntime(runtime.clone()),
+                                svg: objects::LayoutTransformSvg(svg.clone()),
+                                arbiter: canvas_interaction.clone(),
+                                owner: layout_owner.clone(),
+                                selected_context: adapter.selected_context,
+                                scope_generation: adapter.generation,
+                                workspace,
+                                matrix,
+                                projection,
+                                context,
+                                tool,
+                                snap_settings: layout_snap_settings.read().clone(),
+                                snap_origins: outline_snap_origins.clone(),
+                                splay_affect: matrix_splay_affect,
+                                view_x,
+                                view_y,
+                                width,
+                                height,
+                                on_finish: EventHandler::new(move |_| active_tool.set(None)),
                             }
                         }
                         if let Some(placement) = part_placement.projection.as_ref() {

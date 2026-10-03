@@ -34,7 +34,10 @@ pub(in crate::presentation) use layout_toolbar::{
     LayoutSnapSettings, TreeCellAnchor, context_for_selection_kind, gesture_snap_inputs,
     snap_label as layout_snap_label,
 };
-pub(in crate::presentation) use layout_transform_toolbar::LayoutTransformMenuMount;
+pub(in crate::presentation) use layout_transform_toolbar::LayoutTransformToolOverlay;
+pub(in crate::presentation) use layout_transform_toolbar::{
+    LayoutTransformMenuMount, LayoutTransformRuntime, LayoutTransformSvg, LayoutTransformTool,
+};
 pub(in crate::presentation) use matrix_inspector::MatrixInspector;
 pub(in crate::presentation) use matrix_inspector::SwitchOrientation as MatrixSwitchOrientation;
 pub(in crate::presentation) use matrix_inspector_controller::matrix_with_preset;
