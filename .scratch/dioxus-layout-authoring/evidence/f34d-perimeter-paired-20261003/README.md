@@ -15,3 +15,7 @@ On the React reference, a trusted mouse drag started at the visible closure hand
 On the pre-repair Dioxus candidate, the same imported fixture and perimeter editor were used. A trusted fast mouse sequence on point 2 from `(336,417)` through `(360,417)` to release, followed by a 350 ms wait, left its x coordinate at `-3.82` and produced no drag/capture. `dioxus-fast-drag-red.png` records the visible state. This discriminated the delegated `currentTarget` cast defect from the working React journey.
 
 These screenshots preserve only the focused paired reference and pre-repair RED receipt. The post-repair GREEN journey is recorded separately against the newly served candidate so this archive does not imply that the old candidate was repaired in place.
+
+## Negative half-grid policy follow-up
+
+Review also found a policy mismatch at negative half-grid coordinates: React `Math.round(-0.5)` produces negative zero and `Math.round(-1.5)` produces `-1`, while Rust `f64::round()` produces `-1` and `-2`. The focused production-source regression `outline_snapping_tests::tests::negative_half_grid_matches_javascript_math_round` first failed on the uncorrected code (`left: -1.0`, `right: 0.0`) and passed after the grid rounding port used the JavaScript tie rule. The test compiles the same `presentation/outline_snapping.rs` source used by the WASM page. Final focused test: 1 passed; `cargo fmt -- --check` and `git diff --check` passed.
