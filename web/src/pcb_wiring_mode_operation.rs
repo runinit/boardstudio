@@ -1,8 +1,63 @@
 //! The narrow accepted-document proposal for changing a PCB board's wiring mode.
+use crate::firmware_position_projection::FirmwarePlanIdentity;
+use boardstudio_application::Scope;
 use boardstudio_core::{
     electrical::ElectricalMode,
     model::{ElectricalBoardConfiguration, ProjectDoc},
 };
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct BoardWiringModeIdentity {
+    /// Selection-independent accepted board-plan identity.
+    pub plan: FirmwarePlanIdentity,
+    /// Selection and UI-scope identity of the rendered control.
+    pub ui_scope: Scope,
+    pub selected_part_id: Option<String>,
+    pub scope_generation: u64,
+}
+
+impl BoardWiringModeIdentity {
+    pub(crate) fn matches_action_context(
+        &self,
+        current_plan: &FirmwarePlanIdentity,
+        current_scope: Option<&Scope>,
+        current_selected_part_id: Option<&str>,
+        current_generation: u64,
+    ) -> bool {
+        self.plan == *current_plan
+            && current_scope == Some(&self.ui_scope)
+            && self.selected_part_id.as_deref() == current_selected_part_id
+            && self.scope_generation == current_generation
+    }
+
+    pub(crate) fn feedback_target(&self) -> BoardWiringModeFeedbackTarget {
+        BoardWiringModeFeedbackTarget {
+            ui_scope: self.ui_scope.clone(),
+            selected_part_id: self.selected_part_id.clone(),
+            scope_generation: self.scope_generation,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct BoardWiringModeFeedbackTarget {
+    pub ui_scope: Scope,
+    pub selected_part_id: Option<String>,
+    pub scope_generation: u64,
+}
+
+impl BoardWiringModeFeedbackTarget {
+    pub(crate) fn is_visible(
+        &self,
+        current_scope: Option<&Scope>,
+        current_selected_part_id: Option<&str>,
+        current_generation: u64,
+    ) -> bool {
+        current_scope == Some(&self.ui_scope)
+            && self.selected_part_id.as_deref() == current_selected_part_id
+            && self.scope_generation == current_generation
+    }
+}
 
 pub(crate) fn propose_mode(
     document: &ProjectDoc,
@@ -47,6 +102,7 @@ pub(crate) fn propose_mode(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use boardstudio_application::{SessionEpoch, SnapshotToken};
     use boardstudio_core::model::{Board, ElectricalBoardConfiguration, ElectricalHandoffBaseline};
 
     fn doc() -> ProjectDoc {
@@ -127,5 +183,92 @@ mod tests {
             }]
         );
         assert!(propose_mode(&document, "missing", ElectricalMode::Direct).is_none());
+    }
+
+    #[test]
+    fn action_identity_keeps_board_plan_and_rendered_selection_as_separate_guards() {
+        let board_scope = Scope {
+            session_epoch: SessionEpoch(3),
+            document_id: "project".into(),
+            board_id: "left".into(),
+            instance_id: None,
+        };
+        let ui_scope = Scope {
+            instance_id: Some("primary".into()),
+            ..board_scope.clone()
+        };
+        let plan = FirmwarePlanIdentity {
+            scope: board_scope,
+            token: SnapshotToken(8),
+            revision: 12,
+            executor_epoch: 4,
+        };
+        let rendered = BoardWiringModeIdentity {
+            plan: plan.clone(),
+            ui_scope: ui_scope.clone(),
+            selected_part_id: Some("controller".into()),
+            scope_generation: 5,
+        };
+
+        assert!(rendered.matches_action_context(&plan, Some(&ui_scope), Some("controller"), 5));
+        assert!(!rendered.matches_action_context(&plan, Some(&ui_scope), Some("switch"), 5));
+        assert!(!rendered.matches_action_context(&plan, Some(&ui_scope), Some("controller"), 6));
+        let next_plan = FirmwarePlanIdentity {
+            revision: 13,
+            ..plan.clone()
+        };
+        assert!(!rendered.matches_action_context(
+            &next_plan,
+            Some(&ui_scope),
+            Some("controller"),
+            5
+        ));
+        assert_eq!(
+            rendered.plan, plan,
+            "the board plan is independent of selection"
+        );
+    }
+
+    #[test]
+    fn saved_feedback_survives_plan_revision_advance_but_not_selection_change() {
+        let scope = Scope {
+            session_epoch: SessionEpoch(3),
+            document_id: "project".into(),
+            board_id: "left".into(),
+            instance_id: Some("primary".into()),
+        };
+        let identity = BoardWiringModeIdentity {
+            plan: FirmwarePlanIdentity {
+                scope: Scope {
+                    instance_id: None,
+                    ..scope.clone()
+                },
+                token: SnapshotToken(8),
+                revision: 12,
+                executor_epoch: 4,
+            },
+            ui_scope: scope.clone(),
+            selected_part_id: Some("controller".into()),
+            scope_generation: 5,
+        };
+        let target = identity.feedback_target();
+        let advanced = BoardWiringModeIdentity {
+            plan: FirmwarePlanIdentity {
+                token: SnapshotToken(9),
+                revision: 13,
+                ..identity.plan.clone()
+            },
+            ..identity.clone()
+        };
+        assert_eq!(target, advanced.feedback_target());
+        assert!(!identity.matches_action_context(
+            &advanced.plan,
+            Some(&scope),
+            Some("controller"),
+            5
+        ));
+        assert!(target.is_visible(Some(&scope), Some("controller"), 5));
+        assert!(!target.is_visible(Some(&scope), Some("switch"), 5));
+        assert!(!target.is_visible(Some(&scope), Some("controller"), 6));
     }
 }

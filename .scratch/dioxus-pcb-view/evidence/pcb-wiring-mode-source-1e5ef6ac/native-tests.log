@@ -1,0 +1,300 @@
+warning: fields `contours` and `path_assets` are never read
+  --> src/case_preview.rs:89:16
+   |
+85 | pub(crate) struct NativePreviewSnapshot {
+   |                   --------------------- fields in this struct
+...
+89 |     pub(crate) contours: Vec<boardstudio_core::model::Contour>,
+   |                ^^^^^^^^
+90 |     pub(crate) path_assets: BTreeMap<String, String>,
+   |                ^^^^^^^^^^^
+   |
+   = note: `NativePreviewSnapshot` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `is_active` is never used
+  --> src/presentation/model_delivery.rs:24:8
+   |
+23 | trait ModelSourceLease {
+   |       ---------------- method in this trait
+24 |     fn is_active(&self) -> bool;
+   |        ^^^^^^^^^
+
+warning: associated items `new`, `is_current_owner`, and `is_current_layout_owner` are never used
+   --> src/presentation/model_delivery.rs:54:19
+    |
+ 53 | impl ModelOwnerIdentity {
+    | ----------------------- associated items in this implementation
+ 54 |     pub(crate) fn new(
+    |                   ^^^
+...
+100 |     pub(crate) fn is_current_owner(
+    |                   ^^^^^^^^^^^^^^^^
+...
+126 |     pub(crate) fn is_current_layout_owner(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: fields `positions`, `normals`, and `colors` are never read
+   --> src/presentation/model_delivery.rs:378:16
+    |
+377 | pub(crate) struct ValidatedMesh {
+    |                   ------------- fields in this struct
+378 |     pub(crate) positions: Rc<[f32]>,
+    |                ^^^^^^^^^
+379 |     pub(crate) normals: Rc<[f32]>,
+    |                ^^^^^^^
+380 |     pub(crate) colors: Option<Rc<[f32]>>,
+    |                ^^^^^^
+    |
+    = note: `ValidatedMesh` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: methods `fail` and `fail_before_begin` are never used
+   --> src/presentation/layout_viewer_source.rs:172:19
+    |
+ 98 | impl LayoutPreviewState {
+    | ----------------------- methods in this implementation
+...
+172 |     pub(crate) fn fail(&mut self, owner: LayoutSourceIdentity, error: String) {
+    |                   ^^^^
+...
+185 |     pub(crate) fn fail_before_begin(&mut self, owner: LayoutSourceIdentity, error: String) {
+    |                   ^^^^^^^^^^^^^^^^^
+
+warning: constant `PITCH_MM` is never used
+ --> src/matrix_setup_operation.rs:5:7
+  |
+5 | const PITCH_MM: f64 = 19.05;
+  |       ^^^^^^^^
+
+warning: constant `MAX_MATRIX_CELLS` is never used
+ --> src/matrix_setup_operation.rs:6:7
+  |
+6 | const MAX_MATRIX_CELLS: u32 = 4096;
+  |       ^^^^^^^^^^^^^^^^
+
+warning: enum `MatrixSetupPreset` is never used
+ --> src/matrix_setup_operation.rs:9:17
+  |
+9 | pub(crate) enum MatrixSetupPreset {
+  |                 ^^^^^^^^^^^^^^^^^
+
+warning: struct `MatrixSetupRequest` is never constructed
+  --> src/matrix_setup_operation.rs:21:19
+   |
+21 | pub(crate) struct MatrixSetupRequest {
+   |                   ^^^^^^^^^^^^^^^^^^
+
+warning: methods `as_str` and `config` are never used
+  --> src/matrix_setup_operation.rs:28:19
+   |
+27 | impl MatrixSetupPreset {
+   | ---------------------- methods in this implementation
+28 |     pub(crate) fn as_str(self) -> &'static str {
+   |                   ^^^^^^
+...
+41 |     fn config(self) -> PresetConfig {
+   |        ^^^^^^
+
+warning: struct `PresetConfig` is never constructed
+  --> src/matrix_setup_operation.rs:95:8
+   |
+95 | struct PresetConfig {
+   |        ^^^^^^^^^^^^
+
+warning: struct `PreparedMatrix` is never constructed
+   --> src/matrix_setup_operation.rs:102:19
+    |
+102 | pub(crate) struct PreparedMatrix {
+    |                   ^^^^^^^^^^^^^^
+
+warning: function `next_matrix_id` is never used
+   --> src/matrix_setup_operation.rs:107:15
+    |
+107 | pub(crate) fn next_matrix_id(
+    |               ^^^^^^^^^^^^^^
+
+warning: function `prepare_matrix` is never used
+   --> src/matrix_setup_operation.rs:142:15
+    |
+142 | pub(crate) fn prepare_matrix(
+    |               ^^^^^^^^^^^^^^
+
+warning: function `required_catalogue_definition` is never used
+   --> src/matrix_setup_operation.rs:320:4
+    |
+320 | fn required_catalogue_definition<'a>(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `snapshot_definition` is never used
+   --> src/matrix_setup_operation.rs:337:4
+    |
+337 | fn snapshot_definition(
+    |    ^^^^^^^^^^^^^^^^^^^
+
+warning: variants `Preparing` and `Pending` are never constructed
+ --> src/mirrored_pair_lifecycle.rs:7:5
+  |
+5 | pub(crate) enum PairFormStage {
+  |                 ------------- variants in this enum
+6 |     Setup,
+7 |     Preparing,
+  |     ^^^^^^^^^
+8 |     Placement,
+9 |     Pending,
+  |     ^^^^^^^
+  |
+  = note: `PairFormStage` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: `boardstudio-web` (bin "boardstudio-web" test) generated 17 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.35s
+     Running unittests src/main.rs (web/target/debug/deps/boardstudio_web-de0191d0363372a7)
+
+running 145 tests
+test archive_export::tests::session_option_defaults_on_and_notifies_only_when_changed ... ok
+test archive_export::tests::archive_filename_uses_the_accepted_project_name ... ok
+test bundled_models::tests::lookup_does_not_turn_unknown_identifiers_into_static_paths ... ok
+test bundled_models::tests::lookup_preserves_nested_reference_filenames_from_react_catalogue ... ok
+test archive_export::tests::production_dispatch_keeps_step_separate_from_archive_capture ... ok
+test bundled_models::tests::lookup_preserves_react_thqwgd_source_to_saved_name_aliases ... ok
+test case_model_lifecycle::tests::arriving_board_preview_invalidates_an_unchanged_cad_projection_before_models_finish ... ok
+test archive_export::tests::production_dispatch_uses_the_option_captured_when_archive_started ... ok
+test archive_export::tests::production_dispatch_routes_firmware_without_consuming_project_archive_choice ... ok
+test case_model_lifecycle::tests::changed_scope_and_closed_worker_are_replaced_but_current_worker_is_reused ... ok
+test archive_export::tests::settled_operation_releases_its_unused_archive_choice ... ok
+test case_model_lifecycle::tests::failed_replacement_keeps_the_existing_cached_worker ... ok
+test case_model_lifecycle::tests::first_step_decode_creates_a_worker_without_retaining_the_cache_borrow ... ok
+test archive_export::tests::production_dispatch_fails_closed_after_archive_capture_is_cancelled ... ok
+test archive_export::tests::production_dispatch_consumes_each_operation_capture_once ... ok
+test case_preview::tests::executor_replacement_and_epoch_reuse_reject_aba ... ok
+test case_display::tests::pcb_color_reads_reference_alias_and_changes_or_resets_all_aliases ... ok
+test case_display::tests::gasket_upper_lower_share_color_without_changing_visibility ... ok
+test case_model_lifecycle::tests::exact_model_identity_and_theme_invalidate_projection_without_pointer_hash_collisions ... ok
+test case_display::tests::partial_reference_alias_colors_remain_resettable ... ok
+test case_generation_admission::tests::unconfigured_unready_physical_scope_disables_case_generation ... ok
+test case_preview::native_preview_pick_tests::native_pick_requires_the_current_preview_owner_source_identity ... ok
+test case_preview::native_preview_pick_tests::picked_renderer_reference_resolves_to_board_part_and_not_asset_or_mesh_id ... ok
+test case_preview::tests::native_preview_refuses_to_take_imported_board_producer_ownership ... ok
+test closure_clearance::tests::key_rounding_matches_javascript_fixed_decimal_behavior ... ok
+test bundled_models::tests::catalogue_covers_each_react_vendor_model_once_with_safe_static_paths ... ok
+test case_preview::tests::native_preview_preserves_document_path_precedence_for_packaged_model_ids ... ok
+test case_preview::tests::native_preview_uses_the_existing_flipped_physical_projection ... ok
+test case_preview::tests::preview_owner_lease_tracks_liveness_and_exact_source_identity ... ok
+test case_preview::tests::pending_scope_away_and_back_cannot_publish_the_old_completion ... ok
+test case_preview::tests::native_preview_does_not_substitute_packaged_paths_for_document_owned_ids ... ok
+test case_preview::tests::preview_result_must_match_the_captured_accepted_revision ... ok
+test case_preview::tests::cancellation_rejects_late_completion_and_preserves_replacement_owner ... ok
+test case_preview::tests::preview_source_identity_rejects_same_revision_snapshot_aba ... ok
+test case_preview::tests::native_preview_captures_accepted_physical_contours_without_case_readiness_or_cad ... ok
+test case_preview::tests::successful_publication_keeps_the_preview_visible_after_pending_clears ... ok
+test firmware_position_choices::tests::choices_match_reference_defaults_labels_and_order ... ok
+test firmware_position_projection::tests::exact_outcome_waits_across_revision_and_save_then_confirms_latest_value ... ok
+test firmware_position_projection::tests::persistence_failure_keeps_accepted_value_and_moved_target_suppresses_feedback ... ok
+test footprint_forms::tests::projects_native_and_legacy_arcs_and_nested_keepouts ... ok
+test closure_clearance::tests::positive_and_negative_zero_deduplicate_to_one_js_compatible_key ... ok
+test footprint_forms::tests::projects_nested_graphics_into_pad_coordinates_and_decodes_text ... ok
+test instance_selection::tests::board_fallback_does_not_replace_explicit_preference ... ok
+test closure_clearance::tests::screw_clearance_uses_hole_diameter_and_empty_mounts_remove_owned_projection ... ok
+test instance_selection::tests::fallback_uses_board_order_without_requiring_mechanical_configuration ... ok
+test closure_clearance::tests::projects_canonical_and_flipped_instance_union_and_preserves_other_parts ... ok
+test instance_selection::tests::restored_instance_recovers_preference_and_reopen_resets_it ... ok
+test layout_viewer_source::tests::authored_capture_uses_canonical_document_and_board_contours_independent_of_instance ... ok
+test layout_viewer_source::tests::capture_rejects_stale_scope_scene_board_and_ambiguous_import_source ... ok
+test layout_viewer_source::tests::authored_request_uses_existing_prepare_preview_and_rejects_wrong_preview_revision ... ok
+test instance_selection::tests::automatic_navigation_waits_for_real_session_open_and_save ... ok
+test layout_viewer_source::tests::imported_capture_selects_matching_accepted_asset_and_existing_preview_operation ... ok
+test layout_viewer_source::tests::source_request_reconciliation_retires_pending_owner_when_scope_disappears_or_changes ... ok
+test layout_viewer_source::tests::picks_require_full_current_scope_source_generation_and_unique_board_reference ... ok
+test layout_viewer_source::tests::source_state_rejects_late_worker_completion_after_owner_replacement ... ok
+test layout_viewer_source::tests::suspended_model_failure_settlement_cannot_target_replacement_preview_owner ... ok
+test layout_viewer_source::tests::imported_layout_component_model_flows_through_existing_asset_and_mesh_delivery_route ... ok
+test macro_accessible_names::tests::step_kind_name_uses_the_accepted_macro_display_name_and_one_based_index ... ok
+test macro_accessible_names::tests::step_value_names_match_the_visible_field_labels ... ok
+test matrix_transform_lifecycle::tests::another_field_revision_rejects_a_captured_transform_action ... ok
+test matrix_transform_lifecycle::tests::current_target_settles_only_its_observed_outcome ... ok
+test closure_clearance::tests::safe_mh_reference_and_output_count_boundaries_remain_allocatable ... ok
+test matrix_transform_lifecycle::tests::replacement_token_and_revision_are_independently_checked ... ok
+test matrix_transform_lifecycle::tests::hidden_pending_keeps_its_exact_observer_until_terminal_settlement ... ok
+test matrix_transform_lifecycle::tests::terminal_failure_after_scope_loss_retires_without_retargeting_feedback ... ok
+test mechanical_feedback::tests::failed_feedback_survives_token_advance_and_unrelated_field_change ... ok
+test mechanical_feedback::tests::rejected_request_reaches_its_field_while_older_request_is_pending ... ok
+test mechanical_feedback::tests::saved_feedback_is_hidden_after_undo_changes_its_field_again ... ok
+test mechanical_feedback::tests::summary_relevance_tracks_its_field_not_unrelated_configuration_values ... ok
+test mirrored_pair_geometry::tests::projection_matches_react_pair_at_and_leaves_reflection_to_core ... ok
+test mirrored_pair_lifecycle::tests::escape_can_cancel_active_placement_but_not_a_pending_save ... ok
+test mirrored_pair_lifecycle::tests::pair_settlement_requires_the_exact_accepted_operation_transaction ... ok
+test mirrored_pair_lifecycle::tests::setup_is_not_visible_as_an_editable_form_while_placement_owns_the_canvas ... ok
+test mirrored_pair_geometry::tests::canvas_preview_uses_core_projected_cell_poses_for_both_mirrored_halves ... ok
+test model_delivery::tests::accepted_kiswitch_preview_path_resolves_to_the_known_packaged_descriptor ... ok
+test mirrored_pair_geometry::tests::projection_rejects_invalid_names_gap_point_and_colliding_ids ... ok
+test closure_clearance::tests::unsafe_or_exhausted_mh_references_fail_before_any_core_edit ... ok
+test model_delivery::tests::asset_selection_obeys_attached_then_native_then_ergogen_precedence ... ok
+test model_delivery::tests::core_archived_preview_path_preserves_document_asset_precedence ... ok
+test model_delivery::tests::batch_delivery_decodes_each_sha_once_and_keeps_model_row_ids ... ok
+test model_delivery::tests::core_packaged_preview_path_joins_the_native_table_to_its_exact_descriptor ... ok
+test model_delivery::tests::failed_current_task_is_removed_for_retry ... ok
+test model_delivery::tests::format_selection_is_case_insensitive_and_rejects_other_extensions ... ok
+test model_delivery::tests::mesh_validation_requires_complete_finite_matching_buffers ... ok
+test model_delivery::tests::native_export_path_table_is_inverted_for_preview_model_rows ... ok
+test model_delivery::tests::new_batch_replaces_pending_task_and_old_token_cannot_settle_it ... ok
+test model_delivery::tests::cache_is_bounded_and_reports_evicted_pending_task_token ... ok
+test model_delivery::tests::row_merge_preserves_exact_preview_model_ids_and_references ... ok
+test model_delivery::tests::verified_bytes_reject_wrong_digest_and_bounds ... ok
+test operation_outcomes::tests::dropped_view_and_unrelated_completion_do_not_acknowledge_current_view ... ok
+test operation_outcomes::tests::identical_session_rejections_settle_their_own_operations ... ok
+test parts_mechanical_profile::tests::existing_switch_profile_displays_its_saved_gap_instead_of_a_default_gap ... ok
+test parts_mechanical_profile::tests::manual_profile_defaults_and_contour_edits_preserve_optional_profile_data ... ok
+test parts_definition_name::tests::stale_selection_document_and_generator_captures_are_rejected ... ok
+test parts_mechanical_profile::tests::profile_save_rejects_a_changed_selection_or_changed_target ... ok
+test parts_definition_name::tests::refreshed_capture_commits_dirty_name_against_the_latest_accepted_document ... ok
+test parts_mechanical_profile::tests::profile_terminal_observation_is_bound_to_its_operation_and_parts_view_owner ... ok
+test parts_mechanical_profile::tests::manual_profile_edit_rebases_latest_project_document_and_round_trips_history ... ok
+test parts_mechanical_profile::tests::standard_profile_reply_rejects_wrong_request_owner_family_or_gap ... ok
+test parts_mechanical_profile::tests::standard_profile_merge_preserves_sparse_user_fields_and_replaces_fit_geometry ... ok
+test parts_mechanical_profile::tests::standard_profile_selector_and_action_follow_distinct_issue15_predicates ... ok
+test parts_mechanical_profile::tests::saving_a_selected_catalogue_definition_materializes_only_that_definition ... ok
+test parts_new_component::tests::generated_ui_identity_skips_existing_ids ... ok
+test parts_new_component::tests::accepted_project_selection_resolves_without_catalogue_state ... ok
+test parts_new_component::tests::create_edit_rejects_changed_capture_and_duplicate_identity ... ok
+test parts_mechanical_profile::tests::standard_profile_request_matches_react_family_sources_and_plate_gaps ... ok
+test parts_definition_name::tests::production_name_edit_commits_one_field_and_round_trips_through_session_history ... ok
+test parts_mechanical_profile::tests::standard_profile_request_rejects_superseded_operation_and_returned_view_aba ... ok
+test parts_mechanical_profile::tests::standard_profile_family_selection_dispatches_a_load_request ... ok
+test parts_new_component::tests::create_edit_appends_reference_default_and_preserves_the_accepted_document ... ok
+test pcb_wiring_mode_operation::tests::same_mode_is_a_noop_and_missing_configuration_is_created_for_target_board ... ok
+test pcb_wiring_mode_operation::tests::mode_proposal_preserves_board_configuration_and_other_project_data ... ok
+test parts_new_component::tests::reconciliation_requires_accepted_definition_and_current_parts_owner_intent ... ok
+test physical_setup::tests::selection_reconciliation_requires_the_exact_accepted_proposal ... ok
+test physical_setup::tests::new_physical_instances_use_the_existing_mechanical_defaults_factory ... ok
+test physical_setup::tests::topology_noop_and_invalid_transport_are_rejected_without_changing_input ... ok
+test physical_setup::tests::topology_falls_back_to_board_matching_primary_and_resolved_mechanics_for_shared_construction ... ok
+test physical_setup::tests::reversible_changes_document_flag_and_only_eligible_existing_part_overrides ... ok
+test physical_setup::tests::topology_preserves_flipped_primary_and_shared_construction_and_adds_reversible_secondary ... ok
+test portable_archive::tests::generated_document_owned_model_does_not_require_a_bundled_provider ... ok
+test physical_setup::tests::topology_uses_matching_canonical_board_mechanics_before_the_defaults_factory ... ok
+test portable_archive::tests::a_disabled_embedding_option_can_keep_local_assets_without_resolving_models ... ok
+test portable_archive::tests::generated_unknown_ergogen_model_fails_instead_of_silently_omitting ... ok
+test physical_setup::tests::transport_changes_only_the_transport_field ... ok
+test portable_archive::tests::selected_closure_matches_react_reference_buckets_and_deduplicates ... ok
+test presentation::objects::keycap_resize::tests::invalid_units_and_unchanged_selection_create_no_plan ... ok
+test presentation::objects::keycap_resize::tests::replace_document_reflows_source_and_core_syncs_linked_partner_through_history ... ignored, requires KEYCAPS_MIRROR_PROJECT_JSON to point at the pinned archive fixture
+test presentation::objects::keycap_resize::tests::overlap_query_ignores_edge_contact_and_keeps_cross_matrix_pairs ... ok
+test presentation::objects::keycap_resize::tests::axis_resize_preserves_other_axis_for_each_mixed_selected_key ... ok
+test presentation::objects::keycap_resize::tests::overlap_query_uses_oriented_rectangles_and_stable_equal_min_x_order ... ok
+test presentation::objects::keycap_resize::tests::tall_resize_reflows_same_column_on_projected_y_axis ... ok
+test setup_guide_state::creation_tests::closed_or_superseded_completed_creation_releases_the_pending_slot ... ok
+test setup_guide_state::tests::compact_guide_and_settings_reveal_the_requested_surface ... ok
+test renderer_host_source_sync::private_page_host_matches_normalized_library_host ... ok
+test setup_guide_state::tests::desktop_reveal_pins_only_the_requested_panel ... ok
+test setup_guide_state::tests::accepted_rename_and_undo_replace_the_visible_name ... ok
+test setup_guide_state::tests::unrelated_accepted_edits_preserve_typing_but_project_switch_resets_it ... ok
+test presentation::objects::keycap_resize::tests::widening_selected_key_reflows_row_neighbors_and_preserves_group_center ... ok
+test firmware_position_projection::tests::current_real_plan_preserves_matrix_order_labels_and_selected_board_bindings ... ok
+test portable_archive::tests::pack_round_trip_keeps_local_bytes_and_optionally_adds_opaque_model_bytes ... ok
+test firmware_position_projection::tests::lifecycle_and_mismatched_plan_never_look_like_current_empty_inputs ... ok
+test firmware_position_projection::tests::settled_feedback_survives_plan_refresh_but_not_target_or_key_changes ... ok
+test firmware_position_projection::tests::admission_and_exact_session_core_outcome_follow_the_accepted_board ... ok
+test parts_view_generation::tests::mounted_workspace_generation_advances_once_without_self_subscribing ... ok
+test bundled_models::tests::catalogue_digest_matches_the_exact_staged_vendor_source_file ... ok
+
+test result: ok. 144 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 3.58s
+

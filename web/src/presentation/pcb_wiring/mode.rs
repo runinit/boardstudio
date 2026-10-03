@@ -1,7 +1,11 @@
 //! Accepted board-level mode edits for PCB wiring.
 use super::{PcbWiringResolution, PcbWiringSource, WiringPlanIdentity};
-use crate::pcb_wiring_mode_operation::propose_mode;
-use crate::runtime::Runtime;
+use crate::{
+    pcb_wiring_mode_operation::{
+        BoardWiringModeFeedbackTarget, BoardWiringModeIdentity, propose_mode,
+    },
+    runtime::Runtime,
+};
 use boardstudio_application::{Durability, Event, Lifecycle, Scope, TerminalOutcome};
 use boardstudio_core::{
     electrical::ElectricalMode,
@@ -9,16 +13,6 @@ use boardstudio_core::{
 };
 use dioxus::prelude::*;
 use std::rc::Rc;
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct BoardWiringModeIdentity {
-    /// Selection-independent identity of the accepted board wiring plan.
-    pub plan: WiringPlanIdentity,
-    /// Selection and UI-scope identity of the rendered control.
-    pub ui_scope: Scope,
-    pub selected_part_id: Option<String>,
-    pub scope_generation: u64,
-}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::presentation) struct BoardWiringModeEditRequest {
@@ -35,7 +29,7 @@ pub(in crate::presentation) enum BoardWiringModeFeedback {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::presentation) struct BoardWiringModeFeedbackView {
-    pub identity: BoardWiringModeIdentity,
+    pub target: BoardWiringModeFeedbackTarget,
     pub state: BoardWiringModeFeedback,
 }
 
@@ -95,12 +89,18 @@ pub(in crate::presentation) fn use_board_wiring_mode_edits(
                     && accepted.document.revision > waiting.base_revision
                     && *accepted.document == expected
             });
-            let target_current = runtime.scope().as_ref()
-                == Some(&waiting.request.identity.ui_scope)
-                && model.active_board_id == waiting.request.identity.ui_scope.board_id
+            let target_current = waiting.request.identity.feedback_target().is_visible(
+                runtime.scope().as_ref(),
+                model.selected_part_ids.first().map(String::as_str),
+                scope_generation(),
+            ) && model.active_board_id
+                == waiting.request.identity.ui_scope.board_id
                 && model.active_instance_id == waiting.request.identity.ui_scope.instance_id
-                && model.selected_part_ids.first()
-                    == waiting.request.identity.selected_part_id.as_ref();
+                && accepted.is_some_and(|accepted| {
+                    saved_proposal
+                        || (accepted.token == waiting.request.identity.plan.token
+                            && accepted.document.revision == waiting.request.identity.plan.revision)
+                });
             pending.set(None);
             if !target_current {
                 feedback.set(None);
@@ -126,7 +126,7 @@ pub(in crate::presentation) fn use_board_wiring_mode_edits(
                 ),
             };
             feedback.set(Some(BoardWiringModeFeedbackView {
-                identity: waiting.request.identity,
+                target: waiting.request.identity.feedback_target(),
                 state,
             }));
         }
@@ -176,7 +176,7 @@ pub(in crate::presentation) fn use_board_wiring_mode_edits(
                 outcome,
             }));
             feedback.set(Some(BoardWiringModeFeedbackView {
-                identity: request.identity.clone(),
+                target: request.identity.feedback_target(),
                 state: BoardWiringModeFeedback::Pending,
             }));
             runtime.submit(Event::Edit {
@@ -211,7 +211,10 @@ pub(in crate::presentation) fn use_board_wiring_mode_edits(
                 PcbWiringResolution::Current { identity: current, .. } if current == &identity.plan
             )
     });
-    let feedback = feedback().filter(|item| identity.as_ref() == Some(&item.identity));
+    let feedback_target = identity
+        .as_ref()
+        .map(BoardWiringModeIdentity::feedback_target);
+    let feedback = feedback().filter(|item| feedback_target.as_ref() == Some(&item.target));
     BoardWiringModeActions {
         identity,
         editable,
@@ -236,15 +239,21 @@ fn current_snapshot(
     scope_generation: u64,
     instance_is_current: bool,
 ) -> Option<boardstudio_application::AcceptedSnapshot> {
-    if workspace != "PCB"
-        || !instance_is_current
-        || scope_generation != identity.scope_generation
-        || runtime.scope().as_ref() != Some(&identity.ui_scope)
-    {
+    if workspace != "PCB" || !instance_is_current {
         return None;
     }
     let model = runtime.model();
     let snapshot = model.accepted?;
+    let current_scope = runtime.scope();
+    let current_plan = WiringPlanIdentity {
+        scope: Scope {
+            instance_id: None,
+            ..identity.ui_scope.clone()
+        },
+        token: snapshot.token,
+        revision: snapshot.document.revision,
+        executor_epoch: runtime.electrical_preview_executor_epoch(),
+    };
     if model.lifecycle != Lifecycle::Ready
         || model.display_preview.is_some()
         || model.gesture.is_some()
@@ -254,17 +263,14 @@ fn current_snapshot(
             })
         || model.active_board_id != identity.ui_scope.board_id
         || model.active_instance_id != identity.ui_scope.instance_id
-        || model.selected_part_ids.first() != identity.selected_part_id.as_ref()
         || snapshot.session_epoch != identity.ui_scope.session_epoch
         || snapshot.document.id != identity.ui_scope.document_id
-        || snapshot.token != identity.plan.token
-        || snapshot.document.revision != identity.plan.revision
-        || runtime.electrical_preview_executor_epoch() != identity.plan.executor_epoch
-        || identity.plan.scope
-            != (Scope {
-                instance_id: None,
-                ..identity.ui_scope.clone()
-            })
+        || !identity.matches_action_context(
+            &current_plan,
+            current_scope.as_ref(),
+            model.selected_part_ids.first().map(String::as_str),
+            scope_generation,
+        )
         || !snapshot
             .document
             .boards

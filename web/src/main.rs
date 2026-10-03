@@ -33,6 +33,9 @@ mod presentation;
 mod renderer_host_page;
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 mod runtime;
+#[cfg(all(feature = "page", test, not(target_arch = "wasm32")))]
+#[path = "runtime_test_stub.rs"]
+mod runtime;
 
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 mod firmware_request_adapter;
@@ -89,6 +92,35 @@ mod presentation {
     pub(crate) mod objects {
         #[path = "keycap_resize.rs"]
         mod keycap_resize;
+    }
+
+    pub(crate) mod pcb_wiring {
+        use crate::firmware_position_projection::FirmwarePlanIdentity;
+        use boardstudio_application::Scope;
+
+        pub(crate) type WiringPlanIdentity = FirmwarePlanIdentity;
+
+        #[allow(dead_code)]
+        #[derive(Clone, Debug, PartialEq, Eq)]
+        pub(crate) enum PcbWiringResolution {
+            Idle,
+            Current { identity: WiringPlanIdentity },
+        }
+
+        #[derive(Clone)]
+        pub(crate) struct PcbWiringSource {
+            pub(crate) identity: WiringPlanIdentity,
+            pub(crate) ui_scope: Scope,
+            pub(crate) scope_generation: u64,
+            pub(crate) active_part_id: Option<String>,
+        }
+
+        #[path = "mode.rs"]
+        mod mode;
+
+        #[cfg(test)]
+        #[path = "mode_owner_tests.rs"]
+        mod mode_owner_tests;
     }
 }
 
