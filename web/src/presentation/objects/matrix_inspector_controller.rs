@@ -1918,30 +1918,25 @@ async fn duplicate_design_variant(
     {
         Ok(accepted) => accepted,
         Err(error) => {
-            if let (Some(active), Some(scope)) = (runtime.model().accepted, runtime.scope()) {
-                if active.session_epoch == variant_session_epoch
-                    && active.document.id == variant_id
-                    && scope.session_epoch == variant_session_epoch
-                    && scope.document_id == variant_id
-                {
-                    *report_scope.borrow_mut() = Some(VariantReportOwner {
-                        scope,
-                        token: active.token,
-                        revision: active.document.revision,
-                    });
-                }
+            if let (Some(active), Some(scope)) = (runtime.model().accepted, runtime.scope())
+                && active.session_epoch == variant_session_epoch
+                && active.document.id == variant_id
+                && scope.session_epoch == variant_session_epoch
+                && scope.document_id == variant_id
+            {
+                *report_scope.borrow_mut() = Some(VariantReportOwner {
+                    scope,
+                    token: active.token,
+                    revision: active.document.revision,
+                });
             }
             let recovery = if alive.get() {
                 restore_source_after_variant_failure(
                     &runtime,
-                    &source_id,
+                    request,
                     &variant_id,
-                    source_session_epoch,
                     variant_session_epoch,
                     None,
-                    &request.owner.scope,
-                    request.snapshot_token,
-                    request.revision,
                     &report_scope,
                 )
                 .await
@@ -1976,14 +1971,10 @@ async fn duplicate_design_variant(
             let recovery = if alive.get() {
                 restore_source_after_variant_failure(
                     &runtime,
-                    &source_id,
+                    request,
                     &variant_id,
-                    source_session_epoch,
                     variant_session_epoch,
                     None,
-                    &request.owner.scope,
-                    request.snapshot_token,
-                    request.revision,
                     &report_scope,
                 )
                 .await
@@ -2071,14 +2062,10 @@ async fn duplicate_design_variant(
         let recovery = if alive.get() {
             restore_source_after_variant_failure(
                 &runtime,
-                &source_id,
+                request,
                 &variant_id,
-                source_session_epoch,
                 variant_session_epoch,
                 Some(&accepted),
-                &request.owner.scope,
-                request.snapshot_token,
-                request.revision,
                 &report_scope,
             )
             .await
@@ -2206,16 +2193,17 @@ async fn wait_for_variant_edit(
 
 async fn restore_source_after_variant_failure(
     runtime: &Rc<Runtime>,
-    source_id: &str,
+    request: &MatrixDuplicateRequest,
     variant_id: &str,
-    source_session_epoch: boardstudio_application::SessionEpoch,
     variant_session_epoch: boardstudio_application::SessionEpoch,
     owned_clone: Option<&boardstudio_application::AcceptedSnapshot>,
-    source_scope: &Scope,
-    source_token: SnapshotToken,
-    source_revision: u64,
     report_scope: &Rc<RefCell<Option<VariantReportOwner>>>,
 ) -> Result<bool, String> {
+    let source_scope = &request.owner.scope;
+    let source_id = source_scope.document_id.as_str();
+    let source_session_epoch = source_scope.session_epoch;
+    let source_token = request.snapshot_token;
+    let source_revision = request.revision;
     let model = runtime.model();
     let Some(current) = model.accepted else {
         return Ok(false);
@@ -2256,10 +2244,7 @@ async fn restore_source_after_variant_failure(
     let restored = runtime
         .reopen_saved_if_current(
             source_id.to_owned(),
-            current.session_epoch,
-            current.document.id.clone(),
-            current.token,
-            current.document.revision,
+            &current,
             model.lifecycle,
             &recovery_scope,
         )

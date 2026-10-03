@@ -4452,10 +4452,7 @@ impl Runtime {
     pub(crate) async fn reopen_saved_if_current(
         self: &Rc<Self>,
         id: String,
-        expected_session_epoch: boardstudio_application::SessionEpoch,
-        expected_document_id: String,
-        expected_token: boardstudio_application::SnapshotToken,
-        expected_revision: u64,
+        expected: &AcceptedSnapshot,
         expected_lifecycle: Lifecycle,
         expected_scope: &Scope,
     ) -> Result<AcceptedSnapshot, String> {
@@ -4464,10 +4461,10 @@ impl Runtime {
             model.lifecycle == expected_lifecycle
                 && runtime.scope().as_ref() == Some(expected_scope)
                 && model.accepted.is_some_and(|accepted| {
-                    accepted.session_epoch == expected_session_epoch
-                        && accepted.document.id == expected_document_id
-                        && accepted.token == expected_token
-                        && accepted.document.revision == expected_revision
+                    accepted.session_epoch == expected.session_epoch
+                        && accepted.document.id == expected.document.id
+                        && accepted.token == expected.token
+                        && accepted.document.revision == expected.document.revision
                 })
         };
         if !still_expected(self) {

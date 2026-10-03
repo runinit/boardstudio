@@ -174,7 +174,7 @@ pub(crate) fn CaseBodies(props: CaseBodiesProps) -> Element {
     let request_sequence = use_signal(|| 0_u64);
     let pending_request = use_signal(|| None::<RequestIdentity>);
     let submission_busy = use_signal(|| false);
-    let mut disclosures = use_signal(CaseBodyDisclosureState::default);
+    let disclosures = use_signal(CaseBodyDisclosureState::default);
     let selected_body = use_context::<CaseSelection>().body;
 
     let board = props
