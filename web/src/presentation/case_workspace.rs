@@ -106,8 +106,56 @@ pub(super) struct InspectorInput {
     pub(super) case_selection: CaseSelection,
     pub(super) selected_layer_id: String,
     pub(super) selected_context: Option<ScopedTreeContext>,
+    pub(super) selected_part_summary: Option<SelectedPartSummary>,
     pub(super) on_show_configured_board: EventHandler<String>,
     pub(super) on_display: EventHandler<DisplayRequest>,
+}
+
+pub(super) struct SelectedPartSummary {
+    pub(super) breadcrumb: String,
+    pub(super) selected_count: usize,
+}
+
+/// Project the current tree-owned PCB selection for the Case Inspector.
+/// Requiring the resolved context to equal the accepted selection prevents a
+/// stale tree context from describing a different active selection.
+pub(super) fn selected_part_summary(
+    model: &ReadModel,
+    selected: Option<&ScopedTreeContext>,
+) -> Option<SelectedPartSummary> {
+    let selected = selected?;
+    if !matches!(
+        &selected.context,
+        super::objects::TreeContext::Key { .. } | super::objects::TreeContext::Component { .. }
+    ) {
+        return None;
+    }
+    if !super::selection::context_is_current(model, &selected.scope, &selected.context) {
+        return None;
+    }
+    let ids = super::objects::resolve_selection(model, &selected.context)?;
+    if ids.is_empty() || ids != model.selected_part_ids {
+        return None;
+    }
+    let document = &model.accepted.as_ref()?.document;
+    let board = document
+        .boards
+        .iter()
+        .find(|board| board.id == model.active_board_id)?;
+    let references = ids
+        .iter()
+        .map(|id| {
+            document
+                .parts
+                .iter()
+                .find(|part| part.id == *id)
+                .map(|part| part.reference.clone())
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(SelectedPartSummary {
+        breadcrumb: format!("{} / Case / {}", board.name, references.join(", ")),
+        selected_count: references.len(),
+    })
 }
 
 /// The page dispatcher may pass a completed same-scope result to the Case
@@ -972,7 +1020,13 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
             }
             if !input.instance_scope_pending {
                 section { class: "m1-case-physical-setup", "aria-label": "Physical assembly",
-                    p { "Mechanical settings and closure hardware apply to all case assemblies. Select an assembly in Objects." }
+                    if let Some(summary) = input.selected_part_summary.as_ref() {
+                        p { class: "m1-case-selection-summary", "aria-label": "Current selection",
+                            "{summary.breadcrumb} · {summary.selected_count} selected"
+                        }
+                    } else {
+                        p { "Mechanical settings and closure hardware apply to all case assemblies. Select an assembly in Objects." }
+                    }
                     if input.physical_setup.projection.topology == boardstudio_core::model::HardwareTopology::Split {
                         details {
                             summary { "Assembly setup" }

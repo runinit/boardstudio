@@ -6035,6 +6035,10 @@ fn Editor() -> Element {
                 case_selection,
                 selected_layer_id: case_selected_layer_id,
                 selected_context: case_selected_context,
+                selected_part_summary: case_workspace::selected_part_summary(
+                    &model,
+                    selected_tree_context.as_ref(),
+                ),
                 on_show_configured_board: workspace_callbacks.show_configured_board,
                 on_display: workspace_callbacks.case_display,
             },
