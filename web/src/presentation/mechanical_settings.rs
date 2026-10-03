@@ -639,6 +639,7 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     owner_key: owner_key.clone(),
                 }
                 MountingControls {
+                    key: "{owner_key}:mounting",
                     identity: props.identity.clone(),
                     request_sequence,
                     values: values.clone(),
