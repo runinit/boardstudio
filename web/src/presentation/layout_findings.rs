@@ -77,7 +77,7 @@ pub(super) fn LayoutFindingsInspector(
             class: "m1-layout-findings",
             aria_label: "Layout findings",
             onkeydown: move |event: KeyboardEvent| {
-                if event.key() == "Escape" {
+                if event.key() == Key::Escape {
                     event.prevent_default();
                     event.stop_propagation();
                     on_close.call(());

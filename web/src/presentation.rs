@@ -1105,7 +1105,7 @@ fn perform_layout_finding_navigation(
     mut inspect_open: Signal<bool>,
     mut findings_open: Signal<bool>,
     inspector_settings: Signal<PanelSettings>,
-    focused_finding: Signal<Option<keycaps_finding_marker::FocusedFinding>>,
+    mut focused_finding: Signal<Option<keycaps_finding_marker::FocusedFinding>>,
     svg: Rc<RefCell<Option<SvgElement>>>,
     alive: Rc<Cell<bool>>,
     body_selection: Signal<Option<case_viewer::BodySelection>>,
@@ -6529,7 +6529,7 @@ fn Editor() -> Element {
                 on_board_rename: board_inspector.on_rename,
                 findings_page: Some(layout_findings::InspectorMount {
                     open: layout_findings_open(),
-                    document: Rc::new(document.clone()),
+                    document: Rc::new(document.as_ref().clone()),
                     findings: snapshot.scene.findings.clone(),
                     source: layout_findings::Source {
                         scope: render_scope.clone(),

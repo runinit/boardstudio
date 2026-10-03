@@ -375,7 +375,7 @@ pub(super) fn ModuleSourcePreview(module: ModuleEntry) -> Element {
             if board_path.is_empty() {
                 p { class: "m1-parts-preview-status", role: "status", "This module snapshot has no recorded board contours." }
             } else {
-                svg { role: "img", aria_label: "{definition.name} source board and components", view_box: "{view_box}", style: "flex: 1; width: 100%; min-height: 0;",
+                svg { role: "img", "aria-label": "{definition.name} source board and components", view_box: "{view_box}", style: "flex: 1; width: 100%; min-height: 0;",
                     g { transform: "scale(1,-1)",
                         path { d: "{board_path}", fill: "rgba(52,124,99,.2)", fill_rule: "evenodd", stroke: "var(--wb-accent)", stroke_width: "0.35" }
                         for (index, points) in &holes {
