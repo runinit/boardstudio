@@ -117,6 +117,7 @@ pub(super) fn inspector(input: WorkspaceInspectorInput) -> Element {
                 on_resolve: input.on_resolve,
                 on_edit_board_wiring: input.on_edit_board_wiring,
                 mode_actions: input.mode_actions,
+                apply_actions: input.apply_actions,
             }
         },
         WorkspaceInspectorInput::Pcb(None) => super::pcb_workspace::inspector(),

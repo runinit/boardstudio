@@ -97,14 +97,26 @@ mod presentation {
     pub(crate) mod pcb_wiring {
         use crate::firmware_position_projection::FirmwarePlanIdentity;
         use boardstudio_application::Scope;
+        use boardstudio_core::electrical::ElectricalPlan;
+        use std::rc::Rc;
 
         pub(crate) type WiringPlanIdentity = FirmwarePlanIdentity;
 
         #[allow(dead_code)]
-        #[derive(Clone, Debug, PartialEq, Eq)]
+        #[derive(Clone, Debug, PartialEq)]
         pub(crate) enum PcbWiringResolution {
             Idle,
-            Current { identity: WiringPlanIdentity },
+            Current {
+                identity: WiringPlanIdentity,
+                plan: Rc<ElectricalPlan>,
+            },
+            Pending {
+                identity: WiringPlanIdentity,
+            },
+            Failed {
+                identity: WiringPlanIdentity,
+                message: String,
+            },
         }
 
         #[derive(Clone)]
@@ -117,6 +129,9 @@ mod presentation {
 
         #[path = "mode.rs"]
         mod mode;
+
+        #[path = "apply.rs"]
+        mod apply;
 
         #[cfg(test)]
         #[path = "mode_owner_tests.rs"]

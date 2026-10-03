@@ -1,3 +1,4 @@
+use super::apply::{BoardWiringApplyActions, BoardWiringApplyFeedback, use_board_wiring_apply};
 use super::mode::{
     BoardWiringModeActions, BoardWiringModeEditRequest, BoardWiringModeFeedback,
     use_board_wiring_mode_edits,
@@ -8,8 +9,10 @@ use boardstudio_application::{
     SnapshotToken, TerminalOutcome,
 };
 use boardstudio_core::{
-    electrical::ElectricalMode,
-    model::{Board, EditOperation, Part, Pose2, ProjectDoc, Readiness, SceneDelta, Side, Vec2},
+    electrical::{ElectricalMode, ElectricalPlan},
+    model::{
+        Board, EditOperation, Net, Part, Pose2, ProjectDoc, Readiness, SceneDelta, Side, Vec2,
+    },
 };
 use dioxus::prelude::*;
 use std::{
@@ -25,6 +28,7 @@ struct Probe {
     source: Rc<RefCell<PcbWiringSource>>,
     resolution: Rc<RefCell<PcbWiringResolution>>,
     latest: Rc<RefCell<Option<BoardWiringModeActions>>>,
+    latest_apply: Rc<RefCell<Option<BoardWiringApplyActions>>>,
     version: Rc<Cell<u64>>,
     generation: Rc<Cell<u64>>,
     workspace: Rc<Cell<&'static str>>,
@@ -60,10 +64,23 @@ fn host() -> Element {
         workspace,
         generation,
         is_current,
+        source.clone(),
+        resolution,
+    );
+    let apply_actions = use_board_wiring_apply(
+        probe.runtime.clone(),
+        version,
+        workspace,
+        generation,
+        {
+            let probe = probe.clone();
+            Rc::new(move || probe.active.get())
+        },
         source,
         resolution,
     );
     *probe.latest.borrow_mut() = Some(actions);
+    *probe.latest_apply.borrow_mut() = Some(apply_actions);
     rsx! { div { "mode owner test host" } }
 }
 
@@ -158,6 +175,34 @@ fn model(document: ProjectDoc, token: u64) -> ReadModel {
     }
 }
 
+fn resolved_plan(revision: u64) -> Rc<ElectricalPlan> {
+    Rc::new(ElectricalPlan {
+        instance_id: None,
+        jumpers: vec![],
+        module_aliases: Default::default(),
+        mode: ElectricalMode::Direct,
+        assignments: vec![],
+        row_pins: vec![],
+        column_pins: vec![],
+        diagnostics: vec![],
+        fingerprint: "fixture-current-plan".into(),
+        board_id: Some("left".into()),
+        controller_part_id: None,
+        revision,
+        controller_profile: None,
+        free_pins: vec![],
+        nets: vec![Net {
+            id: "generated/electrical/left/direct/0".into(),
+            name: "SW1".into(),
+            pins: vec![],
+        }],
+        diode_direction: "".into(),
+        peripherals: vec![],
+        peripheral_pins: Default::default(),
+        peripheral_terminals: Default::default(),
+    })
+}
+
 fn source(
     token: u64,
     revision: u64,
@@ -190,8 +235,10 @@ fn mounted() -> (Probe, VirtualDom) {
         source: Rc::new(RefCell::new(source(1, 0, None, 5))),
         resolution: Rc::new(RefCell::new(PcbWiringResolution::Current {
             identity: plan_identity,
+            plan: resolved_plan(0),
         })),
         latest: Rc::default(),
+        latest_apply: Rc::default(),
         version: Rc::new(Cell::new(0)),
         generation: Rc::new(Cell::new(5)),
         workspace: Rc::new(Cell::new("PCB")),
@@ -250,6 +297,117 @@ fn submitted(probe: &Probe) -> (OperationId, ProjectDoc) {
 }
 
 #[test]
+fn mounted_apply_owner_submits_one_exact_current_plan_and_settles_after_saved_revision() {
+    let (probe, mut dom) = mounted();
+    let actions = probe.latest_apply.borrow().as_ref().unwrap().clone();
+    assert!(actions.editable);
+    let identity = actions.identity.clone().unwrap();
+    actions.on_apply.call(identity);
+    let events = probe.runtime.events.borrow();
+    let [
+        Event::Edit {
+            operation_id,
+            command,
+        },
+    ] = events.as_slice()
+    else {
+        panic!("one current plan application must submit one Edit")
+    };
+    assert_eq!(command.target_ids, vec!["left"]);
+    assert_eq!(command.base_revision, 0);
+    let EditOperation::ReplaceDocument { document: proposal } = &command.operation else {
+        panic!("applying a plan must use the existing ReplaceDocument edit")
+    };
+    assert_eq!(proposal.nets.len(), 1);
+    assert_eq!(proposal.nets[0].id, "generated/electrical/left/direct/0");
+    assert_eq!(
+        proposal.boards[0].net_ids,
+        vec!["generated/electrical/left/direct/0"]
+    );
+    assert_eq!(
+        proposal.hardware.as_ref().unwrap().boards[0].mode,
+        ElectricalMode::Direct
+    );
+    let operation = *operation_id;
+    let mut saved = (**proposal).clone();
+    drop(events);
+    saved.revision = 1;
+    *probe.runtime.model.borrow_mut() = model(saved, 2);
+    *probe.source.borrow_mut() = source(2, 1, None, 5);
+    *probe.resolution.borrow_mut() = PcbWiringResolution::Current {
+        identity: probe.source.borrow().identity.clone(),
+        plan: resolved_plan(1),
+    };
+    assert!(probe.runtime.settle(operation, TerminalOutcome::Completed));
+    tick(&probe, &mut dom);
+    assert!(matches!(
+        probe
+            .latest_apply
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .feedback
+            .as_ref()
+            .unwrap()
+            .state,
+        BoardWiringApplyFeedback::Saved
+    ));
+}
+
+#[test]
+fn mounted_apply_owner_rejects_retained_action_after_context_changes() {
+    let (probe, mut dom) = mounted();
+    let old_actions = probe.latest_apply.borrow().as_ref().unwrap().clone();
+    probe.runtime.model.borrow_mut().selected_part_ids = vec!["switch".into()];
+    *probe.source.borrow_mut() = source(1, 0, Some("switch"), 5);
+    flush(&mut dom);
+    old_actions.on_apply.call(old_actions.identity.unwrap());
+    assert!(probe.runtime.events.borrow().is_empty());
+}
+
+#[test]
+fn mounted_apply_owner_keeps_accepted_document_when_session_rejects_edit() {
+    let (probe, mut dom) = mounted();
+    let actions = probe.latest_apply.borrow().as_ref().unwrap().clone();
+    actions.on_apply.call(actions.identity.clone().unwrap());
+    let events = probe.runtime.events.borrow();
+    let [Event::Edit { operation_id, .. }] = events.as_slice() else {
+        panic!("current plan must be submitted before Session settlement")
+    };
+    let operation = *operation_id;
+    drop(events);
+    assert!(probe.runtime.settle(
+        operation,
+        TerminalOutcome::Rejected("stale revision".into())
+    ));
+    tick(&probe, &mut dom);
+    assert_eq!(
+        probe
+            .runtime
+            .model
+            .borrow()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .document
+            .revision,
+        0
+    );
+    assert!(matches!(
+        probe
+            .latest_apply
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .feedback
+            .as_ref()
+            .unwrap()
+            .state,
+        BoardWiringApplyFeedback::Failed(_)
+    ));
+}
+
+#[test]
 fn mounted_owner_submits_one_current_edit_and_retains_saved_feedback_after_revision_advance() {
     let (probe, mut dom) = mounted();
     assert!(probe.latest.borrow().as_ref().unwrap().editable);
@@ -266,6 +424,7 @@ fn mounted_owner_submits_one_current_edit_and_retains_saved_feedback_after_revis
     *probe.source.borrow_mut() = source(2, 1, None, 5);
     *probe.resolution.borrow_mut() = PcbWiringResolution::Current {
         identity: probe.source.borrow().identity.clone(),
+        plan: resolved_plan(1),
     };
     assert!(probe.runtime.settle(operation, TerminalOutcome::Completed));
     tick(&probe, &mut dom);
@@ -430,6 +589,7 @@ fn failed_feedback_is_hidden_after_accepted_plan_identity_advances() {
     *probe.source.borrow_mut() = source(2, 1, None, 5);
     *probe.resolution.borrow_mut() = PcbWiringResolution::Current {
         identity: probe.source.borrow().identity.clone(),
+        plan: resolved_plan(1),
     };
     tick(&probe, &mut dom);
     assert!(probe.latest.borrow().as_ref().unwrap().feedback.is_none());

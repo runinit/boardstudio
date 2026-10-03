@@ -10,6 +10,7 @@ use boardstudio_core::{
 use dioxus::prelude::*;
 use std::{rc::Rc, sync::Arc};
 
+mod apply;
 mod controller;
 mod mode;
 mod part_connections;
@@ -19,6 +20,9 @@ use crate::firmware_position_projection;
 pub(in crate::presentation) use crate::firmware_position_projection::{
     FirmwarePlanIdentity as WiringPlanIdentity, FirmwarePositionFeedbackTarget,
     FirmwarePositionIdentity, FirmwarePositionProjection, PlanLifecycle,
+};
+pub(in crate::presentation) use apply::{
+    BoardWiringApplyActions, BoardWiringApplyFeedback, use_board_wiring_apply,
 };
 pub(in crate::presentation) use controller::{
     use_firmware_position_edits, use_pcb_part_net_edits, use_pcb_wiring_controller,
@@ -252,6 +256,7 @@ pub(in crate::presentation) struct PcbWiringInspectorProps {
     pub on_resolve: EventHandler<()>,
     pub on_edit_board_wiring: EventHandler<()>,
     pub mode_actions: BoardWiringModeActions,
+    pub apply_actions: BoardWiringApplyActions,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -820,6 +825,9 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
     };
     let change_mode = mode_actions.on_change;
     let mode_identity = mode_actions.identity.clone();
+    let apply_actions = props.apply_actions.clone();
+    let apply_identity = apply_actions.identity.clone();
+    let on_apply = apply_actions.on_apply;
     rsx! {
         section { class: "m1-pcb-wiring",
             p { class: "m1-pcb-wiring-breadcrumb", "{display.board_name} / PCB" }
@@ -865,6 +873,19 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
             }
             button { type: "button", disabled: pending || display.controller_choices.is_empty(), onclick: move |_| on_resolve.call(()),
                 if pending { "Resolving…" } else { "Resolve automatically" }
+            }
+            button { type: "button", disabled: !apply_actions.editable, onclick: move |_| {
+                let Some(identity) = apply_identity.clone() else { return; };
+                on_apply.call(identity);
+            }, "Apply wiring" }
+            if let Some(feedback) = &apply_actions.feedback {
+                if matches!(feedback.state, BoardWiringApplyFeedback::Pending) {
+                    p { role: "status", "Applying wiring plan…" }
+                } else if matches!(feedback.state, BoardWiringApplyFeedback::Saved) {
+                    p { role: "status", "Wiring plan applied and saved." }
+                } else if let BoardWiringApplyFeedback::Failed(message) = &feedback.state {
+                    p { role: "alert", "{message}" }
+                }
             }
             {props.firmware_controls.clone()}
             if let Some(plan) = matching_plan {

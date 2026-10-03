@@ -234,7 +234,7 @@ pub(in crate::presentation) fn use_board_wiring_mode_edits(
     }
 }
 
-fn mode_identity(source: &PcbWiringSource) -> BoardWiringModeIdentity {
+pub(super) fn mode_identity(source: &PcbWiringSource) -> BoardWiringModeIdentity {
     BoardWiringModeIdentity {
         plan: source.identity.clone(),
         ui_scope: source.ui_scope.clone(),
@@ -243,7 +243,7 @@ fn mode_identity(source: &PcbWiringSource) -> BoardWiringModeIdentity {
     }
 }
 
-fn current_snapshot(
+pub(super) fn current_snapshot(
     runtime: &Runtime,
     identity: &BoardWiringModeIdentity,
     workspace: &str,
