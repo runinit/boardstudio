@@ -166,7 +166,7 @@ async fn load_bundled() -> Result<Rc<Vec<ModuleEntry>>, String> {
             package.format_version
         ));
     }
-    let entries = Rc::new(
+    let entries: Rc<Vec<ModuleEntry>> = Rc::new(
         package
             .modules
             .into_iter()
@@ -291,6 +291,8 @@ pub(super) fn ModuleInspector(
             .unwrap_or_default()
     );
     let project_owned = module.source == EntrySource::Project;
+    let gate_count = definition.gates.len();
+    let gate_noun = if gate_count == 1 { "item" } else { "items" };
     rsx! {
         h2 { "{definition.name}" }
         small { "VIK · {family}" }
@@ -323,7 +325,7 @@ pub(super) fn ModuleInspector(
         }
         if !definition.gates.is_empty() {
             details {
-                summary { "Review {definition.gates.len()} remaining {if definition.gates.len() == 1 { "item" } else { "items" }}" }
+                summary { "Review {gate_count} remaining {gate_noun}" }
                 ul {
                     for gate in &definition.gates {
                         li { "{gate.message}" }

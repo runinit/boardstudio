@@ -253,6 +253,7 @@ pub(super) fn Objects(
                 AddObjectEntry {
                     menu_open: add_menu_open,
                     on_select,
+                    on_open_geometry_scripts,
                     matrix_setup,
                     mirrored_pair,
                     matrix_inspector,
@@ -472,6 +473,7 @@ pub(super) fn Objects(
 fn AddObjectEntry(
     mut menu_open: Signal<bool>,
     on_select: EventHandler<TreeSelectRequest>,
+    on_open_geometry_scripts: EventHandler<()>,
     matrix_setup: Option<MatrixSetupMount>,
     mirrored_pair: Option<MirroredPairMount>,
     matrix_inspector: Option<MatrixInspectorMount>,

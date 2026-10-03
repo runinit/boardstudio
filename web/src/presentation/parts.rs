@@ -755,7 +755,7 @@ pub(super) fn PartsLibraryPanel(
         let module_groups = module_catalogue
             .entries
             .as_deref()
-            .map(modules_catalogue::group_choices)
+            .map(|entries| modules_catalogue::group_choices(entries))
             .unwrap_or_default();
         let visible_module_groups = module_groups
             .iter()

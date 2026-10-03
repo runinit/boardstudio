@@ -75,7 +75,7 @@ pub(super) fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
                     onclick: {
                         let runtime = runtime.clone();
                         let snapshot = snapshot.clone();
-                        let active = active;
+                        let mut active = active;
                         let mut name = name;
                         let mut source = source;
                         let mut enabled = enabled;
@@ -220,8 +220,8 @@ fn ScriptFindings(findings: Vec<Finding>) -> Element {
             } else {
                 ul {
                     for finding in findings {
-                        li { class: severity_class(finding.severity),
-                            strong { "{severity_label(finding.severity)}" }
+                        li { class: severity_class(&finding.severity),
+                            strong { "{severity_label(&finding.severity)}" }
                             p { "{finding.message}" }
                         }
                     }
@@ -263,7 +263,7 @@ fn submit_script_document(
     });
 }
 
-fn severity_class(severity: Severity) -> &'static str {
+fn severity_class(severity: &Severity) -> &'static str {
     match severity {
         Severity::Error => "is-error",
         Severity::Warning => "is-warning",
@@ -271,7 +271,7 @@ fn severity_class(severity: Severity) -> &'static str {
     }
 }
 
-fn severity_label(severity: Severity) -> &'static str {
+fn severity_label(severity: &Severity) -> &'static str {
     match severity {
         Severity::Error => "Error",
         Severity::Warning => "Warning",
