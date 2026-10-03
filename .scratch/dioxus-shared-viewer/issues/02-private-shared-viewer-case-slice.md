@@ -10,6 +10,8 @@
 
 This child verifies the private viewer through Case; it does not close F7.3 or claim that Layout, Parts, Keymap, or Keycaps adoption is complete. Keep the canonical parent acceptance open until its existing criteria and downstream joins have evidence.
 
+**RF disposition for the selection-summary follow-up:** No new refactoring takeaway observed; this projection reuses the current scoped tree-selection owner and private Case presentation composition. Preserve RF-002/RF-012 unchanged.
+
 **Author-owned boundary:** Extend the existing renderer host through its existing source implementation and add private shared-viewer/projection modules. The coordinator owns page-binary module registration, the Case workspace mount/composition, shared stylesheet changes, and build orchestration. The dispatch packet must name the exact owner paths and handoff before work starts. Do not make competing shell or Case panel implementations.
 
 **Status:** ready-for-agent; bounded existing Case geometry proof is partial; this continuation adds model-delivery behavior whose implementation and public acceptance remain open. This is the bounded continuation of published issue 02, not a duplicate child.
