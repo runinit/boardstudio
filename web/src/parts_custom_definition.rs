@@ -19,6 +19,27 @@ mod ui {
     use wasm_bindgen::JsCast;
     use web_sys::HtmlInputElement;
 
+    #[cfg(test)]
+    thread_local! {
+        static PAD_NUMBER_DRAFT_FOR_TEST: std::cell::RefCell<Option<Signal<String>>> = const { std::cell::RefCell::new(None) };
+    }
+
+    #[cfg(test)]
+    pub(super) fn set_pad_number_draft_for_test(value: &str) -> bool {
+        PAD_NUMBER_DRAFT_FOR_TEST.with(|draft| {
+            let Some(mut draft) = *draft.borrow() else {
+                return false;
+            };
+            draft.set(value.to_owned());
+            true
+        })
+    }
+
+    #[cfg(test)]
+    pub(super) fn clear_pad_number_draft_for_test() {
+        PAD_NUMBER_DRAFT_FOR_TEST.with(|draft| *draft.borrow_mut() = None);
+    }
+
     #[component]
     pub(crate) fn CustomDefinitionFields(
         snapshot: AcceptedSnapshot,
@@ -154,7 +175,7 @@ mod ui {
                 }
                 for (index, pad) in definition.pads.iter().enumerate() {
                     PadFields {
-                        key: "{owner_key}:{pad.id}", owner_key: owner_key.clone(), index, pad: pad.clone(), locked: kicad_locked,
+                        key: "{owner_key}:{index}", owner_key: owner_key.clone(), index, pad: pad.clone(), locked: kicad_locked,
                         submit,
                     }
                 }
@@ -179,6 +200,10 @@ mod ui {
         let _owner_key = owner_key;
         let mut id = use_signal(|| pad.id.clone());
         let mut number = use_signal(|| pad.number.clone());
+        #[cfg(test)]
+        if index == 0 {
+            PAD_NUMBER_DRAFT_FOR_TEST.with(|draft| *draft.borrow_mut() = Some(number));
+        }
         let mut x = use_signal(|| pad.at.x.to_string());
         let mut y = use_signal(|| pad.at.y.to_string());
         let mut size_x = use_signal(|| pad.size.x.to_string());
@@ -442,6 +467,16 @@ mod ui {
         }
         issues
     }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+pub(crate) fn set_pad_number_draft_for_test(value: &str) -> bool {
+    ui::set_pad_number_draft_for_test(value)
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+pub(crate) fn clear_pad_number_draft_for_test() {
+    ui::clear_pad_number_draft_for_test();
 }
 
 #[cfg(target_arch = "wasm32")]

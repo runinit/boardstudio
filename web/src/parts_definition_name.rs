@@ -741,6 +741,30 @@ mod mounted_tests {
         }
     }
 
+    fn accept_document_replacement(
+        session: &mut Session,
+        core: &mut CoreEngine,
+        operation_id: u64,
+        document: ProjectDoc,
+        target_id: &str,
+    ) -> AcceptedSnapshot {
+        let current = session.read_model().accepted.as_ref().unwrap().clone();
+        let effects = session.submit(AppEvent::Edit {
+            operation_id: OperationId(operation_id),
+            command: EditCommand {
+                base_revision: current.document.revision,
+                transaction_id: format!("parts04-mounted-refresh-{operation_id}"),
+                phase: EditPhase::Commit,
+                target_ids: vec![target_id.to_owned()],
+                operation: EditOperation::ReplaceDocument {
+                    document: Box::new(document),
+                },
+            },
+        });
+        advance(session, core, effects);
+        session.read_model().accepted.as_ref().unwrap().clone()
+    }
+
     fn open_document(document: ProjectDoc) -> (Session, CoreEngine) {
         let mut session = Session::new();
         let mut core = CoreEngine::new();
@@ -782,6 +806,18 @@ mod mounted_tests {
             .document()
             .unwrap()
             .query_selector("#parts-name-mounted-regression input[aria-label='Pad 1 ID']")
+            .unwrap()
+            .unwrap()
+            .dyn_into()
+            .unwrap()
+    }
+
+    fn pad_number_input() -> HtmlInputElement {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector("#parts-name-mounted-regression input[aria-label='Pad 1 number']")
             .unwrap()
             .unwrap()
             .dyn_into()
@@ -834,6 +870,167 @@ mod mounted_tests {
             .unwrap()
             .dyn_into()
             .unwrap()
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_definition_owner_switch_and_pad_id_refresh_retain_and_retire_drafts() {
+        crate::parts_custom_definition::clear_pad_number_draft_for_test();
+        let mut document = ProjectDoc::empty("parts-name-mounted", "Parts name mounted");
+        let mut first = definition("first", "First");
+        let mut second = definition("second", "Second");
+        for definition in [&mut first, &mut second] {
+            definition.courtyard = vec![
+                boardstudio_core::model::Vec2 { x: -5.0, y: -3.0 },
+                boardstudio_core::model::Vec2 { x: 5.0, y: -3.0 },
+                boardstudio_core::model::Vec2 { x: 5.0, y: 3.0 },
+                boardstudio_core::model::Vec2 { x: -5.0, y: 3.0 },
+            ];
+            definition.pads = serde_json::from_value(serde_json::json!([
+                {"id":"shared-pad","number":"1","at":{"x":0.0,"y":0.0},"size":{"x":2.0,"y":2.0},"shape":"circle"}
+            ])).unwrap();
+        }
+        document.definitions = vec![first, second];
+        let runtime = Runtime::new().unwrap();
+        let (mut session, mut core) = open_document(document);
+        let snapshot = session.read_model().accepted.as_ref().unwrap().clone();
+        let scope = session.scope();
+        runtime.set_definition_name_test_state(snapshot.clone(), scope.clone());
+        let state = Rc::new(RefCell::new(None));
+        let seed = Rc::new(Seed {
+            snapshot: snapshot.clone(),
+            scope: scope.clone(),
+            selection: Some((scope.clone(), "first".into())),
+            definition: snapshot.document.definitions[0].clone(),
+            state: state.clone(),
+        });
+        let root = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .create_element("div")
+            .unwrap();
+        root.set_id("parts-name-mounted-regression");
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .body()
+            .unwrap()
+            .append_child(&root)
+            .unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(seed);
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        settle().await;
+        root.query_selector("details summary")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        settle().await;
+        let pad_id = pad_id_input();
+        type_value(&pad_id, "");
+        settle().await;
+        let _ = input().focus();
+        settle().await;
+        assert!(root.query_selector("[role='alert']").unwrap().is_some());
+
+        let mut controls = state.borrow().as_ref().unwrap().clone();
+        controls
+            .selection
+            .set(Some((scope.clone(), "second".into())));
+        controls
+            .definition
+            .set(snapshot.document.definitions[1].clone());
+        settle().await;
+        root.query_selector("details summary")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        settle().await;
+
+        assert_eq!(pad_id_input().value(), "shared-pad");
+        assert!(root.query_selector("[role='alert']").unwrap().is_none());
+
+        // A real accepted pad-ID and Y-coordinate update must preserve a dirty
+        // number draft in the same row. This catches rows keyed by mutable ID.
+        assert!(crate::parts_custom_definition::set_pad_number_draft_for_test("7"));
+        settle().await;
+        assert_eq!(pad_number_input().value(), "7");
+        let mut refreshed_doc = session
+            .read_model()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .document
+            .as_ref()
+            .clone();
+        refreshed_doc.definitions[1].pads[0].id = "renamed-pad".into();
+        refreshed_doc.definitions[1].pads[0].at.y = 4.0;
+        let refreshed =
+            accept_document_replacement(&mut session, &mut core, 911, refreshed_doc, "second");
+        controls
+            .runtime
+            .set_definition_name_test_state(refreshed.clone(), scope.clone());
+        controls.snapshot.set(refreshed.clone());
+        controls
+            .definition
+            .set(refreshed.document.definitions[1].clone());
+        settle().await;
+        assert_eq!(pad_y_input().value(), "4");
+        assert_eq!(pad_id_input().value(), "renamed-pad");
+        assert_eq!(pad_number_input().value(), "7");
+        let _ = pad_number_input().focus();
+        settle().await;
+        assert!(
+            web_sys::window()
+                .unwrap()
+                .document()
+                .unwrap()
+                .active_element()
+                .unwrap()
+                .is_same_node(Some(&pad_number_input()))
+        );
+        let _ = pad_number_input().blur();
+        settle().await;
+        let event = runtime
+            .take_definition_name_test_event()
+            .expect("dirty row draft submits against the accepted renamed pad");
+        let effects = session.submit(event);
+        advance(&mut session, &mut core, effects);
+        let accepted = session.read_model().accepted.as_ref().unwrap().clone();
+        assert_eq!(accepted.document.definitions[1].pads[0].id, "renamed-pad");
+        assert_eq!(accepted.document.definitions[1].pads[0].number, "7");
+        assert_eq!(accepted.document.definitions[1].pads[0].at.y, 4.0);
+
+        controls
+            .selection
+            .set(Some((scope.clone(), "first".into())));
+        controls
+            .definition
+            .set(accepted.document.definitions[0].clone());
+        controls.snapshot.set(accepted.clone());
+        controls
+            .runtime
+            .set_definition_name_test_state(accepted.clone(), scope.clone());
+        settle().await;
+        assert_eq!(pad_id_input().value(), "shared-pad");
+        assert_eq!(pad_number_input().value(), "1");
+        let _ = pad_number_input().blur();
+        settle().await;
+        assert!(
+            runtime.take_definition_name_test_event().is_none(),
+            "dirty values owned by the prior definition cannot commit into the next owner"
+        );
+        crate::parts_custom_definition::clear_pad_number_draft_for_test();
+        let _ = root.remove();
     }
 
     #[wasm_bindgen_test]
