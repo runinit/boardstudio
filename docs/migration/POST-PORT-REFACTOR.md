@@ -144,6 +144,8 @@ Session export captures an immutable token and cancels registered exports on acc
 
 Evidence: [session.rs](../../application/src/session.rs), [context.ts](../../app/src/exports/context.ts), [pcb.ts](../../app/src/exports/pcb.ts), [runtime.rs](../../web/src/runtime.rs), [F8.3a packet](../../.scratch/dioxus-frontend-v1/issues/08-export-pcb-handoff-slice.md), and [pinned React receipt](../../.scratch/dioxus-frontend-v1/evidence/export-pcb-handoff-20261003/REACT-RECEIPT.md).
 
+The full/draft KiCad handoff now uses Session-owned accepted commits. Consolidated source review found generic terminal delivery still using the initial effect token after that token advanced. Repair `2c33e57f` carries the exact final guarded token with the bytes into owner validation, artifact identity and completion. Keep this RF-004 evidence: the later refactor should model export-owned accepted transitions and terminal identity as one typed operation result. No ordinary-export guard is relaxed.
+
 ## RF-005
 
 **Geometric edit planning lives in frontend helper policy** — architecture / domain ownership. confirmed remaining TS policy; target placement is a hypothesis.
@@ -242,6 +244,8 @@ qualifies the bounded footprint child only; generic export coordination,
 full/draft KiCad, and the broader F8 parent remain open. The pinned React RED
 and candidate 34765 owner-token RED are preserved in the adjacent external
 review directory and the child ticket.
+
+RGB fixture preparation exposed a URL/filesystem mismatch: the existing encoded STEP filename was passed literally to Node file access. Repair `bbd4da1b` decodes only at that boundary, preserving metadata and model bytes. The [actual fixture RED/GREEN receipt](../../.scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/fixture-url-decoding-regression.json) extends RF-008. After parity, keep URL, filesystem path and portable archive identity explicit in asset-resolution interfaces.
 
 ## RF-009
 

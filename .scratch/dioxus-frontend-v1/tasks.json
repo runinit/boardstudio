@@ -1833,7 +1833,7 @@
       "acceptance_after": [
         "INT.2"
       ],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
@@ -1850,10 +1850,31 @@
         "refactoring_handoff_required": true
       },
       "progress_evidence": {
-        "updated_at": "2026-10-03T10:12:42+00:00",
-        "checkpoint": "paired SW1 finding-to-Layout navigation on React 5a472a94 and public Dioxus 34761/source2107f980",
-        "scope": "Keycaps entry/control parity and one Select affected geometry route; evidence .scratch/dioxus-frontend-v1/evidence/keycaps-fit-navigation-20261003/paired-context-navigation.md",
-        "acceptance": "Bounded route matched: both apps selected left-keys-SW1 and showed the Layout Properties inspector at X 9.18/Y -78.05 mm. No source gap found in this action. F6C.4 remains open for current-case body/feature and stale-revision browser qualification, inherited-binding fit refresh, failed/superseded resolve behavior, exact non-key geometry focus, invalid/unsupported resolver states, and INT.2; no criteria/dependencies waived."
+        "updated_at": "2026-10-03T13:27:25.933941+00:00",
+        "checkpoint": "Qualified34768 unchanged fit source, independently equivalent to bbd4da1b",
+        "scope": "Canonical fit/findings/navigation clause only. Retained paired SW1 route/focused marker, production navigation/RAF ownership qualification, existing Core invalid/swept/current-case-feature/stale-case tests, accepted-token/revision refresh and stale/failure guards. Independent byte equivalence from qualified34768 to bbd4da1b. INT.2 accepted. Does not accept F6C.1/full Keycaps/preview/cutover or hide remaining visual differences; no new every-invalid-setting browser matrix.",
+        "acceptance": "Accepted unchanged canonical clause; immutable review/decision at .scratch/dioxus-frontend-v1/evidence/keycaps-f6c4-acceptance-20261003"
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T13:27:25.933941+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Accepted by coordinator under unchanged canonical criteria from sufficient existing public/source/Core evidence and consolidated Sol recommendation; independent demo package failure does not gate this unchanged fit capability."
+        }
+      ],
+      "completion_evidence": {
+        "parent": "F6C.4",
+        "at": "2026-10-03T13:27:25.933941+00:00",
+        "candidate_source": "9e6f9b62e33d7dc22412cf5793a3f4b857e219c3",
+        "candidate_url": "http://127.0.0.1:34768/boardstudio/",
+        "review": ".scratch/dioxus-frontend-v1/evidence/keycaps-f6c4-acceptance-20261003/REVIEW.md",
+        "review_sha256": "70696303c262bdcf96f2e3dceca282fa5fa42197b5851b2b75c046833befbe41",
+        "audit": ".scratch/dioxus-frontend-v1/evidence/keycaps-f6c4-acceptance-20261003/AUDIT.json",
+        "audit_sha256": "b90dcd834f92653522993c0e32db01fa6e2a7763810789c62946e1cb0ba9d9d7",
+        "criteria_accounting": ".scratch/dioxus-keycaps-workflow/evidence/keycaps-closure-reconciliation-20261003/criteria.md",
+        "scope": "Canonical fit/findings/navigation clause only. Retained paired SW1 route/focused marker, production navigation/RAF ownership qualification, existing Core invalid/swept/current-case-feature/stale-case tests, accepted-token/revision refresh and stale/failure guards. Independent byte equivalence from qualified34768 to bbd4da1b. INT.2 accepted. Does not accept F6C.1/full Keycaps/preview/cutover or hide remaining visual differences; no new every-invalid-setting browser matrix.",
+        "decision": "Accepted by coordinator under unchanged canonical criteria from sufficient existing public/source/Core evidence and consolidated Sol recommendation; independent demo package failure does not gate this unchanged fit capability."
       }
     },
     {

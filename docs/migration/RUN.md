@@ -1465,3 +1465,7 @@ Execution update (2026-10-02): PCB07+08 source join 94480901 is clear and passes
 ## Integration checkpoint: guarded packaging reuse, 2026-10-02
 
 Current comparison: http://127.0.0.1:34731/ (source792e88af). Actual guarded reuse took88.55s versus535.29s full; 8 executed/22 inherited commands,1313 source hashes,145 assets and126 unchanged providers per route,zero mismatches. Root/subpath offline editor geometry verified. Later source includes menu close controls, guarded desktop Inspector reveal and reviewed mirrored-pair integration; these await a fresh joined build and paired acceptance. Keycaps multi-selection defect, Controller lifetime, Parts14 owner/saved-gap fixes, Parts13 authoring and Case16 composition remain active. All62 parent criteria and refactor ledger retained.
+
+### Frontend current progress — 2026-10-03, F6C.4 acceptance
+
+The coordinator accepts F6C.4 from sufficient retained paired fit/finding navigation, Core qualification and independently equivalent guarded source, endorsed in consolidated Sol review. INT.2 is accepted; no criterion or join changed. Portfolio: **7 accepted /32 implementing /23 planned /62**. [Immutable decision](../../.scratch/dioxus-frontend-v1/evidence/keycaps-f6c4-acceptance-20261003/DECISION.json). The authoritative live record remains `dioxus-frontend-v1-run.json:current_progress`; full Keycaps, changed34769 journeys and cutover remain open.

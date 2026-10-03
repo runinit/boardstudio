@@ -175,3 +175,7 @@ The current F6C.3 selected-linked-key journey is recorded in [`paired-linked-res
 ### Refactoring observation handoff
 
 Update the [living RF register](../refactor-findings.json) and [post-port takeaways](../../../docs/migration/POST-PORT-REFACTOR.md) for architectural, design, theoretical or quality issues discovered in this slice, or record “No new refactoring takeaway observed” with reviewed scope. Distinguish confirmed findings from hypotheses; include evidence, impact, current mitigation, later proposal and validation. This does not authorize unrelated refactoring or defer required parity fixes.
+
+### Coordinator current acceptance — 2026-10-03
+
+Canonical F6K.2, F6K.3, F6C.2 and F6C.4 are accepted in `tasks.json`; earlier open-status notes are preserved historical checkpoints. F6C.4 reuses sufficient paired navigation, Core fit/case qualification and unchanged-source identity/refresh guards as endorsed by consolidated Sol review. [Decision](../evidence/keycaps-f6c4-acceptance-20261003/DECISION.json). F6C.1/full Keycaps and remaining integration/visual gates stay open.

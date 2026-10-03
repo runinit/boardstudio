@@ -1273,12 +1273,12 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T13:14:40.118082+00:00",
+    "updated_at": "2026-10-03T13:27:25.933941+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
-      "accepted": 6,
+      "accepted": 7,
       "planned": 23,
-      "implementing": 33,
+      "implementing": 32,
       "total": 62
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
@@ -1299,8 +1299,8 @@
       "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34768-20261003/package-proof.json"
     },
     "integration": {
-      "source_commit": "2c33e57f",
-      "state": "34769 six-stream source plus full/draft handoff integrated. Page and deployed worker checks pass; consolidated source review found final export-token delivery mismatch and owner-effect self-subscription, repaired2c33e57f before packaging. Changed page recheck underway; unchanged worker proof reused. One full package and changed paired journeys follow. No new UI tests or parent closure claimed.",
+      "source_commit": "bbd4da1b",
+      "state": "34769 successful provider prefix preserved after actual RGB model-URL fixture failure. Narrow filesystem decode repairedbbd4da1b and actual fixture preparation GREEN; bounded full-command continuation validates exactly one changed fixture input, tags original/fresh command source identities and preserves failures. Remaining fresh fixture/page/root/subpath packaging active. Sol source report has no remaining code finding and recommends readyF6C.4 from sufficient retained evidence.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1997,18 +1997,22 @@
       "active": [
         {
           "owner": "root",
-          "job": "combined affected page/CAD-worker strict checks",
-          "target": "case-current-result-status-repair-20261003/web/target"
+          "job": "bounded34769 full-command continuation after fixture-only repair",
+          "build_id": "frontend-six-stream-tools-handles-20261003",
+          "source_commit": "bbd4da1b",
+          "inherited_successful_commands": 11,
+          "fresh_remaining_commands": 11
         }
       ],
       "check": {
-        "source_commit": "6d9320f2fc8b8cd38643243efd6f51abfb4b191c",
-        "log": ".scratch/dioxus-frontend-v1/evidence/candidate-34768-20261003/combined-check-followup.log",
+        "source_commit": "2c33e57f521ee71f1ad124a22859c9ade250d44f",
         "result": "PASS",
-        "duration_seconds": 20.046,
+        "log": ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/strict-check-final.json",
+        "page_seconds": 11.793434,
+        "unchanged_cad_worker_seconds": 19.879196,
         "new_ui_tests": 0
       },
-      "next": "One full34769 package after changed page review-repair check; deployed CAD-worker library check passes and is reused unchanged.",
+      "next": "Changed paired browser journeys; next compact shell/authored mounts page batch uses verified34769 full providers.",
       "completed_focused_regression": {
         "owner": "keycaps_geometry_repair",
         "source": "be4ec412 / integrated31a7f3d0",
@@ -2024,10 +2028,10 @@
     },
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "next_work": [
-      "Finish combined affected34769 checks and one full provider/fixture package; inspect only changed tools/range/handles/routes/previews/variants.",
-      "Compact shared-shell author ports actual topbar toggles/Export/drawers independently; full/draft KiCad source is joined and awaiting changed candidate output proof.",
-      "CaseBody handles and canonical Keycaps/Keymap/Parts acceptance frontier continue in parallel.",
-      "Retain all62parents, exact criteria/joins/history and RF ledger; close ready parents from sufficient consolidated evidence."
+      "Finish and verify frozen full34769 package; compare only changed Layout tools/range, mechanical handles, PCB route/findings, keycap cancellation, variants and KiCad output.",
+      "Integrate ready compact shared-shell95241219 and authored CaseBody mountsadbf20ba after frozen source proof, then one combined page check and guarded reuse package.",
+      "Use one consolidated review and sufficient retained source/journey evidence to close ready canonical parents, prioritizing F3.1 and dependent daily Layout/Keymap work.",
+      "Retain all62parents, exact criteria/joins/history and RF15 ledger; continue six queues without another approval quiz."
     ],
     "execution_policy": "Ordinary reversible UI gets no new tests. Run one required affected compile/check per integrated batch, inspect only changed paired browser journeys, and use one consolidated candidate review. Reuse unchanged history/reopen evidence. Real reproduced bugs retain one focused regression. Parent criteria, blocker history and RF ledger remain explicit.",
     "served_candidate_history": [
@@ -2454,6 +2458,12 @@
         "source_commit": "d64ab741",
         "result": "Page all-targets strict PASS24.053s. Worker all-targets pulled page-only integration tests without page dependencies and failed imports; scoped deployed CAD-worker library strict PASS19.879s. No test source/registration changed.",
         "check_receipt": ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/strict-check-worker-lib.json"
+      },
+      {
+        "build_id": "frontend-six-stream-tools-handles-20261003",
+        "source_commit": "4a69b7a4",
+        "result": "Provider/version prefix11/11 PASS; fixture ENOENT URL-encoded space RED. Existing asset retained; Node FS decode fixbbd4da1b actual fixture command GREEN. Original failure/logs/provenance/partialfixtures preserved; continuing exact unchanged provider prefix rather than repeating CAD optimization.",
+        "check_receipt": ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/fixture-url-decoding-regression.json"
       }
     ],
     "parent_acceptances": [
@@ -2511,6 +2521,19 @@
         "legend_receipt": ".scratch/dioxus-keycaps-workflow/evidence/keycap-legend-transaction-20261003/receipt-34765.md",
         "scope": "F6C.2 settings and legend behavior only. F6C.1/F3.1/full Keycaps and visual Inspector alignment remain open. Native OS picker and individually clicked per-key socket/row/depth not claimed. No new UI tests or cutover.",
         "decision": "Accepted under unchanged canonical settings/legend criteria. Representative actual authority/history/error behavior plus direct shared control mappings sufficient; visual alignment and F6C.1/F3.1 retained."
+      },
+      {
+        "parent": "F6C.4",
+        "at": "2026-10-03T13:27:25.933941+00:00",
+        "candidate_source": "9e6f9b62e33d7dc22412cf5793a3f4b857e219c3",
+        "candidate_url": "http://127.0.0.1:34768/boardstudio/",
+        "review": ".scratch/dioxus-frontend-v1/evidence/keycaps-f6c4-acceptance-20261003/REVIEW.md",
+        "review_sha256": "70696303c262bdcf96f2e3dceca282fa5fa42197b5851b2b75c046833befbe41",
+        "audit": ".scratch/dioxus-frontend-v1/evidence/keycaps-f6c4-acceptance-20261003/AUDIT.json",
+        "audit_sha256": "b90dcd834f92653522993c0e32db01fa6e2a7763810789c62946e1cb0ba9d9d7",
+        "criteria_accounting": ".scratch/dioxus-keycaps-workflow/evidence/keycaps-closure-reconciliation-20261003/criteria.md",
+        "scope": "Canonical fit/findings/navigation clause only. Retained paired SW1 route/focused marker, production navigation/RAF ownership qualification, existing Core invalid/swept/current-case-feature/stale-case tests, accepted-token/revision refresh and stale/failure guards. Independent byte equivalence from qualified34768 to bbd4da1b. INT.2 accepted. Does not accept F6C.1/full Keycaps/preview/cutover or hide remaining visual differences; no new every-invalid-setting browser matrix.",
+        "decision": "Accepted by coordinator under unchanged canonical criteria from sufficient existing public/source/Core evidence and consolidated Sol recommendation; independent demo package failure does not gate this unchanged fit capability."
       }
     ],
     "active_streams": [
@@ -2544,6 +2567,18 @@
         "stream": "Parts + Project",
         "candidate": "34767",
         "state": "Two demo cards/fresh copy identity/reopen paired GREEN34767; RGB/Choc variant packet ready for next full build; next Parts UI frontier active."
+      }
+    ],
+    "pending_join_packets": [
+      {
+        "stream": "shared shell",
+        "commit": "9524121991fbebd5b24f4ed0c69bf43255dc954f",
+        "state": "Mounted compact topbar/exclusive drawers/Export/focus packet frozen; join after source proof."
+      },
+      {
+        "stream": "Case",
+        "commit": "adbf20ba",
+        "state": "Authored body mounts through existing SetCase owner; join after source proof; changed journey open."
       }
     ]
   }

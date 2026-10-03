@@ -20,3 +20,7 @@ No additional UI change or all-fields/all-races test matrix is justified by this
 ## RF handoff
 
 No new refactoring takeaway was observed in the F6C.4 source/evidence reconciliation. Retain RF-001/RF-003/RF-010: adapter knowledge remains split across the separately packaged Rust CAD worker and the page facade; the real gap found in this review is React’s preview chunk/yield policy missing from the Dioxus worker, handled as a bounded BND.1 parity repair below rather than a new CAD engine or generic protocol.
+
+## Coordinator acceptance update — 2026-10-03
+
+F6C.4 is accepted under its unchanged clause after consolidated Sol review: retained paired navigation/focused-marker evidence, production navigation ownership qualification, existing Core fit/case/stale tests, current accepted-source refresh/guard mapping, and independent byte equivalence between qualified34768 and bbd4da1b are sufficient. The earlier unqualified individual browser permutations above remain evidence limits; they are not missing canonical implementation or newly imposed tests. INT.2 is already accepted. Full Keycaps and remaining visual/3D/preview gates stay open. See [immutable decision](../../../dioxus-frontend-v1/evidence/keycaps-f6c4-acceptance-20261003/DECISION.json).

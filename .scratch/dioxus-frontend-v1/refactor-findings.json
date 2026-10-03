@@ -624,6 +624,22 @@
           "evidence": ".scratch/dioxus-frontend-v1/issues/08-export-pcb-handoff-slice.md; .scratch/dioxus-frontend-v1/evidence/export-pcb-handoff-20261003/REACT-RECEIPT.md",
           "status": "source-level mitigation in isolated packet; parent and runtime qualification remain open"
         }
+      ],
+      "follow_up_evidence": [
+        {
+          "date": "2026-10-03",
+          "task": "34769 export completion source review",
+          "source": "2c33e57f",
+          "observation": "The new Session-owned handoff correctly advanced its active export token after electrical apply/protection, but generic Runtime delivery still used the effect initial snapshot token. Consolidated source review found that mismatch before public packaging.",
+          "current_mitigation": "The handoff returns its exact final guarded token with artifact bytes; owner check, Artifact and ExportFinished carry it, while ordinary exports retain their captured token. Existing scope/session/executor/worker guards remain.",
+          "post_port_follow_up": "Model export-owned accepted transitions and terminal artifact identity in a typed operation result rather than let generic delivery infer immutability from the initial Effect capture.",
+          "evidence": [
+            "web/src/runtime.rs",
+            "application/src/session.rs",
+            "/home/chris/.local/share/boardstudio/reviews/candidate-34769-20261003/REVIEW.md"
+          ],
+          "certainty": "source-verified candidate implementation defect repaired before browser build; no executed RED claim"
+        }
       ]
     },
     {
@@ -1012,6 +1028,18 @@
           "current_mitigation": "Proposed T1-04 characterizes repeated demo starts and preserves prior edited copies through a private demo action. Confirmed defects go to Astra; ordinary archive-import identity semantics must remain unchanged.",
           "post_port_follow_up": "Separate explicit open-existing/import-archive/start-demo-copy intent and identity ownership while sharing archive validation and asset transport.",
           "validation": "Start the same demo twice, edit/save each, and independently reopen both with identical intended asset references; stale/failing starts cannot replace later work."
+        },
+        {
+          "date": "2026-10-03",
+          "task": "RGB fixture model portability",
+          "source": "bbd4da1b",
+          "observation": "Fixture model loading crossed a URL-to-filesystem boundary without decoding. RGB exposed an existing percent-encoded space in a STEP model URL; file bytes and library metadata were present and unchanged.",
+          "current_mitigation": "Decode local URL pathname only at Node filesystem access; actual fixture-stage RED then GREEN all4fixture/model-hash assertions.",
+          "post_port_follow_up": "Keep URL, filesystem path and archive asset identity distinct in asset-resolution interfaces and maintain representative encoded-name portability inputs.",
+          "evidence": [
+            "scripts/prepare-m1-fixtures.mjs",
+            ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/fixture-url-decoding-regression.json"
+          ]
         }
       ],
       "continuations": [

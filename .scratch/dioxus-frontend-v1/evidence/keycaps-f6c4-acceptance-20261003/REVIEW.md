@@ -1,0 +1,45 @@
+# Consolidated candidate 34769 review
+
+Sol 6.1 High, Standards and Spec, 2026-10-03. Source freeze `4a69b7a4f4fa1c3ad1c30d96d6b20599d2c4914e`, compared with qualified 34768 source `9e6f9b62e33d7dc22412cf5793a3f4b857e219c3`. This report is pending package proof and the assigned changed browser receipts. No integration source edits, compiler jobs, new tests, duplicate browser journeys or package jobs were performed by the reviewer.
+
+## Source findings
+
+Two P1 defects in initial `d64ab741` were corrected before packaging by `2c33e57f521ee71f1ad124a22859c9ade250d44f`.
+
+1. The KiCad handoff used the original accepted token for final delivery after its export-owned Apply/Protect operations had advanced the Session export token. The handoff now returns its exact final token with the archive; RunExport carries it through currentness, artifact delivery and ExportFinished. Ordinary exports and existing firmware policy retain their original behavior. Exact scope, executor and Core pointer checks remain. The original failure and correction are source verified; no executed RED is claimed.
+2. The transform tool owner effect subscribed to the Signal it wrote by reading `owner_state()`. Its prior-owner comparison now uses `peek()`. All external owner dependencies remain tracked. This correction is source verified; no executed RED is claimed.
+
+No additional concrete correctness defect was found in the bounded scan. Final public qualification remains separate.
+
+## Standards and Spec assessment
+
+Typed matrix selection is admitted by the existing Session with exact active scope, matrix membership and enabled primary cells. Range selection retains a valid matrix anchor and selects an inclusive row/column rectangle. Add/Toggle preserve accepted selection authority; invalid anchors fall back to Replace. Presentation selection does not create durable edits.
+
+Stagger, Splay and Origin use the existing scoped Edit Preview/Commit route and pointer arbiter. Their private drag owner captures scope, accepted token/revision, generation and matrix/context; owner/tool replacement, cancellation, lost capture and unmount retire preview work. No alternate history or geometry store is introduced. The source-derived transient handle projection is bounded to these tools.
+
+Mechanical and gasket handles use accepted assembly tracks/prepared regions and the existing MechanicalSettings request/controller. Preview moves remain transient; accepted End intents validate current settings identity and target collection before normal persistence. Linked gasket anchors and unrelated configuration are retained. Approximate/native preview does not acquire an editing surface. Broader authored Case handle and full Case consumer criteria remain unchanged.
+
+The KiCad handoff is Session-owned: queued mutation admission, retained export membership, exact revision and Persist settlement preserve ordinary accepted authority. Runtime rechecks scope/session/document/token/revision, executor and Core identity around provider/resource awaits. Core prepares the board and archives; presentation does not implement a board serializer. Full export rejects electrical errors, while draft export follows its explicit policy. Actual provider/artifact receipts are pending.
+
+Mounted module source navigation retains current accepted host/module identity and routes through existing Parts selection and return ports. Host findings are independently visible from module-hidden state. Worker keycap generation batches eight, yields to worker cancellation and retains revision checks; STEP behavior is unchanged. RGB/Choc demos reuse fresh-copy identity and archive ownership. Flat encoder/menu CSS and handle styles remain scoped to their production consumers.
+
+Root reports repaired page all-target WASM Clippy PASS in 11.793 seconds and reuses deployed cad-worker library Clippy PASS in 19.879 seconds. The earlier worker all-target invocation pulled optional page tests without their dependencies; that command-scope failure remains retained and is not called a passing all-target worker check. Package proof and assigned changed public receipts will be appended once supplied.
+
+## Canonical criterion accounting
+
+| Parent | Existing and current evidence | Decision and limits |
+| --- | --- | --- |
+| F3.1 | Retained public category/disclosure/selection, outline-version, Objects keyboard/focus and desktop/compact grouping receipts; existing scoped gesture cancellation and presentation-only state authority. The new typed Session selection implements the missing rectangular range semantics. | Keep pending the assigned changed rectangular-range public receipt. Do not replay every unchanged category or create an exhaustive board/project gesture matrix. Existing broader visual deviations remain explicit. |
+| F6C.4 | Current Core ResolveKeycaps validation and conservative swept envelope findings; existing Core tests for current case walls/support solids and stale cases; current UI renders resolver findings. The unconditionally mounted fit hook observes accepted token/revision, so inherited Keymap binding changes refresh it; sequence, source and mount guards prevent failed/superseded replacement. Production route/RAF ownership tests and paired 34761 SW1 navigation plus retained focused-marker proof qualify affected geometry. | Recommend ready against the unchanged canonical clause; INT.2 is accepted. Individual invalid-setting, non-key target and stale/failure public permutations are evidence limits, not extra canonical test gates. This does not accept F6C.1, full Keycaps or remaining visual deviations. |
+
+The representative affected-key paired receipt is `.scratch/dioxus-frontend-v1/evidence/keycaps-fit-navigation-20261003/paired-context-navigation.md`; its older broad list of unexercised permutations is retained as historical qualification scope. This review evaluates sufficiency against the unchanged canonical sentence and existing direct production/Core evidence, without requiring that every branch be clicked in a new browser matrix.
+
+All 62 canonical parent criteria/joins, accepted parent records and RF001–RF015 remain unchanged. Package qualification, changed public behavior and parent closure are separate decisions. Exact changed source hashes and evidence boundaries are recorded in `AUDIT.json`.
+
+## Fixture-only package recovery and F6C.4 freshness
+
+The initial full package at `4a69b7a4` stopped at fixture preparation: an existing RGB STEP asset containing a space was read with literal `%20`. Eleven original provider/version commands succeeded; the failed fixture command is retained and is not an accepted package. Repair `bbd4da1b7cc0609dd4ae6d8ec0332031b0690ea1` changes only the Node filesystem boundary in `scripts/prepare-m1-fixtures.mjs`: local URL pathname decoding precedes the filesystem read. The actual four-fixture preparation and embedded asset assertions then passed; its receipt explicitly identifies the tested precommit working-tree file hash.
+
+The external bounded continuation asserts all twelve original command identities against the unchanged builder's canonical 22 commands, eleven successful prefix commands, the single failed fixtures step, and a maintained source difference consisting solely of the fixture script. It preserves original failed provenance/log/partial fixtures and provider output hashes, executes the unchanged builder's route tail and requires identical provider outputs afterward. The resumed package is pending final proof; its eleven inherited and eleven fresh command lineage must remain explicit. No new maintained build pipeline is introduced.
+
+F6C.4 readiness is independent of that failed fixture. Against already-served 34768, the fit, navigation and focused-marker leaves, Core resolver/tests, exact Runtime resolver method, and Editor's accepted fit-source/unconditional-hook block are byte-identical at `bbd4da1b`. The current resolver and owner proof therefore remain fresh on the already-qualified public source. The readiness recommendation above does not wait on unrelated demo packaging.

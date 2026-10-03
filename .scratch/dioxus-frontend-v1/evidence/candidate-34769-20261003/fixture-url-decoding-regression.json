@@ -1,0 +1,40 @@
+{
+  "defect": "Fixture loader passed URL-encoded spaces to the filesystem literally.",
+  "red": {
+    "command": "python3 scripts/build-m1.py frontend-six-stream-tools-handles-20261003",
+    "failed_stage": "fixtures",
+    "exit_code": 1,
+    "error": "ENOENT SK6812MINI-E%20v1.step; existing asset is SK6812MINI-E v1.step",
+    "source_commit": "4a69b7a4f4fa1c3ad1c30d96d6b20599d2c4914e",
+    "log": ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/build.log"
+  },
+  "green": {
+    "command": "node scripts/prepare-m1-fixtures.mjs /home/chris/.local/share/boardstudio/retained-tmp/20261003/sofle-fixture-url-decoding-green",
+    "exit_code": 0,
+    "source_commit": "4a69b7a4f4fa1c3ad1c30d96d6b20599d2c4914e",
+    "log": ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/fixture-url-decoding-green.log",
+    "fixture_names": [
+      "REVIUNG41",
+      "Sofle v2 gasket",
+      "Sofle RGB",
+      "Sofle Choc"
+    ],
+    "source_hashes": {
+      "scripts/prepare-m1-fixtures.mjs": "d2716b840546f988cc26cd93c692f2dd7221a9fb6ef2f3256d2955c9af8d16f8",
+      "app/src/demos/sofle.ts": "4cafb598e281af7397a06152728d25ccdd7e7b8e11be3dc1233516f3ae325fa8",
+      "app/src/demos/sofle-layouts.json": "a568fe3c5191e71ff90f815521be22cf9ee2007ff1d629ace9a9a9cb26a00571",
+      "app/src/demos/physicalLayout.ts": "bf9b57d12af57bb3ea3709f28a4ec01c28f592be3ed9e9a8a66a61e85f284e9c",
+      "app/src/mechanicalPresets.ts": "a380bbf390a0f9bbda3e534a6248b6b82389d483a766b18266b786188eb1e6a7",
+      "app/src/storage.ts": "15664582c6770f0002d88a19be680fec5dd32ab003bd2250b3cadcb36216e282",
+      "app/src/bundledModels.ts": "9a61d03dc237e03f55b8799521e98ca3e4fbb2021a6846ba92d142a73e6079e8",
+      "core/Cargo.toml": "6c42ca750cd0490c8b6b5569dc4fb6f42d4625de22805293ca992d92049f5c7c",
+      "core/Cargo.lock": "c3521765a7fd687da7b289aafaf055af438a1556f6ef4641402f922d7a9b8ef1"
+    },
+    "provenance": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/sofle-fixture-url-decoding-green/provenance.json",
+    "provenance_sha256": "ec22613f22657af7caa296281cb8727fc0d394467b3bf8d5f5dbad0a0b597e03",
+    "repair_commit": "bbd4da1b",
+    "executed_before_repair_commit": true,
+    "source_note": "The green command executed the uncommitted narrow fix atop4a69; recorded source hashes identify that working-tree input. The same input was then committedbbd4da1b and is rerun at the full package fixture step."
+  },
+  "scope": "Existing model data/URLs remain unchanged; decode only at Node filesystem read boundary. Actual fixture preparation and all embedded asset hash assertions run, no new UI tests."
+}
