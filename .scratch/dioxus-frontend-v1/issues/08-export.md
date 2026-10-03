@@ -96,6 +96,11 @@ The executable task graph is `/tmp/boardstudio-workflow-plans/F8.json`.
 | F8.5 | Authored Case STEP and generated mechanical package | F5 instance context and F7 case readiness/generation | F8 output-row integration only | Existing CAD/provider entrypoints exist; Runtime has whole assembly STEP path. F7 owns local geometry action and generation. |
 | F8.6 | Complete saved-project-to-output journeys | F8.1–F8.5 plus F2, F5, F6, F7 completion | Cross-workspace joins, scenario evidence and F8 inventory disposition | No public contract gap is known; final integration must prove real provider calls, snapshots and delivery. |
 
+The source-backed private coordinator implementation refinement for F8.2 is in
+[08-export-coordinator-dispatch.md](08-export-coordinator-dispatch.md). It
+preserves the acceptance above and keeps F8.2/F8.3 open until the current
+Runtime-to-Core/artifact/archive path is verified in a public browser journey.
+
 F8.1 and fixture-backed coordinator tests may proceed before the workspace providers are ready. F8.3–F8.5 require their true F3/F4/F5/F6/F7 state for integrated acceptance. F8.6 is the final join and cannot close on fixture-only evidence.
 
 ### Source and file map
