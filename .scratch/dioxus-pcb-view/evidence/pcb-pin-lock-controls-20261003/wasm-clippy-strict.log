@@ -1,0 +1,39 @@
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/pcb-pin-lock-stream-20261003/web)
+error: deref which would be done by auto-deref
+   --> src/presentation/pcb_wiring/apply.rs:145:59
+    |
+145 |             let Some(plan) = current_plan(&identity.plan, &*resolution.read(), &snapshot.document)
+    |                                                           ^^^^^^^^^^^^^^^^^^^ help: try: `&resolution.read()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#explicit_auto_deref
+    = note: `-D clippy::explicit-auto-deref` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::explicit_auto_deref)]`
+
+error: deref which would be done by auto-deref
+   --> src/presentation/pcb_wiring/apply.rs:200:46
+    |
+200 |                 current_plan(&identity.plan, &*resolution.read(), &snapshot.document).is_some()
+    |                                              ^^^^^^^^^^^^^^^^^^^ help: try: `&resolution.read()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#explicit_auto_deref
+
+error: the following explicit lifetimes could be elided: 'a
+   --> src/presentation/pcb_wiring/apply.rs:221:17
+    |
+221 | fn current_plan<'a>(
+    |                 ^^
+222 |     identity: &WiringPlanIdentity,
+223 |     resolution: &'a PcbWiringResolution,
+    |                  ^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#needless_lifetimes
+    = note: `-D clippy::needless-lifetimes` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::needless_lifetimes)]`
+help: elide the lifetimes
+    |
+221 ~ fn current_plan(
+222 |     identity: &WiringPlanIdentity,
+223 ~     resolution: &PcbWiringResolution,
+    |
+
+error: could not compile `boardstudio-web` (bin "boardstudio-web") due to 3 previous errors
