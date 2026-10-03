@@ -7,9 +7,79 @@ use boardstudio_core::model::{
     EditCommand, EditOperation, EditPhase, Pad, PadShape, PartDefinition, PartKind, Vec2,
 };
 
+#[cfg(any(target_arch = "wasm32", test))]
+#[derive(Default)]
+struct PadRowKeys {
+    owner: String,
+    next_key: u64,
+    rows: Vec<(String, u64)>,
+}
+
+#[cfg(any(target_arch = "wasm32", test))]
+impl PadRowKeys {
+    fn for_pads(&mut self, owner: &str, pads: &[Pad]) -> Vec<u64> {
+        if self.owner != owner {
+            self.owner = owner.to_owned();
+            self.rows.clear();
+        }
+        // IDs identify surviving rows. Ambiguous duplicate IDs cannot share a
+        // component lifetime, even in an imported definition needing repair.
+        let mut keys: Vec<_> = pads
+            .iter()
+            .map(|pad| {
+                let mut previous = self.rows.iter().filter(|(id, _)| id == &pad.id);
+                let first = previous.next();
+                if previous.next().is_none()
+                    && pads.iter().filter(|other| other.id == pad.id).count() == 1
+                {
+                    first.map(|(_, key)| *key)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let removed: Vec<_> = self
+            .rows
+            .iter()
+            .enumerate()
+            .filter(|(_, (_, key))| !keys.contains(&Some(*key)))
+            .collect();
+        let added: Vec<_> = keys
+            .iter()
+            .enumerate()
+            .filter_map(|(index, key)| key.is_none().then_some(index))
+            .collect();
+        // One accepted ID change at the same position is a row rename. Keep
+        // that row's other drafts; list edits and ambiguous replacements retire
+        // unmatched rows instead of assigning their drafts to another pad.
+        if self.rows.len() == pads.len()
+            && let ([(old_index, (_, key))], [new_index]) = (removed.as_slice(), added.as_slice())
+            && old_index == new_index
+        {
+            keys[*new_index] = Some(*key);
+        }
+        let keys: Vec<_> = keys
+            .into_iter()
+            .map(|key| {
+                key.unwrap_or_else(|| {
+                    let fresh = self.next_key;
+                    self.next_key += 1;
+                    fresh
+                })
+            })
+            .collect();
+        self.rows = pads
+            .iter()
+            .zip(&keys)
+            .map(|(pad, key)| (pad.id.clone(), *key))
+            .collect();
+        keys
+    }
+}
+
 #[cfg(target_arch = "wasm32")]
 mod ui {
-    use super::{Axis, DefinitionEdit, DefinitionFieldsCapture, apply_definition_edit};
+    use super::{Axis, DefinitionEdit, DefinitionFieldsCapture, PadRowKeys, apply_definition_edit};
     use crate::runtime::Runtime;
     use boardstudio_application::{AcceptedSnapshot, Scope};
     use boardstudio_core::model::{Pad, PadShape, PartDefinition, PartKind};
@@ -132,6 +202,8 @@ mod ui {
         let committed_height = courtyard.1.clone();
         let height_keydown = move |event| draft_keydown(event, height, committed_height.clone());
         let owner_key = format!("{:?}:{}", scope, definition.id);
+        let pad_rows = use_hook(|| Rc::new(std::cell::RefCell::new(PadRowKeys::default())));
+        let row_keys = pad_rows.borrow_mut().for_pads(&owner_key, &definition.pads);
 
         rsx! {
             div { class: "m1-definition-fields",
@@ -173,9 +245,9 @@ mod ui {
                 if kicad_locked {
                     p { class: "m1-definition-note", "Imported pad geometry stays linked to its original KiCad source." }
                 }
-                for (index, pad) in definition.pads.iter().enumerate() {
+                for (index, (pad, row_key)) in definition.pads.iter().zip(row_keys).enumerate() {
                     PadFields {
-                        key: "{owner_key}:{index}", owner_key: owner_key.clone(), index, pad: pad.clone(), locked: kicad_locked,
+                        key: "{owner_key}:{row_key}", owner_key: owner_key.clone(), index, pad: pad.clone(), locked: kicad_locked,
                         submit,
                     }
                 }
@@ -932,6 +1004,56 @@ mod tests {
     }
     fn pad(id: &str, number: &str) -> serde_json::Value {
         serde_json::json!({ "id":id,"number":number,"at":{"x":0.0,"y":0.0},"size":{"x":2.0,"y":2.0},"shape":"circle" })
+    }
+
+    #[test]
+    fn accepted_pad_rename_preserves_the_row_through_scalar_refresh() {
+        let mut pads = definition(serde_json::json!([pad("a", "1"), pad("b", "2")])).pads;
+        let mut rows = PadRowKeys::default();
+        let before = rows.for_pads("owner", &pads);
+        pads[0].id = "renamed".into();
+        pads[0].at.y = 4.0;
+        assert_eq!(rows.for_pads("owner", &pads), before);
+    }
+
+    #[test]
+    fn pad_list_edits_preserve_survivors_and_retire_deleted_rows() {
+        let mut pads = definition(serde_json::json!([pad("a", "1"), pad("b", "2")])).pads;
+        let mut rows = PadRowKeys::default();
+        let before = rows.for_pads("owner", &pads);
+        let removed = pads.remove(0);
+        assert_eq!(rows.for_pads("owner", &pads), vec![before[1]]);
+        pads.push(removed);
+        let restored = rows.for_pads("owner", &pads);
+        assert_eq!(restored[0], before[1]);
+        assert_ne!(restored[1], before[0]);
+        pads.swap(0, 1);
+        assert_eq!(
+            rows.for_pads("owner", &pads),
+            vec![restored[1], restored[0]]
+        );
+    }
+
+    #[test]
+    fn ambiguous_replacements_and_owner_switches_retire_pad_rows() {
+        let pads = definition(serde_json::json!([pad("a", "1"), pad("b", "2")])).pads;
+        let replacement = definition(serde_json::json!([pad("c", "1"), pad("d", "2")])).pads;
+        let mut rows = PadRowKeys::default();
+        let before = rows.for_pads("owner", &pads);
+        let replaced = rows.for_pads("owner", &replacement);
+        assert!(replaced.iter().all(|key| !before.contains(key)));
+        let next_owner = rows.for_pads("other-owner", &replacement);
+        assert!(next_owner.iter().all(|key| !replaced.contains(key)));
+    }
+
+    #[test]
+    fn duplicate_pad_ids_never_share_or_transfer_a_row_lifetime() {
+        let pads = definition(serde_json::json!([pad("a", "1"), pad("a", "2")])).pads;
+        let mut rows = PadRowKeys::default();
+        let before = rows.for_pads("owner", &pads);
+        assert_ne!(before[0], before[1]);
+        let refreshed = rows.for_pads("owner", &pads);
+        assert!(refreshed.iter().all(|key| !before.contains(key)));
     }
     fn replacement(event: Event) -> ProjectDoc {
         let Event::Edit {

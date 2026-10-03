@@ -1010,6 +1010,55 @@ mod mounted_tests {
         assert_eq!(accepted.document.definitions[1].pads[0].number, "7");
         assert_eq!(accepted.document.definitions[1].pads[0].at.y, 4.0);
 
+        // Deleting a row must retire its draft, even when the next pad has
+        // identical accepted scalar values and moves into that row's index.
+        let mut with_survivor = accepted.document.as_ref().clone();
+        let mut survivor = with_survivor.definitions[1].pads[0].clone();
+        survivor.id = "surviving-pad".into();
+        with_survivor.definitions[1].pads.push(survivor);
+        let expanded =
+            accept_document_replacement(&mut session, &mut core, 912, with_survivor, "second");
+        controls
+            .runtime
+            .set_definition_name_test_state(expanded.clone(), scope.clone());
+        controls.snapshot.set(expanded.clone());
+        controls
+            .definition
+            .set(expanded.document.definitions[1].clone());
+        settle().await;
+        assert!(crate::parts_custom_definition::set_pad_number_draft_for_test("9"));
+        settle().await;
+        assert_eq!(pad_number_input().value(), "9");
+        root.query_selector(".m1-definition-remove-pad")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        settle().await;
+        let removal = runtime
+            .take_definition_name_test_event()
+            .expect("production Remove pad emits one scoped edit");
+        let effects = session.submit(removal);
+        advance(&mut session, &mut core, effects);
+        let accepted = session.read_model().accepted.as_ref().unwrap().clone();
+        assert_eq!(accepted.document.definitions[1].pads.len(), 1);
+        assert_eq!(accepted.document.definitions[1].pads[0].id, "surviving-pad");
+        controls
+            .runtime
+            .set_definition_name_test_state(accepted.clone(), scope.clone());
+        controls.snapshot.set(accepted.clone());
+        controls
+            .definition
+            .set(accepted.document.definitions[1].clone());
+        settle().await;
+        assert_eq!(pad_id_input().value(), "surviving-pad");
+        assert_eq!(
+            pad_number_input().value(),
+            "7",
+            "a removed pad's dirty draft cannot move into the surviving pad"
+        );
+
         controls
             .selection
             .set(Some((scope.clone(), "first".into())));

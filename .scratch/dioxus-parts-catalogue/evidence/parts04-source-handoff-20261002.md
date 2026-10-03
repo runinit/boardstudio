@@ -1,5 +1,13 @@
 # Parts04 custom definition source handoff
 
+## Sol candidate follow-up — 2026-10-03
+
+Actual served candidate19525578207ff66bfb51a6c7a6483a0bb7905029 retains an unrelated dirty pad Number through an accepted ID rename, but its index-key repair leaks a deleted row's draft into the surviving next pad. With the original5b archive, a new two-pad custom definition, and a blank first-pad Width, removing that pad leaves the survivor displaying blank Width while the durable accepted pad has width2. Settled pinned React restores the survivor's accepted width2. The candidate's source disposition for this row-lifetime case is HOLD; package qualification remains separate. The earlier index-key statement below is preserved as historical author intent.
+
+The isolated follow-up keeps row keys private to the Parts definition editor. Accepted pad IDs identify survivors; one unambiguous same-index ID rename keeps its prior key; additions get fresh keys; removals, owner changes, duplicate IDs, and ambiguous replacements retire unmatched keys. No public API/schema/Core/Session/Runtime changes are needed. The existing mounted rename/owner test is extended through the production Remove pad action with identical scalar values on the surviving pad, so accepted-value effects cannot hide row reuse. A red assertion sees the deleted draft9 instead of accepted survivor7 before repair. Focused verification and exact frozen source are recorded in the external Sol review; public paired repair acceptance remains coordinator-owned.
+
+The focused mounted red failed at the intended deleted-draft assertion (9 versus7); after repair the two mounted owner/rename/removal tests pass. Native custom-definition tests pass9/9, including all existing5 and four row-lifetime cases. Strict locked all-target WASM Clippy with `-D warnings`, formatting and diff checks pass. Commands used Sol's existing isolated Case-repair target, avoiding the root and shared author caches. No full package build was repeated. The actual served195 deletion HOLD remains until a repaired combined package passes that paired journey.
+
 This is an implementation candidate for `.scratch/dioxus-parts-catalogue/issues/04-custom-footprint-authoring.md`, based on planning packet commit `e056a8f8f68d9542a6b94b4534a90a74f7d7bfab` (Sol planning report SHA-256 `68cd4cc48d0b1270277221ca873e5c67b967ddc1aca5c3f3baebf7b2c5e3739d`). It does not close F4.1/F4.2, INT.2, or the public acceptance joins.
 
 ## Source boundary
