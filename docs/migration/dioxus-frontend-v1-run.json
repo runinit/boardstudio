@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T15:39:46.898672+00:00",
+    "updated_at": "2026-10-03T15:42:21.358973+00:00",
     "parent_counts": {
       "accepted": 10,
       "implementing": 41,
@@ -44,8 +44,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "21f7e45b487f2d9fa0ab04910ae4d893a1e0feca",
-      "state": "Larger source batch served34772. PCB manual-net release and remaining Outline connection/selection controls joined afterward; next combined compile/package pending. Tests/browser/review deferred.",
+      "source_commit": "56a0459d",
+      "state": "Larger candidate served34772. PCB manual-net release and remaining Outline controls joined afterward; combined WASM source compile passes at56a0459d. Awaiting next real source packets before another package; tests/browser/review deferred.",
       "packets": [
         {
           "stream": "Layout",
@@ -349,8 +349,8 @@
         }
       ],
       "source_compile": {
-        "source_commit": "985f214f86afa17807ef05a4b154e318eeb36638",
-        "result": "PASS: combined page source compiles at985f214f; 27 warnings retained. No application tests/browser/review; strict Clippy remains later qualification.",
+        "source_commit": "56a0459d",
+        "result": "PASS: joined PCB/Outline follow-up compiles;27 warnings retained. No new application tests, browser journeys or review.",
         "command": "cargo check --manifest-path web/Cargo.toml --locked --target wasm32-unknown-unknown --no-default-features --features page --bin boardstudio-web",
         "logs": [
           "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003.log",
@@ -360,11 +360,14 @@
           "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-5.log",
           "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-6.log",
           "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-7.log",
-          "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-8.log"
+          "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-8.log",
+          "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-9.log",
+          "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-10.log",
+          "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-11.log"
         ],
         "new_tests": 0,
         "exit_code": 0,
-        "latest_log": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-8.log"
+        "latest_log": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-11.log"
       }
     },
     "execution_policy": "docs/agents/issue-tracker.md#frontend-delivery-records",
@@ -373,7 +376,8 @@
       "review_sha256": "2ccabda19fe98a345e80b3662a3da546eebfb75e8a48b01d8df1761a4aee4c4c",
       "audit": ".scratch/dioxus-frontend-v1/evidence/candidate-34771-20261003/consolidated-audit.json",
       "audit_sha256": "a8352d86c1093cc5d3b2f7c63d02a3910788650d67fc4619a7a62317a58b1b67",
-      "state": "Finalized34771 scope assessments with explicit unqualified broader limits; next source batch review deferred."
+      "state": "Finalized34771 scope assessments with explicit unqualified broader limits; next source batch review deferred.",
+      "candidate": "34771 retained review;34772 and later source have no new review yet."
     },
     "parent_acceptances": [
       {
