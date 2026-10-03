@@ -416,8 +416,8 @@
         "observation": "The private Library now needs both fixture-document reads for previews and fixture-archive opens for copies, while manual archive import must retain its existing identity. The bounded page Runtime adds a fixture-only fresh-ID choice to the shared archive-unpack path and keeps import identity unchanged; this is another concrete cross-workflow Runtime touchpoint under RF-001.",
         "mitigation": "Use packaged fixture JSON only for read-only previews and pass a fresh project ID only from the two bundled demo actions. Preserve open-sequence admission, generic import identity, source fixture data, and normal Session/persistence ownership.",
         "post_port": "After parity, assess a narrower page-local bundled-project catalog/copy adapter so reusable preview metadata and archive-copy policy do not accumulate in the shared Runtime surface.",
-        "validation": "Paired public journey must show both fixture-derived cards, open the same demo twice with distinct accepted IDs, and verify normal import identity semantics remain unchanged. Build/package and candidate evidence remain pending.",
-        "status": "bounded source implementation; combined check and changed paired browser journey pending; no new RF ID or F2.1 parent closure"
+        "validation": "Paired public journey on React 5a472a94 and candidate 3a080e0e showed both fixture-derived cards, distinct accepted IDs for repeated starts, saved cards, and saved-card reopen. Candidate source maps generic archive import to None and changes identity only for fixture Some(copy_id); unchanged archive-flow receipts are reused. Combined strict check/package passed; exact journey and asset hashes are in .scratch/dioxus-frontend-tranche-1/evidence/project-demo-cards-fresh-copies-34767/RESULTS.md.",
+        "status": "cards, fresh-copy identity, saved listing/reopen qualified for two existing demos; preview fallback and open failure/supersession injection and wider catalogue remain open; RF-001 observation remains; no F2.1 parent closure"
       }
     },
     {
