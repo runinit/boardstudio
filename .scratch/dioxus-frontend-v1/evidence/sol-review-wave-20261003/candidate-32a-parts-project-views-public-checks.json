@@ -1,0 +1,25 @@
+{
+  "react": {
+    "noncurrent_delete_preserves_full_active_document": true,
+    "current_delete_replacement_preserved_through_reload": true,
+    "view_actions_preserve_full_saved_document": true,
+    "parts_edit_undo_redo_reload": true,
+    "page_errors": ""
+  },
+  "dioxus": {
+    "noncurrent_delete_preserves_full_active_document": true,
+    "current_delete_replacement_preserved_through_reload": true,
+    "view_actions_preserve_full_saved_document": true,
+    "parts_edit_undo_redo_reload": true,
+    "page_errors": ""
+  },
+  "normalized_complete_parts_documents_equal": true,
+  "normalization": "Only generated custom-definition ID; pad ID explicitly edited to qa-pad-survivor on both. No field/value/history normalization.",
+  "parts_removal_rendered_width": {
+    "react": "0",
+    "dioxus": "2"
+  },
+  "focus_escape": "Both return focus to Delete Alpha QA deletion; captured tool output.",
+  "focus_success": "Candidate Search saved keyboards; reference body/null aria-label; recorded deliberate accessibility behavior.",
+  "view_handoff": "Actual Keymap 3D -> Keycaps retains 3D and current workspace canvas name; 2D and Footprints on -> Layout pressed true on both; tool output plus state/PNG captures."
+}

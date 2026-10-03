@@ -1,0 +1,43 @@
+{
+  "frozen_source": "ddc53653df10f7010ae6b66c7686429539e1ffbc",
+  "base": "5dfa8d8564c46fe910b22ce408f0dbb43d620692",
+  "worktree": "/home/chris/.local/share/boardstudio/worktrees/outline-first-polygon-repair-20261003",
+  "recorded_at": "2026-10-03T06:24:15.678795+00:00",
+  "public_red": {
+    "source": "32a57ed39100ff1782b5452db79ad51474560fd8",
+    "url": "http://127.0.0.1:34743/",
+    "fixture_sha256": "5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df",
+    "edit_revision": 10,
+    "undo_revision": 11,
+    "actual_input": "-2.82",
+    "expected_accepted_input": "-3.82",
+    "proof": "dioxus-undo-observed.json/png/snapshot; undo saved record has no fixed BoardOutline state"
+  },
+  "red": {
+    "exit": 1,
+    "passed": 0,
+    "failed": 1,
+    "actual": "1.5",
+    "expected": "0",
+    "reason": "Undo must show the restored accepted coordinate",
+    "filter": "coordinate_undo_restores_accepted_value_without_reviving_a_submitted_draft"
+  },
+  "green": {
+    "exit": 0,
+    "passed": 2,
+    "failed": 0,
+    "filter": "coordinate_",
+    "includes": "new coordinate Undo/unrelated-draft preservation plus existing mounted fixed-coordinate production owner edit"
+  },
+  "command_prefix": "CARGO_TARGET_DIR=/home/chris/.local/share/boardstudio/worktrees/case-current-result-status-repair-20261003/web/target wasm-pack test --headless --chrome web --no-default-features --features page --bin boardstudio-web --",
+  "fmt": "cargo fmt --manifest-path web/Cargo.toml passed",
+  "diff_check": "git diff --check passed",
+  "hashes": {
+    "/home/chris/.local/share/boardstudio/reviews/layout-batch-32a57ed3-sol-20261003/outline-coordinate-undo-red.log": "4feb17949ebd0037db219265533e093683486af1ff14a7bf580eb39ace8d35da",
+    "/home/chris/.local/share/boardstudio/reviews/layout-batch-32a57ed3-sol-20261003/outline-coordinate-undo-green.log": "f618b6be7a0e311ebb9d456b28dc71e9f7abcb5a1f08615a32ea6e51fea916f8",
+    "/home/chris/.local/share/boardstudio/reviews/layout-batch-32a57ed3-sol-20261003/dioxus-undo-observed.json": "98d6f9ee95bc1b1c498ba7793abc7e1d4ea1d4a8b995b80762a7dd05e49d2733",
+    "/home/chris/.local/share/boardstudio/worktrees/outline-first-polygon-repair-20261003/web/src/presentation/outline_lifecycle.rs": "f05818b028220f89d6c56d21dd6903aba706cabe44c6aa589280220b3f801d5d",
+    "/home/chris/.local/share/boardstudio/worktrees/outline-first-polygon-repair-20261003/web/src/presentation/outline_lifecycle_browser_tests.rs": "7082e1019e5e63958b6a033f7a8e802c965eacc9a2558e848bda3923201ed53a"
+  },
+  "limits": "Author receipt; independent SolParts source CLEAR reported by root. Root combined checks and packaged repaired public journey are separate. Earlier test compile ambiguity .into() retained in outline-coordinate-test-compile-attempt.log and excluded from expected red."
+}

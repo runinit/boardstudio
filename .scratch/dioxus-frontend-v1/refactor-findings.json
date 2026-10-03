@@ -232,6 +232,13 @@
           "date": "2026-10-03",
           "observation": "Read-only audit: shared source joins and stale duplicate progress/routing rules increase queue and rework; required acceptance remains distinct from code presence.",
           "mitigation": "Integrate ready batch; Layout-first, one waiting packet/stream; fewer repeated checks, one candidate review, unified current_progress; all history and criteria retained."
+        },
+        {
+          "date": "2026-10-03",
+          "source": "Actual public32a/34743 Outline Undo, Keymap/Keycaps header and PCB Ctrl-click observations; repair source ddc53653.",
+          "observation": "Independent leaf state and shared layout/pointer ownership still compose incorrectly: accepted Undo can revive a submitted coordinate draft, floating context headers can overlap view controls and change camera bounds, and pointer capture can retarget compatibility clicks into empty-canvas selection.",
+          "mitigation": "Fix only the reproduced boundaries during parity; value-change draft synchronization is integrated and preserves unrelated drafts. Header/camera and PCB pointer lifecycle repairs remain active.",
+          "post_port": "Assess explicit contextual layout contracts, accepted-value draft lifetimes and one pointer-selection authority after the port. Preserve trusted paired evidence; no broad refactor is started."
         }
       ]
     },

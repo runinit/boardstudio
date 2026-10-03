@@ -443,19 +443,20 @@
   "bounded_ticket_count": 44,
   "non_superseded_bounded_ticket_count": 43,
   "latest_demo": {
-    "build_id": "frontend-layout-delivery-fix-reuse-20261003",
-    "source_commit": "22b9b06331eaf1505131cc3bfef65dcf81b2ffb2",
-    "root_url": "http://127.0.0.1:34744/",
-    "subpath_url": "http://127.0.0.1:34744/boardstudio/",
-    "provenance": "web/target/builds/frontend-layout-delivery-fix-reuse-20261003/provenance.json",
-    "provenance_sha256": "4106b2ffa5cc487b322fa2d647e69812ca3c841c4d46f8a6c24efbf6a8b8e339",
+    "build_id": "frontend-case-outline-delivery-reuse-20261003",
+    "source_commit": "e4bad4a6f03fd5a76fabdfb1b33809f2cd106840",
+    "root_url": "http://127.0.0.1:34745/",
+    "subpath_url": "http://127.0.0.1:34745/boardstudio/",
+    "provenance": "web/target/builds/frontend-case-outline-delivery-reuse-20261003/provenance.json",
+    "provenance_sha256": "e3aca64def87476fa30e780bad2db172b3bbc07ab77d315863f9a721fbb59641",
     "fresh_commands": 8,
     "inherited_commands": 22,
     "source_inputs": 1359,
     "source_mismatches": 0,
     "assets_per_route": 145,
-    "command_finished_at": "2026-10-03T06:17:12.685612+00:00",
-    "package_qualification": "Guardedreusecomplete; stagedhashes/sourceidentitymatch. FirstPolygonrepairindependentlyassessed; changedjourneysconsolidatedreviewcontinues."
+    "command_finished_at": "2026-10-03T06:24:56.232581+00:00",
+    "command_span_seconds": 92.658554,
+    "package_qualification": "Guarded page reuse passed; root/subpath HTTP200 with COEP verified. Changed public Case/Outline journeys in progress."
   },
   "mechanical_clearance_ticket": {
     "issue": ".scratch/dioxus-case-workspace/issues/08-mechanical-clearance-projection.md",
@@ -753,19 +754,20 @@
     ]
   },
   "current_comparison_build": {
-    "build_id": "frontend-layout-delivery-fix-reuse-20261003",
-    "source_commit": "22b9b06331eaf1505131cc3bfef65dcf81b2ffb2",
-    "root_url": "http://127.0.0.1:34744/",
-    "subpath_url": "http://127.0.0.1:34744/boardstudio/",
-    "provenance": "web/target/builds/frontend-layout-delivery-fix-reuse-20261003/provenance.json",
-    "provenance_sha256": "4106b2ffa5cc487b322fa2d647e69812ca3c841c4d46f8a6c24efbf6a8b8e339",
+    "build_id": "frontend-case-outline-delivery-reuse-20261003",
+    "source_commit": "e4bad4a6f03fd5a76fabdfb1b33809f2cd106840",
+    "root_url": "http://127.0.0.1:34745/",
+    "subpath_url": "http://127.0.0.1:34745/boardstudio/",
+    "provenance": "web/target/builds/frontend-case-outline-delivery-reuse-20261003/provenance.json",
+    "provenance_sha256": "e3aca64def87476fa30e780bad2db172b3bbc07ab77d315863f9a721fbb59641",
     "fresh_commands": 8,
     "inherited_commands": 22,
     "source_inputs": 1359,
     "source_mismatches": 0,
     "assets_per_route": 145,
-    "command_finished_at": "2026-10-03T06:17:12.685612+00:00",
-    "package_qualification": "Guardedreusecomplete; stagedhashes/sourceidentitymatch. FirstPolygonrepairindependentlyassessed; changedjourneysconsolidatedreviewcontinues."
+    "command_finished_at": "2026-10-03T06:24:56.232581+00:00",
+    "command_span_seconds": 92.658554,
+    "package_qualification": "Guarded page reuse passed; root/subpath HTTP200 with COEP verified. Changed public Case/Outline journeys in progress."
   },
   "active_source_freeze": {
     "state": "released",
@@ -1269,7 +1271,7 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T06:23:20.175439+00:00",
+    "updated_at": "2026-10-03T06:26:37.789599+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet/stream, journey/criterion reporting, less testing/more implementation.",
     "parent_counts": {
       "accepted": 2,
@@ -1279,23 +1281,24 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-layout-delivery-fix-reuse-20261003",
-      "source_commit": "22b9b06331eaf1505131cc3bfef65dcf81b2ffb2",
-      "root_url": "http://127.0.0.1:34744/",
-      "subpath_url": "http://127.0.0.1:34744/boardstudio/",
-      "provenance": "web/target/builds/frontend-layout-delivery-fix-reuse-20261003/provenance.json",
-      "provenance_sha256": "4106b2ffa5cc487b322fa2d647e69812ca3c841c4d46f8a6c24efbf6a8b8e339",
+      "build_id": "frontend-case-outline-delivery-reuse-20261003",
+      "source_commit": "e4bad4a6f03fd5a76fabdfb1b33809f2cd106840",
+      "root_url": "http://127.0.0.1:34745/",
+      "subpath_url": "http://127.0.0.1:34745/boardstudio/",
+      "provenance": "web/target/builds/frontend-case-outline-delivery-reuse-20261003/provenance.json",
+      "provenance_sha256": "e3aca64def87476fa30e780bad2db172b3bbc07ab77d315863f9a721fbb59641",
       "fresh_commands": 8,
       "inherited_commands": 22,
       "source_inputs": 1359,
       "source_mismatches": 0,
       "assets_per_route": 145,
-      "command_finished_at": "2026-10-03T06:17:12.685612+00:00",
-      "package_qualification": "Guardedreusecomplete; stagedhashes/sourceidentitymatch. FirstPolygonrepairindependentlyassessed; changedjourneysconsolidatedreviewcontinues."
+      "command_finished_at": "2026-10-03T06:24:56.232581+00:00",
+      "command_span_seconds": 92.658554,
+      "package_qualification": "Guarded page reuse passed; root/subpath HTTP200 with COEP verified. Changed public Case/Outline journeys in progress."
     },
     "integration": {
-      "source_commit": "ed5af2c9d3f0962680c43c4e681c7f8a86651151",
-      "state": "Case gasket support controls and Outline accepted-history repair integrated; next guarded candidate building.",
+      "source_commit": "e4bad4a6f03fd5a76fabdfb1b33809f2cd106840",
+      "state": "34745 served with Case support sizing and Outline Undo repair; shared-header/camera and PCB modifier repairs active.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1319,13 +1322,13 @@
           "slice": "Parts pad row identity",
           "original_source": "08fcf1b2",
           "integrated_source": "9d7c41bd",
-          "state": "Integrated; changed public deletion leg verified on 34743; history/reopen report finishing."
+          "state": "Integrated; changed paired public journey passed. Complete parent criteria remain open."
         },
         {
           "slice": "Project deletion",
           "original_source": "49ceb996",
           "integrated_source": "a64f9c56",
-          "state": "Integrated; public Cancel, noncurrent/current replacement and reload legs verified on 34743."
+          "state": "Integrated; changed paired public journey passed. Complete parent criteria remain open."
         },
         {
           "slice": "PCB command pill",
@@ -1355,7 +1358,7 @@
           "slice": "Outline coordinate accepted history synchronization",
           "original_source": "ddc53653df10f7010ae6b66c7686429539e1ffbc",
           "integrated_source": "ed5af2c9",
-          "state": "Integrated; actual Undo RED reproduced, focused regression RED; independent source assessment clear; GREEN receipt and public repaired journey pending."
+          "state": "Integrated and served34745; focused GREEN 2/2 and independent source assessment clear; changed public journey in progress."
         }
       ],
       "checks": {
@@ -1365,12 +1368,18 @@
           "result": "pass,19.78seconds; later2selected-optionflags willcompileinpackage",
           "failures_repaired": "DioxusSVGaria attribute, boxedprivatecamera action, test-onlyroutewrapper, needlessborrow"
         },
-        "author_evidence": "Reuse focused passing packet checks; no additional broad suites."
+        "author_evidence": "Reuse focused passing packet checks; no additional broad suites.",
+        "outline_coordinate_regression": {
+          "source_commit": "ddc53653",
+          "result": "Expected bug RED; repaired GREEN 2/2. Unrelated coordinate dirty draft preserved.",
+          "receipt": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/outline-coordinate-undo-repair-receipt.json",
+          "independent_source_assessment": "Sol Parts clear; actual repaired public Undo/Redo/reopen pending."
+        }
       },
       "candidate_build": {
-        "state": "starting",
+        "state": "complete",
         "build_id": "frontend-case-outline-delivery-reuse-20261003",
-        "source_commit": "pending documentation checkpoint"
+        "source_commit": "e4bad4a6f03fd5a76fabdfb1b33809f2cd106840"
       }
     },
     "journeys": [
@@ -1400,23 +1409,38 @@
       },
       {
         "journey": "Parts pad rename and deletion",
-        "state": "Public surviving-row draft identity leg verified; Undo/Redo/reopen report finishing.",
+        "state": "Bounded paired verified: surviving row ownership, ID/Y edits, Undo/Redo and reload.",
         "candidate": "32a57ed3/34743",
-        "remaining": "Public repaired deletion journey; full F4.2 import/edit/history criteria."
+        "remaining": "Full F4.2 all-field/import/archive/net-remap and theme/compact criteria."
       },
       {
         "journey": "Keycaps finding -> Layout selection/Inspector/camera",
         "state": "Selection and contextual Inspector verified; measured camera mismatch assigned to shared canvas/header repair.",
         "candidate": "32a57ed3/34743",
         "remaining": "Fresh camera comparison and F6C.4 criteria."
+      },
+      {
+        "journey": "Project library noncurrent/current deletion and replacement reopening",
+        "state": "Bounded paired verified; complete current ProjectDoc preserved for noncurrent deletion and exact replacement retained after current deletion/reload.",
+        "candidate": "32a57ed3/34743",
+        "remaining": "Full F2.2 lifecycle/archive/stale/error criteria.",
+        "receipt": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/candidate-32a-parts-project-views-review.md"
       }
     ],
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "heavy_slots": {
-      "root_target": "One guarded page build; provider/core/renderer evidence reused from verified full 32a candidate.",
-      "secondary_target": "Sol Outline coordinate focused regression; no broad suite.",
-      "dispatch": "Coordinator assigned. At most two heavy jobs and one package build."
+      "root_target": "Free; guarded page build34745 completed in92.66s.",
+      "secondary_target": "PCB modifier repair focused regression/check in assigned f73 target.",
+      "dispatch": "Coordinator assigned; at most two heavy jobs and one package build."
     },
-    "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json"
+    "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
+    "next_work": {
+      "Layout": "Repaired Outline edit/Undo/Redo/reopen public replay on34745.",
+      "PCB": "Confirmed trusted Ctrl-click regression; isolated minimal pointer lifecycle repair.",
+      "Keymap": "Shared context-header placement repair with Keycaps author; global view handoff verified.",
+      "Keycaps": "Measured camera/header/footer geometry and finding-route Inspector scroll repair.",
+      "Case": "New gasket support linked sizing public journey on34745.",
+      "Parts_Project": "Prior changed packet verified; next KiCad import frontier assigned Luna High."
+    }
   }
 }
