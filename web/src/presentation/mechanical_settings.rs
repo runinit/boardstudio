@@ -747,7 +747,7 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                             value: support.width,
                             editable: props.editable,
                             support_target: Some(GasketSupportDimensionTarget {
-                                support_id: support.id.clone(), anchors,
+                                support_id: support.id.clone(), anchors: anchors.clone(),
                             }),
                         }
                         if !props.editable {

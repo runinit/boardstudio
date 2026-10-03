@@ -312,7 +312,7 @@ fn AssemblyDraftFields(
                   }}
             }
             { let add_draft = draft.clone(); let add_change = on_change.clone();
-            button { r#type: "button", disabled: pending, onclick: move |_| {
+            rsx! { button { r#type: "button", disabled: pending, onclick: move |_| {
                 let mut value = value;
                 if let Some(id) = member_id(&value()) {
                     value.with_mut(|value| value.members.push(AssemblyMember {
@@ -327,6 +327,7 @@ fn AssemblyDraftFields(
                     add_change.call(AssemblyDraft { value: value(), ..add_draft.clone() });
                 }
             }, "Add component" }
+            }
             }
             div { class: "m1-parts-assembly-actions",
                 button { r#type: "button", disabled: pending, onclick: on_save, "Save assembly" }

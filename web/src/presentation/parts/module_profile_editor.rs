@@ -323,13 +323,13 @@ pub(super) fn ModuleProfileEditor(
         selection_generation(),
         project_owned,
     );
-    let draft = use_signal(|| baseline.clone());
-    let rotary = use_signal(|| baseline_rotary.clone());
+    let mut draft = use_signal(|| baseline.clone());
+    let mut rotary = use_signal(|| baseline_rotary.clone());
     let synced = use_signal(|| (baseline.clone(), baseline_rotary.clone()));
-    let shape = use_signal(ModuleVolumeDraft::default);
-    let reviewed = use_signal(|| false);
+    let mut shape = use_signal(ModuleVolumeDraft::default);
+    let mut reviewed = use_signal(|| false);
     let pending = use_signal(|| None::<PendingModuleProfile>);
-    let error = use_signal(|| None::<ModuleProfileError>);
+    let mut error = use_signal(|| None::<ModuleProfileError>);
     use_effect(use_reactive((&baseline, &baseline_rotary), {
         let mut draft = draft;
         let mut rotary = rotary;
@@ -528,7 +528,7 @@ pub(super) fn ModuleProfileEditor(
         }
     };
 
-    let submit_profile = {
+    let submit_profile = use_callback({
         let runtime = runtime.clone();
         let owner = owner.clone();
         let original = definition.clone();
@@ -592,7 +592,7 @@ pub(super) fn ModuleProfileEditor(
             }));
             runtime.submit(event);
         }
-    };
+    });
 
     let candidate_models = definition.candidate_models.clone();
     let candidate_models_for_select = candidate_models.clone();
@@ -614,7 +614,7 @@ pub(super) fn ModuleProfileEditor(
                         label { class: "m1-generator-field", "Pulses per rotation", input { r#type: "number", min: "1", step: "1", aria_label: "Rotary pulses per rotation", value: "{rotary().steps}", oninput: move |event| rotary.with_mut(|draft| draft.steps = event.value()) } }
                         label { class: "m1-generator-field", "Actions per rotation", input { r#type: "number", min: "1", step: "1", aria_label: "Rotary actions per rotation", value: "{rotary().triggers_per_rotation}", oninput: move |event| rotary.with_mut(|draft| draft.triggers_per_rotation = event.value()) } }
                     }
-                    button { r#type: "button", disabled: busy, onclick: move |_| submit_profile(Some(None)), "Save rotary profile" }
+                    button { r#type: "button", disabled: busy, onclick: move |_| submit_profile.call(Some(None)), "Save rotary profile" }
                 }
             }
             for (index, volume) in current_draft.volumes.iter().enumerate() {
@@ -696,7 +696,7 @@ pub(super) fn ModuleProfileEditor(
             }
             label { class: "m1-module-profile-check", input { r#type: "checkbox", checked: reviewed(), aria_label: "Complete assembly, mounts, functional openings and cable clearance reviewed", onchange: move |event| reviewed.set(event.checked()) } "Complete assembly, mounts, functional openings and cable clearance reviewed" }
             p { class: "m1-parts-empty", "Saving a candidate model retains its alignment review. Electrical repairs, driver support and other missing evidence keep their own blockers." }
-            button { class: "m1-generator-apply", r#type: "button", disabled: busy || current_owner.is_none(), onclick: move |_| submit_profile(None), "Save project module profile" }
+            button { class: "m1-generator-apply", r#type: "button", disabled: busy || current_owner.is_none(), onclick: move |_| submit_profile.call(None), "Save project module profile" }
             if busy { p { class: "m1-parts-loading", role: "status", "Saving module profile…" } }
             if let Some(message) = visible_error { p { class: "m1-parts-load-error", role: "alert", "{message}" } }
         }

@@ -3530,7 +3530,7 @@ impl Runtime {
         }
         let core = self.core.borrow().clone();
         let core_epoch = self.session.borrow().core_executor_epoch().0;
-        let ensure_current = || {
+        let ensure_current = || -> Result<(), String> {
             if !is_current() {
                 return Err("Accepted board preview source became stale".to_owned());
             }

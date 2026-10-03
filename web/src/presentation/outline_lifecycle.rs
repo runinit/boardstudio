@@ -2320,7 +2320,7 @@ pub(super) fn OutlineDraftCanvasOverlay(
                     pointer.prevent_default();
                 },
                 onkeydown: {
-                    let finish = finish.clone();
+                    let mut finish = finish.clone();
                     let mut points = points;
                     let mut drawing_operation = drawing_operation;
                     move |event: KeyboardEvent| {
