@@ -1175,6 +1175,12 @@ pub(super) fn PartsPreviewWorkspace(
     let active_assembly = use_context::<PartsAssemblySelection>().0();
     let assembly_orientation = use_context::<PartsAssemblyOrientation>().0();
     let catalogue = use_catalogue(&snapshot, &scope);
+    let selected_module_id = modules_catalogue::selected_id(selected(), &scope);
+    let module_catalogue = modules_catalogue::use_catalogue(
+        selected_module_id.is_some(),
+        snapshot.token,
+        snapshot.document.module_definitions.clone(),
+    );
     let search = query().trim().to_lowercase();
     let listed_entries = catalogue
         .entries
@@ -1237,6 +1243,27 @@ pub(super) fn PartsPreviewWorkspace(
     let recipe_pending = active_assembly.is_some() && matching_recipe.is_none();
     let recipe_identity = request.identity();
     let preview_title = active_assembly.map(|preset| assembly_presets::name(preset).to_owned());
+    if let Some(module_id) = selected_module_id.as_deref() {
+        if let Some(module) = module_catalogue.entries.as_deref().and_then(|entries| {
+            entries
+                .iter()
+                .find(|entry| entry.definition.id == module_id)
+        }) {
+            return rsx! { modules_catalogue::ModuleSourcePreview { module: module.clone() } };
+        }
+        if let Some(error) = module_catalogue.error {
+            return rsx! {
+                section { class: "m1-workspace-content m1-parts-preview", "aria-label": "Module source preview",
+                    p { class: "m1-parts-preview-error", role: "alert", "Module source preview could not be loaded: {error}" }
+                }
+            };
+        }
+        return rsx! {
+            section { class: "m1-workspace-content m1-parts-preview", "aria-label": "Module source preview",
+                p { class: "m1-parts-preview-status", role: "status", "Loading module source preview…" }
+            }
+        };
+    }
     let Some(entries) = catalogue.entries else {
         return if let Some(error) = catalogue.error {
             rsx! {

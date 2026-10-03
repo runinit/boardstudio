@@ -1,6 +1,6 @@
 //! Lazy, read-only projection of the packaged VIK module catalogue.
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::{HardwareOutput, ModuleDefinition};
+use boardstudio_core::model::{HardwareOutput, ModuleDefinition, Side};
 use dioxus::prelude::*;
 use js_sys::Uint8Array;
 use serde::Deserialize;
@@ -246,6 +246,158 @@ pub(super) fn selected_id(
             .then(|| id.strip_prefix("module:").map(str::to_owned))
             .flatten()
     })
+}
+
+struct CircuitPartPreview {
+    id: String,
+    reference: String,
+    source_name: String,
+    transform: String,
+    courtyard: String,
+    drills: Vec<(String, f64, f64, f64)>,
+}
+
+/// Read-only rendering of the selected module snapshot's own board and circuit source geometry.
+#[component]
+pub(super) fn ModuleSourcePreview(module: ModuleEntry) -> Element {
+    let definition = &module.definition;
+    let board_points = definition
+        .board
+        .contours
+        .iter()
+        .flat_map(|contour| contour.points.iter());
+    let (mut min_x, mut max_x, mut min_y, mut max_y) = (0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64);
+    for point in board_points {
+        min_x = min_x.min(point.x);
+        max_x = max_x.max(point.x);
+        min_y = min_y.min(point.y);
+        max_y = max_y.max(point.y);
+    }
+    let board_path = definition
+        .board
+        .contours
+        .iter()
+        .filter(|contour| !contour.points.is_empty())
+        .map(|contour| {
+            format!(
+                "M{}Z",
+                contour
+                    .points
+                    .iter()
+                    .map(|point| format!("{},{}", point.x, point.y))
+                    .collect::<Vec<_>>()
+                    .join("L")
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+    let view_box = format!(
+        "{} {} {} {}",
+        min_x - 5.0,
+        -max_y - 5.0,
+        (max_x - min_x + 10.0).max(10.0),
+        (max_y - min_y + 10.0).max(10.0)
+    );
+    let holes = definition
+        .board
+        .holes
+        .iter()
+        .enumerate()
+        .map(|(index, points)| {
+            (
+                index,
+                points
+                    .iter()
+                    .map(|point| format!("{},{}", point.x, point.y))
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            )
+        })
+        .collect::<Vec<_>>();
+    let circuit_parts = definition
+        .circuit
+        .as_ref()
+        .into_iter()
+        .flat_map(|circuit| circuit.parts.iter().map(move |part| (circuit, part)))
+        .filter_map(|(circuit, part)| {
+            let source = circuit
+                .definitions
+                .iter()
+                .find(|source| source.id == part.definition_id)?;
+            let courtyard = source
+                .courtyard
+                .iter()
+                .map(|point| format!("{},{}", point.x, point.y))
+                .collect::<Vec<_>>()
+                .join(" ");
+            let drills = source
+                .pads
+                .iter()
+                .filter_map(|pad| {
+                    pad.drill
+                        .map(|drill| (pad.id.clone(), pad.at.x, pad.at.y, drill / 2.0))
+                })
+                .collect();
+            let mirror = if matches!(&part.side, Side::Back) {
+                -1
+            } else {
+                1
+            };
+            Some(CircuitPartPreview {
+                id: part.id.clone(),
+                reference: part.reference.clone(),
+                source_name: source.name.clone(),
+                transform: format!(
+                    "translate({} {}) rotate({}) scale({mirror},1)",
+                    part.pose.at.x, part.pose.at.y, part.pose.rotation
+                ),
+                courtyard,
+                drills,
+            })
+        })
+        .collect::<Vec<_>>();
+    let thickness = definition
+        .board
+        .thickness
+        .map(|thickness| format!("{thickness} mm PCB"))
+        .unwrap_or_else(|| "PCB thickness needs review".into());
+    let source_summary = format!(
+        "{thickness} · {} source components · {} mounting holes",
+        definition.constituents.len(),
+        definition.mounts.len()
+    );
+    rsx! {
+        section { class: "m1-workspace-content m1-parts-preview", "aria-label": "Module source preview",
+            header { class: "m1-parts-module-preview-heading", style: "display: grid; gap: 4px; padding: 12px;",
+                h2 { style: "margin: 0; color: var(--wb-ink); font-size: 16px;", "{definition.name}" }
+                small { style: "color: var(--wb-muted);", "VIK module · {definition.variant}" }
+            }
+            if board_path.is_empty() {
+                p { class: "m1-parts-preview-status", role: "status", "This module snapshot has no recorded board contours." }
+            } else {
+                svg { role: "img", aria_label: "{definition.name} source board and components", view_box: "{view_box}", style: "flex: 1; width: 100%; min-height: 0;",
+                    g { transform: "scale(1,-1)",
+                        path { d: "{board_path}", fill: "rgba(52,124,99,.2)", fill_rule: "evenodd", stroke: "var(--wb-accent)", stroke_width: "0.35" }
+                        for (index, points) in &holes {
+                            polygon { key: "source-hole-{index}", points: "{points}", fill: "var(--wb-canvas)", stroke: "var(--wb-muted)", stroke_width: "0.2" }
+                        }
+                        for part in &circuit_parts {
+                            g { key: "{part.id}", transform: "{part.transform}",
+                                title { "{part.reference} · {part.source_name}" }
+                                if !part.courtyard.is_empty() {
+                                    polygon { points: "{part.courtyard}", fill: "none", stroke: "var(--wb-muted)", stroke_width: "0.2" }
+                                }
+                                for (pad_id, x, y, radius) in &part.drills {
+                                    circle { key: "{pad_id}", cx: "{x}", cy: "{y}", r: "{radius}", fill: "var(--wb-canvas)", stroke: "var(--wb-muted)", stroke_width: "0.2" }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            p { class: "m1-parts-preview-status", style: "margin: 8px 12px;", "{source_summary}" }
+        }
+    }
 }
 
 #[component]

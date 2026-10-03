@@ -310,6 +310,14 @@
           "current_mitigation": "Keep variant identity exact, scope-qualified and read-only; fetch through the existing subpath-aware resource_url from a Parts-private module and cache only successfully decoded bundled entries. Project snapshots override bundled entries by ID while retaining reviewed row membership. Do not add a Runtime public API or treat VIK instance behavior as library metadata.",
           "post_port_follow_up": "Assess a typed Parts library-choice owner for definitions, assembly presets and module variants, plus whether the imported module package should be split into a narrow summary and lazy full geometry without losing provenance or identity.",
           "status": "bounded private mitigation; selection-owner and package-size design deferred; Issue 02 and parent acceptance remain open"
+        },
+        {
+          "date": "2026-10-03",
+          "source": "Issue 02 VIK paired candidate 34764, source 661296fe5633e2327488cd56738c14ab81c22341; React ModulePreview.tsx at 5a472a9426e6e38993361da402cd4ec730feb369",
+          "observation": "Selecting a source-backed VIK row and variant updated the Inspector correctly, but the mounted center still displayed the previously selected MX switch preview. Source presence and Inspector state did not guarantee the active preview owner had changed. React ModulePreview renders the exact selected module snapshot board contours, holes and available circuit courtyard/drill geometry.",
+          "current_mitigation": "Route the module-tagged Parts selection through a read-only page-local preview using only that selected ModuleDefinition source geometry. Leave missing outlines empty; retain exact selection identity and existing accepted project snapshot precedence. A paired candidate replay is required before considering this corrected.",
+          "post_port_follow_up": "Assess a typed Parts library-choice owner spanning definitions, assembly presets and module variants so menu, Inspector and center preview consume one tagged current selection.",
+          "status": "specific mounted preview mismatch reproduced; source-backed correction in progress; do not claim Issue 02 acceptance"
         }
       ],
       "continuation_notes": [
@@ -1181,6 +1189,12 @@
           "evidence": ".scratch/dioxus-parts-catalogue/evidence/issue02-vik-modules-reference-20261003/RESULTS.md",
           "observation": "The pinned React variant selector switches stable module snapshots and their exact source/readiness projection. The retained screenshot pair records the first and 1.47-inch variant, including the source-specific Case gate change. This is reference-only evidence; the packaged Dioxus replay and project override/lifecycle criteria are still pending.",
           "status": "source oracle pinned; do not count toward candidate or Issue 02 acceptance"
+        },
+        {
+          "source": "Issue 02 module row/variant candidate 34764",
+          "evidence": "/home/chris/.local/share/boardstudio/packages/frontend-board-geometry-vik-20261003/provenance.json; .scratch/dioxus-parts-catalogue/evidence/issue02-vik-module-preview-20261003/RESULTS.md",
+          "observation": "On source 661296fe5633e2327488cd56738c14ab81c22341, the packaged 43,356,120-byte module asset hash matched the source; grouped row, three variant IDs, Inspector source/readiness projection and the Case-gate change passed. The same screenshot showed a stale MX center preview after selecting a module, so this result qualifies only the Inspector leg.",
+          "status": "module Inspector leg green; exact source-preview correction and paired changed candidate replay remain open; no parent acceptance"
         }
       ],
       "resumed_wave_20261002": "2026-10-02: Machine top-level status/current integration still cited5944/34697 despite newer reviewed source andbd671ae8 served build. Corrected records explicitly separate current source14d1bfeb, servedbd671ae8/34720 and running successor build. Historical receipts retained; no parent closure.",
