@@ -23,11 +23,12 @@ Add the reference component Inspector for one current standalone Layout selectio
 
 - This is one vertical child of existing F3.5, not a new parent or a rewrite of the broad Inspector milestone.
 - Keep one selected standalone component as the initial context. Matrix/key/row/column selection remains with existing F3.2/F3.3 ownership.
-- Preserve React’s Properties/Relations labels and the selected component’s reference, definition name/kind, Position, optional Layout assignment, Board outline contribution, Layout constraint and PCB action.
+- Preserve React’s Properties/Relations labels and the selected component’s reference, definition name/kind, existing Locked badge and envelope notice, Position, optional Layout assignment, Board outline contribution, Layout constraint and PCB action.
+- Preserve Relations summary precedence: paired-layout summary, independent-layout summary, active constraint source, then empty state; keep the matrix geometry note. This displays current relation state without adding mirrored-component substitution/editing.
 - Submit position through existing MoveParts; constraint changes through existing SetConstraint/RemoveConstraint; layout membership and Part outline fields through the current accepted document replacement path. Runtime/current Layout owner must admit each mutation against its captured document, selected identity and scope.
 - Restrict constraint sources to other parts on the selected board and reject stale, cross-board and self targets. Keep constraint evaluation and validation in Core.
 - Preserve existing save/history behavior. The PCB action is a navigation callback, not a second electrical editor.
-- Do not add public Rust API/schema/edit operations or implement board outline geometry. Root/coordinator owns shared selection-to-Inspector composition, mutation callback translation, CSS and packaging; private feature UI remains separately authored.
+- Do not add public Rust API/schema/edit operations or implement board outline geometry. After the Parts author releases its shared-file reservation, this child supplies its minimal private composition, guarded mutation/navigation callbacks and scoped CSS needed to mount the leaf in the production Layout Inspector. Root serially reviews and integrates shared composition and owns packaging/build coordination; an unmounted leaf is not a completed slice.
 
 ## Testing decisions
 
