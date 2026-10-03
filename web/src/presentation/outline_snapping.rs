@@ -1,5 +1,7 @@
 //! Private port of the pinned React outline snap policy.
 use boardstudio_core::model::Vec2;
+#[path = "outline_grid_rounding.rs"]
+mod grid_rounding;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct Guide {
@@ -99,19 +101,6 @@ fn distance(a: Vec2, b: Vec2) -> f64 {
     (a.x - b.x).hypot(a.y - b.y)
 }
 
-fn rounded(value: f64) -> f64 {
-    (value * 1_000_000.0).round() / 1_000_000.0
-}
-
-fn javascript_round(value: f64) -> f64 {
-    let rounded = (value + 0.5).floor();
-    if rounded == 0.0 && value.is_sign_negative() {
-        -0.0
-    } else {
-        rounded
-    }
-}
-
 fn add(candidates: &mut Vec<Guide>, from: Vec2, direction: Vec2, label: &'static str) {
     let length = direction.x.hypot(direction.y);
     if length < 1.0e-8 {
@@ -165,18 +154,7 @@ pub(super) fn snap_outline_point(
             guides: Vec::new(),
         };
     }
-    let mut at = Vec2 {
-        x: if options.grid.x > 0.0 {
-            rounded(javascript_round(point.x / options.grid.x) * options.grid.x)
-        } else {
-            point.x
-        },
-        y: if options.grid.y > 0.0 {
-            rounded(javascript_round(point.y / options.grid.y) * options.grid.y)
-        } else {
-            point.y
-        },
-    };
+    let mut at = grid_rounding::snap_to_grid(point, options.grid);
     if !options.enabled {
         return Snap {
             at,
@@ -320,36 +298,5 @@ pub(super) fn snap_outline_point(
             y: rounded(at.y),
         },
         guides,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{Context, Options, snap_outline_point};
-    use boardstudio_core::model::Vec2;
-
-    #[test]
-    fn negative_half_grid_matches_javascript_math_round() {
-        let result = snap_outline_point(
-            Vec2 { x: -0.5, y: -1.5 },
-            Context {
-                anchor: None,
-                previous: None,
-                exclude: None,
-                neighbor: None,
-            },
-            &[],
-            Options {
-                grid: Vec2 { x: 1.0, y: 1.0 },
-                tolerance: 0.0,
-                enabled: false,
-                free: false,
-            },
-            None,
-        );
-
-        assert_eq!(result.at.x, 0.0);
-        assert!(result.at.x.is_sign_negative());
-        assert_eq!(result.at.y, -1.0);
     }
 }
