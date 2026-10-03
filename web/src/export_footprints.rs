@@ -114,7 +114,7 @@ pub(crate) async fn build_zip(
                     "boardId": scope.board_id,
                     "instanceId": scope.instance_id,
                 },
-                "token": snapshot.token.0,
+                "token": snapshot.token.0.to_string(),
                 "viewer_instance": 0,
                 "projection_generation": operation_id.0,
             },
