@@ -1,0 +1,55 @@
+{
+  "fixture_sha256": "5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df",
+  "comparison_scope": "hardware.instances[id=left].mechanical.gasketLayout.supports[0]",
+  "apps": {
+    "react": {
+      "archive_sha256": "6d665e4584093c4634e6f14b50601811c592213271cc9fd1c3325c61ff961ab9",
+      "project_id": "m1-sofle-v2-copy",
+      "board_id": "left",
+      "mount": "gasket",
+      "support_count": 1,
+      "internal_gasket_present": true,
+      "linked_support": {
+        "id": "left-keys-layout:0",
+        "regionId": "left-keys-layout",
+        "length": 75,
+        "width": 3,
+        "unlinked": false,
+        "placement": "user",
+        "anchor": 0.9220773021477032
+      },
+      "outline_key_sha256": "f7b4353d6928a94746d597ecbe342501ab733e22553fbce32a649c553164d700",
+      "shared_support_count": 0
+    },
+    "dioxus": {
+      "archive_sha256": "1a0673ec4dfda254c66ffa576314ccd138106bb43eb9ebfd9c0701bd83412803",
+      "project_id": "m1-sofle-v2-copy",
+      "board_id": "left",
+      "mount": "gasket",
+      "support_count": 1,
+      "internal_gasket_present": true,
+      "linked_support": {
+        "id": "left-keys-layout:0",
+        "regionId": "left-keys-layout",
+        "length": 75.0,
+        "width": 3.0,
+        "unlinked": false,
+        "placement": "user",
+        "anchor": 0.9220773021477031
+      },
+      "outline_key_sha256": "f7b4353d6928a94746d597ecbe342501ab733e22553fbce32a649c553164d700",
+      "shared_support_count": 0
+    }
+  },
+  "comparison": {
+    "support_id_equal": true,
+    "region_equal": true,
+    "length_equal": true,
+    "width_equal": true,
+    "unlinked_false_in_both": true,
+    "placement_user_in_both": true,
+    "outline_equal": true,
+    "anchor_absolute_delta": 1.1102230246251565e-16,
+    "same_rounded_anchor_6dp": true
+  }
+}

@@ -8,7 +8,7 @@
 
 **Capability start condition:** The current Case tree exposes exact generated gasket support rows, and MechanicalSettings owns a scoped request/outcome controller. This packet adds only the contextual form and the missing support-size patch to that existing owner.
 
-**Status:** public paired browser leg passed on integrated candidate source `e4bad4a6f03fd5a76fabdfb1b33809f2cd106840`; consolidated review and parent acceptance joins remain open. See [implementation handoff](../evidence/13-contextual-gasket-support-sizing/implementation-handoff.md) and [public receipt](../evidence/13-contextual-gasket-support-sizing/public-receipt.md).
+**Status:** same-original5b-archive React/Dioxus linked sizing, Undo/Redo, reopen, and saved-anchor comparison passed on Dioxus candidate source `e4bad4a6f03fd5a76fabdfb1b33809f2cd106840`; consolidated review and parent acceptance joins remain open. See [implementation handoff](../evidence/13-contextual-gasket-support-sizing/implementation-handoff.md) and [public receipt](../evidence/13-contextual-gasket-support-sizing/public-receipt.md).
 
 **Reviewed draft:** [Contextual gasket support sizing](../drafts/13-case-contextual-gasket-support-sizing.md).
 

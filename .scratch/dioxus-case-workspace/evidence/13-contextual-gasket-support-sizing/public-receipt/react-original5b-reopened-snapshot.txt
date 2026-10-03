@@ -1,0 +1,233 @@
+- generic [ref=e323] clickable [onclick]
+  - main
+    - sectionheader
+      - button "Project" [expanded=false, ref=e335]
+        - StaticText "Sofle v2"
+      - group
+        - DisclosureTriangle "Saved locally" [expanded=false]
+      - tablist "Board workflow"
+        - tab "Layout" [ref=e336]
+        - tab "PCB" [ref=e337]
+        - tab "Keymap" [ref=e338]
+        - tab "Keycaps" [ref=e339]
+        - tab "Case" [selected, ref=e340]
+        - tab "Parts" [ref=e341]
+      - button "Export" [ref=e324]
+        - StaticText "Export"
+    - status "Keyboard movement"
+    - generic
+      - complementary "Part inventory"
+        - StaticText "Objects"
+        - button "Objects options" [expanded=false, ref=e629]
+        - separator "Resize objects" [ref=e626] focusable [tabindex]: 235
+        - tree "CAD structure"
+          - generic
+            - generic
+              - button "Collapse Left case assembly" [expanded=true, ref=e645]
+                - StaticText "⌄"
+              - treeitem "Left case assembly" [level=1, expanded=true, ref=e646]
+                - StaticText "Left case assembly"
+              - button "Hide Left case assembly" [ref=e647]
+            - generic
+              - treeitem "Plate" [level=2, ref=e648]
+                - StaticText "Plate"
+              - button "Hide Plate" [ref=e649]
+            - generic
+              - treeitem "Plate foam" [level=2, ref=e650]
+                - StaticText "Plate foam"
+              - button "Hide Plate foam" [ref=e651]
+            - generic
+              - treeitem "Bottom foam" [level=2, ref=e652]
+                - StaticText "Bottom foam"
+              - button "Hide Bottom foam" [ref=e653]
+            - generic
+              - treeitem "Bottom case" [level=2, ref=e654]
+                - StaticText "Bottom case"
+              - button "Hide Bottom case" [ref=e655]
+            - generic
+              - treeitem "Top case" [level=2, ref=e656]
+                - StaticText "Top case"
+              - button "Hide Top case" [ref=e657]
+            - generic
+              - button "Collapse Gaskets" [expanded=true, ref=e658]
+                - StaticText "⌄"
+              - treeitem "Gaskets 17 pairs" [level=2, expanded=true, ref=e659]
+                - StaticText "Gaskets"
+                - StaticText "17 pairs"
+              - button "Hide Gaskets" [ref=e660]
+            - generic
+              - treeitem "Gasket 1 · Left 75 × 3 mm" [level=3, selected, ref=e661]
+                - StaticText "Gasket 1 · Left"
+                - StaticText "75 × 3 mm"
+              - button "Hide Gasket 1 · Left" [ref=e662]
+            - generic
+              - treeitem "Gasket 2 · Right 20 × 3 mm" [level=3, ref=e663]
+                - StaticText "Gasket 2 · Right"
+                - StaticText "20 × 3 mm"
+              - button "Hide Gasket 2 · Right" [ref=e664]
+            - generic
+              - treeitem "Gasket 3 · Bottom 10 × 3 mm" [level=3, ref=e665]
+                - StaticText "Gasket 3 · Bottom"
+                - StaticText "10 × 3 mm"
+              - button "Hide Gasket 3 · Bottom" [ref=e666]
+            - generic
+              - treeitem "Gasket 4 · Top 10 × 3 mm" [level=3, ref=e667]
+                - StaticText "Gasket 4 · Top"
+                - StaticText "10 × 3 mm"
+              - button "Hide Gasket 4 · Top" [ref=e668]
+            - generic
+              - treeitem "Gasket 5 · Top 5 × 3 mm" [level=3, ref=e669]
+                - StaticText "Gasket 5 · Top"
+                - StaticText "5 × 3 mm"
+              - button "Hide Gasket 5 · Top" [ref=e670]
+            - generic
+              - treeitem "Gasket 6 · Right 10 × 3 mm" [level=3, ref=e671]
+                - StaticText "Gasket 6 · Right"
+                - StaticText "10 × 3 mm"
+              - button "Hide Gasket 6 · Right" [ref=e672]
+            - generic
+              - treeitem "Gasket 7 · Bottom 10 × 3 mm" [level=3, ref=e673]
+                - StaticText "Gasket 7 · Bottom"
+                - StaticText "10 × 3 mm"
+              - button "Hide Gasket 7 · Bottom" [ref=e674]
+            - generic
+              - treeitem "Gasket 8 · Bottom 5 × 3 mm" [level=3, ref=e675]
+                - StaticText "Gasket 8 · Bottom"
+                - StaticText "5 × 3 mm"
+              - button "Hide Gasket 8 · Bottom" [ref=e676]
+            - generic
+              - treeitem "Gasket 9 · Bottom 10 × 3 mm" [level=3, ref=e677]
+                - StaticText "Gasket 9 · Bottom"
+                - StaticText "10 × 3 mm"
+              - button "Hide Gasket 9 · Bottom" [ref=e678]
+            - generic
+              - treeitem "Gasket 10 · Top 10 × 3 mm" [level=3, ref=e679]
+                - StaticText "Gasket 10 · Top"
+                - StaticText "10 × 3 mm"
+              - button "Hide Gasket 10 · Top" [ref=e680]
+            - generic
+              - treeitem "Gasket 11 · Bottom 10 × 3 mm" [level=3, ref=e681]
+                - StaticText "Gasket 11 · Bottom"
+                - StaticText "10 × 3 mm"
+              - button "Hide Gasket 11 · Bottom" [ref=e682]
+            - generic
+              - treeitem "Gasket 12 · Top 10 × 3 mm" [level=3, ref=e683]
+                - StaticText "Gasket 12 · Top"
+                - StaticText "10 × 3 mm"
+              - button "Hide Gasket 12 · Top" [ref=e684]
+            - generic
+              - treeitem "Gasket 13 · Top 10 × 3 mm" [level=3, ref=e685]
+                - StaticText "Gasket 13 · Top"
+                - StaticText "10 × 3 mm"
+              - button "Hide Gasket 13 · Top" [ref=e686]
+            - generic
+              - treeitem "Gasket 14 · Top 10 × 3 mm" [level=3, ref=e687]
+                - StaticText "Gasket 14 · Top"
+                - StaticText "10 × 3 mm"
+              - button "Hide Gasket 14 · Top" [ref=e688]
+            - generic
+              - treeitem "Gasket 15 · Right 5 × 3 mm" [level=3, ref=e689]
+                - StaticText "Gasket 15 · Right"
+                - StaticText "5 × 3 mm"
+              - button "Hide Gasket 15 · Right" [ref=e690]
+            - generic
+              - treeitem "Gasket 16 · Bottom 5 × 3 mm" [level=3, ref=e691]
+                - StaticText "Gasket 16 · Bottom"
+                - StaticText "5 × 3 mm"
+              - button "Hide Gasket 16 · Bottom" [ref=e692]
+        - strong
+          - StaticText "Left PCB"
+        - StaticText "Left PCB"
+        - StaticText " / "
+        - StaticText "Case"
+        - StaticText "Select an object to edit"
+      - region "Case canvas" [ref=e325]
+        - toolbar "Case commands"
+          - strong
+            - StaticText "Case"
+          - StaticText "Assembly & components"
+        - generic [ref=e627] clickable [onclick]
+          - region "Case generation" [ref=e630]
+            - heading "Case preview" [level=3, ref=e636]
+            - LabelText [ref=e637] clickable [cursor:pointer]
+              - switch "Live preview" [checked=true, ref=e693]
+              - StaticText "Live preview"
+            - status
+              - StaticText "Geometry current · export available with warnings to review."
+            - button "Update preview" [ref=e638]
+            - button "Export geometry" [ref=e639]
+        - generic "Complete PCB assembly preview"
+          - generic
+            - group "Display mode"
+              - button "Shaded" [ref=e695]
+              - button "Wireframe" [ref=e696]
+              - button "Hybrid" [ref=e697]
+              - button "Show hidden lines" [ref=e698]
+            - group "Mechanical assembly view"
+              - button "Assembled" [ref=e699]
+              - button "Exploded" [ref=e700]
+              - button "Section" [ref=e701]
+              - button "Edit gaskets" [disabled, ref=e702]
+              - button "Unlink selected support" [ref=e703]
+          - generic
+            - generic
+              - Canvas "3D PCB assembly. Drag to orbit, scroll to zoom."
+              - status
+                - StaticText "Preparing 3D geometry…"
+              - group "Assembly camera"
+                - button "Fit" [ref=e705]
+                - button "Top" [ref=e706]
+                - button "Bottom" [ref=e707]
+                - button "Isometric" [ref=e708]
+              - status
+                - StaticText "Generated CAD solids · 39 parts at revision 14"
+              - status
+                - StaticText "90 / 90 models · 1.6 mm PCB"
+            - region "Canvas layers" [ref=e694]
+              - button "Layers" [expanded=false, ref=e704]
+                - StaticText "Layers"
+      - complementary "Case inspector"
+        - StaticText "Inspect"
+        - button "Inspector options" [expanded=false, ref=e631]
+        - separator "Resize inspector" [ref=e628] focusable [tabindex]: 320
+        - generic
+          - generic
+            - StaticText "Left PCB / Case"
+          - button "Assembly settings" [ref=e632]
+          - heading "Gasket 1" [level=2, ref=e633]
+          - paragraph
+            - StaticText "Matching upper and lower pads. Drag this gasket directly to another side in Edit gaskets."
+          - paragraph
+            - StaticText "Fits at this position."
+          - LabelText
+            - StaticText "Cut length"
+            - spinbutton "Cut length mm" [ref=e640]: 75
+              - StaticText "75"
+            - StaticText "mm"
+          - LabelText
+            - StaticText "Pad width"
+            - spinbutton "Pad width mm" [ref=e641]: 3
+              - StaticText "3"
+            - StaticText "mm"
+          - paragraph
+            - StaticText "Prefer 10 mm cuts; use 5 mm increments for a tighter fit. Foam thickness and compression are shared by the floating stack."
+          - button "All gasket settings" [ref=e634]
+          - region "Part appearance" [ref=e635]
+            - heading "Display" [level=3, ref=e642]
+            - LabelText
+              - StaticText "Colour"
+              - ColorWell "Part colour": #b4bac2
+            - button "Reset colour" [ref=e643]
+            - checkbox "Visible" [checked=true, ref=e644]
+          - group
+            - DisclosureTriangle "Routed PCB reference" [expanded=false]
+              - StaticText "Routed PCB reference"
+    - sectionfooter
+      - button "Undo" [ref=e622]
+      - button "Redo" [ref=e623]
+      - StaticText "3D · mm"
+      - StaticText "Drag to orbit · Scroll to zoom"
+      - button "Layout findings: 2" [ref=e624]
+        - StaticText "Layout findings: 2"
+      - button "Mechanical findings: 2" [ref=e625]
+        - StaticText "Mechanical findings: 2"
