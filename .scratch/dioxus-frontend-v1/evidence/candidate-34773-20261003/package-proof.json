@@ -1,0 +1,40 @@
+{
+  "build_id": "frontend-source-batch-20261003-4",
+  "source_commit": "ef087c7485b67e08463f1fcb9ece7b7c937dd2d1",
+  "provenance": "web/target/builds/frontend-source-batch-20261003-4/provenance.json",
+  "provenance_sha256": "ccf51ea6746b96891e4242edbd260d41e39b49c3a7bb5a2b0107edccefa5b2b6",
+  "source_count": 1381,
+  "source_mismatches": [],
+  "source_verification": "Frozen integration file bytes against source manifest before next joins.",
+  "routes": {
+    "root": {
+      "http": 200,
+      "headers": {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp"
+      },
+      "asset_count": 190,
+      "mismatches": []
+    },
+    "subpath": {
+      "http": 200,
+      "headers": {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp"
+      },
+      "asset_count": 190,
+      "mismatches": []
+    }
+  },
+  "fresh_commands": 7,
+  "inherited_commands": 22,
+  "duration_seconds": 125.485402,
+  "source_compile": {
+    "source_commit": "6ae8e609",
+    "exit_code": 0,
+    "log": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-14.log",
+    "warnings": 3,
+    "followup": "Three unused-mut warnings removed at ef087c74; release packaging reports two legacy encoder-key warnings."
+  },
+  "qualification": "Package/source/HTTP assets only. No new application tests, browser journeys or review."
+}

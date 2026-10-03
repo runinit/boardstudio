@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T15:56:16.875371+00:00",
+    "updated_at": "2026-10-03T16:01:28.996387+00:00",
     "parent_counts": {
       "accepted": 10,
       "implementing": 41,
@@ -25,27 +25,27 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-source-batch-20261003-3",
-      "source_commit": "53645aa3b8a20f90b3e1e2ff2efa722ce73688a2",
-      "root_url": "http://127.0.0.1:34772/",
-      "subpath_url": "http://127.0.0.1:34772/boardstudio/",
-      "provenance": "web/target/builds/frontend-source-batch-20261003-3/provenance.json",
-      "provenance_sha256": "d3afadb706e6c2c779761f32cb054bd045a6947d613106fe8b7ae1cf9d83644c",
+      "build_id": "frontend-source-batch-20261003-4",
+      "source_commit": "ef087c7485b67e08463f1fcb9ece7b7c937dd2d1",
+      "root_url": "http://127.0.0.1:34773/",
+      "subpath_url": "http://127.0.0.1:34773/boardstudio/",
+      "provenance": "web/target/builds/frontend-source-batch-20261003-4/provenance.json",
+      "provenance_sha256": "ccf51ea6746b96891e4242edbd260d41e39b49c3a7bb5a2b0107edccefa5b2b6",
       "fresh_commands": 7,
       "inherited_commands": 22,
-      "source_inputs": 1380,
+      "source_inputs": 1381,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 131.926942,
+      "command_span_seconds": 125.485402,
       "package_qualification": "Package/source/HTTP assets only. No new application tests, browser journeys or review.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34772-20261003/package-proof.json"
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34773-20261003/package-proof.json"
     },
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "d5f915b7",
-      "state": "Assembly bindings/matrix Apply/Layout placement joined and combined source compile passes. Packaging next larger candidate with PCB/Outline follow-ups. Direct board X/Y placement remains active; tests/browser/review deferred.",
+      "source_commit": "ef087c7485b67e08463f1fcb9ece7b7c937dd2d1",
+      "state": "Assembly bindings/Matrix Apply/Layout placement plus PCB manual-net release and Outline connection controls packaged and served34773. Direct board X/Y action continues in its original issue. Browser qualification/review deferred.",
       "packets": [
         {
           "stream": "Layout",
@@ -304,14 +304,7 @@
     ],
     "heavy_slots": {
       "policy": "Coordinator assigned; maximum 2 heavy jobs / 1 package",
-      "active": [
-        {
-          "kind": "preview package",
-          "build_id": "frontend-source-batch-20261003-4",
-          "log": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/frontend-source-batch-20261003-4-package.log",
-          "qualification": "Source/package only; application tests/browser/review deferred."
-        }
-      ],
+      "active": [],
       "check": {
         "source_commit": "3dbcdb38",
         "result": "Failed strict check: two needless Option borrow conversions in Add-object source. Repaired at642d5474; recheck deferred until larger candidate.",
@@ -367,6 +360,15 @@
           "provenance": "web/target/builds/frontend-source-batch-20261003-3/provenance.json",
           "provenance_sha256": "d3afadb706e6c2c779761f32cb054bd045a6947d613106fe8b7ae1cf9d83644c",
           "qualification": "Package/source/HTTP assets only. No new application tests, browser journeys or review."
+        },
+        {
+          "build_id": "frontend-source-batch-20261003-4",
+          "source_commit": "ef087c7485b67e08463f1fcb9ece7b7c937dd2d1",
+          "exit_code": 0,
+          "result": "complete",
+          "provenance": "web/target/builds/frontend-source-batch-20261003-4/provenance.json",
+          "provenance_sha256": "ccf51ea6746b96891e4242edbd260d41e39b49c3a7bb5a2b0107edccefa5b2b6",
+          "qualification": "Package/source/HTTP assets only. No new application tests, browser journeys or review."
         }
       ],
       "source_compile": {
@@ -402,7 +404,7 @@
       "audit": ".scratch/dioxus-frontend-v1/evidence/candidate-34771-20261003/consolidated-audit.json",
       "audit_sha256": "a8352d86c1093cc5d3b2f7c63d02a3910788650d67fc4619a7a62317a58b1b67",
       "state": "Finalized34771 scope assessments with explicit unqualified broader limits; next source batch review deferred.",
-      "candidate": "34771 retained review;34772 and later source have no new review yet."
+      "candidate": "34771 retained review;34772/34773 and later source have no new review yet."
     },
     "parent_acceptances": [
       {
@@ -426,11 +428,11 @@
       {
         "stream": "Layout",
         "priority": "first",
-        "state": "Properties/Relations, outline feature/bridge/gap focus/rectangle positions served34772. Generated connection attachment/insert/remove and selection-retention fixes joined afterward; qualification remains."
+        "state": "Properties/Relations, outline feature/bridge/gap focus/rectangle positions and generated connection attachment/insert/remove/selection retention served34773. Browser qualification remains."
       },
       {
         "stream": "PCB",
-        "state": "Reference import/model attachments served34772. Manual-net conflict/release source joined afterward. Source pass found no further owned controller/pin/jumper/profile control gap; final behavioral joins remain."
+        "state": "Reference import/model attachments and manual-net conflict/release served34773. Source pass found no further owned controller/pin/jumper/profile control gap; final behavioral joins remain."
       },
       {
         "stream": "Keymap",
@@ -446,14 +448,14 @@
       },
       {
         "stream": "Parts + Project",
-        "state": "Advanced assembly model-binding/Matrix Apply/Layout placement source joined and compiling. Exact TS direct board X/Y parts action is authoring in same issue; other Parts source pass found no remaining owned control gap."
+        "state": "Assembly model bindings/Matrix Apply/Layout placement served34773. Exact TS direct board X/Y parts action remains with the original author in the same issue; other Parts source pass found no remaining owned control gap."
       }
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Continue Assembly placement/binding author and bounded Parts source comparison; no speculative audit artifacts or duplicate tickets.",
-      "Compile the next joined batch before packaging;34772 remains served.",
-      "Later qualify changed public journeys and consolidate Sol review once. Preserve all criteria and RF history."
+      "Join the existing Assembly direct board X/Y action when ready; no new planning approval, duplicate ticket or audit receipt.",
+      "Compile next changed joined source before packaging.34773 remains available while authoring continues.",
+      "Later qualify changed public journeys and conduct one consolidated Sol review. Preserve every parent criterion and RF history."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",

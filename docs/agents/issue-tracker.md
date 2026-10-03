@@ -83,8 +83,9 @@ this run. Apply to-tickets vertical slicing, true blockers and per-file publicat
 routine ticket breakdown/publication no longer requires another user quiz.
 Source-check the consumed capabilities, refine the existing spec/ticket and
 implement without a separate planning approval. The user’s 2026-10-03 direction
-reduces repeated testing: one required affected compile/check, one changed paired
-browser journey and one consolidated candidate review, reusing unchanged evidence.
+defers behavioral testing and review until a larger candidate is integrated. Compile
+the combined affected source before packaging; later qualify changed paired browser
+journeys and conduct one consolidated candidate review, reusing unchanged evidence.
 Keep shared integration serial and six queues active, with one waiting packet per
 stream. Necessary migration API/design/visibility changes are authorized by the
 2026-10-02 user decision in CONSTRAINTS.md; external cutover remains separate. Every handoff continues to record RF takeaways.
