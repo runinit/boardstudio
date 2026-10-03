@@ -342,10 +342,11 @@ fn commit_draft(
         draft.set(None);
         return;
     }
+    let name = name.to_owned();
     value.submitted = true;
     draft.set(Some(value));
     on_rename.call(BoardRenameAction {
         owner: owner.clone(),
-        name: name.to_owned(),
+        name,
     });
 }
