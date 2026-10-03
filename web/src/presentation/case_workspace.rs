@@ -76,8 +76,9 @@ pub(super) struct ObjectsInput<'a> {
     pub(super) model: &'a ReadModel,
     pub(super) scope: Option<Scope>,
     pub(super) instance_scope_pending: bool,
-    /// Only the page owner may supply this scene, after its normal scope/token
-    /// check. This leaf rechecks the identity before displaying generated rows.
+    /// Only the page owner may supply this scene for the current physical scope.
+    /// This leaf keeps a completed same-scope scene visible across accepted edits,
+    /// labeling it as previous geometry until current output replaces it.
     pub(super) scene: Option<Rc<CadScene>>,
     pub(super) selected_context: Signal<Option<ScopedTreeContext>>,
     pub(super) selected_body_id: Option<String>,
@@ -149,10 +150,14 @@ pub(super) fn objects(input: ObjectsInput<'_>) -> Element {
     let active_root_id = active_instance_id
         .clone()
         .unwrap_or_else(|| scope.board_id.clone());
-    let live_scene = input
-        .scene
-        .as_ref()
-        .filter(|scene| scene.exact && scene.scope == scope && scene.token == snapshot.token);
+    let live_scene = input.scene.as_ref().filter(|scene| {
+        crate::case_generation_lifecycle::same_owner_completed_scene_for_display(
+            scene.exact,
+            &scene.scope,
+            &scope,
+        )
+    });
+    let showing_previous_geometry = live_scene.is_some_and(|scene| scene.token != snapshot.token);
     let mechanical = live_scene.and_then(|scene| scene.mechanical.as_ref());
     let active_body = input.selected_body_id.as_deref().filter(|id| {
         document
@@ -213,7 +218,7 @@ pub(super) fn objects(input: ObjectsInput<'_>) -> Element {
         rows.push(Row {
             id: root_key.clone(),
             label: format!("{} case assembly", assembly_label(&instance.name)),
-            detail: None,
+            detail: showing_previous_geometry.then(|| "Previous geometry".into()),
             level: 0,
             expanded: Some(active && !collapsed),
             selectable: true,
@@ -239,7 +244,7 @@ pub(super) fn objects(input: ObjectsInput<'_>) -> Element {
                 rows.push(Row {
                     id: format!("case-generated:{}", layer.id),
                     label: stack_label(&layer.id),
-                    detail: None,
+                    detail: showing_previous_geometry.then(|| "Previous geometry".into()),
                     level: 1,
                     expanded: None,
                     selectable: true,
@@ -259,7 +264,14 @@ pub(super) fn objects(input: ObjectsInput<'_>) -> Element {
                 rows.push(Row {
                     id: group_key.clone(),
                     label: "Gaskets".into(),
-                    detail: Some(format!("{} pairs", assembly.gasket_supports.len())),
+                    detail: Some(if showing_previous_geometry {
+                        format!(
+                            "{} pairs · Previous geometry",
+                            assembly.gasket_supports.len()
+                        )
+                    } else {
+                        format!("{} pairs", assembly.gasket_supports.len())
+                    }),
                     level: 1,
                     expanded: Some(open),
                     selectable: true,
@@ -671,7 +683,11 @@ pub(super) fn apply_tree_action(
         }
         TreeAction::SelectLayer { scope, layer_id } => {
             let Some(scene) = runtime.cad_scene().filter(|scene| {
-                scene.exact && scene.scope == scope && scene.token == expected_token
+                crate::case_generation_lifecycle::same_owner_completed_scene_for_display(
+                    scene.exact,
+                    &scene.scope,
+                    &scope,
+                )
             }) else {
                 return;
             };
@@ -691,7 +707,11 @@ pub(super) fn apply_tree_action(
         }
         TreeAction::SelectGaskets { scope } => {
             let Some(scene) = runtime.cad_scene().filter(|scene| {
-                scene.exact && scene.scope == scope && scene.token == expected_token
+                crate::case_generation_lifecycle::same_owner_completed_scene_for_display(
+                    scene.exact,
+                    &scene.scope,
+                    &scope,
+                )
             }) else {
                 return;
             };
@@ -810,13 +830,14 @@ fn target_display_is_current(
         return true;
     }
     runtime.cad_scene().is_some_and(|scene| {
-        scene.exact
-            && scene.scope == *target_scope
-            && scene.token == snapshot.token
-            && (scene.mechanical.as_ref().is_some_and(|assembly| {
-                assembly.stack.iter().any(|layer| layer.id == id)
-                    || (id == "gaskets" && !assembly.gasket_supports.is_empty())
-            }) || scene.result.bodies.iter().any(|body| body.id == id))
+        crate::case_generation_lifecycle::same_owner_completed_scene_for_display(
+            scene.exact,
+            &scene.scope,
+            target_scope,
+        ) && (scene.mechanical.as_ref().is_some_and(|assembly| {
+            assembly.stack.iter().any(|layer| layer.id == id)
+                || (id == "gaskets" && !assembly.gasket_supports.is_empty())
+        }) || scene.result.bodies.iter().any(|body| body.id == id))
     })
 }
 

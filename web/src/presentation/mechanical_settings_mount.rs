@@ -300,6 +300,15 @@ pub(crate) fn use_mechanical_settings_mount(
                 && scene.exact
         })
     });
+    let display_scene = current_projection.as_ref().and_then(|current| {
+        runtime.cad_scene().filter(|scene| {
+            crate::case_generation_lifecycle::same_owner_completed_scene_for_display(
+                scene.exact,
+                &scene.scope,
+                &current.identity.scope,
+            )
+        })
+    });
     let generation_ready = current_projection.as_ref().is_some_and(|current| {
         let requires_initialization = current.configuration.as_ref().is_some_and(|configuration| {
             configuration.board_id == current.identity.active_board_id
@@ -339,9 +348,13 @@ pub(crate) fn use_mechanical_settings_mount(
         .as_ref()
         .and_then(|current| current.configuration.as_ref())
         .is_some_and(|configuration| configuration.internal_gasket.is_some());
+    let previous_geometry = current_projection
+        .as_ref()
+        .zip(display_scene.as_ref())
+        .is_some_and(|(current, scene)| scene.token != current.identity.snapshot_token);
     let scene_rows = use_memo(use_reactive(
-        (&scene, &internal_gasket),
-        |(scene, gasket)| project_scene_rows(scene.as_ref(), gasket),
+        (&display_scene, &internal_gasket, &previous_geometry),
+        |(scene, gasket, is_previous)| project_scene_rows(scene.as_ref(), gasket, is_previous),
     ));
     let props = current_projection.map(|current| {
         let configuration = current.configuration.as_ref();
@@ -418,9 +431,11 @@ pub(crate) fn use_mechanical_settings_mount(
                     return;
                 }
                 let Some(scene) = runtime.cad_scene().filter(|scene| {
-                    scene.scope == live.identity.scope
-                        && scene.token == live.identity.snapshot_token
-                        && scene.exact
+                    crate::case_generation_lifecycle::same_owner_completed_scene_for_display(
+                        scene.exact,
+                        &scene.scope,
+                        &live.identity.scope,
+                    )
                 }) else {
                     return;
                 };
@@ -614,6 +629,7 @@ struct MechanicalSceneRows {
 fn project_scene_rows(
     scene: Option<&Rc<CadScene>>,
     internal_gasket: bool,
+    is_previous: bool,
 ) -> Option<MechanicalSceneRows> {
     let assembly = scene?.mechanical.as_ref()?;
     let layers: Vec<_> = assembly
@@ -630,6 +646,7 @@ fn project_scene_rows(
                 .iter()
                 .find(|body| body.body.id == layer.id)
                 .map(|body| body.body.thickness),
+            is_previous,
         })
         .collect();
     let findings: Vec<_> = assembly

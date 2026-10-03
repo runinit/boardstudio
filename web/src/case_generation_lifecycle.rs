@@ -123,13 +123,10 @@ fn case_fingerprint_for_inputs(
                     "generator",
                 ],
             );
-            if let Some(generator) = value.get_mut("generator") {
-                if let Some(parameters) = generator.get_mut("parameters") {
-                    filter_geometry_parameters(
-                        parameters,
-                        terminal_names.get(definition.id.as_str()),
-                    );
-                }
+            if let Some(generator) = value.get_mut("generator")
+                && let Some(parameters) = generator.get_mut("parameters")
+            {
+                filter_geometry_parameters(parameters, terminal_names.get(definition.id.as_str()));
             }
             Some(value)
         })
@@ -215,13 +212,9 @@ impl AutomaticCaseGeneration {
         busy: bool,
     ) -> bool {
         if !self.enabled || !eligible || has_reusable_result || busy {
-            if !eligible {
-                self.attempted = None;
-            }
             return false;
         }
         let Some(owner) = owner else {
-            self.attempted = None;
             return false;
         };
         if self.attempted.as_ref() == Some(&owner) {
@@ -242,6 +235,30 @@ impl AutomaticCaseGeneration {
     pub(crate) fn enabled(&self) -> bool {
         self.enabled
     }
+}
+
+pub(crate) fn may_rebind_completed_case_result(
+    exact: bool,
+    scene_scope: &Scope,
+    scene_token: SnapshotToken,
+    scene_fingerprint: Option<[u8; 32]>,
+    current_scope: &Scope,
+    current_token: SnapshotToken,
+    current_fingerprint: Option<[u8; 32]>,
+) -> bool {
+    exact
+        && scene_scope == current_scope
+        && scene_token != current_token
+        && scene_fingerprint.is_some()
+        && scene_fingerprint == current_fingerprint
+}
+
+pub(crate) fn same_owner_completed_scene_for_display(
+    exact: bool,
+    scene_scope: &Scope,
+    current_scope: &Scope,
+) -> bool {
+    exact && scene_scope == current_scope
 }
 
 #[cfg(test)]
@@ -295,6 +312,70 @@ mod tests {
         assert!(!state.observe(Some(current.clone()), true, false, true));
         assert!(!state.observe(Some(current.clone()), true, true, false));
         assert!(state.observe(Some(current), true, false, false));
+    }
+
+    #[test]
+    fn transient_ineligibility_does_not_retry_a_terminal_owner() {
+        let current = owner(10, 4);
+        let mut state = AutomaticCaseGeneration {
+            enabled: true,
+            attempted: None,
+        };
+
+        assert!(state.observe(Some(current.clone()), true, false, false));
+        assert!(!state.observe(Some(current.clone()), false, false, false));
+        assert!(!state.observe(Some(current), true, false, false));
+    }
+
+    #[test]
+    fn only_exact_completed_same_owner_output_rebinds() {
+        let scope = owner(10, 4).scope;
+        let fingerprint = Some([7; 32]);
+        assert!(may_rebind_completed_case_result(
+            true,
+            &scope,
+            SnapshotToken(10),
+            fingerprint,
+            &scope,
+            SnapshotToken(11),
+            fingerprint,
+        ));
+        assert!(!may_rebind_completed_case_result(
+            false,
+            &scope,
+            SnapshotToken(10),
+            fingerprint,
+            &scope,
+            SnapshotToken(11),
+            fingerprint,
+        ));
+        assert!(!may_rebind_completed_case_result(
+            true,
+            &scope,
+            SnapshotToken(10),
+            fingerprint,
+            &scope,
+            SnapshotToken(11),
+            Some([8; 32]),
+        ));
+    }
+
+    #[test]
+    fn previous_geometry_is_displayable_only_in_its_original_scope() {
+        let original = owner(10, 4).scope;
+        let mut other_instance = original.clone();
+        other_instance.instance_id = Some("right-half".into());
+        assert!(same_owner_completed_scene_for_display(
+            true, &original, &original,
+        ));
+        assert!(!same_owner_completed_scene_for_display(
+            false, &original, &original,
+        ));
+        assert!(!same_owner_completed_scene_for_display(
+            true,
+            &original,
+            &other_instance,
+        ));
     }
 
     #[test]

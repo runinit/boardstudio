@@ -54,8 +54,11 @@ pub(crate) struct MechanicalLayerRow {
     pub(crate) label: String,
     pub(crate) z: f64,
     pub(crate) thickness: f64,
-    /// Present only when the exact current Case assembly contains a body with this ID.
+    /// Present only when the displayed completed Case assembly contains a body with this ID.
     pub(crate) resolved_body_thickness: Option<f64>,
+    /// The row is retained from the last completed same-owner assembly while
+    /// the accepted physical inputs have changed.
+    pub(crate) is_previous: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -283,6 +286,11 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
     rsx! {
         section { class: "m1-mechanical-settings", aria_label: "Mechanical stack settings",
             h2 { "Case construction" }
+            if props.layers.iter().any(|layer| layer.is_previous) {
+                p { role: "status", class: "m1-mechanical-previous-result",
+                    "Showing generated layers from a previous accepted revision. Settings below reflect the current accepted configuration."
+                }
+            }
             if let Some(mismatch) = mismatch {
                 div { role: "status", class: "m1-mechanical-mismatch",
                     p { "The mechanical stack belongs to {mismatch.board_name}. This board remains in authored Case mode." }
@@ -654,6 +662,11 @@ fn ContextualLayerInspector(props: ContextualLayerInspectorProps) -> Element {
                 "Assembly settings"
             }
             h2 { "{title}" }
+            if props.layer.is_previous {
+                p { role: "status", class: "m1-mechanical-previous-result",
+                    "Showing previous generated geometry. Measurements describe the prior accepted revision; settings below reflect the current configuration."
+                }
+            }
             fieldset { class: "m1-mechanical-group", disabled: !props.editable,
                 for (field, label, value) in fields {
                     DimensionField {
@@ -1205,9 +1218,10 @@ struct ResolvedStackProps {
 
 #[component]
 fn ResolvedStack(props: ResolvedStackProps) -> Element {
+    let is_previous = props.layers.iter().any(|layer| layer.is_previous);
     rsx! {
         section { class: "m1-mechanical-group", aria_label: "Resolved mechanical stack",
-            h3 { "Resolved stack · {props.layers.len()} layers" }
+            h3 { if is_previous { "Previous resolved stack · {props.layers.len()} layers" } else { "Resolved stack · {props.layers.len()} layers" } }
             if props.layers.is_empty() {
                 p { role: "status", "The stack appears after the current revision resolves." }
             } else {
@@ -1226,6 +1240,7 @@ fn ResolvedStack(props: ResolvedStackProps) -> Element {
                             strong { "{label}" }
                             span { "{row.thickness:.2} mm" }
                             small { "Z {row.z:.2}" }
+                            if row.is_previous { small { "Previous revision" } }
                         } }
                         }
                     }
@@ -1425,6 +1440,14 @@ mod contextual_layer_tests {
     }
 
     fn test_page() -> Element {
+        test_page_with_previous(false)
+    }
+
+    fn previous_test_page() -> Element {
+        test_page_with_previous(true)
+    }
+
+    fn test_page_with_previous(is_previous: bool) -> Element {
         let mut selected_layer = use_signal(|| "plate".to_owned());
         let mut shown_finding = use_signal(String::new);
         let request_sequence = use_signal(|| 0_u64);
@@ -1437,6 +1460,7 @@ mod contextual_layer_tests {
                 z: 0.0,
                 thickness: 1.5,
                 resolved_body_thickness: Some(1.5),
+                is_previous,
             },
             MechanicalLayerRow {
                 id: "pcb".into(),
@@ -1444,6 +1468,7 @@ mod contextual_layer_tests {
                 z: 0.0,
                 thickness: 1.6,
                 resolved_body_thickness: None,
+                is_previous: false,
             },
             MechanicalLayerRow {
                 id: "plate-foam".into(),
@@ -1451,6 +1476,7 @@ mod contextual_layer_tests {
                 z: 0.0,
                 thickness: 0.5,
                 resolved_body_thickness: None,
+                is_previous: false,
             },
             MechanicalLayerRow {
                 id: "bottom-foam".into(),
@@ -1458,6 +1484,7 @@ mod contextual_layer_tests {
                 z: 0.0,
                 thickness: 0.5,
                 resolved_body_thickness: None,
+                is_previous: false,
             },
             MechanicalLayerRow {
                 id: "bottom".into(),
@@ -1465,6 +1492,7 @@ mod contextual_layer_tests {
                 z: 0.0,
                 thickness: 3.0,
                 resolved_body_thickness: Some(3.0),
+                is_previous: false,
             },
             MechanicalLayerRow {
                 id: "retainer".into(),
@@ -1472,6 +1500,7 @@ mod contextual_layer_tests {
                 z: 0.0,
                 thickness: 0.0,
                 resolved_body_thickness: None,
+                is_previous: false,
             },
         ]);
         let findings = Rc::from([
@@ -1714,6 +1743,26 @@ mod contextual_layer_tests {
         assert!(text.contains("Clearance"));
         assert!(!text.contains("Resolved thickness"));
         assert!(!text.contains("Plate thickness"));
+    }
+
+    #[wasm_bindgen_test]
+    async fn previous_generated_layer_context_stays_visible_and_is_labeled() {
+        mount_battery_test_page("case-previous-settings-test-root", previous_test_page);
+        rendered().await;
+        let panel = element("#case-previous-settings-test-root .m1-mechanical-settings");
+        let text = panel.text_content().unwrap_or_default();
+        assert!(text.contains("previous generated geometry"));
+        assert!(text.contains("Resolved thickness 1.50 mm."));
+        assert!(text.contains("Plate thickness"));
+
+        element("#case-previous-settings-test-root .m1-mechanical-context-return").click();
+        rendered().await;
+        let text = element("#case-previous-settings-test-root .m1-mechanical-settings")
+            .text_content()
+            .unwrap_or_default();
+        assert!(text.contains("Previous resolved stack"));
+        assert!(text.contains("Settings below reflect the current accepted configuration."));
+        assert!(text.contains("Previous revision"));
     }
 
     #[wasm_bindgen_test]

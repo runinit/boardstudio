@@ -1541,12 +1541,18 @@ impl Runtime {
             return None;
         }
         if scene.token != accepted.token
-            && scene.physical_fingerprint.is_some()
-            && scene.physical_fingerprint
-                == crate::case_generation_lifecycle::physical_case_fingerprint(
+            && crate::case_generation_lifecycle::may_rebind_completed_case_result(
+                scene.exact,
+                &scene.scope,
+                scene.token,
+                scene.physical_fingerprint,
+                &current_scope,
+                accepted.token,
+                crate::case_generation_lifecycle::physical_case_fingerprint(
                     &accepted,
                     &current_scope,
-                )
+                ),
+            )
         {
             let mut rebound = CadScene {
                 scope: scene.scope.clone(),
