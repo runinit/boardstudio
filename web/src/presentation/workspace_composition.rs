@@ -121,9 +121,6 @@ pub(super) fn inspector(input: WorkspaceInspectorInput) -> Element {
                 pin_actions: input.pin_actions,
                 apply_actions: input.apply_actions,
                 protected_remap_actions: input.protected_remap_actions,
-                matrix_transform_inspector: input.matrix_transform_inspector,
-                part_position: input.part_position,
-                on_part_position: input.on_part_position,
             }
         },
         WorkspaceInspectorInput::Pcb(None) => super::pcb_workspace::inspector(),

@@ -13,4 +13,6 @@
 - [ ] Outline disclosure and board collapse preserve accepted data/history and use the existing ownership guards.
 - [ ] One combined affected check, changed paired browser receipt and consolidated candidate review are retained; all parent criteria and RF history remain.
 
-Spec: [PCB contextual Objects](../drafts/F5.1b-pcb-contextual-objects.md). Source is complete in the isolated root-owned packet; public qualification awaits integration. No new tests for this reversible UI projection.
+Spec: [PCB contextual Objects](../drafts/F5.1b-pcb-contextual-objects.md). Flat inventory, SW3/R1 selection/footer and Outline/board disclosure are paired GREEN on34758. Actual selected-part Inspector still prepends non-reference Position controls; the scoped composition repair is part of this packet and awaits the next candidate delta. No full-parent acceptance is claimed. No new tests for this reversible UI projection.
+
+- [ ] Selected switch/component Inspector preserves the TypeScript wiring controls without Layout position/matrix authoring prepended. Actual34758 RED is retained in [receipt](../evidence/18-contextual-objects-20261003/public-34758.json).

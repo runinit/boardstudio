@@ -259,7 +259,6 @@ struct WorkspaceCallbackSlots {
     pcb_selection_kind: EventHandler<objects::LayoutSelectionKind>,
     pcb_snap_intent: EventHandler<objects::LayoutSnapIntent>,
     pcb_transform_properties: EventHandler<()>,
-    pcb_part_position: EventHandler<pcb_wiring::PcbPartPositionAction>,
     case_action: EventHandler<case_workspace::TreeAction>,
     case_display: EventHandler<case_workspace::DisplayRequest>,
     keymap_layer: EventHandler<String>,
@@ -1984,7 +1983,6 @@ fn Editor() -> Element {
         pcb_selection_kind: EventHandler::new(|_: objects::LayoutSelectionKind| {}),
         pcb_snap_intent: EventHandler::new(|_: objects::LayoutSnapIntent| {}),
         pcb_transform_properties: EventHandler::new(|_: ()| {}),
-        pcb_part_position: EventHandler::new(|_: pcb_wiring::PcbPartPositionAction| {}),
         case_action: EventHandler::new(|_: case_workspace::TreeAction| {}),
         case_display: EventHandler::new(|_: case_workspace::DisplayRequest| {}),
         keymap_layer: EventHandler::new(|_: String| {}),
@@ -2153,15 +2151,6 @@ fn Editor() -> Element {
         adapter.generation,
         matrix_splay_affect,
         "Layout",
-    );
-    let pcb_matrix_transform_inspector = objects::use_workspace_matrix_transform(
-        runtime.clone(),
-        version,
-        adapter.selected_context,
-        workspace,
-        adapter.generation,
-        matrix_splay_affect,
-        "PCB",
     );
     let layout_align = objects::use_canvas_align(
         runtime.clone(),
@@ -3390,116 +3379,6 @@ fn Editor() -> Element {
                 part_ids: Vec::new(),
                 range_part_ids: Vec::new(),
                 mode: SelectionMode::Replace,
-            });
-        }
-    };
-    let on_pcb_part_position = {
-        let runtime = runtime.clone();
-        let adapter = adapter.clone();
-        let owner = layout_owner.clone();
-        let scope = render_scope.clone();
-        let generation = render_generation;
-        move |action: pcb_wiring::PcbPartPositionAction| {
-            if !pcb_owner_is_current(&runtime, workspace, &adapter, &owner)
-                || action.owner.scope != scope
-                || Some(action.owner.token) != owner.token
-                || Some(action.owner.revision) != owner.revision
-                || action.owner.generation != generation
-            {
-                return;
-            }
-            let model = runtime.model();
-            if model.lifecycle != Lifecycle::Ready
-                || model.durability
-                    != (Durability::Saved {
-                        revision: action.owner.revision,
-                    })
-                || model.display_preview.is_some()
-                || model.gesture.is_some()
-                || !active_board_scope_matches(&model, &action.owner.scope)
-                || model.selected_part_ids.len() != 1
-                || model.selected_part_ids.first() != Some(&action.owner.part_id)
-                || adapter
-                    .selected_context
-                    .read()
-                    .as_ref()
-                    .is_none_or(|selected| {
-                        selected.scope != action.owner.scope
-                            || !matches!(
-                                &selected.context,
-                                objects::TreeContext::Component {
-                                    part_id: Some(part_id),
-                                    matrix_id: None,
-                                    assembly_id: None,
-                                    ..
-                                } if part_id == &action.owner.part_id
-                            )
-                            || !selection::context_is_current(
-                                &model,
-                                &action.owner.scope,
-                                &selected.context,
-                            )
-                    })
-            {
-                return;
-            }
-            let Some(current_snapshot) = model.accepted.as_ref().filter(|snapshot| {
-                snapshot.token == action.owner.token
-                    && snapshot.document.revision == action.owner.revision
-            }) else {
-                return;
-            };
-            let Some(board) = current_snapshot
-                .document
-                .boards
-                .iter()
-                .find(|board| board.id == action.owner.scope.board_id)
-            else {
-                return;
-            };
-            let Some(part) = current_snapshot
-                .document
-                .parts
-                .iter()
-                .find(|part| part.id == action.owner.part_id)
-            else {
-                return;
-            };
-            if !board.part_ids.contains(&part.id) || part.locked == Some(true) {
-                return;
-            }
-            let mut position = part.pose.at;
-            let baseline = match action.axis {
-                pcb_wiring::PcbPositionAxis::X => {
-                    let baseline = position.x;
-                    position.x = action.value;
-                    baseline
-                }
-                pcb_wiring::PcbPositionAxis::Y => {
-                    let baseline = position.y;
-                    position.y = action.value;
-                    baseline
-                }
-            };
-            if !action.value.is_finite() || baseline != action.baseline || position == part.pose.at
-            {
-                return;
-            }
-            let operation_id = runtime.operation();
-            runtime.submit(Event::Edit {
-                operation_id,
-                command: EditCommand {
-                    base_revision: action.owner.revision,
-                    transaction_id: format!("pcb-part-position-{}", operation_id.0),
-                    phase: EditPhase::Commit,
-                    target_ids: vec![part.id.clone()],
-                    operation: EditOperation::MoveParts {
-                        positions: vec![Position {
-                            id: part.id.clone(),
-                            at: position,
-                        }],
-                    },
-                },
             });
         }
     };
@@ -5512,9 +5391,6 @@ fn Editor() -> Element {
         .pcb_snap_intent
         .replace(Box::new(on_pcb_snap_intent));
     workspace_callbacks
-        .pcb_part_position
-        .replace(Box::new(on_pcb_part_position));
-    workspace_callbacks
         .case_action
         .replace(Box::new(on_case_action));
     workspace_callbacks
@@ -5858,8 +5734,7 @@ fn Editor() -> Element {
                             ..
                         }
                 )
-            }) && (show_position_inspector
-                || pcb_matrix_transform_inspector.projection.is_some());
+            }) && show_position_inspector;
             let on_show_properties = {
                 let runtime = runtime.clone();
                 let adapter = adapter.clone();
@@ -6091,12 +5966,6 @@ fn Editor() -> Element {
         )),
         "PCB" => {
             workspace_composition::WorkspaceInspectorInput::Pcb(pcb_wiring_source.map(|source| {
-                let part_position = pcb_wiring::part_position_projection(
-                    &model,
-                    &render_scope,
-                    selected_tree_context.as_ref(),
-                    render_generation,
-                );
                 let firmware_position_projection = pcb_wiring::firmware_position_projection(
                     &source,
                     render_generation,
@@ -6137,9 +6006,6 @@ fn Editor() -> Element {
                     pin_actions: pcb_wiring_pin_actions.clone(),
                     apply_actions: pcb_wiring_apply_actions.clone(),
                     protected_remap_actions: pcb_wiring_protected_remap_actions.clone(),
-                    matrix_transform_inspector: pcb_matrix_transform_inspector.clone(),
-                    part_position,
-                    on_part_position: workspace_callbacks.pcb_part_position,
                 })
             }))
         }

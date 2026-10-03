@@ -2,10 +2,10 @@
 //!
 //! Root owns the accepted-source controller and Runtime request. This leaf receives only a
 //! cheap accepted-document handle, board scope, active selection, and guarded edit actions.
-use boardstudio_application::{AcceptedSnapshot, ReadModel, Scope, SnapshotToken};
+use boardstudio_application::{AcceptedSnapshot, ReadModel, Scope};
 use boardstudio_core::{
     electrical::{ElectricalMode, ElectricalPlan},
-    model::{Net, PartDefinition, PartKind, ProjectDoc, Vec2},
+    model::{Net, PartDefinition, PartKind, ProjectDoc},
 };
 use dioxus::prelude::*;
 use std::{rc::Rc, sync::Arc};
@@ -268,109 +268,6 @@ pub(in crate::presentation) struct PcbWiringInspectorProps {
     pub pin_actions: PcbWiringPinActions,
     pub apply_actions: BoardWiringApplyActions,
     pub protected_remap_actions: ProtectedRemapActions,
-    pub matrix_transform_inspector: super::objects::MatrixTransformInspectorMount,
-    pub part_position: Option<PcbPartPositionProjection>,
-    pub on_part_position: EventHandler<PcbPartPositionAction>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct PcbPartPositionOwner {
-    pub scope: Scope,
-    pub token: SnapshotToken,
-    pub revision: u64,
-    pub generation: u64,
-    pub part_id: String,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) struct PcbPartPositionProjection {
-    pub owner: PcbPartPositionOwner,
-    pub reference: String,
-    pub position: Vec2,
-    pub locked: bool,
-    pub editable: bool,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in crate::presentation) enum PcbPositionAxis {
-    X,
-    Y,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) struct PcbPartPositionAction {
-    pub owner: PcbPartPositionOwner,
-    pub axis: PcbPositionAxis,
-    pub baseline: f64,
-    pub value: f64,
-}
-
-pub(in crate::presentation) fn part_position_projection(
-    model: &ReadModel,
-    scope: &Scope,
-    selected: Option<&super::objects::ScopedTreeContext>,
-    generation: u64,
-) -> Option<PcbPartPositionProjection> {
-    let selected = selected?;
-    if selected.scope != *scope
-        || !matches!(
-            &selected.context,
-            super::objects::TreeContext::Component {
-                part_id: Some(_),
-                matrix_id: None,
-                assembly_id: None,
-                ..
-            }
-        )
-        || !super::selection::context_is_current(model, scope, &selected.context)
-        || model.selected_part_ids.len() != 1
-    {
-        return None;
-    }
-    let super::objects::TreeContext::Component {
-        part_id: Some(part_id),
-        ..
-    } = &selected.context
-    else {
-        return None;
-    };
-    if model.selected_part_ids.first() != Some(part_id) {
-        return None;
-    }
-    let snapshot = model.accepted.as_ref()?;
-    let board = snapshot
-        .document
-        .boards
-        .iter()
-        .find(|board| board.id == scope.board_id)?;
-    if !board.part_ids.contains(part_id) {
-        return None;
-    }
-    let part = snapshot
-        .document
-        .parts
-        .iter()
-        .find(|part| part.id == *part_id)?;
-    Some(PcbPartPositionProjection {
-        owner: PcbPartPositionOwner {
-            scope: scope.clone(),
-            token: snapshot.token,
-            revision: snapshot.document.revision,
-            generation,
-            part_id: part.id.clone(),
-        },
-        reference: part.reference.clone(),
-        position: part.pose.at,
-        locked: part.locked == Some(true),
-        editable: model.lifecycle == boardstudio_application::Lifecycle::Ready
-            && model.durability
-                == (boardstudio_application::Durability::Saved {
-                    revision: snapshot.document.revision,
-                })
-            && model.display_preview.is_none()
-            && model.gesture.is_none()
-            && part.locked != Some(true),
-    })
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -497,79 +394,7 @@ pub(in crate::presentation) fn PcbWiringInspector(props: PcbWiringInspectorProps
     };
     rsx! {
         div { class: "m1-pcb-inspector-content",
-            if let Some(projection) = props.part_position.clone() {
-                PcbPartPositionInspector {
-                    projection,
-                    on_action: props.on_part_position,
-                }
-            }
-            if props.matrix_transform_inspector.projection.is_some() {
-                super::objects::MatrixTransformInspector {
-                    mount: props.matrix_transform_inspector,
-                }
-            }
             {body}
-        }
-    }
-}
-
-#[component]
-fn PcbPartPositionInspector(
-    projection: PcbPartPositionProjection,
-    on_action: EventHandler<PcbPartPositionAction>,
-) -> Element {
-    let position = projection.position;
-    let owner_x = projection.owner.clone();
-    let owner_y = projection.owner.clone();
-    rsx! {
-        section { class: "m1-pcb-part-position", aria_label: "Part position",
-            h2 { "Position" }
-            p { "{projection.reference}" }
-            label { "X (mm)"
-                input {
-                    r#type: "number",
-                    step: "any",
-                    value: "{position.x}",
-                    disabled: !projection.editable,
-                    aria_label: "Position X (mm)",
-                    onchange: move |event: FormEvent| {
-                        if let Ok(value) = event.value().parse::<f64>()
-                            && value.is_finite()
-                        {
-                            on_action.call(PcbPartPositionAction {
-                                owner: owner_x.clone(),
-                                axis: PcbPositionAxis::X,
-                                baseline: position.x,
-                                value,
-                            });
-                        }
-                    },
-                }
-            }
-            label { "Y (mm)"
-                input {
-                    r#type: "number",
-                    step: "any",
-                    value: "{position.y}",
-                    disabled: !projection.editable,
-                    aria_label: "Position Y (mm)",
-                    onchange: move |event: FormEvent| {
-                        if let Ok(value) = event.value().parse::<f64>()
-                            && value.is_finite()
-                        {
-                            on_action.call(PcbPartPositionAction {
-                                owner: owner_y.clone(),
-                                axis: PcbPositionAxis::Y,
-                                baseline: position.y,
-                                value,
-                            });
-                        }
-                    },
-                }
-            }
-            if projection.locked {
-                p { role: "status", "Unlock this part before changing its position." }
-            }
         }
     }
 }
