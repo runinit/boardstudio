@@ -1,10 +1,10 @@
 //! Read-only daughterboard artwork in resolved host coordinates.
 //! Source pads remain module-owned; presentation never creates host circuitry.
 use super::LayerVisibility;
+use boardstudio_application::AcceptedSnapshot;
 use boardstudio_core::model::{PadShape, Vec2};
-use boardstudio_core::modules::ResolvedModuleFootprint;
 use dioxus::prelude::*;
-use std::{collections::BTreeSet, rc::Rc};
+use std::collections::BTreeSet;
 
 pub(super) fn default_hidden_layers() -> BTreeSet<String> {
     [
@@ -24,7 +24,7 @@ pub(super) fn default_hidden_layers() -> BTreeSet<String> {
 #[derive(Props, Clone, PartialEq)]
 pub(super) struct ModuleSourceFootprintsProps {
     module_id: String,
-    footprints: Rc<[ResolvedModuleFootprint]>,
+    snapshot: AcceptedSnapshot,
 }
 
 #[component]
@@ -32,10 +32,19 @@ pub(super) fn ModuleSourceFootprints(props: ModuleSourceFootprintsProps) -> Elem
     let visibility = use_context::<LayerVisibility>();
     let hidden = (visibility.modules_hidden)();
     let host_hidden = (visibility.hidden)();
+    let Some(module) = props
+        .snapshot
+        .scene
+        .module_scenes
+        .iter()
+        .find(|module| module.id == props.module_id)
+    else {
+        return rsx! {};
+    };
     rsx! {
         g { class: "m1-module-pcb-overlay", "data-module-id": "{props.module_id}",
             if !hidden.contains("module-footprints") {
-                for footprint in props.footprints.iter() {
+                for footprint in &module.footprints {
                     {
                         let back = footprint.side == boardstudio_core::model::Side::Back;
                         let face = if back { "back" } else { "front" };

@@ -246,7 +246,7 @@ pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
                 super::pcb_module_footprints::ModuleSourceFootprints {
                     key: "{module.id}",
                     module_id: module.id.clone(),
-                    footprints: std::rc::Rc::from(module.footprints.clone()),
+                    snapshot: snapshot.clone(),
                 }
             }
         }
