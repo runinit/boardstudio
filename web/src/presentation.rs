@@ -35,6 +35,7 @@ mod library;
 mod mechanical_settings;
 mod mechanical_settings_controller;
 mod mechanical_settings_mount;
+pub(crate) mod model_asset_import;
 pub(crate) mod model_delivery;
 mod objects;
 mod outline_lifecycle;
