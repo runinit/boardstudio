@@ -1271,7 +1271,7 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T06:44:20.931600+00:00",
+    "updated_at": "2026-10-03T06:54:26.014935+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet/stream, journey/criterion reporting, less testing/more implementation.",
     "parent_counts": {
       "accepted": 2,
@@ -1281,24 +1281,24 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-pcb-keycaps-delivery-reuse-20261003",
-      "source_commit": "a2bd8b54e6ec6efe7559b22fd6cf752c63cce010",
-      "root_url": "http://127.0.0.1:34746/",
-      "subpath_url": "http://127.0.0.1:34746/boardstudio/",
-      "provenance": "web/target/builds/frontend-pcb-keycaps-delivery-reuse-20261003/provenance.json",
-      "provenance_sha256": "150d13b011c712f09474d3d987fbac838c18996ea3d2d15bb816070b75f10dd5",
+      "build_id": "frontend-parts-import-delivery-reuse-20261003",
+      "source_commit": "f2d70ea627d851ea461033b44052bbf3740d37a1",
+      "root_url": "http://127.0.0.1:34747/",
+      "subpath_url": "http://127.0.0.1:34747/boardstudio/",
+      "provenance": "web/target/builds/frontend-parts-import-delivery-reuse-20261003/provenance.json",
+      "provenance_sha256": "2b7b6853800bcea30907f16a6c2e62794c476509ca3f95436dc696441a03a9a1",
       "fresh_commands": 8,
       "inherited_commands": 22,
-      "source_inputs": 1359,
+      "source_inputs": 1360,
       "source_mismatches": 0,
       "assets_per_route": 145,
-      "command_finished_at": "2026-10-03T06:34:40.274174+00:00",
-      "command_span_seconds": 132.386374,
-      "package_qualification": "Guarded reuse passed; root/subpath HTTP200 COEP verified. Main header, Inspector and Ctrl-add fixes served; measured spacing and Ctrl-remove follow-ups joined for next build."
+      "command_finished_at": "2026-10-03T06:52:59.419401+00:00",
+      "command_span_seconds": 107.032953,
+      "package_qualification": "Guarded provider reuse passed; source and both route assets verified; root/subpath HTTP200 COEP. Parts import, PCB synthetic propagation and measured CSS corrections are served. Changed browser journeys in progress."
     },
     "integration": {
-      "source_commit": "fc76acf5",
-      "state": "Ready next source joins: KiCad import, measured header/pill CSS, synthetic PCB propagation; import failure-owner repair finishing.",
+      "source_commit": "f2d70ea627d851ea461033b44052bbf3740d37a1",
+      "state": "Served 34747; changed Parts import, PCB toggle and Keycaps camera journeys running. Layout canvas editing compiling; Case gasket linking and next Keymap frontier authoring in isolation.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1352,31 +1352,31 @@
           "slice": "Case contextual gasket support sizing",
           "original_source": "746e4e6df64693422b4e5726e6896f00d11eac2f",
           "integrated_source": "8ec1b6a4",
-          "state": "Integrated; author strict page WASM all-target Clippy passed; public joined journey pending."
+          "state": "Served34745 and later candidates; same-original-archive paired Cut length edit/Undo/Redo/reopen verified. Remaining contextual controls and parent criteria open."
         },
         {
           "slice": "Outline coordinate accepted history synchronization",
           "original_source": "ddc53653df10f7010ae6b66c7686429539e1ffbc",
           "integrated_source": "ed5af2c9",
-          "state": "Integrated and served34745; focused GREEN 2/2 and independent source assessment clear; changed public journey in progress."
+          "state": "Served34745 and later candidates; focused regression GREEN2/2 and actual paired edit/Undo/Redo/reopen verified, all34 saved polygon points equal reference."
         },
         {
           "slice": "PCB compatibility and synthetic pointer propagation",
           "original_source": "498e2edf +75341410",
           "integrated_source": "40a75c15 +c89bdc53",
-          "state": "Ctrl-add public GREEN34746; Ctrl-remove RED then minimal synthetic propagation fix joined; next candidate GREEN pending."
+          "state": "Served34747 with synthetic propagation correction. Strengthened trusted Ctrl-add/remove regression in progress; prior Ctrl-add GREEN and Ctrl-remove RED retained."
         },
         {
           "slice": "Keymap Keycaps header and finding Inspector geometry",
           "original_source": "4e857e08 +8e468491",
           "integrated_source": "05c0f137 +ff9bc182",
-          "state": "Main header/no overlap, post-navigation SVG725x499 and visible Inspector verified34746. Measured2px pre-navigation offset/pill height correction joined; next camera receipt pending."
+          "state": "Served34747 with measured2px canvas/pill spacing correction. Prior main header and Inspector receipt reused; changed camera replay in progress."
         },
         {
           "slice": "Parts KiCad footprint import",
-          "original_source": "b6d0e0ce +7ee4ef8c",
-          "integrated_source": "fe5530c6 +5226968a",
-          "state": "Joined; author strict page WASM all-target Clippy passed. Reviewer found stale failure-feedback owner gap; focused repair finishing before next package."
+          "original_source": "b6d0e0ce +7ee4ef8c +424b1180",
+          "integrated_source": "fe5530c6 +5226968a +f2d70ea6",
+          "state": "Served34747. Strict page WASM all-target Clippy passed; independent source feedback-owner P2 closed. Focused paired public import/error/history/reopen in progress. Native harness did not exercise this WASM-only module; no passing regression claimed."
         },
         {
           "slice": "Legacy Case support admission",
@@ -1403,12 +1403,17 @@
           "source_commit": "a2bd8b54",
           "command": "cargo clippy --locked --manifest-path web/Cargo.toml --no-default-features --features page --target wasm32-unknown-unknown --all-targets -- -D warnings",
           "result": "pass27.88s; subsequent ordinary CSS and known stop_propagation changes reuse unchanged evidence."
+        },
+        "parts_import_feedback_clippy": {
+          "source_commit": "424b1180",
+          "result": "Pass: reserved cached page WASM all-target Clippy. Native filtered harness ran zero matching presentation tests; broader native harness hit unrelated WASM dependency errors and is not acceptance evidence. Public qualification pending.",
+          "independent_review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/import-feedback-424b1180.md"
         }
       },
       "candidate_build": {
         "state": "complete",
-        "build_id": "frontend-pcb-keycaps-delivery-reuse-20261003",
-        "source_commit": "a2bd8b54e6ec6efe7559b22fd6cf752c63cce010"
+        "build_id": "frontend-parts-import-delivery-reuse-20261003",
+        "source_commit": "f2d70ea627d851ea461033b44052bbf3740d37a1"
       }
     },
     "journeys": [
@@ -1465,18 +1470,19 @@
     ],
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "heavy_slots": {
-      "root_target": "Free; guarded package34746 complete132.39s. Next build joins ready repairs once source frozen.",
-      "secondary_target": "Parts import failure-owner correction affected cached check only.",
+      "root_target": "Free; package34747 complete107.03s. Next integration waits only for compiled coherent source packets, not another planning approval.",
+      "secondary_target": "Layout F34d assigned exclusive f73 target for one affected page WASM compile/check.",
       "dispatch": "Coordinator assigned; no broad suites or repeated unchanged journeys."
     },
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "next_work": {
-      "Layout": "Canvas point handles/drag/preview/cancel/snapping/keyboard source author active; coordinate history packet verified.",
-      "PCB": "Synthetic pointerdown propagation correction joined; strengthened Ctrl add/remove GREEN next build.",
-      "Keymap": "Shared view state handoff and header main repair verified; spacing CSS next candidate.",
-      "Keycaps": "Measured2px pre-navigation correction joined; exact camera replay next build.",
-      "Case": "Same-archive linked sizing history/reopen verified; remaining Inspector/control criteria queued.",
-      "Parts_Project": "Prior edit/delete packet verified; KiCad import joined and failure feedback owner repair finishing."
-    }
+      "Layout": "Finish compiled canvas handles/drag/preview/cancel/snapping/keyboard packet and integrate.",
+      "PCB": "Verify previously failing Ctrl-remove on34747; then next missing PCB control.",
+      "Keymap": "Dedicated author comparing current UI and implementing one missing bounded workflow.",
+      "Keycaps": "Verify exact camera after ordinary2px CSS repair; then next missing Keycaps control.",
+      "Case": "Implement React Edit gaskets support link/unlink placement and behavior.",
+      "Parts_Project": "Focused public KiCad import/error/history/reopen on34747, then next bounded control."
+    },
+    "execution_policy": "One required affected compile, one changed paired browser journey and one consolidated candidate review; reuse unchanged evidence. Ordinary reversible UI gets no new tests. Real bugs keep focused regressions and remaining acceptance gates explicit."
   }
 }

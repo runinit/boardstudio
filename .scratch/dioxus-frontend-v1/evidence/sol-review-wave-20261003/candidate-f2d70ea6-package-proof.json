@@ -1,0 +1,28 @@
+{
+  "status": "complete",
+  "source": "f2d70ea627d851ea461033b44052bbf3740d37a1",
+  "source_inputs": 1360,
+  "source_mismatches": [],
+  "commands": 8,
+  "failed_commands": [],
+  "assets": {
+    "root": {
+      "count": 145,
+      "mismatches": []
+    },
+    "subpath": {
+      "count": 145,
+      "mismatches": []
+    }
+  },
+  "provenance_sha256": "2b7b6853800bcea30907f16a6c2e62794c476509ca3f95436dc696441a03a9a1",
+  "command_span_seconds": 107.032953,
+  "/": {
+    "status": 200,
+    "coep": "require-corp"
+  },
+  "/boardstudio/": {
+    "status": 200,
+    "coep": "require-corp"
+  }
+}

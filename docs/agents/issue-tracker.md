@@ -81,7 +81,10 @@ bounded tickets through agents. The [authority](../../.scratch/dioxus-frontend-t
 and [execution state](../../.scratch/dioxus-frontend-tranche-1/execution.json) govern
 this run. Apply to-tickets vertical slicing, true blockers and per-file publication;
 routine ticket breakdown/publication no longer requires another user quiz.
-Check actual source contracts and use independent review before dispatch. Keep
-shared composition serial and prepare next eligible work while current agents
-implement/verify. Existing public API, format/member visibility and cutover
-approvals remain separate. Every handoff continues to record RF takeaways.
+Source-check the consumed capabilities, refine the existing spec/ticket and
+implement without a separate planning approval. The user’s 2026-10-03 direction
+reduces repeated testing: one required affected compile/check, one changed paired
+browser journey and one consolidated candidate review, reusing unchanged evidence.
+Keep shared integration serial and six queues active, with one waiting packet per
+stream. Necessary migration API/design/visibility changes are authorized by the
+2026-10-02 user decision in CONSTRAINTS.md; external cutover remains separate. Every handoff continues to record RF takeaways.
