@@ -424,7 +424,7 @@
       "acceptance_after": [
         "F3.2"
       ],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
       "shared_edit_owner": "integration coordinator",
@@ -439,7 +439,24 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      }
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T09:42:07.126211+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Reconcile verified mounted source/bounded evidence; preserve all parent acceptance criteria."
+        }
+      ],
+      "progress_evidence": [
+        {
+          "at": "2026-10-03T09:42:07.126211+00:00",
+          "source_commit": "e6842ec431b903210254833ee75ca830b538e520",
+          "path": ".scratch/dioxus-layout-authoring/evidence/f33b-matrix-transform-paired-20261003/",
+          "result": "Column OffsetX/Key LocalX edit Undo/Redo/reload GREEN; changed34759 contextual Key versus Component form GREEN. Full transforms/constraints/pointer criteria retained.",
+          "acceptance": "No full-parent acceptance claimed."
+        }
+      ]
     },
     {
       "id": "F3.4",
@@ -557,7 +574,7 @@
       "acceptance_after": [
         "F7.3"
       ],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
       "shared_edit_owner": "integration coordinator",
@@ -572,7 +589,24 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      }
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T09:42:07.126211+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Reconcile verified mounted source/bounded evidence; preserve all parent acceptance criteria."
+        }
+      ],
+      "progress_evidence": [
+        {
+          "at": "2026-10-03T09:42:07.126211+00:00",
+          "source_commit": "e6842ec431b903210254833ee75ca830b538e520",
+          "path": ".scratch/dioxus-shared-viewer/",
+          "result": "Layout shared3D and existing camera/fit are mounted; full camera/viewer lifecycle criteria remain.",
+          "acceptance": "No full-parent acceptance claimed."
+        }
+      ]
     },
     {
       "id": "F3.7",
@@ -689,7 +723,7 @@
         "INT.1"
       ],
       "acceptance_after": [],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
       "shared_edit_owner": "integration coordinator",
@@ -704,7 +738,24 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      }
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T09:42:07.126211+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Reconcile verified mounted source/bounded evidence; preserve all parent acceptance criteria."
+        }
+      ],
+      "progress_evidence": [
+        {
+          "at": "2026-10-03T09:42:07.126211+00:00",
+          "source_commit": "e6842ec431b903210254833ee75ca830b538e520",
+          "path": ".scratch/dioxus-parts-catalogue/evidence/",
+          "result": "Parts catalogue/search/definition selection are mounted and exercised by import/generator journeys; assembly/module variants and broader states remain.",
+          "acceptance": "No full-parent acceptance claimed."
+        }
+      ]
     },
     {
       "id": "F4.2",
@@ -773,7 +824,7 @@
       "acceptance_after": [
         "INT.2"
       ],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
       "shared_edit_owner": "integration coordinator",
@@ -788,7 +839,24 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      }
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T09:42:07.126211+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Reconcile verified mounted source/bounded evidence; preserve all parent acceptance criteria."
+        }
+      ],
+      "progress_evidence": [
+        {
+          "at": "2026-10-03T09:42:07.126211+00:00",
+          "source_commit": "e6842ec431b903210254833ee75ca830b538e520",
+          "path": ".scratch/dioxus-parts-catalogue/evidence/07-generator-settings-paired-journey-20261003.md",
+          "result": "Generator Width preview/Apply/Undo/reload actual34751 GREEN; structured settings and broader generator criteria remain.",
+          "acceptance": "No full-parent acceptance claimed."
+        }
+      ]
     },
     {
       "id": "F4.4",
@@ -816,7 +884,7 @@
         "F7.3",
         "INT.2"
       ],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
       "shared_edit_owner": "integration coordinator",
@@ -831,7 +899,24 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      }
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T09:42:07.126211+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Reconcile verified mounted source/bounded evidence; preserve all parent acceptance criteria."
+        }
+      ],
+      "progress_evidence": [
+        {
+          "at": "2026-10-03T09:42:07.126211+00:00",
+          "source_commit": "e6842ec431b903210254833ee75ca830b538e520",
+          "path": ".scratch/dioxus-parts-catalogue/issues/03-isolated-2d-3d-preview.md",
+          "result": "Isolated2D/3D preview source joined05ed9389 and served34759; changed standalone preview replay in progress, companion recipes remain.",
+          "acceptance": "No full-parent acceptance claimed."
+        }
+      ]
     },
     {
       "id": "F4.5",
@@ -1407,7 +1492,7 @@
       "acceptance_after": [
         "INT.2"
       ],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
@@ -1422,7 +1507,24 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      }
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T09:42:07.126211+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Reconcile verified mounted source/bounded evidence; preserve all parent acceptance criteria."
+        }
+      ],
+      "progress_evidence": [
+        {
+          "at": "2026-10-03T09:42:07.126211+00:00",
+          "source_commit": "e6842ec431b903210254833ee75ca830b538e520",
+          "path": ".scratch/dioxus-keymap-layers/evidence/public-macro-editor/RESULTS.md",
+          "result": "Macro creation/rename/timings/ordered steps/history/reopen are mounted with retained actual evidence; generated ZMK and remaining error/race criteria remain.",
+          "acceptance": "No full-parent acceptance claimed."
+        }
+      ]
     },
     {
       "id": "F6K.4",
@@ -1447,7 +1549,7 @@
         "F5.2",
         "F8.2"
       ],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
@@ -1462,7 +1564,24 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      }
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T09:42:07.126211+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Reconcile verified mounted source/bounded evidence; preserve all parent acceptance criteria."
+        }
+      ],
+      "progress_evidence": [
+        {
+          "at": "2026-10-03T09:42:07.126211+00:00",
+          "source_commit": "e6842ec431b903210254833ee75ca830b538e520",
+          "path": ".scratch/dioxus-keymap-layers/evidence/encoder-public-workflow/RESULTS.md",
+          "result": "Encoder typed edits, legacy PCB firmware-position editor and Export ZMK row are mounted; full F5 handoff and remaining qualification criteria remain.",
+          "acceptance": "No full-parent acceptance claimed."
+        }
+      ]
     },
     {
       "id": "F6C.1",
@@ -1576,7 +1695,7 @@
         "F3.2",
         "F3.5"
       ],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
@@ -1591,7 +1710,24 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      }
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T09:42:07.126211+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Reconcile verified mounted source/bounded evidence; preserve all parent acceptance criteria."
+        }
+      ],
+      "progress_evidence": [
+        {
+          "at": "2026-10-03T09:42:07.126211+00:00",
+          "source_commit": "e6842ec431b903210254833ee75ca830b538e520",
+          "path": ".scratch/dioxus-keycaps-workflow/evidence/keycaps06-paired-browser-20261002/",
+          "result": "Shared key-size controls and per-key width history/reopen are mounted; linked reflow and full selection/draft criteria remain.",
+          "acceptance": "No full-parent acceptance claimed."
+        }
+      ]
     },
     {
       "id": "F6C.4",
@@ -1862,7 +1998,7 @@
         "INT.2",
         "BND.1"
       ],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
       "shared_edit_owner": "integration coordinator",
@@ -1879,7 +2015,24 @@
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true,
         "contract_review_reuse": "Reuse current contract; routine private frontend work proceeds to integrated candidate review."
-      }
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T09:42:07.126211+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Reconcile verified mounted source/bounded evidence; preserve all parent acceptance criteria."
+        }
+      ],
+      "progress_evidence": [
+        {
+          "at": "2026-10-03T09:42:07.126211+00:00",
+          "source_commit": "e6842ec431b903210254833ee75ca830b538e520",
+          "path": ".scratch/dioxus-frontend-v1/evidence/keycaps-3d-preview-20261003/RECEIPT.md",
+          "result": "Single shared viewer consumed by Layout/Case/Keycaps and new Keymap/Parts consumers served34759; cap/layer34757 GREEN retained, consumer deltas active, full lifecycle remains.",
+          "acceptance": "No full-parent acceptance claimed."
+        }
+      ]
     },
     {
       "id": "F7.4",
@@ -1907,7 +2060,7 @@
       "acceptance_after": [
         "INT.2"
       ],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
       "shared_edit_owner": "integration coordinator",
@@ -1922,7 +2075,24 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      }
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T09:42:07.126211+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Reconcile verified mounted source/bounded evidence; preserve all parent acceptance criteria."
+        }
+      ],
+      "progress_evidence": [
+        {
+          "at": "2026-10-03T09:42:07.126211+00:00",
+          "source_commit": "e6842ec431b903210254833ee75ca830b538e520",
+          "path": ".scratch/dioxus-case-workspace/evidence/15-mounting-controls-20261003/public-receipt.md",
+          "result": "Mechanical construction/mount/hardware/current resolver controls mounted; blocked suggestions/adopt34758 GREEN. Blocked finding navigation repair dfd8c143 awaits next candidate.",
+          "acceptance": "No full-parent acceptance claimed."
+        }
+      ]
     },
     {
       "id": "F7.5",
@@ -2141,7 +2311,7 @@
         "INT.1"
       ],
       "acceptance_after": [],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md",
       "shared_edit_owner": "integration coordinator",
@@ -2156,7 +2326,24 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      }
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T09:42:07.126211+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Reconcile verified mounted source/bounded evidence; preserve all parent acceptance criteria."
+        }
+      ],
+      "progress_evidence": [
+        {
+          "at": "2026-10-03T09:42:07.126211+00:00",
+          "source_commit": "e6842ec431b903210254833ee75ca830b538e520",
+          "path": "web/src/presentation.rs",
+          "result": "Export route mounted with archive/STEP and new ZMK row; seven design rows and reference contextual route/readiness still incomplete.",
+          "acceptance": "No full-parent acceptance claimed."
+        }
+      ]
     },
     {
       "id": "F8.2",
@@ -2277,7 +2464,7 @@
         "F6K.4",
         "F6C.5"
       ],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md",
       "shared_edit_owner": "integration coordinator",
@@ -2292,7 +2479,24 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      }
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T09:42:07.126211+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Reconcile verified mounted source/bounded evidence; preserve all parent acceptance criteria."
+        }
+      ],
+      "progress_evidence": [
+        {
+          "at": "2026-10-03T09:42:07.126211+00:00",
+          "source_commit": "e6842ec431b903210254833ee75ca830b538e520",
+          "path": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/candidate-dd7697ed/STEP-PUBLIC-RECEIPT.json",
+          "result": "Keycaps local STEP actual output paired byte-identical with reference; Export ZMK row mounted. Full readiness/F6 ownership joins remain.",
+          "acceptance": "No full-parent acceptance claimed."
+        }
+      ]
     },
     {
       "id": "F8.5",
