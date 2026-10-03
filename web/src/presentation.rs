@@ -5655,7 +5655,26 @@ fn Editor() -> Element {
                 },
             )
         }
-        "Keycaps" => workspace_composition::WorkspaceToolbarInput::Keycaps,
+        "Keycaps" => {
+            let on_view_mode = design_consumer_view_mode_handler(
+                runtime.clone(),
+                workspace,
+                adapter.clone(),
+                layout_owner.clone(),
+                layout_assembly_3d,
+            );
+            workspace_composition::WorkspaceToolbarInput::Keycaps(
+                shared_viewer::DesignViewToolbarProps {
+                    label: "Keycaps".into(),
+                    detail: "Profiles, legends & fit".into(),
+                    assembly_3d: layout_assembly_3d(),
+                    footprints_visible: (layer_visibility.footprints)()
+                        && !(layer_visibility.hidden)().contains("Footprints"),
+                    on_view_mode,
+                    on_toggle_footprints: workspace_callbacks.toggle_footprints,
+                },
+            )
+        }
         "Case" => workspace_composition::WorkspaceToolbarInput::Case,
         "Parts" => workspace_composition::WorkspaceToolbarInput::Parts,
         "Export" => workspace_composition::WorkspaceToolbarInput::Export,

@@ -52,8 +52,17 @@ pub(super) fn objects(input: SharedObjectsInput) -> Element {
     }
 }
 
-pub(super) fn toolbar() -> Element {
-    rsx! {}
+pub(super) fn toolbar(input: super::shared_viewer::DesignViewToolbarProps) -> Element {
+    rsx! {
+        super::shared_viewer::DesignViewToolbar {
+            label: input.label,
+            detail: input.detail,
+            assembly_3d: input.assembly_3d,
+            footprints_visible: input.footprints_visible,
+            on_view_mode: input.on_view_mode,
+            on_toggle_footprints: input.on_toggle_footprints,
+        }
+    }
 }
 
 pub(super) fn canvas(input: CanvasInput) -> Element {
