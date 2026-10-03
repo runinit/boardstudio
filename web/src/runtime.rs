@@ -12,7 +12,7 @@ use boardstudio_core::{
     model::{
         ArchiveEntry, ArchiveReply, ArchiveRequest, ArtifactReply, ArtifactRequest, Board,
         CompiledFootprint, CoreReply, CoreRequest, ErgogenJobResult, FinishExportRequest,
-        HardwareTopology, Material, MechanicalAssembly, MechanicalBuiltinProfile,
+        HardwareTopology, KeycapSpec, Material, MechanicalAssembly, MechanicalBuiltinProfile,
         MechanicalConfiguration, MechanicalPartProfile, MechanicalSwitchFamily, Operation,
         OutlineFeature, OutlineSettings, PcbPreview, PrepareExportRequest, ProjectDoc,
     },
