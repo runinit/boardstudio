@@ -1,0 +1,81 @@
+   Compiling boardstudio-contracts v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/keymap-macro-labels-red-20261002/contracts/rust)
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/keymap-macro-labels-red-20261002/web)
+   Compiling boardstudio_core v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/keymap-macro-labels-red-20261002/core)
+   Compiling boardstudio-application v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/keymap-macro-labels-red-20261002/application)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 49.34s
+     Running unittests src/main.rs (/home/chris/.local/share/boardstudio/worktrees/keymap-macro-labels-20261002/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-30234c340da2cc4e.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:42911/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+Loading Wasm module...
+using deprecated parameters for the initialization function; pass a single object instead
+
+running 1 test
+Invoking test: presentation::keymap::macro_editor::mounted_accessible_name_tests::mounted_macro_editor_uses_display_and_visible_field_names
+panicked at src/presentation/keymap/macro_editor.rs:695:9:
+assertion failed: element("select[aria-label='Macro 1 step 1']").is_ok()
+
+Stack:
+
+Error
+    at http://127.0.0.1:45439/wasm-bindgen-test:1619:25
+    at logError (http://127.0.0.1:45439/wasm-bindgen-test:2738:18)
+    at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:45439/wasm-bindgen-test:1618:57)
+    at boardstudio_web-30234c340da2cc4e.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:45439/wasm-bindgen-test_bg.wasm:wasm-function[132936]:0x1a43db4)
+    at boardstudio_web-30234c340da2cc4e.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:45439/wasm-bindgen-test_bg.wasm:wasm-function[75352]:0x17cce77)
+    at boardstudio_web-30234c340da2cc4e.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:45439/wasm-bindgen-test_bg.wasm:wasm-function[28192]:0x1276b4b)
+    at boardstudio_web-30234c340da2cc4e.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:45439/wasm-bindgen-test_bg.wasm:wasm-function[79346]:0x1809f49)
+    at boardstudio_web-30234c340da2cc4e.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:45439/wasm-bindgen-test_bg.wasm:wasm-function[24110]:0x1192fb5)
+    at boardstudio_web-30234c340da2cc4e.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:45439/wasm-bindgen-test_bg.wasm:wasm-function[46378]:0x154bef8)
+    at boardstudio_web-30234c340da2cc4e.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:45439/wasm-bindgen-test_bg.wasm:wasm-function[134764]:0x1a49571)
+
+
+test presentation::keymap::macro_editor::mounted_accessible_name_tests::mounted_macro_editor_uses_display_and_visible_field_names ... FAIL
+
+failures:
+
+---- presentation::keymap::macro_editor::mounted_accessible_name_tests::mounted_macro_editor_uses_display_and_visible_field_names output ----
+    error output:
+        panicked at src/presentation/keymap/macro_editor.rs:695:9:
+        assertion failed: element("select[aria-label='Macro 1 step 1']").is_ok()
+
+        Stack:
+
+        Error
+            at http://127.0.0.1:45439/wasm-bindgen-test:1619:25
+            at logError (http://127.0.0.1:45439/wasm-bindgen-test:2738:18)
+            at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:45439/wasm-bindgen-test:1618:57)
+            at boardstudio_web-30234c340da2cc4e.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:45439/wasm-bindgen-test_bg.wasm:wasm-function[132936]:0x1a43db4)
+            at boardstudio_web-30234c340da2cc4e.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:45439/wasm-bindgen-test_bg.wasm:wasm-function[75352]:0x17cce77)
+            at boardstudio_web-30234c340da2cc4e.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:45439/wasm-bindgen-test_bg.wasm:wasm-function[28192]:0x1276b4b)
+            at boardstudio_web-30234c340da2cc4e.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:45439/wasm-bindgen-test_bg.wasm:wasm-function[79346]:0x1809f49)
+            at boardstudio_web-30234c340da2cc4e.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:45439/wasm-bindgen-test_bg.wasm:wasm-function[24110]:0x1192fb5)
+            at boardstudio_web-30234c340da2cc4e.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:45439/wasm-bindgen-test_bg.wasm:wasm-function[46378]:0x154bef8)
+            at boardstudio_web-30234c340da2cc4e.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:45439/wasm-bindgen-test_bg.wasm:wasm-function[134764]:0x1a49571)
+
+
+
+    JS exception that was thrown:
+        RuntimeError: unreachable
+            at boardstudio_web-30234c340da2cc4e.wasm.__rustc[4b1ee1ef74718a7b]::__rust_abort (http://127.0.0.1:45439/wasm-bindgen-test_bg.wasm:wasm-function[135241]:0x1a4a3ad)
+            at boardstudio_web-30234c340da2cc4e.wasm.__rustc[4b1ee1ef74718a7b]::__rust_start_panic (http://127.0.0.1:45439/wasm-bindgen-test_bg.wasm:wasm-function[135162]:0x1a4a245)
+            at boardstudio_web-30234c340da2cc4e.wasm.__rustc[4b1ee1ef74718a7b]::rust_panic (http://127.0.0.1:45439/wasm-bindgen-test_bg.wasm:wasm-function[133372]:0x1a45581)
+            at boardstudio_web-30234c340da2cc4e.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:45439/wasm-bindgen-test_bg.wasm:wasm-function[24110]:0x1193028)
+            at boardstudio_web-30234c340da2cc4e.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:45439/wasm-bindgen-test_bg.wasm:wasm-function[46378]:0x154bef8)
+            at boardstudio_web-30234c340da2cc4e.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:45439/wasm-bindgen-test_bg.wasm:wasm-function[134764]:0x1a49571)
+            at boardstudio_web-30234c340da2cc4e.wasm.__rustc[4b1ee1ef74718a7b]::rust_begin_unwind (http://127.0.0.1:45439/wasm-bindgen-test_bg.wasm:wasm-function[104164]:0x1944b9c)
+            at boardstudio_web-30234c340da2cc4e.wasm.core[f0fd674eaa06beef]::panicking::panic_fmt (http://127.0.0.1:45439/wasm-bindgen-test_bg.wasm:wasm-function[78379]:0x17fb95a)
+            at boardstudio_web-30234c340da2cc4e.wasm.core[f0fd674eaa06beef]::panicking::panic (http://127.0.0.1:45439/wasm-bindgen-test_bg.wasm:wasm-function[132311]:0x1a40daa)
+            at boardstudio_web-30234c340da2cc4e.wasm.boardstudio_web[ba6a045f05fe0ed7]::presentation::keymap::macro_editor::mounted_accessible_name_tests::mounted_macro_editor_uses_display_and_visible_field_names::{closure#0} (http://127.0.0.1:45439/wasm-bindgen-test_bg.wasm:wasm-function[6088]:0xa6d0ca)
+
+failures:
+
+    presentation::keymap::macro_editor::mounted_accessible_name_tests::mounted_macro_editor_uses_display_and_visible_field_names
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 84 filtered out; finished in 0.10s
+
+Error: some tests failed
+error: test failed, to rerun pass `--bin boardstudio-web`
+
+Caused by:
+  process didn't exit successfully: `/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner /home/chris/.local/share/boardstudio/worktrees/keymap-macro-labels-20261002/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-30234c340da2cc4e.wasm mounted_macro_editor_uses_display_and_visible_field_names --nocapture` (exit status: 1)
