@@ -27,7 +27,7 @@ The mounted test clicks the Keycaps route action against a valid accepted source
 - `cargo fmt --manifest-path web/Cargo.toml -- --check` — passed.
 - `git diff --check` — passed.
 
-The initial browser harness run failed before interaction because the test clicked before the asynchronous Dioxus mount had rendered its button. Adding an initial settle fixed the harness; the later expected-red and green tests exercise the route behavior itself.
+The pass/fail results above were observed in the tool transcript; raw command logs were not retained. The first browser-harness attempt failed before interaction because the test clicked before the asynchronous Dioxus mount had rendered its button. Adding an initial settle fixed the harness; the later expected-red mutation and green rerun exercise route behavior itself. The earlier b521 leaf-projection log is not evidence for this d1ca shared-owner test.
 
 ## Paired browser observation carried forward
 
