@@ -35,6 +35,37 @@ fn projection(
     }
 }
 
+fn snapshot() -> boardstudio_application::AcceptedSnapshot {
+    boardstudio_application::AcceptedSnapshot {
+        token: boardstudio_application::SnapshotToken(17),
+        session_epoch: boardstudio_application::SessionEpoch(13),
+        document: std::sync::Arc::new(boardstudio_core::model::ProjectDoc::empty(
+            "mirror-overlay-fixture",
+            "Mirror overlay fixture",
+        )),
+        scene: std::sync::Arc::new(boardstudio_core::model::SceneDelta {
+            module_scenes: vec![],
+            revision: 19,
+            transaction_id: "mirror-overlay-test".into(),
+            changed_ids: vec![],
+            transforms: vec![],
+            matrix_scenes: vec![],
+            contours: vec![],
+            board_contours: vec![],
+            board_readiness: vec![],
+            board_outline_scenes: vec![],
+            finding_markers: vec![],
+            findings: vec![],
+            readiness: boardstudio_core::model::Readiness {
+                layout: false,
+                outline: false,
+                pcb: false,
+                case_ready: false,
+            },
+        }),
+    }
+}
+
 fn composition() -> Element {
     let mut active = use_signal(|| true);
     let mut current = use_signal(|| projection(owner(1), MirroredPairFormValues::default()));
@@ -43,6 +74,9 @@ fn composition() -> Element {
     rsx! {
         aside { id: "mirror-overlay-objects",
             super::super::LayoutAddObjectEntry {
+                snapshot: snapshot(),
+                scope: Some(owner(1).scope),
+                on_place_component: EventHandler::default(),
                 matrix_setup: None,
                 mirrored_pair: Some(MirroredPairMount {
                     form: Some(current()),
