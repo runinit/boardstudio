@@ -3726,7 +3726,7 @@ fn Editor() -> Element {
             }
         };
     let svg = use_hook(|| Rc::new(RefCell::new(None::<SvgElement>)));
-    let mut zoom_surface_size = use_signal(|| (1.0, 1.0));
+    let zoom_surface_size = use_signal(|| (1.0, 1.0));
     let workspace_rect_bounds = match active_workspace {
         "PCB" => pcb_bounds(snapshot, &render_scope),
         "Keymap" => keymap_view
@@ -3956,7 +3956,7 @@ fn Editor() -> Element {
         let (Ok(client_x), Ok(client_y)) = (window.inner_width(), window.inner_height()) else {
             return;
         };
-        let (Ok(client_x), Ok(client_y)) = (client_x.as_f64(), client_y.as_f64()) else {
+        let (Some(client_x), Some(client_y)) = (client_x.as_f64(), client_y.as_f64()) else {
             return;
         };
         let surface_ref = zoom_svg.borrow();
@@ -3967,8 +3967,8 @@ fn Editor() -> Element {
         let (view_x, view_y, width, height) = zoom_view;
         let Some(location) = pointer_location(
             &rect,
-            client_x.round() as i32,
-            client_y.round() as i32,
+            (client_x * 0.5).round() as i32,
+            (client_y * 0.5).round() as i32,
             view_x,
             view_y,
             width,
