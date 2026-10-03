@@ -443,6 +443,10 @@ Keycaps evidence initially attributed a REVIUNG41/Layout screenshot to Sofle/Key
 
 RF-001/RF-006 retain App-versus-panel pending-outcome ownership, rendered target identity and live guide-stage admission defects. RF-009 records the corrected stale top-level source/demo progress fields. Evidence and disposition are in `.scratch/dioxus-frontend-v1/evidence/source-wave-20261002/root-ledger-reconciliation.md`; current fixes and broader refactoring remain distinct, with browser acceptance open.
 
+### Case13 transport owner scope — 2026-10-02
+
+The Case wireless selector was visible but its patch was silently rejected when the active assembly had no selected part-tree item. Transport belongs to the captured Case assembly scope; selected-part ownership is an unrelated prerequisite. The bounded correction removes only that predicate while retaining accepted session/document/board/instance, generation, token/revision and current-instance checks. The focused browser-WASM owner regression was red before and green after the change. The exact public repro, accepted archive comparison, source/check packet and remaining gates are in the [Case13 handoff](../../.scratch/dioxus-case-workspace/evidence/case13-wireless-right-transport-admission-20261002/implementation-handoff.md). This records RF-006 evidence only; it does not authorize a general owner/API redesign or establish post-fix public acceptance.
+
 
 ### Frontend continuation source and evidence refresh — 2026-10-02
 

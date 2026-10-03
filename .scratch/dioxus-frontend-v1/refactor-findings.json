@@ -604,6 +604,14 @@
       "resumed_wave_20261002": "2026-10-02: Physical setup controls need rendered identity envelopes and live guide-stage predicates across asynchronous normalization; stale handlers and bare feedback can retarget/leak across scopes. Astra production regression repair active; public guide join remains open.",
       "current_diagnosis_20261002": {
         "outline": "Current34727 paired Bridge selection blanks canvas at755% while React461% renders selected bridge. Isolated regression/camera repair assigned; copy/delete/Undo/reopen bounded journey green, full outline acceptance open."
+      },
+      "case_transport_owner_20261002": {
+        "observation": "Case assembly transport controls were rendered in active physical-instance scope, but their action owner additionally required a selected part-tree context. With Case selected and no part selected, the visible Wireless control changed only transient DOM state: accepted hardware.transport stayed wired, wired guidance remained, export was unchanged, and reload reset the selector. This conflated assembly-scope transport ownership with part-selection ownership.",
+        "current_mitigation": "Case physical-setup owner admission now checks the accepted Case workspace and captured session/document/board/instance scope without requiring a selected part-tree context; common generation/token/revision/current-instance guards remain in place. ProjectGuide admission is unchanged.",
+        "post_port_follow_up": "Audit other controls whose owner is an active assembly scope separately from part/tree-selection actions; consider a typed owner distinction only during the planned post-port review. Do not widen APIs or relax captured identity guards.",
+        "validation": "Focused browser-WASM owner regression failed before the correction and passed after it. Strict WASM Clippy, rustfmt and diff checks pass. The public candidate repro and accepted wireless-archive projection comparison are retained in the linked handoff; the post-fix public workflow remains open.",
+        "evidence": ".scratch/dioxus-case-workspace/evidence/case13-wireless-right-transport-admission-20261002/implementation-handoff.md",
+        "status": "bounded Case13 source correction; independent source review and fresh public re-run remain open; no API/schema change or parent acceptance"
       }
     },
     {

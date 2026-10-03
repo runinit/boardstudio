@@ -104,6 +104,54 @@ struct LayoutOwnerIdentity {
     workspace: &'static str,
 }
 
+fn case_setup_context_is_current(
+    identity: &pcb_physical_setup::OwnerIdentity,
+    strict: bool,
+    workspace: &str,
+    scope: Option<&Scope>,
+) -> bool {
+    identity.context == pcb_physical_setup::OwnerContext::CaseInspector
+        && workspace == "Case"
+        && scope.is_some_and(|scope| {
+            scope.session_epoch == identity.session_epoch
+                && scope.document_id == identity.document_id
+                && scope.board_id == identity.board_id
+                && (!strict || scope.instance_id == identity.instance_id)
+        })
+}
+
+#[cfg(test)]
+mod physical_setup_owner_tests {
+    use super::*;
+    use boardstudio_application::SessionEpoch;
+    use pcb_physical_setup::{OwnerContext, OwnerIdentity};
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    #[wasm_bindgen_test]
+    fn case_transport_owner_does_not_require_a_part_tree_selection() {
+        let scope = Scope {
+            session_epoch: SessionEpoch(7),
+            document_id: "sofle".into(),
+            board_id: "right-pcb".into(),
+            instance_id: Some("right-half".into()),
+        };
+        let identity = OwnerIdentity {
+            context: OwnerContext::CaseInspector,
+            session_epoch: scope.session_epoch,
+            document_id: scope.document_id.clone(),
+            board_id: scope.board_id.clone(),
+            instance_id: scope.instance_id.clone(),
+            token: SnapshotToken(23),
+            revision: 21,
+            generation: 4,
+        };
+        assert!(
+            case_setup_context_is_current(&identity, true, "Case", Some(&scope)),
+            "physical setup belongs to the active Case assembly scope even when no part is selected"
+        );
+    }
+}
+
 #[derive(Clone)]
 struct OwnedTreeCellAnchor {
     owner: LayoutOwnerIdentity,
@@ -1673,7 +1721,6 @@ fn Editor() -> Element {
         Rc::new({
             let runtime = runtime.clone();
             let generation = adapter.generation;
-            let selected_context = adapter.selected_context;
             let project_setup_active = project_setup_active;
             move |identity: &pcb_physical_setup::OwnerIdentity, strict: bool| {
                 let model = runtime.model();
@@ -1687,20 +1734,12 @@ fn Editor() -> Element {
                             && (!strict || model.active_instance_id == identity.instance_id)
                     }
                     pcb_physical_setup::OwnerContext::CaseInspector => {
-                        let Some(scope) = runtime.scope() else {
-                            return false;
-                        };
-                        workspace() == "Case"
-                            && scope.session_epoch == identity.session_epoch
-                            && scope.document_id == identity.document_id
-                            && scope.board_id == identity.board_id
-                            && (!strict || scope.instance_id == identity.instance_id)
-                            && selected_context.read().as_ref().is_some_and(|selected| {
-                                selected.scope.session_epoch == scope.session_epoch
-                                    && selected.scope.document_id == scope.document_id
-                                    && selected.scope.board_id == scope.board_id
-                                    && (!strict || selected.scope.instance_id == scope.instance_id)
-                            })
+                        case_setup_context_is_current(
+                            identity,
+                            strict,
+                            workspace(),
+                            runtime.scope().as_ref(),
+                        )
                     }
                 };
                 context_current
