@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T22:16:51.851659+00:00",
+    "updated_at": "2026-10-03T22:26:15.777640+00:00",
     "parent_counts": {
       "accepted": 10,
       "implementing": 41,
@@ -25,20 +25,20 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-functional-controls-repair-20261003",
-      "source_commit": "177f990bad633b75f82a817d9f14fdfe0ec1f3b9",
-      "root_url": "http://127.0.0.1:34779/",
-      "subpath_url": "http://127.0.0.1:34779/boardstudio/",
-      "provenance": "web/target/builds/frontend-functional-controls-repair-20261003/provenance.json",
-      "provenance_sha256": "f6b793e9d28fa2b4fb6f12d0cb958ba1a9bedabfabcded210c5b3d4a504ac8ee",
+      "build_id": "frontend-module-ownership-20261003",
+      "source_commit": "7ddd10e32d24b474366d995171dde89e1577d7fe",
+      "root_url": "http://127.0.0.1:34780/",
+      "subpath_url": "http://127.0.0.1:34780/boardstudio/",
+      "provenance": "web/target/builds/frontend-module-ownership-20261003/provenance.json",
+      "provenance_sha256": "242621ba1d56f8d270b4410c6d3ea1f79a4c49b2c1c314fcf7760db105d3f951",
       "fresh_commands": 8,
       "inherited_commands": 22,
       "source_inputs": 1389,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 142.539329,
+      "command_span_seconds": 141.121047,
       "package_qualification": "Combined package provenance, current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-functional-controls-repair-20261003/package-proof.json",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-module-ownership-20261003/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -48,8 +48,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "9548c3f06153008da68400b6fc566e35101a20dd",
-      "state": "Connector ownership admission integrated in working source; focused regression and final combined package next. Layout, Case and preference criteria retain qualified browser evidence.",
+      "source_commit": "7ddd10e32d24b474366d995171dde89e1577d7fe",
+      "state": "Requested retrospective fixes and concrete application deliveries integrated, packaged and reviewed. Final foreign-connector rejection/clear journey passed; no waiting implementation packets. Broader parent qualification remains explicit.",
       "packets": [
         {
           "stream": "Layout",
@@ -306,8 +306,8 @@
           "qualification": "Paired focused behavior passed on34775; visual/context parity findings remain."
         }
       ],
-      "qualification": "Nine Keymap WASM browser checks, focused tooling checks, combined compiler/package and affected browser journeys passed. Broader parent joins and unexecuted lifecycle branches remain.",
-      "application_candidate_source": "287cd2665f0ec1165ab0e3f8fb76ececdc0febc4"
+      "qualification": "Tooling and encoder checks retained; latest ownership browser WASM regression 1 passed. Final package source/assets match, root/subpath warnings zero. Paired bounded journeys recorded; parent joins and explicit remaining lifecycle branches stay open.",
+      "application_candidate_source": "7ddd10e32d24b474366d995171dde89e1577d7fe"
     },
     "journeys": [
       {
@@ -485,7 +485,7 @@
       },
       {
         "stream": "PCB",
-        "state": "34779: connector source/async save repairs integrated; first/second Save retest in progress. Candidate34778 circuit GND join/copy/remove and nested constituent placement/history/archive evidence retained. F5.2 Apply history and F5.3 pin cases remain."
+        "state": "34780 foreign-connector rejection and clear-save pass without moving/deleting parts; paired circuit join/copy/remove and nested constituent placement/history retained. Fresh Attach module route requires bounded F5.5-C03 investigation; F5.2 Apply history and F5.3 pin scenarios remain."
       },
       {
         "stream": "Keymap",
@@ -506,8 +506,9 @@
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Package integrated connector admission, qualify changed behavior, and finish the single consolidated review.",
-      "Use remaining criterion queries for unresolved provider/preview and parent joins; preserve all accepted history and RF findings."
+      "F5.5-C03: locate or implement the missing public Parts-to-mounted-module attachment seam using the demonstrated TypeScript Haptic 3V3 journey; preserve F4.7 scope.",
+      "Qualify unresolved encoder negative/compact scenarios and provider/preview lifecycle branches using existing criteria; repair only reproduced failures.",
+      "Close parents only after their remaining criteria and joins are satisfied; preserve architecture ledger and reuse unchanged evidence."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
@@ -543,34 +544,16 @@
     "qualification": {
       "trigger": "functional_scope",
       "active_scope": {
-        "id": "functional-controls-repair-20261003",
-        "source_commit": "ad26b07a7ada49aed1d7ac686fb32a8dbcf2ded6",
+        "id": "functional-module-ownership-20261003",
+        "source_commit": "7ddd10e32d24b474366d995171dde89e1577d7fe",
         "streams": [
-          "Layout",
-          "PCB",
-          "Case",
-          "Parts/Project"
+          "PCB"
         ],
         "journeys": [
           {
-            "id": "layout-small-drag",
-            "scope": "F3.3-C02 one-pixel Alt drag, stationary click/reflow, modified selection and Undo",
-            "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md"
-          },
-          {
             "id": "module-actions",
-            "scope": "F5.5-C02 VIK connection, circuit joins/copy/remove and exact constituent placement",
+            "scope": "F5.5-C02 reject foreign-board connector reuse; fresh automatic creation and repeat Save; reuse unchanged circuit/constituent evidence.",
             "spec": ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md"
-          },
-          {
-            "id": "case-instance-controls",
-            "scope": "F5.6-C03 Case PCB association/flip, selected-instance navigation, history and reopen",
-            "spec": ".scratch/dioxus-pcb-view/issues/06-editor-owned-physical-setup-intents.md"
-          },
-          {
-            "id": "preference-fallback",
-            "scope": "F2.4-C05 storage failure notice and usable in-memory theme/panel controls",
-            "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md"
           }
         ]
       },
@@ -958,66 +941,128 @@
               }
             ]
           }
+        },
+        {
+          "trigger": "functional_scope",
+          "active_scope": {
+            "id": "functional-controls-repair-20261003",
+            "source_commit": "ad26b07a7ada49aed1d7ac686fb32a8dbcf2ded6",
+            "streams": [
+              "Layout",
+              "PCB",
+              "Case",
+              "Parts/Project"
+            ],
+            "journeys": [
+              {
+                "id": "layout-small-drag",
+                "scope": "F3.3-C02 one-pixel Alt drag, stationary click/reflow, modified selection and Undo",
+                "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md"
+              },
+              {
+                "id": "module-actions",
+                "scope": "F5.5-C02 VIK connection, circuit joins/copy/remove and exact constituent placement",
+                "spec": ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md"
+              },
+              {
+                "id": "case-instance-controls",
+                "scope": "F5.6-C03 Case PCB association/flip, selected-instance navigation, history and reopen",
+                "spec": ".scratch/dioxus-pcb-view/issues/06-editor-owned-physical-setup-intents.md"
+              },
+              {
+                "id": "preference-fallback",
+                "scope": "F2.4-C05 storage failure notice and usable in-memory theme/panel controls",
+                "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md"
+              }
+            ]
+          },
+          "phase": "repairing",
+          "unmet_start_conditions": [],
+          "candidate_build_id": "frontend-functional-controls-repair-20261003",
+          "source_commit": "177f990bad633b75f82a817d9f14fdfe0ec1f3b9",
+          "journeys": [
+            {
+              "id": "layout-small-drag",
+              "scope": "F3.3-C02 one-pixel Alt drag, stationary click/reflow, modified selection and Undo",
+              "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+              "state": "passed",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/layout/RESULTS.md",
+              "verified": "Unchanged drag code: paired one-pixel Alt movement, stationary Inspector reflow, modified selection and single Undo/Redo."
+            },
+            {
+              "id": "module-actions",
+              "scope": "F5.5-C02 VIK connection, circuit joins/copy/remove and exact constituent placement",
+              "spec": ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md",
+              "state": "pending"
+            },
+            {
+              "id": "case-instance-controls",
+              "scope": "F5.6-C03 Case PCB association/flip, selected-instance navigation, history and reopen",
+              "spec": ".scratch/dioxus-pcb-view/issues/06-editor-owned-physical-setup-intents.md",
+              "state": "passed",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/case/receipt.md",
+              "verified": "PCB reassignment in both directions retains selected instance; flip, unrelated-half preservation, fresh history and reload pass.",
+              "limitation": "History focus effects recorded; broader retained controller/mechanical state and shared-preview validation remain separate criteria."
+            },
+            {
+              "id": "preference-fallback",
+              "scope": "F2.4-C05 storage failure notice and usable in-memory theme/panel controls",
+              "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
+              "state": "passed",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/preferences/receipt.md",
+              "verified": "Unchanged preference source: actual absent localStorage and quota failure retain usable theme/panel controls and show one notice."
+            }
+          ],
+          "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
+          "review": {
+            "profile": "sol-review",
+            "model": "gpt-6.1-sol",
+            "reasoning": "high",
+            "state": "source_clear_waiting_browser",
+            "source_commit": "177f990bad633b75f82a817d9f14fdfe0ec1f3b9"
+          },
+          "next_scope": {
+            "id": "functional-module-ownership-20261003",
+            "source_commit": "7ddd10e32d24b474366d995171dde89e1577d7fe",
+            "streams": [
+              "PCB"
+            ],
+            "journeys": [
+              {
+                "id": "module-actions",
+                "scope": "F5.5-C02 reject foreign-board connector reuse; fresh automatic creation and repeat Save; reuse unchanged circuit/constituent evidence.",
+                "spec": ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md"
+              }
+            ]
+          }
         }
       ],
-      "phase": "repairing",
+      "phase": "partial",
       "unmet_start_conditions": [],
-      "candidate_build_id": "frontend-functional-controls-repair-20261003",
-      "source_commit": "177f990bad633b75f82a817d9f14fdfe0ec1f3b9",
+      "candidate_build_id": "frontend-module-ownership-20261003",
+      "source_commit": "7ddd10e32d24b474366d995171dde89e1577d7fe",
       "journeys": [
         {
-          "id": "layout-small-drag",
-          "scope": "F3.3-C02 one-pixel Alt drag, stationary click/reflow, modified selection and Undo",
-          "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
-          "state": "passed",
-          "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/layout/RESULTS.md",
-          "verified": "Unchanged drag code: paired one-pixel Alt movement, stationary Inspector reflow, modified selection and single Undo/Redo."
-        },
-        {
           "id": "module-actions",
-          "scope": "F5.5-C02 VIK connection, circuit joins/copy/remove and exact constituent placement",
+          "scope": "F5.5-C02 reject foreign-board connector reuse; fresh automatic creation and repeat Save; reuse unchanged circuit/constituent evidence.",
           "spec": ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md",
-          "state": "pending"
-        },
-        {
-          "id": "case-instance-controls",
-          "scope": "F5.6-C03 Case PCB association/flip, selected-instance navigation, history and reopen",
-          "spec": ".scratch/dioxus-pcb-view/issues/06-editor-owned-physical-setup-intents.md",
-          "state": "passed",
-          "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/case/receipt.md",
-          "verified": "PCB reassignment in both directions retains selected instance; flip, unrelated-half preservation, fresh history and reload pass.",
-          "limitation": "History focus effects recorded; broader retained controller/mechanical state and shared-preview validation remain separate criteria."
-        },
-        {
-          "id": "preference-fallback",
-          "scope": "F2.4-C05 storage failure notice and usable in-memory theme/panel controls",
-          "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
-          "state": "passed",
-          "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/preferences/receipt.md",
-          "verified": "Unchanged preference source: actual absent localStorage and quota failure retain usable theme/panel controls and show one notice."
+          "state": "partial",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/modules/vik-splitter-gnd-join-ad26b07a.md",
+          "verified": "Paired circuit join/copy/remove and constituent Place/history; final 34780 foreign-connector rejection preserves both boards, clearing connection permits Save.",
+          "remaining": "Fresh module attachment route, full archive reopen, and broader module lifecycle/constituent coverage remain unqualified."
         }
       ],
       "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
+      "started_at": "2026-10-03T22:20:27.126223+00:00",
       "review": {
         "profile": "sol-review",
         "model": "gpt-6.1-sol",
         "reasoning": "high",
-        "state": "source_clear_waiting_browser",
-        "source_commit": "177f990bad633b75f82a817d9f14fdfe0ec1f3b9"
-      },
-      "next_scope": {
-        "id": "functional-module-ownership-20261003",
-        "source_commit": "177f990bad633b75f82a817d9f14fdfe0ec1f3b9",
-        "streams": [
-          "PCB"
-        ],
-        "journeys": [
-          {
-            "id": "module-actions",
-            "scope": "F5.5-C02 reject foreign-board connector reuse; fresh automatic creation and repeat Save; reuse unchanged circuit/constituent evidence.",
-            "spec": ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md"
-          }
-        ]
+        "state": "completed",
+        "verdict": "source_and_scoped_repairs_pass_with_remaining_qualification",
+        "source_commit": "7ddd10e32d24b474366d995171dde89e1577d7fe",
+        "review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/consolidated-review.md",
+        "review_sha256": "b148f7fafa9a2ba04c1242f3d88ce972e4c808a7ca3046090f2c30e72bbb553a"
       }
     },
     "delivery_priority": {

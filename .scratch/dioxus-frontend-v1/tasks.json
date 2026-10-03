@@ -4131,7 +4131,7 @@
           "blockers": [
             "F4.7"
           ],
-          "next_action": "Verify each consumed F4-owned seam in the integrated mounted-module inspector; do not duplicate Parts ownership.",
+          "next_action": "Bounded investigation: on 177f990b, Parts > Haptic DRV2605L > 3V3 shows source/profile but no TS Attach module or host assignment route; Layout Add object also did not expose it. Locate the intended F5 attachment entry and qualify it, or implement the missing consumed Parts-to-placement seam. Do not widen F4.7, which explicitly excludes mounted placements.",
           "finish_condition": "Integrated PCB placement selection reuses exact F4 definition/readiness/profile/asset controls and reflects their accepted state.",
           "owned_files": [
             "web/src/presentation/pcb_module_inspector.rs",
