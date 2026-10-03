@@ -297,7 +297,6 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         let mut mirror_axis = mirror_axis;
         let mut mirror_coordinate = mirror_coordinate;
         let mut error = error;
-        let initial_position = initial_position;
         let initial_margin = initial_outline.margin;
         let initial_constraint = initial_constraint.clone();
         let initial_source = initial_source.clone();
