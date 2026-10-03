@@ -808,6 +808,7 @@ fn AssemblyDraftFields(
     let import_pending = use_signal(|| false);
     let render_value = value();
     let apply_value = render_value.clone();
+    let placement_value = render_value.clone();
     let member_definitions = definitions
         .iter()
         .filter(|definition| {
@@ -890,7 +891,7 @@ fn AssemblyDraftFields(
                     r#type: "button",
                     disabled: controls_disabled || unsaved_assets,
                     onclick: move |_| on_place.call(super::super::objects::MatrixPlacementSource::Assembly {
-                        assembly: render_value.clone(),
+                        assembly: placement_value.clone(),
                         definitions: placement_definitions.clone(),
                     }),
                     "Place assembly in Layout"
