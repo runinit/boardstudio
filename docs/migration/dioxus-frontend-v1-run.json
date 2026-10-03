@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T18:39:37.311656+00:00",
+    "updated_at": "2026-10-03T19:46:54.896080+00:00",
     "parent_counts": {
       "accepted": 10,
       "implementing": 41,
@@ -44,12 +44,12 @@
         "subpath": 0
       }
     },
-    "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
+    "criterion_accounting": "Criterion states, evidence, blockers and next actions are authoritative in tasks.json; progress.py derives focused queues and counts. Historical accepted parents retain their decisions.",
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "c85160c70c09c69289c6c9fd330dc5f357552c32",
-      "state": "Candidate34776 served: Objects selection mode correction compiled, packaged and verified by trusted canvas clicks; six-stream functional evidence retained from34775 unchanged-source flows.",
+      "source_commit": "9f9085852c98f66ef37aa669359ab3f3e49306c5",
+      "state": "Combined source integrated; nine browser-executed Keymap checks and focused tooling checks pass. Preparing immutable candidate.",
       "packets": [
         {
           "stream": "Layout",
@@ -491,9 +491,8 @@
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Prioritize genuinely unfinished functional criteria and cross-workbench joins in the existing parent graph; do not repeat the six happy-path source/browser audits recorded in the functional batch.",
-      "Complete F5 manual-pin persistence/Undo/conflict and F6K.4 firmware-position joins; preserve the already verified encoder and Push editors.",
-      "Finish scoped export/3D cancellation, stale-result and failure/retry integration where criteria remain unmet; defer cosmetic matching and retain all RF observations."
+      "Package the settled encoder handoff and tooling batch; qualify PCB to Keymap to ZMK plus unresolved shared-viewer/export lifecycle transitions.",
+      "Use progress.py ready to assign exact criteria; preserve unassessed checks as bounded investigations and implemented checks as qualification work."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
@@ -675,7 +674,29 @@
       ],
       "unmet_acceptance_conditions": [
         "Only this bounded functional selection scope qualified; broader parent criteria and cross-workbench joins remain."
-      ]
+      ],
+      "next_scope": {
+        "id": "functional-criteria-encoder-20261003",
+        "source_commit": "9f9085852c98f66ef37aa669359ab3f3e49306c5",
+        "streams": [
+          "Keymap",
+          "PCB",
+          "Keycaps",
+          "Case"
+        ],
+        "journeys": [
+          {
+            "id": "encoder-f5-handoff",
+            "scope": "PCB current-plan encoder edits and push, Undo/Redo/reopen and ZMK output",
+            "spec": ".scratch/dioxus-keymap-layers/issues/06-encoder-rotation-editor.md"
+          },
+          {
+            "id": "shared-preview-export-lifecycle",
+            "scope": "Remaining shared 3D scope/unmount and STEP/export readiness/retry transitions",
+            "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md"
+          }
+        ]
+      }
     },
     "delivery_priority": {
       "authority": "User on 2026-10-03: make the app work; layout parity last; improve UI along the way because the design will change.",

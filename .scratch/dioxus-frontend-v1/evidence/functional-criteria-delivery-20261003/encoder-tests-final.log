@@ -1,0 +1,31 @@
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 22.91s
+     Running unittests src/main.rs (web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-ade5ef492b9e030c.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:45897/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+Loading Wasm module...
+using deprecated parameters for the initialization function; pass a single object instead
+
+running 9 tests
+Invoking test: presentation::keymap::binding_controller::tests::encoder_lineage_survives_own_snapshot_advance_but_not_input_replacement
+test presentation::keymap::binding_controller::tests::encoder_lineage_survives_own_snapshot_advance_but_not_input_replacement ... ok
+Invoking test: presentation::keymap::binding_controller::tests::completed_physical_encoder_edit_waits_for_pending_plan_then_resumes
+test presentation::keymap::binding_controller::tests::completed_physical_encoder_edit_waits_for_pending_plan_then_resumes ... ok
+Invoking test: presentation::keymap::encoder_inputs::tests::replacement_fingerprint_replaces_same_revision_lineage
+test presentation::keymap::encoder_inputs::tests::replacement_fingerprint_replaces_same_revision_lineage ... ok
+Invoking test: presentation::keymap::encoder_inputs::tests::plan_arrival_without_revision_restores_physical_rows_and_module_fallback
+test presentation::keymap::encoder_inputs::tests::plan_arrival_without_revision_restores_physical_rows_and_module_fallback ... ok
+Invoking test: presentation::keymap::encoder_inputs::tests::pending_to_failed_plan_clears_physical_rows_even_without_a_fingerprint
+test presentation::keymap::encoder_inputs::tests::pending_to_failed_plan_clears_physical_rows_even_without_a_fingerprint ... ok
+Invoking test: presentation::keymap::encoder_inputs::tests::own_edit_pending_then_same_plan_restores_rows_without_changing_lineage
+test presentation::keymap::encoder_inputs::tests::own_edit_pending_then_same_plan_restores_rows_without_changing_lineage ... ok
+Invoking test: presentation::keymap::encoder_inputs::tests::board_plan_scope_is_admitted_for_the_selected_instance_only
+test presentation::keymap::encoder_inputs::tests::board_plan_scope_is_admitted_for_the_selected_instance_only ... ok
+Invoking test: presentation::keymap::macro_editor::mounted_accessible_name_tests::mounted_macro_editor_uses_display_and_visible_field_names
+test presentation::keymap::macro_editor::mounted_accessible_name_tests::mounted_macro_editor_uses_display_and_visible_field_names ... ok
+Invoking test: presentation::keymap::panel::disclosure_mounted_tests::layers_disclosure_is_open_accessible_persistent_and_view_only
+test presentation::keymap::panel::disclosure_mounted_tests::layers_disclosure_is_open_accessible_persistent_and_view_only ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 179 filtered out; finished in 0.28s
+

@@ -874,6 +874,15 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
     "observation": "Matched settled Sofle matrix width 1→1.25→1 changes outline min X from -3.82 to -3.97 in both frontends; final SVG bytes are identical. Earlier mismatch compared different histories, not a proven migration regression.",
     "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
     "status": "Migration discrepancy resolved; common edit normalization merits later characterization, no engine fix claimed."
+  },
+  "encoder_plan_refresh_20261003": {
+    "observation": "An accepted binding edit advances the document before the electrical plan resolves. Input projections need to distinguish temporary plan absence from actual input replacement; otherwise rows or success feedback disappear.",
+    "mitigation": "F5 resolution remains the one physical-input owner. Keymap waits for its current fingerprint and preserves same-lineage settlement while rejecting changed identity.",
+    "evidence": [
+      "web/src/presentation/keymap/encoder_inputs.rs",
+      "web/src/presentation/keymap/binding_controller.rs"
+    ],
+    "post_port": "Consider a shared accepted-derived-data lifecycle abstraction only after comparing current consumers; keep the local correction scoped now."
   }
 }
 ```
@@ -1623,6 +1632,17 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
     "mitigation": "Optional next_scope in existing qualification record selects source, streams and journeys; previous scope/results archived and new candidate verdicts reset.",
     "validation": "12 focused qualification checks passed, including scoped blocking, retained legacy behavior and no stale result attribution.",
     "evidence": ".scratch/dioxus-frontend-v1/qualification.py; .scratch/dioxus-frontend-v1/test-qualification.py"
+  },
+  "criterion_delivery_20261003": {
+    "observation": "Historical missing/unmounted notes and compact browser snapshots triggered duplicate implementation investigations. A first complete criterion mapping separates source gaps, implemented behavior, retained behavioral evidence and unassessed checks.",
+    "mitigation": "Existing tasks.json owns stable criterion states and evidence; progress queries derive compact dispatch and closure queues. Publication derives proof from build provenance, and a shared browser helper normalizes uploads and waits.",
+    "evidence": [
+      ".scratch/dioxus-frontend-v1/tasks.json",
+      ".scratch/dioxus-frontend-v1/progress.py",
+      "scripts/migration_candidate.py",
+      "scripts/migration-browser.py"
+    ],
+    "post_port": "Assess shared typed provenance and read-model ownership after migration; do not create a second tracker. Preserve historical parent prose as history rather than dispatch truth."
   }
 }
 ```
