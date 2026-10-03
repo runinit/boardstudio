@@ -3727,12 +3727,14 @@ impl Runtime {
             Ok(worker)
         };
         crate::export_footprints::build_zip(
-            operation_id,
-            snapshot,
-            scope,
-            &core,
-            &self.store,
-            capture.executor_epoch.0,
+            crate::export_footprints::ExportSource {
+                operation_id,
+                snapshot,
+                scope,
+                core: &core,
+                store: &self.store,
+                executor_epoch: capture.executor_epoch.0,
+            },
             ensure_current,
             preview_generator,
         )

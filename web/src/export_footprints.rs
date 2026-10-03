@@ -17,16 +17,28 @@ use std::{collections::BTreeMap, rc::Rc};
 
 use crate::preview_generator::PreviewGeneratorClient;
 
+pub(crate) struct ExportSource<'a> {
+    pub(crate) operation_id: OperationId,
+    pub(crate) snapshot: &'a AcceptedSnapshot,
+    pub(crate) scope: &'a Scope,
+    pub(crate) core: &'a CoreWorker,
+    pub(crate) store: &'a BrowserStore,
+    pub(crate) executor_epoch: u64,
+}
+
 pub(crate) async fn build_zip(
-    operation_id: OperationId,
-    snapshot: &AcceptedSnapshot,
-    scope: &Scope,
-    core: &CoreWorker,
-    store: &BrowserStore,
-    executor_epoch: u64,
+    source: ExportSource<'_>,
     is_current: impl Fn() -> Result<(), String>,
     preview_generator: impl FnOnce() -> Result<Rc<PreviewGeneratorClient>, String>,
 ) -> Result<Vec<u8>, String> {
+    let ExportSource {
+        operation_id,
+        snapshot,
+        scope,
+        core,
+        store,
+        executor_epoch,
+    } = source;
     let document = snapshot.document.as_ref();
     is_current()?;
     if document.definitions.is_empty() {
