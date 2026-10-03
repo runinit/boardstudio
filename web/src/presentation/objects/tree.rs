@@ -129,6 +129,89 @@ pub(super) fn default_disclosures(document: &ProjectDoc, board_id: &str) -> BTre
     defaults
 }
 
+/// PCB inventory shows each actual board part as an explicit component, even when
+/// that part is also a primary matrix key in the Layout workspace.
+pub(super) fn build_pcb_tree(
+    model: &boardstudio_application::ReadModel,
+    expanded: &BTreeSet<String>,
+) -> Vec<TreeItem> {
+    let Some(snapshot) = model.accepted.as_ref() else {
+        return Vec::new();
+    };
+    let document = &snapshot.document;
+    let Some(board) = document
+        .boards
+        .iter()
+        .find(|board| board.id == model.active_board_id)
+    else {
+        return Vec::new();
+    };
+    let mut rows: Vec<_> = build_tree(
+        document,
+        &board.id,
+        Grouping::Column,
+        expanded,
+        &snapshot.scene.matrix_scenes,
+        &snapshot.scene.board_outline_scenes,
+    )
+    .into_iter()
+    .filter(|row| {
+        matches!(
+            row.kind,
+            TreeKind::Board | TreeKind::Outline | TreeKind::OutlineVersion | TreeKind::Bridge
+        )
+    })
+    .collect();
+    if !expanded.contains(&format!("board:{}", board.id)) {
+        return rows;
+    }
+    for row in &mut rows {
+        if let Some(TreeContext::Bridge { bridge_id, .. }) = row.context.as_ref()
+            && let Some(bridge) = snapshot
+                .scene
+                .board_outline_scenes
+                .iter()
+                .find(|scene| scene.board_id == board.id)
+                .and_then(|scene| scene.bridges.iter().find(|bridge| bridge.id == *bridge_id))
+        {
+            row.detail = Some(format!("{} mm", bridge.width));
+        }
+    }
+    for part in document
+        .parts
+        .iter()
+        .filter(|part| board.part_ids.contains(&part.id))
+    {
+        let name = document
+            .definitions
+            .iter()
+            .find(|definition| definition.id == part.definition_id)
+            .map_or("Component", |definition| definition.name.as_str());
+        let side = match part.side {
+            boardstudio_core::model::Side::Front => "front",
+            boardstudio_core::model::Side::Back => "back",
+        };
+        rows.push(TreeItem {
+            id: format!("pcb:{}", part.id),
+            label: part.reference.clone(),
+            detail: Some(format!("{name} · {side}")),
+            level: 1,
+            kind: TreeKind::Component,
+            context: Some(TreeContext::Component {
+                part_id: Some(part.id.clone()),
+                matrix_id: None,
+                row: None,
+                column: None,
+                assembly_id: None,
+            }),
+            expanded: None,
+            primary_id: Some(part.id.clone()),
+            expandable: false,
+        });
+    }
+    rows
+}
+
 pub(super) fn build_tree(
     document: &ProjectDoc,
     board_id: &str,

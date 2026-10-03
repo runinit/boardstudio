@@ -133,6 +133,7 @@ pub(super) fn Objects(
     let runtime = use_context::<Rc<Runtime>>();
     let workspace = use_context::<super::WorkspaceState>().0;
     let case_workspace = workspace() == "Case";
+    let pcb_workspace = workspace() == "PCB";
     let generation = (use_context::<super::SelectionAdapter>().generation)();
     let _ = use_context::<Signal<u64>>()();
     let local_pair_created = use_signal(|| None::<MirroredPairCreated>);
@@ -199,18 +200,32 @@ pub(super) fn Objects(
         .iter()
         .any(|instance| instance.id == active_instance);
     let current_expanded = expanded.read().clone();
-    let items = tree::build_tree(
-        document,
-        &board_id,
-        grouping(),
-        &current_expanded,
-        snapshot.scene.matrix_scenes.as_slice(),
-        snapshot.scene.board_outline_scenes.as_slice(),
-    );
+    let items = if pcb_workspace {
+        tree::build_pcb_tree(&model, &current_expanded)
+    } else {
+        tree::build_tree(
+            document,
+            &board_id,
+            grouping(),
+            &current_expanded,
+            snapshot.scene.matrix_scenes.as_slice(),
+            snapshot.scene.board_outline_scenes.as_slice(),
+        )
+    };
     let current_context = selected_context.read().clone().filter(|selected| {
         active_scope.as_ref() == Some(&selected.scope)
             && tree::resolve_selection(&model, &selected.context).is_some()
     });
+    let board_name = document
+        .boards
+        .iter()
+        .find(|board| board.id == board_id)
+        .map_or("Board", |board| board.name.as_str());
+    let pcb_title = current_context
+        .as_ref()
+        .and_then(|selected| tree::context_label(&model, &selected.context))
+        .unwrap_or_else(|| board_name.to_owned());
+    let selection_count = model.selected_part_ids.len();
     rsx! {
         aside { class: "m1-objects", "aria-label": "Objects",
             header { h2 { "Objects" } }
@@ -244,7 +259,7 @@ pub(super) fn Objects(
                         for board in &document.boards { option { key: "{board.id}", value: "{board.id}", "{board.name}" } }
                     }
                 }
-                if !instances.is_empty() && case_workspace {
+                if !pcb_workspace && !instances.is_empty() && case_workspace {
                     div { class: "m1-instance-selection", role: "group", "aria-label": "Physical instance",
                         span { "Physical instance" }
                         div { class: "m1-instance-choices",
@@ -268,7 +283,7 @@ pub(super) fn Objects(
                             }
                         }
                     }
-                } else if !instances.is_empty() {
+                } else if !pcb_workspace && !instances.is_empty() {
                     label { "Physical instance"
                         select { "aria-label": "Physical instance", value: "{active_instance}", onchange: move |event: FormEvent| {
                             if let Some(scope) = instance_scope.clone() {
@@ -285,6 +300,7 @@ pub(super) fn Objects(
                         }
                     }
                 }
+                if !pcb_workspace {
                 label { "Group objects"
                     select { "aria-label": "Group objects", value: if grouping() == Grouping::Row { "row" } else { "column" }, onchange: move |event: FormEvent| {
                         let next = Grouping::from_storage(Some(event.value()));
@@ -295,9 +311,10 @@ pub(super) fn Objects(
                         option { value: "row", "Rows" }
                     }
                 }
+                }
             }
             div { class: "m1-object-tree",
-                div { class: "m1-object-tree-heading", "{document.name}", span { "{visible_count} parts" } }
+                if !pcb_workspace { div { class: "m1-object-tree-heading", "{document.name}", span { "{visible_count} parts" } } }
                 div { role: "tree", "aria-label": "CAD structure", class: "m1-component-list m1-object-tree-list",
                     for item in items.iter().cloned() {
                         {
@@ -411,6 +428,13 @@ pub(super) fn Objects(
                             }
                         }
                     }
+                }
+            }
+            if pcb_workspace {
+                footer { class: "m1-pcb-object-footer",
+                    strong { "{pcb_title}" }
+                    span { "{board_name} / PCB" }
+                    span { if selection_count > 0 { "{selection_count} selected" } else { "Select an object to edit" } }
                 }
             }
         }
