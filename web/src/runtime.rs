@@ -3625,6 +3625,106 @@ impl Runtime {
             scope,
         });
     }
+
+    pub(crate) fn export_board_outline(
+        self: &Rc<Self>,
+        format: boardstudio_core::model::OutlineExportFormat,
+    ) {
+        let Some(scope) = self.scope() else {
+            self.apply_report(RuntimeReport::alert(
+                "Select a board before outline export.",
+            ));
+            return;
+        };
+        let Some(snapshot) = self.model().accepted else {
+            self.apply_report(RuntimeReport::alert(
+                "Outline export requires a ready accepted snapshot.",
+            ));
+            return;
+        };
+        let Some(board) = snapshot
+            .document
+            .boards
+            .iter()
+            .find(|board| board.id == scope.board_id)
+            .cloned()
+        else {
+            self.apply_report(RuntimeReport::alert(
+                "Select a resolved board before outline export.",
+            ));
+            return;
+        };
+        let Some(contours) = snapshot
+            .scene
+            .board_contours
+            .iter()
+            .find(|entry| entry.board_id == scope.board_id)
+            .map(|entry| entry.contours.clone())
+        else {
+            self.apply_report(RuntimeReport::alert(
+                "The selected board has no resolved outline.",
+            ));
+            return;
+        };
+        let runtime = self.clone();
+        let operation_id = self.operation();
+        spawn_local(async move {
+            let core = runtime.core.borrow().clone();
+            let executor_epoch = runtime.session.borrow().core_executor_epoch();
+            let request_id = format!("export-outline-{}", operation_id.0);
+            let format_name = match format {
+                boardstudio_core::model::OutlineExportFormat::Svg => "svg",
+                boardstudio_core::model::OutlineExportFormat::Dxf => "dxf",
+            };
+            let request = ArtifactRequest::ExportOutline {
+                id: request_id.clone(),
+                request: boardstudio_core::model::OutlineExportRequest {
+                    filename: format!("{}.{}", snapshot.document.name, format_name),
+                    board,
+                    contours,
+                    format,
+                },
+            };
+            let result = core
+                .artifact(&request_id, &executor_epoch.0.to_string(), &request)
+                .await
+                .map_err(|error| format!("Outline export failed: {error}"))
+                .and_then(|reply| match reply {
+                    ArtifactReply::ExportOutline { id, result } if id == request_id => Ok(result),
+                    ArtifactReply::Error { id, error } if id == request_id => {
+                        Err(format!("Outline export failed: {}", error.message))
+                    }
+                    _ => Err("Core returned an outline for another export request.".into()),
+                });
+            let current = runtime.scope().as_ref() == Some(&scope)
+                && runtime.model().accepted.as_ref().is_some_and(|current| {
+                    current.token == snapshot.token
+                        && current.session_epoch == snapshot.session_epoch
+                        && current.document.id == snapshot.document.id
+                        && current.document.revision == snapshot.document.revision
+                })
+                && runtime.session.borrow().core_executor_epoch() == executor_epoch
+                && Rc::ptr_eq(&core, &*runtime.core.borrow());
+            if !current {
+                return;
+            }
+            match result {
+                Ok(file) => {
+                    let media_type = match format {
+                        boardstudio_core::model::OutlineExportFormat::Svg => "image/svg+xml",
+                        boardstudio_core::model::OutlineExportFormat::Dxf => "application/dxf",
+                    };
+                    let delivery =
+                        deliver(file.content.as_bytes(), &file.filename, Some(media_type));
+                    match delivery {
+                        Ok(()) => runtime.report(format!("Saved {}.", file.filename)),
+                        Err(error) => runtime.apply_report(RuntimeReport::alert(error)),
+                    }
+                }
+                Err(error) => runtime.apply_report(RuntimeReport::alert(error)),
+            }
+        });
+    }
     fn export_current(
         &self,
         operation_id: OperationId,

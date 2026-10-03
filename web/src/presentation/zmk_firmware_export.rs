@@ -10,6 +10,7 @@ use std::rc::Rc;
 #[derive(Clone, PartialEq)]
 pub(crate) struct ZmkFirmwareExportPanelInput {
     pub ready: bool,
+    pub wiring_ready: bool,
     pub on_export: EventHandler<()>,
 }
 
@@ -73,6 +74,10 @@ pub(crate) fn use_export_panel_input(
         ready_for_export(&source.identity, &resolution())
             && runtime.electrical_preview_executor_epoch() == source.identity.executor_epoch
     });
+    let wiring_ready = source.as_ref().is_some_and(|source| {
+        wiring_ready_for_board_export(&source.identity, &resolution())
+            && runtime.electrical_preview_executor_epoch() == source.identity.executor_epoch
+    });
     let on_export = use_callback({
         let runtime = runtime.clone();
         let owner = source.as_ref().map(|source| ZmkExportActionOwner {
@@ -113,7 +118,32 @@ pub(crate) fn use_export_panel_input(
             runtime.export_firmware();
         }
     });
-    ZmkFirmwareExportPanelInput { ready, on_export }
+    ZmkFirmwareExportPanelInput {
+        ready,
+        wiring_ready,
+        on_export,
+    }
+}
+
+fn wiring_ready_for_board_export(
+    identity: &WiringPlanIdentity,
+    resolution: &PcbWiringResolution,
+) -> bool {
+    let PcbWiringResolution::Current {
+        identity: resolved_identity,
+        plan,
+    } = resolution
+    else {
+        return false;
+    };
+    resolved_identity == identity
+        && plan.revision == identity.revision
+        && plan.board_id.as_deref() == Some(identity.scope.board_id.as_str())
+        && plan.instance_id.is_none()
+        && !plan
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity == "error")
 }
 
 pub(crate) fn ready_for_export(

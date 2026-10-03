@@ -10,6 +10,7 @@ mod case_viewer;
 mod case_workspace;
 mod context_summary;
 mod empty_board_canvas;
+mod export_workspace;
 mod firmware_positions;
 mod inspector;
 mod instance_selection;
@@ -170,6 +171,8 @@ struct OwnedTreeCellAnchor {
 
 #[derive(Clone, Copy)]
 pub(super) struct WorkspaceState(pub(super) Signal<&'static str>);
+#[derive(Clone, Copy)]
+pub(super) struct ExportReturnWorkspace(pub(super) Signal<&'static str>);
 /// The explicit UI preference is separate from Session's effective instance.
 #[derive(Clone, Copy)]
 pub(crate) struct InstanceSelection(Signal<Option<instance_selection::Preference>>);
@@ -407,6 +410,13 @@ pub fn App() -> Element {
     use_context_provider(|| adapter.clone());
     let mut workspace = use_signal(|| "Layout");
     use_context_provider(|| WorkspaceState(workspace));
+    let return_workspace = use_signal(|| "Layout");
+    use_context_provider(|| ExportReturnWorkspace(return_workspace));
+    use_effect(use_reactive!(|active = workspace()| {
+        if active != "Export" {
+            return_workspace.set(active);
+        }
+    }));
     let case_generation = CaseGenerationState {
         live_preview: use_signal(|| true),
         automatic: use_signal(AutomaticCaseGeneration::new),
@@ -2145,6 +2155,7 @@ fn Editor() -> Element {
     use_context_provider(|| case_selection);
     let case_tree_expanded = use_signal(BTreeSet::<String>::new);
     let workspace = use_context::<WorkspaceState>().0;
+    let return_workspace = use_context::<ExportReturnWorkspace>().0;
     let active_workspace = workspace();
     let requested_workspace_panel =
         panels::use_workspace_panel_defaults(active_workspace, objects_open, inspect_open);
@@ -6689,7 +6700,13 @@ fn Editor() -> Element {
                             groups: canvas_layers::layout_groups(),
                         }
                     } else if active_workspace == "Export" {
-                        ExportPanel { zmk_firmware: Some(zmk_firmware_export_panel) }
+                        export_workspace::ExportWorkspace {
+                            zmk_firmware: Some(zmk_firmware_export_panel),
+                            workspace,
+                            return_workspace,
+                            inspect_open,
+                            inspector_settings: inspector_panel_settings,
+                        }
                     } else if let Some(input) = canvas_input {
                         {workspace_composition::canvas(input)}
                     } else {
