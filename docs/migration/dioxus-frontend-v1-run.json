@@ -1271,12 +1271,12 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T08:53:27.237288+00:00",
+    "updated_at": "2026-10-03T08:59:38.988296+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
       "accepted": 2,
-      "planned": 45,
-      "implementing": 15,
+      "planned": 39,
+      "implementing": 21,
       "total": 62
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
@@ -1296,8 +1296,8 @@
       "package_qualification": "Guarded page package/source/assets/root+subpath HTTP200 COEP PASS; strict page WASM all-target Clippy PASS17.66s. Actual Keycaps cap/legend3D and layers GREEN, Keymap80/96/25/400 zoom GREEN, Project menu overlay/1px preview outline GREEN. Case unique mount IDs GREEN; edited blocked assembly loses settings suggestions, active source repair. No whole-parent acceptance claimed."
     },
     "integration": {
-      "source_commit": "87b79733",
-      "state": "Latest served source d7742d46; subsequent evidence-only joins through87b79733. Layout matrix daily workflow is authored in coordinated private view and controller packets; root PCB contextual Objects pane, Parts contextual2D/3D and Case blocked-generation settings projection next. Keymap/Keycaps continue coherent workflows. No active package lease.",
+      "source_commit": "38757073",
+      "state": "PCB contextual Objects, Case blocked-resolution projection and Keymap blur/Tab identity repair integrated. Matrix configuration view joined84fbf801; structural controller/mount awaited for the combined check and package. Unfinished parent criteria remain; six stale planned statuses reconciled to implementing from mounted source/evidence.",
       "packets": [
         {
           "slice": "Layout perimeter editing",

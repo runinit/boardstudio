@@ -313,7 +313,7 @@
         "INT.1"
       ],
       "acceptance_after": [],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
       "shared_edit_owner": "integration coordinator",
@@ -329,6 +329,21 @@
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true,
         "packet_override_note": "Use High for newly implemented range/focus/scope/lifecycle state; Medium for projection/rendering and proven callback composition."
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T08:59:38.988296+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Reconciled already-mounted implementation and retained evidence; no acceptance gate waived."
+        }
+      ],
+      "progress_evidence": {
+        "updated_at": "2026-10-03T08:59:38.988296+00:00",
+        "checkpoint": "Served d7742d46/34757; next batch source38757073+84fbf801+ead8fe7c+0c17fd37",
+        "scope": "34755/d7742d46 retained accepted selection and tree/Inspector pathways; current Layout Properties/Relations owner and PCB actual-part selection source integrated.",
+        "remaining": "Selection/outline navigation broad keyboard and acceptance joins remain.",
+        "acceptance": "Existing acceptance/dependencies unchanged. Boundary_status is the historical planning statement; this progress entry describes current implementation."
       }
     },
     {
@@ -352,7 +367,7 @@
         "F3.1"
       ],
       "acceptance_after": [],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
       "shared_edit_owner": "integration coordinator",
@@ -367,6 +382,21 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T08:59:38.988296+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Reconciled already-mounted implementation and retained evidence; no acceptance gate waived."
+        }
+      ],
+      "progress_evidence": {
+        "updated_at": "2026-10-03T08:59:38.988296+00:00",
+        "checkpoint": "Served d7742d46/34757; next batch source38757073+84fbf801+ead8fe7c+0c17fd37",
+        "scope": "84fbf801 matrix configuration view integrated; existing component/controller chooser and matrix setup/placement paths mounted. Coordinated structural controller packet active.",
+        "remaining": "Final matrix/cell structural workflow and remaining placement/invalid-input criteria remain.",
+        "acceptance": "Existing acceptance/dependencies unchanged. Boundary_status is the historical planning statement; this progress entry describes current implementation."
       }
     },
     {
@@ -940,7 +970,7 @@
         "INT.1"
       ],
       "acceptance_after": [],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
       "shared_edit_owner": "integration coordinator",
@@ -955,6 +985,21 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T08:59:38.988296+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Reconciled already-mounted implementation and retained evidence; no acceptance gate waived."
+        }
+      ],
+      "progress_evidence": {
+        "updated_at": "2026-10-03T08:59:38.988296+00:00",
+        "checkpoint": "Served d7742d46/34757; next batch source38757073+84fbf801+ead8fe7c+0c17fd37",
+        "scope": "Actual PCB selected-board canvas, host layers and scoped visibility mounted;34748\u201334755 geometry/history receipts retained. PCB18 contextual inventory ead8fe7c integrated for next candidate.",
+        "remaining": "Default/finding visibility differences, remaining theme/compact qualification and full parent acceptance remain.",
+        "acceptance": "Existing acceptance/dependencies unchanged. Boundary_status is the historical planning statement; this progress entry describes current implementation."
       }
     },
     {
@@ -1309,7 +1354,7 @@
         "F6K.1"
       ],
       "acceptance_after": [],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
@@ -1324,6 +1369,21 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T08:59:38.988296+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Reconciled already-mounted implementation and retained evidence; no acceptance gate waived."
+        }
+      ],
+      "progress_evidence": {
+        "updated_at": "2026-10-03T08:59:38.988296+00:00",
+        "checkpoint": "Served d7742d46/34757; next batch source38757073+84fbf801+ead8fe7c+0c17fd37",
+        "scope": "Typed binding editor mounted;34755 owner/disclosure GREEN retained. Existing key/macro/encoder source controls align with reference. Actual34757 changed-value Tab RED repaired38757073 for next candidate.",
+        "remaining": "Changed Tab GREEN and remaining full binding/invalid/legacy criterion accounting remain.",
+        "acceptance": "Existing acceptance/dependencies unchanged. Boundary_status is the historical planning statement; this progress entry describes current implementation."
       }
     },
     {
@@ -1423,7 +1483,7 @@
       "acceptance_after": [
         "F3.1"
       ],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
@@ -1439,6 +1499,21 @@
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true,
         "packet_override_note": "Use High for newly implemented range/focus/scope/lifecycle state; Medium for projection/rendering and proven callback composition."
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T08:59:38.988296+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Reconciled already-mounted implementation and retained evidence; no acceptance gate waived."
+        }
+      ],
+      "progress_evidence": {
+        "updated_at": "2026-10-03T08:59:38.988296+00:00",
+        "checkpoint": "Served d7742d46/34757; next batch source38757073+84fbf801+ead8fe7c+0c17fd37",
+        "scope": "Physical2D Keycaps canvas, selected-key projection and contextual controls mounted; empty guidance34751 and current34757 selected24-cap fixture receipts retained.",
+        "remaining": "Remaining standalone/mixed projections, complete keyboard/range cases and acceptance joins remain.",
+        "acceptance": "Existing acceptance/dependencies unchanged. Boundary_status is the historical planning statement; this progress entry describes current implementation."
       }
     },
     {
@@ -1685,7 +1760,7 @@
       "owner": "F7 workflow lead",
       "start_after": [],
       "acceptance_after": [],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
       "shared_edit_owner": "integration coordinator",
@@ -1701,6 +1776,21 @@
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true,
         "contract_review_reuse": "Reuse current contract; routine private frontend work proceeds to integrated candidate review."
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T08:59:38.988296+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Reconciled already-mounted implementation and retained evidence; no acceptance gate waived."
+        }
+      ],
+      "progress_evidence": {
+        "updated_at": "2026-10-03T08:59:38.988296+00:00",
+        "checkpoint": "Served d7742d46/34757; next batch source38757073+84fbf801+ead8fe7c+0c17fd37",
+        "scope": "Shared3D viewer and host are mounted: retained paired90/90 Case assembly and actual34757 Keycaps24-cap/1-legend interactive view with visibility GREEN.",
+        "remaining": "All sharedviewer lifecycle/host/model/theme/compact criteria and final joins remain.",
+        "acceptance": "Existing acceptance/dependencies unchanged. Boundary_status is the historical planning statement; this progress entry describes current implementation."
       }
     },
     {
