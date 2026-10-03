@@ -229,16 +229,22 @@ pub(in crate::presentation) struct MatrixInspectorProps {
 #[component]
 pub(in crate::presentation) fn MatrixInspector(props: MatrixInspectorProps) -> Element {
     let projection = &props.projection;
+    let definition_label = projection
+        .switch_choices
+        .iter()
+        .find(|(id, _)| id == &projection.definition_id)
+        .map(|(_, label)| label.clone())
+        .unwrap_or_else(|| projection.definition_id.clone());
     let mut preset_draft = use_signal(|| projection.preset.unwrap_or(MatrixPreset::MxSolder));
     let mut orientation_draft =
         use_signal(|| projection.orientation.unwrap_or(SwitchOrientation::South));
-    let accepted_matrix_id = projection.owner.matrix_id.clone();
+    let accepted_owner = projection.owner.clone();
     let accepted_preset = projection.preset;
     let accepted_orientation = projection.orientation;
     let mut preset_draft_for_effect = preset_draft;
     let mut orientation_draft_for_effect = orientation_draft;
     use_effect(use_reactive(
-        (&accepted_matrix_id, &accepted_preset, &accepted_orientation),
+        (&accepted_owner, &accepted_preset, &accepted_orientation),
         move |(_, preset, orientation)| {
             preset_draft_for_effect.set(preset.unwrap_or(MatrixPreset::MxSolder));
             orientation_draft_for_effect.set(orientation.unwrap_or(SwitchOrientation::South));
@@ -373,8 +379,9 @@ pub(in crate::presentation) fn MatrixInspector(props: MatrixInspectorProps) -> E
                 }
                 }}
             }
-            h3 { "Key assembly" }
-            div { class: "m1-matrix-inspector-fields",
+            details { class: "m1-matrix-inspector-section",
+                summary { span { "Key assembly" } small { "{definition_label}" } }
+                div { class: "m1-matrix-inspector-fields",
                 label { class: "m1-matrix-field",
                     span { "Assembly preset" }
                     select {
@@ -418,7 +425,7 @@ pub(in crate::presentation) fn MatrixInspector(props: MatrixInspectorProps) -> E
                     MatrixFieldEditor {
                         key: "{switch_key}", owner: projection.owner.clone(), snapshot_token: projection.snapshot_token,
                         revision: projection.revision, field: MatrixEditField::SwitchDefinition,
-                        label: "Matrix part definition", value: projection.definition_id.clone(),
+                        label: "Switch footprint", value: projection.definition_id.clone(),
                         baseline: MatrixEditValue::SwitchDefinition(projection.definition_id.clone()), kind: MatrixFieldKind::Choice,
                         choices: projection.switch_choices.clone(),
                         request_sequence: props.request_sequence, editable: props.editable, busy: props.busy,
@@ -436,10 +443,11 @@ pub(in crate::presentation) fn MatrixInspector(props: MatrixInspectorProps) -> E
                         feedback: diode_feedback, on_edit: props.on_edit,
                     }
                 }}
+                }
             }
-            h3 { "Keycap spacing" }
-            p { class: "m1-matrix-edit-status", "Preview only" }
-            div { class: "m1-matrix-inspector-fields",
+            details { class: "m1-matrix-inspector-section",
+                summary { span { "Keycap spacing" } small { "Preview only" } }
+                div { class: "m1-matrix-inspector-fields",
                 {rsx! {
                     MatrixFieldEditor {
                         key: "{edge_gap_x_key}", owner: projection.owner.clone(), snapshot_token: projection.snapshot_token,
@@ -461,7 +469,7 @@ pub(in crate::presentation) fn MatrixInspector(props: MatrixInspectorProps) -> E
                     }
                 }}
             }
-            p { class: "m1-matrix-edit-status", "Keycap preview {(projection.pitch_x - projection.edge_gap_x).max(0.0):.1} × {(projection.pitch_y - projection.edge_gap_y).max(0.0):.1} mm" }
+                p { class: "m1-matrix-edit-status", "Keycap preview {(projection.pitch_x - projection.edge_gap_x).max(0.0):.1} × {(projection.pitch_y - projection.edge_gap_y).max(0.0):.1} mm" }
             if let Some(feedback) = preset_feedback {
                 if feedback.state == MatrixEditState::Failed {
                     p { role: "alert", "{feedback.message.as_deref().unwrap_or(\"The matrix preset was not saved.\")}" }
@@ -469,12 +477,15 @@ pub(in crate::presentation) fn MatrixInspector(props: MatrixInspectorProps) -> E
                     p { role: "status", "Preset updated" }
                 }
             }
-            h3 { "Matrix actions" }
-            button {
-                class: "m1-matrix-edit-status",
-                disabled: !props.editable || props.busy,
-                onclick: move |_| props.on_delete.call(delete_request.clone()),
-                "Delete matrix"
+            }
+            details { class: "m1-matrix-inspector-section",
+                summary { "Matrix actions" }
+                button {
+                    class: "m1-matrix-edit-status",
+                    disabled: !props.editable || props.busy,
+                    onclick: move |_| props.on_delete.call(delete_request.clone()),
+                    "Delete matrix"
+                }
             }
             if props.busy {
                 p { class: "m1-matrix-edit-status", role: "status", "Saving matrix change…" }
@@ -770,7 +781,7 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
                     select {
                         value: "{input_value}",
                         disabled: !props.editable || props.busy || stale(),
-                        "aria-label": props.label,
+                        "aria-label": if props.field == MatrixEditField::SwitchDefinition { "Matrix part definition" } else { props.label },
                         "aria-invalid": error_text.is_some() || stale(),
                         onchange: move |event: FormEvent| {
                             let value = event.value();
@@ -791,7 +802,7 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
                     min: min,
                     value: "{input_value}",
                     readonly: !props.editable || props.busy || stale(),
-                    "aria-label": props.label,
+                    "aria-label": if props.field == MatrixEditField::SwitchDefinition { "Matrix part definition" } else { props.label },
                     "aria-invalid": error_text.is_some() || stale(),
                     oninput: move |event: FormEvent| {
                         if !dirty() {

@@ -4445,6 +4445,59 @@ impl Runtime {
             }
         });
     }
+
+    /// Reopen a durable project after an owned variant operation failed, but only while the
+    /// session/document that requested recovery is still active. The saved copy is confirmed
+    /// through the same Session open/recovery outcome used by the project library.
+    pub(crate) async fn reopen_saved_if_current(
+        self: &Rc<Self>,
+        id: String,
+        expected_session_epoch: boardstudio_application::SessionEpoch,
+        expected_document_id: String,
+        expected_token: boardstudio_application::SnapshotToken,
+        expected_revision: u64,
+        expected_lifecycle: Lifecycle,
+    ) -> Result<AcceptedSnapshot, String> {
+        let still_expected = |runtime: &Runtime| {
+            let model = runtime.model();
+            model.lifecycle == expected_lifecycle
+                && model.accepted.is_some_and(|accepted| {
+                    accepted.session_epoch == expected_session_epoch
+                        && accepted.document.id == expected_document_id
+                        && accepted.token == expected_token
+                        && accepted.document.revision == expected_revision
+                })
+        };
+        if !still_expected(self) {
+            return Err("A newer project open superseded recovery of the original project.".into());
+        }
+        let sequence = self.begin_open()?;
+        let document = self
+            .store
+            .load_document(id.clone())
+            .await
+            .map_err(|error| format!("Could not load the saved original project: {error}"))?
+            .ok_or_else(|| "The saved original project is no longer available.".to_owned())?;
+        if self.open_sequence.get() != sequence || !still_expected(self) {
+            return Err("A newer project open superseded recovery of the original project.".into());
+        }
+        let operation_id = self.operation();
+        let outcome = self.observe_operation(operation_id);
+        if self.model().lifecycle == Lifecycle::RecoveryRequired {
+            self.submit(Event::RecoverWithDocument {
+                operation_id,
+                document,
+            });
+        } else {
+            self.submit(Event::Open {
+                operation_id,
+                document,
+            });
+        }
+        self.wait_for_project_open(outcome, &id, Some(sequence))
+            .await
+    }
+
     pub fn recover_saved(self: &Rc<Self>) {
         let Some(accepted) = self.model().accepted else {
             self.report("No durable document exists to recover; reopen an explicit saved copy.");

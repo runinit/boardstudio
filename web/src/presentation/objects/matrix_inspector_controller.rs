@@ -15,7 +15,10 @@ use boardstudio_core::model::{
     PartDefinition, ProjectDoc, Side, Vec2,
 };
 use dioxus::prelude::*;
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 use wasm_bindgen_futures::spawn_local;
 
 #[derive(Clone)]
@@ -90,6 +93,11 @@ pub(in crate::presentation) fn use_matrix_inspector(
         move || runtime.operation().0
     });
     let context_generation = use_hook(|| Rc::new(RefCell::new(ContextGeneration::default())));
+    let alive = use_hook(|| Rc::new(Cell::new(true)));
+    use_drop({
+        let alive = alive.clone();
+        move || alive.set(false)
+    });
     let selected = selected_context.read().clone();
     let current_workspace = workspace();
     let current_scope_generation = scope_generation();
@@ -122,14 +130,17 @@ pub(in crate::presentation) fn use_matrix_inspector(
     let feedback = use_signal(Vec::<MatrixEditFeedback>::new);
     let switch_catalog = use_signal(Vec::<PartDefinition>::new);
     let mut switch_catalog_loaded = use_signal(|| false);
+    let catalog_alive = alive.clone();
     use_effect(move || {
         if switch_catalog_loaded() {
             return;
         }
         switch_catalog_loaded.set(true);
         let mut switch_catalog = switch_catalog;
+        let alive = catalog_alive.clone();
         spawn_local(async move {
             if let Ok(definitions) = crate::presentation::parts::load_matrix_templates(false).await
+                && alive.get()
             {
                 switch_catalog.set(definitions);
             }
@@ -356,12 +367,14 @@ pub(in crate::presentation) fn use_matrix_inspector(
         }
     });
 
+    let preset_alive = alive.clone();
     let on_apply_preset = use_callback({
         let runtime = runtime.clone();
         let context_generation = context_generation.clone();
         let mut last_request_id = last_request_id;
         let mut preparing_preset = preparing_preset;
         let mut feedback = feedback;
+        let alive = preset_alive;
         move |request: MatrixPresetRequest| {
             if request.owner.editor_instance_id != editor_instance_id
                 || request.owner.context_generation != context_generation.borrow().value
@@ -454,6 +467,7 @@ pub(in crate::presentation) fn use_matrix_inspector(
             let mut feedback = feedback;
             let selected_context = selected_context;
             let context_generation = context_generation.clone();
+            let alive = alive.clone();
             let workspace = workspace;
             let scope_generation = scope_generation;
             spawn_local(async move {
@@ -466,6 +480,9 @@ pub(in crate::presentation) fn use_matrix_inspector(
                     reversible,
                 )
                 .await;
+                if !alive.get() {
+                    return;
+                }
                 preparing.set(false);
                 let (replacement, definitions) = match result {
                     Ok(prepared) => prepared,
@@ -525,6 +542,9 @@ pub(in crate::presentation) fn use_matrix_inspector(
                     );
                     return;
                 }
+                if !alive.get() {
+                    return;
+                }
                 let operation_id = runtime.operation();
                 let outcome = runtime.observe_operation(operation_id);
                 pending.set(Some(PendingMatrixPreset {
@@ -555,7 +575,7 @@ pub(in crate::presentation) fn use_matrix_inspector(
                         },
                     },
                 });
-                while outcome.borrow().is_none() {
+                while alive.get() && outcome.borrow().is_none() {
                     gloo_timers::future::TimeoutFuture::new(16).await;
                 }
             });
@@ -642,10 +662,12 @@ pub(in crate::presentation) fn use_matrix_inspector(
         }
     });
 
+    let duplicate_alive = alive.clone();
     let on_duplicate = use_callback({
         let runtime = runtime.clone();
         let context_generation = context_generation.clone();
         let mut duplicating = duplicating;
+        let alive = duplicate_alive;
         move |request: MatrixDuplicateRequest| {
             if request.owner.editor_instance_id != editor_instance_id
                 || request.owner.context_generation != context_generation.borrow().value
@@ -690,8 +712,14 @@ pub(in crate::presentation) fn use_matrix_inspector(
             let original = (*snapshot.document).clone();
             duplicating.set(true);
             let runtime = runtime.clone();
+            let alive = alive.clone();
             spawn_local(async move {
-                let result = duplicate_design_variant(runtime.clone(), &request, original).await;
+                let result =
+                    duplicate_design_variant(runtime.clone(), &request, original, alive.clone())
+                        .await;
+                if !alive.get() {
+                    return;
+                }
                 duplicating.set(false);
                 if let Err(message) = result {
                     runtime.report(message);
@@ -1807,10 +1835,27 @@ async fn duplicate_design_variant(
     runtime: Rc<Runtime>,
     request: &MatrixDuplicateRequest,
     mut document: ProjectDoc,
+    alive: Rc<Cell<bool>>,
 ) -> Result<(), String> {
+    if !alive.get() {
+        return Err("The matrix design variant owner closed.".into());
+    }
     let source_id = document.id.clone();
+    let source_session_epoch = request.owner.scope.session_epoch;
+    let variant_session_epoch = boardstudio_application::SessionEpoch(
+        source_session_epoch
+            .0
+            .checked_add(1)
+            .ok_or_else(|| "The project session identity is exhausted.".to_owned())?,
+    );
     document.id = crate::runtime::new_project_id()?;
-    document.name = format!("{} (variant)", document.name.trim());
+    let source_name = document.name.trim();
+    let source_name = if source_name.is_empty() {
+        "Untitled keyboard"
+    } else {
+        source_name
+    };
+    document.name = format!("{source_name} (variant)");
     let variant_id = document.id.clone();
     let open_id = runtime.operation();
     let open_outcome = runtime.observe_operation(open_id);
@@ -1826,16 +1871,56 @@ async fn duplicate_design_variant(
         }
     };
     runtime.submit(open_event);
-    let accepted = wait_for_matrix_project(&runtime, open_outcome, &variant_id).await?;
-    let matrix = accepted
-        .document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == request.owner.matrix_id)
-        .cloned()
-        .ok_or_else(|| "The copied project no longer contains the selected matrix.".to_owned());
+    let accepted = match wait_for_matrix_project(
+        &runtime,
+        open_outcome,
+        &variant_id,
+        variant_session_epoch,
+        &alive,
+    )
+    .await
+    {
+        Ok(accepted) => accepted,
+        Err(error) => {
+            let recovery = if alive.get() {
+                restore_source_after_variant_failure(
+                    &runtime,
+                    &source_id,
+                    &variant_id,
+                    source_session_epoch,
+                    variant_session_epoch,
+                    None,
+                )
+                .await
+            } else {
+                Ok(false)
+            };
+            return Err(match recovery {
+                Ok(true) => format!(
+                    "Could not open the matrix design variant; reopened the saved original. {error}"
+                ),
+                Ok(false) => format!("Could not open the matrix design variant. {error}"),
+                Err(recovery_error) => format!(
+                    "Could not open the matrix design variant ({error}); could not confirm reopening the saved original ({recovery_error})."
+                ),
+            });
+        }
+    };
+    if !alive.get() {
+        return Err("The matrix design variant owner closed.".into());
+    }
     let result = async {
-        let matrix = matrix?;
+        let accepted =
+            exact_variant_snapshot(&runtime, &accepted, &variant_id, &request.owner.scope)?;
+        let matrix = accepted
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == request.owner.matrix_id)
+            .cloned()
+            .ok_or_else(|| {
+                "The copied project no longer contains the selected matrix.".to_owned()
+            })?;
         let reversible = is_reversible(&accepted.document);
         let (replacement, definitions) = prepare_preset_matrix(
             &accepted.document,
@@ -1846,12 +1931,19 @@ async fn duplicate_design_variant(
             reversible,
         )
         .await?;
+        if !alive.get() {
+            return Err("The matrix design variant owner closed.".into());
+        }
+        // Preparing the catalogue can take long enough for the user to open another project.
+        // Re-read the exact accepted clone before submitting any operation into Session.
+        let current =
+            exact_variant_snapshot(&runtime, &accepted, &variant_id, &request.owner.scope)?;
         let operation_id = runtime.operation();
         let outcome = runtime.observe_operation(operation_id);
         runtime.submit(Event::Edit {
             operation_id,
             command: EditCommand {
-                base_revision: accepted.document.revision,
+                base_revision: current.document.revision,
                 transaction_id: format!("matrix-duplicate-variant-{}", operation_id.0),
                 phase: EditPhase::Commit,
                 target_ids: vec![matrix.id],
@@ -1861,15 +1953,43 @@ async fn duplicate_design_variant(
                 },
             },
         });
-        wait_for_matrix_project(&runtime, outcome, &variant_id).await?;
+        wait_for_variant_edit(
+            &runtime,
+            outcome,
+            &current,
+            &variant_id,
+            &request.owner.scope,
+            &matrix.id,
+            &preset_variant(request.preset, request.orientation, reversible),
+            &alive,
+        )
+        .await?;
         Ok::<(), String>(())
     }
     .await;
     if let Err(error) = result {
-        runtime.open_saved(source_id);
-        return Err(format!(
-            "Could not prepare the matrix design variant; reopened the original project. {error}"
-        ));
+        let recovery = if alive.get() {
+            restore_source_after_variant_failure(
+                &runtime,
+                &source_id,
+                &variant_id,
+                source_session_epoch,
+                variant_session_epoch,
+                Some(&accepted),
+            )
+            .await
+        } else {
+            Ok(false)
+        };
+        return Err(match recovery {
+            Ok(true) => format!(
+                "Could not prepare the matrix design variant; reopened the saved original. {error}"
+            ),
+            Ok(false) => format!("Could not prepare the matrix design variant. {error}"),
+            Err(recovery_error) => format!(
+                "Could not prepare the matrix design variant ({error}); could not confirm reopening the saved original ({recovery_error})."
+            ),
+        });
     }
     // Confirm the clone remains the active project after its matrix edit was durably saved.
     if runtime
@@ -1882,12 +2002,167 @@ async fn duplicate_design_variant(
     Ok(())
 }
 
+fn exact_variant_snapshot(
+    runtime: &Runtime,
+    expected: &boardstudio_application::AcceptedSnapshot,
+    variant_id: &str,
+    source_scope: &Scope,
+) -> Result<boardstudio_application::AcceptedSnapshot, String> {
+    let model = runtime.model();
+    let Some(current) = model.accepted else {
+        return Err("The duplicated project is no longer active.".into());
+    };
+    let current_scope = runtime.scope();
+    if model.lifecycle != Lifecycle::Ready
+        || !variant_session_matches(
+            expected.session_epoch,
+            variant_id,
+            current.session_epoch,
+            &current.document.id,
+        )
+        || current.token != expected.token
+        || current.document.revision != expected.document.revision
+        || !current_scope.is_some_and(|scope| {
+            scope.session_epoch == expected.session_epoch
+                && scope.document_id == variant_id
+                && scope.board_id == source_scope.board_id
+                && scope.instance_id == source_scope.instance_id
+        })
+    {
+        return Err("The duplicated project changed before its matrix preset was ready.".into());
+    }
+    Ok(current)
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn wait_for_variant_edit(
+    runtime: &Rc<Runtime>,
+    outcome: OutcomeSlot,
+    before: &boardstudio_application::AcceptedSnapshot,
+    variant_id: &str,
+    source_scope: &Scope,
+    matrix_id: &str,
+    expected_variant: &str,
+    alive: &Rc<Cell<bool>>,
+) -> Result<(), String> {
+    for _ in 0..1_200 {
+        if !alive.get() {
+            return Err("The matrix design variant owner closed.".into());
+        }
+        let model = runtime.model();
+        let Some(current) = model.accepted.as_ref() else {
+            return Err("The duplicated project is no longer active.".into());
+        };
+        let current_scope = runtime.scope();
+        if !variant_session_matches(
+            before.session_epoch,
+            variant_id,
+            current.session_epoch,
+            &current.document.id,
+        ) || !current_scope.is_some_and(|scope| {
+            scope.session_epoch == before.session_epoch
+                && scope.document_id == variant_id
+                && scope.board_id == source_scope.board_id
+                && scope.instance_id == source_scope.instance_id
+        }) {
+            return Err("A newer project open superseded the matrix design variant.".into());
+        }
+        if let Some(outcome) = outcome.borrow_mut().take() {
+            if outcome != TerminalOutcome::Completed {
+                return Err(format!(
+                    "The matrix preset edit did not complete: {outcome:?}"
+                ));
+            }
+            if model.lifecycle != Lifecycle::Ready
+                || current.document.revision <= before.document.revision
+                || model.durability
+                    != (Durability::Saved {
+                        revision: current.document.revision,
+                    })
+            {
+                return Err("The copied matrix preset was not durably saved.".into());
+            }
+            if !current.document.matrices.iter().any(|matrix| {
+                matrix.id == matrix_id
+                    && matrix.cells.iter().any(|cell| {
+                        cell.definition_id.as_deref() == Some(matrix.definition_id.as_str())
+                            && cell.variant.as_deref() == Some(expected_variant)
+                    })
+            }) {
+                return Err(
+                    "The copied matrix did not retain the requested assembly preset.".into(),
+                );
+            }
+            return Ok(());
+        }
+        gloo_timers::future::TimeoutFuture::new(25).await;
+    }
+    Err("The copied matrix preset did not finish saving.".into())
+}
+
+async fn restore_source_after_variant_failure(
+    runtime: &Rc<Runtime>,
+    source_id: &str,
+    variant_id: &str,
+    source_session_epoch: boardstudio_application::SessionEpoch,
+    variant_session_epoch: boardstudio_application::SessionEpoch,
+    owned_clone: Option<&boardstudio_application::AcceptedSnapshot>,
+) -> Result<bool, String> {
+    let model = runtime.model();
+    let Some(current) = model.accepted else {
+        return Ok(false);
+    };
+    let owned_clone_is_current = owned_clone.is_some_and(|owned| {
+        variant_session_matches(
+            owned.session_epoch,
+            variant_id,
+            current.session_epoch,
+            &current.document.id,
+        )
+    });
+    let failed_open_is_current = owned_clone.is_none()
+        && current.session_epoch == variant_session_epoch
+        && current.document.id == variant_id
+        && model.lifecycle == Lifecycle::RecoveryRequired;
+    let source_needs_recovery = current.session_epoch == source_session_epoch
+        && current.document.id == source_id
+        && model.lifecycle == Lifecycle::RecoveryRequired;
+    if !(owned_clone_is_current || failed_open_is_current || source_needs_recovery) {
+        return Ok(false);
+    }
+    runtime
+        .reopen_saved_if_current(
+            source_id.to_owned(),
+            current.session_epoch,
+            current.document.id.clone(),
+            current.token,
+            current.document.revision,
+            model.lifecycle,
+        )
+        .await?;
+    Ok(true)
+}
+
+fn variant_session_matches(
+    expected_session: boardstudio_application::SessionEpoch,
+    expected_document: &str,
+    actual_session: boardstudio_application::SessionEpoch,
+    actual_document: &str,
+) -> bool {
+    actual_session == expected_session && actual_document == expected_document
+}
+
 async fn wait_for_matrix_project(
     runtime: &Rc<Runtime>,
     outcome: OutcomeSlot,
     expected_id: &str,
+    expected_session_epoch: boardstudio_application::SessionEpoch,
+    alive: &Rc<Cell<bool>>,
 ) -> Result<boardstudio_application::AcceptedSnapshot, String> {
     for _ in 0..1_200 {
+        if !alive.get() {
+            return Err("The matrix design variant owner closed.".into());
+        }
         if let Some(outcome) = outcome.borrow_mut().take() {
             if outcome != TerminalOutcome::Completed {
                 return Err(format!(
@@ -1898,7 +2173,9 @@ async fn wait_for_matrix_project(
             let accepted = model
                 .accepted
                 .ok_or_else(|| "The project operation was not accepted.".to_owned())?;
-            if accepted.document.id != expected_id {
+            if accepted.document.id != expected_id
+                || accepted.session_epoch != expected_session_epoch
+            {
                 return Err("The project operation was superseded by another open action.".into());
             }
             if model.lifecycle != Lifecycle::Ready
@@ -2006,6 +2283,30 @@ fn matrix_with_preset(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn variant_owner_does_not_claim_a_later_open_even_with_the_same_project_id() {
+        let original_operation = boardstudio_application::SessionEpoch(12);
+        let reopened_variant = boardstudio_application::SessionEpoch(13);
+        assert!(variant_session_matches(
+            original_operation,
+            "variant-id",
+            original_operation,
+            "variant-id",
+        ));
+        assert!(!variant_session_matches(
+            original_operation,
+            "variant-id",
+            reopened_variant,
+            "variant-id",
+        ));
+        assert!(!variant_session_matches(
+            original_operation,
+            "variant-id",
+            original_operation,
+            "user-opened-project",
+        ));
+    }
 
     fn reviung_document() -> ProjectDoc {
         serde_json::from_str(include_str!(
