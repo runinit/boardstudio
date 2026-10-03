@@ -1161,25 +1161,94 @@ fn browse_parts_workspace(
     }
 }
 
-fn focus_first_inspector_control_on_next_frame() {
+fn focus_first_inspector_control_on_next_frame(
+    alive: Rc<Cell<bool>>,
+    owner: keycaps_navigation::NavigationOwner,
+    current_owner: impl Fn() -> keycaps_navigation::LiveNavigationOwner + 'static,
+) {
     let Some(window) = web_sys::window() else {
         return;
     };
-    let callback = Closure::once_into_js(|| {
-        if let Some(element) = web_sys::window()
-            .and_then(|window| window.document())
-            .and_then(|document| {
-                document
-                    .query_selector("#m1-inspector-panel-content :is(button, input):not(:disabled)")
-                    .ok()
-                    .flatten()
+    keycaps_navigation::queue_owner_focus(
+        alive,
+        owner,
+        current_owner,
+        || {
+            if let Some(element) = web_sys::window()
+                .and_then(|window| window.document())
+                .and_then(|document| {
+                    document
+                        .query_selector(
+                            "#m1-inspector-panel-content :is(button, input):not(:disabled)",
+                        )
+                        .ok()
+                        .flatten()
+                })
+                .and_then(|element| element.dyn_into::<HtmlElement>().ok())
+            {
+                let _ = element.focus();
+            }
+        },
+        move |task| {
+            let callback = Closure::once_into_js(task);
+            let _ = window.request_animation_frame(callback.unchecked_ref());
+        },
+    );
+}
+
+fn current_keycaps_navigation_owner(
+    workspace: Signal<&'static str>,
+    runtime: &Rc<Runtime>,
+    adapter: &SelectionAdapter,
+    body_selection: Signal<Option<case_viewer::BodySelection>>,
+    case_selection: case_viewer::CaseSelection,
+) -> keycaps_navigation::LiveNavigationOwner {
+    let scope = runtime.scope();
+    let model = runtime.model();
+    let (token, revision) = model
+        .accepted
+        .as_ref()
+        .map(|snapshot| (Some(snapshot.token), Some(snapshot.document.revision)))
+        .unwrap_or((None, None));
+    let destinations = match (workspace(), scope.as_ref()) {
+        ("Layout", Some(scope)) => adapter
+            .selected_context
+            .read()
+            .as_ref()
+            .filter(|selected| &selected.scope == scope)
+            .map(|selected| {
+                vec![keycaps_navigation::Destination::Layout(
+                    selected.context.clone(),
+                )]
             })
-            .and_then(|element| element.dyn_into::<HtmlElement>().ok())
-        {
-            let _ = element.focus();
+            .unwrap_or_default(),
+        ("Case", Some(scope)) => {
+            let mut destinations = Vec::new();
+            if let Some(body) = body_selection
+                .read()
+                .as_ref()
+                .filter(|selected| &selected.scope == scope)
+            {
+                destinations.push(keycaps_navigation::Destination::CaseBody(
+                    body.body_id.clone(),
+                ));
+            }
+            let layer_id = case_selection.layer_id(scope);
+            if !layer_id.is_empty() {
+                destinations.push(keycaps_navigation::Destination::CaseLayer(layer_id));
+            }
+            destinations
         }
-    });
-    let _ = window.request_animation_frame(callback.unchecked_ref());
+        _ => Vec::new(),
+    };
+    keycaps_navigation::LiveNavigationOwner {
+        workspace: workspace(),
+        scope,
+        generation: (adapter.generation)(),
+        token,
+        revision,
+        destinations,
+    }
 }
 
 fn fit_selected_bridge(runtime: &Rc<Runtime>, bridge_id: Option<&str>) {
@@ -1452,7 +1521,8 @@ fn Editor() -> Element {
     let case_body_selection = use_signal(|| None::<case_viewer::BodySelection>);
     let case_layer_selection = use_signal(|| None::<case_viewer::LayerSelection>);
     let pending_keycaps_navigation_fit =
-        use_signal(|| None::<keycaps_fit::FindingNavigationRequest>);
+        use_signal(|| None::<keycaps_navigation::PendingLayoutFit>);
+    let keycaps_navigation_alive = keycaps_navigation::use_navigation_lifetime();
     let case_display = use_signal(std::collections::BTreeMap::new);
     let case_selection = case_viewer::CaseSelection {
         body: case_body_selection,
@@ -3055,13 +3125,15 @@ fn Editor() -> Element {
         let mut objects_open = objects_open;
         let mut inspect_open = inspect_open;
         let mut body_selection = case_body_selection;
+        let case_selection_for_owner = case_selection;
+        let navigation_alive = keycaps_navigation_alive.clone();
         let inspector_settings = inspector_panel_settings;
         let fit_state = keycaps_fit_state.state.clone();
         let mut pending_camera_fit = pending_keycaps_navigation_fit;
         let select_tree = workspace_callbacks.select_tree;
         move |request: keycaps_fit::FindingNavigationRequest| {
             if !keycaps_navigation::request_owner_is_current(
-                workspace() == "Keycaps",
+                workspace(),
                 keycaps_navigation::OwnerIdentity {
                     scope: &scope,
                     generation,
@@ -3174,10 +3246,20 @@ fn Editor() -> Element {
                 }
             }
             let Some(effects) =
-                keycaps_navigation::route_effects(&request, &target, part_context, true)
+                keycaps_navigation::route_effects(&request, &target, part_context, generation)
             else {
                 return;
             };
+            let navigation_owner = keycaps_navigation::owner_for_request(
+                &request,
+                effects.destination.clone(),
+                generation,
+            );
+            let focus_runtime = runtime.clone();
+            let focus_adapter = adapter.clone();
+            let focus_body_selection = body_selection;
+            let focus_case_selection = case_selection_for_owner;
+            let focus_workspace = workspace;
             pending_camera_fit.set(None);
             keycaps_navigation::dispatch_route(effects, &request, |effect| match effect {
                 keycaps_navigation::RouteAction::SetWorkspace(name) => workspace.set(name),
@@ -3205,41 +3287,60 @@ fn Editor() -> Element {
                 }
                 keycaps_navigation::RouteAction::Report(message) => runtime.report(message),
                 keycaps_navigation::RouteAction::FocusInspector => {
-                    focus_first_inspector_control_on_next_frame();
+                    let scheduled_runtime = focus_runtime.clone();
+                    let scheduled_adapter = focus_adapter.clone();
+                    focus_first_inspector_control_on_next_frame(
+                        navigation_alive.clone(),
+                        navigation_owner.clone(),
+                        move || {
+                            current_keycaps_navigation_owner(
+                                focus_workspace,
+                                &scheduled_runtime,
+                                &scheduled_adapter,
+                                focus_body_selection,
+                                focus_case_selection,
+                            )
+                        },
+                    );
                 }
             });
         }
     };
+    let observed_navigation_selection = (adapter.selected_context)();
+    let observed_navigation_generation = (adapter.generation)();
     use_effect(use_reactive(
-        (&workspace, &pending_keycaps_navigation_fit),
+        (
+            &workspace(),
+            &pending_keycaps_navigation_fit(),
+            &observed_navigation_selection,
+            &observed_navigation_generation,
+            &version(),
+        ),
         {
             let runtime = runtime.clone();
             let adapter = adapter.clone();
-            let scope = render_scope.clone();
-            let generation = render_generation;
+            let body_selection = case_body_selection;
+            let alive = keycaps_navigation_alive.clone();
             let state = keycaps_fit_state.state.clone();
             let surface = svg.clone();
             let mut pending = pending_keycaps_navigation_fit;
             move |_| {
-                if workspace() != "Layout" {
-                    return;
-                }
-                let Some(request) = pending.read().clone() else {
+                let Some(pending_fit) = pending.read().clone() else {
                     return;
                 };
-                if !keycaps_navigation::request_owner_is_current(
-                    workspace() == "Layout",
-                    keycaps_navigation::OwnerIdentity {
-                        scope: &scope,
-                        generation,
-                    },
-                    runtime.scope().as_ref(),
-                    (adapter.generation)(),
-                    &request.source.scope,
-                ) {
+                let live_owner = current_keycaps_navigation_owner(
+                    workspace,
+                    &runtime,
+                    &adapter,
+                    body_selection,
+                    case_selection,
+                );
+                if !keycaps_navigation::navigation_owner_is_current(&pending_fit.owner, &live_owner)
+                {
                     pending.set(None);
                     return;
                 }
+                let request = &pending_fit.request;
                 let model = runtime.model();
                 let Some(snapshot) = model.accepted.as_ref().filter(|snapshot| {
                     snapshot.token == request.source.token
@@ -3251,7 +3352,8 @@ fn Editor() -> Element {
                     pending.set(None);
                     return;
                 };
-                let live_layers = current_case_layer_ids(&runtime, &scope, snapshot);
+                let live_layers =
+                    current_case_layer_ids(&runtime, &pending_fit.owner.scope, snapshot);
                 if live_layers.is_none() && request.source.case_preview_current {
                     pending.set(None);
                     return;
@@ -3263,7 +3365,7 @@ fn Editor() -> Element {
                 };
                 if keycaps_fit::accepted_navigation_target(
                     state,
-                    &request,
+                    request,
                     &snapshot.document,
                     &live_layers,
                 ) != Some(request.target.clone())
@@ -3286,8 +3388,21 @@ fn Editor() -> Element {
                 let rect = surface.get_bounding_client_rect();
                 // These bounds are recomputed from the destination Layout scene on
                 // the render that follows the workbench switch.
-                keycaps_navigation::finish_destination_fit(
-                    true,
+                let fit_runtime = runtime.clone();
+                let fit_adapter = adapter.clone();
+                let fit_body_selection = body_selection;
+                let fit_case_selection = case_selection;
+                keycaps_navigation::apply_destination_fit(
+                    &pending_fit.owner,
+                    move || {
+                        current_keycaps_navigation_owner(
+                            workspace,
+                            &fit_runtime,
+                            &fit_adapter,
+                            fit_body_selection,
+                            fit_case_selection,
+                        )
+                    },
                     (min_x, max_x, min_y, max_y),
                     target_bounds,
                     (rect.width(), rect.height()),
@@ -3300,7 +3415,22 @@ fn Editor() -> Element {
                             });
                         }
                         keycaps_navigation::FitAction::FocusInspector => {
-                            focus_first_inspector_control_on_next_frame();
+                            let expected = pending_fit.owner.clone();
+                            let focus_runtime = runtime.clone();
+                            let focus_adapter = adapter.clone();
+                            focus_first_inspector_control_on_next_frame(
+                                alive.clone(),
+                                expected,
+                                move || {
+                                    current_keycaps_navigation_owner(
+                                        workspace,
+                                        &focus_runtime,
+                                        &focus_adapter,
+                                        body_selection,
+                                        case_selection,
+                                    )
+                                },
+                            );
                         }
                     },
                 );
