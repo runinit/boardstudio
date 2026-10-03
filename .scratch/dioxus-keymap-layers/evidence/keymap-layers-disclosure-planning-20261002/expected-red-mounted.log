@@ -1,0 +1,85 @@
+[INFO]: 🎯  Checking for the Wasm target...
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/keymap-layer-disclosure-20261002/web)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 10.29s
+[INFO]: ⬇️  Installing wasm-bindgen...
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.32s
+     Running unittests src/main.rs (target/wasm32-unknown-unknown/debug/deps/boardstudio_web-055f3e838bea43db.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:39233/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+Loading Wasm module...
+using deprecated parameters for the initialization function; pass a single object instead
+
+running 1 test
+Invoking test: presentation::keymap::panel::disclosure_mounted_tests::layers_disclosure_is_open_accessible_persistent_and_view_only
+panicked at src/presentation/keymap/panel.rs:379:14:
+the Keymap Layers section is a native details disclosure
+
+Stack:
+
+Error
+    at http://127.0.0.1:34009/wasm-bindgen-test:1633:25
+    at logError (http://127.0.0.1:34009/wasm-bindgen-test:2769:18)
+    at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:34009/wasm-bindgen-test:1632:57)
+    at boardstudio_web-055f3e838bea43db.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:34009/wasm-bindgen-test_bg.wasm:wasm-function[144567]:0x1c339a8)
+    at boardstudio_web-055f3e838bea43db.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:34009/wasm-bindgen-test_bg.wasm:wasm-function[81945]:0x19888d7)
+    at boardstudio_web-055f3e838bea43db.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:34009/wasm-bindgen-test_bg.wasm:wasm-function[29999]:0x13a99d6)
+    at boardstudio_web-055f3e838bea43db.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:34009/wasm-bindgen-test_bg.wasm:wasm-function[86247]:0x19ca4bf)
+    at boardstudio_web-055f3e838bea43db.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:34009/wasm-bindgen-test_bg.wasm:wasm-function[25595]:0x12b3d3d)
+    at boardstudio_web-055f3e838bea43db.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:34009/wasm-bindgen-test_bg.wasm:wasm-function[49998]:0x16c64f5)
+    at boardstudio_web-055f3e838bea43db.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:34009/wasm-bindgen-test_bg.wasm:wasm-function[146571]:0x1c399b5)
+
+
+test presentation::keymap::panel::disclosure_mounted_tests::layers_disclosure_is_open_accessible_persistent_and_view_only ... FAIL
+
+failures:
+
+---- presentation::keymap::panel::disclosure_mounted_tests::layers_disclosure_is_open_accessible_persistent_and_view_only output ----
+    error output:
+        panicked at src/presentation/keymap/panel.rs:379:14:
+        the Keymap Layers section is a native details disclosure
+        
+        Stack:
+        
+        Error
+            at http://127.0.0.1:34009/wasm-bindgen-test:1633:25
+            at logError (http://127.0.0.1:34009/wasm-bindgen-test:2769:18)
+            at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:34009/wasm-bindgen-test:1632:57)
+            at boardstudio_web-055f3e838bea43db.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:34009/wasm-bindgen-test_bg.wasm:wasm-function[144567]:0x1c339a8)
+            at boardstudio_web-055f3e838bea43db.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:34009/wasm-bindgen-test_bg.wasm:wasm-function[81945]:0x19888d7)
+            at boardstudio_web-055f3e838bea43db.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:34009/wasm-bindgen-test_bg.wasm:wasm-function[29999]:0x13a99d6)
+            at boardstudio_web-055f3e838bea43db.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:34009/wasm-bindgen-test_bg.wasm:wasm-function[86247]:0x19ca4bf)
+            at boardstudio_web-055f3e838bea43db.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:34009/wasm-bindgen-test_bg.wasm:wasm-function[25595]:0x12b3d3d)
+            at boardstudio_web-055f3e838bea43db.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:34009/wasm-bindgen-test_bg.wasm:wasm-function[49998]:0x16c64f5)
+            at boardstudio_web-055f3e838bea43db.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:34009/wasm-bindgen-test_bg.wasm:wasm-function[146571]:0x1c399b5)
+        
+        
+    
+    JS exception that was thrown:
+        RuntimeError: unreachable
+            at boardstudio_web-055f3e838bea43db.wasm.__rustc[4b1ee1ef74718a7b]::__rust_abort (http://127.0.0.1:34009/wasm-bindgen-test_bg.wasm:wasm-function[147072]:0x1c3a8a6)
+            at boardstudio_web-055f3e838bea43db.wasm.__rustc[4b1ee1ef74718a7b]::__rust_start_panic (http://127.0.0.1:34009/wasm-bindgen-test_bg.wasm:wasm-function[146990]:0x1c3a732)
+            at boardstudio_web-055f3e838bea43db.wasm.__rustc[4b1ee1ef74718a7b]::rust_panic (http://127.0.0.1:34009/wasm-bindgen-test_bg.wasm:wasm-function[145058]:0x1c35421)
+            at boardstudio_web-055f3e838bea43db.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:34009/wasm-bindgen-test_bg.wasm:wasm-function[25595]:0x12b3db0)
+            at boardstudio_web-055f3e838bea43db.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:34009/wasm-bindgen-test_bg.wasm:wasm-function[49998]:0x16c64f5)
+            at boardstudio_web-055f3e838bea43db.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:34009/wasm-bindgen-test_bg.wasm:wasm-function[146571]:0x1c399b5)
+            at boardstudio_web-055f3e838bea43db.wasm.__rustc[4b1ee1ef74718a7b]::rust_begin_unwind (http://127.0.0.1:34009/wasm-bindgen-test_bg.wasm:wasm-function[112941]:0x1b1cb2a)
+            at boardstudio_web-055f3e838bea43db.wasm.core[f0fd674eaa06beef]::panicking::panic_fmt (http://127.0.0.1:34009/wasm-bindgen-test_bg.wasm:wasm-function[85078]:0x19b8e70)
+            at boardstudio_web-055f3e838bea43db.wasm.core[f0fd674eaa06beef]::option::expect_failed (http://127.0.0.1:34009/wasm-bindgen-test_bg.wasm:wasm-function[85079]:0x19b8ead)
+            at boardstudio_web-055f3e838bea43db.wasm.<core[f0fd674eaa06beef]::option::Option<web_sys[bb6537087343b2b1]::features::gen_Element::Element>>::expect (http://127.0.0.1:34009/wasm-bindgen-test_bg.wasm:wasm-function[61398]:0x17ff75a)
+
+failures:
+
+    presentation::keymap::panel::disclosure_mounted_tests::layers_disclosure_is_open_accessible_persistent_and_view_only
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 137 filtered out; finished in 0.15s
+
+Error: some tests failed
+error: test failed, to rerun pass `--bin boardstudio-web`
+
+Caused by:
+  process didn't exit successfully: `/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner /home/chris/.local/share/boardstudio/worktrees/keymap-layer-disclosure-20261002/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-055f3e838bea43db.wasm layers_disclosure_is_open_accessible_persistent_and_view_only --nocapture` (exit status: 1)
+Error: Running Wasm tests with wasm-bindgen-test failed
+Caused by: Running Wasm tests with wasm-bindgen-test failed
+Caused by: failed to execute `cargo test`: exited with exit status: 1
+  full command: cd "web" && CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER="/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner" CHROMEDRIVER="/usr/bin/chromedriver" WASM_BINDGEN_TEST_ONLY_WEB="1" "cargo" "test" "--target" "wasm32-unknown-unknown" "--bin" "boardstudio-web" "--" "layers_disclosure_is_open_accessible_persistent_and_view_only" "--nocapture"

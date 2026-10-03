@@ -1,0 +1,277 @@
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling version_check v0.9.5
+   Compiling portable-atomic v1.15.0
+   Compiling serde_core v1.0.229
+   Compiling rustversion v1.0.23
+   Compiling pin-project-lite v0.2.17
+   Compiling serde v1.0.229
+   Compiling thiserror v2.0.21
+   Compiling smallvec v1.16.2
+   Compiling autocfg v1.5.1
+   Compiling futures-core v0.3.34
+   Compiling libc v0.2.189
+   Compiling futures-task v0.3.34
+   Compiling slab v0.4.12
+   Compiling wasm-bindgen-shared v0.2.129
+   Compiling crunchy v0.2.4
+   Compiling zmij v1.0.23
+   Compiling futures-util v0.3.34
+   Compiling parking_lot_core v0.9.12
+   Compiling tiny-keccak v2.0.2
+   Compiling libm v0.2.16
+   Compiling scopeguard v1.2.0
+   Compiling lock_api v0.4.14
+   Compiling bumpalo v3.20.3
+   Compiling slotmap v1.1.1
+   Compiling bitflags v2.13.2
+   Compiling num-traits v0.2.19
+   Compiling unicode-xid v0.2.6
+   Compiling zerocopy v0.8.59
+   Compiling once_cell v1.21.4
+   Compiling anyhow v1.0.104
+   Compiling konst_macro_rules v0.2.19
+   Compiling smartstring v1.0.1
+   Compiling ahash v0.8.12
+   Compiling libloading v0.8.9
+   Compiling konst v0.2.20
+   Compiling crc32fast v1.5.2
+   Compiling ident_case v1.0.1
+   Compiling fnv v1.0.7
+   Compiling unicode-segmentation v1.13.3
+   Compiling wasm-bindgen v0.2.129
+   Compiling proc-macro2-diagnostics v0.10.1
+   Compiling futures-channel v0.3.34
+   Compiling equivalent v1.0.2
+   Compiling memchr v2.8.3
+   Compiling longest-increasing-subsequence v0.1.0
+   Compiling serde_json v1.0.151
+   Compiling rustc-hash v2.1.3
+   Compiling tracing-core v0.1.36
+   Compiling dioxus-core-types v0.7.10
+   Compiling hashbrown v0.17.1
+   Compiling static_assertions v1.1.0
+   Compiling zlib-rs v0.6.8
+   Compiling syn v2.0.119
+   Compiling syn v3.0.6
+   Compiling convert_case v0.8.0
+   Compiling const-oid v0.10.2
+   Compiling const_format_proc_macros v0.2.34
+   Compiling digest v0.11.3
+   Compiling memmap2 v0.9.11
+   Compiling i_float v5.0.0
+   Compiling getrandom v0.2.17
+   Compiling parking_lot v0.12.5
+   Compiling indexmap v2.14.2
+   Compiling i_tree v0.19.0
+   Compiling const-random-macro v0.1.16
+   Compiling thin-vec v0.2.20
+   Compiling typed-path v0.12.3
+   Compiling const_format v0.2.36
+   Compiling const-random v0.1.18
+   Compiling i_shape v5.0.0
+   Compiling i_key_sort v0.11.0
+   Compiling sha2 v0.11.0
+   Compiling euclid v0.22.14
+   Compiling keyboard-types v0.7.0
+   Compiling bytes v1.12.1
+   Compiling i_overlay v9.0.0
+   Compiling dioxus-config-macro v0.7.10
+   Compiling dioxus-config-macros v0.7.10
+   Compiling flate2 v1.1.10
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/keymap-layer-disclosure-20261002/web)
+   Compiling wasm-bindgen-macro-support v0.2.129
+   Compiling darling_core v0.21.3
+   Compiling dioxus-rsx v0.7.10
+   Compiling zip v8.6.0
+   Compiling serde_derive v1.0.229
+   Compiling thiserror-impl v2.0.21
+   Compiling async-trait v0.1.92
+   Compiling tokio-macros v2.7.2
+   Compiling tracing-attributes v0.1.31
+   Compiling pin-project-internal v1.1.13
+   Compiling warnings-macro v0.2.0
+   Compiling rhai_codegen v3.2.0
+   Compiling dioxus-stores-macro v0.7.10
+   Compiling dioxus-html-internal-macro v0.7.10
+   Compiling tokio v1.53.1
+   Compiling dioxus-core-macro v0.7.10
+   Compiling pin-project v1.1.13
+   Compiling rhai v1.26.1
+   Compiling kiutils_sexpr v0.1.1
+   Compiling tracing v0.1.44
+   Compiling generational-box v0.7.10
+   Compiling warnings v0.2.1
+   Compiling darling_macro v0.21.3
+   Compiling darling v0.21.3
+   Compiling enumset_derive v0.15.0
+   Compiling enumset v1.1.14
+   Compiling subsecond-types v0.7.10
+   Compiling boardstudio-contracts v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/keymap-layer-disclosure-20261002/contracts/rust)
+   Compiling subsecond v0.7.10
+   Compiling wasm-bindgen-macro v0.2.129
+   Compiling dioxus-core v0.7.10
+   Compiling js-sys v0.3.106
+   Compiling dioxus-signals v0.7.10
+   Compiling dioxus-hooks v0.7.10
+   Compiling dioxus-stores v0.7.10
+   Compiling dioxus-html v0.7.10
+   Compiling dioxus v0.7.10
+   Compiling boardstudio_core v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/keymap-layer-disclosure-20261002/core)
+   Compiling boardstudio-application v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/keymap-layer-disclosure-20261002/application)
+warning: struct `ArchiveOptionCaptures` is never constructed
+  --> src/archive_export.rs:14:19
+   |
+14 | pub(crate) struct ArchiveOptionCaptures(BTreeMap<OperationId, bool>);
+   |                   ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: methods `capture`, `take`, and `remove` are never used
+  --> src/archive_export.rs:17:19
+   |
+16 | impl ArchiveOptionCaptures {
+   | -------------------------- methods in this implementation
+17 |     pub(crate) fn capture(&mut self, operation: OperationId, embed_used_models: bool) {
+   |                   ^^^^^^^
+...
+21 |     pub(crate) fn take(&mut self, operation: OperationId) -> Option<bool> {
+   |                   ^^^^
+...
+25 |     pub(crate) fn remove(&mut self, operation: OperationId) {
+   |                   ^^^^^^
+
+warning: struct `ArchiveExportOptions` is never constructed
+  --> src/archive_export.rs:33:19
+   |
+33 | pub(crate) struct ArchiveExportOptions {
+   |                   ^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `embed_used_models`, `set_embed_used_models`, `begin_archive`, `settle`, `cancel`, and `dispatch` are never used
+  --> src/archive_export.rs:48:19
+   |
+47 | impl ArchiveExportOptions {
+   | ------------------------- methods in this implementation
+48 |     pub(crate) fn embed_used_models(&self) -> bool {
+   |                   ^^^^^^^^^^^^^^^^^
+...
+52 |     pub(crate) fn set_embed_used_models(&self, value: bool) -> bool {
+   |                   ^^^^^^^^^^^^^^^^^^^^^
+...
+56 |     pub(crate) fn begin_archive(&self, operation: OperationId) {
+   |                   ^^^^^^^^^^^^^
+...
+62 |     pub(crate) fn settle(&self, operation: OperationId) {
+   |                   ^^^^^^
+...
+66 |     pub(crate) fn cancel(&self, operation: OperationId) {
+   |                   ^^^^^^
+...
+72 |     pub(crate) fn dispatch<T>(
+   |                   ^^^^^^^^
+
+warning: function `archive_filename` is never used
+  --> src/archive_export.rs:94:15
+   |
+94 | pub(crate) fn archive_filename(accepted_project_name: &str) -> String {
+   |               ^^^^^^^^^^^^^^^^
+
+warning: struct `BundledModel` is never constructed
+ --> src/bundled_models.rs:2:19
+  |
+2 | pub(crate) struct BundledModel {
+  |                   ^^^^^^^^^^^^
+
+warning: static `BUNDLED_MODELS` is never used
+ --> /home/chris/.local/share/boardstudio/worktrees/keymap-layer-disclosure-20261002/web/target/debug/build/boardstudio-web-7f5dbd7e7c24048d/out/bundled_ergogen_models.rs:1:19
+  |
+1 | pub(super) static BUNDLED_MODELS: &[BundledModel] = &[
+  |                   ^^^^^^^^^^^^^^
+
+warning: function `bundled_model` is never used
+  --> src/bundled_models.rs:13:15
+   |
+13 | pub(crate) fn bundled_model(id: &str) -> Option<&'static BundledModel> {
+   |               ^^^^^^^^^^^^^
+
+warning: function `preview_model_paths` is never used
+  --> src/bundled_models.rs:17:15
+   |
+17 | pub(crate) fn preview_model_paths() -> impl Iterator<Item = (&'static str, &'static str)> {
+   |               ^^^^^^^^^^^^^^^^^^^
+
+warning: struct `PreparedArchive` is never constructed
+ --> src/portable_archive.rs:5:19
+  |
+5 | pub(crate) struct PreparedArchive {
+  |                   ^^^^^^^^^^^^^^^
+
+warning: function `prepare_archive` is never used
+  --> src/portable_archive.rs:10:15
+   |
+10 | pub(crate) fn prepare_archive(
+   |               ^^^^^^^^^^^^^^^
+
+warning: function `hex_digest` is never used
+  --> src/portable_archive.rs:98:4
+   |
+98 | fn hex_digest(bytes: &[u8]) -> String {
+   |    ^^^^^^^^^^
+
+warning: function `referenced_models` is never used
+   --> src/portable_archive.rs:110:15
+    |
+110 | pub(crate) fn referenced_models(
+    |               ^^^^^^^^^^^^^^^^^
+
+warning: struct `MirroredPairProjection` is never constructed
+ --> src/mirrored_pair_geometry.rs:5:19
+  |
+5 | pub(crate) struct MirroredPairProjection {
+  |                   ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `MirroredPairGeometryInput` is never constructed
+  --> src/mirrored_pair_geometry.rs:16:19
+   |
+16 | pub(crate) struct MirroredPairGeometryInput {
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `MirroredPairIds` is never constructed
+  --> src/mirrored_pair_geometry.rs:23:19
+   |
+23 | pub(crate) struct MirroredPairIds {
+   |                   ^^^^^^^^^^^^^^^
+
+warning: struct `PairPreviewCell` is never constructed
+  --> src/mirrored_pair_geometry.rs:30:19
+   |
+30 | pub(crate) struct PairPreviewCell {
+   |                   ^^^^^^^^^^^^^^^
+
+warning: function `preview_cells` is never used
+  --> src/mirrored_pair_geometry.rs:40:15
+   |
+40 | pub(crate) fn preview_cells(scene: &MatrixScene, matrix: &Matrix) -> Vec<PairPreviewCell> {
+   |               ^^^^^^^^^^^^^
+
+warning: function `project_mirrored_pair` is never used
+  --> src/mirrored_pair_geometry.rs:61:15
+   |
+61 | pub(crate) fn project_mirrored_pair(
+   |               ^^^^^^^^^^^^^^^^^^^^^
+
+warning: `boardstudio-web` (bin "boardstudio-web") generated 19 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 45.28s
+     Running tests/keymap_panel_lifecycle.rs (web/target/debug/deps/keymap_panel_lifecycle-a58441f6df7d2a6d)
+
+running 7 tests
+test presentation::selection_change_returns_from_macros_to_keys_like_the_reference_owner ... ok
+test presentation::export_calls_the_supplied_handler_once_and_preserves_panel_state ... ok
+test presentation::canvas_selection_clears_a_filter_that_would_hide_the_current_key ... ok
+test presentation::layer_and_operation_feedback_updates_keep_the_same_selection_search ... ok
+test presentation::selected_key_change_clears_the_search_from_the_previous_selection ... ok
+test presentation::new_scope_with_identical_key_ids_resets_search ... ok
+test presentation::same_owner_rerender_and_editor_tabs_preserve_search ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

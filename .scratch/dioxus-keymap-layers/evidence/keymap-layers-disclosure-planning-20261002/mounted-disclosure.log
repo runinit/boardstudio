@@ -1,0 +1,57 @@
+[INFO]: 🎯  Checking for the Wasm target...
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.19s
+[INFO]: ⬇️  Installing wasm-bindgen...
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.17s
+     Running unittests src/lib.rs (target/wasm32-unknown-unknown/debug/deps/boardstudio_web-d55a74879d30c81c.wasm)
+no tests to run!
+     Running unittests src/main.rs (target/wasm32-unknown-unknown/debug/deps/boardstudio_web-055f3e838bea43db.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:35601/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+Loading Wasm module...
+
+running 1 test
+test presentation::keymap::panel::disclosure_mounted_tests::layers_disclosure_is_open_accessible_persistent_and_view_only ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 137 filtered out; finished in 0.27s
+
+     Running tests/case_preview_lifecycle.rs (target/wasm32-unknown-unknown/debug/deps/case_preview_lifecycle-578f9e24406d62b9.wasm)
+no tests to run!
+     Running tests/firmware_request_adapter.rs (target/wasm32-unknown-unknown/debug/deps/firmware_request_adapter-b3e6409f537e41a2.wasm)
+no tests to run!
+     Running tests/keycaps_fit_lifecycle.rs (target/wasm32-unknown-unknown/debug/deps/keycaps_fit_lifecycle-213f4557316000fd.wasm)
+no tests to run!
+     Running tests/keycaps_projection.rs (target/wasm32-unknown-unknown/debug/deps/keycaps_projection-7b031833ae515ace.wasm)
+no tests to run!
+     Running tests/keymap_panel_lifecycle.rs (target/wasm32-unknown-unknown/debug/deps/keymap_panel_lifecycle-3d78afdfc5b4728a.wasm)
+no tests to run!
+     Running tests/layout_align_effect.rs (target/wasm32-unknown-unknown/debug/deps/layout_align_effect-ec9cf0d7e7831beb.wasm)
+no tests to run!
+     Running tests/matrix_field_lifecycle.rs (target/wasm32-unknown-unknown/debug/deps/matrix_field_lifecycle-02c2450783292415.wasm)
+no tests to run!
+     Running tests/matrix_setup_lifecycle.rs (target/wasm32-unknown-unknown/debug/deps/matrix_setup_lifecycle-fecd3a490e22223f.wasm)
+no tests to run!
+     Running tests/matrix_setup_operation.rs (target/wasm32-unknown-unknown/debug/deps/matrix_setup_operation-d3183f6218ee2ecf.wasm)
+no tests to run!
+     Running tests/outline_camera.rs (target/wasm32-unknown-unknown/debug/deps/outline_camera-57d8ae004d6beace.wasm)
+no tests to run!
+     Running tests/outline_lifecycle.rs (target/wasm32-unknown-unknown/debug/deps/outline_lifecycle-2ec704d8674b7ed0.wasm)
+no tests to run!
+     Running tests/outline_tree.rs (target/wasm32-unknown-unknown/debug/deps/outline_tree-e1be82f069630b41.wasm)
+no tests to run!
+     Running tests/parts_standard_profile_editor.rs (target/wasm32-unknown-unknown/debug/deps/parts_standard_profile_editor-8e0100af57fa1156.wasm)
+no tests to run!
+     Running tests/parts_standard_profile_lifecycle.rs (target/wasm32-unknown-unknown/debug/deps/parts_standard_profile_lifecycle-c70a9c8ae89bb901.wasm)
+no tests to run!
+     Running tests/pcb_part_net_admission.rs (target/wasm32-unknown-unknown/debug/deps/pcb_part_net_admission-e5d9688f87c3f0bd.wasm)
+no tests to run!
+     Running tests/physical_setup_lifecycle.rs (target/wasm32-unknown-unknown/debug/deps/physical_setup_lifecycle-e55b6404e23bd8db.wasm)
+no tests to run!
+     Running tests/preview_generator_transport.rs (target/wasm32-unknown-unknown/debug/deps/preview_generator_transport-16b39affbcc70c31.wasm)
+no tests to run!
+   Doc-tests boardstudio_web
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
