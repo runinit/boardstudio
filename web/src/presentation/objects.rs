@@ -54,7 +54,7 @@ pub(super) struct ScopedTreeContext {
     pub context: TreeContext,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(super) struct TreeSelectRequest {
     pub scope: Scope,
     pub context: TreeContext,

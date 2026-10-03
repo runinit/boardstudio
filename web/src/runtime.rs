@@ -1128,6 +1128,15 @@ impl Runtime {
     }
 
     #[cfg(test)]
+    pub(crate) fn settle_layout_component_inspector_test_operation(
+        &self,
+        operation: OperationId,
+        outcome: TerminalOutcome,
+    ) -> bool {
+        self.operation_outcomes.settle(operation, outcome)
+    }
+
+    #[cfg(test)]
     fn set_firmware_export_test_context(
         &self,
         accepted: AcceptedSnapshot,

@@ -1,18 +1,29 @@
+use crate::outline_settings::{
+    OutlineEdit, OutlineExpectation, apply_outline_edit, expectation_applied, generated_feature,
+    generated_margin, generated_settings,
+};
 use crate::{operation_outcomes::OutcomeSlot, runtime::Runtime};
 use boardstudio_application::{
     AcceptedSnapshot, Durability, Event, Lifecycle, Scope, TerminalOutcome,
 };
-use boardstudio_core::model::{Contour, EditCommand, EditOperation, EditPhase};
+use boardstudio_core::model::{
+    Contour, CornerStyle, EditCommand, EditOperation, EditPhase, OutlineGap, OutlineRepairSettings,
+    OutlineSettings,
+};
 use dioxus::prelude::*;
+use dioxus_web::WebEventExt;
 use std::rc::Rc;
+use wasm_bindgen::JsCast;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(super) enum OutlineAction {
     Activate {
         scope: Scope,
         token: boardstudio_application::SnapshotToken,
         revision: u64,
         generation: u64,
+        context: super::objects::TreeContext,
+        require_selected_version: bool,
         board_id: String,
         version_id: Option<String>,
     },
@@ -31,13 +42,22 @@ pub(super) enum OutlineAction {
         board_id: String,
         version_id: String,
     },
+    Update {
+        scope: Scope,
+        token: boardstudio_application::SnapshotToken,
+        revision: u64,
+        generation: u64,
+        board_id: String,
+        edit: OutlineEdit,
+    },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 enum PendingKind {
     Activate { version_id: Option<String> },
     Copy { version_id: String },
     Delete { version_id: String },
+    Edit(OutlineExpectation),
 }
 
 #[derive(Clone)]
@@ -75,6 +95,13 @@ pub(super) struct OutlineInspectorProjection {
     pub(super) version_name: String,
     pub(super) active_version_id: Option<String>,
     pub(super) contours: Vec<Contour>,
+    pub(super) versions: Vec<OutlineVersionChoice>,
+    pub(super) settings: OutlineSettings,
+    pub(super) repair: OutlineRepairSettings,
+    pub(super) generated_margin: Option<f64>,
+    pub(super) has_generated: bool,
+    pub(super) gaps: Vec<OutlineGap>,
+    action_context: Rc<OutlineActionContext>,
     pub(super) enabled: bool,
     pub(super) feedback: Option<OutlineFeedback>,
     pub(super) on_action: EventHandler<OutlineAction>,
@@ -82,6 +109,48 @@ pub(super) struct OutlineInspectorProjection {
     token: boardstudio_application::SnapshotToken,
     revision: u64,
     generation: u64,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct OutlineActionContext {
+    scope: Scope,
+    token: boardstudio_application::SnapshotToken,
+    revision: u64,
+    generation: u64,
+    board_id: String,
+    selection_context: super::objects::TreeContext,
+}
+
+impl OutlineActionContext {
+    fn action(&self, edit: OutlineEdit) -> OutlineAction {
+        OutlineAction::Update {
+            scope: self.scope.clone(),
+            token: self.token,
+            revision: self.revision,
+            generation: self.generation,
+            board_id: self.board_id.clone(),
+            edit,
+        }
+    }
+
+    fn activate_action(&self, version_id: Option<String>) -> OutlineAction {
+        OutlineAction::Activate {
+            scope: self.scope.clone(),
+            token: self.token,
+            revision: self.revision,
+            generation: self.generation,
+            context: self.selection_context.clone(),
+            require_selected_version: false,
+            board_id: self.board_id.clone(),
+            version_id,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct OutlineVersionChoice {
+    pub(super) id: String,
+    pub(super) name: String,
 }
 
 impl OutlineAction {
@@ -111,6 +180,14 @@ impl OutlineAction {
                 board_id,
             }
             | OutlineAction::Delete {
+                scope,
+                token,
+                revision,
+                generation,
+                board_id,
+                ..
+            }
+            | OutlineAction::Update {
                 scope,
                 token,
                 revision,
@@ -157,6 +234,8 @@ impl OutlineAction {
             token: snapshot.token,
             revision: snapshot.document.revision,
             generation,
+            context: context.clone(),
+            require_selected_version: true,
             board_id: board_id.clone(),
             version_id: version_id.clone(),
         })
@@ -276,6 +355,11 @@ pub(super) fn use_outline_lifecycle(
                                     .iter()
                                     .all(|version| version.id != *version_id)
                         }),
+                        PendingKind::Edit(expectation) => expectation_applied(
+                            &snapshot.document,
+                            &waiting.scope.board_id,
+                            expectation,
+                        ),
                     };
                     pending.set(None);
                     feedback.set(Some(OutlineFeedback {
@@ -409,6 +493,39 @@ fn project_inspector(
                 .find(|version| Some(&version.id) == active_version_id.as_ref())
         })
         .map_or_else(|| "Generated".to_owned(), |version| version.name.clone());
+    let board = snapshot
+        .document
+        .boards
+        .iter()
+        .find(|board| board.id == board_id)?;
+    let versions = outline
+        .into_iter()
+        .flat_map(|state| state.versions.iter())
+        .map(|version| OutlineVersionChoice {
+            id: version.id.clone(),
+            name: version.name.clone(),
+        })
+        .collect();
+    let generated = generated_feature(&snapshot.document, board);
+    let settings = outline
+        .and_then(|state| {
+            active_version_id.as_ref().and_then(|active_id| {
+                state
+                    .versions
+                    .iter()
+                    .find(|version| &version.id == active_id)
+                    .map(|version| version.geometry.settings.clone())
+            })
+        })
+        .or_else(|| generated.and_then(generated_settings))
+        .unwrap_or_default();
+    let repair = settings.repair.clone().unwrap_or_default();
+    let gaps = snapshot
+        .scene
+        .board_outline_scenes
+        .iter()
+        .find(|scene| scene.board_id == board_id)
+        .map_or_else(Vec::new, |scene| scene.gaps.clone());
     let contours = snapshot
         .scene
         .board_contours
@@ -444,11 +561,25 @@ fn project_inspector(
             message: None,
         });
     Some(OutlineInspectorProjection {
-        board_id,
+        board_id: board_id.clone(),
         board_name,
         version_name,
         active_version_id,
         contours,
+        versions,
+        settings,
+        repair,
+        generated_margin: generated.and_then(generated_margin),
+        has_generated: generated.is_some(),
+        gaps,
+        action_context: Rc::new(OutlineActionContext {
+            scope: scope.clone(),
+            token: snapshot.token,
+            revision: snapshot.document.revision,
+            generation: captured_generation,
+            board_id: board_id.clone(),
+            selection_context: selected.context,
+        }),
         enabled: editable,
         feedback: pending_feedback.or(visible_feedback),
         on_action,
@@ -497,13 +628,43 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
         .board_outlines
         .iter()
         .find(|state| state.board_id == *board_id);
-    let (operation, kind) = match &action {
-        OutlineAction::Activate { version_id, .. } => {
-            if !selected.as_ref().is_some_and(|selected| matches!(&selected.context,
-                super::objects::TreeContext::OutlineVersion { version_id: selected_version, .. } if selected_version == version_id))
-                || version_id.as_ref().is_some_and(|id| !state.is_some_and(|state| state.versions.iter().any(|version| version.id == *id)))
-                || state.and_then(|state| state.active_version_id.as_ref()) == version_id.as_ref()
-            { return; }
+    let operation_id = runtime.operation();
+    let (operation, kind, target_ids) = match &action {
+        OutlineAction::Activate {
+            version_id,
+            context,
+            require_selected_version,
+            ..
+        } => {
+            if !selected.as_ref().is_some_and(|selected| {
+                if selected.context != *context {
+                    return false;
+                }
+                match (&selected.context, version_id) {
+                    (
+                        super::objects::TreeContext::Outline {
+                            board_id: selected_board,
+                        },
+                        _,
+                    ) => selected_board == board_id,
+                    (
+                        super::objects::TreeContext::OutlineVersion {
+                            board_id: selected_board,
+                            version_id: selected_version,
+                        },
+                        version_id,
+                    ) => {
+                        selected_board == board_id
+                            && (!require_selected_version || selected_version == version_id)
+                    }
+                    _ => false,
+                }
+            }) || version_id.as_ref().is_some_and(|id| {
+                !state.is_some_and(|state| state.versions.iter().any(|version| version.id == *id))
+            }) || state.and_then(|state| state.active_version_id.as_ref()) == version_id.as_ref()
+            {
+                return;
+            }
             (
                 EditOperation::SelectOutline {
                     board_id: board_id.clone(),
@@ -512,6 +673,7 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
                 PendingKind::Activate {
                     version_id: version_id.clone(),
                 },
+                vec![board_id.clone()],
             )
         }
         OutlineAction::Copy { .. } => {
@@ -529,7 +691,7 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
                 .saturating_add(1);
             let name = format!("Edited outline {next_number}");
             let version_id = loop {
-                let candidate = format!("outline-version-{}", runtime.operation().0);
+                let candidate = format!("outline-version-{}", operation_id.0);
                 if snapshot
                     .document
                     .board_outlines
@@ -549,6 +711,7 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
                     feature: None,
                 },
                 PendingKind::Copy { version_id },
+                vec![board_id.clone()],
             )
         }
         OutlineAction::Delete { version_id, .. } => {
@@ -575,10 +738,22 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
                 PendingKind::Delete {
                     version_id: version_id.clone(),
                 },
+                vec![board_id.clone()],
             )
         }
+        OutlineAction::Update { edit, .. } => {
+            let Some((operation, expectation, target_ids)) = apply_outline_edit(
+                &snapshot.document,
+                &snapshot.scene,
+                board_id,
+                edit,
+                operation_id,
+            ) else {
+                return;
+            };
+            (operation, PendingKind::Edit(expectation), target_ids)
+        }
     };
-    let operation_id = runtime.operation();
     let outcome = runtime.observe_operation(operation_id);
     pending.set(Some(Pending {
         scope: action_scope.clone(),
@@ -600,7 +775,7 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
             base_revision: expected_revision,
             transaction_id: format!("outline-lifecycle-{}", operation_id.0),
             phase: EditPhase::Commit,
-            target_ids: vec![board_id.clone()],
+            target_ids,
             operation,
         },
     });
@@ -645,17 +820,258 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
     let delete = projection.delete_action();
     let copy_handler = projection.on_action;
     let delete_handler = projection.on_action;
+    let mut version_name = use_signal(|| None::<(String, String, String)>);
+    let name_draft = version_name()
+        .filter(|(id, baseline, _)| {
+            Some(id) == projection.active_version_id.as_ref()
+                && baseline == &projection.version_name
+        })
+        .map(|(_, _, draft)| draft)
+        .unwrap_or_else(|| projection.version_name.clone());
+    let active_version = projection.active_version_id.clone();
+    let on_action = projection.on_action;
+    let action_context = projection.action_context.clone();
+    let enabled = projection.enabled;
+    let active_value = projection.active_version_id.clone().unwrap_or_default();
+    let corner_value = match projection.settings.corners {
+        CornerStyle::Sharp => "sharp",
+        CornerStyle::Fillet => "fillet",
+        CornerStyle::Chamfer => "chamfer",
+    };
+    let size_label: &'static str = match projection.settings.corners {
+        CornerStyle::Fillet => "Fillet radius",
+        _ => "Chamfer size",
+    };
     rsx! {
         section { class: "m1-outline-inspector", "aria-label": "Board outline",
             div { class: "m1-outline-inspector-heading", h2 { "Board outline" } span { class: "m1-outline-board-name", "{projection.board_name}" } }
             p { if projection.active_version_id.is_some() { "A fixed outline; component placement is shared with every version." } else { "Generated follows your keycaps and included components." } }
-            p { "Active version: {projection.version_name}" }
             p { "{projection.contours.len()} accepted contours" }
             if let Some((view_box, paths)) = contour_view {
                 svg { class: "m1-outline-preview", role: "img", "aria-label": "Accepted active board outline", view_box: "{view_box}",
                     g { transform: "scale(1,-1)",
                         for (index, (points, hole)) in paths.iter().enumerate() {
                             polygon { key: "outline-preview-{index}", class: if *hole { "m1-outline is-hole" } else { "m1-outline" }, points: "{points}" }
+                        }
+                    }
+                }
+            }
+            div { class: "m1-outline-settings",
+                label { class: "m1-outline-field",
+                    span { "Active outline" }
+                    select {
+                        aria_label: "Active outline",
+                        value: "{active_value}",
+                        disabled: !enabled,
+                        onchange: {
+                            let action_context = action_context.clone();
+                            move |event: FormEvent| {
+                                let value = event.value();
+                                on_action.call(action_context.activate_action((!value.is_empty()).then_some(value)));
+                            }
+                        },
+                        option { value: "", "Generated" }
+                        for item in projection.versions.iter() {
+                            option { key: "{item.id}", value: "{item.id}", "{item.name}" }
+                        }
+                    }
+                }
+                if let Some(version_id) = active_version.as_ref() {
+                    label { class: "m1-outline-field",
+                        span { "Version name" }
+                        input {
+                            aria_label: "Outline version name",
+                            maxlength: "120",
+                            value: "{name_draft}",
+                            disabled: !enabled,
+                            aria_invalid: name_draft.trim().is_empty(),
+                            oninput: {
+                                let version_id = version_id.clone();
+                                let baseline = projection.version_name.clone();
+                                move |event: FormEvent| version_name.set(Some((version_id.clone(), baseline.clone(), event.value())))
+                            },
+                            onblur: {
+                                let version_id = version_id.clone();
+                                let accepted_name = projection.version_name.clone();
+                                let action_context = action_context.clone();
+                                move |_| {
+                                    let Some((draft_id, baseline, draft)) = version_name() else { return; };
+                                    if draft_id != version_id || baseline != accepted_name { return; }
+                                    let name = draft.trim().to_owned();
+                                    if !name.is_empty() && name.len() <= 120 && name != accepted_name {
+                                        on_action.call(action_context.action(OutlineEdit::RenameVersion { version_id: version_id.clone(), name }));
+                                    }
+                                }
+                            },
+                            onkeydown: {
+                                move |event: KeyboardEvent| match event.data().key().to_string().as_str() {
+                                    "Enter" => {
+                                        event.prevent_default();
+                                        if let Some(input) = event.data().try_as_web_event()
+                                            .and_then(|event| event.target())
+                                            .and_then(|target| target.dyn_into::<web_sys::HtmlInputElement>().ok())
+                                        { let _ = input.blur(); }
+                                    }
+                                    "Escape" => {
+                                        event.prevent_default();
+                                        version_name.set(None);
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
+                }
+                if !projection.has_generated && projection.active_version_id.is_none() {
+                    button {
+                        class: "m1-outline-action",
+                        disabled: !enabled,
+                        onclick: {
+                            let action_context = action_context.clone();
+                            move |_| on_action.call(action_context.action(OutlineEdit::CreateAutomatic))
+                        },
+                        "Generate automatic outline"
+                    }
+                }
+                if projection.has_generated || projection.active_version_id.is_some() {
+                    label { class: "m1-outline-field",
+                        span { "Corners" }
+                        select {
+                            aria_label: "Outline corners",
+                            value: "{corner_value}",
+                            disabled: !enabled,
+                            onchange: {
+                                let action_context = action_context.clone();
+                                move |event: FormEvent| {
+                                let corner = match event.value().as_str() {
+                                    "fillet" => CornerStyle::Fillet,
+                                    "chamfer" => CornerStyle::Chamfer,
+                                    _ => CornerStyle::Sharp,
+                                };
+                                on_action.call(action_context.action(OutlineEdit::SetCorners(corner)));
+                            }},
+                            option { value: "sharp", "Sharp" }
+                            option { value: "fillet", "Fillet" }
+                            option { value: "chamfer", "Chamfer" }
+                        }
+                    }
+                    if projection.settings.corners != CornerStyle::Sharp {
+                        OutlineDimension {
+                            label: size_label,
+                            value: projection.settings.size,
+                            minimum: 0.0,
+                            editable: enabled,
+                            on_commit: {
+                                let action_context = action_context.clone();
+                                move |value| on_action.call(action_context.action(OutlineEdit::SetSize(value)))
+                            },
+                        }
+                    }
+                    if projection.active_version_id.is_none() {
+                        if let Some(margin) = projection.generated_margin {
+                            OutlineDimension {
+                                label: "Outline margin",
+                                value: margin,
+                                minimum: 0.0,
+                                editable: enabled,
+                                on_commit: {
+                                    let action_context = action_context.clone();
+                                    move |value| on_action.call(action_context.action(OutlineEdit::SetMargin(value)))
+                                },
+                            }
+                        }
+                        OutlineDimension {
+                            label: "Bridge width",
+                            value: projection.settings.bridge_width,
+                            minimum: 0.001,
+                            editable: enabled,
+                            on_commit: {
+                                let action_context = action_context.clone();
+                                move |value| on_action.call(action_context.action(OutlineEdit::SetBridgeWidth(value)))
+                            },
+                        }
+                    }
+                    if projection.active_version_id.is_none() && !projection.gaps.is_empty() {
+                        fieldset { class: "m1-outline-controls", disabled: !enabled,
+                            legend { "Gap repair" }
+                            p { "Keep gap preserves an intentional recess and follows its source components." }
+                            for (index, gap) in projection.gaps.iter().enumerate() {
+                                label { class: "m1-outline-field m1-outline-gap",
+                                    input {
+                                        r#type: "checkbox",
+                                        aria_label: "Keep gap {index + 1}",
+                                        checked: gap.protected,
+                                onchange: {
+                                    let gap_id = gap.id.clone();
+                                    let action_context = action_context.clone();
+                                    move |event: FormEvent| on_action.call(action_context.action(OutlineEdit::SetProtectedGap { gap_id: gap_id.clone(), protected: event.checked() }))
+                                        }
+                                    }
+                                    span { "Gap {index + 1} · {gap.span:.1} mm span" }
+                                }
+                            }
+                        }
+                    }
+                    fieldset { class: "m1-outline-controls", disabled: !enabled,
+                        legend { "Advanced cleanup and clearance" }
+                        if projection.active_version_id.is_none() {
+                            label { class: "m1-outline-field m1-outline-gap",
+                                input {
+                                    r#type: "checkbox",
+                                    aria_label: "Automatic gap cleanup",
+                                    checked: projection.repair.enabled,
+                                    onchange: {
+                                        let action_context = action_context.clone();
+                                        move |event: FormEvent| on_action.call(action_context.action(OutlineEdit::SetRepairEnabled(event.checked())))
+                                    },
+                                }
+                                span { "Automatic cleanup" }
+                            }
+                            OutlineDimension {
+                                label: "Maximum gap span",
+                                value: projection.repair.maximum_gap_span,
+                                minimum: 0.0,
+                                editable: enabled,
+                                on_commit: {
+                                    let action_context = action_context.clone();
+                                    move |value| on_action.call(action_context.action(OutlineEdit::SetMaximumGapSpan(value)))
+                                },
+                            }
+                        }
+                        OutlineDimension {
+                            label: "Minimum connection width",
+                            value: projection.repair.minimum_connection_width,
+                            minimum: 0.0,
+                            editable: enabled,
+                            on_commit: {
+                                let action_context = action_context.clone();
+                                move |value| on_action.call(action_context.action(OutlineEdit::SetMinimumConnectionWidth(value)))
+                            },
+                        }
+                        OutlineDimension {
+                            label: "PCB edge clearance",
+                            value: projection.repair.edge_clearance,
+                            minimum: 0.0,
+                            editable: enabled,
+                            on_commit: {
+                                let action_context = action_context.clone();
+                                move |value| on_action.call(action_context.action(OutlineEdit::SetEdgeClearance(value)))
+                            },
+                        }
+                        p { "Support and clearance findings block affected fabrication exports. Editing and project saving stay available." }
+                        if projection.active_version_id.is_none() {
+                            for (index, gap) in projection.repair.keep_gaps.iter().enumerate() {
+                                button {
+                                    class: "m1-outline-remove-gap",
+                                    aria_label: "Remove protected gap {index + 1}",
+                                    onclick: {
+                                        let gap_id = gap.id.clone();
+                                        let action_context = action_context.clone();
+                                        move |_| on_action.call(action_context.action(OutlineEdit::RemoveProtectedGap { gap_id: gap_id.clone() }))
+                                    },
+                                    "Remove protected gap {index + 1}"
+                                }
+                            }
                         }
                     }
                 }
@@ -673,6 +1089,66 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
                     else { "Outline change failed: {feedback.message.as_deref().unwrap_or_default()}" }
                 }
             }
+        }
+    }
+}
+
+#[component]
+fn OutlineDimension(
+    label: &'static str,
+    value: f64,
+    minimum: f64,
+    editable: bool,
+    on_commit: EventHandler<f64>,
+) -> Element {
+    let mut field = use_signal(|| (value, value.to_string()));
+    let draft = if field().0 == value {
+        field().1
+    } else {
+        value.to_string()
+    };
+    let parsed = draft.trim().parse::<f64>();
+    let valid = !draft.trim().is_empty()
+        && parsed.is_ok_and(|parsed| parsed.is_finite() && parsed >= minimum);
+    let error = !valid;
+    rsx! {
+        label { class: "m1-outline-field",
+            span { "{label}" }
+            span { class: "m1-outline-number",
+                input {
+                    r#type: "number",
+                    step: "0.1",
+                    min: "{minimum}",
+                    value: "{draft}",
+                    disabled: !editable,
+                    aria_label: label,
+                    aria_invalid: error,
+                    oninput: move |event: FormEvent| field.set((value, event.value())),
+                    onblur: move |_| {
+                        if field().0 != value {
+                            field.set((value, value.to_string()));
+                        } else if let Ok(next) = field().1.trim().parse::<f64>()
+                            && next.is_finite() && next >= minimum && next != value
+                        { on_commit.call(next); }
+                    },
+                    onkeydown: move |event: KeyboardEvent| match event.data().key().to_string().as_str() {
+                        "Enter" => {
+                            event.prevent_default();
+                            if let Some(input) = event.data().try_as_web_event()
+                                .and_then(|event| event.target())
+                                .and_then(|target| target.dyn_into::<web_sys::HtmlInputElement>().ok())
+                            { let _ = input.blur(); }
+                        }
+                        "Escape" => {
+                            event.prevent_default();
+                            field.set((value, value.to_string()));
+                        }
+                        _ => {}
+                    }
+                }
+                small { "mm" }
+            }
+            if error { small { role: "alert", "Enter a finite value greater than or equal to {minimum} mm." } }
         }
     }
 }
@@ -719,3 +1195,7 @@ fn contour_preview(contours: &[Contour]) -> Option<(String, Vec<(String, bool)>)
 #[cfg(all(test, not(target_arch = "wasm32")))]
 #[path = "outline_lifecycle_tests.rs"]
 mod lifecycle_tests;
+
+#[cfg(all(test, target_arch = "wasm32"))]
+#[path = "outline_lifecycle_browser_tests.rs"]
+mod browser_tests;
