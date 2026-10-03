@@ -164,6 +164,25 @@ The milestone-level prerequisites above describe integration context. The refine
 | F4.6 | F4.1 | F4.4, F3.2 |
 | F4.7 | F4.1 | INT.2, F4.4 |
 
+#### F4.6 source refinement — saved assembly authoring
+
+The pinned React `PartsInspectorPanel` exposes a saved-assembly list with New,
+select and Duplicate actions, and `AssemblyEditor` owns a local draft with name,
+member definition, front/back side and XY/rotation controls before Save. The
+Dioxus Parts surface had only the eight preset selectors and no saved-assembly
+list or editor. The first mounted authoring packet restores that path through
+the existing accepted-document edit/history boundary: a draft can be created,
+edited, duplicated and saved; only its assembly record and any referenced
+catalogue definition snapshots are applied to the latest accepted document.
+An intervening edit to the same saved assembly is reported instead of being
+overwritten, while unrelated accepted document changes are retained.
+
+This packet is a bounded source increment, not F4.6 acceptance. Generator
+parameter overrides, model-default/custom model editing and import, isolated
+assembly preview, and matrix/board Apply/Place remain explicit F4.6 acceptance
+criteria; Apply/Place retain the F3.2 acceptance join. Do not mark the parent
+criterion complete from the saved metadata editor alone.
+
 ### Refactoring observation handoff
 
 Update the [living RF register](../refactor-findings.json) and [post-port takeaways](../../../docs/migration/POST-PORT-REFACTOR.md) for architectural, design, theoretical or quality issues discovered in this slice, or record “No new refactoring takeaway observed” with reviewed scope. Distinguish confirmed findings from hypotheses; include evidence, impact, current mitigation, later proposal and validation. This does not authorize unrelated refactoring or defer required parity fixes.

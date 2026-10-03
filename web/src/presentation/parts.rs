@@ -1,4 +1,5 @@
 //! Read-only Parts catalogue and selected-definition presentation slots.
+mod assembly_editor;
 mod assembly_presets;
 mod catalogue;
 mod details;
@@ -1093,6 +1094,11 @@ pub(super) fn PartsInspectorPanel(
 
     rsx! {
         section { class: "m1-parts-inspector", "aria-label": "Selected component details",
+            assembly_editor::SavedAssembliesEditor {
+                snapshot: snapshot.clone(),
+                scope: scope.clone(),
+                definitions: catalogue.entries.as_ref().map(|entries| entries.iter().map(|entry| (*entry.definition).clone()).collect()).unwrap_or_default(),
+            }
             if let Some(module_id) = selected_module_id.as_deref() {
                 if let Some(module) = module_catalogue.entries.as_deref().and_then(|entries| entries.iter().find(|entry| entry.definition.id == module_id)) {
                     { let variants = module_catalogue.entries.as_deref().map(|entries| modules_catalogue::variants(entries, &module.row)).unwrap_or_default();
