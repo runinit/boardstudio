@@ -1271,7 +1271,7 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T07:51:07.429090+00:00",
+    "updated_at": "2026-10-03T08:29:12.778696+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet/stream, journey/criterion reporting, less testing/more implementation.",
     "parent_counts": {
       "accepted": 2,
@@ -1281,23 +1281,23 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-keymap-case-context-repairs-20261003",
-      "source_commit": "9c16db41155a7b72be187789d225f78c2fbfe9af",
-      "root_url": "http://127.0.0.1:34754/",
-      "subpath_url": "http://127.0.0.1:34754/boardstudio/",
-      "provenance": "web/target/builds/frontend-keymap-case-context-repairs-20261003/provenance.json",
-      "provenance_sha256": "0907bdf10c5719c899d8d35c5fd11b00bef0c4c5deaa5baae69a860aea279a5c",
-      "fresh_commands": 8,
-      "inherited_commands": 22,
+      "build_id": "frontend-keycaps-controller-layout-20261003",
+      "source_commit": "243aa55108fab09b35e6f2e1fcfa6fbb92e5ef53",
+      "root_url": "http://127.0.0.1:34755/",
+      "subpath_url": "http://127.0.0.1:34755/boardstudio/",
+      "provenance": "web/target/builds/frontend-keycaps-controller-layout-20261003/provenance.json",
+      "provenance_sha256": "aedb689f011b9f4a8955b76fcbfd72e988665cb8435b1858f91276237c5e56bc",
+      "fresh_commands": 22,
+      "inherited_commands": 0,
       "source_inputs": 1365,
       "source_mismatches": 0,
       "assets_per_route": 145,
-      "command_span_seconds": 90.281839,
-      "package_qualification": "Package/source/assets/root+subpath200 COEP pass. Actual Allgasketsettings return GREEN. Keymapsectioncollapse/reopen GREEN, selected-keyowner change defect confirmed and follow-up active. NormalgeneratorWidthpreview/Apply/Undo/reload GREEN34751 reused; metadatarebase P2 source repair active. LayoutmembershipGREEN34752 retained."
+      "command_span_seconds": 464.642372,
+      "package_qualification": "Full build and source/assets/root+subpath 200 COEP pass. Includes Keycaps real CAD preview, PCB ordinary controller chooser and final Layout/Keymap contextual repairs. Only changed browser deltas active; unchanged prior evidence reused."
     },
     "integration": {
-      "source_commit": "f3fbd57c",
-      "state": "Next source has PCB17ordinarycontrollerchooser9219a4d0 and LayoutPropertiesdraftresetc868a75a; strictPCBpagecheck passed and package/changedjourneys pending. Keycaps realCAD3D source strictcheck passed, freeze/join next. Generator metadatarebase and Keymapselectedowner repair active.",
+      "source_commit": "007c7a82",
+      "state": "34755 is frozen and served. Next page batch joins Parts accepted-metadata preservation 4b074779+a1c371b7 and Case mounting/hardware 007c7a82; one combined check/package next. All parent criteria retained.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1435,7 +1435,7 @@
           "slice": "Parts generator drafts preview and Apply",
           "original_source": "19571615",
           "integrated_source": "7ea6372c+ab532f27",
-          "state": "34751normalMXwidth18\u219220 preview/Apply/Undo/reload GREEN. ConsolidatedreviewP2: ready-draft identity and full-definitionApply can drop/overwriteacceptednon-generator metadata; author repairing three-waymerge andowneddefinition deletionadmission. Broadfailure/netbranchesopen."
+          "state": "Normal width preview/Apply/Undo/reload GREEN34751 retained. Metadata three-way merge, deleted-owner guard and bundled materialization equality fixed 4b074779+a1c371b7. Focused production builder RED/GREEN executed on original a069; tiny equality assertion unrun, next combined check. Mounted integrated repair qualification remains open."
         },
         {
           "slice": "Keycaps empty-board next-step guidance",
@@ -1453,13 +1453,13 @@
           "slice": "Layout component membership tab reset",
           "original_source": "5c34c0ce",
           "integrated_source": "b3c6909b",
-          "state": "Mounted34750RED and34752GREEN: left-U1 acceptedleft-keys-layout remains after Properties/Relations/Properties. Broader constraints mixeddraft defect repairednextc868a75a, changedGREENpending."
+          "state": "34752 accepted membership GREEN retained. Whole Properties draft return reset c868a75a+d050e902+243aa551 served34755; changed browser delta pending."
         },
         {
           "slice": "Keymap Inspector disclosures",
           "original_source": "64115c13",
-          "integrated_source": "4e8f1cd8+9c16db41",
-          "state": "Mounted34751constantopenRED repaired;34754 collapse/reopen/tabsGREEN. Selected-keyownerchange retainsclosedwhileReactremountsexpanded; authorfollow-upactive, fullleafnotaccepted."
+          "integrated_source": "4e8f1cd8+9c16db41+f6477b0a+da4ed0b6",
+          "state": "34754 collapse/reopen/tabs GREEN. Selected-key/scope owner reset corrected and served34755; only changed owner GREEN pending."
         },
         {
           "slice": "Case All gasket settings context return",
@@ -1471,7 +1471,19 @@
           "slice": "PCB ordinary controller chooser",
           "original_source": "c3a1e833",
           "integrated_source": "9219a4d0",
-          "state": "ExplicitacceptedordinaryPCBorigin, Partsfilter/back/context andexistingplacement/historyreturnimplemented; strictWASMalltargetspassed, actualcandidatejourney pending."
+          "state": "Served34755; combined strict WASM and full package PASS. Same-fixture changed paired placement/history/reopen journey active."
+        },
+        {
+          "slice": "Keycaps real CAD cap and legend preview",
+          "original_source": "cd91879d",
+          "integrated_source": "76c07aa8+f9929a45",
+          "state": "Served34755; combined strict WASM and full CAD build PASS. Pinned Hybrid preview and layer visibility journey active."
+        },
+        {
+          "slice": "Case mounting and hardware controls",
+          "original_source": "cd6ef00d",
+          "integrated_source": "007c7a82",
+          "state": "Joined next page batch; mount/closure CRUD and exact-current suggested positions. Combined check and changed paired journey pending."
         }
       ],
       "checks": {
@@ -1516,6 +1528,16 @@
         "next_parts_pcb_context_check": {
           "source_commit": "145cb6c0",
           "result": "Failed as expected on new uncompiled Parts packet;12syntax/type/fixture errors. Author owns same affected strict page WASM repair/recheck; previous passing source evidence reused."
+        },
+        "combined_keycaps_controller_layout": {
+          "source_commit": "243aa551",
+          "command": "cargo clippy --locked --manifest-path web/Cargo.toml --no-default-features --features page --target wasm32-unknown-unknown --all-targets -- -D warnings",
+          "result": "PASS 36.11 seconds. Import and redundant capture compile defects fixed before passing. Full22-command package PASS464.64s."
+        },
+        "failed_fast_page_candidate": {
+          "build_id": "frontend-controller-layout-context-20261003",
+          "source_commit": "20b58d7a",
+          "result": "Failed DX page build with E0596 mutable reset binding; fixed d050e902 and included in verified full34755. Failed candidate never served; failure provenance retained."
         }
       },
       "candidate_build": {
@@ -1635,18 +1657,18 @@
     ],
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "heavy_slots": {
-      "root_target": "Free for nextfreshCADbaselinebuild afterjoinedworker source.",
-      "secondary_target": "Parts metadatarebase author owns f73cachedtarget foronefocusedregression/strictcheck; KeycapscheckfinishedcachedCase target.",
-      "dispatch": "Reuseexistingpassingchecks/journeys; max2heavy and1package, candidateconsolidatedreview."
+      "root_target": "Next guarded page package reuses full frontend-keycaps-controller-layout-20261003 providers; max one package.",
+      "secondary_target": "Root assigns cached Case target for one combined Parts/Case page WASM all-target Clippy.",
+      "dispatch": "Max two heavy jobs; no duplicate author checks or unchanged browser sweeps."
     },
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "next_work": {
-      "Layout": "NewPropertiesdraftreturnresetc868a75a pendingnextcandidateGREEN; membertabGREEN retained.",
-      "PCB": "Ordinarycontrollerchooser9219a4d0 nextcandidate Addcontroller/placement/Undo/reopen.",
-      "Keymap": "Final selected-keyowner disclosure correction, then coherentfooter zoom/label parity.",
-      "Keycaps": "Core-resolvedcap+legendCAD3D strictWASMcheckPASS; freeze/join/fullCADpackage next.",
-      "Case": "Allgasketsettings34754GREEN; nextcoherentprivateassembly/body/layercontextworkflow inventory.",
-      "Parts_Project": "Fixconsolidatedgenerator metadatarebaseP2 beforeProjectmenu nextscope; onefocusedregression andcheck."
+      "Layout": "Finish single34755 draft-reset delta; then existing Issue04 matrix/cell daily workflow. MatrixInspector/controller already mounted; broader edit/growth/history gates remain.",
+      "PCB": "34755 ordinary controller chooser paired placement/Undo/Redo/reopen; next missing PCB daily workflow.",
+      "Keymap": "34755 final disclosure-owner delta; isolated footer zoom factor/label parity authoring.",
+      "Keycaps": "34755 real cap/legend Hybrid CAD preview and visibility toggles; fix only observed defects.",
+      "Case": "Mounting/hardware joined007c7a82; pin and run changed CRUD/adoption actions on next page batch.",
+      "Parts_Project": "Metadata preservation fixed4b074779+a1c371b7; next integrated qualification and existing Project menu visual composition delta. Menu source7ae521b6 already in integration; no duplicate reimplementation."
     },
     "execution_policy": "One required affected compile, one changed paired browser journey and one consolidated candidate review; reuse unchanged evidence. Ordinary reversible UI gets no new tests. Real bugs keep focused regressions and remaining acceptance gates explicit.",
     "served_candidate_history": [
@@ -1722,6 +1744,21 @@
         "assets_per_route": 145,
         "command_span_seconds": 96.079303,
         "package_qualification": "Guarded page build passed; source/assets match both routes, HTTP200 COEP. Includes mounted Layout membership tab-reset repair. Changed GREEN pending; existing34751 Keymap/Case defects remain and repairs are underway."
+      },
+      {
+        "build_id": "frontend-keymap-case-context-repairs-20261003",
+        "source_commit": "9c16db41155a7b72be187789d225f78c2fbfe9af",
+        "root_url": "http://127.0.0.1:34754/",
+        "subpath_url": "http://127.0.0.1:34754/boardstudio/",
+        "provenance": "web/target/builds/frontend-keymap-case-context-repairs-20261003/provenance.json",
+        "provenance_sha256": "0907bdf10c5719c899d8d35c5fd11b00bef0c4c5deaa5baae69a860aea279a5c",
+        "fresh_commands": 8,
+        "inherited_commands": 22,
+        "source_inputs": 1365,
+        "source_mismatches": 0,
+        "assets_per_route": 145,
+        "command_span_seconds": 90.281839,
+        "package_qualification": "Package/source/assets/root+subpath200 COEP pass. Actual Allgasketsettings return GREEN. Keymapsectioncollapse/reopen GREEN, selected-keyowner change defect confirmed and follow-up active. NormalgeneratorWidthpreview/Apply/Undo/reload GREEN34751 reused; metadatarebase P2 source repair active. LayoutmembershipGREEN34752 retained."
       }
     ],
     "consolidated_reviews": [
@@ -1741,7 +1778,7 @@
         "scope": "34751Parts generators, PCB Wiring hierarchy, Case gasket settings return",
         "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/candidate-ab532f27/REVIEW.md",
         "audit": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/candidate-ab532f27/AUDIT.json",
-        "result": "Two actual/source findings retained: Caseownerroute fixed+34754GREEN; Partsdraft identity/full-definitionmetadatarebase P2 repairing. BoundedPCBcontext andnormalgeneratorjourneyGREEN; allparentjoinsretained."
+        "result": "Case owner route fixed and actual34754 GREEN. Parts metadata preservation repaired and targeted source review clear on a069+19f; not attributed to34755. Normal generator and PCB16 unchanged GREEN reused; broader criteria remain."
       }
     ]
   }
