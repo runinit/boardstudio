@@ -219,6 +219,23 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
         },
     ));
 
+    let selected_points = {
+        let model = runtime.0.model();
+        model.accepted.as_ref().map_or_else(Vec::new, |snapshot| {
+            model
+                .selected_part_ids
+                .iter()
+                .filter_map(|id| {
+                    snapshot
+                        .document
+                        .parts
+                        .iter()
+                        .find(|part| &part.id == id)
+                        .map(|part| part.pose.at)
+                })
+                .collect::<Vec<_>>()
+        })
+    };
     let (handle_point, handle_scale, selected_column) = {
         let selected_column = context_column(&context).unwrap_or(0);
         let selected_row = context_row(&context);
@@ -237,10 +254,14 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
                         .iter()
                         .find(|cell| cell.enabled && cell.row == 0 && cell.column == index)
                 };
-                cell.map(|cell| Vec2 {
-                    x: cell.pose.at.x,
-                    y: cell.pose.at.y + 12.0,
-                })
+                selected_points
+                    .first()
+                    .copied()
+                    .or_else(|| cell.map(|cell| cell.pose.at))
+                    .map(|at| Vec2 {
+                        x: at.x,
+                        y: at.y + 12.0,
+                    })
             }
             LayoutTransformTool::Splay | LayoutTransformTool::Origin => projection
                 .columns
@@ -262,7 +283,12 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
     let Some(handle_point) = handle_point else {
         return rsx! {};
     };
-    let angle_point = angle_handle_point(&projection, selected_column, matrix.pitch.y);
+    let angle_point = angle_handle_point(
+        &projection,
+        selected_column,
+        matrix.pitch.y,
+        &selected_points,
+    );
     let angle_degrees = projection
         .columns
         .iter()
@@ -768,8 +794,7 @@ fn context_column(context: &TreeContext) -> Option<u32> {
 
 fn context_row(context: &TreeContext) -> Option<u32> {
     match context {
-        TreeContext::Row { row, .. } | TreeContext::Key { row, .. } => Some(*row),
-        TreeContext::Component { row, .. } => *row,
+        TreeContext::Row { row, .. } => Some(*row),
         _ => None,
     }
 }
@@ -1139,22 +1164,27 @@ fn cancel_transform_drag(
     arbiter.release(CanvasInteractionOwner::MatrixTransform);
 }
 
-fn angle_handle_point(projection: &MatrixScene, column: u32, pitch_y: f64) -> Vec2 {
-    let cells: Vec<_> = projection
-        .cells
-        .iter()
-        .filter(|cell| cell.enabled && cell.column == column)
-        .collect();
-    if cells.is_empty() {
+fn angle_handle_point(
+    projection: &MatrixScene,
+    column: u32,
+    pitch_y: f64,
+    points: &[Vec2],
+) -> Vec2 {
+    if points.is_empty() {
+        let origin = projection
+            .columns
+            .iter()
+            .find(|basis| basis.column == column)
+            .map_or(Vec2::default(), |basis| basis.splay_origin);
         return Vec2 {
-            x: 0.0,
-            y: pitch_y * 0.9,
+            x: origin.x,
+            y: origin.y + 20.0,
         };
     }
-    let x = cells.iter().map(|cell| cell.pose.at.x).sum::<f64>() / cells.len() as f64;
-    let y = cells
+    let x = points.iter().map(|point| point.x).sum::<f64>() / points.len() as f64;
+    let y = points
         .iter()
-        .map(|cell| cell.pose.at.y)
+        .map(|point| point.y)
         .fold(f64::NEG_INFINITY, f64::max)
         + pitch_y * 0.9;
     Vec2 { x, y }
