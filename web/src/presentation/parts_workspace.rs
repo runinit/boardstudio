@@ -28,6 +28,7 @@ pub(super) struct InspectorInput {
     pub(super) placement_error: Option<String>,
     pub(super) layout_target: Signal<Option<String>>,
     pub(super) on_place_assembly: EventHandler<super::objects::MatrixPlacementSource>,
+    pub(super) on_board_placed: EventHandler<()>,
     pub(super) on_open_module_placement: EventHandler<String>,
 }
 
@@ -96,6 +97,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
             placement_error: input.placement_error,
             layout_target: input.layout_target,
             on_place_assembly: input.on_place_assembly,
+            on_board_placed: input.on_board_placed,
             on_open_module_placement: input.on_open_module_placement,
         }
     }

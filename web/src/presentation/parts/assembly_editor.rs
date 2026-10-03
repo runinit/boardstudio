@@ -52,7 +52,7 @@ pub(super) fn SavedAssembliesEditor(
     definitions: Vec<PartDefinition>,
     selected_context: Signal<Option<super::super::objects::ScopedTreeContext>>,
     on_place: EventHandler<super::super::objects::MatrixPlacementSource>,
-    on_place_board: EventHandler<(AssemblyDraft, String, String)>,
+    on_board_placed: EventHandler<()>,
 ) -> Element {
     let runtime = use_context::<Rc<crate::runtime::Runtime>>();
     let workspace = use_context::<super::super::WorkspaceState>().0;
@@ -127,6 +127,7 @@ pub(super) fn SavedAssembliesEditor(
                                 }
                             }));
                             editing.set(None);
+                            on_board_placed.call(());
                             workspace.set("Layout");
                             runtime.submit(Event::SelectParts {
                                 operation_id: runtime.operation(),

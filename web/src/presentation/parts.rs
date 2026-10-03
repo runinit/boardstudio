@@ -1000,6 +1000,7 @@ pub(super) fn PartsInspectorPanel(
     placement_error: Option<String>,
     mut layout_target: Signal<Option<String>>,
     on_place_assembly: EventHandler<super::objects::MatrixPlacementSource>,
+    on_board_placed: EventHandler<()>,
     on_open_module_placement: EventHandler<String>,
 ) -> Element {
     let active_assembly = use_context::<PartsAssemblySelection>().0();
@@ -1102,6 +1103,7 @@ pub(super) fn PartsInspectorPanel(
                 definitions: snapshot.document.definitions.iter().cloned().chain(catalogue.entries.as_ref().into_iter().flat_map(|entries| entries.iter()).map(|entry| (*entry.definition).clone())).collect(),
                 selected_context,
                 on_place: on_place_assembly.clone(),
+                on_board_placed,
             }
             if let Some(module_id) = selected_module_id.as_deref() {
                 if let Some(module) = module_catalogue.entries.as_deref().and_then(|entries| entries.iter().find(|entry| entry.definition.id == module_id)) {

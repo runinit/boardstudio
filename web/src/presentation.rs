@@ -7475,6 +7475,10 @@ fn Editor() -> Element {
                     .or_else(|| part_placement.error.clone()),
                 layout_target,
                 on_place_assembly: on_place_matrix_assembly,
+                on_board_placed: EventHandler::new(move |_| {
+                    let mut selection_kind = layout_selection_kind;
+                    selection_kind.set(objects::LayoutSelectionKind::Part);
+                }),
                 on_open_module_placement,
             },
         )),
