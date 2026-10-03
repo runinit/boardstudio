@@ -1271,11 +1271,11 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T10:55:47.104107+00:00",
+    "updated_at": "2026-10-03T11:05:57.293824+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
-      "accepted": 2,
-      "implementing": 36,
+      "accepted": 3,
+      "implementing": 35,
       "planned": 24,
       "total": 62
     },
@@ -1297,8 +1297,8 @@
       "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34763-20261003/package-proof.json"
     },
     "integration": {
-      "source_commit": "65d49442",
-      "state": "34763 served; empty-action stylingGREEN, Caseoneaction/uppercaseGREEN receiptjoined. Solfinalconsolidatedreadinessactive. NextLayoutbatch hasGeometryscriptsjoined226fe787 and BoardInspector15authoring; PartsVIKmodulesparallel.",
+      "source_commit": "dd71c27b",
+      "state": "34763 served; F7.2 accepted. Next joined batch contains Geometry scripts, Parts VIK catalogue and footer status nesting; Board Inspector and changed-only follow-up are active.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1932,10 +1932,10 @@
     },
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "next_work": [
-      "Package joined UI/Export corrections as34763; preserve34762 and exact provenance.",
-      "Changed shell/footer/empty button/Case one-action-uppercase/Export route browser legs only; reuse existing action/history/reopen proof.",
-      "One consolidated Sol report; F7.2 readiness depends only on two staged visible corrections, not new field/theme/race matrices.",
-      "Layout Board Inspector next; Geometry scripts and Parts VIK module catalogue implementing in isolation."
+      "Join the next contextual frontend batch; one combined affected check/package.",
+      "Confirm changed Geometry, VIK catalogue, Board Inspector and Export context journeys; reuse all unchanged history/reopen proof.",
+      "Finish real Layout findings control/navigation and continue six workbench queues.",
+      "One consolidated Sol candidate review; preserve all remaining parent criteria and RF observations."
     ],
     "execution_policy": "Ordinary reversible UI gets no new tests. Run one required affected compile/check per integrated batch, inspect only changed paired browser journeys, and use one consolidated candidate review. Reuse unchanged history/reopen evidence. Real reproduced bugs retain one focused regression. Parent criteria, blocker history and RF ledger remain explicit.",
     "served_candidate_history": [
@@ -2172,6 +2172,14 @@
         "scope": "34758/34759 joined matrix/context/preview deltas",
         "review": "/home/chris/.local/share/boardstudio/reviews/candidate-37d81320-20261003/REVIEW.md",
         "result": "Sol6.1High consolidated scan retained; terminal matrix ownership P1 under repair, Case blocked Show P1 source joined. Root moved-matrix-ID compile repair already passed strict16.58. Final candidate delta review pending."
+      },
+      {
+        "scope": "34758\u201334763 consolidated source/public deltas; final F7.2 acceptance",
+        "review": ".scratch/dioxus-frontend-v1/evidence/case-f72-acceptance-20261003/REVIEW.md",
+        "review_sha256": "9b96d2e44a49aa1d83078a1a20cd5906473e152d7e7e75154c2bb3a8b4141543",
+        "audit": ".scratch/dioxus-frontend-v1/evidence/case-f72-acceptance-20261003/AUDIT.json",
+        "audit_sha256": "7a07545e92ee1e9cc739005269b9c658148e3aa9ec4793d848b29d18d3e5352e",
+        "result": "F7.2 accepted under unchanged five criteria. Export retained tree-context P2 reproduced and being corrected; footer and broader parent limits preserved."
       }
     ],
     "build_attempt_history": [
@@ -2204,6 +2212,23 @@
         "build_id": "frontend-ui-corrections-export-lint-check",
         "source_commit": "6968719e",
         "result": "Strict Clippy caught ZMK collapsible_if and now-unreferenced productionexport_step.65d49442 wires existing ordinary authored Case STEP path rather than suppressing dead code; generated-stack authored-only export remains a separate provider gap."
+      }
+    ],
+    "parent_acceptances": [
+      {
+        "parent": "F7.2",
+        "date": "2026-10-03T11:05:57.293824+00:00",
+        "source": "99ec041a2895e5ab23880be25501beb9360487db",
+        "url": "http://127.0.0.1:34763/",
+        "review": ".scratch/dioxus-frontend-v1/evidence/case-f72-acceptance-20261003/REVIEW.md",
+        "review_sha256": "9b96d2e44a49aa1d83078a1a20cd5906473e152d7e7e75154c2bb3a8b4141543",
+        "audit": ".scratch/dioxus-frontend-v1/evidence/case-f72-acceptance-20261003/AUDIT.json",
+        "audit_sha256": "7a07545e92ee1e9cc739005269b9c658148e3aa9ec4793d848b29d18d3e5352e",
+        "decision": "All five unchanged canonical F7.2 criteria met by reviewed shared production source and sufficient representative paired public journeys. The final configured-board action count/route and TRAY label are GREEN on34763.",
+        "evidence": ".scratch/dioxus-case-workspace/evidence/issue-01-authored-case-reconciliation-20261003/public-crud-and-mismatch-receipt.md",
+        "scope": "F7.2 only. F7.4 generated-stack settings, F7.7 physical-instance handoff, full Case and export/provider qualifications remain open. No exhaustive every-field/theme/race matrix claimed.",
+        "approved_deviation": "Escape restores the accepted Dioxus numeric draft, correcting the confirmed React retained-draft bug; accepted document data is unchanged in both.",
+        "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json"
       }
     ]
   }

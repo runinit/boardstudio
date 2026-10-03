@@ -1,0 +1,345 @@
+{
+  "candidate_source": "37d81320712b16cd6901f8e8ea3c80a0833ce576",
+  "candidate_urls": [
+    "http://127.0.0.1:34758/",
+    "http://127.0.0.1:34758/boardstudio/"
+  ],
+  "reference_source": "5a472a9426e6e38993361da402cd4ec730feb369",
+  "provenance_sha256": "540bccd3ef9eab93cdc521191acd918d3ca1b605ec0969ba6a139ec517fa391f",
+  "verification": "Read-only exact source/spec inspection. Reused root strict/package and author/root public evidence. No compiler, tests, browser replay or root mutations by this review.",
+  "source_hashes": {
+    "web/src/presentation/objects/matrix_inspector.rs": "fe8235b0a664e16115c9150c9aafe06915c6173134de6b90835edc5816610334",
+    "web/src/presentation/objects/matrix_inspector_controller.rs": "e9f67132f2278e04781e5ebf79aadf073c4bb62b1310b77aed62c0e5d9c59b18",
+    "web/src/presentation/layout_workspace.rs": "80cd3a658ecc6a969ac639729c5010d3b87ff04ac489b5fa88e4d9e1920d2716",
+    "web/src/presentation/mechanical_settings_mount.rs": "ff33fcc698c10f2bc2f76b631cd9d986556ad18fc9090176da87bb330b2683f9",
+    "web/src/presentation/objects/tree.rs": "88fc92395311e9a842f1c8911414c02da6e27c881b151459fb45597cb2848257",
+    "web/src/presentation/objects.rs": "9cb91afe1d7bf7fa6472766b7c493f6407415c9f67feae4a2f934177d40949c6",
+    "web/src/presentation/keymap/binding_editor.rs": "8b149c2fb3d27ffdaa542696e67aab2a6eabcd3538473267b8bfcb589ddd65d9"
+  },
+  "receipts": [
+    {
+      "commit": "be90c78ab2a5a43dea29eae744ad81804c7ea66d",
+      "path": ".scratch/dioxus-case-workspace/evidence/15-mounting-controls-20261003/public-receipt.md",
+      "sha256": "15bdd881977bc815983c94a5e2665205874916291bad0a6e8ce776ee8a0d1901"
+    },
+    {
+      "commit": "e358c373d4ac2726ea9fb54ae120120c2a8781ea",
+      "path": ".scratch/dioxus-layout-authoring/evidence/f32d-matrix-settings-20261003/README.md",
+      "sha256": "bc660e4fa35e352f04747c8424a98bfe2300ea4cb9dea7a0a31654480b90ad05"
+    },
+    {
+      "commit": "0e54657969602cecb20790d7d1b70ff8cc32342d",
+      "path": ".scratch/dioxus-pcb-view/evidence/18-contextual-objects-20261003/public-34758.json",
+      "sha256": "193a68d307f6b084483551ff66c925af1b28d6dcbc8f48a96a7ec20eabef4f0b"
+    },
+    {
+      "commit": "d6e575c326e8d8fe756d43f0cb8832701f52443d",
+      "path": ".scratch/dioxus-keymap-layers/evidence/keymap-binding-tab-focus-20261003/RESULTS.md",
+      "sha256": "47bb1c1bcb5f31e05dd1f8af0ba42fa836220f023c27409a23a22b65b722d5b7"
+    },
+    {
+      "commit": "1796a9ec42aa44f61e710d5e69a46919f1594894",
+      "path": ".scratch/dioxus-keymap-layers/evidence/keymap-binding-tab-focus-20261003/RESULTS.md",
+      "sha256": "d37b2f3bfe1b73ed4667021288cb6ea5c7a68a0591e52683a58ce95267bd9f20"
+    },
+    {
+      "commit": "e6842ec431b903210254833ee75ca830b538e520",
+      "path": ".scratch/dioxus-layout-authoring/evidence/f33b-matrix-transform-paired-20261003/README.md",
+      "sha256": "82f5540f94352310c7ffc5780505bdddcde7647f4aa9d30ee40cc11043beb9d8"
+    },
+    {
+      "commit": "7e0302bf5d74a22d2891d792b41e23f2cbd0d2e1",
+      "path": ".scratch/dioxus-pcb-view/evidence/18-contextual-objects-20261003/public-34759.json",
+      "sha256": "8d809cb443d7ed43cc11166f16a3d338b6aeb35936756a0f002fc5a1f63bd1ed"
+    },
+    {
+      "commit": "2ed39074e1329ceab4826a8816c131b3a02f866a",
+      "path": ".scratch/dioxus-layout-authoring/evidence/f32d-matrix-settings-20261003/structural-journey-candidate37d.md",
+      "sha256": "a527c215a912ed90b3f28ab8354d0a8e7f8564b07a18f552688c3229ea278a38"
+    },
+    {
+      "commit": "7b6057e6",
+      "path": ".scratch/dioxus-parts-catalogue/evidence/parts-03-preview-34759/RESULTS.md",
+      "sha256": "b1da20318853227a8448e329ac878457699dbc0f9f5b195cdd72b96a4fc3f927",
+      "source_pin_typo": "Final d missing in receipt; full pin retained from root provenance."
+    },
+    {
+      "commit": "c39e1460c3d5ad608ff28ba26962ad7765054e29",
+      "path": "/home/chris/.local/share/boardstudio/worktrees/keycaps-geometry-repair-20261003/.scratch/dioxus-frontend-v1/evidence/keymap-3d-consumer-20261003/paired-receipt.md",
+      "sha256": "6b0c5d85712e2a3b8172327c24cdbf3f370273b1840db6864cbc0976b0059bf1"
+    },
+    {
+      "commit": "decfc367c59cdd313d587fb6ad933702a239e798",
+      "path": ".scratch/dioxus-layout-authoring/evidence/f32d-matrix-settings-20261003/structural-context-candidate34760.md",
+      "sha256": "1ff9975b2549fae97036d497fab8d99e3cd62e7817331fe79ee60d5cbcacea04"
+    },
+    {
+      "commit": "d25ade3d67a51cbf643092ffc80f2473e8c2f646",
+      "path": ".scratch/dioxus-case-workspace/evidence/issue-12-show-and-f72-disclosure-34760/public-receipt.md",
+      "sha256": "12e26a01f40c75f7883a9bb2b63051eb6cb66721e193d504d98611657d6d4831"
+    },
+    {
+      "commit": "e2c9d7598cec12419380fc03351faa5bbe706f30",
+      "path": ".scratch/dioxus-pcb-view/evidence/19-new-board-20261003/public-34760.json",
+      "sha256": "dedf6ea056749d9e65de438492cb1e233e3978d735d961efedc04842984643c7"
+    },
+    {
+      "path": "/home/chris/.local/share/boardstudio/worktrees/keycaps-geometry-repair-20261003/.scratch/dioxus-frontend-v1/evidence/keycaps-fit-navigation-20261003/paired-context-navigation.md",
+      "sha256": "89f77446270778e1dbfa7b3b06c4c9641d89764ad1d4a49bda57208c4234a6c5",
+      "source": "2107f980e9b45c341bff10548c7156b28de0e388",
+      "url": "http://127.0.0.1:34761/",
+      "scope": "SW1 finding navigation only; broader F6C.4 open"
+    },
+    {
+      "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-pcb-view/evidence/20-add-object-20261003/public-34761.json",
+      "sha256": "fb13687b4233c7023344c23e0248cb8737fed0bc36e2cb9d552d901852f00028",
+      "served_source": "2107f980e9b45c341bff10548c7156b28de0e388",
+      "served_url": "http://127.0.0.1:34761/"
+    },
+    {
+      "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-layout-authoring/evidence/f34b-outline-inspector-settings-20261003/evidence.md",
+      "sha256": "2f9cf9528a2d4761a5fe51bc96eb6e9c5264371b7cf00f5b2b917576176e36ae",
+      "served_source": "2107f980e9b45c341bff10548c7156b28de0e388",
+      "served_url": "http://127.0.0.1:34761/"
+    },
+    {
+      "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-case-workspace/evidence/issue-12-show-and-f72-disclosure-34760/public-receipt.md",
+      "sha256": "d9c13cd8ed390a8962c95324601264bc33409dbd4f7e197d955438958c2a4560",
+      "served_source": "2107f980e9b45c341bff10548c7156b28de0e388",
+      "served_url": "http://127.0.0.1:34761/"
+    },
+    {
+      "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-pcb-view/evidence/20-add-object-20261003/public-34762-hint.json",
+      "sha256": "431204077fecd5ebbed3c9846fb30ca5eee5cbe5b133b9e9f78b43146bff17dd",
+      "served_source": "900068a0df413059732f9f365abd598734b7f86c",
+      "served_url": "http://127.0.0.1:34762/"
+    },
+    {
+      "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-pcb-view/evidence/21-empty-board-entry-20261003/public-34762.json",
+      "sha256": "de379c2985c9cfa843d30a42a8c7f964e93e4050e6fc55fd13594294c5cb4e2e",
+      "served_source": "900068a0df413059732f9f365abd598734b7f86c",
+      "served_url": "http://127.0.0.1:34762/"
+    },
+    {
+      "path": "/home/chris/.local/share/boardstudio/worktrees/parts-assembly-preview-20261003/.scratch/dioxus-parts-catalogue/evidence/parts-assembly-34762/RESULTS.md",
+      "commit": "b52377310a27eab655eda75a774814cd426f3cfd",
+      "sha256": "6e30ba2e817c83f65f18d4628928fc02e092338338c968d31b96df419f928759",
+      "source": "900068a0df413059732f9f365abd598734b7f86c",
+      "scope": "One MX Hotswap RGB recipe and South/North poses, ready3D/2D return, utility empty surface; broader Parts parity open"
+    },
+    {
+      "path": ".scratch/dioxus-case-workspace/evidence/issue-01-authored-case-reconciliation-20261003/public-crud-and-mismatch-receipt.md",
+      "commit": "d2ca8d155a503c3c1205954f10b00936c91b8513",
+      "sha256": "64043dc9ae4ed795ba03b98f674fc0a87a367c8ab0ed768f28e9bdcd92a0dcfd",
+      "source": "900068a0df413059732f9f365abd598734b7f86c",
+      "scope": "Tray edits, multiple-body board filtering, representative wall history/reload"
+    }
+  ],
+  "status": "Findings retained; next integrated repairs/public deltas pending. No parent criterion closure.",
+  "joined_followup_source": "84930c9a80f579df3a572dc83d4cfbe282716a5c",
+  "followup_evidence_boundary": "Source-only; matrix repair and new public replay pending.",
+  "targeted_repairs": {
+    "matrix_author_source": "8e9a4450e3633aa8ccdb31e313a45b10e68b1ab1",
+    "matrix_root_join": "51ab7668",
+    "matrix_source_remaining": [
+      "same-session newer edit/scope recovery protection",
+      "superseded error publication",
+      "preset error visible in action section"
+    ],
+    "keymap_source": "6b93a81a043afd0b5f7386ac6f7c3f6107797496",
+    "keymap_source_assessment": "Exact displayed-owner focusability with unchanged strict dispatch; public replay pending"
+  },
+  "current_followup": {
+    "integration_source": "fc3a6b97f258a028e5dfdee2f064a751c013e19b",
+    "matrix_recovery_author": "80c9260218305d6182c4d8825fa4504be5285aed",
+    "matrix_exact_feedback_author": "7fd607a511f45098747e6cb3416e6277ca12d92f",
+    "feedback_fix_integrated_in_fc3a": false,
+    "case_show_author": "e8424c6b5ef1f4f03b1bb184b02632f2de83ad46",
+    "case_disclosures_author": "889bb4db58e805f90e581fd1ba149d9884eed4df",
+    "qualification_boundary": "Root runs combined check/package; changed Case/Matrix and new preview browser receipts remain incoming.",
+    "newer_integration_source": "7b6057e6",
+    "feedback_fix_integrated_in_newer_source": true,
+    "matrix_source_status": "Recorded source findings addressed; combined qualification/public failure branches not inferred.",
+    "served_source": "9718ea4aa3b29f1ae2f53d049a411928e65656bc",
+    "served_url": "http://127.0.0.1:34760/",
+    "provenance_sha256": "d4e061e44423839546c370a71f4548b81db8dc7bbb5a27474dff39456928243c",
+    "strict_page_wasm_seconds": 14.78,
+    "package_seconds": 91.798235,
+    "source_inputs": 1367
+  },
+  "remaining_actual_parity_findings": [
+    "34762 empty-board primary size/secondary color mismatch; bd971126 staged for next candidate",
+    "Existing authored Case mismatch has duplicate configured-board action; narrow single-action correction staged"
+  ],
+  "next_candidate_boundary": "Keep same consolidated review pending next footer/shell/empty-action/Case-label/export candidate and changed receipts; no separate34762 checkpoint handoff.",
+  "next_source_checkpoint": {
+    "source": "3e70173c",
+    "empty_board": "79af180fb91a36b9fc69832cfa9456fa12241fbb",
+    "case_duplicate_blur": "2107f980e9b45c341bff10548c7156b28de0e388",
+    "parts_recipes": "590fd840c80811a1b76ecb7f232d123d7991ed65",
+    "recipe_override_repair": "33b403399ae9393405fbe9fca7da750d3b3703f8",
+    "remaining_source_concern": "Normalize recipe generator overrides before consuming pad geometry; author repairing",
+    "boundary": "Combined qualification and changed public receipts pending; no additional checks by reviewer"
+  },
+  "previous_served_candidate": {
+    "source": "2107f980e9b45c341bff10548c7156b28de0e388",
+    "url": "http://127.0.0.1:34761/",
+    "provenance_sha256": "2d218936e847ba8f4d8680e5ecc4b3f5a05c3ce88c85a2152e2397cd84020ac9",
+    "changed_public_results": [
+      "PCB component preview/cancel/commit and menu focus GREEN, missing instruction retained",
+      "Outline same-context Undo accepted scalar refresh GREEN",
+      "Case Enter/blur duplicate warning correction GREEN"
+    ]
+  },
+  "completed_candidate_pending_receipts": {
+    "source": "900068a0df413059732f9f365abd598734b7f86c",
+    "url": "http://127.0.0.1:34762/",
+    "build": "frontend-footer-empty-assemblies-shell-20261003",
+    "provenance_sha256": "319f378ba0d2eb0855059d2368e1e8028c0c6267e0a50a22b9ed8e8a195e1251",
+    "proof_path": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/frontend-footer-empty-assemblies-shell-root-proof.json",
+    "proof_sha256": "e1e4a85ea28115af6491ad2fcd2617306a0bb1b715da41fd6ee3861bda7806b9",
+    "verification_reused": {
+      "source_commit": "900068a0df413059732f9f365abd598734b7f86c",
+      "provenance_sha256": "319f378ba0d2eb0855059d2368e1e8028c0c6267e0a50a22b9ed8e8a195e1251",
+      "source_count": 1370,
+      "source_mismatches": [],
+      "source_verification": "Frozen integration files against recorded source hashes before further source joins.",
+      "routes": {
+        "root": {
+          "http": 200,
+          "headers": {
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp"
+          },
+          "asset_count": 145,
+          "mismatches": []
+        },
+        "subpath": {
+          "http": 200,
+          "headers": {
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp"
+          },
+          "asset_count": 145,
+          "mismatches": []
+        }
+      },
+      "fresh_commands": 8,
+      "inherited_commands": 22,
+      "duration_seconds": 96.365056,
+      "strict_page_all_targets": {
+        "exit": 0,
+        "duration_seconds": 17.54,
+        "new_tests": 0,
+        "source_commit": "d5f9cff4"
+      }
+    },
+    "source_status": "Recorded Parts recipe findings addressed; no new concrete Standards/Spec defect in assigned deltas",
+    "public_boundary": "Changed assembly/empty utility/header/footer/empty entry/hint receipts incoming; no replay by reviewer",
+    "received_public": [
+      "PCB placement hint exact text/position + Escape removal GREEN",
+      "Empty Board2 matrix entry/cancel/Browse GREEN; action style mismatch correction staged",
+      "One representative normalized assembly recipe/3D/empty surface GREEN; broader visual/lifecycle/module criteria open"
+    ]
+  },
+  "f72_readiness_reconciliation": {
+    "criteria_count": 5,
+    "unchanged_contract": true,
+    "basis": "Representative supported-type/field/history plus existing shared numeric/focus/compact and exact owner source evidence; no invented every-field/theme/race matrix",
+    "pending": null,
+    "status": "Ready for canonical F7.2 acceptance under five unchanged criteria; final 34763 count/route and kind-label deltas GREEN",
+    "final_receipt": {
+      "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-case-workspace/evidence/issue-01-authored-case-reconciliation-20261003/public-crud-and-mismatch-receipt.md",
+      "sha256": "fdfda304486d5af579c8f6688646328671dd40b31d32a2e2b2cacaa160e67048"
+    },
+    "limits": "Does not accept F7.4/F7.7/full Case. Intentional approved Escape rollback correction and RF-001/RF-006 retained."
+  },
+  "candidate_34763": {
+    "source": "99ec041a2895e5ab23880be25501beb9360487db",
+    "urls": [
+      "http://127.0.0.1:34763/",
+      "http://127.0.0.1:34763/boardstudio/"
+    ],
+    "build": "frontend-ui-corrections-export-20261003",
+    "provenance_sha256": "d3c03d6db107ab7a55753b5798d99444f7d0843540ef96530c00d9f44296fe08",
+    "verification_reused": {
+      "source_commit": "99ec041a2895e5ab23880be25501beb9360487db",
+      "provenance_sha256": "d3c03d6db107ab7a55753b5798d99444f7d0843540ef96530c00d9f44296fe08",
+      "source_count": 1371,
+      "source_mismatches": [],
+      "source_verification": "Frozen integration files against recorded source hashes before further source joins.",
+      "routes": {
+        "root": {
+          "http": 200,
+          "headers": {
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp"
+          },
+          "asset_count": 145,
+          "mismatches": []
+        },
+        "subpath": {
+          "http": 200,
+          "headers": {
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp"
+          },
+          "asset_count": 145,
+          "mismatches": []
+        }
+      },
+      "fresh_commands": 8,
+      "inherited_commands": 22,
+      "duration_seconds": 95.620667,
+      "strict_page_all_targets": {
+        "exit": 0,
+        "duration_seconds": 17.97,
+        "new_tests": 0,
+        "source_commit": "65d49442"
+      }
+    },
+    "receipts": {
+      "package_proof": {
+        "path": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/frontend-ui-corrections-export-root-proof.json",
+        "sha256": "8bcc5de067ef7bd6a8f3e7afb1596fbede7d700d33782ed024a12b5f58bfb33d"
+      },
+      "export": {
+        "path": "/home/chris/.local/share/boardstudio/reviews/export-workspace-20261003/RECEIPT.md",
+        "sha256": "ac4a968b8e72aeef293a820185f762c93e528d43dcab3abd3ed7a88b1f962f52"
+      },
+      "case": {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-case-workspace/evidence/issue-01-authored-case-reconciliation-20261003/public-crud-and-mismatch-receipt.md",
+        "sha256": "fdfda304486d5af579c8f6688646328671dd40b31d32a2e2b2cacaa160e67048"
+      },
+      "shell": {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-v1/evidence/f24-shell-parity-20261003/receipt.md",
+        "sha256": "83fd70c60b7e8ad57b370d9e063a81468785f56b74ddd117bfa56afcb6f09e31"
+      },
+      "empty_styles": {
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-pcb-view/evidence/21-empty-board-entry-20261003/public-34763-style.json",
+        "sha256": "70a7c586d3f09fc71794eae7d921bcff3d4ceac7572713be3a49f4dc52fee71c"
+      }
+    },
+    "standards": "Existing Session history/providers preserved; scoped outline artifact delivery suppresses replaced accepted owner or executor. One narrow selection-context clearing defect remains.",
+    "spec_findings": [
+      {
+        "priority": 2,
+        "file": "web/src/presentation/export_workspace.rs",
+        "finding": "Review wiring clears Session selected IDs but preserves valid SelectionAdapter tree context; reference clears scope and selected. Layout return can restore a previous Outline/Matrix Inspector context."
+      }
+    ],
+    "public_results": [
+      "SVG/DXF actual downloads and Back/Escape/header return GREEN",
+      "Desktop Project/Export shell and Appearance persistence/focus GREEN, measured offset <=1.47px",
+      "Empty action computed sizing/color matches React; prior navigation/cancel/Browse reused",
+      "Case one configured-board action + route and uppercase TRAY GREEN"
+    ],
+    "open": [
+      "Export Review-link context clearing source correction",
+      "Portable-copy/Review-link/ZMK/STEP downloads not exercised in this changed receipt; existing relevant provider evidence remains reusable",
+      "KiCad and generated mechanical providers unavailable; F8.2-F8.6 broad criteria open",
+      "Footer remaining group offset/current-project status placement correction pending",
+      "F2.4 responsive/guides/shortcuts and broader Parts/PCB/Case parents remain open"
+    ]
+  }
+}

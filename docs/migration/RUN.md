@@ -2,7 +2,9 @@
 
 Current active checkpoint: [frontend run state](dioxus-frontend-v1-run.json), field `current_progress`, is the authoritative source for served build, parent counts, verified journeys and current queues. Layout-first delivery and six workbench streams continue under the reduced verification policy in [CONSTRAINTS.md](../../CONSTRAINTS.md).
 
-## Active checkpoint — 2026-10-02, combined source freeze
+Current parent accounting (2026-10-03): **3 accepted / 35 implementing / 24 planned / 62 total**. F7.2 authored Case editing is accepted from the consolidated34763 review and representative paired workflows. Layout-first work and the architecture/refactoring ledger continue; use the authoritative record above for current source and queues.
+
+## Historical checkpoint — 2026-10-02, combined source freeze
 
 Current execution checkpoint (2026-10-02): Six streams continue. Latest served candidate frontend-ready-export-theme-reuse-20261002 is source d7ff5e3dcae67a719caf6660cfcff57c3811df34 at http://127.0.0.1:34736/ and /boardstudio/. Independently verified guarded CSS-only reuse: eight fresh commands, 22 inherited full-build steps, 1342 unchanged/fresh source inputs, 145 assets and 126 verified providers per route; 88.785166 seconds. Ready-export dot now matches pinned React in Light and Dark. Full functional comparison baseline remains 34735/source7d09; paired Parts profiles, Layout3D, macros/ZMK, PCB layers and battery receipts are retained with open contextual/UI gates. Active repairs: placement menu/Inspector, Layout model controls/responsive view group, unaccepted Case transport change, Case live generation, Keycaps mounted navigation/focus and focused-marker continuation; Project naming queued. Sol 6.1 High reviews; configured30/live11 slots. All62 parents and RF-001–RF-014 retained; no full workbench acceptance.
 

@@ -6,7 +6,7 @@
 
 **Blocked by:** T1-01, “Isolate the existing workspace UI for parallel work” (INT.1; accepted).
 
-**Status:** partial public workflow qualified. The retained evidence covers representative body selection/filtering, Tray fields, Mount/Gasket CRUD, one authored edit's Undo/Redo/reload, and mismatch return. Lid behavior, portable body round-trip, remaining authored-field validation, and stale in-flight scope transitions remain open; see the current reconciliation below. Root retains the child and parent acceptance decisions.
+**Status:** accepted for canonical F7.2 on candidate34763/source99ec041a. The consolidated Sol review reconciles all five unchanged parent criteria using shared production source and representative paired journeys; see the acceptance record below. Full Case, F7.4/F7.7 and broader export/provider qualification remain open.
 
 - [ ] On the pinned React fixtures, match the Case stack's body list, add-body defaults, supported body kinds, body selection, no-body copy and selected-board filtering through the public Dioxus route. If the selected board has a matching active mechanical configuration, render the generated assembly panel/note and keep its authored body records saved but hide their editor until F7.4 disables that stack. Do not expose simultaneous generated-stack and authored-body editing.
 - [ ] Edit thickness, clearance, z offset and non-plate wall dimensions. Add, edit and remove mounting holes/bosses and add, edit and remove gasket channels with the same supported fields and validation behavior as the reference.
@@ -20,6 +20,10 @@
 
 **Parent graph:** Canonical F7.2 `Start after: INT.1` (satisfied by accepted T1-01); `Acceptance joins: none`. It does not wait for F7.1, F5, F3, F4 or F6. F7.7 keeps the selected physical-instance Case projection and F5.6 join; F7.6 keeps preview/generation/export; F7.4 keeps the generated mechanical configuration editor. This child covers F7.2 authored body presentation/editing. F7.4 supplies mechanical configuration/disable behavior; its existing acceptance join to INT.2 and every other parent dependency stay unchanged. The canonical 62-task graph is unchanged.
 
-**Suggested routing:** Luna Medium author/verifier; batch-eligible Astra review with other low-risk, independently owned UI slices.
+**Suggested routing:** Luna author; consolidated Sol 6.1 High candidate review.
 
-**Current reconciliation:** [F7.2 bounded receipt and criterion map](../evidence/issue-01-authored-case-reconciliation-20261003/public-crud-and-mismatch-receipt.md). Retain the listed partial/open criteria and confirmed Escape difference; this does not close the child or parent acceptance.
+**Current reconciliation:** [F7.2 bounded receipt and criterion map](../evidence/issue-01-authored-case-reconciliation-20261003/public-crud-and-mismatch-receipt.md). The earlier partial receipt is retained as history. Final34763 count/route and uppercase TRAY checks, plus the shared production source, close this child’s canonical F7.2 scope. Preserve the confirmed, approved Escape correction and other parent limits.
+
+**Acceptance record — 2026-10-03:** [Frozen consolidated review](../../dioxus-frontend-v1/evidence/case-f72-acceptance-20261003/REVIEW.md), [audit](../../dioxus-frontend-v1/evidence/case-f72-acceptance-20261003/AUDIT.json) and canonical `tasks.json:F7.2.acceptance_evidence`. Representative Plate/Tray, two-body filtering, dimensions, Mount/Gasket CRUD, Saved Undo/Redo/reload, keyboard/invalid-value handling and final mismatch return are public evidence; Lid/shared-field/scope admission use the reviewed production path. An exhaustive every-kind/field/theme/race sweep was not executed or required by the five parent criteria. Earlier unchecked detailed qualification rows remain historical coverage prompts rather than a new parent completion gate. RF-001/RF-006 remain open.
+
+**Historical partial status:** partial public workflow qualified. The retained evidence covers representative body selection/filtering, Tray fields, Mount/Gasket CRUD, one authored edit's Undo/Redo/reload, and mismatch return. Lid behavior, portable body round-trip, remaining authored-field validation, and stale in-flight scope transitions remain open; see the current reconciliation below. Root retains the child and parent acceptance decisions.

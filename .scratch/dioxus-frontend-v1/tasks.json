@@ -1967,7 +1967,7 @@
         "INT.1"
       ],
       "acceptance_after": [],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
       "shared_edit_owner": "integration coordinator",
@@ -1989,8 +1989,28 @@
           "new": "implementing",
           "date": "2026-10-03",
           "reason": "Existing authoredCase source plus34761 acceptedfield/disclosure receipt; all originalcriteria preserved and unmet CRUD/mismatch frontier retained. This corrects stale planning state, not parent acceptance."
+        },
+        {
+          "previous": "implementing",
+          "new": "accepted",
+          "date": "2026-10-03T11:05:57.293824+00:00",
+          "reason": "All five unchanged canonical F7.2 criteria met by reviewed shared production source and sufficient representative paired public journeys. The final configured-board action count/route and TRAY label are GREEN on34763."
         }
-      ]
+      ],
+      "acceptance_evidence": {
+        "date": "2026-10-03T11:05:57.293824+00:00",
+        "source": "99ec041a2895e5ab23880be25501beb9360487db",
+        "url": "http://127.0.0.1:34763/",
+        "review": ".scratch/dioxus-frontend-v1/evidence/case-f72-acceptance-20261003/REVIEW.md",
+        "review_sha256": "9b96d2e44a49aa1d83078a1a20cd5906473e152d7e7e75154c2bb3a8b4141543",
+        "audit": ".scratch/dioxus-frontend-v1/evidence/case-f72-acceptance-20261003/AUDIT.json",
+        "audit_sha256": "7a07545e92ee1e9cc739005269b9c658148e3aa9ec4793d848b29d18d3e5352e",
+        "decision": "All five unchanged canonical F7.2 criteria met by reviewed shared production source and sufficient representative paired public journeys. The final configured-board action count/route and TRAY label are GREEN on34763.",
+        "evidence": ".scratch/dioxus-case-workspace/evidence/issue-01-authored-case-reconciliation-20261003/public-crud-and-mismatch-receipt.md",
+        "scope": "F7.2 only. F7.4 generated-stack settings, F7.7 physical-instance handoff, full Case and export/provider qualifications remain open. No exhaustive every-field/theme/race matrix claimed.",
+        "approved_deviation": "Escape restores the accepted Dioxus numeric draft, correcting the confirmed React retained-draft bug; accepted document data is unchanged in both.",
+        "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json"
+      }
     },
     {
       "id": "F7.3",
