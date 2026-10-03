@@ -9,16 +9,17 @@ import re
 import shutil
 import subprocess
 import sys
+import tomllib
 from datetime import datetime, timezone
 
 REPO = Path(__file__).resolve().parents[1]
 WEB = REPO / "web"
 BUILD_ROOT = WEB / "target" / "builds"
 
-# Reuse is safe only for these exact, audited, already-mounted page leaves.
-# Keep this enumerated: other presentation modules can be compiled into workers
-# or native test aliases. In particular, layout_align_geometry.rs has a
-# core-worker test alias and is intentionally outside this list.
+# Keep the historical audited leaf list explicit, then add only Rust modules
+# proven page-only by the active page/provider feature graphs below. In
+# particular, layout_align_geometry.rs has a core-worker test alias and stays
+# explicitly outside the derived page-only set.
 PAGE_ONLY_LEAF_PATHS = {
     "layout-command-pill": (
         "web/src/presentation/layout_workspace.rs",
@@ -39,21 +40,19 @@ PAGE_ONLY_ALLOWLIST = frozenset({
     "web/assets/m1.css",
     *(path for paths in PAGE_ONLY_LEAF_PATHS.values() for path in paths),
 })
-# Parent registration files are held byte-identical to the full baseline. The
-# inner registration signature below additionally prevents an allowlisted leaf
-# from changing its module, cfg, attribute, import, macro, or include graph.
+# Cargo/build entry points remain byte-identical to the full baseline. The
+# active module graph is resolved from those roots for each locked feature set;
+# source additions qualify only when their resolved owners are page/test-only.
 PAGE_ONLY_PROOF_PATHS = (
-    "web/src/main.rs",
     "web/src/lib.rs",
-    "web/src/presentation.rs",
-    "web/src/presentation/objects.rs",
-    "web/src/presentation/pcb_wiring.rs",
-    "web/src/presentation/parts.rs",
     "web/Cargo.toml",
     "web/build.rs",
+    "core/Cargo.toml",
     "scripts/build-m1.py",
 )
-PAGE_ONLY_RUST_LEAVES = frozenset(path for path in PAGE_ONLY_ALLOWLIST if path.endswith(".rs"))
+PAGE_ONLY_MAIN_PATH = "web/src/main.rs"
+CORE_TEST_ONLY_PATHS = frozenset({"core/tests/electrical_wiring.rs"})
+NON_PAGE_RUST_ALIASES = frozenset({"web/src/presentation/objects/layout_align_geometry.rs"})
 REUSED_PROVIDER_PREFIXES = (
     "assets/cad/",
     "assets/cad-worker/",
@@ -210,6 +209,441 @@ def rust_lex(source):
         tokens.append(("punct", char))
         index += 1
     return tokens
+
+
+EXPECTED_PAGE_BUILD_CONFIGS = (
+    frozenset({"page"}),
+    frozenset({"core-worker"}),
+    frozenset({"cad-worker"}),
+    frozenset({"service-worker"}),
+)
+
+
+def page_build_feature_configs(repo_root):
+    """Derive the release feature roots from Cargo and the full-build command matrix."""
+    repo_root = Path(repo_root)
+    manifest_path = repo_root / "web/Cargo.toml"
+    try:
+        manifest = tomllib.loads(manifest_path.read_text())
+    except (OSError, tomllib.TOMLDecodeError) as error:
+        raise ValueError(f"cannot read web Cargo feature ownership: {error}") from error
+
+    features = manifest.get("features")
+    binaries = manifest.get("bin")
+    if not isinstance(features, dict) or not isinstance(binaries, list):
+        raise ValueError("web Cargo manifest has no explicit features/binary ownership")
+    page_binary = [row for row in binaries if isinstance(row, dict) and row.get("name") == "boardstudio-web"]
+    if len(page_binary) != 1 or page_binary[0].get("required-features") != ["page"]:
+        raise ValueError("web binary is no longer gated only by the page feature")
+
+    commands = expected_full_commands(Path("/page-feature-ownership-probe"))
+    by_label = {label: argv for label, argv, _, _ in commands}
+    expected_labels = {
+        "page": ("page-root", "page-subpath"),
+        "core-worker": ("core-worker",),
+        "cad-worker": ("cad-worker",),
+        "service-worker": ("offline-worker-root", "offline-worker-subpath"),
+    }
+    derived = []
+    for feature, labels in expected_labels.items():
+        if feature not in features:
+            raise ValueError(f"web Cargo manifest does not declare the {feature} feature")
+        observed = []
+        for label in labels:
+            argv = by_label.get(label)
+            if argv is None or "--no-default-features" not in argv or "--features" not in argv:
+                raise ValueError(f"full build command does not explicitly select {feature}: {label}")
+            feature_index = argv.index("--features")
+            if feature_index + 1 >= len(argv) or argv[feature_index + 1] != feature:
+                raise ValueError(f"full build command feature differs from Cargo ownership: {label}")
+            observed.append(frozenset({feature}))
+        if any(item != observed[0] for item in observed):
+            raise ValueError(f"root/subpath feature roots disagree for {feature}")
+        derived.append(observed[0])
+
+    configurations = tuple(derived)
+    if configurations != EXPECTED_PAGE_BUILD_CONFIGS:
+        raise ValueError("full build feature matrix differs from the reviewed page/provider ownership")
+    return configurations
+
+
+def _rust_group_end(values, start):
+    pairs = {"[": "]", "{": "}", "(": ")"}
+    if start >= len(values) or values[start] not in pairs:
+        raise ValueError("malformed Rust module graph: expected a balanced group")
+    stack = [pairs[values[start]]]
+    index = start + 1
+    while index < len(values) and stack:
+        value = values[index]
+        if value in pairs:
+            stack.append(pairs[value])
+        elif value in ("]", "}", ")"):
+            if not stack or value != stack.pop():
+                raise ValueError("malformed Rust module graph: mismatched group")
+        index += 1
+    if stack:
+        raise ValueError("malformed Rust module graph: unterminated group")
+    return index
+
+
+def _rust_cfg_expression(values, features):
+    """Evaluate the cfg atoms used by this crate for its locked wasm commands."""
+    index = 0
+    environment = {
+        "target_arch": "wasm32",
+        "target_os": "unknown",
+        "target_env": "",
+        "target_vendor": "unknown",
+        "target_family": "wasm",
+        "target_pointer_width": "32",
+        "target_endian": "little",
+        "test": "__test__" in features,
+        "debug_assertions": False,
+    }
+
+    def parse_atom():
+        nonlocal index
+        if index >= len(values) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", values[index]):
+            raise ValueError("malformed Rust cfg expression in page module graph")
+        name = values[index]
+        index += 1
+        if index < len(values) and values[index] == "(":
+            index += 1
+            parts = []
+            while index < len(values) and values[index] != ")":
+                parts.append(parse_atom())
+                if index < len(values) and values[index] == ",":
+                    index += 1
+                elif index < len(values) and values[index] != ")":
+                    raise ValueError("malformed Rust cfg list in page module graph")
+            if index >= len(values) or values[index] != ")":
+                raise ValueError("unterminated Rust cfg list in page module graph")
+            index += 1
+            if name == "all":
+                return all(parts)
+            if name == "any":
+                return any(parts)
+            if name == "not" and len(parts) == 1:
+                return not parts[0]
+            raise ValueError(f"unsupported Rust cfg operator in page module graph: {name}")
+        if index < len(values) and values[index] == "=":
+            index += 1
+            if index >= len(values):
+                raise ValueError("missing Rust cfg value in page module graph")
+            raw = values[index]
+            index += 1
+            try:
+                expected = json.loads(raw)
+            except (json.JSONDecodeError, TypeError) as error:
+                raise ValueError("unsupported Rust cfg value in page module graph") from error
+            if name == "feature":
+                return expected in features
+            if name in environment:
+                return environment[name] == expected
+            raise ValueError(f"unknown Rust cfg key in page module graph: {name}")
+        if name in environment and isinstance(environment[name], bool):
+            return environment[name]
+        raise ValueError(f"unknown bare Rust cfg in page module graph: {name}")
+
+    result = parse_atom()
+    if index != len(values):
+        raise ValueError("trailing Rust cfg tokens in page module graph")
+    return result
+
+
+def _module_attributes(attributes, features):
+    enabled = True
+    explicit_path = None
+    for attribute in attributes:
+        values = [value for _, value in attribute]
+        if len(values) < 3 or values[0] != "#" or values[1] not in ("[", "!"):
+            continue
+        start = 2 if values[1] == "[" else 3
+        if values[1] == "!":
+            if len(values) < 4 or values[2] != "[":
+                raise ValueError("malformed inner Rust attribute in page module graph")
+            start = 3
+        if start >= len(values):
+            raise ValueError("empty Rust attribute in page module graph")
+        name = values[start]
+        if name == "cfg_attr":
+            raise ValueError("cfg_attr module ownership is unsupported; refusing provider reuse")
+        if name == "cfg":
+            if values[start + 1] != "(":
+                raise ValueError("malformed cfg attribute in page module graph")
+            expression_end = _rust_group_end(values, start + 1)
+            expression = values[start + 2:expression_end - 1]
+            enabled = enabled and _rust_cfg_expression(expression, features)
+        elif name == "path":
+            if values[start + 1:start + 2] != ["="] or start + 2 >= len(values):
+                raise ValueError("malformed path attribute in page module graph")
+            try:
+                explicit_path = json.loads(values[start + 2])
+            except (json.JSONDecodeError, TypeError) as error:
+                raise ValueError("unsupported module path in page module graph") from error
+    return enabled, explicit_path
+
+
+def _module_base(path):
+    if path.name in {"mod.rs", "main.rs", "lib.rs"}:
+        return path.parent
+    return path.parent / path.stem
+
+
+def rust_module_graph(repo_root, root_relative, features):
+    """Resolve active external Rust modules from one locked command root.
+
+    The graph is intentionally limited to the declarations in the source tree;
+    all roots, Cargo features, target, build script and command argv are separately
+    byte-pinned by the reuse proof. Unknown cfgs, paths and missing modules fail
+    closed instead of broadening the page-only set.
+    """
+    repo_root = Path(repo_root).resolve()
+    src_root = (repo_root / "web/src").resolve()
+    found = set()
+    active = set()
+
+    def walk(module_path, module_dir, inherited=True):
+        module_path = module_path.resolve()
+        try:
+            module_path.relative_to(src_root)
+        except ValueError as error:
+            raise ValueError(f"Rust module escapes web/src: {module_path}") from error
+        relative = module_path.relative_to(repo_root).as_posix()
+        if relative in active:
+            raise ValueError(f"recursive Rust module graph: {relative}")
+        if relative in found:
+            return
+        if not module_path.is_file():
+            raise ValueError(f"Rust module is missing from source graph: {relative}")
+        found.add(relative)
+        active.add(relative)
+        tokens = rust_lex(module_path.read_bytes())
+        values = [value for _, value in tokens]
+        index = 0
+        pending_attributes = []
+
+        while index < len(values):
+            value = values[index]
+            if value == ";":
+                pending_attributes.clear()
+                index += 1
+                continue
+            if value == "#" and index + 1 < len(values) and values[index + 1] in ("[", "!"):
+                start = index + 1
+                if values[start] == "!":
+                    start += 1
+                end = _rust_group_end(values, start)
+                pending_attributes.append(tokens[index:end])
+                index = end
+                continue
+
+            item_index = index
+            if values[item_index] == "pub":
+                item_index += 1
+                if item_index < len(values) and values[item_index] == "(":
+                    item_index = _rust_group_end(values, item_index)
+            while item_index < len(values) and values[item_index] in ("unsafe", "default"):
+                item_index += 1
+
+            if item_index < len(values) and values[item_index] == "mod":
+                if item_index + 1 >= len(values) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", values[item_index + 1]):
+                    raise ValueError(f"malformed module declaration in {relative}")
+                name = values[item_index + 1]
+                after_name = item_index + 2
+                enabled, explicit_path = _module_attributes(pending_attributes, features)
+                pending_attributes.clear()
+                if after_name < len(values) and values[after_name] == ";":
+                    if enabled and inherited:
+                        if explicit_path is not None:
+                            child = module_path.parent / explicit_path
+                        else:
+                            base = module_dir if module_path.name == "mod.rs" else module_dir
+                            options = [base / f"{name}.rs", base / name / "mod.rs"]
+                            existing = [path for path in options if path.is_file()]
+                            if len(existing) != 1:
+                                raise ValueError(f"ambiguous or missing Rust module {name} declared by {relative}")
+                            child = existing[0]
+                        child = child.resolve()
+                        walk(child, _module_base(child), True)
+                    index = after_name + 1
+                    continue
+                if after_name < len(values) and values[after_name] == "{":
+                    end = _rust_group_end(values, after_name)
+                    if enabled and inherited:
+                        # Inline modules rarely own separate source files, but any
+                        # nested external declarations remain part of this feature
+                        # root and must be included in the graph.
+                        inline_name = name
+                        inline_base = module_dir / inline_name
+                        # Recurse with the Rust inline-module directory base.
+                        walk_inline(tokens[after_name + 1:end - 1], module_path, inline_base, relative)
+                    index = end
+                    continue
+                raise ValueError(f"unsupported Rust module item in {relative}")
+
+            pending_attributes.clear()
+            # Skip one non-module item. Nested token groups are opaque, so `mod`
+            # text in functions, macro bodies and imports cannot become an edge.
+            cursor = index
+            while cursor < len(values):
+                if values[cursor] in ("[", "("):
+                    cursor = _rust_group_end(values, cursor)
+                    continue
+                if values[cursor] == "{":
+                    cursor = _rust_group_end(values, cursor)
+                    break
+                if values[cursor] == ";":
+                    cursor += 1
+                    break
+                cursor += 1
+            if cursor <= index:
+                raise ValueError(f"could not advance Rust module graph at {relative}")
+            index = cursor
+
+        active.remove(relative)
+
+    def walk_inline(body_tokens, module_path, module_dir, owner_relative):
+        # Parse inline modules by preserving their token bytes as a synthetic
+        # Rust file in memory; module paths still resolve relative to the owner.
+        # The common page roots have no external declarations under inline test
+        # modules, which are cfg-disabled in release builds.
+        values = [value for _, value in body_tokens]
+        index = 0
+        pending_attributes = []
+        while index < len(values):
+            if values[index] == "#" and index + 1 < len(values) and values[index + 1] == "[":
+                end = _rust_group_end(values, index + 1)
+                pending_attributes.append(body_tokens[index:end])
+                index = end
+                continue
+            item = index
+            if values[item] == "pub":
+                item += 1
+                if item < len(values) and values[item] == "(":
+                    item = _rust_group_end(values, item)
+            if item < len(values) and values[item] == "mod" and item + 2 < len(values) and values[item + 2] == ";":
+                name = values[item + 1]
+                enabled, explicit_path = _module_attributes(pending_attributes, features)
+                pending_attributes.clear()
+                if enabled:
+                    if explicit_path is None:
+                        options = [module_dir / f"{name}.rs", module_dir / name / "mod.rs"]
+                        existing = [path for path in options if path.is_file()]
+                        if len(existing) != 1:
+                            raise ValueError(f"ambiguous or missing inline Rust module {name} declared by {owner_relative}")
+                        child = existing[0]
+                    else:
+                        child = module_path.parent / explicit_path
+                    walk(child, _module_base(child), True)
+                index = item + 3
+                continue
+            pending_attributes.clear()
+            cursor = index
+            while cursor < len(values):
+                if values[cursor] in ("[", "(", "{"):
+                    cursor = _rust_group_end(values, cursor)
+                    if values[cursor - 1] == "}":
+                        break
+                    continue
+                if values[cursor] == ";":
+                    cursor += 1
+                    break
+                cursor += 1
+            if cursor <= index:
+                raise ValueError(f"could not advance inline Rust module graph at {owner_relative}")
+            index = cursor
+
+    root_path = (repo_root / root_relative).resolve()
+    walk(root_path, _module_base(root_path))
+    return frozenset(found)
+
+
+def page_only_rust_paths(repo_root):
+    """Return Rust files compiled only by the fresh page command, not providers."""
+    configurations = page_build_feature_configs(repo_root)
+    page_graph = set(rust_module_graph(repo_root, "web/src/main.rs", configurations[0]))
+    page_graph.update(rust_module_graph(repo_root, "web/src/lib.rs", configurations[0]))
+    provider_graph = set()
+    for features in configurations[1:]:
+        provider_graph.update(rust_module_graph(repo_root, "web/src/lib.rs", features))
+    return frozenset(page_graph - provider_graph - NON_PAGE_RUST_ALIASES)
+
+
+def page_test_only_rust_paths(repo_root):
+    """Return separate web test modules excluded from every release command."""
+    configurations = page_build_feature_configs(repo_root)
+    release_graph = set(rust_module_graph(repo_root, "web/src/main.rs", configurations[0]))
+    release_graph.update(rust_module_graph(repo_root, "web/src/lib.rs", configurations[0]))
+    for features in configurations[1:]:
+        release_graph.update(rust_module_graph(repo_root, "web/src/lib.rs", features))
+    test_graph = set(rust_module_graph(repo_root, "web/src/lib.rs", configurations[0] | {"__test__"}))
+    test_graph.update(rust_module_graph(repo_root, "web/src/main.rs", configurations[0] | {"__test__"}))
+    return frozenset((test_graph - release_graph) - NON_PAGE_RUST_ALIASES)
+
+
+def page_feature_ownership(repo_root):
+    configurations = page_build_feature_configs(repo_root)
+    page_graph = set(rust_module_graph(repo_root, "web/src/main.rs", configurations[0]))
+    page_graph.update(rust_module_graph(repo_root, "web/src/lib.rs", configurations[0]))
+    provider_graphs = {}
+    for features in configurations[1:]:
+        name = next(iter(features))
+        provider_graphs[name] = set(rust_module_graph(repo_root, "web/src/lib.rs", features))
+    providers = set().union(*provider_graphs.values()) if provider_graphs else set()
+    test_graph = set(rust_module_graph(repo_root, "web/src/lib.rs", configurations[0] | {"__test__"}))
+    test_graph.update(rust_module_graph(repo_root, "web/src/main.rs", configurations[0] | {"__test__"}))
+    release_graph = page_graph | providers
+    return {
+        "page_feature_rust_inputs": sorted(page_graph - providers - NON_PAGE_RUST_ALIASES - {PAGE_ONLY_MAIN_PATH}),
+        "provider_rust_inputs": {name: sorted(paths) for name, paths in sorted(provider_graphs.items())},
+        "test_only_rust_inputs": sorted((test_graph - release_graph) - NON_PAGE_RUST_ALIASES),
+        "explicit_non_page_aliases": sorted(NON_PAGE_RUST_ALIASES),
+    }
+
+
+PAGE_MAIN_TEST_MODULE_RE = re.compile(
+    r'(?ms)^#\[cfg\(all\(feature\s*=\s*"page",\s*test,\s*not\(target_arch\s*=\s*"wasm32"\)\)\)\]\n'
+    r"mod presentation \{\n.*?^\}\n"
+)
+PAGE_MAIN_MODULE_RE = re.compile(r"^(?P<indent>[ \t]*)(?:pub(?:\([^)]*\))?[ \t]+)?mod[ \t]+[A-Za-z_][A-Za-z0-9_]*[ \t]*;[ \t]*(?:\n|$)")
+
+
+def _page_main_normal_form(source):
+    """Erase only page-gated external module roots from the binary entrypoint."""
+    stripped, test_count = PAGE_MAIN_TEST_MODULE_RE.subn("", source)
+    if test_count > 1:
+        raise ValueError("multiple native test-only presentation roots in main.rs")
+    lines = stripped.splitlines(keepends=True)
+    output = []
+    index = 0
+    while index < len(lines):
+        start = index
+        attributes = []
+        while index < len(lines) and lines[index].startswith("#[") and lines[index].rstrip().endswith("]"):
+            attributes.append(rust_lex(lines[index]))
+            index += 1
+        match = PAGE_MAIN_MODULE_RE.match(lines[index]) if index < len(lines) else None
+        if match and not match.group("indent") and attributes:
+            configurations = page_build_feature_configs(REPO)
+            page_enabled, _ = _module_attributes(attributes, configurations[0])
+            provider_enabled = any(
+                _module_attributes(attributes, feature_set)[0]
+                for feature_set in configurations[1:]
+            )
+            if page_enabled and not provider_enabled:
+                index += 1
+                continue
+        output.extend(lines[start:index])
+        if index == start:
+            output.append(lines[index])
+            index += 1
+    return "".join(output)
+
+
+def page_main_delta_is_page_only(baseline_source, candidate_source):
+    """Allow cfg-page module additions and the native-only test stand-in only."""
+    return _page_main_normal_form(baseline_source) == _page_main_normal_form(candidate_source)
 
 
 def rust_module_registration_signature(source):
@@ -592,42 +1026,66 @@ def validate_reuse(build_id, baseline_id):
     baseline, provenance, provenance_path, provenance_hash, tools, command_log_hashes = checked_baseline(baseline_id)
     current = sources()
     old = provenance["sources"]
-    if set(current) != set(old):
-        added = sorted(set(current) - set(old))
-        removed = sorted(set(old) - set(current))
-        raise ValueError(f"source path set differs from baseline; added={added[:8]}, removed={removed[:8]}")
-    changed = sorted(path for path in current if current[path] != old[path])
-    disallowed = sorted(set(changed) - PAGE_ONLY_ALLOWLIST)
+    added = set(current) - set(old)
+    removed = set(old) - set(current)
+    if removed:
+        raise ValueError(f"source path removals require a fresh full build: {sorted(removed)[:8]}")
+    changed = sorted(added | {path for path in current if path in old and current[path] != old[path]})
+    ownership = page_feature_ownership(REPO)
+    page_rust = set(ownership["page_feature_rust_inputs"])
+    test_rust = set(ownership["test_only_rust_inputs"])
+    if not page_rust.issubset(current) or not test_rust.issubset(current):
+        missing = sorted((page_rust | test_rust) - set(current))
+        raise ValueError(f"page module graph is missing source-manifest inputs: {missing[:8]}")
+    eligible = PAGE_ONLY_ALLOWLIST | page_rust | test_rust | CORE_TEST_ONLY_PATHS | {PAGE_ONLY_MAIN_PATH}
+    disallowed = sorted(set(changed) - eligible)
     if disallowed:
-        raise ValueError(f"changed inputs are outside the page-only allowlist: {disallowed}")
+        raise ValueError(f"changed inputs are outside page/test-only ownership: {disallowed}")
     for path in PAGE_ONLY_PROOF_PATHS:
         if path not in old or current.get(path) != old[path]:
             raise ValueError(f"page-only dependency proof input changed or is absent: {path}")
     if not set(PAGE_ONLY_ALLOWLIST).issubset(old):
         raise ValueError("baseline does not contain every audited page-only input")
-    # Tie allowed prior bytes back to the recorded source commit. The baseline
-    # source manifest alone is not enough when the working tree has page edits.
-    registration_signatures = {}
+    syntax_signatures = {}
     for path in changed:
         try:
-            baseline_bytes = subprocess.check_output(
-                ["git", "show", f"{provenance['source_commit']}:{path}"], cwd=REPO, stderr=subprocess.PIPE
-            )
             head_bytes = subprocess.check_output(["git", "show", f"HEAD:{path}"], cwd=REPO, stderr=subprocess.PIPE)
         except (OSError, subprocess.CalledProcessError) as error:
-            raise ValueError(f"baseline or current source commit does not contain changed allowlisted input: {path}") from error
-        if hashlib.sha256(baseline_bytes).hexdigest() != old[path]:
-            raise ValueError(f"baseline source manifest does not match its recorded commit: {path}")
+            raise ValueError(f"changed source is absent from the current committed candidate: {path}") from error
         if hashlib.sha256(head_bytes).hexdigest() != current[path]:
-            raise ValueError(f"audited page-leaf input has uncommitted changes: {path}")
-        if path in PAGE_ONLY_RUST_LEAVES:
-            baseline_registration = rust_module_registration_signature(baseline_bytes)
-            head_registration = rust_module_registration_signature(head_bytes)
-            if baseline_registration != head_registration:
-                raise ValueError(f"page-leaf module/cfg/path/include/dependency registration changed: {path}")
-            registration_signatures[path] = head_registration
+            raise ValueError(f"page-owned Rust or asset input has uncommitted changes: {path}")
+        if path in old:
+            try:
+                baseline_bytes = subprocess.check_output(
+                    ["git", "show", f"{provenance['source_commit']}:{path}"], cwd=REPO, stderr=subprocess.PIPE
+                )
+            except (OSError, subprocess.CalledProcessError) as error:
+                raise ValueError(f"baseline source commit does not contain recorded input: {path}") from error
+            if hashlib.sha256(baseline_bytes).hexdigest() != old[path]:
+                raise ValueError(f"baseline source manifest does not match its recorded commit: {path}")
+            if path.endswith(".rs"):
+                # Validate lexical balance on both sides, while ownership is
+                # established by the active page/provider module graphs.
+                rust_module_registration_signature(baseline_bytes)
+                syntax_signatures[path] = rust_module_registration_signature(head_bytes)
+        elif path.endswith(".rs"):
+            syntax_signatures[path] = rust_module_registration_signature(head_bytes)
+    if PAGE_ONLY_MAIN_PATH in changed:
+        try:
+            baseline_main = subprocess.check_output(
+                ["git", "show", f"{provenance['source_commit']}:{PAGE_ONLY_MAIN_PATH}"], cwd=REPO, stderr=subprocess.PIPE
+            )
+            current_main = subprocess.check_output(
+                ["git", "show", f"HEAD:{PAGE_ONLY_MAIN_PATH}"], cwd=REPO, stderr=subprocess.PIPE
+            )
+        except (OSError, subprocess.CalledProcessError) as error:
+            raise ValueError("main.rs page-root ownership cannot be verified") from error
+        if hashlib.sha256(baseline_main).hexdigest() != old.get(PAGE_ONLY_MAIN_PATH):
+            raise ValueError("baseline main.rs does not match its source manifest")
+        if not page_main_delta_is_page_only(baseline_main.decode("utf-8"), current_main.decode("utf-8")):
+            raise ValueError("main.rs changed outside cfg-page module roots or the native test stand-in")
     return (output, baseline, provenance, provenance_path, provenance_hash, current,
-            changed, tools, command_log_hashes, registration_signatures)
+            changed, tools, command_log_hashes, syntax_signatures, ownership)
 
 
 def ignore_rebuilt_assets(directory, names):
@@ -642,7 +1100,7 @@ def ignore_rebuilt_assets(directory, names):
 def build_reuse(build_id, baseline_id):
     (output, baseline, base_provenance, baseline_provenance_path,
      baseline_provenance_hash, source_before, changed, tools, command_log_hashes,
-     registration_signatures) = validate_reuse(build_id, baseline_id)
+     syntax_signatures, ownership) = validate_reuse(build_id, baseline_id)
     # All guards run before this point. Reserve output only after validation.
     output.mkdir(parents=True, exist_ok=False)
     (output / "tmp").mkdir()
@@ -674,10 +1132,18 @@ def build_reuse(build_id, baseline_id):
         "audited_page_leaf_inputs": {
             name: list(paths) for name, paths in PAGE_ONLY_LEAF_PATHS.items()
         },
-        "changed_leaf_registration_signatures": registration_signatures,
+        "changed_rust_syntax_signatures": syntax_signatures,
+        "page_feature_ownership": ownership,
         "dependency_proof": {
-            "statement": "The exact enumerated Layout command-pill, PCB part-input Inspector, and Parts definition-name editor leaves are already mounted through unchanged main/presentation/objects/pcb_wiring/parts registrations. Lexed module/cfg/attribute/import/macro/include tokens are compared with the full baseline. The core-worker lib.rs test alias for layout_align_geometry.rs remains unchanged and is not eligible. Existing panels/scroll-test/CSS paths retain their prior proof.",
-            "source_hashes": {path: source_before[path] for path in PAGE_ONLY_PROOF_PATHS},
+            "statement": "Page-only Rust inputs are resolved from the exact page binary and library module roots under the locked wasm32 page feature set, then subtracted against the three provider library roots from the full build command matrix. New/moved module inputs must remain inside that derived page-only graph; deletions require a full build. Separate cfg(test) module files and the single unchanged-Core-target integration test are recorded as test-only and are not package command inputs. Cargo manifests, lib root, build script, and this helper remain byte-identical; main.rs may differ only by cfg-page external module roots and its native test-only presentation stand-in. The layout_align_geometry core-worker test alias remains explicitly excluded.",
+            "source_hashes": {
+                **{path: source_before[path] for path in PAGE_ONLY_PROOF_PATHS},
+                PAGE_ONLY_MAIN_PATH: source_before[PAGE_ONLY_MAIN_PATH],
+            },
+            "build_features": {
+                "page": sorted(page_build_feature_configs(REPO)[0]),
+                "provider": [sorted(features) for features in page_build_feature_configs(REPO)[1:]],
+            },
         },
         "sources": source_before,
         "tool_observations": tools,

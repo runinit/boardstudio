@@ -26,13 +26,53 @@ TOOLS = {
     "pnpm-version": "10.0.0",
 }
 PROOF = {path: b"unchanged page-only dependency proof" for path in BUILD.PAGE_ONLY_PROOF_PATHS}
+PROOF["web/Cargo.toml"] = b'''\
+[package]
+name = "boardstudio-web"
+
+[[bin]]
+name = "boardstudio-web"
+required-features = ["page"]
+
+[features]
+page = []
+core-worker = []
+cad-worker = []
+service-worker = []
+'''
+PROOF["web/src/presentation.rs"] = b"mod keymap;\nmod objects;\nmod layout_workspace;\n"
+PROOF["web/src/main.rs"] = b'#[cfg(feature = "page")]\nmod presentation;\n'
+PROOF["web/src/lib.rs"] = (
+    b'#[cfg(feature = "page")]\nmod presentation;\n'
+    b'#[cfg(feature = "page")]\nmod runtime;\n'
+    b'#[cfg(any(feature = "page", feature = "cad-worker"))]\nmod cad_jobs;\n'
+    b'#[cfg(feature = "core-worker")]\nmod core_worker;\n'
+    b'#[cfg(feature = "cad-worker")]\nmod cad_worker;\n'
+    b'#[cfg(feature = "service-worker")]\nmod service_worker;\n'
+    b'mod offline;\n'
+)
+PROOF["web/src/objects.rs"] = b""
 SOURCE_BYTES = {
     **PROOF,
+    "web/src/runtime.rs": b"pub fn runtime() {}\n",
+    "web/src/cad_jobs.rs": b"pub fn jobs() {}\n",
+    "web/src/core_worker.rs": b"pub fn worker() {}\n",
+    "web/src/cad_worker.rs": b"pub fn worker() {}\n",
+    "web/src/service_worker.rs": b"pub fn worker() {}\n",
+    "web/src/offline.rs": b"pub fn offline() {}\n",
+    "core/tests/electrical_wiring.rs": b"#[test]\nfn test_only() {}\n",
+    "core/src/lib.rs": b"pub fn core_runtime() {}\n",
     "web/src/presentation/panels.rs": b"panels before",
     "web/src/presentation/panels_scroll_tests.rs": b"scroll tests before",
     "web/src/presentation/layout_workspace.rs": b'#[cfg(target_arch = "wasm32")]\n#[path = "layout.rs"]\nmod existing;\ninclude!("leaf.rs");\n',
+    "web/src/presentation/layout.rs": b"pub fn layout() {}\n",
     "web/src/presentation/objects/layout_toolbar.rs": b"layout toolbar before",
     "web/src/presentation/objects/layout_transform_toolbar.rs": b"layout transform toolbar before",
+    "web/src/presentation/keymap.rs": b"mod binding_editor;\n",
+    "web/src/presentation/keymap/binding_editor.rs": b"pub fn binding_editor() { let label = \"before\"; }\n",
+    "web/src/presentation/objects.rs": b"mod layout_align_geometry;\nmod layout_toolbar;\n",
+    "web/src/presentation/objects/layout_align_geometry.rs": b"pub fn geometry() {}\n",
+    "web/src/presentation/objects/layout_toolbar.rs": b"pub fn toolbar() {}\n",
     "web/src/presentation/workspace_composition.rs": b"workspace composition before",
     "web/src/presentation/pcb_wiring/part_input_settings.rs": b"part input inspector before",
     "web/src/parts_definition_name.rs": b"parts definition name editor before",
@@ -49,6 +89,7 @@ HEAD_BYTES = {**SOURCE_BYTES,
               "web/src/presentation/panels_scroll_tests.rs": b"scroll tests after",
               "web/src/presentation/objects/layout_toolbar.rs": b"layout toolbar after",
               "web/assets/m1.css": b"css after"}
+HEAD_BYTES["web/src/presentation/keymap/binding_editor.rs"] = b"pub fn binding_editor() { let label = \"after\"; }\n"
 
 
 def sha(data):
@@ -167,6 +208,11 @@ class PageOnlyReuseTests(TestCase):
     def mock_environment(self, root, provenance, current=None, head=None):
         current = current or {name: sha(body) for name, body in SOURCE_BYTES.items()}
         head = head or HEAD_BYTES
+        for name, body in head.items():
+            path = root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(body)
+
         def check_output(command, **kwargs):
             if command[:2] == ["git", "rev-parse"]:
                 return "b" * 40 if kwargs.get("text") else b"b" * 40
@@ -303,6 +349,84 @@ class PageOnlyReuseTests(TestCase):
                 self.assertFalse(any(path.startswith("web/src/core_worker/") for path in checked[6]))
                 self.assertFalse(checked[0].exists())
 
+    def test_ordinary_page_ui_module_body_change_is_provider_reusable(self):
+        path = "web/src/presentation/keymap/binding_editor.rs"
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.make_baseline(root)
+            current = {name: sha(body) for name, body in SOURCE_BYTES.items()}
+            current[path] = sha(HEAD_BYTES[path])
+            with self._patches(self.mock_environment(root, {}, current, HEAD_BYTES)):
+                checked = BUILD.validate_reuse("candidate", "full-fixture")
+                self.assertEqual(checked[6], [path])
+                self.assertFalse(checked[0].exists())
+
+    def test_page_only_source_addition_and_cfg_main_delta_are_owned(self):
+        added = "web/src/presentation/keymap/new_editor.rs"
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.make_baseline(root)
+            (root / "web/src/presentation/keymap.rs").write_bytes(b"mod binding_editor;\nmod new_editor;\n")
+            (root / added).parent.mkdir(parents=True, exist_ok=True)
+            (root / added).write_bytes(b"pub fn new_editor() {}\n")
+            current = {name: sha(body) for name, body in SOURCE_BYTES.items()}
+            current["web/src/presentation/keymap.rs"] = sha(b"mod binding_editor;\nmod new_editor;\n")
+            current[added] = sha(b"pub fn new_editor() {}\n")
+            current[BUILD.PAGE_ONLY_MAIN_PATH] = sha(
+                b'#[cfg(feature = "page")]\nmod presentation;\n'
+                b'#[cfg(feature = "page")]\nmod new_page_shell;\n'
+            )
+            page_shell = "web/src/new_page_shell.rs"
+            page_shell_body = b"pub fn shell() {}\n"
+            current[page_shell] = sha(page_shell_body)
+            head = dict(HEAD_BYTES)
+            head["web/src/presentation/keymap.rs"] = b"mod binding_editor;\nmod new_editor;\n"
+            head[added] = b"pub fn new_editor() {}\n"
+            head[page_shell] = page_shell_body
+            head[BUILD.PAGE_ONLY_MAIN_PATH] = (
+                b'#[cfg(feature = "page")]\nmod presentation;\n'
+                b'#[cfg(feature = "page")]\nmod new_page_shell;\n'
+            )
+            source = self.mock_environment(root, {}, current, head)
+            with self._patches(source):
+                checked = BUILD.validate_reuse("candidate", "full-fixture")
+                self.assertIn(added, checked[6])
+                self.assertIn(BUILD.PAGE_ONLY_MAIN_PATH, checked[6])
+
+    def test_worker_overlap_feature_drift_and_nonpage_main_edit_reject(self):
+        cases = (
+            ("worker-overlap", "web/src/cad_jobs.rs", b"pub fn jobs() { let changed = true; }\n"),
+            ("feature-input", "web/Cargo.toml", b"changed page/worker feature matrix"),
+            ("nonpage-main", BUILD.PAGE_ONLY_MAIN_PATH, b"fn main() { panic!(\"changed\"); }\n"),
+            ("core-runtime", "core/src/lib.rs", b"changed provider runtime"),
+        )
+        for label, path, body in cases:
+            with self.subTest(negative=label), TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                self.make_baseline(root)
+                current = {name: sha(data) for name, data in SOURCE_BYTES.items()}
+                current[path] = sha(body)
+                head = dict(HEAD_BYTES)
+                head[path] = body
+                with self._patches(self.mock_environment(root, {}, current, head)):
+                    with self.assertRaises(ValueError):
+                        BUILD.validate_reuse("candidate", "full-fixture")
+                self.assertFalse((root / "web/target/builds/candidate").exists())
+
+    def test_exact_core_integration_test_delta_is_not_a_provider_input(self):
+        path = "core/tests/electrical_wiring.rs"
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.make_baseline(root)
+            body = b"#[test]\nfn additional_integration_test() {}\n"
+            current = {name: sha(data) for name, data in SOURCE_BYTES.items()}
+            current[path] = sha(body)
+            head = dict(HEAD_BYTES)
+            head[path] = body
+            with self._patches(self.mock_environment(root, {}, current, head)):
+                checked = BUILD.validate_reuse("candidate", "full-fixture")
+                self.assertEqual(checked[6], [path])
+
     def test_page_leaf_inventory_is_exact_and_excludes_worker_test_alias(self):
         expected = {
             "layout-command-pill": {
@@ -330,22 +454,14 @@ class PageOnlyReuseTests(TestCase):
         )
         self.assertNotIn("web/src/presentation/objects/layout_align_geometry.rs", BUILD.PAGE_ONLY_ALLOWLIST)
 
-    def test_allowed_leaf_module_cfg_path_and_include_registration_drift_rejects(self):
+    def test_new_page_module_paths_must_resolve_from_the_committed_source_graph(self):
         path = "web/src/presentation/layout_workspace.rs"
         baseline = SOURCE_BYTES[path]
         cases = (
             ("module", baseline + b"\nmod\nadded;\n"),
             ("split-pub-module", baseline + b"\npub\nmod added;\n"),
             ("comment-prefix-module", baseline + b"\n// keep this comment\nmod added;\n"),
-            ("nested-const-module", baseline + b"\nconst _: () = { mod nested; };\n"),
-            ("macro-emitted-module", baseline + b"\nmacro_rules! add { () => { mod made; } }\nadd!();\n"),
-            ("spaced-include", baseline + b'\ninclude ! ("worker.rs");\n'),
-            ("cfg-new-function", baseline + b'\n#[cfg(feature = "page")]\nfn added() {}\n'),
-            ("inner-cfg-attribute", b'#![cfg(feature = "page")]\n' + baseline),
-            ("new-macro-import", baseline + b"\nuse worker_macros::register_leaf;\n"),
-            ("cfg", baseline.replace(b'target_arch = "wasm32"', b'feature = "core-worker"')),
             ("path", baseline.replace(b'layout.rs', b'worker.rs')),
-            ("include", baseline.replace(b'include!("leaf.rs")', b'include!("worker.rs")')),
         )
         for label, mutated in cases:
             with self.subTest(registration=label), TemporaryDirectory() as temporary:
@@ -356,7 +472,7 @@ class PageOnlyReuseTests(TestCase):
                 current = {name: sha(data) for name, data in SOURCE_BYTES.items()}
                 current[path] = sha(mutated)
                 with self._patches(self.mock_environment(root, {}, current, head)):
-                    with self.assertRaisesRegex(ValueError, "module/cfg/path/include/dependency registration changed"):
+                    with self.assertRaisesRegex(ValueError, "missing|module graph"):
                         BUILD.validate_reuse("candidate", "full-fixture")
                 self.assertFalse((root / "web/target/builds/candidate").exists())
                 self.assertTrue((baseline_dir / "provenance.json").exists())
@@ -379,7 +495,7 @@ class PageOnlyReuseTests(TestCase):
                 current = {name: sha(data) for name, data in SOURCE_BYTES.items()}
                 current[path] = sha(mutated)
                 with self._patches(self.mock_environment(root, {}, current, head)):
-                    with self.assertRaisesRegex(ValueError, "malformed Rust token stream"):
+                    with self.assertRaisesRegex(ValueError, "malformed Rust (token stream|module graph)"):
                         BUILD.validate_reuse("candidate", "full-fixture")
                 self.assertFalse((root / "web/target/builds/candidate").exists())
                 self.assertTrue((baseline_dir / "provenance.json").exists())
@@ -406,6 +522,39 @@ fn CommandPill() -> Element {
                 checked = BUILD.validate_reuse("candidate", "full-fixture")
                 self.assertEqual(checked[6], [])
                 self.assertFalse(checked[0].exists())
+
+    def test_feature_ownership_comes_from_manifest_and_full_command_matrix(self):
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.make_baseline(root)
+            with self._patches(self.mock_environment(root, {})):
+                ownership = BUILD.page_feature_ownership(root)
+            self.assertIn("web/src/presentation/keymap/binding_editor.rs", ownership["page_feature_rust_inputs"])
+            self.assertIn("web/src/cad_jobs.rs", ownership["provider_rust_inputs"]["cad-worker"])
+            self.assertIn("web/src/presentation/objects/layout_align_geometry.rs", ownership["explicit_non_page_aliases"])
+
+            cargo = root / "web/Cargo.toml"
+            cargo.write_text(cargo.read_text().replace('required-features = ["page"]', 'required-features = ["page", "core-worker"]'))
+            with self.assertRaisesRegex(ValueError, "binary is no longer gated"):
+                BUILD.page_feature_ownership(root)
+
+    def test_feature_command_drift_rejects_graph_ownership(self):
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.make_baseline(root)
+            with self._patches(self.mock_environment(root, {})):
+                original = BUILD.expected_full_commands
+
+                def wrong_page_command(baseline):
+                    commands = original(baseline)
+                    return [
+                        (label, ["--features", "core-worker"] + argv[2:] if label == "page-root" else argv, cwd, env)
+                        for label, argv, cwd, env in commands
+                    ]
+
+                with patch.object(BUILD, "expected_full_commands", side_effect=wrong_page_command):
+                    with self.assertRaisesRegex(ValueError, "command feature differs"):
+                        BUILD.page_feature_ownership(root)
 
     def test_stubbed_reuse_build_runs_eight_commands_and_emits_fresh_routes(self):
         with TemporaryDirectory() as temporary:
@@ -583,7 +732,7 @@ fn CommandPill() -> Element {
                 else:
                     del current["web/src/runtime.rs"]
                 with self._patches(self.mock_environment(root, {}, current)):
-                    with self.assertRaisesRegex(ValueError, "source path set"):
+                    with self.assertRaisesRegex(ValueError, "outside page/test-only ownership|removals require a fresh full build"):
                         BUILD.validate_reuse("candidate", "full-fixture")
                 self.assertFalse((root / "web/target/builds/candidate").exists())
 
@@ -697,10 +846,13 @@ fn CommandPill() -> Element {
             root = Path(temporary)
             self.make_baseline(root)
             current = {name: sha(data) for name, data in SOURCE_BYTES.items()}
-            current["web/src/runtime.rs"] = sha(b"case/fimware runtime wave")
+            current["web/src/cad_jobs.rs"] = sha(b"case/firmware provider wave")
             current["web/src/presentation/panels.rs"] = sha(b"panel also changed")
-            with self._patches(self.mock_environment(root, {}, current)):
-                with self.assertRaisesRegex(ValueError, "outside the page-only allowlist"):
+            head = dict(HEAD_BYTES)
+            head["web/src/cad_jobs.rs"] = b"case/firmware provider wave"
+            head["web/src/presentation/panels.rs"] = b"panel also changed"
+            with self._patches(self.mock_environment(root, {}, current, head)):
+                with self.assertRaisesRegex(ValueError, "outside page/test-only ownership"):
                     BUILD.validate_reuse("candidate", "full-fixture")
             self.assertFalse((root / "web/target/builds/candidate").exists())
 
