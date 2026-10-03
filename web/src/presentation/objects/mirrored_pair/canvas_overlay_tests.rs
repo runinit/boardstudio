@@ -51,7 +51,6 @@ fn composition() -> Element {
                     owns_canvas: false,
                     on_open: EventHandler::default(),
                     on_cancel: EventHandler::default(),
-                    on_return_to_form: EventHandler::default(),
                     on_preview: EventHandler::default(),
                     on_move: EventHandler::default(),
                     on_commit: EventHandler::default(),
