@@ -1390,6 +1390,59 @@ mod battery_patch_tests {
     }
 
     #[wasm_bindgen_test]
+    fn legacy_gasket_support_resize_preserves_saved_anchor_metadata() {
+        use boardstudio_core::model::MechanicalGasketAnchor;
+
+        let mut configuration = configuration();
+        configuration.mount = MechanicalMount::Gasket;
+        configuration.part_processes = Some(vec![]);
+        let anchors = vec![
+            MechanicalGasketAnchor {
+                id: "left:0".into(),
+                region_id: "left".into(),
+                outline_key: "left-outline".into(),
+                anchor: 0.25,
+                length: Some(12.0),
+                width: Some(3.0),
+                placement: Some(GasketPlacement::User),
+                unlinked: false,
+            },
+            MechanicalGasketAnchor {
+                id: "right:0".into(),
+                region_id: "right".into(),
+                outline_key: "right-outline".into(),
+                anchor: 0.75,
+                length: Some(12.0),
+                width: Some(3.0),
+                placement: Some(GasketPlacement::User),
+                unlinked: false,
+            },
+        ];
+        let mut layout = default_gasket_layout();
+        layout.supports = anchors.clone();
+        configuration.gasket_layout = Some(layout);
+        assert!(configuration.internal_gasket.is_none());
+        let mut expected = configuration.clone();
+        for anchor in &mut expected.gasket_layout.as_mut().unwrap().supports {
+            anchor.length = Some(20.0);
+        }
+
+        apply_patch(
+            &mut configuration,
+            &MechanicalSettingsPatch::SetGasketSupportDimension {
+                support_id: "left:0".into(),
+                anchors,
+                field: MechanicalDimension::GasketSupportLength,
+                value: 20.0,
+            },
+            &ProjectDoc::empty("doc", "doc"),
+            "board",
+        )
+        .expect("accepted legacy supports must retain the reference resize operation");
+        assert_eq!(configuration, expected);
+    }
+
+    #[wasm_bindgen_test]
     fn enabling_wired_battery_uses_reference_defaults_without_changing_other_settings() {
         let mut configuration = configuration();
         let before = configuration.clone();
