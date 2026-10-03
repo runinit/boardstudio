@@ -16,4 +16,6 @@
 
 Spec: [Board and object creation](../drafts/F5.1c-board-and-object-creation.md). All parent criteria/RF history remain; the existing generic-menu placement observation belongs to RF-001.
 
-PCB component inventory is mounted through the existing chooser/placement owner; Add replaces the tree and Back/Escape restore Objects. Existing Layout/pair/matrix/script sections are retained where actually wired; PCB Layouts/Board geometry section parity is still open in the parent inventory. No placeholder completion is claimed.
+PCB component inventory is mounted through the existing chooser/placement owner; Add replaces the tree and Back/Escape restore Objects. The PCB Add menu now receives the existing Matrix Setup and Mirrored Pair owners. Each entry is enabled only for the captured current Ready/Saved PCB scope, and its click rechecks that accepted owner before switching to Layout and invoking the original owner callback. This exposes those two existing workflows without adding a second setup state or bypassing their Layout admission rules. Source integration and the changed paired journey are still pending.
+
+The separately referenced “Mirror existing half…” action does not have a Dioxus owner in this packet and remains open under the existing Layout/Add-object parity work. PCB Board geometry menu parity also remains open. No placeholder completion or parent closure is claimed.

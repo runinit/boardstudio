@@ -33,6 +33,8 @@ pub(super) struct CanvasInput {
 
 pub(super) struct ObjectsInput {
     pub(super) shared: SharedObjectsInput,
+    pub(super) matrix_setup: objects::MatrixSetupMount,
+    pub(super) mirrored_pair: objects::MirroredPairMount,
     pub(super) on_place_component: EventHandler<super::part_placement::ComponentPlacementAction>,
     pub(super) layout_target: Signal<Option<String>>,
     pub(super) parts_query: super::parts::PartsQuery,
@@ -49,8 +51,8 @@ pub(super) fn objects(input: ObjectsInput) -> Element {
             on_nudge: input.shared.on_nudge,
             on_open_geometry_scripts: input.shared.on_open_geometry_scripts,
             board_setup: Some(input.shared.board_setup),
-            matrix_setup: None,
-            mirrored_pair: None,
+            matrix_setup: Some(input.matrix_setup),
+            mirrored_pair: Some(input.mirrored_pair),
             pair_created: None,
             on_place_component: Some(input.on_place_component),
             layout_target: Some(input.layout_target),

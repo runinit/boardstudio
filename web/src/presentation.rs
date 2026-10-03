@@ -1299,6 +1299,59 @@ fn pcb_owner_is_current(
         .is_some_and(|scope| active_board_scope_matches(&model, scope))
 }
 
+fn pcb_add_layout_owner_is_current(
+    runtime: &Runtime,
+    workspace: Signal<&'static str>,
+    adapter: &SelectionAdapter,
+    owner: &LayoutOwnerIdentity,
+) -> bool {
+    if current_layout_owner(runtime, workspace, adapter) != *owner || owner.workspace != "PCB" {
+        return false;
+    }
+    let model = runtime.model();
+    let Some(scope) = owner.scope.as_ref() else {
+        return false;
+    };
+    let (Some(token), Some(revision)) = (owner.token, owner.revision) else {
+        return false;
+    };
+    active_board_scope_matches(&model, scope)
+        && model.lifecycle == Lifecycle::Ready
+        && model.durability == (Durability::Saved { revision })
+        && model.display_preview.is_none()
+        && model.gesture.is_none()
+        && model.accepted.as_ref().is_some_and(|snapshot| {
+            snapshot.token == token && snapshot.document.revision == revision
+        })
+        && model.accepted.as_ref().is_some_and(|snapshot| {
+            snapshot
+                .document
+                .boards
+                .iter()
+                .any(|board| board.id == scope.board_id)
+        })
+}
+
+fn pcb_add_layout_open_handler(
+    runtime: Rc<Runtime>,
+    workspace: Signal<&'static str>,
+    adapter: SelectionAdapter,
+    owner: LayoutOwnerIdentity,
+    assembly_3d: Signal<bool>,
+    on_open: EventHandler<()>,
+) -> EventHandler<()> {
+    let mut workspace = workspace;
+    let mut assembly_3d = assembly_3d;
+    EventHandler::new(move |_| {
+        if !pcb_add_layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
+            return;
+        }
+        workspace.set("Layout");
+        assembly_3d.set(false);
+        on_open.call(());
+    })
+}
+
 fn canvas_owner_is_current(
     runtime: &Runtime,
     workspace: Signal<&'static str>,
@@ -6467,19 +6520,58 @@ fn Editor() -> Element {
         }
     });
     let objects_input = match active_workspace {
-        "PCB" => workspace_composition::WorkspaceObjectsInput::Pcb(Box::new(
-            pcb_workspace::ObjectsInput {
-                shared: shared_objects,
-                on_place_component: part_placement.on_place_component,
-                layout_target,
-                parts_query,
-                on_browse_parts,
-                placement_error: matrix_placement
-                    .error
-                    .clone()
-                    .or_else(|| part_placement.error.clone()),
-            },
-        )),
+        "PCB" => {
+            let pcb_add_owner = LayoutOwnerIdentity {
+                scope: Some(render_scope.clone()),
+                token: Some(snapshot.token),
+                revision: Some(snapshot.document.revision),
+                generation: render_generation,
+                workspace: "PCB",
+            };
+            let pcb_add_is_current =
+                pcb_add_layout_owner_is_current(&runtime, workspace, &adapter, &pcb_add_owner);
+            let mut pcb_matrix_setup = matrix_setup.clone();
+            pcb_matrix_setup.can_open = pcb_add_is_current
+                && pcb_matrix_setup.projection.is_none()
+                && canvas_interaction.current().is_none();
+            pcb_matrix_setup.on_open = pcb_add_layout_open_handler(
+                runtime.clone(),
+                workspace,
+                adapter.clone(),
+                pcb_add_owner.clone(),
+                layout_assembly_3d,
+                matrix_setup.on_open,
+            );
+            let mut pcb_mirrored_pair = mirrored_pair.clone();
+            pcb_mirrored_pair.can_open = pcb_add_is_current
+                && pcb_mirrored_pair.form.is_none()
+                && pcb_mirrored_pair.placement.is_none()
+                && !pcb_mirrored_pair.owns_canvas
+                && canvas_interaction.current().is_none();
+            pcb_mirrored_pair.on_open = pcb_add_layout_open_handler(
+                runtime.clone(),
+                workspace,
+                adapter.clone(),
+                pcb_add_owner,
+                layout_assembly_3d,
+                mirrored_pair.on_open,
+            );
+            workspace_composition::WorkspaceObjectsInput::Pcb(Box::new(
+                pcb_workspace::ObjectsInput {
+                    shared: shared_objects,
+                    matrix_setup: pcb_matrix_setup,
+                    mirrored_pair: pcb_mirrored_pair,
+                    on_place_component: part_placement.on_place_component,
+                    layout_target,
+                    parts_query,
+                    on_browse_parts,
+                    placement_error: matrix_placement
+                        .error
+                        .clone()
+                        .or_else(|| part_placement.error.clone()),
+                },
+            ))
+        }
         "Keymap" => workspace_composition::WorkspaceObjectsInput::Keymap(shared_objects),
         "Keycaps" => workspace_composition::WorkspaceObjectsInput::Keycaps(shared_objects),
         "Case" => workspace_composition::WorkspaceObjectsInput::Case(Box::new(
