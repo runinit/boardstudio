@@ -10,7 +10,7 @@
 
 - [ ] Case Objects shows real assembly roots and only the active root's contextual authored/generated and PCB rows. Selecting or expanding another real root navigates through the existing accepted board/instance scope; duplicate generic board and physical-instance selectors do not occupy the tree.
 - [ ] Each represented assembly, layer, and component visibility control uses an eye affordance with an accessible Show/Hide name and the existing scoped Case display preference callback.
-- [ ] The Case viewer uses the available work-area height. Fit, camera navigation, and Shaded/Wireframe/Hybrid controls are inline for Case without changing other SharedViewer consumers; specialist section/explosion/layer settings remain available.
+- [ ] The Case viewer uses the available work-area height. Shaded/Wireframe/Hybrid and available assembly modes sit in the top rail; Fit/Top/Bottom/Isometric sit at the lower left; the existing Layers overlay sits at the lower right. Section/explosion adjustments appear only for their active view. Other SharedViewer consumers retain their current controls.
 - [ ] Status, pending, and failure feedback stays truthful and available without redundant ready-state paragraphs displacing the canvas.
 - [ ] The current selected-part Inspector breadcrumb, Objects footer, canvas badge, and existing mechanical/body editor remain scoped and functioning.
 - [ ] Preserve exact accepted identities, selection and display-preference behavior; no new Session, renderer, geometry, or project-format authority is introduced.

@@ -2037,29 +2037,21 @@ fn SharedViewer(
     let unlink_owner = owner.clone();
     let unlink_projection = projection.clone();
     let unlink_runtime = runtime.clone();
+    let show_assembly_controls = projection.layers.iter().any(|(id, _)| id != "pcb");
 
     rsx! {
         div { class: "m1-case-view m1-shared-viewer",
             div { class: "m1-case-view-toolbar",
-<<<<<<< HEAD
-                button { onclick: move |_| run_host(&fit, |host| host.fit(), &mut status), "{canvas_context.fit_label()}" }
-=======
-                button { onclick: move |_| run_host(&fit, |host| host.fit(), &mut status), "Fit case" }
                 if inline_case_controls {
-                    div { role: "group", "aria-label": "Case camera",
-                        button { onclick: move |_| run_host(&top, |host| host.view("top"), &mut status), "Top view" }
-                        button { onclick: move |_| run_host(&bottom, |host| host.view("bottom"), &mut status), "Bottom view" }
-                        button { onclick: move |_| run_host(&iso, |host| host.view("isometric"), &mut status), "Isometric view" }
-                        button { onclick: move |_| run_host(&left, |host| host.orbit(-50.0, 0.0), &mut status), "Rotate left" }
-                        button { onclick: move |_| run_host(&right, |host| host.orbit(50.0, 0.0), &mut status), "Rotate right" }
-                        button { onclick: move |_| run_host(&zoom_in, |host| host.zoom(0.85), &mut status), "Zoom in" }
-                        button { onclick: move |_| run_host(&zoom_out, |host| host.zoom(1.15), &mut status), "Zoom out" }
-                    }
-                    div { role: "group", "aria-label": "Case display mode",
+                    div { role: "group", "aria-label": "Display mode",
                         for mode in [RenderMode::Shaded, RenderMode::Wireframe, RenderMode::Hybrid] {
                             {
                                 let mut transient = transient;
-                                let label = match mode { RenderMode::Shaded => "Shaded", RenderMode::Wireframe => "Wireframe", RenderMode::Hybrid => "Hybrid" };
+                                let label = match mode {
+                                    RenderMode::Shaded => "Shaded",
+                                    RenderMode::Wireframe => "Wireframe",
+                                    RenderMode::Hybrid => "Hybrid",
+                                };
                                 rsx! { button {
                                     "aria-pressed": transient().mode == mode,
                                     onclick: move |_| transient.with_mut(|view| view.mode = mode),
@@ -2067,9 +2059,37 @@ fn SharedViewer(
                                 } }
                             }
                         }
+                        button {
+                            "aria-label": "Show hidden lines",
+                            title: "Show hidden lines",
+                            "aria-pressed": transient().show_hidden,
+                            onclick: move |_| transient.with_mut(|view| view.show_hidden = !view.show_hidden),
+                            svg { view_box: "0 0 24 24", "aria-hidden": "true",
+                                path { d: "m12 2 9 5v10l-9 5-9-5V7ZM3 7l9 5 9-5M12 12v10" }
+                                path { stroke_dasharray: "2 2", d: "M12 2v10M3 17l9-5 9 5" }
+                            }
+                        }
+                    }
+                if show_assembly_controls {
+                    div { role: "group", "aria-label": "Mechanical assembly view",
+                            for view in [AssemblyView::Assembled, AssemblyView::Exploded, AssemblyView::Section] {
+                                {
+                                    let mut transient = transient;
+                                    let label = match view {
+                                        AssemblyView::Assembled => "Assembled",
+                                        AssemblyView::Exploded => "Exploded",
+                                        AssemblyView::Section => "Section",
+                                    };
+                                    rsx! { button {
+                                        "aria-pressed": transient().assembly == view,
+                                        onclick: move |_| transient.with_mut(|state| state.assembly = view),
+                                        "{label}"
+                                    } }
+                                }
+                            }
+                        }
                     }
                 }
->>>>>>> 4796742e (Match Case workspace shell to contextual reference)
                 if can_edit_gaskets {
                     button {
                         r#type: "button",
@@ -2115,15 +2135,12 @@ fn SharedViewer(
                         p { class: "m1-case-edit-hint", "Select a gasket in Objects to unlink its mirrored support pair." }
                     }
                 }
+                if !inline_case_controls {
+                button { onclick: move |_| run_host(&fit, |host| host.fit(), &mut status), "{canvas_context.fit_label()}" }
                 details { class: "m1-case-view-settings",
-                    summary { if inline_case_controls { "More view controls" } else { "View controls" } }
+                    summary { "View controls" }
                     div { class: "m1-case-view-settings-body",
-<<<<<<< HEAD
             div { role: "group", "aria-label": "{canvas_context.camera_label()}",
-=======
-            if !inline_case_controls {
-            div { role: "group", "aria-label": "Case camera",
->>>>>>> 4796742e (Match Case workspace shell to contextual reference)
                 button { onclick: move |_| run_host(&top, |host| host.view("top"), &mut status), "Top view" }
                 button { onclick: move |_| run_host(&bottom, |host| host.view("bottom"), &mut status), "Bottom view" }
                 button { onclick: move |_| run_host(&iso, |host| host.view("isometric"), &mut status), "Isometric view" }
@@ -2145,12 +2162,7 @@ fn SharedViewer(
                     }
                 }
             }
-<<<<<<< HEAD
             div { role: "group", "aria-label": "{canvas_context.assembly_label()}",
-=======
-            }
-            div { role: "group", "aria-label": "Case assembly view",
->>>>>>> 4796742e (Match Case workspace shell to contextual reference)
                 for view in [AssemblyView::Assembled, AssemblyView::Exploded, AssemblyView::Section] {
                     {
                         let mut transient = transient;
@@ -2210,6 +2222,50 @@ fn SharedViewer(
             } "Show hidden lines" }
                     }
                 }
+                }
+            }
+            if inline_case_controls && show_assembly_controls && transient().assembly == AssemblyView::Exploded {
+                label { class: "m1-case-view-adjustment", "Explode amount"
+                    input {
+                        r#type: "range", min: "0", max: "10", step: "0.1",
+                        value: "{transient().explode_amount}",
+                        oninput: move |event: FormEvent| {
+                            if let Ok(value) = event.value().parse::<f32>() {
+                                transient.with_mut(|state| state.explode_amount = value.clamp(0.0, 10.0));
+                            }
+                        }
+                    }
+                }
+            }
+            if inline_case_controls && show_assembly_controls && transient().assembly == AssemblyView::Section {
+                div { class: "m1-case-view-adjustments",
+                    label { "Section plane"
+                        select {
+                            value: "{transient().section_plane}",
+                            onchange: move |event: FormEvent| {
+                                transient.with_mut(|state| state.section_plane = match event.value().as_str() { "XY" => "XY", "XZ" => "XZ", _ => "YZ" });
+                            },
+                            option { value: "XY", "XY" }
+                            option { value: "XZ", "XZ" }
+                            option { value: "YZ", "YZ" }
+                        }
+                    }
+                    label { "Section position"
+                        input {
+                            r#type: "range", min: "-100", max: "100", step: "1",
+                            value: "{transient().section_position}",
+                            oninput: move |event: FormEvent| {
+                                if let Ok(value) = event.value().parse::<f32>() {
+                                    transient.with_mut(|state| state.section_position = value.clamp(-100.0, 100.0));
+                                }
+                            }
+                        }
+                    }
+                    label { input {
+                        r#type: "checkbox", checked: transient().show_section_plane,
+                        onchange: move |_| transient.with_mut(|state| state.show_section_plane = !state.show_section_plane),
+                    } "Show plane" }
+                }
             }
             div { class: "m1-case-view-canvas-shell",
                 if let Some(reference) = selected_reference.as_deref() {
@@ -2227,14 +2283,23 @@ fn SharedViewer(
                     onlostpointercapture: on_pointer_cancel,
                     onwheel: on_wheel,
                 }
+                if inline_case_controls {
+                    div { class: "m1-case-camera-controls", role: "group", "aria-label": "Assembly camera",
+                        button { onclick: move |_| run_host(&fit, |host| host.fit(), &mut status), "Fit" }
+                        button { onclick: move |_| run_host(&top, |host| host.view("top"), &mut status), "Top" }
+                        button { onclick: move |_| run_host(&bottom, |host| host.view("bottom"), &mut status), "Bottom" }
+                        button { onclick: move |_| run_host(&iso, |host| host.view("isometric"), &mut status), "Isometric" }
+                    }
+                }
                 CaseAssemblyLayers {
                     assembly: assembly_layers,
                     components: component_layers,
                     display: display.clone(),
                     on_display_change: assembly_change_display,
                 }
+                p { class: "m1-case-view-status", role: if status().to_ascii_lowercase().contains("unavailable") || status().contains("failed") { "alert" } else { "status" }, "aria-live": "polite", "{status()}" }
             }
-            p { role: if status().to_ascii_lowercase().contains("unavailable") || status().contains("failed") { "alert" } else { "status" }, "aria-live": "polite", "{status()}" }
+            if !inline_case_controls {
             details {
                 summary { "Case layers and colors" }
                 div { role: "group", "aria-label": "Case layers",
@@ -2306,6 +2371,7 @@ fn SharedViewer(
                     }
                 }
                 }
+            }
             }
         }
     }

@@ -6,7 +6,7 @@ The Case workspace still presents generic board and physical-instance selectors,
 
 ## Solution
 
-Make the Case work area canvas-first and keep assembly navigation in the Objects tree. Keep the existing accepted board/instance scope, Case display preferences, selection routes, mechanical settings, body editor, preview lifecycle, and renderer as the authorities. Restore the Case-only inline render-mode and camera controls while leaving specialist view settings available in the existing disclosure.
+Make the Case work area canvas-first and keep assembly navigation in the Objects tree. Keep the existing accepted board/instance scope, Case display preferences, selection routes, mechanical settings, body editor, preview lifecycle, and renderer as the authorities. Match the reference placement: render and available assembly modes at the top, Fit/Top/Bottom/Isometric camera controls at the lower left, and the existing Layers menu at the lower right. Show section and explosion adjustments only when their view mode is active.
 
 ## User stories
 
@@ -22,8 +22,8 @@ Make the Case work area canvas-first and keep assembly navigation in the Objects
 - Refine the existing Case Objects and Inspector composition; do not create a second board/instance selector or selection store.
 - Put board and physical-instance navigation on the real assembly-root rows. Keep current scope/token/generation guards on navigation and display changes.
 - Use icon-only visibility buttons with accessible Show/Hide labels and the existing Case display-preference callbacks.
-- Enable inline camera and render-mode controls only for Case viewers; Layout, Keymap, Keycaps, and Parts viewer consumers keep their current composition.
-- Keep specialist assembly, section-plane, hidden-line, and layer appearance settings in their existing disclosures.
+- Enable the Case-only top render/assembly mode rail and lower-left camera controls; Layout, Keymap, Keycaps, and Parts viewer consumers keep their current composition.
+- Keep the existing lower-right Layers overlay and right Inspector appearance controls; do not add a duplicate Case layer disclosure. Show section-plane and explosion controls only for the active mode, with hidden-line control in the top rail.
 - Keep preview status and model-delivery failures actionable and truthful; remove redundant ready-state paragraphs from the canvas flow.
 
 ## Testing decisions
