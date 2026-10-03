@@ -71,7 +71,6 @@ pub(in crate::presentation) struct MirroredPairMount {
     pub owns_canvas: bool,
     pub on_open: EventHandler<()>,
     pub on_cancel: EventHandler<MirroredPairOwner>,
-    pub on_return_to_form: EventHandler<MirroredPairOwner>,
     pub on_preview: EventHandler<MirroredPairRequest>,
     pub on_move: EventHandler<MirroredPairMove>,
     pub on_commit: EventHandler<MirroredPairMove>,
@@ -190,40 +189,42 @@ pub(in crate::presentation) fn MirroredPairForm(props: MirroredPairFormProps) ->
     rsx! {
         section { class: "m1-matrix-setup m1-mirrored-pair-setup", aria_label: "New mirrored pair",
             header { class: "m1-matrix-setup-heading", h2 { "Mirrored pair" } }
-            p { "Linked key assemblies, diode settings and components. Substitute a component on either half when needed." }
+            p { class: "m1-mirrored-pair-intro", "Linked key assemblies, diode settings and components. Substitute a component on either half when needed." }
             form { onsubmit: submit,
-                label { "Left layout"
-                    input { aria_label: "Left layout name", required: true, onmounted: move |event| async move { let _ = event.set_focus(true).await; }, value: "{left_name_value}", disabled: !props.projection.editable, oninput: move |event| left_name.set(event.value()) }
-                }
-                label { "Right layout"
-                    input { aria_label: "Right layout name", required: true, value: "{right_name_value}", disabled: !props.projection.editable, oninput: move |event| right_name.set(event.value()) }
-                }
-                label { "Rows per half"
-                    input { aria_label: "Mirrored pair rows", r#type: "number", min: "1", max: "4096", step: "1", required: true, value: "{rows_value}", disabled: !props.projection.editable, oninput: move |event| rows.set(event.value()) }
-                }
-                label { "Columns per half"
-                    input { aria_label: "Mirrored pair columns", r#type: "number", min: "1", max: "4096", step: "1", required: true, value: "{columns_value}", disabled: !props.projection.editable, oninput: move |event| columns.set(event.value()) }
+                div { class: "m1-mirrored-pair-fields",
+                    label { "Left layout"
+                        input { aria_label: "Left layout name", required: true, onmounted: move |event| async move { let _ = event.set_focus(true).await; }, value: "{left_name_value}", disabled: !props.projection.editable, oninput: move |event| left_name.set(event.value()) }
+                    }
+                    label { "Right layout"
+                        input { aria_label: "Right layout name", required: true, value: "{right_name_value}", disabled: !props.projection.editable, oninput: move |event| right_name.set(event.value()) }
+                    }
+                    label { "Rows per half"
+                        input { aria_label: "Rows per half", r#type: "number", min: "1", max: "4096", step: "1", required: true, value: "{rows_value}", disabled: !props.projection.editable, oninput: move |event| rows.set(event.value()) }
+                    }
+                    label { "Columns per half"
+                        input { aria_label: "Columns per half", r#type: "number", min: "1", max: "4096", step: "1", required: true, value: "{columns_value}", disabled: !props.projection.editable, oninput: move |event| columns.set(event.value()) }
+                    }
                 }
                 label { "Key assembly"
-                    select { aria_label: "Mirrored pair key assembly", value: preset_value.as_str(), disabled: !props.projection.editable,
+                    select { aria_label: "Key assembly", value: preset_value.as_str(), disabled: !props.projection.editable,
                         onchange: move |event| if let Some(next) = parse_preset(&event.value()) { preset.set(next); },
-                        option { value: "mx-solder", "MX solder" }
-                        option { value: "mx-hotswap", "MX hotswap" }
+                        option { value: "mx-solder", "MX Solder" }
+                        option { value: "mx-hotswap", "MX Hotswap" }
                         option { value: "choc-solder", "Choc V1 Solder" }
                         option { value: "choc-hotswap", "Choc V1 Hotswap" }
                         option { value: "mx-rgb", "MX RGB" }
                         option { value: "choc-rgb", "Choc V1 RGB" }
-                        option { value: "mx-hotswap-rgb", "MX hotswap + RGB" }
-                        option { value: "choc-hotswap-rgb", "Choc V1 Hotswap + RGB" }
+                        option { value: "mx-hotswap-rgb", "MX Hotswap RGB" }
+                        option { value: "choc-hotswap-rgb", "Choc V1 Hotswap RGB" }
                     }
                 }
                 label { "Gap between key edges (mm)"
-                    input { aria_label: "Mirrored pair gap", r#type: "number", min: "0", step: "any", required: true, value: "{gap_value}", disabled: !props.projection.editable, oninput: move |event| gap.set(event.value()) }
+                    input { aria_label: "Gap between key edges (mm)", r#type: "number", min: "0", step: "any", required: true, value: "{gap_value}", disabled: !props.projection.editable, oninput: move |event| gap.set(event.value()) }
                 }
-                p { "Edit either half to update both. Unlink in the inspector for independent geometry." }
+                p { class: "m1-mirrored-pair-policy", "Edit either half to update both. Unlink in the inspector for independent geometry." }
                 if let Some(error) = error { p { role: "alert", class: "m1-mirrored-pair-error", "{error}" } }
                 if let Some(status) = status { p { role: "status", class: "m1-mirrored-pair-status", "{status}" } }
-                footer {
+                footer { class: "m1-mirrored-pair-actions",
                     button { r#type: "button", onclick: move |_| on_cancel.call(owner.clone()), "Cancel" }
                     button { r#type: "submit", disabled: !can_preview, "Preview placement" }
                 }

@@ -193,15 +193,15 @@ pub(in crate::presentation) fn use_mirrored_pair(
             if !canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair) {
                 return;
             }
-            if form_state.read().stage == PairFormStage::Placement {
-                return;
-            }
             let active = open.read().as_ref() == Some(&owner)
                 || placement
                     .read()
                     .as_ref()
                     .is_some_and(|pair| pair.owner == owner);
-            if active && pending.read().is_none() {
+            if crate::mirrored_pair_lifecycle::pair_cancel_is_allowed(
+                active,
+                pending.read().is_some(),
+            ) {
                 open.set(None);
                 preparing.set(None);
                 placement.set(None);
@@ -209,37 +209,6 @@ pub(in crate::presentation) fn use_mirrored_pair(
                 error.set(None);
                 status.set(None);
                 canvas_interaction.release(CanvasInteractionOwner::MirroredPair);
-            }
-        }
-    });
-
-    let on_return_to_form = use_callback({
-        let runtime = runtime.clone();
-        let mut form_state = form_state;
-        let mut placement = placement;
-        let mut error = error;
-        let mut status = status;
-        let canvas_interaction = canvas_interaction.clone();
-        move |owner: MirroredPairOwner| {
-            if !canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair)
-                || pending.read().is_some()
-                || workspace() != "Layout"
-                || scope_generation() != owner.scope_generation
-                || !pair_owner_is_current(&runtime, &owner, workspace(), scope_generation(), &open)
-            {
-                return;
-            }
-            let placement_matches = placement
-                .read()
-                .as_ref()
-                .is_some_and(|active| active.owner == owner);
-            if !placement_matches {
-                return;
-            }
-            if form_state.write().return_to_setup() {
-                placement.set(None);
-                error.set(None);
-                status.set(None);
             }
         }
     });
@@ -813,7 +782,6 @@ pub(in crate::presentation) fn use_mirrored_pair(
         owns_canvas,
         on_open,
         on_cancel,
-        on_return_to_form,
         on_preview,
         on_move,
         on_commit,

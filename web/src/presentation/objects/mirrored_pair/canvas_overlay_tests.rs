@@ -155,18 +155,36 @@ async fn canvas_overlay_preserves_preview_values_and_routes_owner_cancel_escape(
         .unwrap()
         .length()
         == 1;
+    let paired_fields = [
+        "Left layout name",
+        "Right layout name",
+        "Rows per half",
+        "Columns per half",
+    ]
+    .into_iter()
+    .all(|label| {
+        document
+            .query_selector(&format!(
+                "#mirror-overlay-workspace .m1-mirrored-pair-fields > label input[aria-label='{label}']"
+            ))
+            .unwrap()
+            .is_some()
+    });
+    let assembly_options = element("#mirror-overlay-workspace select[aria-label='Key assembly']")
+        .text_content()
+        .unwrap();
     set_input(
         "#mirror-overlay-workspace input[aria-label='Left layout name']",
         "Kept left draft",
     );
     rendered().await;
     set_input(
-        "#mirror-overlay-workspace input[aria-label='Mirrored pair rows']",
+        "#mirror-overlay-workspace input[aria-label='Rows per half']",
         "4",
     );
     rendered().await;
     set_input(
-        "#mirror-overlay-workspace input[aria-label='Mirrored pair columns']",
+        "#mirror-overlay-workspace input[aria-label='Columns per half']",
         "6",
     );
     rendered().await;
@@ -182,7 +200,7 @@ async fn canvas_overlay_preserves_preview_values_and_routes_owner_cancel_escape(
         .dyn_into::<web_sys::HtmlInputElement>()
         .unwrap()
         .value();
-    let retained_rows = element("#mirror-overlay-workspace input[aria-label='Mirrored pair rows']")
+    let retained_rows = element("#mirror-overlay-workspace input[aria-label='Rows per half']")
         .dyn_into::<web_sys::HtmlInputElement>()
         .unwrap()
         .value();
@@ -220,6 +238,13 @@ async fn canvas_overlay_preserves_preview_values_and_routes_owner_cancel_escape(
         (in_workspace, absent_from_objects, one_form_in_workspace),
         (true, true, true)
     );
+    assert!(
+        paired_fields,
+        "the four name and dimension controls must remain mounted in the explicit paired field group"
+    );
+    assert!(assembly_options.contains("MX Solder"));
+    assert!(assembly_options.contains("MX Hotswap"));
+    assert!(assembly_options.contains("MX Hotswap RGB"));
     assert_eq!(preview_owner, "1:11:19");
     assert_eq!(preview_values, "Kept left draft|4|6|24");
     assert_eq!(
@@ -249,8 +274,13 @@ fn overlay_styles_keep_bounded_canvas_and_compact_geometry() {
     let css = include_str!("../../../../assets/m1.css");
     assert!(css.contains(".m1-mirrored-pair-canvas-overlay"));
     assert!(css.contains("width: min(380px, 100%)"));
-    assert!(css.contains("max-height: calc(100% - 40px)"));
+    assert!(css.contains("max-height: 100%"));
+    assert!(css.contains(".m1-mirrored-pair-fields { display: grid;"));
+    assert!(css.contains("grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)"));
+    assert!(css.contains(
+        ".m1-mirrored-pair-setup .m1-matrix-setup-heading h2 { margin: 0; font-size: 20px; }"
+    ));
     assert!(css.contains("@media (max-width: 520px)"));
     assert!(css.contains(".m1-mirrored-pair-canvas-overlay { padding: 8px; }"));
-    assert!(css.contains("max-height: calc(100% - 16px); padding: 18px"));
+    assert!(css.contains("width: min(380px, calc(100% - 8px)); max-height: 100%; padding: 18px"));
 }

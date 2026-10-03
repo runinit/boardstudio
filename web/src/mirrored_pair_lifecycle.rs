@@ -30,14 +30,10 @@ impl<T> PairFormState<T> {
     pub(crate) fn setup_is_editable(&self) -> bool {
         self.stage == PairFormStage::Setup
     }
+}
 
-    pub(crate) fn return_to_setup(&mut self) -> bool {
-        if self.stage != PairFormStage::Placement {
-            return false;
-        }
-        self.stage = PairFormStage::Setup;
-        true
-    }
+pub(crate) fn pair_cancel_is_allowed(active_owner: bool, save_pending: bool) -> bool {
+    active_owner && !save_pending
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -70,19 +66,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn escape_from_placement_restores_setup_with_the_submitted_values() {
-        let values = ("Left half", "Right half", 4_u32, 6_u32, 28.0_f64);
-        let mut state = PairFormState::new(values);
-        state.stage = PairFormStage::Preparing;
+    fn escape_can_cancel_active_placement_but_not_a_pending_save() {
+        let mut state = PairFormState::new("submitted draft");
         state.stage = PairFormStage::Placement;
-        assert!(!state.setup_is_visible());
-
-        assert!(state.return_to_setup());
-
-        assert_eq!(state.stage, PairFormStage::Setup);
-        assert!(state.setup_is_visible());
-        assert!(state.setup_is_editable());
-        assert_eq!(state.values, values);
+        assert!(pair_cancel_is_allowed(true, false));
+        assert!(!pair_cancel_is_allowed(true, true));
+        assert!(!pair_cancel_is_allowed(false, false));
+        assert_eq!(state.stage, PairFormStage::Placement);
     }
 
     #[test]

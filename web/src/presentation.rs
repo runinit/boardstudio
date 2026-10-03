@@ -3501,7 +3501,7 @@ fn Editor() -> Element {
                 let owner = placement.owner.clone();
                 if key == "Escape" {
                     event.prevent_default();
-                    mirrored_pair.on_return_to_form.call(owner);
+                    mirrored_pair.on_cancel.call(owner);
                     return;
                 }
                 if key == "Enter" {
@@ -3951,7 +3951,6 @@ fn Editor() -> Element {
                     placement.on_cancel.call(());
                 }
                 if let Some(active) = mirrored_pair.placement.as_ref() {
-                    mirrored_pair.on_return_to_form.call(active.owner.clone());
                     mirrored_pair.on_cancel.call(active.owner.clone());
                 } else if let Some(form) = mirrored_pair.form.as_ref() {
                     mirrored_pair.on_cancel.call(form.owner.clone());
