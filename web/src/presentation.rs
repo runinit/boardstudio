@@ -4251,9 +4251,7 @@ fn Editor() -> Element {
         on_navigate: workspace_callbacks.navigate,
         on_nudge: workspace_callbacks.nudge_tree,
     };
-    let case_scene = runtime.cad_scene().filter(|scene| {
-        scene.exact && scene.scope == render_scope && scene.token == snapshot.token
-    });
+    let case_scene = case_workspace::workspace_display_scene(runtime.cad_scene(), &render_scope);
     let pcb_wiring_source = current_scope
         .as_ref()
         .filter(|scope| {

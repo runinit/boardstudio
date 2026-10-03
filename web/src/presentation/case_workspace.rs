@@ -109,6 +109,22 @@ pub(super) struct InspectorInput {
     pub(super) on_display: EventHandler<DisplayRequest>,
 }
 
+/// The page dispatcher may pass a completed same-scope result to the Case
+/// Objects tree and Inspector after an accepted edit so they can retain
+/// contextual selection. Mutation callbacks still validate the current token.
+pub(super) fn workspace_display_scene(
+    scene: Option<Rc<CadScene>>,
+    scope: &Scope,
+) -> Option<Rc<CadScene>> {
+    scene.filter(|scene| {
+        crate::case_generation_lifecycle::same_owner_completed_scene_for_display(
+            scene.exact,
+            &scene.scope,
+            scope,
+        )
+    })
+}
+
 #[derive(Clone)]
 struct Row {
     id: String,
@@ -1186,5 +1202,295 @@ mod tests {
 
         assert!(is_visible(&display, "pcb"));
         assert!(!is_inspector_visible(&display, "pcb"));
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod mounted_live_scene_tests {
+    use super::*;
+    use boardstudio_application::AcceptedSnapshot;
+    use boardstudio_core::model::{Board, MechanicalAssembly};
+    use std::sync::Arc;
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    fn accepted_fixture() -> (Rc<Runtime>, AcceptedSnapshot, Scope) {
+        let runtime = Runtime::new().expect("browser runtime fixture initializes");
+        let (_, opened, scope) = crate::runtime::firmware_export_test_support::opened_session();
+        let mut document = (*opened.document).clone();
+        document.mechanical = Some(
+            boardstudio_web::case_settings::initial_settings(&document, &scope.board_id)
+                .expect("test board has initial mechanical settings"),
+        );
+        let mut scene = (*opened.scene).clone();
+        scene.revision = document.revision;
+        let accepted = AcceptedSnapshot {
+            token: opened.token,
+            session_epoch: opened.session_epoch,
+            document: Arc::new(document),
+            scene: Arc::new(scene),
+        };
+        runtime.set_definition_name_test_state(accepted.clone(), Some(scope.clone()));
+        let mechanical = serde_json::from_value::<MechanicalAssembly>(serde_json::json!({
+            "suggestedMounts": [],
+            "nominalPlateContours": [],
+            "revision": accepted.document.revision,
+            "plateContours": [],
+            "case": {
+                "revision": accepted.document.revision,
+                "bodies": [{
+                    "revision": accepted.document.revision,
+                    "body": {
+                        "id": "plate",
+                        "name": "Plate body",
+                        "boardId": scope.board_id,
+                        "kind": "plate",
+                        "thickness": 1.5,
+                        "clearance": 0.2
+                    },
+                    "contours": []
+                }]
+            },
+            "stack": [{ "id": "plate", "z": 0.0, "thickness": 1.5 }],
+            "diagnostics": []
+        }))
+        .expect("minimal completed mechanical assembly fixture");
+        runtime.set_cad_scene_test(Some(Rc::new(CadScene {
+            scope: scope.clone(),
+            token: accepted.token,
+            snapshot: accepted.clone(),
+            result: boardstudio_web::cad_jobs::CadResult {
+                revision: accepted.document.revision,
+                ..Default::default()
+            },
+            prepared: boardstudio_core::model::PreparedCaseAssemblyIR {
+                revision: accepted.document.revision,
+                bodies: Vec::new(),
+            },
+            physical_fingerprint: None,
+            mechanical: Some(mechanical),
+            exact: true,
+            contours: Vec::new(),
+        })));
+        (runtime, accepted, scope)
+    }
+
+    fn accepted_after_edit(
+        original: &AcceptedSnapshot,
+        token: u64,
+        revision: u64,
+        include_other_board: bool,
+    ) -> AcceptedSnapshot {
+        let mut document = (*original.document).clone();
+        document.revision = revision;
+        document.name.push_str(" updated");
+        if include_other_board {
+            document.boards.push(Board {
+                id: "other-board".into(),
+                name: "Other board".into(),
+                outline_ids: vec![],
+                part_ids: vec![],
+                net_ids: vec![],
+                thickness: 1.6,
+                traces: vec![],
+                vias: vec![],
+            });
+            document.mechanical = Some(
+                boardstudio_web::case_settings::initial_settings(&document, "other-board")
+                    .expect("replacement board has initial mechanical settings"),
+            );
+        }
+        let mut scene = (*original.scene).clone();
+        scene.revision = revision;
+        AcceptedSnapshot {
+            token: boardstudio_application::SnapshotToken(token),
+            session_epoch: original.session_epoch,
+            document: Arc::new(document),
+            scene: Arc::new(scene),
+        }
+    }
+
+    fn host() -> Element {
+        let mut render_generation = use_signal(|| 0u64);
+        let _ = render_generation();
+        use_context_provider(|| render_generation);
+        super::super::use_empty_test_instance_selection();
+        let runtime = use_context::<Rc<Runtime>>();
+        let instance_selection = use_context::<InstanceSelection>();
+        let model = runtime.model();
+        let scope = runtime.scope();
+        let selected_body = use_signal(|| None::<BodySelection>);
+        let selected_layer = use_signal(|| None);
+        let display = use_signal(std::collections::BTreeMap::new);
+        let case_selection = CaseSelection {
+            body: selected_body,
+            layer: selected_layer,
+            display,
+        };
+        let initial_scope = scope.clone();
+        let selection_for_hook = case_selection;
+        use_hook({
+            move || {
+                if let Some(scope) = initial_scope {
+                    selection_for_hook.select_layer(scope, "plate".into());
+                }
+            }
+        });
+        use_context_provider(|| case_selection);
+        let selected_context = use_signal(|| None::<ScopedTreeContext>);
+        let expanded = use_signal(std::collections::BTreeSet::new);
+        let display_scene = scope
+            .as_ref()
+            .and_then(|scope| workspace_display_scene(runtime.cad_scene(), scope));
+        let selected_layer_id = scope
+            .as_ref()
+            .map_or_else(String::new, |scope| case_selection.layer_id(scope));
+        let tree = if model.accepted.is_some() {
+            objects(ObjectsInput {
+                model: &model,
+                scope: scope.clone(),
+                instance_scope_pending: false,
+                scene: display_scene,
+                selected_context,
+                selected_body_id: None,
+                selected_layer_id,
+                case_selection,
+                expanded,
+                on_action: EventHandler::new(|_| {}),
+                on_select: EventHandler::new(|_| {}),
+                on_navigate: EventHandler::new(|_| {}),
+                on_display: EventHandler::new(|_| {}),
+            })
+        } else {
+            rsx! {}
+        };
+        let workspace = use_signal(|| "Case");
+        let generation = use_signal(|| 1u64);
+        let mechanical = super::super::mechanical_settings_mount::use_mechanical_settings_mount(
+            runtime,
+            generation,
+            workspace,
+            instance_selection,
+            case_selection,
+            EventHandler::new(|_| {}),
+            EventHandler::new(|_| {}),
+        );
+        let inspector = mechanical.props.map(super::super::MechanicalSettings);
+        rsx! {
+            button {
+                id: "case11-accepted-transition",
+                onclick: move |_| render_generation += 1,
+                "Advance accepted owner"
+            }
+            div { id: "case11-workspace-evidence", {tree} {inspector} }
+        }
+    }
+
+    async fn settle() {
+        gloo_timers::future::TimeoutFuture::new(100).await;
+    }
+
+    #[wasm_bindgen_test]
+    async fn production_workspace_keeps_same_scope_layer_context_then_retires_it_on_owner_change() {
+        let (runtime, original, scope) = accepted_fixture();
+        let root = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .create_element("div")
+            .unwrap();
+        root.set_id("case11-workspace-evidence-root");
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .body()
+            .unwrap()
+            .append_child(&root)
+            .unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.into()),
+        );
+        settle().await;
+
+        let updated = accepted_after_edit(
+            &original,
+            original.token.0 + 1,
+            original.document.revision + 1,
+            false,
+        );
+        runtime.set_definition_name_test_state(updated, Some(scope.clone()));
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id("case11-accepted-transition")
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        settle().await;
+
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root_text = document
+            .get_element_by_id("case11-workspace-evidence-root")
+            .unwrap()
+            .text_content()
+            .unwrap_or_default();
+        let plate = document
+            .get_element_by_id("m1-object-tree-case-generated:plate")
+            .unwrap_or_else(|| {
+                panic!("same-scope layer missing from production Objects tree: {root_text}")
+            });
+        assert!(
+            plate
+                .text_content()
+                .unwrap_or_default()
+                .contains("Previous geometry")
+        );
+        let row = plate.closest(".m1-tree-row").unwrap().unwrap();
+        assert_eq!(row.get_attribute("aria-selected").as_deref(), Some("true"));
+        let inspector = document
+            .query_selector("#case11-workspace-evidence-root .m1-mechanical-settings")
+            .unwrap()
+            .unwrap();
+        let text = inspector.text_content().unwrap_or_default();
+        assert!(text.contains("previous generated geometry"));
+        assert!(text.contains("Resolved thickness 1.50 mm."));
+        assert!(text.contains("Plate thickness"));
+
+        let replacement = accepted_after_edit(
+            &original,
+            original.token.0 + 2,
+            original.document.revision + 2,
+            true,
+        );
+        let mut replacement_scope = scope;
+        replacement_scope.board_id = "other-board".into();
+        runtime.set_definition_name_test_state(replacement, Some(replacement_scope));
+        document
+            .get_element_by_id("case11-accepted-transition")
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        settle().await;
+        assert!(
+            document
+                .get_element_by_id("m1-object-tree-case-generated:plate")
+                .is_none()
+        );
+        let inspector = document
+            .query_selector("#case11-workspace-evidence-root .m1-mechanical-settings")
+            .unwrap()
+            .unwrap();
+        let text = inspector.text_content().unwrap_or_default();
+        assert!(!text.contains("previous generated geometry"));
+        assert!(!text.contains("Previous resolved stack"));
     }
 }

@@ -489,9 +489,14 @@ impl Runtime {
             };
         }
         #[cfg(test)]
-        if let Some((snapshot, _)) = self.definition_name_test_state.borrow().as_ref() {
+        if let Some((snapshot, scope)) = self.definition_name_test_state.borrow().as_ref() {
             return ReadModel {
                 accepted: Some(snapshot.clone()),
+                active_board_id: scope
+                    .as_ref()
+                    .map(|scope| scope.board_id.clone())
+                    .unwrap_or_default(),
+                active_instance_id: scope.as_ref().and_then(|scope| scope.instance_id.clone()),
                 generation: self
                     .definition_name_test_generation
                     .borrow()
@@ -1069,6 +1074,11 @@ impl Runtime {
         scope: Option<Scope>,
     ) {
         *self.definition_name_test_state.borrow_mut() = Some((snapshot, scope));
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_cad_scene_test(&self, scene: Option<Rc<CadScene>>) {
+        *self.cad_scene.borrow_mut() = scene;
     }
 
     #[cfg(test)]
@@ -4635,5 +4645,136 @@ mod firmware_export_tests {
             firmware_export_bytes_for_delivery(Ok(vec![1, 2, 3]), true, true),
             Err("Export scope changed before delivery.".into())
         );
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod cad_scene_rebind_tests {
+    use super::*;
+    use crate::case_generation_lifecycle::physical_case_fingerprint;
+    use std::sync::Arc;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    fn accepted_after_edit(
+        original: &AcceptedSnapshot,
+        token: u64,
+        revision: u64,
+        board_thickness: Option<f64>,
+    ) -> AcceptedSnapshot {
+        let mut document = (*original.document).clone();
+        document.revision = revision;
+        document.name.push_str(" updated");
+        if let Some(thickness) = board_thickness {
+            document.boards[0].thickness = thickness;
+        }
+        let mut scene = (*original.scene).clone();
+        scene.revision = revision;
+        AcceptedSnapshot {
+            token: SnapshotToken(token),
+            session_epoch: original.session_epoch,
+            document: Arc::new(document),
+            scene: Arc::new(scene),
+        }
+    }
+
+    fn runtime_with_scene(exact: bool) -> (Rc<Runtime>, AcceptedSnapshot, Scope) {
+        let runtime = Runtime::new().expect("browser runtime fixture initializes");
+        let (_, accepted, scope) = firmware_export_test_support::opened_session();
+        runtime.set_definition_name_test_state(accepted.clone(), Some(scope.clone()));
+        let fingerprint = physical_case_fingerprint(&accepted, &scope)
+            .expect("the accepted board fixture has physical inputs");
+        *runtime.cad_scene.borrow_mut() = Some(Rc::new(CadScene {
+            scope: scope.clone(),
+            token: accepted.token,
+            snapshot: accepted.clone(),
+            result: CadResult {
+                revision: accepted.document.revision,
+                ..CadResult::default()
+            },
+            prepared: boardstudio_core::model::PreparedCaseAssemblyIR {
+                revision: accepted.document.revision,
+                bodies: Vec::new(),
+            },
+            physical_fingerprint: Some(fingerprint),
+            mechanical: None,
+            exact,
+            contours: Vec::new(),
+        }));
+        (runtime, accepted, scope)
+    }
+
+    #[wasm_bindgen_test]
+    fn cad_scene_rebinds_only_exact_output_with_matching_physical_inputs() {
+        let (exact_runtime, original, scope) = runtime_with_scene(true);
+        let current = accepted_after_edit(
+            &original,
+            original.token.0 + 1,
+            original.document.revision + 1,
+            None,
+        );
+        exact_runtime.set_definition_name_test_state(current.clone(), Some(scope.clone()));
+        let rebound = exact_runtime
+            .cad_scene()
+            .expect("same-scope completed output remains available");
+        assert_eq!(rebound.token, current.token);
+        assert_eq!(
+            rebound.snapshot.document.revision,
+            current.document.revision
+        );
+        assert_eq!(rebound.result.revision, current.document.revision);
+        assert_eq!(rebound.prepared.revision, current.document.revision);
+
+        let (preview_runtime, original, scope) = runtime_with_scene(false);
+        let current = accepted_after_edit(
+            &original,
+            original.token.0 + 1,
+            original.document.revision + 1,
+            None,
+        );
+        preview_runtime.set_definition_name_test_state(current, Some(scope));
+        let preview = preview_runtime
+            .cad_scene()
+            .expect("captured in-flight output remains inspectable");
+        assert!(!preview.exact);
+        assert_eq!(
+            preview.token, original.token,
+            "in-flight output keeps its captured token"
+        );
+        assert_eq!(
+            preview.snapshot.document.revision,
+            original.document.revision
+        );
+
+        let (changed_runtime, original, scope) = runtime_with_scene(true);
+        let current = accepted_after_edit(
+            &original,
+            original.token.0 + 1,
+            original.document.revision + 1,
+            Some(2.0),
+        );
+        changed_runtime.set_definition_name_test_state(current, Some(scope));
+        let previous = changed_runtime
+            .cad_scene()
+            .expect("same-scope old output remains available for stale display");
+        assert_eq!(previous.token, original.token);
+        assert_eq!(
+            previous.snapshot.document.revision,
+            original.document.revision
+        );
+    }
+
+    #[wasm_bindgen_test]
+    fn cad_scene_retires_old_scope_instead_of_rebinding_across_physical_owner() {
+        let (runtime, original, scope) = runtime_with_scene(true);
+        let mut alternate_scope = scope.clone();
+        alternate_scope.board_id = "other-board".into();
+        let current = accepted_after_edit(
+            &original,
+            original.token.0 + 1,
+            original.document.revision + 1,
+            None,
+        );
+        runtime.set_definition_name_test_state(current, Some(alternate_scope));
+        assert!(runtime.cad_scene().is_none());
     }
 }
