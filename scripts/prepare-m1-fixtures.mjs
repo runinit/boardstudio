@@ -38,10 +38,10 @@ try {
   await writeFile(path.join(output, 'reviung41.boardstudio'), archive);
   await writeFile(path.join(output, 'reviung41.json'), reply.projectJson);
 
-  const { openSofleDemo } = await server.ssrLoadModule('/src/demos/sofle.ts');
+  const { openSofleDemo, sofleDemos } = await server.ssrLoadModule('/src/demos/sofle.ts');
   const { createMechanicalConfiguration } = await server.ssrLoadModule('/src/mechanicalPresets.ts');
   const request = async input => {
-    if (input.kind === 'open') input.document.id = 'm1-sofle-v2-copy';
+    if (input.kind === 'open') input.document.id = `m1-${input.document.parameters.demo}-copy`;
     const result = JSON.parse(engine.request(JSON.stringify(input)));
     if (result.kind === 'error') throw new Error(result.message);
     return result;
@@ -54,24 +54,26 @@ try {
     baseRevision: opened.document.revision, transactionId: 'm1-fixture-gasket', phase: 'commit',
     targetIds: [], operation: { kind: 'set-mechanical', configuration } } });
   if (saved.kind !== 'scene') throw new Error('Expected committed Sofle scene');
-  // Model bytes are embedded using the same reference packProject service below.
+  // Model bytes are embedded through the reference packProject service.
   const { packProject } = await server.ssrLoadModule('/src/storage.ts');
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = async (url, options) => {
-    const location = String(url);
-    if (location.startsWith('/@fs/')) return new Response(await readFile(location.slice(4).split('?')[0]));
-    if (location.startsWith('/')) return new Response(await readFile(path.join(root, 'app', location.split('?')[0])));
-    return originalFetch(url, options);
+  const packWithUsedModels = async document => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async url => {
+      const location = String(url);
+      if (location.startsWith('/@fs/')) return new Response(await readFile(location.slice(4).split('?')[0]));
+      if (location.startsWith('/')) return new Response(await readFile(path.join(root, 'app', location.split('?')[0])));
+      return originalFetch(url);
+    };
+    try {
+      return await packProject(document, {}, { archive: async input => {
+        const outputs = core.archive_request(JSON.stringify(input.request), input.buffers);
+        const result = JSON.parse(outputs[0]);
+        if (result.kind !== 'packed') throw new Error(JSON.stringify(result));
+        return { kind: 'archive', reply: { kind: 'packed', bytes: outputs[1][0] } };
+      } });
+    } finally { globalThis.fetch = originalFetch; }
   };
-  let sofleArchive;
-  try {
-    sofleArchive = await packProject(saved.document, {}, { archive: async input => {
-      const outputs = core.archive_request(JSON.stringify(input.request), input.buffers);
-      const result = JSON.parse(outputs[0]);
-      if (result.kind !== 'packed') throw new Error(JSON.stringify(result));
-      return { kind: 'archive', reply: { kind: 'packed', bytes: outputs[1][0] } };
-    } });
-  } finally { globalThis.fetch = originalFetch; }
+  const sofleArchive = await packWithUsedModels(saved.document);
   const sofleFiles = unzipSync(sofleArchive);
   const projectJson = new TextDecoder().decode(sofleFiles['project.json']);
   const sofle = JSON.parse(projectJson);
@@ -84,14 +86,38 @@ try {
   }
   await writeFile(path.join(output, 'sofle.json'), projectJson);
   await writeFile(path.join(output, 'sofle.boardstudio'), sofleArchive);
-  const inputs = ['scripts/prepare-m1-fixtures.mjs', 'app/src/demos/sofle.ts', 'app/src/mechanicalPresets.ts', 'app/src/storage.ts', 'app/src/bundledModels.ts', 'core/Cargo.toml', 'core/Cargo.lock'];
+  const sofleVariantFixtures = [];
+  for (const variant of ['rgb', 'choc']) {
+    const variantDemo = sofleDemos.find(demo => demo.id === variant);
+    if (!variantDemo) throw new Error(`Missing Sofle variant: ${variant}`);
+    const variantOpened = await openSofleDemo(variant, request);
+    const variantArchive = await packWithUsedModels(variantOpened.document);
+    const variantFiles = unzipSync(variantArchive);
+    const variantJson = new TextDecoder().decode(variantFiles['project.json']);
+    const variantDocument = JSON.parse(variantJson);
+    const variantAssets = [];
+    for (const asset of variantDocument.assets) {
+      const bytes = variantFiles[`assets/${asset.sha256}`];
+      if (!bytes || hash(bytes) !== asset.sha256) throw new Error(`${variantDemo.name} asset missing or mismatched: ${asset.id}`);
+      await writeFile(path.join(output, asset.sha256), bytes);
+      variantAssets.push({ sha256: asset.sha256, bytes: bytes.length });
+    }
+    const filename = `sofle-${variant}`;
+    await writeFile(path.join(output, `${filename}.json`), variantJson);
+    await writeFile(path.join(output, `${filename}.boardstudio`), variantArchive);
+    sofleVariantFixtures.push({ name: variantDemo.name, variant, source: 'app/src/demos/sofle.ts',
+      document_id: variantDocument.id, revision: variantDocument.revision,
+      archive_sha256: hash(variantArchive), assets: variantAssets });
+  }
+  const inputs = ['scripts/prepare-m1-fixtures.mjs', 'app/src/demos/sofle.ts', 'app/src/demos/sofle-layouts.json', 'app/src/demos/physicalLayout.ts', 'app/src/mechanicalPresets.ts', 'app/src/storage.ts', 'app/src/bundledModels.ts', 'core/Cargo.toml', 'core/Cargo.lock'];
   const sourceHashes = Object.fromEntries(await Promise.all(inputs.map(async file => [file, hash(await readFile(path.join(root, file)))])));
   const provenance = { schema: 1, source_commit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(), source_hashes: sourceHashes, core_wasm_sha256: hash(coreBytes),
-    preparation: 'Reference openSofleDemo v2 plus public set-mechanical gasket edit and reference packProject with embedded used models',
+    preparation: 'Reference openSofleDemo for v2/RGB/Choc, public set-mechanical gasket edit for v2, and reference packProject with embedded used models',
     fixtures: [ { name: 'REVIUNG41', source: archivePath, source_sha256: hash(archive),
       document_id: reviung.id, revision: reviung.revision, assets },
     { name: 'Sofle v2 gasket', source: 'app/src/demos/sofle.ts', document_id: sofle.id,
-      revision: sofle.revision, archive_sha256: hash(sofleArchive), assets: sofleAssets } ] };
+      variant: 'v2', revision: sofle.revision, archive_sha256: hash(sofleArchive), assets: sofleAssets },
+    ...sofleVariantFixtures ] };
   await writeFile(path.join(output, 'provenance.json'), JSON.stringify(provenance, null, 2) + '\n');
   console.log(`Prepared copied fixtures and assets in ${output}`);
 } finally {

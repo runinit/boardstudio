@@ -443,8 +443,10 @@ fn DemoKeyboardCards(project_menu: bool) -> Element {
                 span { "Start an editable copy" }
             }
             div { class: "m1-keyboard-grid",
-                DemoKeyboardCard { key: "reviung41", name: "REVIUNG41", fixture: "reviung41" }
                 DemoKeyboardCard { key: "sofle", name: "Sofle v2", fixture: "sofle" }
+                DemoKeyboardCard { key: "sofle-rgb", name: "Sofle RGB", fixture: "sofle-rgb" }
+                DemoKeyboardCard { key: "sofle-choc", name: "Sofle Choc", fixture: "sofle-choc" }
+                DemoKeyboardCard { key: "reviung41", name: "REVIUNG41", fixture: "reviung41" }
             }
         }
     }
