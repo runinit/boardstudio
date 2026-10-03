@@ -433,8 +433,14 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                                     layout_id: (!event.value().is_empty()).then_some(event.value()),
                                 })
                             },
-                            option { value: "", "Board / ungrouped" }
-                            for layout in &projection.layouts { option { value: "{layout.id}", "{layout.name}" } }
+                            option { value: "", selected: projection.layout_id.is_none(), "Board / ungrouped" }
+                            for layout in &projection.layouts {
+                                option {
+                                    value: "{layout.id}",
+                                    selected: projection.layout_id.as_deref() == Some(layout.id.as_str()),
+                                    "{layout.name}"
+                                }
+                            }
                         }
                     }
                 }
