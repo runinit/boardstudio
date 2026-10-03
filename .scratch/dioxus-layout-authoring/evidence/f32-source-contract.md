@@ -31,4 +31,8 @@ No new refactoring takeaway observed in this read-only source audit. Existing co
 
 ## 2026-10-02 selected-key reachability correction
 
-Earlier paragraphs inferred the Parts workspace attached-member route from `placeLibraryDefinition`’s helper fallback. Pinned React `PartsInspectorPanel.tsx` explicitly disables non-switch/non-matrix-input definitions with an explanation to clear key selection and place standalone. That public restriction is authoritative for F3.2c; keep the helper fallback separate from UI acceptance. Existing attached-member Inspector replacement/removal remains in its own ticket. Operational capability-level starts and all canonical parent criteria remain unchanged.
+Earlier paragraphs inferred the Parts workspace attached-member route from `placeLibraryDefinition`’s helper fallback. Pinned React `PartsInspectorPanel.tsx` explicitly disables definitions without matrix-input capability with an explanation to clear key selection and place standalone. That public restriction is authoritative for F3.2c; keep the helper fallback separate from UI acceptance. Existing attached-member Inspector replacement/removal remains in its own ticket. Operational capability-level starts and all canonical parent criteria remain unchanged.
+
+### Exact Inspector predicate correction — 2026-10-02
+
+Pinned Parts Inspector admission uses `matrixInputAvailable` alone, including for Switch definitions. Preserve its explanatory disabled-action copy. The private helper uses `switch || matrixInputAvailable` after admission; it does not widen the public action. Earlier switch-bypass interpretations above remain historical evidence and are superseded by this distinction. Delayed loader failures and kind mismatches must retain the captured accepted-token/revision guard, just like successful deliveries.
