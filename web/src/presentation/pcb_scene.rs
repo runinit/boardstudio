@@ -249,6 +249,9 @@ pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
                     snapshot: snapshot.clone(),
                 }
             }
+            super::pcb_module_footprints::ModuleFindingMarkers {
+                snapshot: snapshot.clone(), board_id: scope.board_id.clone(),
+            }
         }
     }
 }

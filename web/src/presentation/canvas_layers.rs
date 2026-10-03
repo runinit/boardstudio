@@ -157,6 +157,7 @@ pub(super) fn CanvasLayers(props: CanvasLayersProps) -> Element {
                                 _ => &layer.id,
                             };
                             let aria_label = format!("{action} {accessibility_label}");
+                            let swatch_label = accessibility_label.clone();
                             let control = layer.clone();
                             let on_toggle = toggle;
                             rsx! {
@@ -165,7 +166,7 @@ pub(super) fn CanvasLayers(props: CanvasLayersProps) -> Element {
                                     aria_pressed: "{visible}",
                                     aria_label: "{aria_label}",
                                     onclick: move |_| on_toggle(control.target.clone()),
-                                    span { class: "m1-layer-swatch", "data-layer": "{layer.id}" }
+                                    span { class: "m1-layer-swatch", "data-layer": "{swatch_label}" }
                                     span { class: "m1-layer-label", "{layer.label}" }
                                     svg { view_box: "0 0 20 20", "aria-hidden": "true",
                                         path { d: "M2 10q8-12 16 0-8 12-16 0Z" }

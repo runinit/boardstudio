@@ -208,6 +208,12 @@
           "evidence": ".scratch/dioxus-pcb-view/evidence/14-mounted-module-footprints-20261003/public-receipt.md",
           "observation": "Source-owned module artwork now renders through the accepted snapshot. Paired VIK fixture geometry matches all373 leaves across26 footprints; independent module and host pad/hole toggles preserve saved ProjectDoc/revision6. Accessibility label correction is queued in34749.",
           "status": "Bounded geometry/visibility receipt; module-free and board-retention checks, other categories/navigation and fullF5.4 remain open. No new RF ID or broad refactor."
+        },
+        {
+          "source": "PCB15 source packet based on dd7697ed",
+          "evidence": ".scratch/dioxus-pcb-view/issues/15-mounted-module-layer-inventory.md",
+          "observation": "The complete ten-row module inventory consumes the accepted source geometry and existing independent transient owner. Read-only board/hole/support/clearance/artwork and module error marker overlays remain distinct from host circuitry; no duplicated Core/CAD or persisted state.",
+          "status": "One affected strict check passes; changed paired public journey and consolidated candidate review pending. Owning-module navigation/shared finding focus/full F5.4 remain open; no new RF ID."
         }
       ],
       "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted.",

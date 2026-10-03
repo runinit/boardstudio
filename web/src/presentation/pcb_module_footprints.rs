@@ -2,7 +2,7 @@
 //! Source pads remain module-owned; presentation never creates host circuitry.
 use super::LayerVisibility;
 use boardstudio_application::AcceptedSnapshot;
-use boardstudio_core::model::{PadShape, Vec2};
+use boardstudio_core::model::{PadShape, Severity, Vec2};
 use dioxus::prelude::*;
 use std::collections::BTreeSet;
 
@@ -43,6 +43,40 @@ pub(super) fn ModuleSourceFootprints(props: ModuleSourceFootprintsProps) -> Elem
     };
     rsx! {
         g { class: "m1-module-pcb-overlay", "data-module-id": "{props.module_id}",
+            if !hidden.contains("module-outlines") {
+                for (index, outline) in module.board.iter().enumerate() {
+                    polygon {
+                        key: "outline-{index}", class: "m1-module-board-outline",
+                        points: points(&outline.points),
+                    }
+                }
+            }
+            if !hidden.contains("module-clearances") {
+                for volume in module.volumes.iter().chain(&module.openings) {
+                    polygon {
+                        key: "clearance-{volume.id}", class: "m1-module-clearance",
+                        points: points(&volume.geometry.points), "data-qualified": "{volume.qualified}",
+                    }
+                }
+            }
+            if !hidden.contains("module-holes") {
+                for mount in &module.mounts {
+                    g { key: "hole-{mount.source_id}", class: "m1-module-mount-hole",
+                        title { "Module mounting hole {mount.source_id} · source drill {mount.diameter} mm" }
+                        circle { cx: "{mount.at.x}", cy: "{mount.at.y}", r: "{mount.diameter / 2.0}" }
+                        path { d: "M{mount.at.x - mount.diameter / 2.0} {mount.at.y}h{mount.diameter}M{mount.at.x} {mount.at.y - mount.diameter / 2.0}v{mount.diameter}" }
+                    }
+                }
+            }
+            if !hidden.contains("module-standoffs") {
+                for (index, support) in module.mount_supports.iter().enumerate() {
+                    g { key: "support-{support.mount_id}-{index}", class: "m1-module-standoff",
+                        title { "Designer-selected support at {support.mount_id} · outer diameter {support.outer_diameter} mm · hole {support.hole_diameter} mm · Z {support.z} mm · height {support.height} mm" }
+                        circle { cx: "{support.at.x}", cy: "{support.at.y}", r: "{support.outer_diameter / 2.0}" }
+                        circle { class: "m1-module-standoff-hole", cx: "{support.at.x}", cy: "{support.at.y}", r: "{support.hole_diameter / 2.0}" }
+                    }
+                }
+            }
             if !hidden.contains("module-footprints") {
                 for footprint in &module.footprints {
                     {
@@ -135,6 +169,45 @@ pub(super) fn ModuleSourceFootprints(props: ModuleSourceFootprintsProps) -> Elem
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+pub(super) fn ModuleFindingMarkers(snapshot: AcceptedSnapshot, board_id: String) -> Element {
+    let visibility = use_context::<LayerVisibility>();
+    if (visibility.modules_hidden)().contains("module-findings") {
+        return rsx! {};
+    }
+    let module_ids = snapshot
+        .document
+        .modules
+        .iter()
+        .filter(|module| module.host_board_id == board_id)
+        .map(|module| module.id.as_str())
+        .collect::<BTreeSet<_>>();
+    let finding_ids = snapshot
+        .scene
+        .findings
+        .iter()
+        .filter(|finding| {
+            finding.severity == Severity::Error
+                && finding
+                    .target_ids
+                    .iter()
+                    .any(|id| module_ids.contains(id.as_str()))
+        })
+        .map(|finding| finding.id.as_str())
+        .collect::<BTreeSet<_>>();
+    rsx! {
+        for marker in snapshot.scene.finding_markers.iter().filter(|marker| {
+            marker.board_id == board_id && finding_ids.contains(marker.finding_id.as_str())
+        }) {
+            g { key: "{marker.finding_id}", class: "wb-outline-finding", "data-finding-id": "{marker.finding_id}",
+                for (index, contour) in marker.contours.iter().enumerate() {
+                    polygon { key: "contour-{index}", points: points(&contour.points) }
                 }
             }
         }

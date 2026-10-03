@@ -237,10 +237,21 @@ pub(super) fn layer_groups_for_scene(
     }
     groups.push(CanvasLayerGroup::titled(
         "Mounted modules",
-        vec![CanvasLayer::module_hidden(
-            "module-footprints",
-            "Footprints",
-        )],
+        [
+            ("module-footprints", "Footprints"),
+            ("module-outlines", "Board outlines"),
+            ("module-clearances", "Clearance & service"),
+            ("module-holes", "Mounting holes"),
+            ("module-standoffs", "Standoffs"),
+            ("module-silkscreen-front", "Front silkscreen"),
+            ("module-silkscreen-back", "Back silkscreen"),
+            ("module-fab-front", "Front fabrication"),
+            ("module-fab-back", "Back fabrication"),
+            ("module-findings", "Findings & clearances"),
+        ]
+        .into_iter()
+        .map(|(id, label)| CanvasLayer::module_hidden(id, label))
+        .collect(),
     ));
     groups
 }
