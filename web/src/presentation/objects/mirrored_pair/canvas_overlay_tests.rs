@@ -80,12 +80,14 @@ fn snapshot() -> boardstudio_application::AcceptedSnapshot {
 
 fn composition() -> Element {
     let mut active = use_signal(|| true);
+    let menu_open = use_signal(|| false);
     let mut current = use_signal(|| projection(owner(1), MirroredPairFormValues::default()));
     let mut previewed = use_signal(|| None::<MirroredPairRequest>);
     let mut cancelled = use_signal(|| None::<MirroredPairOwner>);
     rsx! {
         aside { id: "mirror-overlay-objects",
-            super::super::LayoutAddObjectEntry {
+            super::super::AddObjectEntry {
+                menu_open,
                 snapshot: snapshot(),
                 scope: Some(owner(1).scope),
                 on_place_component: EventHandler::default(),
