@@ -927,7 +927,8 @@
       "evidence": [
         "cad/src/index.ts",
         "web/src/cad_worker.rs",
-        "cad/wasm/src/model/keycaps.rs"
+        "cad/wasm/src/model/keycaps.rs",
+        ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/case11-live-preview-source-review-590e1eac-sol-20261002.md"
       ],
       "observation": "Preview can yield between keycap chunks; a synchronous WASM STEP build cannot be interrupted mid-kernel call. Host cancellation can stop queued work and suppress stale completion without immediately releasing ongoing computation.",
       "impact": "A single cancelled status can obscure remaining CPU/memory work or lead the UI to promise prompt preemption that the engine does not provide.",
@@ -956,6 +957,16 @@
           "current_mitigation": "Full ticket acceptance remains blocked; pure UI and independent panels/tree continue. No unsafe reply dropping, fabricated core error, history-resetting restore or narrower acceptance applied.",
           "post_port_follow_up": "Review cancellation/adoption contracts across UI intent, worker state, durable commit and one-time caller settlement.",
           "validation": "Retained red-capable public loop plus pending-core/save variants, valid/unavailable B and history/selection retention; repaired source needs independent review."
+        }
+      ],
+      "continuations": [
+        {
+          "date": "2026-10-02",
+          "source": "590e1eac56430b0ad6dea42edc11df9d142a4bc3",
+          "confidence": "confirmed source review findings; repair pending",
+          "observation": "Case live scheduling distinguishes pending strict revision ownership from completed fingerprint-equivalent reuse, but the first implementation did not enforce completion on rebind, dropped generated stale context through a current-token filter, and reset terminal-attempt identity during temporary ineligibility.",
+          "during_port": "Repair all three production paths with meaningful lifecycle regressions before integration; preserve stale visibility and block stale edits.",
+          "post_port": "Assess explicit output completion/currentness and terminal-attempt state across Runtime, generated Inspector projection and scheduling; preserve reviewed single authority rather than spreading independent boolean policy. No frontend acceptance waiver."
         }
       ]
     },
