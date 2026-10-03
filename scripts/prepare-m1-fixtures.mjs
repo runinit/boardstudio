@@ -114,15 +114,37 @@ try {
       document_id: variantDocument.id, revision: variantDocument.revision,
       archive_sha256: hash(variantArchive), assets: variantAssets });
   }
-  const inputs = ['scripts/prepare-m1-fixtures.mjs', 'app/src/demos/sofle.ts', 'app/src/demos/sofle-layouts.json', 'app/src/demos/physicalLayout.ts', 'app/src/mechanicalPresets.ts', 'app/src/storage.ts', 'app/src/bundledModels.ts', 'core/Cargo.toml', 'core/Cargo.lock'];
+  const { openModuleReviewDemo } = await server.ssrLoadModule('/src/demos/moduleReview.ts');
+  const moduleReview = await openModuleReviewDemo(request);
+  const moduleReviewArchive = await packWithUsedModels(moduleReview.document);
+  const moduleReviewFiles = unzipSync(moduleReviewArchive);
+  const moduleReviewJson = new TextDecoder().decode(moduleReviewFiles['project.json']);
+  const moduleReviewDocument = JSON.parse(moduleReviewJson);
+  const moduleReviewAssets = [];
+  for (const asset of moduleReviewDocument.assets) {
+    const bytes = moduleReviewFiles[`assets/${asset.sha256}`];
+    if (!bytes || hash(bytes) !== asset.sha256) throw new Error(`VIK module review asset missing or mismatched: ${asset.id}`);
+    await writeFile(path.join(output, asset.sha256), bytes);
+    moduleReviewAssets.push({ sha256: asset.sha256, bytes: bytes.length });
+  }
+  await writeFile(path.join(output, 'vik-module-review.json'), moduleReviewJson);
+  await writeFile(path.join(output, 'vik-module-review.boardstudio'), moduleReviewArchive);
+  const inputs = ['scripts/prepare-m1-fixtures.mjs', 'app/src/demos/sofle.ts', 'app/src/demos/sofle-layouts.json', 'app/src/demos/moduleReview.ts', 'app/src/demo.ts', 'app/src/modules/imported-modules.json', 'app/src/modules/hostConnector.ts', 'app/src/parts/imported-parts.json', 'app/src/demos/physicalLayout.ts', 'app/src/mechanicalPresets.ts', 'app/src/storage.ts', 'app/src/bundledModels.ts', 'core/Cargo.toml', 'core/Cargo.lock'];
   const sourceHashes = Object.fromEntries(await Promise.all(inputs.map(async file => [file, hash(await readFile(path.join(root, file)))])));
   const provenance = { schema: 1, source_commit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(), source_hashes: sourceHashes, core_wasm_sha256: hash(coreBytes),
-    preparation: 'Reference openSofleDemo for v2/RGB/Choc, public set-mechanical gasket edit for v2, and reference packProject with embedded used models',
-    fixtures: [ { name: 'REVIUNG41', source: archivePath, source_sha256: hash(archive),
-      document_id: reviung.id, revision: reviung.revision, assets },
-    { name: 'Sofle v2 gasket', source: 'app/src/demos/sofle.ts', document_id: sofle.id,
-      variant: 'v2', revision: sofle.revision, archive_sha256: hash(sofleArchive), assets: sofleAssets },
-    ...sofleVariantFixtures ] };
+    preparation: 'Reference openSofleDemo for v2/RGB/Choc and openModuleReviewDemo for VIK, public set-mechanical gasket edit for v2, and reference packProject with embedded used models',
+    fixtures: [
+      { name: 'REVIUNG41', source: archivePath, source_sha256: hash(archive),
+        document_id: reviung.id, revision: reviung.revision, assets },
+      { name: 'Sofle v2 gasket', source: 'app/src/demos/sofle.ts', document_id: sofle.id,
+        variant: 'v2', revision: sofle.revision, archive_sha256: hash(sofleArchive), assets: sofleAssets },
+      ...sofleVariantFixtures,
+      { name: 'VIK module review · above and below', source: 'app/src/demos/moduleReview.ts',
+        document_id: moduleReviewDocument.id, revision: moduleReviewDocument.revision,
+        archive_sha256: hash(moduleReviewArchive), assets: moduleReviewAssets,
+        modules: moduleReviewDocument.modules.map(module => ({ id: module.id, definition_id: module.definitionId,
+          host_face: module.hostFace, facing_face: module.facingFace, rotation: module.rotation })) },
+    ] };
   await writeFile(path.join(output, 'provenance.json'), JSON.stringify(provenance, null, 2) + '\n');
   console.log(`Prepared copied fixtures and assets in ${output}`);
 } finally {

@@ -447,6 +447,7 @@ fn DemoKeyboardCards(project_menu: bool) -> Element {
                 DemoKeyboardCard { key: "sofle-rgb", name: "Sofle RGB", fixture: "sofle-rgb" }
                 DemoKeyboardCard { key: "sofle-choc", name: "Sofle Choc", fixture: "sofle-choc" }
                 DemoKeyboardCard { key: "reviung41", name: "REVIUNG41", fixture: "reviung41" }
+                DemoKeyboardCard { key: "vik-module-review", name: "VIK module review · above and below", fixture: "vik-module-review" }
             }
         }
     }

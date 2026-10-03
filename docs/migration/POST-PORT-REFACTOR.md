@@ -598,6 +598,10 @@ The Keycaps 3D preview needs the same dedicated crate-boundary facade, but owns 
 
 The first served replay on `243aa551` also exposed an effect-ownership mistake in this route: it read the local preview sequence reactively and immediately wrote it, repeatedly restarting preview admission and leaving the shared viewer blank. The bounded source correction uses an untracked read for that effect-owned counter. Candidate `e7742d46` passed one same-fixture 1280×577 Keycaps 3D journey, including cap/legend bodies, per-key color, and global and individual layer hide/show. The retained [receipt](../../.scratch/dioxus-frontend-v1/evidence/keycaps-3d-preview-20261003/RECEIPT.md) preserves the red and green, while Keymap and remaining lifecycle/full-feature acceptance stay open.
 
+### RF-001 continuation — VIK module review demo fixture, 2026-10-03
+
+The Issue 06 source packet adds a source-backed VIK demo through the existing `DemoKeyboardCard`, fixture JSON preview and `Runtime::open_fixture` copy path. Preparation reuses React's `openModuleReviewDemo`, existing Core operations and `packProject`; no Runtime facade, module store or second document authority was needed. The packaged document retains the three module placements, source hashes, embedded circuit and human-review assumptions. No new refactoring takeaway was observed in this bounded slice. Keep RF-001's shared composition/identity observations and the integrated card/open/reopen proof open until the changed candidate is served.
+
 PCB contextual inventory update (2026-10-03, ead8fe7c): the generic Objects composition exposed Layout groups and selectors in PCB. The bounded port correction restores flat actual PCB parts and the selected-reference footer while retaining the accepted selection owner. RF-001 records the current generic-tree filtering cost and a later shared outline projection; this is a deferred design observation, not a waiver of parity.
 
 ### 2026-10-03 contextual Inspector and draft/async lifetimes

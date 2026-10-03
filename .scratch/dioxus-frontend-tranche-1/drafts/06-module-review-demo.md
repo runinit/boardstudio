@@ -2,13 +2,15 @@
 
 **What to build:** The VIK module review demo starts as an editable project that preserves its above/below mounted-module configuration.
 
-**Blocked by:** 04: Start fresh Sofle demo copies.
+**Blocked by:** None for the VIK source fixture and card (Issue 20 provides the shared card/open path; broader Issue 04 acceptance remains open but does not block this independent fixture).
 
-**Status:** draft — awaiting breakdown approval
+**Status:** refined, implementation authorized from the ready existing child; no separate planning review required.
 
-- [ ] Show the reference VIK module review card with its exact name, preview and summary; open the real reference-equivalent project and local assets through the shared fresh-copy action.
-- [ ] Preserve module/profile/placement identities, side/orientation and above/below configuration. Existing Rust providers remain authoritative; no new component/model onboarding or PCB authoring surface is part of this ticket.
-- [ ] Verify repeated demo starts keep prior edits, failed/superseded opens do not publish stale work, and the project can be edited through available controls, saved and reopened with module data/assets intact.
-- [ ] Demo fidelity does not require completing the later PCB/Parts/3D controls, and does not claim those workflows are implemented. Record the actual input/output data proof and affected browser checks.
+- [ ] Add the exact `VIK module review · above and below` card to the shared Project library/menu card component. Its preview and summary must derive from the packaged document and match the pinned React `15 keys · Single board`; retain the keyboard-layout preview rather than a generic VIK icon.
+- [ ] Prepare `vik-module-review.json` and `.boardstudio` through existing `openModuleReviewDemo`, Core open/edit requests and `packProject`. Record the fixture archive and module source hashes. Preserve module definition/instance IDs, front/back and facing faces, rotations, support identities, three host connectors, embedded circuit and review assumptions.
+- [ ] Start via the existing `Runtime::open_fixture` route, so a fresh browser UUID becomes the accepted editable project ID while generic user archive-import identity remains unchanged. Keep the accepted Project/Session/history owner; do not add a second store or module authority.
+- [ ] On one changed paired journey, open the card, inspect the accepted above/below module records, start again for a different ID, and reopen one saved copy. Reuse existing generic archive/history/edit and source-module browser evidence; do not repeat broad lifecycle permutations.
+- [ ] Keep the human-review disclosure and explicit unknown hardware/electrical/mechanical facts. A demo project is not fabrication-ready and this ticket does not implement Parts authoring, PCB mounted-module controls, or Case/3D acceptance.
+- [ ] Update the RF handoff with a scoped structural observation or “No new refactoring takeaway observed”; record the source, fixture hashes, accepted IDs, and remaining Issue 06/F2.1 limits.
 
 - [ ] Complete the tranche’s shared acceptance and independent review; record refactoring takeaways or explicitly record none observed.
