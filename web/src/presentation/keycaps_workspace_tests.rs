@@ -7,7 +7,7 @@ use web_sys::{Element as DomElement, Event, HtmlElement};
 
 wasm_bindgen_test_configure!(run_in_browser);
 
-fn view() -> Rc<KeycapsView> {
+fn view(assigned_count: usize) -> Rc<KeycapsView> {
     let key = |id: &'static str, reference: &'static str| super::super::keycaps_scene::KeycapsKey {
         id: Rc::from(id),
         reference: Rc::from(reference),
@@ -27,14 +27,15 @@ fn view() -> Rc<KeycapsView> {
         board_settings: KeycapBoardSettings::default(),
         keys: vec![key("key-a", "A1"), key("key-b", "B2")],
         matrices: Vec::new(),
-        assigned_count: 0,
+        assigned_count,
     })
 }
 
 fn mounted_inspector() -> Element {
+    let mut projected_view = use_signal(|| view(0));
     let mut selection = use_signal(|| Some("key-a".to_owned()));
     let selected_key_id = selection();
-    let view = view();
+    let view = projected_view();
     let on_select_key = EventHandler::new(move |id: String| {
         selection.set((!id.is_empty()).then_some(id));
     });
@@ -81,20 +82,69 @@ fn mounted_inspector() -> Element {
         };
         Some((selected, actions))
     });
-    inspector(InspectorInput {
-        view: Some(view),
-        document: Rc::new(boardstudio_core::model::ProjectDoc::empty(
-            "document", "Fixture",
-        )),
-        selected_key_id,
-        on_select_key,
-        settings_editor,
-        settings_actions: None,
-        fit_state: None,
-        mechanical_layer_ids: Rc::from([]),
-        fit_retry: EventHandler::new(|()| {}),
-        fit_navigate: EventHandler::new(|_| {}),
-    })
+    rsx! {
+        button {
+            id: "keycaps-test-accept-binding",
+            onclick: move |_| {
+                let mut next = (*projected_view.peek()).as_ref().clone();
+                next.assigned_count = 1;
+                projected_view.set(Rc::new(next));
+            },
+            "Accept binding projection"
+        }
+        {inspector(InspectorInput {
+            view: Some(view),
+            document: Rc::new(boardstudio_core::model::ProjectDoc::empty(
+                "document", "Fixture",
+            )),
+            selected_key_id,
+            on_select_key,
+            settings_editor,
+            settings_actions: None,
+            fit_state: None,
+            mechanical_layer_ids: Rc::from([]),
+            fit_retry: EventHandler::new(|()| {}),
+            fit_navigate: EventHandler::new(|_| {}),
+        })}
+    }
+}
+
+#[wasm_bindgen_test]
+async fn inspector_header_shows_accepted_assigned_and_total_key_count() {
+    let root = mount_inspector();
+    settle().await;
+
+    assert_eq!(
+        element(".m1-keycaps-inspector-header h2")
+            .unwrap()
+            .text_content()
+            .as_deref(),
+        Some("Keycaps")
+    );
+    assert_eq!(
+        element(".m1-keycaps-inspector-assigned-count")
+            .unwrap()
+            .text_content()
+            .as_deref(),
+        Some("0/2 assigned")
+    );
+
+    element("#keycaps-test-accept-binding")
+        .unwrap()
+        .dyn_into::<HtmlElement>()
+        .unwrap()
+        .click();
+    settle().await;
+
+    assert_eq!(
+        element(".m1-keycaps-inspector-assigned-count")
+            .unwrap()
+            .text_content()
+            .as_deref(),
+        Some("1/2 assigned"),
+        "a replaced accepted Keycaps projection refreshes the summary"
+    );
+    root.remove();
 }
 
 #[wasm_bindgen_test]

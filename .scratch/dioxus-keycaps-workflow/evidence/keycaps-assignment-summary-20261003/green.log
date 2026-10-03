@@ -1,0 +1,15 @@
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/keycaps-header-assigned-count-20261003/web)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 18.32s
+     Running unittests src/main.rs (/home/chris/.local/share/boardstudio/worktrees/keycaps-navigation-mounted-owner-20261002/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-95e610d5340c64b2.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:33329/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+Loading Wasm module...
+using deprecated parameters for the initialization function; pass a single object instead
+
+running 1 test
+Invoking test: presentation::keycaps_workspace::tests::inspector_header_shows_accepted_assigned_and_total_key_count
+test presentation::keycaps_workspace::tests::inspector_header_shows_accepted_assigned_and_total_key_count ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 160 filtered out; finished in 0.10s
+

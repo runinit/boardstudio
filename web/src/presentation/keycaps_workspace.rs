@@ -107,8 +107,14 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                 || "Select a key".to_owned(),
                 |key| format!("{} · key", key.reference),
             );
+        let assigned_count = view.assigned_count;
+        let key_count = view.keys.len();
         rsx! {
             section { class: "m1-keycaps-inspector", "aria-label": "Keycaps inspector",
+                header { class: "m1-keycaps-inspector-header",
+                    h2 { "Keycaps" }
+                    span { class: "m1-keycaps-inspector-assigned-count", "{assigned_count}/{key_count} assigned" }
+                }
                 if let Some(actions) = settings_actions.clone() {
                     KeycapsBoardSettingsEditor { settings: view.board_settings.clone(), actions: actions.clone() }
                     details { class: "m1-keycaps-disclosure", open: true,
