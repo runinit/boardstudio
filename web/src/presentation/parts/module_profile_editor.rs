@@ -1,6 +1,6 @@
 //! Definition-level module profile draft and accepted edit path.
-use super::{PartsSelection, PartsSelectionGeneration, WorkspaceState};
-use crate::runtime::Runtime;
+use super::{PartsSelection, PartsSelectionGeneration};
+use crate::{presentation::WorkspaceState, runtime::Runtime};
 use boardstudio_application::{AcceptedSnapshot, Event, Scope, SessionEpoch, TerminalOutcome};
 use boardstudio_core::model::{
     CaseOpening, EditCommand, EditOperation, EditPhase, EncoderDriver, HardwareOutput,

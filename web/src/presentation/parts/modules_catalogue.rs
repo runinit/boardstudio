@@ -453,13 +453,14 @@ pub(super) fn ModuleInspector(
         h2 { "{definition.name}" }
         small { "VIK · {family}" }
         if !variants.is_empty() {
+            let variant_scope = scope.clone();
             label { class: "m1-parts-search-label",
                 "Variant"
                 select {
                     "aria-label": "Module variant",
                     value: "{definition.id}",
                     onchange: move |event| {
-                        selected.set(Some((scope.clone(), format!("module:{}", event.value()))));
+                        selected.set(Some((variant_scope.clone(), format!("module:{}", event.value()))));
                         selection_generation.with_mut(|value| *value = value.wrapping_add(1));
                         preview_activation.with_mut(|value| *value = value.wrapping_add(1));
                     },
