@@ -373,7 +373,7 @@ fn MacroCard(props: MacroCardProps) -> Element {
                         admission_token: props.admission_token, admission_revision: props.admission_revision,
                         editor_instance_id: props.editor_instance_id,
                         request_sequence: props.request_sequence, enabled: props.enabled,
-                        macro_id: macro_id.clone(), sequence: sequence.clone(),
+                        macro_id: macro_id.clone(), macro_name: value.name.clone(), sequence: sequence.clone(),
                         on_change: props.on_change,
                     } }
                 }
@@ -407,6 +407,7 @@ struct StepEditorProps {
     request_sequence: Signal<u64>,
     enabled: bool,
     macro_id: String,
+    macro_name: String,
     sequence: Rc<[MacroStep]>,
     on_change: EventHandler<MacroEditRequest>,
 }
@@ -456,7 +457,7 @@ fn StepEditor(props: StepEditorProps) -> Element {
             label {
                 "Step {index + 1}"
                 select {
-                    aria_label: format!("{} step {}", props.macro_id, index + 1),
+                    aria_label: crate::macro_accessible_names::step_kind_control_name(&props.macro_name, index),
                     value: "{kind}", disabled: !props.enabled,
                     onchange: { let context = request_context.clone(); let macro_id = macro_id.clone(); let sequence = sequence.clone(); move |event| {
                         let next = match event.value().as_str() {
@@ -474,7 +475,7 @@ fn StepEditor(props: StepEditorProps) -> Element {
             }
             if let MacroStep::Wait { .. } = accepted {
                 NumberDraft {
-                    label: "Delay (ms)", aria_label: format!("{} step {} delay", props.macro_id, index + 1),
+                    label: "Delay (ms)", aria_label: crate::macro_accessible_names::step_value_control_name(true).to_owned(),
                     accepted: value, identity: format!("{}:delay:{}", identity, value), enabled: props.enabled,
                     on_commit: { let context = request_context.clone(); let macro_id = macro_id.clone(); let sequence = sequence.clone(); EventHandler::new(move |ms| {
                         request(&context, MacroEditTarget::StepDelay { index }, Some(macro_id.clone()), Some(sequence.clone()),
@@ -483,7 +484,7 @@ fn StepEditor(props: StepEditorProps) -> Element {
                 }
             } else {
                 TextDraft {
-                    label: "Keycode", aria_label: format!("{} step {} keycode", props.macro_id, index + 1),
+                    label: "Keycode", aria_label: crate::macro_accessible_names::step_value_control_name(false).to_owned(),
                     accepted: keycode, identity: format!("{}:keycode:{}", identity, keycode_identity), enabled: props.enabled,
                     trim_on_commit: true,
                     commit_if_unchanged: true,
@@ -618,5 +619,110 @@ fn release_a() -> MacroStep {
         binding: boardstudio_core::model::KeyBinding::KeyPress {
             keycode: "A".into(),
         },
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod mounted_accessible_name_tests {
+    use super::*;
+    use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
+    use boardstudio_core::model::{KeyBinding, KeymapConfiguration, KeymapLayer, KeymapMacro};
+    use wasm_bindgen::JsValue;
+    use wasm_bindgen_test::*;
+    use web_sys::Element as DomElement;
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    #[component]
+    fn fixture() -> Element {
+        let steps: Rc<[MacroStep]> = Rc::from(vec![
+            MacroStep::Tap {
+                binding: KeyBinding::KeyPress {
+                    keycode: "A".into(),
+                },
+            },
+            MacroStep::Wait { ms: 100 },
+        ]);
+        let mut document = ProjectDoc::empty("doc", "Fixture");
+        document.keymap = Some(KeymapConfiguration {
+            layers: vec![KeymapLayer {
+                id: "base".into(),
+                name: "Base".into(),
+                bindings: Default::default(),
+                sensors: Default::default(),
+            }],
+            macros: vec![KeymapMacro {
+                id: "keymap-macro-11-131081".into(),
+                name: "Macro 1".into(),
+                steps: steps.to_vec(),
+                tap_ms: 30,
+                wait_ms: 0,
+            }],
+        });
+        let source = MacroReadSource::new(Arc::new(document), SnapshotToken(1), 0);
+        let sequences: Rc<[MacroStepSequence]> = Rc::from(vec![MacroStepSequence {
+            macro_id: Rc::from("keymap-macro-11-131081"),
+            steps,
+        }]);
+        let scope = Scope {
+            session_epoch: SessionEpoch(1),
+            document_id: "doc".into(),
+            board_id: "board".into(),
+            instance_id: None,
+        };
+        let request_sequence = use_signal(|| 0);
+        rsx! {
+            style { {include_str!("../../../assets/m1.css")} }
+            MacroEditor {
+                scope,
+                scope_generation: 1,
+                source,
+                sequences,
+                editor_instance_id: 1,
+                request_sequence,
+                enabled: true,
+                feedback: None,
+                on_change: EventHandler::new(|_: MacroEditRequest| {}),
+            }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_macro_editor_uses_display_and_visible_field_names() {
+        let root = mount();
+        settle().await;
+
+        assert!(element("select[aria-label='Macro 1 step 1']").is_ok());
+        assert!(element("select[aria-label='Macro 1 step 2']").is_ok());
+        assert!(element("input[aria-label='Keycode']").is_ok());
+        assert!(element("input[aria-label='Delay (ms)']").is_ok());
+        assert!(element("[aria-label^='keymap-macro-11-131081']").is_err());
+
+        root.remove();
+    }
+
+    fn mount() -> DomElement {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("keymap-macro-label-test-root");
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(fixture),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        root
+    }
+
+    async fn settle() {
+        gloo_timers::future::TimeoutFuture::new(40).await;
+    }
+
+    fn element(selector: &str) -> Result<DomElement, JsValue> {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector(&format!("#keymap-macro-label-test-root {selector}"))?
+            .ok_or_else(|| JsValue::from_str("expected mounted macro editor control"))
     }
 }
