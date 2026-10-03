@@ -586,8 +586,8 @@ pub fn App() -> Element {
                 details { class: "m1-save-state", "data-state": "{save_state}", onkeydown: move |event: KeyboardEvent| {
                     if event.data().key().to_string() == "Escape" {
                         event.prevent_default();
-                        if let Some(menu) = event.data().try_as_web_event().and_then(|event| event.current_target()).and_then(|target| target.dyn_into::<web_sys::HtmlDetailsElement>().ok()) {
-                            menu.set_open(false);
+                        if let Some(menu) = event.data().try_as_web_event().and_then(|event| event.current_target()).and_then(|target| target.dyn_into::<web_sys::Element>().ok()) {
+                            let _ = menu.remove_attribute("open");
                             if let Some(summary) = menu.query_selector("summary").ok().flatten().and_then(|element| element.dyn_into::<HtmlElement>().ok()) {
                                 let _ = summary.focus();
                             }
