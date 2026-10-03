@@ -92,6 +92,7 @@ fn mounted_inspector() -> Element {
         settings_actions: None,
         fit_state: None,
         fit_retry: EventHandler::new(|()| {}),
+        fit_navigate: EventHandler::new(|_| {}),
     })
 }
 

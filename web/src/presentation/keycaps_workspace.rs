@@ -1,5 +1,5 @@
 //! Keycaps-owned workspace surface composition.
-use super::keycaps_fit::{KeycapsFitInspector, KeycapsFitState};
+use super::keycaps_fit::{FindingNavigationRequest, KeycapsFitInspector, KeycapsFitState};
 use super::keycaps_scene::{KeycapsCanvas, KeycapsKeyList, KeycapsView};
 use super::keycaps_settings::{
     KeycapsBoardSettingsEditor, KeycapsMatrixSettingsEditor, KeycapsSettingsActions,
@@ -29,6 +29,7 @@ pub(super) struct InspectorInput {
     pub(super) settings_actions: Option<KeycapsSettingsActions>,
     pub(super) fit_state: Option<KeycapsFitState>,
     pub(super) fit_retry: EventHandler<()>,
+    pub(super) fit_navigate: EventHandler<FindingNavigationRequest>,
 }
 
 pub(super) fn objects(input: SharedObjectsInput) -> Element {
@@ -132,7 +133,12 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                         }
                     }
                 }
-                KeycapsFitInspector { document: input.document, state: input.fit_state, on_retry: input.fit_retry }
+                KeycapsFitInspector {
+                    document: input.document,
+                    state: input.fit_state,
+                    on_retry: input.fit_retry,
+                    on_navigate: input.fit_navigate,
+                }
             }
         }
     } else {

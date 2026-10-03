@@ -38,6 +38,22 @@ pub(super) struct KeycapsFitState {
     error: Option<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum FindingNavigationTarget {
+    Outline { board_id: String },
+    Part { board_id: String, part_id: String },
+    Matrix { board_id: String, matrix_id: String },
+    Body { board_id: String, body_id: String },
+    Board { board_id: String },
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct FindingNavigationRequest {
+    pub source: KeycapsFitSource,
+    pub finding: Finding,
+    pub target: FindingNavigationTarget,
+}
+
 #[derive(Clone)]
 pub(super) struct KeycapsFitActions {
     pub state: Option<KeycapsFitState>,
@@ -88,6 +104,20 @@ impl KeycapsFitState {
                 .accepted
                 .as_ref()
                 .is_some_and(|accepted| accepted.source == self.source)
+    }
+
+    pub(super) fn accepts_navigation(
+        &self,
+        request: &FindingNavigationRequest,
+        document: &ProjectDoc,
+    ) -> bool {
+        self.is_current()
+            && self.accepted.as_ref().is_some_and(|accepted| {
+                accepted.source == request.source
+                    && presented_findings(&accepted.result.findings, document)
+                        .iter()
+                        .any(|finding| finding == &request.finding)
+            })
     }
 }
 
@@ -158,6 +188,7 @@ pub(super) fn KeycapsFitInspector(
     document: Rc<ProjectDoc>,
     state: Option<KeycapsFitState>,
     on_retry: EventHandler<()>,
+    on_navigate: EventHandler<FindingNavigationRequest>,
 ) -> Element {
     let current_case = state
         .as_ref()
@@ -222,7 +253,12 @@ pub(super) fn KeycapsFitInspector(
                             h3 { "{group.label}" }
                             ul { class: "wb-findings",
                                 for finding in group.findings {
-                                    KeycapsFitFinding { finding, document: document.clone() }
+                                    KeycapsFitFinding {
+                                        finding,
+                                        document: document.clone(),
+                                        source: accepted.unwrap().source.clone(),
+                                        on_navigate,
+                                    }
                                 }
                             }
                         }
@@ -235,13 +271,25 @@ pub(super) fn KeycapsFitInspector(
 }
 
 #[component]
-fn KeycapsFitFinding(finding: Finding, document: Rc<ProjectDoc>) -> Element {
+fn KeycapsFitFinding(
+    finding: Finding,
+    document: Rc<ProjectDoc>,
+    source: KeycapsFitSource,
+    on_navigate: EventHandler<FindingNavigationRequest>,
+) -> Element {
     let (severity, severity_class) = match &finding.severity {
         Severity::Error => ("Error", "error"),
         Severity::Warning => ("Warning", "warning"),
         Severity::Info => ("Information", "info"),
     };
     let fitted = finding.id.ends_with("outline:corners:fitted");
+    let navigation_target = finding_navigation_target(&finding, &document);
+    let action_label = finding_action_label(&finding, &document, &source.scope.board_id);
+    let request = navigation_target.map(|target| FindingNavigationRequest {
+        source,
+        finding: finding.clone(),
+        target,
+    });
     rsx! {
         li { class: "m1-keycaps-fit-finding is-{severity_class}",
             span { class: "wb-finding-mark", "aria-hidden": "true" }
@@ -250,6 +298,13 @@ fn KeycapsFitFinding(finding: Finding, document: Rc<ProjectDoc>) -> Element {
                 p { "{finding.message}" }
                 if fitted {
                     p { "The resulting outline has smaller corners than requested. Review the corner size and nearby spacing." }
+                }
+                if let (Some(action_label), Some(request)) = (action_label, request) {
+                    button {
+                        class: "wb-finding-action",
+                        onclick: move |_| on_navigate.call(request.clone()),
+                        "{action_label}"
+                    }
                 }
             }
         }
@@ -414,11 +469,202 @@ fn finding_target_label(finding: &Finding, document: &ProjectDoc) -> Option<Stri
         .or_else(|| board.map(|board| board.name.clone()))
 }
 
+pub(super) fn finding_navigation_target(
+    finding: &Finding,
+    document: &ProjectDoc,
+) -> Option<FindingNavigationTarget> {
+    // Keep the same precedence as React's findingTarget: outline, part, matrix, body, board.
+    let active_outline = document.board_outlines.iter().find_map(|owner| {
+        owner
+            .versions
+            .iter()
+            .find(|version| {
+                Some(&version.id) == owner.active_version_id.as_ref()
+                    && version
+                        .geometry
+                        .features
+                        .iter()
+                        .any(|feature| finding.target_ids.iter().any(|id| id == feature.id()))
+            })
+            .map(|version| (owner, version))
+    });
+    let outline = document
+        .outline
+        .iter()
+        .find(|feature| finding.target_ids.iter().any(|id| id == feature.id()))
+        .or_else(|| {
+            active_outline.and_then(|(_, version)| {
+                version
+                    .geometry
+                    .features
+                    .iter()
+                    .find(|feature| finding.target_ids.iter().any(|id| id == feature.id()))
+            })
+        });
+    let outline_board = active_outline
+        .map(|(owner, _)| owner.board_id.as_str())
+        .or_else(|| {
+            outline.and_then(|feature| {
+                document.boards.iter().find_map(|board| {
+                    board
+                        .outline_ids
+                        .iter()
+                        .any(|outline_id| outline_id == feature.id())
+                        .then_some(board.id.as_str())
+                })
+            })
+        });
+    if let Some(board_id) = outline_board {
+        return Some(FindingNavigationTarget::Outline {
+            board_id: board_id.to_owned(),
+        });
+    }
+    if let Some(part) = document
+        .parts
+        .iter()
+        .find(|part| finding.target_ids.iter().any(|id| id == &part.id))
+    {
+        let board_id = document
+            .boards
+            .iter()
+            .find(|board| board.part_ids.contains(&part.id))?;
+        return Some(FindingNavigationTarget::Part {
+            board_id: board_id.id.clone(),
+            part_id: part.id.clone(),
+        });
+    }
+    if let Some(matrix) = document
+        .matrices
+        .iter()
+        .find(|matrix| finding.target_ids.iter().any(|id| id == &matrix.id))
+    {
+        let board_id = matrix.board_id.as_ref().or_else(|| {
+            document
+                .boards
+                .iter()
+                .find(|board| matrix.part_ids.iter().any(|id| board.part_ids.contains(id)))
+                .map(|board| &board.id)
+        })?;
+        return Some(FindingNavigationTarget::Matrix {
+            board_id: board_id.clone(),
+            matrix_id: matrix.id.clone(),
+        });
+    }
+    if let Some(body) = document
+        .case_bodies
+        .iter()
+        .find(|body| finding.target_ids.iter().any(|id| id == &body.id))
+    {
+        return Some(FindingNavigationTarget::Body {
+            board_id: body.board_id.clone(),
+            body_id: body.id.clone(),
+        });
+    }
+    document
+        .boards
+        .iter()
+        .find(|board| finding.target_ids.iter().any(|id| id == &board.id))
+        .map(|board| FindingNavigationTarget::Board {
+            board_id: board.id.clone(),
+        })
+}
+
+pub(super) fn navigation_bounds(
+    document: &ProjectDoc,
+    view: Option<&super::keycaps_scene::KeycapsView>,
+    contours: &[boardstudio_core::model::Contour],
+    target: &FindingNavigationTarget,
+) -> Option<(f64, f64, f64, f64)> {
+    let view = view?;
+    let mut bounds: Option<(f64, f64, f64, f64)> = None;
+    let mut include = |x: f64, y: f64| {
+        bounds = Some(bounds.map_or((x, x, y, y), |(min_x, max_x, min_y, max_y)| {
+            (min_x.min(x), max_x.max(x), min_y.min(y), max_y.max(y))
+        }));
+    };
+    let key_ids: Vec<&str> = match target {
+        FindingNavigationTarget::Part { part_id, .. } => vec![part_id],
+        FindingNavigationTarget::Matrix { matrix_id, .. } => document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == *matrix_id)?
+            .part_ids
+            .iter()
+            .map(String::as_str)
+            .collect(),
+        FindingNavigationTarget::Outline { .. } | FindingNavigationTarget::Board { .. } => {
+            view.keys.iter().map(|key| key.id.as_ref()).collect()
+        }
+        FindingNavigationTarget::Body { .. } => return None,
+    };
+    for key in view
+        .keys
+        .iter()
+        .filter(|key| key_ids.iter().any(|id| *id == key.id.as_ref()))
+    {
+        let angle = key.pose.rotation.to_radians();
+        let (sin, cos) = angle.sin_cos();
+        for (local_x, local_y) in [
+            (-key.size.x / 2.0, -key.size.y / 2.0),
+            (-key.size.x / 2.0, key.size.y / 2.0),
+            (key.size.x / 2.0, -key.size.y / 2.0),
+            (key.size.x / 2.0, key.size.y / 2.0),
+        ] {
+            include(
+                key.pose.at.x + local_x * cos - local_y * sin,
+                key.pose.at.y + local_x * sin + local_y * cos,
+            );
+        }
+    }
+    if matches!(
+        target,
+        FindingNavigationTarget::Outline { .. } | FindingNavigationTarget::Board { .. }
+    ) {
+        for contour in contours {
+            for point in &contour.points {
+                include(point.x, point.y);
+            }
+        }
+    }
+    let (min_x, max_x, min_y, max_y) = bounds?;
+    Some((min_x - 12.0, max_x + 12.0, min_y - 12.0, max_y + 12.0))
+}
+
+fn finding_action_label(
+    finding: &Finding,
+    document: &ProjectDoc,
+    active_board_id: &str,
+) -> Option<&'static str> {
+    finding_navigation_target(finding, document)
+        .filter(|target| target_board_id(target) == active_board_id)
+        .map(|target| match target {
+            FindingNavigationTarget::Outline { .. } => "Show outline",
+            FindingNavigationTarget::Part { .. }
+            | FindingNavigationTarget::Matrix { .. }
+            | FindingNavigationTarget::Body { .. }
+            | FindingNavigationTarget::Board { .. } => "Select affected geometry",
+        })
+}
+
+fn target_board_id(target: &FindingNavigationTarget) -> &str {
+    match target {
+        FindingNavigationTarget::Outline { board_id }
+        | FindingNavigationTarget::Part { board_id, .. }
+        | FindingNavigationTarget::Matrix { board_id, .. }
+        | FindingNavigationTarget::Body { board_id, .. }
+        | FindingNavigationTarget::Board { board_id } => board_id,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use boardstudio_application::{SessionEpoch, SnapshotToken};
     use boardstudio_core::model::{Board, KeycapResolution};
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::*;
+
+    wasm_bindgen_test_configure!(run_in_browser);
 
     fn source(revision: u64) -> KeycapsFitSource {
         KeycapsFitSource {
@@ -434,7 +680,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn same_source_retry_and_failure_keep_retained_result_stale() {
         let mut accepted = KeycapsFitState::begin(source(1), None);
         accepted.finish(Ok(KeycapResolution {
@@ -456,11 +702,11 @@ mod tests {
         );
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn findings_are_deduplicated_severity_sorted_and_grouped_like_react() {
         let mut document = ProjectDoc::empty("doc", "Project");
         document.boards.push(Board {
-            id: "board-1".into(),
+            id: "board".into(),
             name: "Left PCB".into(),
             outline_ids: vec![],
             part_ids: vec![],
@@ -474,7 +720,7 @@ mod tests {
             severity: Severity::Warning,
             scope: FindingScope::Layout,
             message: "Keycaps are close".into(),
-            target_ids: vec!["board-1".into()],
+            target_ids: vec!["board".into()],
         };
         let duplicate = Finding {
             id: "other-board:board-1:feature:clearance:near-key".into(),
@@ -498,5 +744,117 @@ mod tests {
             1,
             "same feature/message/geometry collapses"
         );
+    }
+
+    #[wasm_bindgen_test]
+    fn actionable_board_target_has_react_label_and_targetless_finding_has_no_action() {
+        let mut document = ProjectDoc::empty("doc", "Project");
+        document.boards.push(Board {
+            id: "board".into(),
+            name: "Left PCB".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        let finding = Finding {
+            id: "board:board:invalid-settings".into(),
+            severity: Severity::Error,
+            scope: FindingScope::Layout,
+            message: "Invalid board setting".into(),
+            target_ids: vec!["board".into()],
+        };
+        assert_eq!(
+            finding_action_label(&finding, &document, "board"),
+            Some("Select affected geometry")
+        );
+        assert_eq!(
+            finding_action_label(&finding, &document, "other-board"),
+            None
+        );
+        let targetless = Finding {
+            target_ids: vec![],
+            ..finding
+        };
+        assert_eq!(finding_action_label(&targetless, &document, "board"), None);
+    }
+
+    fn mounted_action() -> Element {
+        let mut navigated = use_signal(|| false);
+        let accepted_source = source(1);
+        let finding = Finding {
+            id: "board:board:invalid-settings".into(),
+            severity: Severity::Error,
+            scope: FindingScope::Layout,
+            message: "Invalid board setting".into(),
+            target_ids: vec!["board".into()],
+        };
+        let mut accepted = KeycapsFitState::begin(accepted_source.clone(), None);
+        accepted.finish(Ok(KeycapResolution {
+            revision: 1,
+            specs: vec![],
+            findings: vec![finding],
+        }));
+        let mut document = ProjectDoc::empty("doc", "Project");
+        document.boards.push(Board {
+            id: "board".into(),
+            name: "Left PCB".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        let on_navigate = EventHandler::new(move |request: FindingNavigationRequest| {
+            navigated.set(
+                request.target
+                    == FindingNavigationTarget::Board {
+                        board_id: "board".into(),
+                    },
+            );
+        });
+        rsx! {
+            div {
+                KeycapsFitInspector {
+                    document: Rc::new(document),
+                    state: Some(accepted),
+                    on_retry: EventHandler::new(|()| {}),
+                    on_navigate,
+                }
+                p { id: "fit-navigation-received", "{navigated()}" }
+            }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_finding_action_uses_react_label_and_emits_current_target() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(mounted_action),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(50).await;
+        let action = root
+            .query_selector(".wb-finding-action")
+            .unwrap()
+            .expect("current board target has an action");
+        assert_eq!(
+            action.text_content().as_deref(),
+            Some("Select affected geometry")
+        );
+        action.dyn_ref::<web_sys::HtmlElement>().unwrap().click();
+        gloo_timers::future::TimeoutFuture::new(50).await;
+        let received = root
+            .query_selector("#fit-navigation-received")
+            .unwrap()
+            .unwrap()
+            .text_content();
+        assert_eq!(received.as_deref(), Some("true"));
+        root.remove();
     }
 }
