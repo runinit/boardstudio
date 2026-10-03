@@ -23,3 +23,11 @@ The bounded source correction adds the same value-baseline reconciliation alread
 - [Dioxus Undo RED: Saved revision with stale 3.5 radius](screenshots/dioxus-34759-undo-inspector-stale.png)
 - [Dioxus Redo comparison](screenshots/dioxus-34759-redo.png)
 - [React Redo comparison](screenshots/react-34759-redo.png)
+
+## Corrected candidate GREEN
+
+Candidate source `2107f980e9b45c341bff10548c7156b28de0e388` at `34761`, provider provenance SHA-256 `2d218936e847ba8f4d8680e5ecc4b3f5a05c3ce88c85a2152e2397cd84020ac9`. With the same layered Sofle fixture in an independent browser profile, I copied Generated to the active fixed `Edited outline 1`, renamed it `QA Outline`, changed Fillet radius `2 → 3.5`, then pressed Undo while keeping the same Outline selection mounted. The accepted Inspector immediately displayed radius `2`; the footer showed `Revision 13 · Saved`. No selection-away/back was used. This is the single changed-journey GREEN for the correction. The existing paired Redo/reopen evidence above is reused. The browser error buffer was empty and the session was closed.
+
+- [Dioxus 34761: same-context Undo immediately shows radius 2](screenshots/dioxus-34761-undo-radius-refreshed.png)
+
+The source correction's integrated strict page all-target Clippy passed at root; no additional compile or test was run for this public receipt. The broader F3.4b settings/rename/gap matrix, F3.4/F3.7 criteria, and parent graph remain open.
