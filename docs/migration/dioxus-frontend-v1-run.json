@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T15:32:27.759310+00:00",
+    "updated_at": "2026-10-03T15:35:42.062739+00:00",
     "parent_counts": {
       "accepted": 10,
       "implementing": 41,
@@ -25,27 +25,27 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-compact-transform-repair-20261003",
-      "source_commit": "7938a895a6d2a9c3b8c09dda25ce70cd45f7d328",
-      "root_url": "http://127.0.0.1:34771/",
-      "subpath_url": "http://127.0.0.1:34771/boardstudio/",
-      "provenance": "web/target/builds/frontend-compact-transform-repair-20261003/provenance.json",
-      "provenance_sha256": "717968702d722ed257f4bf5096360b7f8776eaf70ee3f056223f1fd7d0ece48f",
-      "fresh_commands": 8,
+      "build_id": "frontend-source-batch-20261003-3",
+      "source_commit": "53645aa3b8a20f90b3e1e2ff2efa722ce73688a2",
+      "root_url": "http://127.0.0.1:34772/",
+      "subpath_url": "http://127.0.0.1:34772/boardstudio/",
+      "provenance": "web/target/builds/frontend-source-batch-20261003-3/provenance.json",
+      "provenance_sha256": "d3afadb706e6c2c779761f32cb054bd045a6947d613106fe8b7ae1cf9d83644c",
+      "fresh_commands": 7,
       "inherited_commands": 22,
-      "source_inputs": 1373,
+      "source_inputs": 1380,
       "source_mismatches": 0,
-      "assets_per_route": 154,
-      "command_span_seconds": 116.500545,
-      "package_qualification": "Retained34771 package proof and bounded paired journeys; source batch below is newer and not yet packaged or browser-qualified.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34771-20261003/package-proof.json"
+      "assets_per_route": 190,
+      "command_span_seconds": 131.926942,
+      "package_qualification": "Package/source/HTTP assets only. No new application tests, browser journeys or review.",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34772-20261003/package-proof.json"
     },
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "985f214f86afa17807ef05a4b154e318eeb36638",
-      "state": "Larger source batch integrated and combined WASM page source compiles. Preparing fresh preview package; application tests/browser qualification/consolidated review deferred.",
+      "source_commit": "fc3b1d5ad624de5842c6d2c9f1f34ecb62f9cd64",
+      "state": "Larger source batch packaged and served at34772. Manual PCB-net conflict/release source joined afterward; pending next batch compile/package. Application tests/browser journeys/review remain deferred.",
       "packets": [
         {
           "stream": "Layout",
@@ -249,6 +249,13 @@
           "integrated_commit": "3ec8b36f+211f960e+5bb7e67a+985f214f",
           "change": "Joined module type/RSX/ownership fixes without new tickets or reviews",
           "qualification": "Source integrated; behavioral qualification deferred."
+        },
+        {
+          "stream": "PCB",
+          "integrated_commit": "fc3b1d5ad624de5842c6d2c9f1f34ecb62f9cd64",
+          "author_commit": "dd5c36330bd1bc905d7913da8817aabb0f58ecbd",
+          "change": "Review conflicting manual connection names/count and release only current proposed conflicting pins before Apply",
+          "qualification": "Source integrated after34772; not yet packaged or behaviorally qualified."
         }
       ],
       "qualification": "Joined source is not acceptance. No new application tests or browser qualification were run for this batch."
@@ -322,6 +329,15 @@
           "provenance": "web/target/builds/frontend-source-batch-20261003-2/provenance.json",
           "provenance_sha256": "7b4b15198bc560850fae7ebf043745a9e1e4ac83a59754ba3013fb8cc4fcf7a0",
           "qualification": "Failed source compilation after fresh fixtures. Retained logs; switched to cached compile-only pass before next packaging attempt. No tests/browser/review."
+        },
+        {
+          "build_id": "frontend-source-batch-20261003-3",
+          "source_commit": "53645aa3b8a20f90b3e1e2ff2efa722ce73688a2",
+          "exit_code": 0,
+          "result": "complete",
+          "provenance": "web/target/builds/frontend-source-batch-20261003-3/provenance.json",
+          "provenance_sha256": "d3afadb706e6c2c779761f32cb054bd045a6947d613106fe8b7ae1cf9d83644c",
+          "qualification": "Package/source/HTTP assets only. No new application tests, browser journeys or review."
         }
       ],
       "source_compile": {
@@ -377,7 +393,7 @@
       },
       {
         "stream": "PCB",
-        "state": "Routed-board import/replace and model discovery/attachment joined. Author adding manual-net conflict/release control from pinned TS source."
+        "state": "Reference import/model attachments served34772. Manual-net conflict/release source joined afterward. Source pass found no further owned controller/pin/jumper/profile control gap; final behavioral joins remain."
       },
       {
         "stream": "Keymap",
@@ -398,9 +414,9 @@
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Clear combined source compiler errors before a fresh preview package; preserve failed logs and source pins.",
-      "Join actual Outline, PCB conflict-release and Assembly placement/binding gaps from original authors without per-packet review/test waits.",
-      "Package frozen larger source then show preview; defer changed public qualification and one consolidated Sol review. Keep one live record and RF deltas."
+      "Continue original Outline and Assembly authors on real attachment/connection and saved-assembly placement/binding gaps. Join ready source serially without confirmation/test/review handoffs.",
+      "Clear combined compiler diagnostics before next preview package;34772 remains the served larger candidate.",
+      "Later qualify changed public journeys and consolidate Sol review once. Preserve every parent criterion, one live record and architecture ledger."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
