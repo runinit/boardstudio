@@ -6,7 +6,7 @@
 
 **Blocked by:** None for capability start. Existing catalogue/placement/controller transactions are mounted. One waiting PCB packet is the dispatch limit; PCB16 is the current waiting packet, not an unrelated functional prerequisite.
 
-**Status:** ready-for-agent
+**Status:** implemented; integrated candidate journey pending
 
 **Spec:** [PCB controller chooser](../drafts/F5.2f-pcb-controller-chooser.md).
 
@@ -16,3 +16,5 @@
 - [ ] Project/board/session replacement retires the ordinary chooser and suppresses old definition/preview results.
 - [ ] Setup-guide origin keeps its existing owner requirements and behavior.
 - [ ] One affected compile, changed paired journey and consolidated candidate review are retained with all parent/RF limits.
+
+Source handoff: explicit PcbController workflow and accepted ordinary chooser owner; current Parts Back to PCB and Place component route through existing placement transactions. Snapshot/scope/generation guard browsing and asynchronous placement; guide-stage guard still applies only to the guided workflow. Strict page WASM all-target Clippy and fmt/diff pass (final pane-open Boolean is covered by the forthcoming package compile). Actual changed paired commit/history/reopen acceptance remains pending.

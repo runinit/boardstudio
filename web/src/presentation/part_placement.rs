@@ -30,7 +30,30 @@ use wasm_bindgen_futures::spawn_local;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum PlacementWorkflow {
     WiringController,
+    PcbController,
     GeneralComponent,
+}
+
+impl PlacementWorkflow {
+    fn is_controller(self) -> bool {
+        self != Self::GeneralComponent
+    }
+}
+
+#[derive(Clone)]
+struct ControllerChooserOwner {
+    accepted: AcceptedSnapshot,
+    scope: Scope,
+    generation: u64,
+}
+
+impl ControllerChooserOwner {
+    fn is_current(&self, runtime: &dyn PlacementRuntime, generation: u64, workspace: &str) -> bool {
+        workspace == "Parts"
+            && generation == self.generation
+            && runtime.scope().as_ref() == Some(&self.scope)
+            && accepted_snapshot_is_current(runtime, &self.accepted)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -138,7 +161,7 @@ impl PlacementOwner {
             && snapshot.document.id == self.project_id
             && snapshot.document.revision == self.revision
             && self.board_id == self.scope.board_id
-            && (self.workflow == PlacementWorkflow::GeneralComponent
+            && (self.workflow != PlacementWorkflow::WiringController
                 || (guide_open
                     && guide_project_id == Some(self.project_id.as_str())
                     && guide_stage_is_wiring))
@@ -207,6 +230,8 @@ pub(super) struct PartPlacementMount {
     pub(super) error: Option<String>,
     pub(super) on_choose_controller: EventHandler<()>,
     pub(super) on_place_controller: EventHandler<String>,
+    pub(super) controller_placement_enabled: bool,
+    pub(super) controller_back: Option<EventHandler<()>>,
     pub(super) on_place_component: EventHandler<ComponentPlacementAction>,
     pub(super) on_move: EventHandler<Vec2>,
     pub(super) on_commit: EventHandler<Vec2>,
@@ -428,6 +453,7 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
         mut inspect_open,
         canvas_interaction,
     } = host;
+    let chooser = use_signal(|| None::<ControllerChooserOwner>);
     let active = use_signal(|| None::<ActivePartPlacement>);
     let preparing = use_signal(|| None::<PlacementOwner>);
     let committing = use_signal(|| None::<PendingCommit>);
@@ -439,12 +465,20 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
         move || alive.set(false)
     });
 
+    let action_owner = ComponentActionOwner::capture(
+        runtime.as_ref(),
+        generation(),
+        workspace(),
+        (adapter.selected_context)(),
+    );
     let on_choose_controller = {
         let runtime = runtime.clone();
         let mut workspace = workspace;
         let mut query = parts_query;
         let mut selected = parts_selection;
         let guide = guide_preferences;
+        let entry_owner = action_owner.clone();
+        let mut chooser = chooser;
         let mut selected_context = adapter.selected_context;
         let mut anchor_scope = adapter.anchor_scope;
         let canvas_interaction = canvas_interaction.clone();
@@ -460,20 +494,37 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
             else {
                 return;
             };
-            if !guide().as_ref().is_some_and(|preferences| {
+            let guided = guide().as_ref().is_some_and(|preferences| {
                 preferences.project_id == project_id
                     && preferences.open
                     && preferences.current_stage == SetupGuideStage::Wiring
-            }) {
+            });
+            let Some(owner) = entry_owner.as_ref().filter(|owner| {
+                owner.is_current(
+                    runtime.as_ref(),
+                    generation(),
+                    workspace(),
+                    selected_context(),
+                    owner.workspace,
+                )
+            }) else {
+                return;
+            };
+            if !guided && owner.workspace != "PCB" {
                 return;
             }
+            chooser.set((!guided).then(|| ControllerChooserOwner {
+                accepted: owner.accepted.clone(),
+                scope: owner.scope.clone(),
+                generation: owner.generation,
+            }));
             workspace.set("Parts");
             query.set("controller".into());
             selected.set(None);
             selected_context.set(None);
             anchor_scope.set(None);
             objects_open.set(true);
-            inspect_open.set(false);
+            inspect_open.set(!guided);
             runtime.submit(Event::SelectParts {
                 operation_id: runtime.operation(),
                 part_ids: Vec::new(),
@@ -500,7 +551,9 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
                   apply_to_key: bool| {
                 let source_workspace = workspace();
                 if match workflow {
-                    PlacementWorkflow::WiringController => source_workspace != "Parts",
+                    PlacementWorkflow::WiringController | PlacementWorkflow::PcbController => {
+                        source_workspace != "Parts"
+                    }
                     PlacementWorkflow::GeneralComponent => {
                         !matches!(source_workspace, "Parts" | "Layout")
                     }
@@ -558,7 +611,11 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
                         && preferences.current_stage == SetupGuideStage::Wiring
                         && preferences.project_id == snapshot.document.id
                 });
+                let pcb_chooser_is_live = chooser.read().as_ref().is_some_and(|owner| {
+                    owner.is_current(runtime.as_ref(), generation(), source_workspace)
+                });
                 if (workflow == PlacementWorkflow::WiringController && !guide_is_live)
+                    || (workflow == PlacementWorkflow::PcbController && !pcb_chooser_is_live)
                     || model.lifecycle != Lifecycle::Ready
                     || model.durability
                         != (Durability::Saved {
@@ -816,8 +873,7 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
                         ));
                         return;
                     }
-                    if workflow == PlacementWorkflow::WiringController
-                        && !matches!(definition.kind, PartKind::Controller)
+                    if workflow.is_controller() && !matches!(definition.kind, PartKind::Controller)
                     {
                         preparing.set(None);
                         error.set(Some(
@@ -825,7 +881,7 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
                         ));
                         return;
                     }
-                    let pending = if workflow == PlacementWorkflow::WiringController {
+                    let pending = if workflow.is_controller() {
                         controller_part(
                             definition,
                             owner.part_id.clone(),
@@ -871,7 +927,7 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
                         pending,
                     }));
                     preparing.set(None);
-                    if workflow == PlacementWorkflow::WiringController {
+                    if workflow.is_controller() {
                         query.set("controller".into());
                     }
                     workspace.set("Layout");
@@ -887,23 +943,62 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
             },
         ))
     };
+    let ordinary_controller = chooser
+        .read()
+        .as_ref()
+        .is_some_and(|owner| owner.is_current(runtime.as_ref(), generation(), workspace()));
+    let guided_controller = guide_preferences().as_ref().is_some_and(|preferences| {
+        preferences.open
+            && preferences.current_stage == SetupGuideStage::Wiring
+            && runtime
+                .model()
+                .accepted
+                .as_ref()
+                .is_some_and(|accepted| preferences.project_id == accepted.document.id)
+    });
     let on_place_controller = {
         let start = start_placement.clone();
+        let runtime = runtime.clone();
+        let controller_action_owner = action_owner.clone();
+        let selected_context = adapter.selected_context;
+        let workflow = if ordinary_controller {
+            PlacementWorkflow::PcbController
+        } else {
+            PlacementWorkflow::WiringController
+        };
         move |definition_id: String| {
-            start.borrow_mut()(
-                definition_id,
-                PartKind::Controller,
-                PlacementWorkflow::WiringController,
-                false,
-            );
+            if workflow == PlacementWorkflow::PcbController
+                && !controller_action_owner.as_ref().is_some_and(|owner| {
+                    owner.is_current(
+                        runtime.as_ref(),
+                        generation(),
+                        workspace(),
+                        selected_context(),
+                        "Parts",
+                    )
+                })
+            {
+                return;
+            }
+            start.borrow_mut()(definition_id, PartKind::Controller, workflow, false);
         }
     };
-    let action_owner = ComponentActionOwner::capture(
-        runtime.as_ref(),
-        generation(),
-        workspace(),
-        (adapter.selected_context)(),
-    );
+    let controller_back =
+        ordinary_controller.then(|| {
+            let runtime = runtime.clone();
+            let mut workspace = workspace;
+            let mut chooser = chooser;
+            let canvas_interaction = canvas_interaction.clone();
+            EventHandler::new(move |_| {
+                if chooser.read().as_ref().is_some_and(|owner| {
+                    owner.is_current(runtime.as_ref(), generation(), workspace())
+                }) && canvas_interaction.current().is_none()
+                {
+                    chooser.set(None);
+                    workspace.set("PCB");
+                }
+            })
+        });
     let on_place_component = {
         let start = start_placement;
         let runtime = runtime.clone();
@@ -954,9 +1049,20 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
     let cleanup_runtime = runtime.clone();
     let mut cleanup_active = active;
     let mut cleanup_preparing = preparing;
+    let mut cleanup_chooser = chooser;
     use_effect(use_reactive!(
         |observed_version, observed_generation, observed_workspace, observed_guide| {
             let _ = observed_version;
+            let stale_chooser = cleanup_chooser.read().as_ref().is_some_and(|owner| {
+                !owner.is_current(
+                    cleanup_runtime.as_ref(),
+                    observed_generation,
+                    observed_workspace,
+                )
+            });
+            if stale_chooser {
+                cleanup_chooser.set(None);
+            }
             let model = cleanup_runtime.model();
             let stale_active = cleanup_active.read().as_ref().is_some_and(|placement| {
                 !owner_is_live(
@@ -1180,7 +1286,7 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
                     };
                     selected_context.set(next_context);
                     anchor_scope.set(None);
-                    workspace.set(if owner.workflow == PlacementWorkflow::WiringController {
+                    workspace.set(if owner.workflow.is_controller() {
                         "PCB"
                     } else {
                         "Layout"
@@ -1205,7 +1311,7 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
                         .is_some_and(|accepted| owner_snapshot_is_current(accepted, &owner))
                     && let Some(message) = placement_failure_message(terminal.as_ref())
                 {
-                    workspace.set(if owner.workflow == PlacementWorkflow::WiringController {
+                    workspace.set(if owner.workflow.is_controller() {
                         "Parts"
                     } else {
                         "Layout"
@@ -1266,7 +1372,7 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
             if current {
                 selected_context.set(None);
                 anchor_scope.set(None);
-                workspace.set(if owner.workflow == PlacementWorkflow::WiringController {
+                workspace.set(if owner.workflow.is_controller() {
                     "PCB"
                 } else {
                     "Layout"
@@ -1317,6 +1423,8 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
         error: error(),
         on_choose_controller: EventHandler::new(on_choose_controller),
         on_place_controller: EventHandler::new(on_place_controller),
+        controller_placement_enabled: ordinary_controller || guided_controller,
+        controller_back,
         on_place_component: EventHandler::new(on_place_component),
         on_move,
         on_commit,
@@ -1370,7 +1478,7 @@ fn placement_route_is_current(
             && runtime.scope().as_ref() == Some(&owner.scope)
             && generation == owner.generation
             && workspace == "Layout"
-    }) && (owner.workflow == PlacementWorkflow::GeneralComponent
+    }) && (owner.workflow != PlacementWorkflow::WiringController
         || preferences.as_ref().is_some_and(|preferences| {
             preferences.open
                 && preferences.project_id == owner.project_id

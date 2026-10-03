@@ -5901,6 +5901,7 @@ fn Editor() -> Element {
         ))),
         "Parts" => Some(workspace_composition::WorkspaceCanvasInput::Parts(
             parts_workspace::CanvasInput {
+                controller_back: part_placement.controller_back,
                 snapshot: snapshot.clone(),
                 scope: current_scope.clone(),
                 query: parts_query,
@@ -5981,13 +5982,7 @@ fn Editor() -> Element {
                 selected_context: adapter.selected_context,
                 on_place_controller: part_placement.on_place_controller,
                 on_place_component: part_placement.on_place_component,
-                controller_placement_enabled: guide_preferences().as_ref().is_some_and(
-                    |preferences| {
-                        preferences.open
-                            && preferences.project_id == document.id
-                            && preferences.current_stage == SetupGuideStage::Wiring
-                    },
-                ),
+                controller_placement_enabled: part_placement.controller_placement_enabled,
                 placement_busy: part_placement.busy,
                 placement_error: part_placement.error.clone(),
                 layout_target,
@@ -6035,6 +6030,7 @@ fn Editor() -> Element {
                     part_input_actions: part_input_actions.clone(),
                     on_firmware_edit: firmware_position_actions.on_edit,
                     on_resolve: pcb_wiring_mount.on_resolve,
+                    on_choose_controller: part_placement.on_choose_controller,
                     on_edit_board_wiring: workspace_callbacks.pcb_wiring_edit_board,
                     mode_actions: pcb_wiring_mode_actions.clone(),
                     pin_actions: pcb_wiring_pin_actions.clone(),

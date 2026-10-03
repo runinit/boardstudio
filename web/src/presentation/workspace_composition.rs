@@ -115,6 +115,7 @@ pub(super) fn inspector(input: WorkspaceInspectorInput) -> Element {
                 part_input_actions: input.part_input_actions,
                 on_firmware_edit: input.on_firmware_edit,
                 on_resolve: input.on_resolve,
+                on_choose_controller: input.on_choose_controller,
                 on_edit_board_wiring: input.on_edit_board_wiring,
                 mode_actions: input.mode_actions,
                 pin_actions: input.pin_actions,

@@ -30,6 +30,7 @@ pub(super) struct InspectorInput {
 }
 
 pub(super) struct CanvasInput {
+    pub(super) controller_back: Option<EventHandler<()>>,
     pub(super) snapshot: AcceptedSnapshot,
     pub(super) scope: Option<Scope>,
     pub(super) query: PartsQuery,
@@ -66,6 +67,9 @@ pub(super) fn canvas(mut input: PlaceholderInput) -> Element {
 
 pub(super) fn preview(input: CanvasInput) -> Element {
     rsx! {
+        if let Some(on_back) = input.controller_back {
+            button { class: "m1-parts-controller-back", type: "button", onclick: move |_| on_back.call(()), "Back to PCB" }
+        }
         PartsPreviewWorkspace {
             snapshot: input.snapshot,
             scope: input.scope,

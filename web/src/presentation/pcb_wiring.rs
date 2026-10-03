@@ -262,6 +262,7 @@ pub(in crate::presentation) struct PcbWiringInspectorProps {
     pub part_input_actions: PartInputActions,
     pub on_firmware_edit: EventHandler<FirmwarePositionEditRequest>,
     pub on_resolve: EventHandler<()>,
+    pub on_choose_controller: EventHandler<()>,
     pub on_edit_board_wiring: EventHandler<()>,
     pub mode_actions: BoardWiringModeActions,
     pub pin_actions: PcbWiringPinActions,
@@ -1001,6 +1002,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
         .map(|plan| plan.free_pins.as_slice())
         .unwrap_or(&[]);
     let on_resolve = props.on_resolve;
+    let on_choose_controller = props.on_choose_controller;
     let mode_actions = props.mode_actions.clone();
     let selected_mode = match display.mode {
         ElectricalMode::Matrix => "matrix",
@@ -1048,6 +1050,10 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                     option { value: "matrix", "Matrix" }
                     option { value: "direct", "Direct GPIO" }
                 }
+            }
+            if display.controller_choices.is_empty() {
+                p { "Place a controller from Parts to assign this board’s wiring." }
+                button { type: "button", onclick: move |_| on_choose_controller.call(()), "Add controller" }
             }
             if let Some(feedback) = &mode_actions.feedback {
                 if matches!(feedback.state, BoardWiringModeFeedback::Pending) {

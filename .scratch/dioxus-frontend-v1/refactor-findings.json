@@ -214,6 +214,12 @@
           "evidence": ".scratch/dioxus-pcb-view/issues/15-mounted-module-layer-inventory.md",
           "observation": "The complete ten-row module inventory consumes the accepted source geometry and existing independent transient owner. Read-only board/hole/support/clearance/artwork and module error marker overlays remain distinct from host circuitry; no duplicated Core/CAD or persisted state.",
           "status": "One affected strict check passes; changed paired public journey and consolidated candidate review pending. Owning-module navigation/shared finding focus/full F5.4 remain open; no new RF ID."
+        },
+        {
+          "source": "PCB17 ordinary controller chooser packet",
+          "evidence": ".scratch/dioxus-pcb-view/evidence/17-controller-chooser-20261003/source-handoff.md",
+          "observation": "Controller entry callback shape hid a mandatory setup-guide origin and PCB return route. Reusing it from ordinary PCB would be inert; explicit accepted ordinary chooser origin now separates those private workflows while sharing transaction/lifecycle code.",
+          "status": "source implemented; actual integrated journey pending; broad intent/composition refactor deferred"
         }
       ],
       "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted.",
