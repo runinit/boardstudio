@@ -4,7 +4,7 @@
 
 - Candidate: `http://127.0.0.1:34767/boardstudio/`
 - Integrated source: `3a080e0e99d0638ddc1b562b3fc5a8ac91f3fefd`
-- Build: `frontend-project-demo-cards-fresh-copies-20261003`
+- Build: `frontend-six-stream-parity-recovery-20261003`
 - Provenance SHA-256: `96d7bc6289aedaadd8198bb9038c67d24fc659fde847362b24c7504313cbc733`
 - Coordinator package evidence: full 22-command check set passed; strict page WASM all-target Clippy passed in 18.35s; 1,372 source inputs and 146 assets per route had zero mismatch; root and `/boardstudio/` returned 200 with COOP/COEP.
 - No additional build or test was run by this browser author.

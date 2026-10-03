@@ -17,7 +17,7 @@
 
 ## Current Objects composition correction — 2026-10-03
 
-Matched Sofle archive SHA `5b17071a…0776df` on React5173 and Dioxus34767, 1280×940/light, shows the Dioxus board tree displaced by about159px: physical-instance and grouping controls plus a duplicate project/count heading appear inline. React uses Add object, Board selector and the board tree; Group objects lives in Objects options. The exact paired screenshots and F3.1 accounting are in `evidence/planning/f31-canonical-criteria-reconciliation-20261003.md`.
+Matched Sofle archive SHA `5b17071a…0776df` on React5173 and Dioxus34767, 1280×940/light, shows the Dioxus board tree displaced by about159px: physical-instance and grouping controls plus a duplicate project/count heading appear inline. React uses Add object, Board selector and the board tree; Group objects lives in Objects options. The exact paired screenshots and F3.1 accounting are in `../dioxus-layout-authoring/evidence/f31-canonical-criteria-reconciliation-20261003.md`.
 
 Move the existing grouping preference into the existing panel options menu, retain its storage key/callback and keep one private panel-owned preference shared with the tree. Remove physical-instance selection from canonical Layout/PCB/Keymap/Keycaps Objects; physical Case assemblies retain their contextual selector. Remove the duplicate project/count heading. Match the options icon and preserve the menu on compact panels, with close/Escape returning focus to their existing toggle. No document/schema/history/provider change.
 

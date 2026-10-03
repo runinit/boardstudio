@@ -277,7 +277,7 @@
         },
         {
           "source": "34767/3a080e0e; next Objects composition source pending",
-          "evidence": ".scratch/dioxus-frontend-v1/evidence/planning/f31-canonical-criteria-reconciliation-20261003.md",
+          "evidence": ".scratch/dioxus-layout-authoring/evidence/f31-canonical-criteria-reconciliation-20261003.md",
           "observation": "Matched public panes exposed generic instance/grouping selectors and duplicate project summary displacing the primary Layout tree by about159px. The correction shares one private panel-owned grouping preference with the tree, composes its controls into the existing options slot and keeps physical assembly context in Case. Preset async completion separately needed current selection/context guards beyond Scope generation.",
           "status": "bounded composition and completion-owner mitigations; no duplicate document authority; changed browser proof pending next candidate"
         }

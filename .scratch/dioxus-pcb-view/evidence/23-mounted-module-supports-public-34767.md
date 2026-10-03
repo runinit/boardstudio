@@ -2,7 +2,7 @@
 
 Date: 2026-10-03  
 Candidate: `http://127.0.0.1:34767/boardstudio/`  
-Build: `frontend-mounted-module-supports-clearance` / port `34767`; full 22-command package PASS, 1,372 sources and 146 assets served with no route mismatch, per root package verification.  
+Build: `frontend-six-stream-parity-recovery-20261003` / port `34767`; full 22-command package PASS, 1,372 sources and 146 assets served with no route mismatch, per root package verification.  
 Source: `3a080e0e99d0638ddc1b562b3fc5a8ac91f3fefd`  
 Provenance SHA-256: `96d7bc6289aedaadd8198bb9038c67d24fc659fde847362b24c7504313cbc733`  
 React reference: `http://127.0.0.1:5173/`, source `5a472a9426e6e38993361da402cd4ec730feb369`.
