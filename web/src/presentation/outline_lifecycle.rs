@@ -105,6 +105,15 @@ pub(super) enum OutlineAction {
         version_id: String,
         feature_id: String,
     },
+    FocusGap {
+        scope: Scope,
+        token: boardstudio_application::SnapshotToken,
+        revision: u64,
+        generation: u64,
+        board_id: String,
+        context: super::objects::TreeContext,
+        gap_id: String,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -452,6 +461,18 @@ impl OutlineActionContext {
             feature_id,
         }
     }
+
+    fn focus_gap(&self, gap_id: String) -> OutlineAction {
+        OutlineAction::FocusGap {
+            scope: self.scope.clone(),
+            token: self.token,
+            revision: self.revision,
+            generation: self.generation,
+            board_id: self.board_id.clone(),
+            context: self.selection_context.clone(),
+            gap_id,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -535,6 +556,14 @@ impl OutlineAction {
                 ..
             }
             | OutlineAction::RemoveFeature {
+                scope,
+                token,
+                revision,
+                generation,
+                board_id,
+                ..
+            }
+            | OutlineAction::FocusGap {
                 scope,
                 token,
                 revision,
@@ -642,6 +671,14 @@ pub(super) fn use_outline_lifecycle(
             }
         },
     ));
+    use_effect(use_reactive((&version, &draft_owner, &draft_workspace), {
+        let mut selected_feature_id = selected_feature_id;
+        let mut selected_connection_id = selected_connection_id;
+        move |_| {
+            selected_feature_id.set(None);
+            selected_connection_id.set(None);
+        }
+    }));
     let action_state = ActionState {
         pending,
         feedback,
@@ -1239,6 +1276,75 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
     if !selection_is_current {
         return;
     }
+    if let OutlineAction::FocusGap { gap_id, .. } = &action {
+        let Some(gap) = snapshot
+            .scene
+            .board_outline_scenes
+            .iter()
+            .find(|scene| scene.board_id == *board_id)
+            .and_then(|scene| scene.gaps.iter().find(|gap| gap.id == *gap_id))
+        else {
+            return;
+        };
+        let points = gap
+            .points
+            .iter()
+            .map(|point| connection_point_world(point, &snapshot.document.parts))
+            .filter(|point| point.x.is_finite() && point.y.is_finite())
+            .collect::<Vec<_>>();
+        let Some((min_x, max_x, min_y, max_y)) =
+            points
+                .iter()
+                .fold(None::<(f64, f64, f64, f64)>, |bounds, point| {
+                    Some(match bounds {
+                        Some((min_x, max_x, min_y, max_y)) => (
+                            min_x.min(point.x),
+                            max_x.max(point.x),
+                            min_y.min(point.y),
+                            max_y.max(point.y),
+                        ),
+                        None => (point.x, point.x, point.y, point.y),
+                    })
+                })
+        else {
+            return;
+        };
+        let Some((base_min_x, base_max_x, base_min_y, base_max_y)) =
+            super::keycaps_fit::layout_canvas_bounds(&snapshot.document, &snapshot.scene, board_id)
+        else {
+            return;
+        };
+        // Match React's canvas fit around a contour: include its 12 mm breathing room and
+        // preserve the target offset relative to the stable Layout camera basis.
+        let target_width = (max_x - min_x + 24.0).max(1.0);
+        let target_height = (max_y - min_y + 24.0).max(1.0);
+        let base_width = (base_max_x - base_min_x).max(50.0);
+        let base_height = (base_max_y - base_min_y).max(50.0);
+        let (surface_width, surface_height) = web_sys::window()
+            .and_then(|window| window.document())
+            .and_then(|document| document.query_selector("svg.m1-canvas").ok().flatten())
+            .map(|surface| {
+                let bounds = surface.get_bounding_client_rect();
+                (bounds.width().max(1.0), bounds.height().max(1.0))
+            })
+            .unwrap_or((800.0, 600.0));
+        let usable_width = (surface_width - 32.0).max(1.0);
+        let usable_height = (surface_height - 72.0 - 24.0).max(1.0);
+        let zoom = (base_width / target_width * usable_width / surface_width)
+            .min(base_height / target_height * usable_height / surface_height)
+            .clamp(0.15, 8.0);
+        let center = Vec2 {
+            x: (min_x + max_x - base_min_x - base_max_x) * 0.5,
+            y: (min_y + max_y - base_min_y - base_max_y) * 0.5
+                + (72.0 - 24.0) * base_height / zoom / surface_height * 0.5,
+        };
+        runtime.submit(Event::SetCamera {
+            operation_id: runtime.operation(),
+            center,
+            zoom,
+        });
+        return;
+    }
     let state = snapshot
         .document
         .board_outlines
@@ -1674,6 +1780,7 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
                 vec![board_id.clone(), feature_id.clone()],
             )
         }
+        OutlineAction::FocusGap { .. } => return,
         OutlineAction::Update { edit, .. } => {
             let Some((operation, expectation, target_ids)) = apply_outline_edit(
                 &snapshot.document,
@@ -1905,6 +2012,8 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
     let mut version_name = use_signal(|| None::<(String, String, String)>);
     let mut perimeter_open = projection.editing_points;
     let mut selected_point = projection.selected_point;
+    let mut selected_feature_id = projection.selected_feature_id;
+    let mut selected_connection_id = projection.selected_connection_id;
     let name_draft = version_name()
         .filter(|(id, baseline, _)| {
             Some(id) == projection.active_version_id.as_ref()
@@ -2216,18 +2325,32 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
                             legend { "Gap repair" }
                             p { "Keep gap preserves an intentional recess and follows its source components." }
                             for (index, gap) in projection.gaps.iter().enumerate() {
-                                label { class: "m1-outline-field m1-outline-gap",
-                                    input {
-                                        r#type: "checkbox",
-                                        aria_label: "Keep gap {index + 1}",
-                                        checked: gap.protected,
-                                onchange: {
-                                    let gap_id = gap.id.clone();
-                                    let action_context = action_context.clone();
-                                    move |event: FormEvent| on_action.call(action_context.action(OutlineEdit::SetProtectedGap { gap_id: gap_id.clone(), protected: event.checked() }))
-                                        }
+                                div { class: "m1-outline-gap-row",
+                                    button {
+                                        class: "m1-outline-gap-focus",
+                                        r#type: "button",
+                                        aria_label: "Show gap {index + 1}",
+                                        disabled: !enabled,
+                                        onclick: {
+                                            let action_context = action_context.clone();
+                                            let gap_id = gap.id.clone();
+                                            move |_| on_action.call(action_context.focus_gap(gap_id.clone()))
+                                        },
+                                        "Gap {index + 1} · {gap.span:.1} mm span"
                                     }
-                                    span { "Gap {index + 1} · {gap.span:.1} mm span" }
+                                    label { class: "m1-outline-field m1-outline-gap",
+                                        input {
+                                            r#type: "checkbox",
+                                            aria_label: "Keep gap {index + 1}",
+                                            checked: gap.protected,
+                                            onchange: {
+                                                let gap_id = gap.id.clone();
+                                                let action_context = action_context.clone();
+                                                move |event: FormEvent| on_action.call(action_context.action(OutlineEdit::SetProtectedGap { gap_id: gap_id.clone(), protected: event.checked() }))
+                                            }
+                                        }
+                                        span { "Keep gap" }
+                                    }
                                 }
                             }
                         }
@@ -2494,71 +2617,71 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
                             }
                             if !connection.points.is_empty() {
                                 {
-                                let index = selected_point().min(connection.points.len() - 1);
-                                let point = &connection.points[index];
-                                let world = connection_point_world(point, &projection.outline_parts);
-                                rsx! {
-                                h4 { "Connection point {index + 1} of {connection.points.len()}" }
-                                div { class: "m1-outline-coordinate-fields",
-                                    OutlineCoordinate {
-                                        key: "connection-{connection.id}-{index}-x",
-                                        label: format!("Point {} X mm", index + 1),
-                                        value: world.x,
-                                        editable: enabled,
-                                        on_commit: {
-                                            let action_context = action_context.clone();
-                                            let before = before.clone();
-                                            let version_id = active_version.clone();
-                                            let connection_id = connection.id.clone();
-                                            let parts = projection.outline_parts.clone();
-                                            move |value| {
-                                                let next = move_connection_point(&before, &connection_id, index, Vec2 { x: value, y: world.y }, &parts);
-                                                on_action.call(action_context.set_feature(version_id.clone(), before.clone(), next));
+                                    let index = selected_point().min(connection.points.len() - 1);
+                                    let point = &connection.points[index];
+                                    let world = connection_point_world(point, &projection.outline_parts);
+                                    rsx! {
+                                        h4 { "Connection point {index + 1} of {connection.points.len()}" }
+                                        div { class: "m1-outline-coordinate-fields",
+                                            OutlineCoordinate {
+                                                key: "connection-{connection.id}-{index}-x",
+                                                label: format!("Point {} X mm", index + 1),
+                                                value: world.x,
+                                                editable: enabled,
+                                                on_commit: {
+                                                    let action_context = action_context.clone();
+                                                    let before = before.clone();
+                                                    let version_id = active_version.clone();
+                                                    let connection_id = connection.id.clone();
+                                                    let parts = projection.outline_parts.clone();
+                                                    move |value| {
+                                                        let next = move_connection_point(&before, &connection_id, index, Vec2 { x: value, y: world.y }, &parts);
+                                                        on_action.call(action_context.set_feature(version_id.clone(), before.clone(), next));
+                                                    }
+                                                },
                                             }
-                                        },
-                                    }
-                                    OutlineCoordinate {
-                                        key: "connection-{connection.id}-{index}-y",
-                                        label: format!("Point {} Y mm", index + 1),
-                                        value: world.y,
-                                        editable: enabled,
-                                        on_commit: {
-                                            let action_context = action_context.clone();
-                                            let before = before.clone();
-                                            let version_id = active_version.clone();
-                                            let connection_id = connection.id.clone();
-                                            let parts = projection.outline_parts.clone();
-                                            move |value| {
-                                                let next = move_connection_point(&before, &connection_id, index, Vec2 { x: world.x, y: value }, &parts);
-                                                on_action.call(action_context.set_feature(version_id.clone(), before.clone(), next));
+                                            OutlineCoordinate {
+                                                key: "connection-{connection.id}-{index}-y",
+                                                label: format!("Point {} Y mm", index + 1),
+                                                value: world.y,
+                                                editable: enabled,
+                                                on_commit: {
+                                                    let action_context = action_context.clone();
+                                                    let before = before.clone();
+                                                    let version_id = active_version.clone();
+                                                    let connection_id = connection.id.clone();
+                                                    let parts = projection.outline_parts.clone();
+                                                    move |value| {
+                                                        let next = move_connection_point(&before, &connection_id, index, Vec2 { x: world.x, y: value }, &parts);
+                                                        on_action.call(action_context.set_feature(version_id.clone(), before.clone(), next));
+                                                    }
+                                                },
                                             }
-                                        },
-                                    }
-                                }
-                                div { class: "m1-outline-point-list", role: "group", aria_label: "Connection points",
-                                    for (index, control) in connection.points.iter().enumerate() {
-                                        {
-                                            let point = connection_point_world(control, &projection.outline_parts);
-                                            rsx! {
-                                                button {
-                                                    key: "connection-point-{index}",
-                                                    r#type: "button",
-                                                    aria_label: "Select connection point {index + 1}",
-                                                    aria_pressed: "{index == selected_point()}",
-                                                    onclick: move |_| selected_point.set(index),
-                                                    span { "{index + 1}" }
-                                                    span { "{point.x:.3}" }
-                                                    span { "{point.y:.3}" }
+                                        }
+                                        div { class: "m1-outline-point-list", role: "group", aria_label: "Connection points",
+                                            for (index, control) in connection.points.iter().enumerate() {
+                                                {
+                                                    let point = connection_point_world(control, &projection.outline_parts);
+                                                    rsx! {
+                                                        button {
+                                                            key: "connection-point-{index}",
+                                                            r#type: "button",
+                                                            aria_label: "Select connection point {index + 1}",
+                                                            aria_pressed: "{index == selected_point()}",
+                                                            onclick: move |_| selected_point.set(index),
+                                                            span { "{index + 1}" }
+                                                            span { "{point.x:.3}" }
+                                                            span { "{point.y:.3}" }
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
-                                }
-                                }
-                            }
                         }
                     }
+                }
                 }
                 if let Some(tool) = drawing_operation() {
                     p { role: "status", "Click the canvas to add points. Enter finishes; Escape cancels." }

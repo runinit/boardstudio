@@ -6,6 +6,8 @@ The mounted Inspector now provides addition/cutout and Connect points drafts; dr
 
 The saved geometry list selects authored features. Polygon edits enter the existing perimeter point editor. Rectangles expose width, height, and corner radius. Later fixed-version authored features can be removed; the first authored perimeter is protected. Saved connections expose width and point coordinate editing in world space while preserving attached-point local coordinates, and can be removed through the owning envelope edit. Fixed-version feature mutation uses `ReplaceDocument` to update only the active version.
 
+The pinned React gap rows also expose **Show gap**, which stores the selected source gap and calls `fitParts([], [gap])`. The mounted Inspector now exposes the same action; it revalidates the current accepted `OutlineGap`, converts attached points through their current part poses, and submits only a `SetCamera` view update. Keep/unkeep and removal of protected gaps continue through accepted outline settings edits.
+
 **Known limits:** connection control-point insertion/removal and attachment picker/detachment are not included; point keyboard/guide and capture/unmount parity are not claimed. Core validation remains authoritative and existing outcome feedback reports rejected geometry. This child does not close F3.4.
 
 **Checks:** `rustfmt --edition 2024 web/src/presentation/outline_lifecycle.rs` and `git diff --check` passed. No Cargo, browser, or test command was run, per the assigned source-only packet. Root owns the combined check and changed public journey.

@@ -18,6 +18,7 @@
 - [ ] Connect points drafts require Generated plus an automatic envelope, use existing grid/geometry snapping, bind endpoints to eligible component origins within the React 10 mm rule, and submit one `SetOutline` edit against the accepted generated envelope.
 - [ ] Saved authored geometry is selectable. Polygon point editing routes through the existing perimeter editor; rectangles expose width, height, and corner radius. Fixed-version removal protects the first authored perimeter and removes later features through `ReplaceDocument`.
 - [ ] Saved connections expose width and world-coordinate point editing while preserving valid part-local attachments; removal edits only the existing connection list on its accepted `PartEnvelope`.
+- [ ] Gap repair rows retain their protected-gap control and provide a source-contour focus action that fits the accepted gap into the Layout camera without creating a document edit.
 - [ ] Show pending/saved/failure feedback only from the existing exact accepted-operation settlement path. No parallel writable geometry state or new public contract/schema is introduced.
 - [ ] Coordinator verifies the changed draft/connection/editor journey on the pinned fixture. Broader F3.4/F3.7 acceptance and unchanged parent joins remain open.
 - [ ] Preserve RF-001, RF-006 and RF-009. This source comparison adds no new refactoring finding.

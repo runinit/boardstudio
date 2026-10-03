@@ -12,6 +12,8 @@ Polygon finish requires at least three finite points enclosing a non-zero area; 
 
 The saved geometry list selects authored shapes. Polygon selection opens the existing perimeter point editor; rectangle selection exposes width, height, and corner radius. Fixed versions can remove later authored features, while the first authored perimeter is protected. Saved connections expose width and point-coordinate editing; attached points are transformed through their current part pose and edited back in part-local coordinates. Removing a connection changes only the existing envelope connection list. Fixed-version feature changes use `ReplaceDocument` and are scoped to the active version.
 
+Each generated gap row also offers a focus action. It revalidates the exact outline owner and accepted gap before fitting the gap bounds into the Layout camera; this is view state and does not enter document history. Keeping or removing protected gaps remains an accepted settings edit.
+
 ## Ownership and failure behavior
 
 `outline_lifecycle.rs` owns tool selection, draft points, feature construction, action admission and outcome feedback. The existing `OutlineInspectorProjection` carries the accepted scope, document token/revision, generation, board and selected tree owner. The canvas composition mounts a private overlay beside the existing perimeter overlay and uses the same `CanvasInteractionArbiter`, SVG coordinate conversion and outline snapping helper. Core/session remain the only accepted-document/history/persistence authorities.
