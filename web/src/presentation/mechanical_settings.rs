@@ -5,7 +5,8 @@ pub(crate) use crate::mechanical_feedback::{
 };
 use boardstudio_core::model::{
     GasketPlacement, HardwareTransport, MechanicalBattery, MechanicalBottomStyle,
-    MechanicalGasketAnchor, MechanicalMount, MechanicalSwitchFamily, PlateMethod, Severity, Vec2,
+    MechanicalGasketAnchor, MechanicalMount, MechanicalSwitchFamily, Mount, MountKind, PlateMethod,
+    Severity, Vec2,
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -20,6 +21,8 @@ pub(crate) struct MechanicalSettingsValues {
     pub(crate) board_id: String,
     pub(crate) transport: HardwareTransport,
     pub(crate) battery: Option<MechanicalBattery>,
+    pub(crate) suspension_mounts: Vec<Mount>,
+    pub(crate) closure_mounts: Option<Vec<Mount>>,
     pub(crate) method: PlateMethod,
     pub(crate) mount: MechanicalMount,
     pub(crate) bottom_style: MechanicalBottomStyle,
@@ -34,6 +37,8 @@ pub(crate) struct MechanicalSettingsValues {
     pub(crate) clearance: f64,
     pub(crate) opening_allowance: f64,
     pub(crate) internal_gasket: bool,
+    pub(crate) plate_to_pcb: f64,
+    pub(crate) battery_height: f64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -73,6 +78,12 @@ pub(crate) struct MechanicalGasketSupportRow {
     pub(crate) unlinked: bool,
     pub(crate) fit_error: Option<String>,
     pub(crate) is_previous: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum MechanicalMountCollection {
+    Suspension,
+    Closure,
 }
 
 impl MechanicalGasketSupportRow {
@@ -123,9 +134,27 @@ pub(crate) enum MechanicalDimension {
     BatteryPositionY,
     BatteryCableExitX,
     BatteryCableExitY,
+    MountPositionX,
+    MountPositionY,
+    MountHoleDiameter,
+    MountBossDiameter,
+    MountBossHeight,
 }
 
 fn is_dimension_field(field_id: &str) -> bool {
+    if field_id.starts_with("mount:")
+        && [
+            "mount-position-x",
+            "mount-position-y",
+            "mount-hole-diameter",
+            "mount-boss-diameter",
+            "mount-boss-height",
+        ]
+        .iter()
+        .any(|field| field_id.ends_with(field))
+    {
+        return true;
+    }
     [
         MechanicalDimension::PlateThickness,
         MechanicalDimension::PlateFoamThickness,
@@ -169,6 +198,11 @@ impl MechanicalDimension {
             Self::BatteryPositionY => "battery-position-y",
             Self::BatteryCableExitX => "battery-cable-exit-x",
             Self::BatteryCableExitY => "battery-cable-exit-y",
+            Self::MountPositionX => "mount-position-x",
+            Self::MountPositionY => "mount-position-y",
+            Self::MountHoleDiameter => "mount-hole-diameter",
+            Self::MountBossDiameter => "mount-boss-diameter",
+            Self::MountBossHeight => "mount-boss-height",
         }
     }
 
@@ -178,11 +212,16 @@ impl MechanicalDimension {
             Self::BatteryWidth
             | Self::BatteryDepth
             | Self::BatteryHeight
-            | Self::BatteryCableWidth => NumberRule::AtLeastTenth,
+            | Self::BatteryCableWidth
+            | Self::MountHoleDiameter
+            | Self::MountBossDiameter
+            | Self::MountBossHeight => NumberRule::AtLeastTenth,
             Self::BatteryPositionX
             | Self::BatteryPositionY
             | Self::BatteryCableExitX
-            | Self::BatteryCableExitY => NumberRule::Coordinate,
+            | Self::BatteryCableExitY
+            | Self::MountPositionX
+            | Self::MountPositionY => NumberRule::Coordinate,
             Self::GasketSupportLength => NumberRule::AtLeastFive,
             Self::GasketSupportWidth => NumberRule::AtLeastHalf,
             _ => NumberRule::Nonnegative,
@@ -206,6 +245,26 @@ pub(crate) enum MechanicalSettingsPatch {
     SetBatteryEnabled(bool),
     SetMethod(PlateMethod),
     SetMount(MechanicalMount),
+    SetMountCollection {
+        collection: MechanicalMountCollection,
+        mounts: Vec<Mount>,
+    },
+    SetMountDimension {
+        collection: MechanicalMountCollection,
+        mount_id: String,
+        field: MechanicalDimension,
+        value: f64,
+    },
+    SetMountKind {
+        collection: MechanicalMountCollection,
+        mount_id: String,
+        kind: MountKind,
+    },
+    RemoveMount {
+        collection: MechanicalMountCollection,
+        mount_id: String,
+    },
+    AdoptClosurePositions(Vec<Mount>),
     SetBottomStyle(MechanicalBottomStyle),
     SetMiddleFrame(bool),
     SetIntegratedPlateFrame(bool),
@@ -240,6 +299,33 @@ impl MechanicalSettingsPatch {
             Self::SetBatteryEnabled(_) => "battery-enabled".to_owned(),
             Self::SetMethod(_) => "method".to_owned(),
             Self::SetMount(_) => "mount".to_owned(),
+            Self::SetMountCollection { collection, .. } => match collection {
+                MechanicalMountCollection::Suspension => "suspension-mounts".to_owned(),
+                MechanicalMountCollection::Closure => "closure-mounts".to_owned(),
+            },
+            Self::SetMountDimension {
+                collection,
+                mount_id,
+                field,
+                ..
+            } => format!(
+                "mount:{}:{mount_id}:{}",
+                mount_collection_id(*collection),
+                field.field_id(),
+            ),
+            Self::SetMountKind {
+                collection,
+                mount_id,
+                ..
+            } => format!("mount:{}:{mount_id}:kind", mount_collection_id(*collection),),
+            Self::RemoveMount {
+                collection,
+                mount_id,
+            } => format!(
+                "mount:{}:{mount_id}:remove",
+                mount_collection_id(*collection),
+            ),
+            Self::AdoptClosurePositions(_) => "adopt-closure-positions".to_owned(),
             Self::SetBottomStyle(_) => "bottom-style".to_owned(),
             Self::SetMiddleFrame(_) => "middle-frame".to_owned(),
             Self::SetIntegratedPlateFrame(_) => "integrated-plate-frame".to_owned(),
@@ -265,6 +351,13 @@ impl MechanicalSettingsPatch {
     }
 }
 
+fn mount_collection_id(collection: MechanicalMountCollection) -> &'static str {
+    match collection {
+        MechanicalMountCollection::Suspension => "suspension",
+        MechanicalMountCollection::Closure => "closure",
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct MechanicalSettingsRequest {
     pub(crate) identity: MechanicalSettingsIdentity,
@@ -283,6 +376,7 @@ pub(crate) struct MechanicalSettingsProps {
     pub(crate) profiles: Rc<[MechanicalProfileChoice]>,
     pub(crate) layers: Rc<[MechanicalLayerRow]>,
     pub(crate) gasket_supports: Rc<[MechanicalGasketSupportRow]>,
+    pub(crate) suggested_mounts: Rc<[Mount]>,
     pub(crate) findings: Rc<[MechanicalFindingRow]>,
     pub(crate) selected_layer: String,
     pub(crate) mismatch: Option<MechanicalBoardMismatch>,
@@ -544,6 +638,15 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     on_request: props.on_request,
                     owner_key: owner_key.clone(),
                 }
+                MountingControls {
+                    identity: props.identity.clone(),
+                    request_sequence,
+                    values: values.clone(),
+                    suggested_mounts: props.suggested_mounts.clone(),
+                    editable: props.editable,
+                    feedback: props.feedback.clone(),
+                    on_request: props.on_request,
+                }
                 if values.mount == MechanicalMount::Gasket && values.internal_gasket {
                     section { class: "m1-mechanical-option-group", aria_label: "Gasket supports",
                         h3 { "Gasket supports" }
@@ -602,6 +705,276 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     },
                     "Configure mechanical stack"
                 }
+            }
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct MountingControlsProps {
+    identity: MechanicalSettingsIdentity,
+    request_sequence: Signal<u64>,
+    values: MechanicalSettingsValues,
+    suggested_mounts: Rc<[Mount]>,
+    editable: bool,
+    feedback: Rc<[MechanicalSettingsFeedback]>,
+    on_request: EventHandler<MechanicalSettingsRequest>,
+}
+
+#[component]
+fn MountingControls(props: MountingControlsProps) -> Element {
+    let values = &props.values;
+    let suspension_mounts = &values.suspension_mounts;
+    let closure_mounts = values.closure_mounts.as_deref().unwrap_or_default();
+    let suggestions = &props.suggested_mounts;
+    rsx! {
+        section { class: "m1-mechanical-option-group", aria_label: "Mounting and hardware",
+            h3 { "Mounting & hardware" }
+            if values.mount != MechanicalMount::Gasket {
+                MountCollectionControls {
+                    identity: props.identity.clone(),
+                    request_sequence: props.request_sequence,
+                    on_request: props.on_request,
+                    editable: props.editable,
+                    feedback: props.feedback.clone(),
+                    collection: MechanicalMountCollection::Suspension,
+                    label: "Suspension mounts",
+                    mounts: suspension_mounts.clone(),
+                    allow_add: true,
+                }
+            }
+            MountCollectionControls {
+                identity: props.identity.clone(),
+                request_sequence: props.request_sequence,
+                on_request: props.on_request,
+                editable: props.editable,
+                feedback: props.feedback.clone(),
+                collection: MechanicalMountCollection::Closure,
+                label: "Closure screws",
+                mounts: closure_mounts.to_vec(),
+                allow_add: !values.internal_gasket,
+            }
+            section { class: "m1-mechanical-group", aria_label: "Suggested mount locations",
+                h4 { "Suggested mount locations · {suggestions.len()} candidates" }
+                if suggestions.is_empty() {
+                    p { class: "m1-mechanical-help", "Resolve the current geometry to see clearance-tested mounting locations." }
+                } else if values.internal_gasket {
+                    p { class: "m1-mechanical-help", "Candidates clear the current openings and battery envelope. Adopting them is explicit; later edits keep the chosen coordinates fixed." }
+                    button {
+                        r#type: "button",
+                        class: "m1-mechanical-quiet",
+                        disabled: !props.editable,
+                        onclick: {
+                            let mut sequence = props.request_sequence;
+                            let identity = props.identity.clone();
+                            let callback = props.on_request;
+                            let mounts = suggestions.to_vec();
+                            move |_| send_request(&mut sequence, &identity, callback, MechanicalSettingsPatch::AdoptClosurePositions(mounts.clone()))
+                        },
+                        "Adopt closure positions"
+                    }
+                } else {
+                    p { class: "m1-mechanical-help", "Clearance-tested positions on this board. Adopt them as suspension mounts or closure screws." }
+                    div { class: "m1-mechanical-mount-candidates",
+                        for (index, mount) in suggestions.iter().enumerate() {
+                            span { key: "{mount.id}", "{index + 1}: X {mount.at.x:.1}, Y {mount.at.y:.1} mm" }
+                        }
+                    }
+                    button {
+                        r#type: "button",
+                        class: "m1-mechanical-quiet",
+                        disabled: !props.editable,
+                        onclick: {
+                            let mut sequence = props.request_sequence;
+                            let identity = props.identity.clone();
+                            let callback = props.on_request;
+                            let mounts = suggestions.to_vec();
+                            move |_| send_request(&mut sequence, &identity, callback, MechanicalSettingsPatch::SetMountCollection { collection: MechanicalMountCollection::Suspension, mounts: mounts.clone() })
+                        },
+                        "Adopt suggested mounts"
+                    }
+                    button {
+                        r#type: "button",
+                        class: "m1-mechanical-quiet",
+                        disabled: !props.editable,
+                        onclick: {
+                            let mut sequence = props.request_sequence;
+                            let identity = props.identity.clone();
+                            let callback = props.on_request;
+                            let mut mounts = closure_mounts.to_vec();
+                            let height = values.plate_to_pcb + values.pcb_thickness + values.bottom_foam_thickness.max(values.battery_height);
+                            let additions = suggestions.iter().cloned().map(|mut mount| {
+                                mount.id = format!("auto-closure/{}", mount.id);
+                                mount.kind = MountKind::Boss;
+                                mount.hole_diameter = 2.2;
+                                mount.height = Some(height);
+                                mount
+                            }).collect::<Vec<_>>();
+                            mounts.extend(additions);
+                            move |_| send_request(&mut sequence, &identity, callback, MechanicalSettingsPatch::SetMountCollection { collection: MechanicalMountCollection::Closure, mounts: mounts.clone() })
+                        },
+                        "Add suggested closure screws"
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct MountCollectionControlsProps {
+    identity: MechanicalSettingsIdentity,
+    request_sequence: Signal<u64>,
+    on_request: EventHandler<MechanicalSettingsRequest>,
+    editable: bool,
+    feedback: Rc<[MechanicalSettingsFeedback]>,
+    collection: MechanicalMountCollection,
+    label: &'static str,
+    mounts: Vec<Mount>,
+    allow_add: bool,
+}
+
+#[component]
+fn MountCollectionControls(props: MountCollectionControlsProps) -> Element {
+    let mounts = props.mounts.clone();
+    rsx! {
+        section { class: "m1-mechanical-group", aria_label: "{props.label}",
+            h4 { "{props.label} · {mounts.len()}" }
+            for (index, mount) in mounts.iter().enumerate() {
+                MountRow {
+                    key: "{mount.id}",
+                    identity: props.identity.clone(),
+                    request_sequence: props.request_sequence,
+                    on_request: props.on_request,
+                    feedback: props.feedback.clone(),
+                    editable: props.editable,
+                    collection: props.collection,
+                    index: index + 1,
+                    mount: mount.clone(),
+                }
+            }
+            if mounts.is_empty() { p { class: "m1-mechanical-help", "No {props.label.to_lowercase()} configured." } }
+            if props.allow_add {
+                button {
+                    r#type: "button",
+                    class: "m1-mechanical-quiet",
+                    disabled: !props.editable,
+                    onclick: {
+                        let mut sequence = props.request_sequence;
+                        let identity = props.identity.clone();
+                        let callback = props.on_request;
+                        let collection = props.collection;
+                        let mut next_mounts = mounts.clone();
+                        let all = next_mounts.iter().map(|mount| mount.id.clone()).collect::<std::collections::HashSet<_>>();
+                        let mut ordinal = 1usize;
+                        let id = loop {
+                            let candidate = format!("case-mechanical-mount-{ordinal}");
+                            if !all.contains(&candidate) { break candidate; }
+                            ordinal += 1;
+                        };
+                        next_mounts.push(Mount {
+                            id,
+                            at: Vec2 { x: 0.0, y: 0.0 },
+                            kind: MountKind::Hole,
+                            hole_diameter: 2.5,
+                            boss_diameter: Some(5.0),
+                            height: Some(5.0),
+                        });
+                        move |_| send_request(&mut sequence, &identity, callback, MechanicalSettingsPatch::SetMountCollection { collection, mounts: next_mounts.clone() })
+                    },
+                    "Add {props.label.trim_end_matches('s').to_lowercase()}"
+                }
+            }
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct MountRowProps {
+    identity: MechanicalSettingsIdentity,
+    request_sequence: Signal<u64>,
+    on_request: EventHandler<MechanicalSettingsRequest>,
+    feedback: Rc<[MechanicalSettingsFeedback]>,
+    editable: bool,
+    collection: MechanicalMountCollection,
+    index: usize,
+    mount: Mount,
+}
+
+#[component]
+fn MountRow(props: MountRowProps) -> Element {
+    let mount = &props.mount;
+    let label = if mount.kind == MountKind::Boss {
+        "Boss"
+    } else {
+        "Hole"
+    };
+    let field_prefix = format!("{:?}:{}", props.collection, mount.id);
+    let make_target = |id: &str| MountDimensionTarget {
+        collection: props.collection,
+        mount_id: id.to_owned(),
+    };
+    rsx! {
+        fieldset { class: "m1-mechanical-mount-row", disabled: !props.editable,
+            legend { "{label} {props.index}" }
+            label { class: "m1-mechanical-field",
+                span { "Mount type" }
+                select {
+                    value: if mount.kind == MountKind::Boss { "boss" } else { "hole" },
+                    onchange: {
+                        let mut sequence = props.request_sequence;
+                        let identity = props.identity.clone();
+                        let callback = props.on_request;
+                        let collection = props.collection;
+                        let mount_id = mount.id.clone();
+                        move |event: FormEvent| if let Some(kind) = parse_mount_kind(&event.value()) {
+                            send_request(&mut sequence, &identity, callback, MechanicalSettingsPatch::SetMountKind { collection, mount_id: mount_id.clone(), kind });
+                        }
+                    },
+                    option { value: "hole", "Hole" }
+                    option { value: "boss", "Boss" }
+                }
+            }
+            DimensionField { key: "{field_prefix}:x",
+                identity: props.identity.clone(), request_sequence: props.request_sequence,
+                on_request: props.on_request, feedback: props.feedback.clone(), field: MechanicalDimension::MountPositionX,
+                label: "Position X", value: mount.at.x, editable: props.editable, mount_target: Some(make_target(&mount.id)),
+            }
+            DimensionField { key: "{field_prefix}:y",
+                identity: props.identity.clone(), request_sequence: props.request_sequence,
+                on_request: props.on_request, feedback: props.feedback.clone(), field: MechanicalDimension::MountPositionY,
+                label: "Position Y", value: mount.at.y, editable: props.editable, mount_target: Some(make_target(&mount.id)),
+            }
+            DimensionField { key: "{field_prefix}:hole",
+                identity: props.identity.clone(), request_sequence: props.request_sequence,
+                on_request: props.on_request, feedback: props.feedback.clone(), field: MechanicalDimension::MountHoleDiameter,
+                label: "Hole diameter", value: mount.hole_diameter, editable: props.editable, mount_target: Some(make_target(&mount.id)),
+            }
+            if mount.kind == MountKind::Boss {
+                DimensionField { key: "{field_prefix}:boss",
+                    identity: props.identity.clone(), request_sequence: props.request_sequence,
+                    on_request: props.on_request, feedback: props.feedback.clone(), field: MechanicalDimension::MountBossDiameter,
+                    label: "Boss diameter", value: mount.boss_diameter.unwrap_or(5.0), editable: props.editable, mount_target: Some(make_target(&mount.id)),
+                }
+                DimensionField { key: "{field_prefix}:height",
+                    identity: props.identity.clone(), request_sequence: props.request_sequence,
+                    on_request: props.on_request, feedback: props.feedback.clone(), field: MechanicalDimension::MountBossHeight,
+                    label: "Boss height", value: mount.height.unwrap_or(5.0), editable: props.editable, mount_target: Some(make_target(&mount.id)),
+                }
+            }
+            button {
+                r#type: "button",
+                class: "m1-mechanical-quiet",
+                disabled: !props.editable,
+                onclick: {
+                    let mut sequence = props.request_sequence;
+                    let identity = props.identity.clone();
+                    let callback = props.on_request;
+                    let collection = props.collection;
+                    let mount_id = mount.id.clone();
+                    move |_| send_request(&mut sequence, &identity, callback, MechanicalSettingsPatch::RemoveMount { collection, mount_id: mount_id.clone() })
+                },
+                "Remove"
             }
         }
     }
@@ -1252,12 +1625,20 @@ struct DimensionFieldProps {
     editable: bool,
     #[props(default)]
     support_target: Option<GasketSupportDimensionTarget>,
+    #[props(default)]
+    mount_target: Option<MountDimensionTarget>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 struct GasketSupportDimensionTarget {
     support_id: String,
     anchors: Vec<MechanicalGasketAnchor>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct MountDimensionTarget {
+    collection: MechanicalMountCollection,
+    mount_id: String,
 }
 
 #[component]
@@ -1338,6 +1719,7 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
         let identity = props.identity.clone();
         let field = props.field;
         let support_target = props.support_target.clone();
+        let mount_target = props.mount_target.clone();
         let accepted = props.value;
         let sequence = props.request_sequence;
         let on_request = props.on_request;
@@ -1372,6 +1754,13 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                 MechanicalSettingsPatch::SetGasketSupportDimension {
                     support_id: target.support_id,
                     anchors: target.anchors,
+                    field,
+                    value,
+                }
+            } else if let Some(target) = mount_target.clone() {
+                MechanicalSettingsPatch::SetMountDimension {
+                    collection: target.collection,
+                    mount_id: target.mount_id,
                     field,
                     value,
                 }
@@ -1584,6 +1973,14 @@ fn parse_mount(value: &str) -> Option<MechanicalMount> {
     })
 }
 
+fn parse_mount_kind(value: &str) -> Option<MountKind> {
+    Some(match value {
+        "hole" => MountKind::Hole,
+        "boss" => MountKind::Boss,
+        _ => return None,
+    })
+}
+
 fn bottom_style_id(value: &MechanicalBottomStyle) -> &'static str {
     match value {
         MechanicalBottomStyle::Shell => "shell",
@@ -1668,6 +2065,8 @@ mod contextual_layer_tests {
             board_id: "board".into(),
             transport,
             battery,
+            suspension_mounts: vec![],
+            closure_mounts: Some(vec![]),
             method: PlateMethod::Printed,
             mount: MechanicalMount::Rigid,
             bottom_style: MechanicalBottomStyle::Shell,
@@ -1682,6 +2081,8 @@ mod contextual_layer_tests {
             clearance: 0.2,
             opening_allowance: 0.0,
             internal_gasket: true,
+            plate_to_pcb: 3.5,
+            battery_height: 0.0,
         }
     }
 
@@ -1769,6 +2170,7 @@ mod contextual_layer_tests {
                 profiles: Rc::from([]),
                 layers,
                 gasket_supports: Rc::from([]),
+                suggested_mounts: Rc::from([]),
                 findings,
                 selected_layer: selected_layer(),
                 mismatch: None,
@@ -1799,6 +2201,7 @@ mod contextual_layer_tests {
                     profiles: Rc::from([]),
                     layers: Rc::from([]),
                     gasket_supports: Rc::from([]),
+                    suggested_mounts: Rc::from([]),
                     findings: Rc::from([]),
                     selected_layer: String::new(),
                     mismatch: None,
@@ -1830,6 +2233,7 @@ mod contextual_layer_tests {
                     profiles: Rc::from([]),
                     layers: Rc::from([]),
                     gasket_supports: Rc::from([]),
+                    suggested_mounts: Rc::from([]),
                     findings: Rc::from([]),
                     selected_layer: String::new(),
                     mismatch: None,

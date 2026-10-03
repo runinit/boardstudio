@@ -5,8 +5,9 @@
 //! definition, the page's exact Runtime operation observer/submission seam, and the existing
 //! pure closure-clearance projector. It does not create a second document/session authority.
 use super::mechanical_settings::{
-    MechanicalDimension, MechanicalSettingsFeedback, MechanicalSettingsFeedbackState,
-    MechanicalSettingsIdentity, MechanicalSettingsPatch, MechanicalSettingsRequest,
+    MechanicalDimension, MechanicalMountCollection, MechanicalSettingsFeedback,
+    MechanicalSettingsFeedbackState, MechanicalSettingsIdentity, MechanicalSettingsPatch,
+    MechanicalSettingsRequest,
 };
 use crate::operation_outcomes::OutcomeSlot;
 use boardstudio_application::{
@@ -860,6 +861,99 @@ fn apply_patch(
                 configuration.middle_frame = Some(false);
             }
         }
+        MechanicalSettingsPatch::SetMountCollection { collection, mounts } => {
+            validate_mounts(mounts)?;
+            match collection {
+                MechanicalMountCollection::Suspension => {
+                    if configuration.mount == MechanicalMount::Gasket {
+                        return Err("Suspension mounts are unavailable for a gasket mount.".into());
+                    }
+                    configuration.mounts = mounts.clone();
+                }
+                MechanicalMountCollection::Closure => {
+                    if configuration.internal_gasket.is_some() {
+                        let existing = configuration
+                            .closure_mounts
+                            .iter()
+                            .flatten()
+                            .map(|mount| mount.id.as_str())
+                            .collect::<std::collections::HashSet<_>>();
+                        if mounts
+                            .iter()
+                            .any(|mount| !existing.contains(mount.id.as_str()))
+                        {
+                            return Err(
+                                "Adding closure screws is unavailable with an internal gasket."
+                                    .into(),
+                            );
+                        }
+                    }
+                    configuration.closure_mounts = Some(mounts.clone());
+                }
+            }
+        }
+        MechanicalSettingsPatch::AdoptClosurePositions(mounts) => {
+            if configuration.internal_gasket.is_none() {
+                return Err("Closure positions can only be adopted for an internal gasket.".into());
+            }
+            validate_mounts(mounts)?;
+            configuration.closure_mounts = Some(mounts.clone());
+        }
+        MechanicalSettingsPatch::SetMountDimension {
+            collection,
+            mount_id,
+            field,
+            value,
+        } => {
+            validate_dimension(*field, *value)?;
+            let mounts = mount_collection_mut(configuration, *collection);
+            let mount = mounts
+                .iter_mut()
+                .find(|mount| mount.id == *mount_id)
+                .ok_or_else(|| "The selected mount is no longer available.".to_owned())?;
+            match field {
+                MechanicalDimension::MountPositionX => mount.at.x = *value,
+                MechanicalDimension::MountPositionY => mount.at.y = *value,
+                MechanicalDimension::MountHoleDiameter => mount.hole_diameter = *value,
+                MechanicalDimension::MountBossDiameter if mount.kind == MountKind::Boss => {
+                    mount.boss_diameter = Some(*value)
+                }
+                MechanicalDimension::MountBossHeight if mount.kind == MountKind::Boss => {
+                    mount.height = Some(*value)
+                }
+                _ => return Err("The selected mount dimension is unavailable.".into()),
+            }
+        }
+        MechanicalSettingsPatch::SetMountKind {
+            collection,
+            mount_id,
+            kind,
+        } => {
+            let mounts = mount_collection_mut(configuration, *collection);
+            let mount = mounts
+                .iter_mut()
+                .find(|mount| mount.id == *mount_id)
+                .ok_or_else(|| "The selected mount is no longer available.".to_owned())?;
+            mount.kind = kind.clone();
+        }
+        MechanicalSettingsPatch::RemoveMount {
+            collection,
+            mount_id,
+        } => {
+            if mount_id.is_empty() {
+                return Err("The selected mount is no longer available.".into());
+            }
+            if *collection == MechanicalMountCollection::Suspension
+                && configuration.mount == MechanicalMount::Gasket
+            {
+                return Err("Suspension mounts are unavailable for a gasket mount.".into());
+            }
+            let mounts = mount_collection_mut(configuration, *collection);
+            let Some(index) = mounts.iter().position(|mount| mount.id == *mount_id) else {
+                return Err("The selected mount is no longer available.".into());
+            };
+            mounts.remove(index);
+        }
         MechanicalSettingsPatch::SetBottomStyle(style) => {
             configuration.bottom_style = Some(style.clone());
         }
@@ -1077,6 +1171,44 @@ fn apply_patch(
     Ok(())
 }
 
+fn mount_collection_mut(
+    configuration: &mut MechanicalConfiguration,
+    collection: MechanicalMountCollection,
+) -> &mut Vec<Mount> {
+    match collection {
+        MechanicalMountCollection::Suspension => &mut configuration.mounts,
+        MechanicalMountCollection::Closure => {
+            configuration.closure_mounts.get_or_insert_with(Vec::new)
+        }
+    }
+}
+
+fn validate_mounts(mounts: &[Mount]) -> Result<(), String> {
+    let mut ids = std::collections::HashSet::new();
+    for mount in mounts {
+        if mount.id.is_empty() || !ids.insert(mount.id.as_str()) {
+            return Err("Mount IDs must be non-empty and unique.".into());
+        }
+        if !mount.at.x.is_finite() || !mount.at.y.is_finite() {
+            return Err("Mount positions must be finite values.".into());
+        }
+        validate_mount_positive(mount.hole_diameter, "Hole diameter")?;
+        if mount.kind == MountKind::Boss {
+            validate_mount_positive(mount.boss_diameter.unwrap_or(5.0), "Boss diameter")?;
+            validate_mount_positive(mount.height.unwrap_or(5.0), "Boss height")?;
+        }
+    }
+    Ok(())
+}
+
+fn validate_mount_positive(value: f64, label: &str) -> Result<(), String> {
+    if value.is_finite() && value > 0.0 {
+        Ok(())
+    } else {
+        Err(format!("{label} must be a finite value greater than zero."))
+    }
+}
+
 fn set_dimension(
     configuration: &mut MechanicalConfiguration,
     field: MechanicalDimension,
@@ -1134,7 +1266,9 @@ fn validate_dimension(field: MechanicalDimension, value: f64) -> Result<(), Stri
             MechanicalDimension::BatteryPositionX
             | MechanicalDimension::BatteryPositionY
             | MechanicalDimension::BatteryCableExitX
-            | MechanicalDimension::BatteryCableExitY => value >= -1_000_000.0,
+            | MechanicalDimension::BatteryCableExitY
+            | MechanicalDimension::MountPositionX
+            | MechanicalDimension::MountPositionY => value >= -1_000_000.0,
             _ => value >= 0.0,
         };
     if valid {
@@ -1319,54 +1453,7 @@ fn default_plate_foam_thickness(gap: f64) -> f64 {
 }
 
 fn patch_field_id(patch: &MechanicalSettingsPatch) -> String {
-    match patch {
-        MechanicalSettingsPatch::Enable => "configure".into(),
-        MechanicalSettingsPatch::InitializeClosures => "initialize-closures".into(),
-        MechanicalSettingsPatch::Disable => "disable".into(),
-        MechanicalSettingsPatch::SetBatteryEnabled(_) => "battery-enabled".into(),
-        MechanicalSettingsPatch::SetMethod(_) => "method".into(),
-        MechanicalSettingsPatch::SetMount(_) => "mount".into(),
-        MechanicalSettingsPatch::SetBottomStyle(_) => "bottom-style".into(),
-        MechanicalSettingsPatch::SetMiddleFrame(_) => "middle-frame".into(),
-        MechanicalSettingsPatch::SetIntegratedPlateFrame(_) => "integrated-plate-frame".into(),
-        MechanicalSettingsPatch::SetDimension { field, .. } => match field {
-            MechanicalDimension::PlateThickness => "plate-thickness".into(),
-            MechanicalDimension::PlateFoamThickness => "plate-foam-thickness".into(),
-            MechanicalDimension::PcbThickness => "pcb-thickness".into(),
-            MechanicalDimension::BottomFoamThickness => "bottom-foam-thickness".into(),
-            MechanicalDimension::BottomThickness => "bottom-thickness".into(),
-            MechanicalDimension::WallThickness => "wall-thickness".into(),
-            MechanicalDimension::Clearance => "clearance".into(),
-            MechanicalDimension::GasketSupportLength => "gasket-support-length".into(),
-            MechanicalDimension::GasketSupportWidth => "gasket-support-width".into(),
-            MechanicalDimension::OpeningAllowance => "opening-allowance".into(),
-            MechanicalDimension::BatteryWidth => "battery-width".into(),
-            MechanicalDimension::BatteryDepth => "battery-depth".into(),
-            MechanicalDimension::BatteryHeight => "battery-height".into(),
-            MechanicalDimension::BatteryCableWidth => "battery-cable-width".into(),
-            MechanicalDimension::BatteryPositionX => "battery-position-x".into(),
-            MechanicalDimension::BatteryPositionY => "battery-position-y".into(),
-            MechanicalDimension::BatteryCableExitX => "battery-cable-exit-x".into(),
-            MechanicalDimension::BatteryCableExitY => "battery-cable-exit-y".into(),
-        },
-        MechanicalSettingsPatch::SetGasketSupportDimension {
-            support_id, field, ..
-        } => format!(
-            "gasket-support:{support_id}:{}",
-            match *field {
-                MechanicalDimension::GasketSupportLength => "length",
-                MechanicalDimension::GasketSupportWidth => "width",
-                _ => "dimension",
-            }
-        ),
-        MechanicalSettingsPatch::SetGasketSupportUnlinked { support_id, .. } => {
-            format!("gasket-support:{support_id}:link")
-        }
-        MechanicalSettingsPatch::ResetGasketPlacement => "reset-gasket-placement".into(),
-        MechanicalSettingsPatch::SetSwitchFamily { definition_id, .. } => {
-            format!("switch-family:{definition_id}")
-        }
-    }
+    patch.field_id()
 }
 
 fn default_gasket_layout() -> MechanicalGasketLayout {

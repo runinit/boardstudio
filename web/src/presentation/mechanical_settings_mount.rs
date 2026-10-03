@@ -21,7 +21,7 @@ use crate::runtime::{CadScene, Runtime};
 use boardstudio_application::{AcceptedSnapshot, Durability, Event, Lifecycle, OperationId, Scope};
 use boardstudio_core::model::{
     EditCommand, EditOperation, EditPhase, HardwareTransport, MechanicalBottomStyle,
-    MechanicalConfiguration, MechanicalMount, Part, PartKind, ProjectDoc,
+    MechanicalConfiguration, MechanicalMount, Mount, Part, PartKind, ProjectDoc,
 };
 use dioxus::prelude::*;
 use std::{
@@ -395,6 +395,9 @@ pub(crate) fn use_mechanical_settings_mount(
         let gasket_supports = scene_rows
             .as_ref()
             .map_or_else(|| Rc::from([]), |rows| rows.gasket_supports.clone());
+        let suggested_mounts = scene_rows
+            .as_ref()
+            .map_or_else(|| Rc::from([]), |rows| rows.suggested_mounts.clone());
         drop(scene_rows);
         let mut selected_layer = case_selection.layer_id(&current.identity.scope);
         let selected_gasket_support = gasket_supports.iter().any(|support| {
@@ -517,6 +520,7 @@ pub(crate) fn use_mechanical_settings_mount(
             profiles,
             layers,
             gasket_supports,
+            suggested_mounts,
             findings,
             selected_layer,
             mismatch,
@@ -641,6 +645,7 @@ struct MechanicalSettingsSourceProjection {
 struct MechanicalSceneRows {
     layers: Rc<[MechanicalLayerRow]>,
     gasket_supports: Rc<[MechanicalGasketSupportRow]>,
+    suggested_mounts: Rc<[Mount]>,
     findings: Rc<[MechanicalFindingRow]>,
 }
 
@@ -694,9 +699,14 @@ fn project_scene_rows(
             message: finding.message.clone(),
         })
         .collect();
+    let suggested_mounts = current_scene
+        .and_then(|scene| scene.mechanical.as_ref())
+        .map(|assembly| assembly.suggested_mounts.clone())
+        .unwrap_or_default();
     Some(MechanicalSceneRows {
         layers: Rc::from(layers),
         gasket_supports: Rc::from(gasket_supports),
+        suggested_mounts: Rc::from(suggested_mounts),
         findings: Rc::from(findings),
     })
 }
@@ -749,6 +759,8 @@ fn settings_values(
         board_id: configuration.board_id.clone(),
         transport,
         battery: configuration.battery.clone(),
+        suspension_mounts: configuration.mounts.clone(),
+        closure_mounts: configuration.closure_mounts.clone(),
         method: configuration.method.clone(),
         mount: configuration.mount.clone(),
         bottom_style: configuration
@@ -766,6 +778,8 @@ fn settings_values(
         clearance: configuration.clearance,
         opening_allowance: configuration.opening_allowance.unwrap_or(0.0),
         internal_gasket: configuration.internal_gasket.is_some(),
+        plate_to_pcb: configuration.plate_to_pcb,
+        battery_height: configuration.battery_height,
     }
 }
 
