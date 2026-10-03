@@ -21,13 +21,13 @@ The comparison uses current-board SVG marker IDs from the same imported archive 
 | React | 47 | 78 | 47 → 72 |
 | Dioxus candidate | 44 | 75 | 44 → 72 |
 
-The all-visible unique ID sets match. With the module layer off, React shows three additional source-caveat IDs that candidate Dioxus omits:
+The all-visible unique ID sets match. In the captured default DOM, React shows three source-caveat IDs that candidate Dioxus omits:
 
 - `module/review/ec11-rotary/gate/source-caveat`
 - `module/review/splitter-above/gate/source-caveat`
 - `module/review/splitter-below/gate/source-caveat`
 
-When all visible, React renders each of those three IDs three times, while Dioxus renders each twice. The candidate therefore reaches the same 72 distinct marker IDs, but it assigns the three source-caveat markers to the wrong visibility behavior and has one fewer duplicate instance per ID. The other marker IDs agree. This comparison identifies the visible mismatch without proposing an ID-string suppression rule; the accepted-finding target/projection boundary needs a narrow follow-up. Findings state remains transient and the three project archive exports above are identical.
+When all visible, the captured DOM has three React marker instances per caveat ID versus two Dioxus instances. These are observed DOM counts, not a contract to reproduce. A live React Workbench inspection confirmed all three accepted PCB error findings target their current mounted-module instance and host board, so React's pinned `moduleFindingIds` predicate classifies them as module findings, matching the Dioxus predicate. React's JSX then filters every marker with those IDs when that layer is hidden. Root's browser console independently reported duplicate React keys for these same `module/.../gate/source-caveat` IDs; the live DOM also retained matching groups after the filter's inputs said they should be excluded. The discrepancy therefore includes stale/duplicate React DOM behavior and does not establish a candidate classification defect. Do not port those stale nodes or add marker-ID-specific filtering. This receipt preserves the initial paired DOM observation; the changed candidate browser check remains open. Findings state remains transient and the three project archive exports above are identical.
 
 ## Captures
 
