@@ -1157,7 +1157,7 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-empty-cursor svg { width: 20px; height: 20px; fill: var(--wb-panel); stroke: currentColor; stroke-width: 1.4; }
 .m1-canvas-empty h2 { margin: 0; color: var(--wb-ink); font: 600 18px var(--wb-display); letter-spacing: -.03em; }
 .m1-canvas-empty p { max-width: 28ch; margin: 8px 0 17px; color: var(--wb-muted); font-size: 12px; line-height: 1.55; }
-.m1-empty-primary { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 8px 14px; border: 0; border-radius: 4px; background: var(--wb-accent); color: var(--wb-on-accent); font-weight: 600; }
-.m1-empty-primary svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; }
-.m1-empty-secondary { min-height: 40px; margin-top: 6px; padding: 8px; border: 0; background: transparent; color: var(--wb-accent); }
+.m1-empty-primary { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 34px; padding: 0 13px; border: 1px solid var(--wb-accent); border-radius: 4px; background: var(--wb-accent); color: var(--wb-on-accent); font: 400 13px var(--wb-body); }
+.m1-empty-primary svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.m1-empty-secondary { min-height: 40px; margin-top: 6px; padding: 8px; border: 0; background: transparent; color: var(--wb-ink); font: 400 13px var(--wb-body); }
 .m1-canvas-placement-hint { position: absolute; right: 17px; bottom: 62px; display: flex; align-items: center; gap: 8px; padding: 7px 9px; border: 1px solid var(--wb-rule); border-radius: 4px; color: var(--wb-muted); background: var(--wb-panel); box-shadow: 0 4px 14px #24373312; font-size: 10px; pointer-events: none; }
