@@ -36,8 +36,10 @@ Models: Opus 5.5 (`claude-opus-5-5`) and Sonnet 5.5 (`claude-sonnet-5-5`).
   `Explore` for read-only search, `Plan` for design and `general-purpose` for authoring.
 - The Agent tool has no per-call effort setting. Effort comes from the agent definition or
   session, so record the requested effort and say when it was not enforced.
-- Authors that edit source use worktree isolation. The coordinator (Opus 5.5) keeps sole
-  commit, build and publish ownership.
+- Do not use `isolation: worktree` here: it needs an `origin/main` ref and would branch from
+  `main`, not this branch. Give parallel authors disjoint files in the one checkout, tell
+  them not to commit, and have the coordinator (Opus 5.5) verify and commit their exact
+  files. The coordinator keeps sole commit, build and publish ownership.
 - `SendMessage` continues an agent on its launched model; start a new Agent to change model.
 - The consolidated review is one Opus 5.5 invocation per coherent candidate, never the
   author of the packet. The Claude `code-review` skill is the entry point.

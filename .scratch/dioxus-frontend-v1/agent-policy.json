@@ -465,7 +465,7 @@
       "dispatch": {
         "tool": "Agent with model set to the profile's agent_tool_model; subagent_type claude/general-purpose for authoring, Explore for read-only search, Plan for design",
         "effort": "The Agent tool has no per-call effort setting. Effort comes from the agent definition or session; record the requested effort and note when it was not enforced.",
-        "isolation": "Use worktree isolation for authors that edit source; the coordinator keeps sole commit, build and publish ownership.",
+        "isolation": "Do not use isolation worktree (needs origin/main, would branch from main). Parallel authors edit disjoint files in the one checkout, do not commit, and the coordinator verifies and commits exact files.",
         "reuse": "SendMessage continues an agent with its launched model; start a new Agent to change model.",
         "review": "Consolidated review runs once per coherent candidate on opus-review; the author never reviews its own packet."
       },

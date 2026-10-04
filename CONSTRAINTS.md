@@ -156,10 +156,26 @@ as sources; apply the highest-impact process fix in place without opening anothe
 review chain or document. This is a project cadence, not a gate before the next author
 packet. Record the last checkpoint in the run record so the cadence survives handoffs.
 
+Process rules (2026-10-04 retro; each is checkable):
+- Status is generated, not hand-written: counts, served candidate and handoff come from
+  `progress.py`; do not paste them into prose. Commit records with the source change that
+  they describe, or at a milestone; no record-only commit per candidate.
+- A state-changing control is `implemented` only with a native test of its edit's state
+  transition (include the mirrored/linked case when it exists). The browser proves mounting
+  and the user journey, not the state logic.
+- Presentation code is wasm-only: run the wasm `page` check before committing it. Tests
+  must execute (`check-wasm-tests.py`, `focused-test`); a plain `#[test]` in wasm-only code
+  does not.
+- Run one independent diff review per integrated batch before packaging; its findings become
+  failing tests before the fixes. The consolidated review is for accepting a parent.
+- At most two published candidates per UTC day; `gc-builds.py` keeps the newest three plus
+  served, baseline and accepted builds.
+
 Delegate by default: dispatch bounded, disjoint-file packets to author agents in parallel
 and keep build, publish, ledger and commit ownership with the coordinator. Use the route
 for the running harness (Codex: Luna low/medium/high authors, Sol 6.1 High review, Astra
 high/xhigh for difficult evidenced bugs; Claude: Sonnet 5.5 authors, Opus 5.5 review and
-coordinator, Opus 5.5 for difficult bugs). The Agent tool's worktree isolation needs an
-`origin/main` ref this repo lacks, so give parallel authors disjoint files in one checkout. Runtime slots bound the user ceiling
+coordinator, Opus 5.5 for difficult bugs). Worktree isolation does not work here (no
+`origin/main`; it would branch from `main`), so give parallel authors disjoint files in one
+checkout and commit their exact files yourself. Runtime slots bound the user ceiling
 of 30. [Agent routing](.scratch/dioxus-frontend-v1/AGENT-ROUTING.md) holds launch details.
