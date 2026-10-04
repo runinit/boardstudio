@@ -7,12 +7,12 @@ use super::case_viewer::CaseSelection;
 use super::mechanical_settings::{
     MechanicalBoardMismatch, MechanicalFindingRow, MechanicalFitPart, MechanicalGasketSupportRow,
     MechanicalHardwareMount, MechanicalLayerRow, MechanicalProfileChoice,
-    MechanicalSettingsFeedback, MechanicalSettingsFeedbackState, MechanicalSettingsIdentity,
-    MechanicalSettingsProps, MechanicalSettingsValues,
+    MechanicalProfileTargetChoice, MechanicalSettingsFeedback, MechanicalSettingsFeedbackState,
+    MechanicalSettingsIdentity, MechanicalSettingsProps, MechanicalSettingsValues,
 };
 use super::mechanical_settings_controller::{
-    MechanicalResolution, MechanicalSettingsController, MechanicalSettingsCurrent,
-    MechanicalSettingsPorts,
+    LoadSwitchProfilePort, MechanicalResolution, MechanicalSettingsController,
+    MechanicalSettingsCurrent, MechanicalSettingsPorts,
 };
 use super::{InstanceSelection, parts};
 use crate::mechanical_feedback::{
@@ -144,6 +144,22 @@ pub(crate) fn use_mechanical_settings_mount(
             );
             let load_mounting_hole: MountingHoleLoader =
                 Rc::new(|| Box::pin(parts::load_mounting_hole_definition()));
+            let profile_runtime = runtime_for_operation.clone();
+            let load_switch_profile: LoadSwitchProfilePort =
+                Rc::new(move |definition_id, family, plate_to_pcb| {
+                    let operation_id = profile_runtime.operation();
+                    let runtime = profile_runtime.clone();
+                    Box::pin(async move {
+                        runtime
+                            .standard_switch_profile(
+                                operation_id,
+                                definition_id,
+                                family,
+                                plate_to_pcb,
+                            )
+                            .await
+                    })
+                });
             let submit_current = current.clone();
             let submit_runtime = runtime_for_operation.clone();
             let submit_alive = alive.clone();
@@ -227,6 +243,7 @@ pub(crate) fn use_mechanical_settings_mount(
                 current: current.clone(),
                 resolve,
                 load_mounting_hole,
+                load_switch_profile,
                 next_operation: {
                     let runtime = runtime_for_operation.clone();
                     Rc::new(move || runtime.operation())
@@ -508,6 +525,11 @@ pub(crate) fn use_mechanical_settings_mount(
             })
             .map(|projection| projection.profiles.clone())
             .unwrap_or_else(|| Rc::from([]));
+        let profile_targets = profile_targets(
+            &current.accepted,
+            &current.identity.active_board_id,
+            configuration.map(|value| &**value),
+        );
         let scene_rows = scene_rows.read();
         let layers = scene_rows
             .as_ref()
@@ -664,6 +686,7 @@ pub(crate) fn use_mechanical_settings_mount(
             values: configuration
                 .map(|configuration| settings_values(configuration.as_ref(), transport)),
             profiles,
+            profile_targets: Rc::from(profile_targets),
             layers,
             gasket_supports,
             fit_parts,
@@ -1115,6 +1138,60 @@ fn project_settings_source(
         configuration,
         profiles: Rc::from(profiles),
     })
+}
+
+fn profile_targets(
+    accepted: &AcceptedSnapshot,
+    board_id: &str,
+    configuration: Option<&MechanicalConfiguration>,
+) -> Vec<MechanicalProfileTargetChoice> {
+    let Some(board) = accepted
+        .document
+        .boards
+        .iter()
+        .find(|board| board.id == board_id)
+    else {
+        return Vec::new();
+    };
+    if configuration.is_none() {
+        return Vec::new();
+    }
+    let assigned = configuration
+        .map(|configuration| {
+            configuration
+                .profiles
+                .iter()
+                .map(|profile| profile.definition_id.as_str())
+                .collect::<std::collections::HashSet<_>>()
+        })
+        .unwrap_or_default();
+    let mut seen = std::collections::HashSet::new();
+    accepted
+        .document
+        .parts
+        .iter()
+        .filter(|part| {
+            board.part_ids.contains(&part.id) && seen.insert(part.definition_id.as_str())
+        })
+        .filter(|part| !assigned.contains(part.definition_id.as_str()))
+        .filter_map(|part| {
+            let definition = accepted
+                .document
+                .definitions
+                .iter()
+                .find(|definition| definition.id == part.definition_id)?;
+            Some(MechanicalProfileTargetChoice {
+                definition_id: definition.id.clone(),
+                name: definition.name.clone(),
+                switch_profile: definition.kind == boardstudio_core::model::PartKind::Switch
+                    || definition
+                        .generator
+                        .as_ref()
+                        .is_some_and(|generator| generator.source.ends_with("/switch_choc_v1_v2")),
+                imported_geometry: definition.kicad_source.is_some(),
+            })
+        })
+        .collect()
 }
 
 fn settings_values(

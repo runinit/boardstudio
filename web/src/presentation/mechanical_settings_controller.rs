@@ -17,9 +17,9 @@ use boardstudio_core::model::{
     CaseOpening, GasketConstructionVersion, GasketPlacement, HardwareTransport, InsertInstallation,
     InternalClosureHardware, InternalGasketConfiguration, MechanicalAssembly, MechanicalBattery,
     MechanicalBottomStyle, MechanicalConfiguration, MechanicalCriticalFit, MechanicalGasketLayout,
-    MechanicalHardwareSpecification, MechanicalMount, MechanicalSwitchFamily, Mount, MountKind,
-    Part, PartDefinition, PartGenerator, PartKind, PlateMethod, ProjectDoc, ScrewDrive,
-    ScrewHeadProfile, ScrewLengthDatum, Vec2, Vec3,
+    MechanicalHardwareSpecification, MechanicalMount, MechanicalPartProfile,
+    MechanicalSwitchFamily, Mount, MountKind, Part, PartDefinition, PartGenerator, PartKind,
+    PlateMethod, ProjectDoc, ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Vec2, Vec3,
 };
 use std::{
     cell::{Cell, RefCell},
@@ -39,6 +39,13 @@ pub(crate) type ResolveMechanicalPort = Rc<
 >;
 pub(crate) type ProjectClosureClearancePort =
     Rc<dyn Fn(ProjectDoc, &PartDefinition) -> Result<ProjectDoc, String>>;
+pub(crate) type LoadSwitchProfilePort = Rc<
+    dyn Fn(
+        String,
+        MechanicalSwitchFamily,
+        f64,
+    ) -> LocalFuture<Result<MechanicalPartProfile, String>>,
+>;
 
 /// The page copies only accepted Arc handles and the small configuration projection displayed
 /// by the controls. `editable` must be computed from the current Runtime, workspace,
@@ -74,6 +81,7 @@ pub(crate) struct MechanicalSettingsPorts {
     pub(crate) current: Rc<dyn Fn() -> Option<MechanicalSettingsCurrent>>,
     pub(crate) resolve: ResolveMechanicalPort,
     pub(crate) load_mounting_hole: Rc<dyn Fn() -> LocalFuture<Result<Rc<PartDefinition>, String>>>,
+    pub(crate) load_switch_profile: LoadSwitchProfilePort,
     pub(crate) next_operation: Rc<dyn Fn() -> OperationId>,
     pub(crate) submit_replace:
         Rc<dyn Fn(OperationId, u64, ProjectDoc) -> Result<OutcomeSlot, String>>,
@@ -463,12 +471,102 @@ impl MechanicalSettingsController {
                     .ok_or_else(|| {
                         "The active board has no matching mechanical configuration.".to_owned()
                     })?;
-                apply_patch(
-                    &mut configuration,
-                    &request.patch,
-                    base_document,
-                    &request.identity.active_board_id,
-                )?;
+                match &request.patch {
+                    MechanicalSettingsPatch::AssignSwitchProfile {
+                        definition_id,
+                        family,
+                    } => {
+                        validate_profile_target(
+                            base_document,
+                            &request.identity.active_board_id,
+                            &configuration,
+                            definition_id,
+                            true,
+                        )?;
+                        let existing_family = profile_family(&configuration).or_else(|| {
+                            initial_switch_family(base_document, &configuration.board_id)
+                        });
+                        let family_changed =
+                            existing_family.is_some_and(|current| current != *family);
+                        let plate_thickness = if family_changed {
+                            default_plate_thickness(*family)
+                        } else {
+                            configuration.plate_thickness
+                        };
+                        let plate_to_pcb = mounting_datum(*family) - plate_thickness;
+                        let mut profile = (ports.load_switch_profile)(
+                            definition_id.clone(),
+                            *family,
+                            plate_to_pcb,
+                        )
+                        .await?;
+                        if !Self::still_current(&ports, &controller, request) {
+                            return Err("The mechanical settings scope changed while loading the switch profile.".into());
+                        }
+                        if profile.definition_id != *definition_id {
+                            return Err(
+                                "Core returned a switch profile for another part type.".into()
+                            );
+                        }
+                        profile.switch_family = Some(*family);
+                        profile.plate_to_pcb = plate_to_pcb;
+                        if family_changed {
+                            configuration.plate_thickness = plate_thickness;
+                            configuration.plate_to_pcb = plate_to_pcb;
+                            configuration.plate_foam_thickness =
+                                default_plate_foam_thickness(plate_to_pcb);
+                        }
+                        configuration.profiles.push(profile);
+                    }
+                    MechanicalSettingsPatch::AssignImportedGeometryProfile { definition_id } => {
+                        validate_profile_target(
+                            base_document,
+                            &request.identity.active_board_id,
+                            &configuration,
+                            definition_id,
+                            false,
+                        )?;
+                        let definition = base_document
+                            .definitions
+                            .iter()
+                            .find(|definition| definition.id == *definition_id)
+                            .ok_or_else(|| {
+                                "The imported part definition is no longer available.".to_owned()
+                            })?;
+                        let family = base_document
+                            .parts
+                            .iter()
+                            .find(|part| {
+                                part.definition_id == *definition_id
+                                    && base_document.boards.iter().any(|board| {
+                                        board.id == request.identity.active_board_id
+                                            && board.part_ids.contains(&part.id)
+                                    })
+                            })
+                            .and_then(|part| definition_family(definition, part));
+                        configuration.profiles.push(MechanicalPartProfile {
+                            source_geometry: None,
+                            pcb_holes: None,
+                            clearance_volumes: None,
+                            openings: None,
+                            clearances: None,
+                            supported_thickness: None,
+                            switch_family: family,
+                            definition_id: definition.id.clone(),
+                            source: format!("KiCad {}", definition.name),
+                            cutouts: Vec::new(),
+                            plate_to_pcb: family.map_or(configuration.plate_to_pcb, |family| {
+                                mounting_datum(family) - configuration.plate_thickness
+                            }),
+                        });
+                    }
+                    _ => apply_patch(
+                        &mut configuration,
+                        &request.patch,
+                        base_document,
+                        &request.identity.active_board_id,
+                    )?,
+                }
                 Some(configuration)
             }
         };
@@ -590,6 +688,53 @@ impl MechanicalSettingsController {
             pending.take();
         }
     }
+}
+
+fn validate_profile_target(
+    document: &ProjectDoc,
+    board_id: &str,
+    configuration: &MechanicalConfiguration,
+    definition_id: &str,
+    switch_profile: bool,
+) -> Result<(), String> {
+    if configuration.board_id != board_id {
+        return Err("The mechanical configuration belongs to another board.".into());
+    }
+    if configuration
+        .profiles
+        .iter()
+        .any(|profile| profile.definition_id == definition_id)
+    {
+        return Err("A mechanical profile is already assigned to this part type.".into());
+    }
+    let board = document
+        .boards
+        .iter()
+        .find(|board| board.id == board_id)
+        .ok_or_else(|| "The selected board is no longer available.".to_owned())?;
+    let part = document
+        .parts
+        .iter()
+        .find(|part| board.part_ids.contains(&part.id) && part.definition_id == definition_id);
+    let definition = document
+        .definitions
+        .iter()
+        .find(|definition| definition.id == definition_id);
+    let eligible = match (part, definition) {
+        (Some(_), Some(definition)) if switch_profile => {
+            definition.kind == PartKind::Switch
+                || definition
+                    .generator
+                    .as_ref()
+                    .is_some_and(|generator| generator.source.ends_with("/switch_choc_v1_v2"))
+        }
+        (Some(_), Some(definition)) => definition.kicad_source.is_some(),
+        _ => false,
+    };
+    if !eligible {
+        return Err("The selected part type is not available for this profile assignment.".into());
+    }
+    Ok(())
 }
 
 fn admitted(current: &MechanicalSettingsCurrent, identity: &MechanicalSettingsIdentity) -> bool {
@@ -1432,6 +1577,12 @@ fn apply_patch(
                 .supports
                 .clear();
         }
+        MechanicalSettingsPatch::AssignSwitchProfile { .. }
+        | MechanicalSettingsPatch::AssignImportedGeometryProfile { .. } => {
+            return Err(
+                "Profile assignment must be prepared from the current accepted Case scope.".into(),
+            );
+        }
         MechanicalSettingsPatch::SetSwitchFamily {
             definition_id,
             family,
@@ -2110,6 +2261,46 @@ mod battery_patch_tests {
             clearance: 0.3,
             profiles: vec![],
         }
+    }
+
+    #[wasm_bindgen_test]
+    fn profile_assignment_rejects_a_different_board_and_duplicate_target() {
+        let document = ProjectDoc::empty("doc", "doc");
+        let mut other_board_configuration = configuration();
+        other_board_configuration.board_id = "other-board".into();
+        assert!(
+            validate_profile_target(
+                &document,
+                "board",
+                &other_board_configuration,
+                "switch",
+                true,
+            )
+            .unwrap_err()
+            .contains("another board")
+        );
+
+        let mut duplicate_configuration = configuration();
+        duplicate_configuration
+            .profiles
+            .push(MechanicalPartProfile {
+                source_geometry: None,
+                pcb_holes: None,
+                clearance_volumes: None,
+                openings: None,
+                clearances: None,
+                supported_thickness: None,
+                switch_family: Some(MechanicalSwitchFamily::Mx),
+                definition_id: "switch".into(),
+                source: "fixture".into(),
+                cutouts: Vec::new(),
+                plate_to_pcb: 3.5,
+            });
+        assert!(
+            validate_profile_target(&document, "board", &duplicate_configuration, "switch", true,)
+                .unwrap_err()
+                .contains("already assigned")
+        );
     }
 
     #[wasm_bindgen_test]

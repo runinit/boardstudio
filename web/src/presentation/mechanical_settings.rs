@@ -59,6 +59,14 @@ pub(crate) struct MechanicalProfileChoice {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub(crate) struct MechanicalProfileTargetChoice {
+    pub(crate) definition_id: String,
+    pub(crate) name: String,
+    pub(crate) switch_profile: bool,
+    pub(crate) imported_geometry: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct MechanicalLayerRow {
     pub(crate) id: String,
     pub(crate) label: String,
@@ -516,6 +524,13 @@ pub(crate) enum MechanicalSettingsPatch {
         anchors: Vec<MechanicalGasketAnchor>,
     },
     ResetGasketPlacement,
+    AssignSwitchProfile {
+        definition_id: String,
+        family: MechanicalSwitchFamily,
+    },
+    AssignImportedGeometryProfile {
+        definition_id: String,
+    },
     SetSwitchFamily {
         definition_id: String,
         family: MechanicalSwitchFamily,
@@ -638,6 +653,12 @@ impl MechanicalSettingsPatch {
                 format!("gasket-support:{support_id}:placement")
             }
             Self::ResetGasketPlacement => "reset-gasket-placement".to_owned(),
+            Self::AssignSwitchProfile { definition_id, .. } => {
+                format!("assign-switch-profile:{definition_id}")
+            }
+            Self::AssignImportedGeometryProfile { definition_id } => {
+                format!("assign-imported-profile:{definition_id}")
+            }
             Self::SetSwitchFamily { definition_id, .. } => {
                 format!("switch-family:{definition_id}")
             }
@@ -668,6 +689,7 @@ pub(crate) struct MechanicalSettingsProps {
     pub(crate) request_sequence: Signal<u64>,
     pub(crate) values: Option<MechanicalSettingsValues>,
     pub(crate) profiles: Rc<[MechanicalProfileChoice]>,
+    pub(crate) profile_targets: Rc<[MechanicalProfileTargetChoice]>,
     pub(crate) layers: Rc<[MechanicalLayerRow]>,
     pub(crate) gasket_supports: Rc<[MechanicalGasketSupportRow]>,
     pub(crate) fit_parts: Rc<[MechanicalFitPart]>,
@@ -892,6 +914,7 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                 ProfileGuidance {
                     identity: props.identity.clone(),
                     profiles: props.profiles.clone(),
+                    targets: props.profile_targets.clone(),
                     plate_thickness: values.plate_thickness,
                     plate_to_pcb: values.plate_to_pcb,
                     editable: props.editable,
@@ -2644,6 +2667,7 @@ fn ConstructionControls(props: ConstructionControlsProps) -> Element {
 struct ProfileGuidanceProps {
     identity: MechanicalSettingsIdentity,
     profiles: Rc<[MechanicalProfileChoice]>,
+    targets: Rc<[MechanicalProfileTargetChoice]>,
     plate_thickness: f64,
     plate_to_pcb: f64,
     editable: bool,
@@ -2653,6 +2677,7 @@ struct ProfileGuidanceProps {
 
 #[component]
 fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
+    let mut selected_family = use_signal(String::new);
     rsx! {
         section { class: "m1-mechanical-group", aria_label: "Switch fit profiles",
             h3 { "Switch fit profiles" }
@@ -2702,6 +2727,88 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
             }
             if props.profiles.iter().any(|profile| profile.family.is_none()) {
                 p { role: "status", "Choose a supported switch family to resolve the plate gap." }
+            }
+            if props.targets.iter().any(|target| target.switch_profile) {
+                div { class: "m1-mechanical-profile-assignment",
+                    label { class: "m1-mechanical-field",
+                        span { "Library fit profile" }
+                        select {
+                            aria_label: "Library fit profile",
+                            disabled: !props.editable,
+                            value: selected_family(),
+                            onchange: move |event: FormEvent| selected_family.set(event.value()),
+                            option { value: "", "Choose a switch family…" }
+                            option { value: "mx", "MX switch" }
+                            option { value: "choc-v1", "Choc v1 switch" }
+                            option { value: "choc-v2", "Choc v2 switch" }
+                        }
+                    }
+                    label { class: "m1-mechanical-field",
+                        span { "Assign library fit profile to" }
+                        select {
+                            aria_label: "Assign library fit profile to",
+                            disabled: !props.editable || selected_family().is_empty(),
+                            value: "",
+                            onchange: {
+                                let identity = props.identity.clone();
+                                let mut sequence = props.request_sequence;
+                                let on_request = props.on_request;
+                                let selected_family = selected_family;
+                                move |event: FormEvent| {
+                                    let definition_id = event.value();
+                                    if !definition_id.is_empty()
+                                        && let Some(family) = parse_family(&selected_family())
+                                    {
+                                        send_request(
+                                            &mut sequence,
+                                            &identity,
+                                            on_request,
+                                            MechanicalSettingsPatch::AssignSwitchProfile {
+                                                definition_id,
+                                                family,
+                                            },
+                                        );
+                                    }
+                                }
+                            },
+                            option { value: "", "Choose a placed switch type…" }
+                            for target in props.targets.iter().filter(|target| target.switch_profile) {
+                                option { value: "{target.definition_id}", "{target.name}" }
+                            }
+                        }
+                    }
+                }
+            }
+            if props.targets.iter().any(|target| target.imported_geometry) {
+                label { class: "m1-mechanical-field",
+                    span { "Custom KiCad geometry" }
+                    select {
+                        aria_label: "Assign custom geometry profile to",
+                        disabled: !props.editable,
+                        value: "",
+                        onchange: {
+                            let identity = props.identity.clone();
+                            let mut sequence = props.request_sequence;
+                            let on_request = props.on_request;
+                            move |event: FormEvent| {
+                                if !event.value().is_empty() {
+                                    send_request(
+                                        &mut sequence,
+                                        &identity,
+                                        on_request,
+                                        MechanicalSettingsPatch::AssignImportedGeometryProfile {
+                                            definition_id: event.value(),
+                                        },
+                                    );
+                                }
+                            }
+                        },
+                        option { value: "", "Choose imported part type…" }
+                        for target in props.targets.iter().filter(|target| target.imported_geometry) {
+                            option { value: "{target.definition_id}", "{target.name}" }
+                        }
+                    }
+                }
             }
             p { "Current plate thickness: {props.plate_thickness:.2} mm." }
         }
@@ -3602,6 +3709,7 @@ mod contextual_layer_tests {
                 request_sequence,
                 values: Some(values),
                 profiles: Rc::from([]),
+                profile_targets: Rc::from([]),
                 layers,
                 gasket_supports: Rc::from([]),
                 fit_parts: Rc::from([]),
@@ -3629,6 +3737,7 @@ mod contextual_layer_tests {
             ProfileGuidance {
                 identity: test_identity(),
                 profiles: Rc::from([]),
+                targets: Rc::from([]),
                 plate_thickness: 2.0,
                 plate_to_pcb: 3.0,
                 editable: true,
@@ -3650,6 +3759,7 @@ mod contextual_layer_tests {
                     request_sequence: wired_request_sequence,
                     values: Some(test_values(HardwareTransport::Wired, None)),
                     profiles: Rc::from([]),
+                    profile_targets: Rc::from([]),
                     layers: Rc::from([]),
                     gasket_supports: Rc::from([]),
                     fit_parts: Rc::from([]),
@@ -3684,6 +3794,7 @@ mod contextual_layer_tests {
                         }),
                     )),
                     profiles: Rc::from([]),
+                    profile_targets: Rc::from([]),
                     layers: Rc::from([]),
                     gasket_supports: Rc::from([]),
                     fit_parts: Rc::from([]),
