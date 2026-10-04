@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T16:33:31.388287+00:00",
+    "updated_at": "2026-10-04T16:37:27.141637+00:00",
     "parent_counts": {
       "accepted": 19,
       "implementing": 31,
@@ -25,20 +25,20 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-key-assembly-20261004",
-      "source_commit": "aec95b7f1896964512b7f8f916d241a10efb96b9",
-      "root_url": "http://127.0.0.1:34816/",
-      "subpath_url": "http://127.0.0.1:34816/boardstudio/",
-      "provenance": "web/target/builds/frontend-key-assembly-20261004/provenance.json",
-      "provenance_sha256": "5d271764d36265912dff477bf2d5e8a77a216fca9806c0d41a63eb3cf7a23879",
+      "build_id": "frontend-key-attached-20261004",
+      "source_commit": "3fb32690ec61cb3bd1dafc9e0e521f18072b66b6",
+      "root_url": "http://127.0.0.1:34817/",
+      "subpath_url": "http://127.0.0.1:34817/boardstudio/",
+      "provenance": "web/target/builds/frontend-key-attached-20261004/provenance.json",
+      "provenance_sha256": "5122554b1cca783ee607b24a51bb2e36406afc7a3a115178dfe0e53f733a86bc",
       "fresh_commands": 9,
       "inherited_commands": 23,
       "source_inputs": 1393,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 129.050346,
+      "command_span_seconds": 127.956677,
       "package_qualification": "Combined package provenance, current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-key-assembly-20261004/package-proof.json",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-key-attached-20261004/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -3122,14 +3122,35 @@
               "state": "pending"
             }
           ]
+        },
+        {
+          "candidate_build_id": "frontend-key-assembly-20261004",
+          "source_commit": "aec95b7f1896964512b7f8f916d241a10efb96b9",
+          "phase": "integrating",
+          "journeys": [
+            {
+              "id": "F7.6-F8.2-authored-case-step",
+              "scope": "Fresh Sofle Left authored Plate saved; Case Update preview and Export Case STEP become enabled and STEP downloads for Left. Switching to unconfigured Right board rejects/disables the stale output; returning to Left restores correct scope. Reuse generated mechanical ZIP (34810) and shared provider evidence.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+              "source_paths": [
+                "core/src/lib.rs",
+                "web/src/case_generation_admission.rs",
+                "web/src/cad_jobs.rs",
+                "web/src/presentation/export_workspace.rs",
+                "web/src/runtime.rs"
+              ],
+              "source_paths_complete": true,
+              "state": "pending"
+            }
+          ]
         }
       ],
       "phase": "integrating",
       "unmet_start_conditions": [
         "Authored Case preview and STEP after missing-material admission repair source scope is not proven integrated into this candidate"
       ],
-      "candidate_build_id": "frontend-key-assembly-20261004",
-      "source_commit": "aec95b7f1896964512b7f8f916d241a10efb96b9",
+      "candidate_build_id": "frontend-key-attached-20261004",
+      "source_commit": "3fb32690ec61cb3bd1dafc9e0e521f18072b66b6",
       "journeys": [
         {
           "id": "F7.6-F8.2-authored-case-step",

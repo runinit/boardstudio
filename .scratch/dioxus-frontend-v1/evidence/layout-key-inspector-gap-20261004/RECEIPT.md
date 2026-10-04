@@ -29,3 +29,9 @@ Public check, Sofle v2 Left PCB key 0,3: select lists 6 options (rotary encoder,
 choose Choc V1/V2 -> no alert, 70 parts; select another key and reselect -> Choc persisted; Undo -> original preset switch restored.
 Known gap vs reference: reference option list also includes THQWGD001C tactile entries (library catalog); Dioxus list is document definitions + the matrix template catalog.
 Reopen persistence and Redo were not exercised.
+
+## Attached components — candidate 34817
+`KeyAttached` carries the whole attached list (id, definitionId) so the existing baseline/stale guard applies; replace changes a definition by id,
+remove drops the id. Focused tests 11/11; wasm page check passes. Replace choices = document definitions + matrix template catalog (no kind filtering).
+Public check, Sofle v2 Left PCB key 0,3: one attached `diode` with Replace select and Remove; Remove -> 70 -> 69 parts, "No attached components" shown, no alert;
+Undo -> 70 parts, Remove button back. Replace and the mirror-target "Use mirrored components" override were not exercised; reopen persistence unchecked.
