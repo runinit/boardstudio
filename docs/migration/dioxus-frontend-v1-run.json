@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T03:12:15.371294+00:00",
+    "updated_at": "2026-10-04T03:15:41.812878+00:00",
     "parent_counts": {
       "accepted": 14,
       "implementing": 36,
@@ -25,20 +25,20 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-no-vik-v1-20261003",
-      "source_commit": "8a9d45db69ffd661c3243f480fc71e51018256c6",
-      "root_url": "http://127.0.0.1:34790/",
-      "subpath_url": "http://127.0.0.1:34790/boardstudio/",
-      "provenance": "web/target/builds/frontend-no-vik-v1-20261003/provenance.json",
-      "provenance_sha256": "b37a064f8d84f19e1ba3c248523dd4c5ecb33f20453b4117e09d58d41bd49dd4",
+      "build_id": "frontend-no-vik-filtered-20261003",
+      "source_commit": "e6c6a7016185054e773dc10f46f9ffcca1c4c308",
+      "root_url": "http://127.0.0.1:34791/",
+      "subpath_url": "http://127.0.0.1:34791/boardstudio/",
+      "provenance": "web/target/builds/frontend-no-vik-filtered-20261003/provenance.json",
+      "provenance_sha256": "65481fb9d4edb94eabde02de5a0122075009260a12874c7f2f214d7c57e91c93",
       "fresh_commands": 8,
       "inherited_commands": 22,
       "source_inputs": 1390,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 130.646718,
+      "command_span_seconds": 128.320799,
       "package_qualification": "Combined package provenance, current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-no-vik-v1-20261003/package-proof.json",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-no-vik-filtered-20261003/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -48,8 +48,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "6619d5f2be0ce4167939426dd7efd3a13fcbd1e3",
-      "state": "Published34789 source6619d5f2; compiler/package/root/subpath passed with zero warnings. F3.4-C01/C02/C03 and F2.1-C03 are verified through paired journeys. The active graph now has 61 parents and 221 criteria; unfinished VIK-specific Parts work and its dependent profile-reuse criterion were removed. F7.3-C05 remains active for 3D finding focus and paired Case-body qualification. F3.2/F3.3 Layout and F4.2 Parts parents accepted.",
+      "source_commit": "e6c6a7016185054e773dc10f46f9ffcca1c4c308",
+      "state": "Published frontend-no-vik-filtered-20261003 at 34791 (source e6c6a701): compiler/package/root/subpath passed. Active roadmap has 61 parents/221 criteria; VIK demo/catalogue/new-part choices removed while an existing 33-part VIK archive reopened. Focused Parts filter regression RED/GREEN and public import/search replay passed. RF-019 deferred; RF-020 records project-definition catalogue leakage. One scoped Sol candidate review is pending.",
       "packets": [
         {
           "stream": "Layout",
@@ -307,7 +307,7 @@
         }
       ],
       "qualification": "Filter regression RED/GREEN, compiler/package/served assets pass; rendered feedback browser RED34783 and GREEN34784. Broader loading/source-error remains unqualified.",
-      "application_candidate_source": "b2bb813cdb75340a2725ac4488dfde6752104484"
+      "application_candidate_source": "e6c6a7016185054e773dc10f46f9ffcca1c4c308"
     },
     "journeys": [
       {
@@ -626,7 +626,7 @@
               "scope": "Sofle selection, contextual Objects/Inspector Properties and Relations, matrix/key edits, Undo and reopen",
               "spec": ".scratch/dioxus-layout-authoring/spec.md",
               "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/journey.md",
-              "verified": "Three Properties shortcut routes and key width1\u21921.25\u2192Undo1\u2192Redo1.25\u2192reload1.25 match reference behavior.",
+              "verified": "Three Properties shortcut routes and key width1→1.25→Undo1→Redo1.25→reload1.25 match reference behavior.",
               "remaining": "Inspector arrangement/typography/context footer and Objects-to-toolbar selection-kind synchronization; broader authoring criteria unchanged."
             },
             {
@@ -1456,12 +1456,47 @@
               "state": "partial"
             }
           ]
+        },
+        {
+          "candidate_build_id": "frontend-no-vik-v1-20261003",
+          "source_commit": "8a9d45db69ffd661c3243f480fc71e51018256c6",
+          "phase": "qualifying",
+          "review": {
+            "profile": "sol-review",
+            "state": "pending"
+          },
+          "journeys": [
+            {
+              "id": "F3.4-C02",
+              "scope": "Paired addition/cutout/bridge draft preview, point Undo, cancel without accepted writes, Finish on 34789 and pinned 5175",
+              "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+              "state": "pending"
+            },
+            {
+              "id": "F5.2-C01",
+              "scope": "Paired multi-board Resolve/Apply plus focused stale board/controller mounted owner checks",
+              "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
+              "state": "pending"
+            },
+            {
+              "id": "F2.1-negative-branches",
+              "scope": "Mounted Loading/error/Retry and damaged-preview fallback supplement paired success; unchanged public finish conditions open",
+              "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
+              "state": "pending"
+            },
+            {
+              "id": "F7.3-C05",
+              "scope": "3D part pick proven; common viewer Case-body/module/finding mapping remains open",
+              "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+              "state": "pending"
+            }
+          ]
         }
       ],
       "phase": "qualifying",
       "unmet_start_conditions": [],
-      "candidate_build_id": "frontend-no-vik-v1-20261003",
-      "source_commit": "8a9d45db69ffd661c3243f480fc71e51018256c6",
+      "candidate_build_id": "frontend-no-vik-filtered-20261003",
+      "source_commit": "e6c6a7016185054e773dc10f46f9ffcca1c4c308",
       "journeys": [
         {
           "id": "F3.4-C02",
@@ -1489,7 +1524,7 @@
         }
       ],
       "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
-      "started_at": "2026-10-04T03:04:38.643357+00:00",
+      "started_at": "2026-10-04T03:15:41.812862+00:00",
       "review": {
         "profile": "sol-review",
         "state": "pending"
