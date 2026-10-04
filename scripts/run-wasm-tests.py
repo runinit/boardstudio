@@ -13,6 +13,7 @@ Override the runner with BOARDSTUDIO_WASM_TEST_COMMAND (shell-split; the filter,
 
 import argparse
 import glob
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -30,25 +31,31 @@ WASM_PACK = ["wasm-pack", "test", "--headless", "--chrome", "--mode", "no-instal
 CHROME_BINARIES = ("google-chrome-stable", "google-chrome", "chromium", "chromium-browser", "chrome")
 TEST_LINE = re.compile(r"^test (\S+) \.\.\. (ok|FAILED|FAIL)\b", re.M)
 INVOKED_LINE = re.compile(r"^\s*Invoking test: (\S+)", re.M)
-PATH_ATTR = re.compile(r'#\[path\s*=\s*"([^"]+)"\]\s*(?:#\[[^\]]*\]\s*)*(?:pub(?:\([^)]*\))?\s+)?mod\s+(\w+)\s*;')
-
-
 class RunnerError(RuntimeError):
     pass
 
 
 def path_attr_modules(root):
-    """Map repo-relative file -> (declaring file, module name) for `#[path = "..."] mod x;` declarations."""
+    """Map active wasm `#[path]` modules to their declaring file and module name."""
     found = {}
     base = Path(root) / "web/src"
-    for source in base.rglob("*.rs"):
-        try:
-            text = source.read_text()
-        except OSError:
-            continue
-        for target, name in PATH_ATTR.findall(text):
-            resolved = os.path.normpath(source.parent / target)
-            found[Path(resolved).relative_to(Path(root)).as_posix()] = (source.relative_to(Path(root)).as_posix(), name)
+    lint_path = Path(__file__).with_name("check-wasm-tests.py")
+    spec = importlib.util.spec_from_file_location("check_wasm_tests_for_runner", lint_path)
+    lint = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(lint)
+    roots = [path.resolve() for path in (base / "main.rs", base / "lib.rs") if path.is_file()]
+    compiled = lint.reachable(roots, lint.WASM, {})
+    root_files = set(roots)
+    for source, record in compiled.items():
+        for declaration in record["mods"]:
+            if declaration["path"] is None:
+                continue
+            if not all(lint.eval_cfg(cfg, lint.WASM) for cfg in declaration["cfgs"]):
+                continue
+            target = lint.resolve(source, declaration, root_files)
+            if target and target.is_file():
+                found[target.relative_to(Path(root)).as_posix()] = (
+                    source.relative_to(Path(root)).as_posix(), declaration["name"])
     return found
 
 
@@ -134,9 +141,10 @@ def run_filter(filter_, env, root=ROOT):
     result = subprocess.run(command, cwd=root, env=env, text=True, capture_output=True)
     output = result.stdout + "\n" + result.stderr
     outcomes = {name: status for name, status in TEST_LINE.findall(output)}
-    # A test that was invoked but never reported (browser/driver died mid-run) is a failure, not a pass.
+    # Keep interrupted invocations distinct from assertion failures so the known-failure
+    # allowlist cannot turn an incomplete browser run into a pass.
     for name in INVOKED_LINE.findall(output):
-        outcomes.setdefault(name, "FAILED")
+        outcomes.setdefault(name, "INCOMPLETE")
     outcomes = {name: ("FAILED" if status == "FAIL" else status) for name, status in outcomes.items()}
     return result.returncode, outcomes, output
 
@@ -144,16 +152,19 @@ def run_filter(filter_, env, root=ROOT):
 LIST_LINE = re.compile(r"^(\S+): test$", re.M)
 
 
-def all_module_filters(env, root=ROOT):
-    """One filter per test module: a single unfiltered run shares one page, so a crash or leaked state
-    in one module masks or breaks the rest."""
+def all_module_filters(env, root=ROOT, depth=None):
+    """One filter per test module (or per `depth` leading path segments): a single unfiltered run
+    shares one page, so a crash or leaked state in one module masks or breaks the rest."""
     override = os.environ.get(RUNNER_ENV)
     command = (shlex.split(override) if override else list(WASM_PACK)) + ["--list"]
     result = subprocess.run(command, cwd=root, env=env, text=True, capture_output=True)
     names = LIST_LINE.findall(result.stdout + "\n" + result.stderr)
     if not names:
         raise RunnerError("could not list wasm tests:\n" + "\n".join((result.stdout + result.stderr).strip().splitlines()[-30:]))
-    modules = sorted({name.rsplit("::", 1)[0] + "::" if "::" in name else name for name in names})
+    def group(name):
+        parts = name.split("::")[:-1]
+        return "".join(f"{part}::" for part in (parts[:depth] if depth else parts))
+    modules = sorted({group(name) for name in names})
     return [m for m in modules if not any(o != m and m.startswith(o) for o in modules)]
 
 
@@ -174,6 +185,10 @@ def run(filters, known, root=ROOT):
                             + ("" if code == 0 else f" (runner exit {code})")
                             + "; add a #[wasm_bindgen_test] for this module or check the runner output")
             logs.append(f"--- {label} ---\n" + "\n".join(output.strip().splitlines()[-40:]))
+        incomplete = sorted(name for name, status in found.items() if status == "INCOMPLETE")
+        if incomplete:
+            problems.append("incomplete execution; invoked tests did not report a terminal result: "
+                            + ", ".join(incomplete))
         elif code != 0 and "FAILED" not in found.values():
             problems.append(f"runner exited {code} for filter {label} without a failing test (build or harness error)")
             logs.append(f"--- {label} ---\n" + "\n".join(output.strip().splitlines()[-40:]))
@@ -194,6 +209,9 @@ def main(argv=None):
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--files", nargs="+", metavar="FILE")
     group.add_argument("--all", action="store_true")
+    parser.add_argument("--depth", type=int, default=None, metavar="N",
+                        help="with --all: group tests by their first N module segments instead of one run per module "
+                             "(fewer, faster runs; less isolation)")
     parser.add_argument("--root", default=str(ROOT))
     args = parser.parse_args(argv)
     root = Path(args.root)
@@ -202,7 +220,7 @@ def main(argv=None):
         known = load_known_failures()
         if filters is None:
             env = os.environ.copy() if os.environ.get(RUNNER_ENV) else runner_environment(root)
-            filters = all_module_filters(env, root)
+            filters = all_module_filters(env, root, args.depth)
         executed, failed, passing_known, problems, logs = run(filters, known, root)
     except RunnerError as error:
         print(f"run-wasm-tests: {error}", file=sys.stderr)

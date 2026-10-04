@@ -59,11 +59,23 @@ class RunWasmTestsTests(unittest.TestCase):
             f("docs/readme.md")
 
     def test_path_attribute_modules_follow_their_declaring_module(self):
+        (self.dir / "web/src/main.rs").write_text("mod presentation;\n")
+        (self.dir / "web/src/presentation.rs").write_text("mod panels;\n")
         (self.dir / "web/src/presentation/panels.rs").write_text(
             '#[cfg(test)]\n#[path = "panels_scroll_tests.rs"]\nmod scroll_tests;\n')
         (self.dir / "web/src/presentation/panels_scroll_tests.rs").write_text("")
         filters = runner.filters_for_files(["web/src/presentation/panels_scroll_tests.rs"], self.dir)
         self.assertEqual(filters, ["presentation::panels::scroll_tests::"])
+
+    def test_path_attribute_modules_ignore_aliases_inactive_for_wasm(self):
+        (self.dir / "web/src/main.rs").write_text(
+            '#[cfg(target_arch = "wasm32")]\nmod presentation;\n'
+            '#[cfg(all(test, not(target_arch = "wasm32")))]\n'
+            '#[path = "presentation/case_display.rs"]\nmod case_display;\n')
+        (self.dir / "web/src/presentation.rs").write_text("mod case_display;\n")
+        (self.dir / "web/src/presentation/case_display.rs").write_text("")
+        filters = runner.filters_for_files(["web/src/presentation/case_display.rs"], self.dir)
+        self.assertEqual(filters, ["presentation::case_display::"])
 
     def test_nested_filters_collapse_into_their_prefix(self):
         filters = runner.filters_for_files([
@@ -114,9 +126,16 @@ class RunWasmTestsTests(unittest.TestCase):
 
     def test_invoked_but_never_reported_test_counts_as_failed(self):
         self.fake("echo '    Invoking test: presentation::x::tests::hangs'; exit 1")
-        code, out, _ = self.main("--files", "web/src/presentation/x.rs")
+        code, out, err = self.main("--files", "web/src/presentation/x.rs")
         self.assertEqual(code, 1)
-        self.assertIn("FAILED presentation::x::tests::hangs", out)
+        self.assertIn("presentation::x::tests::hangs", err)
+        self.assertIn("incomplete execution", err)
+
+    def test_allowlisted_invoked_but_unreported_test_still_fails(self):
+        self.fake("echo '    Invoking test: presentation::x::tests::known_broken'; exit 1")
+        code, out, err = self.main("--files", "web/src/presentation/x.rs")
+        self.assertEqual(code, 1, out)
+        self.assertIn("incomplete", err.lower())
 
     def test_build_error_without_failing_test_fails(self):
         self.fake("echo 'test presentation::x::tests::good ... ok'; echo 'error: build exploded' >&2; exit 1")

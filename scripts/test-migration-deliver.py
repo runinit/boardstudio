@@ -93,7 +93,7 @@ class MigrationDeliverTests(unittest.TestCase):
 
     def wasm_fixture(self, cargo_exit, test_attr="#[wasm_bindgen_test]", wasm_exit=0):
         src = self.root / "web/src"
-        (src / "presentation").mkdir(parents=True)
+        (src / "presentation").mkdir(parents=True, exist_ok=True)
         (src / "lib.rs").write_text("")
         (src / "main.rs").write_text('#[cfg(target_arch = "wasm32")]\nmod presentation;\n')
         (src / "presentation.rs").write_text("mod view;\n")
@@ -107,6 +107,7 @@ class MigrationDeliverTests(unittest.TestCase):
         cargo.write_text(
             "#!/bin/sh\n"
             f"echo \"$@\" >> '{self.cargo_log}'\n"
+            "if [ \"$1\" = test ]; then echo 'test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out'; exit 0; fi\n"
             "echo 'error[E0432]: unresolved import foo' >&2\n"
             f"exit {cargo_exit}\n"
         )
@@ -144,6 +145,19 @@ class MigrationDeliverTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("wasm change", run_git(self.root, "log", "-1", "--format=%s").stdout)
 
+    def test_wasm_only_module_with_no_wasm_tests_is_rejected(self):
+        env = self.wasm_fixture(cargo_exit=0, test_attr="")
+        runner = Path(self.temp.name) / "wasm-bin" / "fake-wasm-runner"
+        runner.write_text(
+            "#!/bin/sh\n"
+            f"echo \"$@\" >> '{self.wasm_log}'\n"
+            "echo 'running 0 tests'\n")
+        runner.chmod(0o755)
+        result = self.commit_wrapped(env)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("headless-Chrome wasm tests failed", result.stderr)
+        self.assertIn("zero tests executed", result.stderr)
+
     def test_commit_refuses_plain_test_in_wasm_only_file_even_if_it_compiles(self):
         env = self.wasm_fixture(cargo_exit=0, test_attr="#[test]")
         result = self.commit_wrapped(env)
@@ -179,19 +193,82 @@ class MigrationDeliverTests(unittest.TestCase):
         self.assertIn("native web tests failed", result.stderr)
         self.assertIn("FAILED renderer_host_source_sync::private_page_host_matches", result.stderr)
         log = self.cargo_log.read_text()
-        self.assertIn("test --manifest-path web/Cargo.toml --locked --bin boardstudio-web", log)
+        self.assertIn("test --manifest-path web/Cargo.toml --locked --lib --bin boardstudio-web", log)
         self.assertEqual(self.wasm_log.read_text(), "")
 
     def test_commit_runs_native_web_tests_and_changed_wasm_modules_when_green(self):
-        env = self.native_fixture("test result: ok.")
+        env = self.native_fixture("test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out")
         result = self.commit_wrapped(env)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("test --manifest-path web/Cargo.toml --locked --bin boardstudio-web", self.cargo_log.read_text())
+        self.assertIn("test --manifest-path web/Cargo.toml --locked --lib --bin boardstudio-web", self.cargo_log.read_text())
         self.assertNotIn("core/Cargo.toml", self.cargo_log.read_text())
         self.assertEqual("presentation::", self.wasm_log.read_text().strip())
 
+    def test_changed_native_presentation_helper_does_not_require_wasm_tests(self):
+        env = self.native_fixture(
+            "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out",
+            extra_files=["web/src/presentation/case_display.rs"],
+        )
+        (self.root / "web/src/main.rs").write_text(
+            '#[cfg(target_arch = "wasm32")]\nmod presentation;\n'
+            '#[cfg(all(test, not(target_arch = "wasm32")))]\n'
+            '#[path = "presentation/case_display.rs"]\nmod case_display;\n')
+        (self.root / "web/src/presentation.rs").write_text("mod case_display;\n")
+        run_git(self.root, "add", "web/src/main.rs", "web/src/presentation.rs")
+        run_git(self.root, "commit", "-m", "fixture baseline")
+        (self.root / "web/src/presentation/case_display.rs").write_text("pub fn f() { let _changed = true; }\n")
+        run_git(self.root, "add", "web/src/presentation/case_display.rs")
+        runner = Path(self.temp.name) / "wasm-bin" / "fake-wasm-runner"
+        runner.write_text(
+            "#!/bin/sh\n"
+            f"echo \"$@\" >> '{self.wasm_log}'\n"
+            "echo 'running 0 tests'\n")
+        runner.chmod(0o755)
+        result = self.commit_wrapped(env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual("", self.wasm_log.read_text())
+
+    def test_native_library_test_failure_blocks_commit(self):
+        env = self.native_fixture(
+            "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out",
+            extra_files=["web/src/offline.rs"],
+        )
+        cargo = Path(self.temp.name) / "wasm-bin" / "cargo"
+        cargo.write_text(
+            "#!/bin/sh\n"
+            f"echo \"$@\" >> '{self.cargo_log}'\n"
+            "if [ \"$1\" = check ]; then exit 0; fi\n"
+            "case \" $* \" in *\" --lib \"*)\n"
+            "  echo 'test offline::tests::rejects_invalid_manifest ... FAILED'\n"
+            "  exit 101;;\n"
+            "esac\n"
+            "echo 'test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out'\n")
+        cargo.chmod(0o755)
+        result = self.commit_wrapped(env)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("native web tests failed", result.stderr)
+        self.assertIn("offline::tests::rejects_invalid_manifest", result.stderr)
+
+    def test_native_commit_rejects_zero_test_summary(self):
+        env = self.native_fixture(
+            "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 42 filtered out")
+        result = self.commit_wrapped(env)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("at least one passed test", result.stderr)
+
+    def test_native_commit_rejects_all_ignored_summary(self):
+        env = self.native_fixture(
+            "test result: ok. 0 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out")
+        result = self.commit_wrapped(env)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("at least one passed test", result.stderr)
+
     def test_commit_with_core_files_also_runs_core_tests(self):
-        env = self.native_fixture("test model::t ... FAILED", extra_files=["core/src/lib.rs"])
+        env = self.native_fixture(
+            "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n"
+            "test model::t ... FAILED",
+            extra_files=["core/src/lib.rs"],
+        )
         env["FAKE_CORE_EXIT"] = "101"
         result = self.commit_wrapped(env)
         self.assertNotEqual(result.returncode, 0)

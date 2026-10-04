@@ -317,7 +317,7 @@ def _tail(text, lines=60):
     return "\n".join(text.strip().splitlines()[-lines:])
 
 
-NATIVE_WEB_TEST_COMMAND = ["cargo", "test", "--manifest-path", "web/Cargo.toml", "--locked", "--bin", "boardstudio-web"]
+NATIVE_WEB_TEST_COMMAND = ["cargo", "test", "--manifest-path", "web/Cargo.toml", "--locked", "--lib", "--bin", "boardstudio-web"]
 NATIVE_CORE_TEST_COMMAND = ["cargo", "test", "--manifest-path", "core/Cargo.toml", "--locked"]
 _FAILED_TEST = re.compile(r"^test (\S+) \.\.\. FAILED", re.M)
 
@@ -336,6 +336,14 @@ def _run_native_tests(root, command, label):
             f"native {label} tests failed (`{' '.join(command)}`). Fix and retry.\n{listing}\n"
             f"Output tail:\n{_tail(output)}"
         )
+    output = result.stdout + "\n" + result.stderr
+    summaries = list(_TEST_SUMMARY.finditer(output))
+    passed = sum(int(match.group("passed")) for match in summaries)
+    if passed == 0:
+        raise GuardError(
+            f"native {label} tests did not execute any passed tests (`{' '.join(command)}`). "
+            f"at least one passed test is required. Output tail:\n{_tail(output)}"
+        )
 
 
 def _check_wasm_commit(root, paths):
@@ -350,13 +358,21 @@ def _check_wasm_commit(root, paths):
     core = [name for name in files if name.startswith("core/src/") and name.endswith(".rs")]
     if not rust and not core:
         return
-    needs_wasm = []
+    needs_wasm_check = []
+    needs_wasm_tests = []
     if rust:
         wasm_only = set(_load_wasm_lint().wasm_only_files(root))
-        needs_wasm = [name for name in rust if name.startswith("web/src/presentation/") or name in wasm_only]
-    if needs_wasm:
-        print(f"migration-deliver: {len(needs_wasm)} wasm-only Rust file(s) in this commit "
-              f"(e.g. {needs_wasm[0]}); running wasm32 cargo check before committing", file=sys.stderr)
+        needs_wasm_check = [name for name in rust if name.startswith("web/src/presentation/") or name in wasm_only]
+        needs_wasm_tests = [
+            name for name in needs_wasm_check
+            if name in wasm_only or (
+                (Path(root) / name).is_file()
+                and re.search(r"#\s*\[\s*wasm_bindgen_test\b", (Path(root) / name).read_text())
+            )
+        ]
+    if needs_wasm_check:
+        print(f"migration-deliver: {len(needs_wasm_check)} wasm-relevant Rust file(s) in this commit "
+              f"(e.g. {needs_wasm_check[0]}); running wasm32 cargo check before committing", file=sys.stderr)
         result = subprocess.run(WASM_CHECK_COMMAND, cwd=root, text=True, capture_output=True)
         if result.returncode:
             raise GuardError(
@@ -378,11 +394,11 @@ def _check_wasm_commit(root, paths):
             "check-wasm-tests.py found plain #[test]s that native cargo test never runs:\n"
             + _tail(result.stdout + result.stderr)
         )
-    if needs_wasm:
-        print("migration-deliver: running wasm-bindgen tests in headless Chrome for the changed modules", file=sys.stderr)
+    if needs_wasm_tests:
+        print("migration-deliver: running wasm-bindgen tests in headless Chrome for changed wasm test modules", file=sys.stderr)
         result = subprocess.run(
             [sys.executable, str(Path(__file__).with_name("run-wasm-tests.py")), "--root", str(root),
-             "--files", *needs_wasm],
+             "--files", *needs_wasm_tests],
             cwd=root, text=True, capture_output=True,
         )
         if result.returncode:
