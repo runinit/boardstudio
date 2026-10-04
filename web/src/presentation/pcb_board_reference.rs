@@ -15,6 +15,9 @@ use boardstudio_web::host::AssetBytes;
 
 use crate::runtime::Runtime;
 
+#[path = "pcb_board_reference/matching.rs"]
+mod matching;
+
 const MAX_REFERENCE_BYTES: f64 = 32.0 * 1024.0 * 1024.0;
 
 fn sha256_bytes(bytes: &[u8]) -> String {
@@ -360,16 +363,6 @@ enum ModelAttachment {
     Directory { files: Vec<File> },
 }
 
-fn is_model_filename(filename: &str) -> bool {
-    [".step", ".stp", ".stl", ".wrl"]
-        .iter()
-        .any(|extension| filename.to_ascii_lowercase().ends_with(extension))
-}
-
-fn model_basename(path: &str) -> &str {
-    path.rsplit(['/', '\\']).next().unwrap_or(path)
-}
-
 async fn attach_model_files(
     runtime: &Rc<Runtime>,
     workspace: Signal<&'static str>,
@@ -396,21 +389,11 @@ async fn attach_model_files(
             vec![(path, file)]
         }
         ModelAttachment::Directory { files } => {
-            let mut candidates = std::collections::BTreeMap::<String, Vec<File>>::new();
-            for file in files
+            let filenames = files.iter().map(File::name).collect::<Vec<_>>();
+            let matched = matching::unique_directory_matches(paths, &filenames)
                 .into_iter()
-                .filter(|file| is_model_filename(&file.name()))
-            {
-                candidates.entry(file.name()).or_default().push(file);
-            }
-            let mut matched = Vec::new();
-            for path in paths {
-                if let Some(files) = candidates.get_mut(model_basename(path))
-                    && files.len() == 1
-                {
-                    matched.push((path.clone(), files.remove(0)));
-                }
-            }
+                .map(|(path, index)| (path, files[index].clone()))
+                .collect::<Vec<_>>();
             if matched.is_empty() {
                 return Err(
                     "No unique model filenames matched. Attach files individually below.".into(),
