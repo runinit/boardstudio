@@ -5369,7 +5369,7 @@
         {
           "id": "F6C.3-C01",
           "requirement": "Port width/depth sliders and quarter-unit steps.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/objects/keycap_size.rs",
@@ -5380,7 +5380,7 @@
             ".scratch/dioxus-frontend-v1/evidence/keycaps-size-reflow-20261003/paired-linked-resize.md"
           ],
           "blockers": [],
-          "next_action": "Reuse source and selected linked-key journey; finish the remaining selection and axis cases.",
+          "next_action": "Retain paired quarter-step Width pointer and Height keyboard edits, with separate accepted axis sizes.",
           "finish_condition": "Width and depth controls apply quarter-unit increments through the existing accepted edit/history path.",
           "owned_files": [
             "web/src/presentation/objects/keycap_size.rs",
@@ -5421,7 +5421,7 @@
         {
           "id": "F6C.3-C03",
           "requirement": "Preserve pointer and keyboard commit behavior and duplicate-commit protection.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/objects/keycap_size.rs",
@@ -5429,10 +5429,11 @@
             "web/src/presentation/objects/keycap_resize.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-keycaps-workflow/evidence/size-reflow/owner-lifecycle-repair.md"
+            ".scratch/dioxus-keycaps-workflow/evidence/size-reflow/owner-lifecycle-repair.md",
+            ".scratch/dioxus-frontend-v1/evidence/keycaps-size-reflow-20261003/paired-linked-resize.md"
           ],
           "blockers": [],
-          "next_action": "Retain the production mounted owner/timer regression proof and qualify the matching user commit boundary.",
+          "next_action": "Retain paired one-Undo/one-Redo pointer+blur and keyboard commits; mounted delayed-owner regression backs rejection of old-owner events.",
           "finish_condition": "Pointer release, blur, and keyboard release follow the accepted commit boundaries without duplicate history entries.",
           "owned_files": [
             "web/src/presentation/objects/keycap_size.rs",
@@ -5459,7 +5460,7 @@
             ".scratch/dioxus-frontend-v1/evidence/keycaps-size-reflow-20261003/paired-linked-resize.md"
           ],
           "blockers": [],
-          "next_action": "Use the accepted linked resize as representative proof; qualify the remaining selection scopes and independent axis path.",
+          "next_action": "Single selected linked-key axis editing passed paired; remaining multi-key selection scopes and envelope target cases require qualification.",
           "finish_condition": "Edits use the current selected key scope, preserve separate axis commits and update the intended key envelopes.",
           "owned_files": [
             "web/src/presentation/objects/keycap_size.rs",
@@ -5530,7 +5531,7 @@
         {
           "id": "F6C.3-C07",
           "requirement": "Draft values settle or reset consistently when selection/project changes.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/objects/keycap_size.rs",
@@ -5538,10 +5539,11 @@
             "web/src/presentation/objects/keycap_resize.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-keycaps-workflow/evidence/size-reflow/owner-lifecycle-repair.md"
+            ".scratch/dioxus-keycaps-workflow/evidence/size-reflow/owner-lifecycle-repair.md",
+            ".scratch/dioxus-frontend-v1/evidence/keycaps-size-reflow-20261003/paired-linked-resize.md"
           ],
           "blockers": [],
-          "next_action": "Retain the delayed-owner mounted regression evidence and qualify selection/project reset behavior on the integrated owner.",
+          "next_action": "Retain paired key-selection draft settlement and New-project/reopen reset; source owner regression covers delayed prior-owner event.",
           "finish_condition": "A draft settles or resets on current-owner change and a delayed prior-owner event cannot retarget a new selection.",
           "owned_files": [
             "web/src/presentation/objects/keycap_size.rs",
