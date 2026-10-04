@@ -16,10 +16,10 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T01:09:09.318268+00:00",
+    "updated_at": "2026-10-04T01:28:07.131358+00:00",
     "parent_counts": {
-      "accepted": 12,
-      "implementing": 39,
+      "accepted": 13,
+      "implementing": 38,
       "planned": 11,
       "total": 62
     },
@@ -49,7 +49,7 @@
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
       "source_commit": "733c1da2abede39a617d2eca2e42d9bd437cea41",
-      "state": "PCB resolver owner/private notice source 924ba282 compiled and published as34786; F5.2-C04 mounted failure/retry/stale-board regression green. F4.2 accepted; F3.2-C01/C02 and all F6C.3 criteria verified. Current workbench packets qualify exact remaining criteria.",
+      "state": "Published34786 source924ba282 with PCB resolver owner regression; F3.2 and F4.2 accepted. F3.3 joins now satisfied; Case F7.3-C02/C03/C04 and F6C.3 all criteria verified. Functional work continues in six streams.",
       "packets": [
         {
           "stream": "Layout",
@@ -488,11 +488,11 @@
       {
         "stream": "Layout",
         "priority": "Functional gaps alongside other streams; exact visual parity deferred",
-        "state": "F3.3 fully verified; F3.2-C01 custom/preset/mirrored placement and C02 snap-key commit/cancel verified paired on34785. Component placement and commit-edge cases remain."
+        "state": "F3.2 accepted after all four paired criteria and one Sol 6.1 High final review; F3.3 all criteria verified and its F3.2 join is now met, pending final parent review. Exact visual/control-state parity deferred."
       },
       {
         "stream": "PCB",
-        "state": "F5.3 all five criteria verified paired; F5.2-C04 mounted failure/retry/stale-board regression and source published34786. Public provider failure/retry and F5.2-C01/C02 qualification remain."
+        "state": "F5.3 all five verified. F5.2-C01 Left changed and Right idempotent Resolve/Apply paired34786; stale revision/controller forced branch remains. C02 populated/no-controller fields paired; C04 mounted failure/retry/stale-board green. Real public provider-error/retry remains."
       },
       {
         "stream": "Keymap",
@@ -500,22 +500,22 @@
       },
       {
         "stream": "Keycaps",
-        "state": "All seven F6C.3 criteria verified paired, including key/additive/mirrored/row/column/matrix scopes, axis commits, linked reflow and history. Parent F3.2/F3.5 joins remain."
+        "state": "F6C.3 all seven verified. F6C.5 active-preview edit while pending and latest update observed34785; controlled provider failure/stale-response qualification remains for C02/C03/C06."
       },
       {
         "stream": "Case",
-        "state": "F7.3-C03 layer/model visibility and selected Plate Colour/Reset verified paired on 34785. Current Case source compiled/published; C02 reference section-position and C04 zoom plus broader viewer lifecycle remain."
+        "state": "F7.3-C02/C03/C04 verified paired, including section position, appearance/reset and canvas-targeted zoom. C01/C05 broader scene/pick mappings remain."
       },
       {
         "stream": "Parts + Project",
-        "state": "F4.2 accepted (all six criteria, INT.2 join, paired evidence and consolidated Sol 6.1 High review). Next Parts/Project functional parents remain open; reference async defects RF-016/RF-017 retained."
+        "state": "F4.2 accepted. F2.1-C04 paired demo editable-copy and non-mutating browse evidenced; damaged preview fallback remains. C02 search/no-match/clear qualification is active."
       }
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Qualify F5.2-C02 current PCB Wiring fields on34786, reuse mounted F5.2-C04 test, and retain public provider-error/retry as a precise unresolved branch.",
-      "Finish F3.2-C03 standalone component placement and C04 invalid/history/reopen; preserve the paired Layout matrix proof.",
-      "Take concrete missing or bounded unassessed criteria in the other five streams; preserve one waiting packet per stream and defer cosmetic parity."
+      "Review and accept F3.3 if its five criteria and final join pass; reuse source/package and paired evidence without another browser sweep.",
+      "Complete exact F5.2 stale-revision/controller and public provider-error branches, plus Project search and Keycaps controlled provider lifecycle.",
+      "Finish Case scene/pick mapping criteria and continue functional workbench queues; defer visual/control placement parity."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",

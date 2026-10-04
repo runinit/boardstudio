@@ -1,0 +1,13 @@
+{
+  "parent": "F3.2",
+  "at": "2026-10-04T01:26:32.861454+00:00",
+  "candidate_source": "924ba2820a6c0698fd06fb969d7cf4f28ae76ccd",
+  "candidate_url": "http://127.0.0.1:34786/boardstudio/",
+  "review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/f32-final-review.md",
+  "review_sha256": "161bceb03f2a2bb825555003e862b011e17edba477cf771b5e1bf7e5bf25b4f6",
+  "audit": ".scratch/dioxus-frontend-v1/evidence/f32-acceptance-20261003/AUDIT.json",
+  "audit_sha256": "a26f9cdb8e8dc31556f6dd306d38bb39732461c535096d5810bfd200ff7989e7",
+  "criteria_accounting": ".scratch/dioxus-frontend-v1/tasks.json",
+  "scope": "All four F3.2 functional criteria; F3.1 start capability accepted, no acceptance_after/external gates. Invalid Create disabled-state parity deferred without changing correct rejection behavior. Other Layout and release parents remain.",
+  "decision": "Accepted by coordinator from complete criterion accounting, paired authoring/history/reopen/invalid-input evidence, current package provenance and one consolidated Sol 6.1 High Standards/Spec review."
+}

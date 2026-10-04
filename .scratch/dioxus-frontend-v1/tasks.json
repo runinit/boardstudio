@@ -1090,7 +1090,7 @@
         "F3.1"
       ],
       "acceptance_after": [],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
       "shared_edit_owner": "integration coordinator",
@@ -1112,6 +1112,13 @@
           "from": "planned",
           "to": "implementing",
           "reason": "Reconciled already-mounted implementation and retained evidence; no acceptance gate waived."
+        },
+        {
+          "at": "2026-10-04T01:26:39.505474+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "All four functional criteria verified; F3.1 start capability accepted; no final joins; consolidated Sol 6.1 High review and package audit clear",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/f32-acceptance-20261003/DECISION.json"
         }
       ],
       "progress_evidence": {
@@ -1237,6 +1244,9 @@
         "assessed_at": "2026-10-03T19:29:50Z",
         "coverage": "complete",
         "note": "All four current acceptance clauses represented; historical progress/boundary claims were treated as context, and only criterion-specific existing journeys are verified. Candidate review narrowed evidence for F3.2-C02: partial behavior/source proof is retained; remaining branches are explicit qualification."
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/f32-acceptance-20261003/DECISION.json"
       }
     },
     {
@@ -6550,7 +6560,7 @@
         {
           "id": "F7.3-C04",
           "requirement": "Support camera fit/top/bottom/isometric, orbit and zoom controls.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/shared_viewer.rs",
@@ -6562,7 +6572,7 @@
             ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md"
           ],
           "blockers": [],
-          "next_action": "Bottom, Isometric and orbit passed paired; Top/Fit retained from prior proof. Resolve zoom with a reliable input path because wheel captures were unchanged in both apps.",
+          "next_action": "Retain paired Fit/Top/Bottom/Isometric/orbit and coordinate-targeted canvas wheel zoom in/out on34786. Earlier unchanged wheel captures hit HEADER and were browser-driver artifacts, not an app defect.",
           "finish_condition": "Camera controls produce expected observable viewpoints across actual consumers.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs"
@@ -9418,8 +9428,8 @@
     "integration_slices": 2,
     "boundary_slices": 2,
     "status": {
-      "accepted": 12,
-      "implementing": 39,
+      "accepted": 13,
+      "implementing": 38,
       "planned": 11
     }
   },
