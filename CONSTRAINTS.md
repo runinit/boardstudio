@@ -72,8 +72,11 @@ production cutover and React removal retain their separate authorization/gates.
    edit result named in the packet, with one focused smoke when first packaged.
 6. Qualify and review at coherent functional milestones, not after every packet or
    intermediate package. At a milestone, check changed user journeys once against the
-   pinned TypeScript reference, reuse unchanged evidence, and use one consolidated
-   Sol 6.1 High review. Keep broader lifecycle, visual parity and release qualification
+   pinned TypeScript reference and reuse unchanged evidence. Run those focused
+   candidate journeys before the consolidated Sol 6.1 High review: repair a
+   reproduced defect in the same batch and review the resulting candidate once.
+   A journey with an unavailable public trigger stays explicitly unqualified and
+   does not require repeated setup before review. Keep broader lifecycle, visual parity and release qualification
    queued until their owning milestone. Other streams continue during qualification.
    Use one paired saved fixture/session per workbench milestone to cover several
    related controls and edits, then point every satisfied criterion to that one

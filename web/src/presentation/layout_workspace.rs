@@ -59,6 +59,8 @@ pub(super) struct InspectorInput {
     pub(super) matrix_relationship_target: Option<objects::TreeSelectRequest>,
     pub(super) on_select_context: EventHandler<objects::TreeSelectRequest>,
     pub(super) outline_inspector: Option<Box<super::outline_lifecycle::OutlineInspectorProjection>>,
+    pub(super) findings_return_available: bool,
+    pub(super) on_findings_return: EventHandler<()>,
     pub(super) board_inspector: Option<super::board_inspector::BoardInspectorProjection>,
     pub(super) on_board_rename: EventHandler<super::board_inspector::BoardRenameAction>,
     pub(super) findings_page: Option<super::layout_findings::InspectorMount>,
@@ -191,6 +193,17 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
         PendingSplayOriginPickEscape {
             pending: input.splay_origin_pick_pending,
             on_cancel: input.on_cancel_splay_origin_pick,
+        }
+        if input.findings_return_available {
+            div { class: "m1-layout-findings-return",
+                button {
+                    class: "m1-layout-findings-back",
+                    id: "m1-layout-findings-back-to-selection",
+                    r#type: "button",
+                    onclick: move |_| input.on_findings_return.call(()),
+                    "Back to selection"
+                }
+            }
         }
         if input.outline_inspector.is_none() && input.component_inspector.is_none() {
         if let Some(title) = input.context_title.as_ref() {

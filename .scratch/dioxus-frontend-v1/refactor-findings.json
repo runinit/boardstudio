@@ -2282,6 +2282,93 @@
         "F7.3"
       ],
       "continuations": []
+    },
+    {
+      "id": "RF-026",
+      "title": "Dioxus delegated pointer handlers cannot assume a DOM currentTarget",
+      "category": "UI event boundary / reusable interaction helper",
+      "confidence": "confirmed by paired pointer-resize failure and focused source correction",
+      "impact_priority": "medium",
+      "status": "v1 panel capture repaired in next source batch; shared event policy deferred",
+      "discovered": "2026-10-04",
+      "baseline": "Candidate frontend-case-panels-20261004, source 9dd2a412",
+      "workflows": [
+        "F2.3",
+        "F3.3"
+      ],
+      "evidence": [
+        ".scratch/dioxus-frontend-v1/evidence/compact-shell-parity-20261003/f23-public-qualification.md",
+        "web/src/presentation/panels.rs",
+        "web/src/presentation/objects/layout_transform_toolbar.rs"
+      ],
+      "observation": "Both desktop panel separators received pointerdown on the packaged page, but Dioxus raw event current_target() did not resolve the divider. No pointer capture began and pointermove never resized either panel. Existing transform handles obtain event.target() and resolve the owning element with closest(), which works with delegated events.",
+      "impact": "A control can compile and respond to keyboard actions while its pointer path silently fails; repeating raw currentTarget assumptions across the port risks similar gaps.",
+      "during_port": "Resolve and verify the actual mounted target element in the panel handler, retain the paired pointer RED receipt, and recheck both pane drags on the next packaged candidate. Audit only newly touched pointer-capture controls at their changed-action milestone.",
+      "post_port_proposal": "Offer a small private DOM target/capture adapter with explicit closest-selector and pointer-id semantics so Dioxus controls do not duplicate fragile raw event access.",
+      "validation_needed": "Paired next-candidate pointer drag, capture/release, bounds and reload pass for both desktop panes; focused audit of other currentTarget capture sites after the port.",
+      "decision": "Fix the concrete F2.3 failure now; defer cross-control abstraction until the post-port refactor.",
+      "follow_up_owner": "Frontend interaction architecture",
+      "linked_tasks": [
+        "F2.3"
+      ],
+      "continuations": []
+    },
+    {
+      "id": "RF-027",
+      "title": "Generator validation exposes raw JavaScript stack text in the Parts UI",
+      "category": "user-facing error normalization / provider boundary",
+      "confidence": "confirmed by paired Parts generator browser journey",
+      "impact_priority": "low",
+      "status": "observed; validation blocks invalid Apply, message cleanup deferred to polish",
+      "discovered": "2026-10-04",
+      "baseline": "Candidate frontend-case-panels-20261004, source 9dd2a412",
+      "workflows": [
+        "F4.3"
+      ],
+      "evidence": [
+        ".scratch/dioxus-parts-catalogue/evidence/07-generator-settings-dioxus-paired-journey-20261003.md",
+        "web/src/presentation/parts/generator_settings.rs"
+      ],
+      "observation": "A zero-width invalid generator draft preserved accepted geometry and disabled Apply in both frontends. React displayed a concise field constraint; Dioxus displayed the same reason with a verbose JsValue stack attached.",
+      "impact": "The functional guard works, but internal error detail clutters the Inspector and may obscure the actionable field correction.",
+      "during_port": "Keep the current invalid-input guard and treat the extra stack as deferred presentation cleanup; do not retest the successful generator/edit path for this difference.",
+      "post_port_proposal": "Normalize provider and validation errors into typed user messages with optional diagnostic detail retained outside the main form.",
+      "validation_needed": "One invalid generator field in the final Parts UI shows a concise actionable message while diagnostics remain inspectable for debugging.",
+      "decision": "Record this UI/error-boundary issue without blocking functional F4.3 implementation.",
+      "follow_up_owner": "Parts UI and error boundary",
+      "linked_tasks": [
+        "F4.3"
+      ],
+      "continuations": []
+    },
+    {
+      "id": "RF-028",
+      "title": "Selection liveness conflates a present context with a resolved target",
+      "category": "selection semantics / stale navigation guard",
+      "confidence": "confirmed by focused findings-return regression",
+      "impact_priority": "medium",
+      "status": "v1 finding-return guard narrowed to component liveness; shared predicate refactor deferred",
+      "discovered": "2026-10-04",
+      "baseline": "Layout finding-return repair following candidate frontend-case-panels-20261004",
+      "workflows": [
+        "F3.5"
+      ],
+      "evidence": [
+        "web/src/presentation/selection.rs",
+        "web/src/presentation.rs",
+        ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md"
+      ],
+      "observation": "The shared `context_is_current` predicate accepts any `resolve_selection` Some, including Some(empty). A removed part can therefore pass its context guard even though no live component remains. Empty Matrix/Outline groups can be legitimate, so treating all empty selections as stale would also be wrong.",
+      "impact": "Navigation or editor return code that uses the broad predicate alone may restore a removed component or must add inconsistent local guards.",
+      "during_port": "For the findings Back action, require a saved component target to resolve to at least one live part while allowing legitimate empty group contexts. Keep owner/snapshot and expected-destination guards.",
+      "post_port_proposal": "Define explicit context-exists versus selection-has-live-members semantics in the selection module, with context-specific liveness and one reusable return/admission API.",
+      "validation_needed": "Focused cases distinguish removed component, live component, valid empty matrix/outline, scope change and revision change; public Back action returns to a live prior selection only.",
+      "decision": "Use the narrow v1 guard for F3.5 and defer changing the shared selector contract across workbenches.",
+      "follow_up_owner": "Selection and Inspector architecture",
+      "linked_tasks": [
+        "F3.5"
+      ],
+      "continuations": []
     }
   ]
 }

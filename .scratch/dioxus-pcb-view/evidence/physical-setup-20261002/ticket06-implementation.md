@@ -27,3 +27,10 @@
 - The full F5.6a paired TypeScript/Dioxus browser journey, accepted topology selection, Undo/Redo, save/reopen, hidden-panel durability, and actual packaged-normalizer UI path remain open. The F5.6a journey is still the sole public paired acceptance suite.
 - Case PCB selector and per-half flip controls remain excluded by the prerequisite spec. Do not expand this slice into those features.
 - No shared run/refactor ledger or publication JSON was edited. Source findings remain within RF-001, RF-006 and RF-009; this slice adds no new refactor ID.
+
+## Paired F5.6-C01 Project-stage qualification — 2026-10-04
+
+- Compared the frozen Dioxus app at `http://127.0.0.1:34802/` and React app at `http://127.0.0.1:5175/` using the same imported Sofle v2 archive (`layered-sofle-export.boardstudio`, SHA-256 `5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df`) in isolated sessions.
+- Both began Split/Wired/non-reversible. Selecting One keyboard accepted that topology and hid the half-connection controls. Returning to Split restored those controls and selected Wireless in both. Wired↔Wireless changes and enabling Reversible layout updated the selected control states and corresponding copy identically.
+- Undo twice then Redo twice restored the same Split/Wireless/reversible state in both. Reloading each same imported session retained that accepted state. Undo after reload reported empty history in both; no post-reload history persistence was expected or claimed.
+- No F5.6-C01 action/result mismatch was reproduced in this bounded paired journey. This is source/fixture-specific qualification, not closure of the full F5.6a acceptance suite or F5.8.

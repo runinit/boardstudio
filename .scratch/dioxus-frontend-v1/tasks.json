@@ -781,7 +781,7 @@
             ".scratch/dioxus-frontend-v1/evidence/compact-shell-parity-20261003/f23-public-qualification.md"
           ],
           "blockers": [],
-          "next_action": "Desktop pinned pane separators now handle captured pointer drag and Arrow-key resizing, clamp against the other pinned pane plus a 280 px center reserve, and persist settings; compact drawers hide separators. On the next functional candidate, run one paired pointer/keyboard/bounds/reload journey before verification.",
+          "next_action": "After paired 34802 RED, divider pointer handlers now resolve the captured `.m1-panel-resize` through event.target().closest() instead of absent delegated current_target(); the locked wasm page check and formatting pass. On the next packaged candidate, recheck Objects and Inspect pointer drag/capture once; reuse 34802 keyboard bounds and saved-width/mode reload evidence.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/panels.rs",
@@ -1766,9 +1766,11 @@
             "web/src/presentation/objects/matrix_inspector.rs",
             "web/src/presentation/objects/matrix_transform_inspector.rs"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md"
+          ],
           "blockers": [],
-          "next_action": "Inspect field commit/revert boundaries and source guards, then qualify invalid, locked and driven states through public UI scenarios.",
+          "next_action": "The first paired 34801 matrix rotation attempt showed a saved-transform mismatch/no Undo, but a fresh same-build, same-fixture worker-instrumented replay accepted left-keys 0\u00b0\u21925\u00b0, exported rotation 5 and Undo restored 0; native mapper\u2192Core replay also passed. No stable source defect is established. Retain both observations; do not repeat generic attempts. Characterize exact unsettled import/edit timing only if the failure recurs, and qualify locked/driven numeric boundaries separately.",
           "finish_condition": "Paired public evidence demonstrates characterized draft boundaries, no edit dispatch for invalid input, and unavailable locked/driven values.",
           "owned_files": [
             "web/src/presentation/inspector/layout_component_inspector.rs",
@@ -1791,10 +1793,11 @@
           ],
           "evidence": [
             ".scratch/dioxus-layout-authoring/evidence/17-layout-findings-navigation/public-34767.md",
-            ".scratch/dioxus-layout-authoring/evidence/17-layout-findings-navigation/source-contract.md"
+            ".scratch/dioxus-layout-authoring/evidence/17-layout-findings-navigation/source-contract.md",
+            ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md"
           ],
           "blockers": [],
-          "next_action": "Inspect current target routing and current candidate receipts for outline/component focus-fit and missing-target behavior; existing public receipt is a narrow navigation sample.",
+          "next_action": "Paired 34801/5175 fixture proved both live Show outline warnings navigate/select/fit and left-U1 Fit selection works, with minor zoom difference. Missing/stale finding target does not exist in this fixture; retain that branch unqualified until a fixture presents it.",
           "finish_condition": "Public paired scenarios prove grouped findings, live outline/component select-focus-fit, and no action for missing targets.",
           "owned_files": [
             "web/src/presentation/layout_findings.rs",
@@ -1812,13 +1815,16 @@
           "sources": [
             "web/src/presentation/inspector.rs",
             "web/src/presentation/inspector/layout_component_inspector.rs",
-            "web/src/presentation/objects/matrix_inspector.rs"
+            "web/src/presentation/objects/matrix_inspector.rs",
+            "web/src/presentation.rs",
+            "web/src/presentation/layout_workspace.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-layout-authoring/evidence/f35a-layout-membership-tab-reset-20261003/README.md"
+            ".scratch/dioxus-layout-authoring/evidence/f35a-layout-membership-tab-reset-20261003/README.md",
+            ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md"
           ],
           "blockers": [],
-          "next_action": "Inspect current keyboard/back/focus and compact drawer implementation; qualify the full sequence on current candidate (the cited receipt proves tab return state only).",
+          "next_action": "Source now captures a scoped prior selection before findings navigation, renders Back on live destination Inspectors and restores selection/Properties focus with stale owner/part guards. Focused Chrome wasm regression passed 1/1; recheck outline and component Back once on the next packaged candidate, then retain the earlier compact keyboard evidence.",
           "finish_condition": "Paired public keyboard scenarios prove tabs, nested routes, Escape/back and focus restoration in compact drawers.",
           "owned_files": [
             "web/src/presentation/inspector.rs",
@@ -2785,16 +2791,17 @@
         {
           "id": "F4.3-C01",
           "requirement": "Edit boolean/typed number/string, front/back side, structured settings and attached-model parameters in named groups; preserve false/zero/empty.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/parts/generator_settings.rs:720"
           ],
           "evidence": [
-            ".scratch/dioxus-parts-catalogue/evidence/generator-model-asset-source-20261003/RECEIPT.md"
+            ".scratch/dioxus-parts-catalogue/evidence/generator-model-asset-source-20261003/RECEIPT.md",
+            ".scratch/dioxus-parts-catalogue/evidence/07-generator-settings-dioxus-paired-journey-20261003.md"
           ],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Paired 34802/5175 MX-switch generator journey applied false hotswap, typed width, Front/Back, empty model filename and structured offset with zero coordinates; accepted values remained visible. Retain the receipt, including both invalid width-zero and malformed JSON guards.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts/generator_settings.rs"
@@ -2819,7 +2826,7 @@
             ".scratch/dioxus-parts-catalogue/evidence/07-generator-settings-dioxus-paired-journey-20261003.md"
           ],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Paired 34802/5175 journey showed Dioxus Generating\u2192Ready with Apply disabled while pending; width-zero and malformed JSON kept prior preview/document and disabled Apply in both apps. Genuine provider failure and delayed stale-result supersession remain unqualified; do not repeat the successful field/invalid branches. Dioxus width error adds a verbose JsValue stack, a presentation issue for later polish.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts/generator_settings.rs",
@@ -4183,7 +4190,7 @@
         {
           "id": "F5.6-C01",
           "requirement": "Project-stage controls configure one/split topology, split wireless/wired transport, and reversible layout.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation.rs:3275",
@@ -4196,7 +4203,7 @@
             ".scratch/dioxus-pcb-view/evidence/physical-setup-20261002/ticket06-implementation.md"
           ],
           "blockers": [],
-          "next_action": "Retain existing source/owner receipts and complete the parent paired journey for Project-stage actions and their visible states.",
+          "next_action": "Paired 34802/5175 imported Sofle journey passed One/Split, Wired/Wireless, reversible layout, Undo/Redo and reload with the same accepted state. Retain this receipt; F5.6-C04/C05 identity/Case viewer joins remain open.",
           "finish_condition": "Paired fixtures confirm topology, transport, and reversible controls match React and accepted history/reload behavior.",
           "owned_files": [
             "web/src/presentation.rs",
@@ -6959,7 +6966,7 @@
           ],
           "evidence": [],
           "blockers": [],
-          "next_action": "The accepted Case scene now anchors live preview Handle capture across provisional scene publication; focused WASM RED/GREEN covers current Move/End and 15 invalid owner transitions. On the next candidate, run one valid and one rejected handle drag, showing provisional output and accepted history/Undo; reuse prior blocked-move evidence.",
+          "next_action": "Narrow Case Handle capture repair is source-integrated at 9dd2a412 with focused WASM RED/GREEN for current Move/End and invalid owner transitions. The first paired React setup reached Edit gaskets but no deterministic canvas handle hit point; do not retry guessed coordinates. Derive a valid handle target from viewer geometry or a stable fixture, then qualify one provisional accepted drag/Undo and one rejected non-commit on a packaged candidate.",
           "finish_condition": "Invalid movement remains preview-only and does not partially modify accepted document; each transient state is visible.",
           "owned_files": [
             "web/src/presentation/case_viewer.rs"

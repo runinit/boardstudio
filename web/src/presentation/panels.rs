@@ -511,13 +511,13 @@ fn panel_frame(
                                 let Some(raw) = event.data().try_as_web_event() else { return; };
                                 if raw.button() != 0 { return; }
                                 event.prevent_default();
-                                if let Some(target) = raw.current_target().and_then(|target| target.dyn_into::<web_sys::Element>().ok()) {
+                                if let Some(target) = panel_resize_target(&raw) {
                                     let _ = target.set_pointer_capture(raw.pointer_id());
                                 }
                             },
                             onpointermove: move |event: dioxus::prelude::PointerEvent| {
                                 let Some(raw) = event.data().try_as_web_event() else { return; };
-                                let Some(target) = raw.current_target().and_then(|target| target.dyn_into::<web_sys::Element>().ok()) else { return; };
+                                let Some(target) = panel_resize_target(&raw) else { return; };
                                 if !target.has_pointer_capture(raw.pointer_id()) { return; }
                                 if let Some(width) = pointer_panel_width(side, raw.client_x()) {
                                     set_panel_width(settings, side, width);
@@ -525,14 +525,14 @@ fn panel_frame(
                             },
                             onpointerup: move |event: dioxus::prelude::PointerEvent| {
                                 if let Some(raw) = event.data().try_as_web_event()
-                                    && let Some(target) = raw.current_target().and_then(|target| target.dyn_into::<web_sys::Element>().ok())
+                                    && let Some(target) = panel_resize_target(&raw)
                                 {
                                     let _ = target.release_pointer_capture(raw.pointer_id());
                                 }
                             },
                             onpointercancel: move |event: dioxus::prelude::PointerEvent| {
                                 if let Some(raw) = event.data().try_as_web_event()
-                                    && let Some(target) = raw.current_target().and_then(|target| target.dyn_into::<web_sys::Element>().ok())
+                                    && let Some(target) = panel_resize_target(&raw)
                                 {
                                     let _ = target.release_pointer_capture(raw.pointer_id());
                                 }
@@ -609,6 +609,13 @@ impl PanelSide {
 }
 
 const MINIMUM_CENTER_WIDTH: f64 = 280.0;
+
+fn panel_resize_target(event: &PointerEvent) -> Option<web_sys::Element> {
+    event
+        .target()
+        .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
+        .and_then(|target| target.closest(".m1-panel-resize").ok().flatten())
+}
 
 fn default_panel_width(side: PanelSide) -> f64 {
     match side {

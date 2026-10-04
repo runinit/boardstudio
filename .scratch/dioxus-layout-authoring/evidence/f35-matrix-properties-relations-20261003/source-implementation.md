@@ -56,3 +56,65 @@ live-pick behavior were observed in the paired run above (`f35-pick-react`);
 no duplicate reference journey was run for this repair. The focused Escape
 journey is GREEN. F3.5-C01 and F3.5 remain open for their other acceptance
 clauses.
+
+### Paired mounted browser follow-up (2026-10-04)
+
+One isolated `agent-browser` session used React `http://localhost:5175/` and
+Dioxus `http://localhost:34801/`. Each origin imported the same saved fixture:
+`/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-v1/evidence/case-keymap-current/keymap-layered-public/fixture/initial-sofle.boardstudio`.
+No saved-browser state was shared between origins.
+
+**C02 — partial.** On React, Layout tree → `keys` → Properties, Rotation `0 → 5`
+with Enter, then Undo restored `0`. The same action on Dioxus left a `5°` field
+draft and showed: “The saved transform does not contain the requested value.
+Review the current field and retry.” Undo left the draft unchanged; a subsequent
+Undo reported “History is empty.” Dioxus Pitch X `-1` showed
+`aria-invalid=true` and “Enter a finite number greater than zero.” Escape closed
+Inspect and restored `19.05`. This Sofle fixture has independent `keys`/`thumbs`
+layouts and no existing driven or locked relation, so those states are
+unqualified.
+
+**C03 — partial.** Both full findings DOMs contained exactly two live outline
+warnings (Left PCB and Right PCB), each with a working `Show outline` action.
+That action selected the Generated outline and fitted it (React displayed 84%;
+Dioxus 80%). Dioxus disabled Fit selection in the resulting outline inspector.
+For component focus-fit, selecting `left-U1` and using Fit selection reached
+213% in React. On Dioxus, the SVG part target was initially covered by the open
+inspector; closing it exposed the target, and Fit selection reached 206%. No
+missing/stale finding target occurs in this fixture, so that branch is
+unqualified.
+
+**C04 — partial.** React keyboard Enter on `Back to selection` from the outline
+inspector returned to the prior `left-U1` context and focused its Properties tab.
+After Dioxus `Show outline`, the full interactive DOM exposed no Back to
+selection control and focus was on Close inspector. At 720×800, Dioxus kept its
+370 px inspector usable; Tab from Relations focused Edit placement relationship.
+This covers the compact relation-action focus path, while the outline
+return-path remains unqualified on Dioxus. C01 Escape evidence above was reused;
+Escape was not repeated for that criterion.
+
+This receipt records mounted behavior only; no source, tracker, or run files were
+changed.
+
+### Rotation worker boundary diagnostic (2026-10-04)
+
+On Dioxus `http://localhost:34801/`, a fresh browser-origin import of the same
+`initial-sofle.boardstudio` fixture started `left-keys` at rotation 0 (project
+revision 3). After selecting Layout → `keys` → Properties, filling Rotation `5`
+and pressing Enter, the mounted field read `5` with no saved-transform mismatch
+alert. A post-action `.boardstudio` export had revision 6 and `left-keys.rotation`
+`5.0`; the pre-action export had revision 3 and no rotation value. One Undo
+returned the field to `0` (undo reply scene revision 7).
+
+A boundary tap on the existing Worker and MessagePort `postMessage` methods
+captured the edit as outer Worker `kind=core`, `request_id=m1-4`; its frame was
+`kind=edit`, `id=m1-4`, command phase `commit`, `baseRevision=5`, operation
+`set-matrix`, target `left-keys`, rotation `5.0`. The matching Worker reply used
+`request_id=m1-4`, frame `kind=scene`, with document revision 6 and
+`left-keys.rotation=5.0`. The only subsequent worker traffic before export was
+keycaps/electrical resolution; no Open/replace request arrived in this edit
+window. Undo was Worker `core` request `m1-5`, frame `kind=undo`; reply scene
+revision 7 restored the rotation to 0. All observed traffic used Worker; no
+MessagePort traffic was recorded. Thus this mounted build did not reproduce the
+saved-transform mismatch noted in the earlier paired follow-up; the earlier
+failure remains unqualified pending reproduction on its original build state.

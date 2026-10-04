@@ -2481,3 +2481,118 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
   "continuations": []
 }
 ```
+
+## RF-026: Dioxus delegated pointer handlers cannot assume a DOM currentTarget
+
+**Status:** v1 panel capture repaired in next source batch; shared event policy deferred
+
+**Confidence:** confirmed by paired pointer-resize failure and focused source correction
+
+**Observation:** Both desktop panel separators received pointerdown on the packaged page, but Dioxus raw event current_target() did not resolve the divider. No pointer capture began and pointermove never resized either panel. Existing transform handles obtain event.target() and resolve the owning element with closest(), which works with delegated events.
+
+**Impact:** A control can compile and respond to keyboard actions while its pointer path silently fails; repeating raw currentTarget assumptions across the port risks similar gaps.
+
+**Current mitigation:** Resolve and verify the actual mounted target element in the panel handler, retain the paired pointer RED receipt, and recheck both pane drags on the next packaged candidate. Audit only newly touched pointer-capture controls at their changed-action milestone.
+
+**Later proposal:** Offer a small private DOM target/capture adapter with explicit closest-selector and pointer-id semantics so Dioxus controls do not duplicate fragile raw event access.
+
+**Validation:** Paired next-candidate pointer drag, capture/release, bounds and reload pass for both desktop panes; focused audit of other currentTarget capture sites after the port.
+
+**Evidence:** `.scratch/dioxus-frontend-v1/evidence/compact-shell-parity-20261003/f23-public-qualification.md`; `web/src/presentation/panels.rs`; `web/src/presentation/objects/layout_transform_toolbar.rs`
+
+**Additional recorded details:**
+
+```json
+{
+  "category": "UI event boundary / reusable interaction helper",
+  "impact_priority": "medium",
+  "discovered": "2026-10-04",
+  "baseline": "Candidate frontend-case-panels-20261004, source 9dd2a412",
+  "workflows": [
+    "F2.3",
+    "F3.3"
+  ],
+  "decision": "Fix the concrete F2.3 failure now; defer cross-control abstraction until the post-port refactor.",
+  "follow_up_owner": "Frontend interaction architecture",
+  "linked_tasks": [
+    "F2.3"
+  ],
+  "continuations": []
+}
+```
+
+## RF-027: Generator validation exposes raw JavaScript stack text in the Parts UI
+
+**Status:** observed; validation blocks invalid Apply, message cleanup deferred to polish
+
+**Confidence:** confirmed by paired Parts generator browser journey
+
+**Observation:** A zero-width invalid generator draft preserved accepted geometry and disabled Apply in both frontends. React displayed a concise field constraint; Dioxus displayed the same reason with a verbose JsValue stack attached.
+
+**Impact:** The functional guard works, but internal error detail clutters the Inspector and may obscure the actionable field correction.
+
+**Current mitigation:** Keep the current invalid-input guard and treat the extra stack as deferred presentation cleanup; do not retest the successful generator/edit path for this difference.
+
+**Later proposal:** Normalize provider and validation errors into typed user messages with optional diagnostic detail retained outside the main form.
+
+**Validation:** One invalid generator field in the final Parts UI shows a concise actionable message while diagnostics remain inspectable for debugging.
+
+**Evidence:** `.scratch/dioxus-parts-catalogue/evidence/07-generator-settings-dioxus-paired-journey-20261003.md`; `web/src/presentation/parts/generator_settings.rs`
+
+**Additional recorded details:**
+
+```json
+{
+  "category": "user-facing error normalization / provider boundary",
+  "impact_priority": "low",
+  "discovered": "2026-10-04",
+  "baseline": "Candidate frontend-case-panels-20261004, source 9dd2a412",
+  "workflows": [
+    "F4.3"
+  ],
+  "decision": "Record this UI/error-boundary issue without blocking functional F4.3 implementation.",
+  "follow_up_owner": "Parts UI and error boundary",
+  "linked_tasks": [
+    "F4.3"
+  ],
+  "continuations": []
+}
+```
+
+## RF-028: Selection liveness conflates a present context with a resolved target
+
+**Status:** v1 finding-return guard narrowed to component liveness; shared predicate refactor deferred
+
+**Confidence:** confirmed by focused findings-return regression
+
+**Observation:** The shared `context_is_current` predicate accepts any `resolve_selection` Some, including Some(empty). A removed part can therefore pass its context guard even though no live component remains. Empty Matrix/Outline groups can be legitimate, so treating all empty selections as stale would also be wrong.
+
+**Impact:** Navigation or editor return code that uses the broad predicate alone may restore a removed component or must add inconsistent local guards.
+
+**Current mitigation:** For the findings Back action, require a saved component target to resolve to at least one live part while allowing legitimate empty group contexts. Keep owner/snapshot and expected-destination guards.
+
+**Later proposal:** Define explicit context-exists versus selection-has-live-members semantics in the selection module, with context-specific liveness and one reusable return/admission API.
+
+**Validation:** Focused cases distinguish removed component, live component, valid empty matrix/outline, scope change and revision change; public Back action returns to a live prior selection only.
+
+**Evidence:** `web/src/presentation/selection.rs`; `web/src/presentation.rs`; `.scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md`
+
+**Additional recorded details:**
+
+```json
+{
+  "category": "selection semantics / stale navigation guard",
+  "impact_priority": "medium",
+  "discovered": "2026-10-04",
+  "baseline": "Layout finding-return repair following candidate frontend-case-panels-20261004",
+  "workflows": [
+    "F3.5"
+  ],
+  "decision": "Use the narrow v1 guard for F3.5 and defer changing the shared selector contract across workbenches.",
+  "follow_up_owner": "Selection and Inspector architecture",
+  "linked_tasks": [
+    "F3.5"
+  ],
+  "continuations": []
+}
+```

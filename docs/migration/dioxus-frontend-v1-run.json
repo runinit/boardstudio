@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T09:18:17.079486+00:00",
+    "updated_at": "2026-10-04T09:51:23.573051+00:00",
     "parent_counts": {
       "accepted": 16,
       "implementing": 34,
@@ -25,20 +25,20 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-actions-20261004",
-      "source_commit": "9eda1b5d4c194a97b7216a43544036b5709a65f8",
-      "root_url": "http://127.0.0.1:34801/",
-      "subpath_url": "http://127.0.0.1:34801/boardstudio/",
-      "provenance": "web/target/builds/frontend-actions-20261004/provenance.json",
-      "provenance_sha256": "2b9e82d6b191df84716d83c2c8c86064f1b325322b98fbe48ae0b6d1c5267195",
+      "build_id": "frontend-case-panels-20261004",
+      "source_commit": "9dd2a412823b650d5b055733181b59ca724c68f1",
+      "root_url": "http://127.0.0.1:34802/",
+      "subpath_url": "http://127.0.0.1:34802/boardstudio/",
+      "provenance": "web/target/builds/frontend-case-panels-20261004/provenance.json",
+      "provenance_sha256": "8f9c3021317208b5b883b8a24c52e4cfb0a9f548f2da3ca55b949b63bdd83ce2",
       "fresh_commands": 9,
       "inherited_commands": 23,
       "source_inputs": 1393,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 127.800838,
+      "command_span_seconds": 133.782252,
       "package_qualification": "Combined package provenance, current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-actions-20261004/package-proof.json",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-case-panels-20261004/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -48,8 +48,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "9eda1b5d4c194a97b7216a43544036b5709a65f8",
-      "state": "Integrated four more functional actions at 9eda1b5d: Layout Pick origin Escape, PCB Remove terminal feedback, Keymap unchanged macro-step no-op and Project-menu copy. The combined locked page compiler and root/subpath/offline package passed; 34801 serves exact packaged assets. Four changed-action public journeys and one consolidated candidate review are underway; older partial Case/PCB/Parts branches remain open.",
+      "source_commit": "9dd2a412823b650d5b055733181b59ca724c68f1",
+      "state": "Candidate 34802/source 9dd2a412 passed compiler/root/subpath/offline packaging and consolidated Sol source/provenance review. The 34801 Layout Escape, Keymap macro no-op and Project copy journeys passed; PCB Remove gave partial successful-removal evidence. The 34802 panel journey reproduced a pointer-capture failure (keyboard/persistence passed), and Case valid-release remains unqualified for lack of a deterministic public handle target. Next source batch has the panel capture correction plus one confirmed Layout Inspector Back-navigation gap; the matrix rotation mismatch was not reproducible on a fresh same-build replay.",
       "packets": [
         {
           "stream": "Layout",
@@ -354,6 +354,16 @@
           "stream": "Parts + Project",
           "integrated_commit": "9eda1b5d",
           "change": "Project-menu Save project copy action"
+        },
+        {
+          "stream": "Case",
+          "integrated_commit": "9dd2a412823b650d5b055733181b59ca724c68f1",
+          "change": "F7.5 accepted-source anchored preview Handle capture and current Move/End admission"
+        },
+        {
+          "stream": "Parts + Project",
+          "integrated_commit": "9dd2a412823b650d5b055733181b59ca724c68f1",
+          "change": "F2.3 pointer and keyboard desktop pane resizing with persistence"
         }
       ],
       "qualification": "Focused Layout, PCB, Keymap and Project regressions GREEN; combined compiler/package and root/subpath live asset hashes pass. Changed-action browser checks and consolidated review are pending.",
@@ -510,11 +520,10 @@
     },
     "execution_policy": "docs/agents/issue-tracker.md#frontend-delivery-records",
     "candidate_review": {
-      "candidate": "frontend-module-route-20261004",
-      "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-routed-module-bb4f2216-review-sol-20261004.md",
-      "review_sha256": "36405a7bab07830e3094a7a5e429ec87b22843e0b25f9f5b3fde0e4b1240deff",
-      "state": "Historical consolidated Sol review for source ad0de81f and F7.3-C05. New source 18ff7659 and F7.3-C06 await the next batched functional milestone review; no per-packet review required.",
-      "previous_review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/candidate-34791-review.md"
+      "candidate": "frontend-case-panels-20261004",
+      "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-functional-actions-9dd2a412-review-sol-20261004.md",
+      "review_sha256": "71f610e925e18eb96c58262598d0f3e1e20824eee16dc4618d57fa89f57551b5",
+      "state": "One consolidated Sol source/provenance review passed with no new blocker; two affected public journeys are still qualifying."
     },
     "parent_acceptances": [
       {
@@ -542,15 +551,15 @@
       {
         "stream": "Layout",
         "priority": "Functional gaps alongside other streams; exact visual parity deferred",
-        "state": "F3.5 Pick origin Escape is source-integrated and passed focused 34801 public behavior; broader contextual Inspector criteria remain open. Visual layout deferred."
+        "state": "F3.5-C04 missing Back after Show outline is assigned a scoped return-path repair. An earlier same-build matrix rotation mismatch did not reproduce under fresh worker-instrumented 34801 replay; 0\u00b0\u21925\u00b0 accepted and Undo restored 0. Preserve both observations without a speculative source change. Pick origin Escape passed; visual parity deferred."
       },
       {
         "stream": "PCB",
-        "state": "F5.4 keyboard finding focus reveals the hidden owner outline; nonempty-clearance and board-switch remain open. F5.5 Remove now observes terminal outcome; public 34801 journey pending."
+        "state": "F5.6-C01 Project-stage topology/transport/reversible layout, history and reload passed paired 34802/5175 and is verified. F5.5 successful Remove partial; pending/error/cancel remain open."
       },
       {
         "stream": "Keymap",
-        "state": "F6K.3 unchanged valid macro-step no-op is source-integrated with mounted RED/GREEN; public 34801 journey pending. F6K.4 criteria verified; wider F6 joins remain."
+        "state": "F6K.3 unchanged valid macro-step blur passed paired 34801/5175 without revision change; A\u2192C committed once. F6K.4 verified; wider F6 joins remain."
       },
       {
         "stream": "Keycaps",
@@ -558,18 +567,18 @@
       },
       {
         "stream": "Case",
-        "state": "F7.5 blocked mount move produced no accepted edit; valid provisional geometry/commit/Undo remain unqualified. F7.3 module model layer appears; model pick/error and stale Save remain open."
+        "state": "F7.5 Handle preview capture source repair passed focused WASM and Sol review. A bounded React setup could not identify a deterministic public canvas handle target, so valid-release/Undo remains unqualified; no repeated guessed drags."
       },
       {
         "stream": "Parts + Project",
-        "state": "F4.5 paired KiCad extraction/apply/Undo/reopen passed for two mapped purposes; stale selection remains open. Project-menu copy is source-integrated; public 34801 archive journey pending."
+        "state": "Project copy/reopen passed paired. F2.3 pointer drag failed on 34802 due Dioxus delegated current_target capture; keyboard bounds and persisted width passed. Narrow pointer-target repair is ready for next batch."
       }
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Qualify only the four newly changed actions on the packaged source, reusing earlier paired workbench setup and all unaffected evidence; one consolidated Sol review follows the frozen candidate.",
-      "Continue bounded source action probes across six streams after integration; convert only reproduced gaps to missing work. Keep one waiting packet per stream and batch the next compile/package.",
-      "Leave the older Case valid-handle, PCB nonempty-clearance and provider-failure branches explicitly partial until a supported fixture or deterministic trigger exists; do not repeat unsuccessful probes."
+      "Integrate the narrow panel pointer-target repair and confirmed Layout Inspector Back-return repair as one source batch; compile/package once and qualify only those changed actions. Preserve the nonreproduced matrix observation.",
+      "Keep the six streams progressing on bundled functional user journeys; reuse prior successful fixture setup and evidence, stop at a reproduced gap.",
+      "Leave Case valid-release and worker-owned failure races explicitly unqualified until a deterministic hit target or test seam exists; do not repeat guessed interaction or URL interception."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
@@ -662,34 +671,22 @@
     "qualification": {
       "trigger": "functional_scope",
       "active_scope": {
-        "id": "frontend-actions-20261004",
-        "label": "Four changed functional actions",
-        "source_commit": "9eda1b5d4c194a97b7216a43544036b5709a65f8",
+        "id": "frontend-case-panels-20261004",
+        "label": "Case handle completion and desktop pane resizing",
+        "source_commit": "9dd2a412823b650d5b055733181b59ca724c68f1",
         "streams": [
-          "Layout",
-          "PCB",
-          "Keymap",
+          "Case",
           "Parts+Project"
         ],
         "journeys": [
           {
-            "id": "F3.5-origin-Escape",
-            "scope": "From the selected-column Inspector, arm Pick origin, press Escape while the button has focus, then click empty canvas; no edit or history entry occurs. A subsequent live pick remains editable.",
-            "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md"
+            "id": "F7.5-valid-preview-End",
+            "scope": "On a saved Case fixture, drag one valid mount/gasket handle through provisional geometry to pointer-up; exactly one accepted edit and Undo/Redo/reopen restore it. A blocked drag remains uncommitted; Escape and scope change release capture. Reuse prior blocked-move evidence.",
+            "spec": ".scratch/dioxus-frontend-v1/issues/07-case.md"
           },
           {
-            "id": "F5.5-remove-result",
-            "scope": "On a saved mounted module, Remove reports pending then terminal success or rejection without repeat submission; selection/project replacement cannot apply an old removal.",
-            "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md"
-          },
-          {
-            "id": "F6K.3-macro-noop",
-            "scope": "Blur an unchanged valid macro-step keycode without a revision/history edit; changing it still commits once and the legacy-normalization path remains usable.",
-            "spec": ".scratch/dioxus-keymap-layers/spec.md"
-          },
-          {
-            "id": "F2.2-project-copy-menu",
-            "scope": "Use Project menu Save project copy on the current saved keyboard; exported archive has the expected project/assets and reopens, and the menu closes.",
+            "id": "F2.3-panel-resize",
+            "scope": "On desktop, pointer and Arrow-key resize both pinned Objects and Inspect panes, hit min/max and opposing-pane/center bounds, reload persisted widths, then confirm compact drawers have no active separator. Compare same fixture to React.",
             "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md"
           }
         ]
@@ -2103,53 +2100,145 @@
               }
             ]
           }
+        },
+        {
+          "trigger": "functional_scope",
+          "active_scope": {
+            "id": "frontend-actions-20261004",
+            "label": "Four changed functional actions",
+            "source_commit": "9eda1b5d4c194a97b7216a43544036b5709a65f8",
+            "streams": [
+              "Layout",
+              "PCB",
+              "Keymap",
+              "Parts+Project"
+            ],
+            "journeys": [
+              {
+                "id": "F3.5-origin-Escape",
+                "scope": "From the selected-column Inspector, arm Pick origin, press Escape while the button has focus, then click empty canvas; no edit or history entry occurs. A subsequent live pick remains editable.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md"
+              },
+              {
+                "id": "F5.5-remove-result",
+                "scope": "On a saved mounted module, Remove reports pending then terminal success or rejection without repeat submission; selection/project replacement cannot apply an old removal.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md"
+              },
+              {
+                "id": "F6K.3-macro-noop",
+                "scope": "Blur an unchanged valid macro-step keycode without a revision/history edit; changing it still commits once and the legacy-normalization path remains usable.",
+                "spec": ".scratch/dioxus-keymap-layers/spec.md"
+              },
+              {
+                "id": "F2.2-project-copy-menu",
+                "scope": "Use Project menu Save project copy on the current saved keyboard; exported archive has the expected project/assets and reopens, and the menu closes.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md"
+              }
+            ]
+          },
+          "phase": "qualifying",
+          "unmet_start_conditions": [],
+          "candidate_build_id": "frontend-actions-20261004",
+          "source_commit": "9eda1b5d4c194a97b7216a43544036b5709a65f8",
+          "journeys": [
+            {
+              "id": "F3.5-origin-Escape",
+              "scope": "From the selected-column Inspector, arm Pick origin, press Escape while the button has focus, then click empty canvas; no edit or history entry occurs. A subsequent live pick remains editable.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+              "state": "passed",
+              "evidence": ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md",
+              "verified": "Focused 34801 action passed: Inspector-focused Escape canceled the pending pick, subsequent empty canvas did not edit, later live pick and Undo worked. Reused prior React behavior observation."
+            },
+            {
+              "id": "F5.5-remove-result",
+              "scope": "On a saved mounted module, Remove reports pending then terminal success or rejection without repeat submission; selection/project replacement cannot apply an old removal.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
+              "state": "partial",
+              "evidence": ".scratch/dioxus-pcb-view/evidence/22-mounted-module-inspector-20261003/placement-save-reopen.md",
+              "verified": "Accepted removal deleted the selected placement (3\u21922) and updated findings (97\u219285). React also clears selection without a success label, so Inspector unmount is not a parity defect.",
+              "remaining": "Public rejected/cancelled/pending state and stale-scope outcome were not induced; F5.5-C04 remains open."
+            },
+            {
+              "id": "F6K.3-macro-noop",
+              "scope": "Blur an unchanged valid macro-step keycode without a revision/history edit; changing it still commits once and the legacy-normalization path remains usable.",
+              "spec": ".scratch/dioxus-keymap-layers/spec.md",
+              "state": "passed",
+              "evidence": ".scratch/dioxus-keymap-layers/evidence/macro09-zmk-root-public-qualification/RESULTS.md",
+              "verified": "Paired imported fixture: unchanged A blur kept revision 29 and project hash; A\u2192C submitted once and advanced to revision 30 in both apps."
+            },
+            {
+              "id": "F2.2-project-copy-menu",
+              "scope": "Use Project menu Save project copy on the current saved keyboard; exported archive has the expected project/assets and reopens, and the menu closes.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
+              "state": "passed",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/f2.2-c02-c03-paired-qualification.md",
+              "verified": "Paired Project-menu copy downloaded actual archives; fresh sessions reopened Sofle with two boards, 140 parts and six hash-valid embedded assets.",
+              "remaining": "F2.2-C04 broader delete and failure/retry branches remain open."
+            }
+          ],
+          "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
+          "started_at": "2026-10-04T09:03:26.431215+00:00",
+          "review": {
+            "profile": "sol-review",
+            "state": "pending"
+          },
+          "next_scope": {
+            "id": "frontend-case-panels-20261004",
+            "label": "Case handle completion and desktop pane resizing",
+            "source_commit": "9dd2a412823b650d5b055733181b59ca724c68f1",
+            "streams": [
+              "Case",
+              "Parts+Project"
+            ],
+            "journeys": [
+              {
+                "id": "F7.5-valid-preview-End",
+                "scope": "On a saved Case fixture, drag one valid mount/gasket handle through provisional geometry to pointer-up; exactly one accepted edit and Undo/Redo/reopen restore it. A blocked drag remains uncommitted; Escape and scope change release capture. Reuse prior blocked-move evidence.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/07-case.md"
+              },
+              {
+                "id": "F2.3-panel-resize",
+                "scope": "On desktop, pointer and Arrow-key resize both pinned Objects and Inspect panes, hit min/max and opposing-pane/center bounds, reload persisted widths, then confirm compact drawers have no active separator. Compare same fixture to React.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md"
+              }
+            ]
+          }
         }
       ],
       "phase": "qualifying",
       "unmet_start_conditions": [],
-      "candidate_build_id": "frontend-actions-20261004",
-      "source_commit": "9eda1b5d4c194a97b7216a43544036b5709a65f8",
+      "candidate_build_id": "frontend-case-panels-20261004",
+      "source_commit": "9dd2a412823b650d5b055733181b59ca724c68f1",
       "journeys": [
         {
-          "id": "F3.5-origin-Escape",
-          "scope": "From the selected-column Inspector, arm Pick origin, press Escape while the button has focus, then click empty canvas; no edit or history entry occurs. A subsequent live pick remains editable.",
-          "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
-          "state": "passed",
-          "evidence": ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md",
-          "verified": "Focused 34801 action passed: Inspector-focused Escape canceled the pending pick, subsequent empty canvas did not edit, later live pick and Undo worked. Reused prior React behavior observation."
-        },
-        {
-          "id": "F5.5-remove-result",
-          "scope": "On a saved mounted module, Remove reports pending then terminal success or rejection without repeat submission; selection/project replacement cannot apply an old removal.",
-          "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
+          "id": "F7.5-valid-preview-End",
+          "scope": "On a saved Case fixture, drag one valid mount/gasket handle through provisional geometry to pointer-up; exactly one accepted edit and Undo/Redo/reopen restore it. A blocked drag remains uncommitted; Escape and scope change release capture. Reuse prior blocked-move evidence.",
+          "spec": ".scratch/dioxus-frontend-v1/issues/07-case.md",
           "state": "partial",
-          "evidence": ".scratch/dioxus-pcb-view/evidence/22-mounted-module-inspector-20261003/placement-save-reopen.md",
-          "verified": "Accepted removal deleted the selected placement (3\u21922) and updated findings (97\u219285). React also clears selection without a success label, so Inspector unmount is not a parity defect.",
-          "remaining": "Public rejected/cancelled/pending state and stale-scope outcome were not induced; F5.5-C04 remains open."
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/case/receipt.md",
+          "verified": "Focused RED/GREEN WASM regression proves same-accepted-source provisional preview retains Handle capture and admits current Move/End; old callbacks and 15 invalid owner transitions are rejected.",
+          "remaining": "A valid public Case handle release, exactly one accepted edit, Undo/Redo/reopen and paired blocked/Cancel remain unqualified.",
+          "limitation": "One bounded React 5175 attempt reached Gasket mount/Edit gaskets but could not identify a deterministic canvas handle hit point; no candidate 34802 drag or accepted edit is claimed. Do not repeat guessed coordinates."
         },
         {
-          "id": "F6K.3-macro-noop",
-          "scope": "Blur an unchanged valid macro-step keycode without a revision/history edit; changing it still commits once and the legacy-normalization path remains usable.",
-          "spec": ".scratch/dioxus-keymap-layers/spec.md",
-          "state": "passed",
-          "evidence": ".scratch/dioxus-keymap-layers/evidence/macro09-zmk-root-public-qualification/RESULTS.md",
-          "verified": "Paired imported fixture: unchanged A blur kept revision 29 and project hash; A\u2192C submitted once and advanced to revision 30 in both apps."
-        },
-        {
-          "id": "F2.2-project-copy-menu",
-          "scope": "Use Project menu Save project copy on the current saved keyboard; exported archive has the expected project/assets and reopens, and the menu closes.",
+          "id": "F2.3-panel-resize",
+          "scope": "On desktop, pointer and Arrow-key resize both pinned Objects and Inspect panes, hit min/max and opposing-pane/center bounds, reload persisted widths, then confirm compact drawers have no active separator. Compare same fixture to React.",
           "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
-          "state": "passed",
-          "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/f2.2-c02-c03-paired-qualification.md",
-          "verified": "Paired Project-menu copy downloaded actual archives; fresh sessions reopened Sofle with two boards, 140 parts and six hash-valid embedded assets.",
-          "remaining": "F2.2-C04 broader delete and failure/retry branches remain open."
+          "state": "failed",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/compact-shell-parity-20261003/f23-public-qualification.md",
+          "verified": "Paired keyboard Arrow resizing, bounds, pinned/auto-hide width persistence and reload passed for both panels.",
+          "remaining": "Pointer drag did not resize either Objects or Inspect on Dioxus 34802. Pointerdown arrived but the separator had no capture and pointermove did not reach the handler; React pointer drag worked. Focused repair is assigned."
         }
       ],
       "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
-      "started_at": "2026-10-04T09:03:26.431215+00:00",
+      "started_at": "2026-10-04T09:23:46.950975+00:00",
       "review": {
         "profile": "sol-review",
-        "state": "pending"
+        "state": "completed",
+        "workflow_verdict": "pass_with_open_public_qualification",
+        "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-functional-actions-9dd2a412-review-sol-20261004.md",
+        "review_sha256": "71f610e925e18eb96c58262598d0f3e1e20824eee16dc4618d57fa89f57551b5",
+        "remaining": "F7.5 valid gesture/End/Undo and F2.3 desktop panel resize paired journeys remain open; wider parent joins unchanged."
       }
     },
     "delivery_priority": {

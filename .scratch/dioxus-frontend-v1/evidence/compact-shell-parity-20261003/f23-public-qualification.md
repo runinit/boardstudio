@@ -28,3 +28,13 @@ At 800px, both compact visibility toggles were available. For Objects, the drawe
 The presentation baseline and post-dismissal values matched: visible project status/revision text was empty both times, Undo and Redo had the same enabled states, and camera zoom remained 100%. No project editing action occurred. The Escape handler only changed the compact panel open signals and restored focus.
 
 **F2.3-C03 verdict: PASS for the compact drawer behavior exercised here**, including the previously observed explicit Close button path, scrim, trigger-focused Escape for both panels, focus return, and hidden-content inertness. The remaining F2.3 criteria C01, C02, and C04 retain their separate HOLD verdicts above; broader assistive-technology coverage remains outside this bounded journey.
+
+## C02 paired resize journey — candidate comparison
+
+**Reference:** TS app `http://127.0.0.1:5175/`, owned session `f23tsresize-2318ea1a1376`, fixture Start Sofle v2, viewport 1280×900. **Candidate:** Dioxus `http://127.0.0.1:34802/`, source `9dd2a412823b650d5b055733181b59ca724c68f1`, owned session `f23rustresize-7dd31abc1fc4`, same fixture and viewport. Both sessions were closed after the journey.
+
+On TS, Objects pointer drag changed width 235→315px and ArrowRight changed it to 335px; pointer bounds were 200–420px. Inspect pointer drag changed width 320→400px and ArrowLeft to 420px; pointer bounds were 280–480px. The separators exposed matching ARIA min/max values. With both panels pinned, widths reset to Objects 320px and Inspect 360px and survived reload. Switching both to Auto-hide persisted that mode and retained widths 320px/360px through reload.
+
+On Dioxus, initial widths and ARIA bounds matched TS (Objects 235px, 200–420; Inspect 320px, 280–480). Pointer drag did not resize either panel. For Objects, pointerdown on the mounted resize handle was observed at x=255 with pointerId 1, but pointer capture was false; moving to x=320 caused no pointermove on the handle and width remained 255px. Inspect drag from x=960 toward x=880 likewise left width at 320px. Keyboard resizing worked: Objects clamped at 200/420px and Inspect at 280/480px, with matching ARIA limits. Pinned widths 315px/360px survived reload. Auto-hide mode and those stored widths also survived reload. No project editing action was taken.
+
+**F2.3-C02 verdict: HOLD.** Keyboard bounds and pinned/auto-hide width/mode persistence passed this journey, but pointer resizing failed for both panels on the Dioxus candidate. The TS pointer behavior passed. F2.3-C01 and C04 remain as previously recorded; no second setup was made for those criteria.

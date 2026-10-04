@@ -123,6 +123,13 @@ struct LayoutOwnerIdentity {
     workspace: &'static str,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct LayoutFindingReturnTarget {
+    owner: LayoutOwnerIdentity,
+    selection: objects::ScopedTreeContext,
+    destination: objects::TreeContext,
+}
+
 fn case_setup_context_is_current(
     identity: &pcb_physical_setup::OwnerIdentity,
     strict: bool,
@@ -1147,6 +1154,226 @@ fn layout_finding_context(
             board_id: board_id.clone(),
         }),
         Target::Body { .. } | Target::MechanicalLayer { .. } => None,
+    }
+}
+
+fn layout_finding_return_is_current(
+    model: &ReadModel,
+    owner: &LayoutOwnerIdentity,
+    current_selection: Option<&objects::ScopedTreeContext>,
+    target: &LayoutFindingReturnTarget,
+) -> bool {
+    if owner != &target.owner || owner.workspace != "Layout" {
+        return false;
+    }
+    let Some(scope) = owner.scope.as_ref() else {
+        return false;
+    };
+    let saved_selection_is_live =
+        selection::context_is_current(model, scope, &target.selection.context)
+            && match &target.selection.context {
+                objects::TreeContext::Component {
+                    part_id: Some(_), ..
+                } => selection::resolve_context(model, &target.selection.context)
+                    .is_some_and(|part_ids| !part_ids.is_empty()),
+                _ => true,
+            };
+    target.selection.scope == *scope
+        && saved_selection_is_live
+        && current_selection.is_some_and(|selected| {
+            selected.scope == *scope
+                && selected.context == target.destination
+                && selection::context_is_current(model, scope, &selected.context)
+        })
+}
+
+#[cfg(test)]
+mod layout_finding_return_regression_tests {
+    use super::*;
+    use boardstudio_application::{AcceptedSnapshot, SessionEpoch};
+    use boardstudio_core::model::{
+        Board, Part, PartDefinition, PartKind, Pose2, ProjectDoc, Readiness, SceneDelta, Side, Vec2,
+    };
+    use std::sync::Arc;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    fn fixture() -> (ReadModel, Scope, objects::ScopedTreeContext) {
+        let scope = Scope {
+            session_epoch: SessionEpoch(5),
+            document_id: "finding-return-doc".into(),
+            board_id: "board".into(),
+            instance_id: None,
+        };
+        let mut document = ProjectDoc::empty("finding-return-doc", "Finding return fixture");
+        document.revision = 9;
+        document.boards.push(Board {
+            id: "board".into(),
+            name: "Board".into(),
+            outline_ids: vec![],
+            part_ids: vec!["left-U1".into()],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        document.definitions.push(PartDefinition {
+            hardware_profile: None,
+            input_profile: None,
+            id: "controller".into(),
+            name: "Controller".into(),
+            kind: PartKind::Controller,
+            keycap: None,
+            envelope_source: None,
+            kicad_source: None,
+            terminals: Default::default(),
+            matrix_terminals: None,
+            envelope_notice: None,
+            courtyard: vec![],
+            pads: vec![],
+            models: None,
+            generator: None,
+            mechanical_profile: None,
+        });
+        document.parts.push(Part {
+            keycap: None,
+            outline: None,
+            id: "left-U1".into(),
+            definition_id: "controller".into(),
+            reference: "U1".into(),
+            pose: Pose2 {
+                at: Vec2::default(),
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            locked: None,
+            properties: None,
+            generator_parameters: None,
+        });
+        let model = ReadModel {
+            accepted: Some(AcceptedSnapshot {
+                token: SnapshotToken(13),
+                session_epoch: scope.session_epoch,
+                document: Arc::new(document),
+                scene: Arc::new(SceneDelta {
+                    module_scenes: vec![],
+                    revision: 9,
+                    transaction_id: "accepted-fixture".into(),
+                    changed_ids: vec![],
+                    transforms: vec![],
+                    matrix_scenes: vec![],
+                    contours: vec![],
+                    board_contours: vec![],
+                    board_readiness: vec![],
+                    board_outline_scenes: vec![],
+                    finding_markers: vec![],
+                    findings: vec![],
+                    readiness: Readiness {
+                        layout: true,
+                        outline: true,
+                        pcb: true,
+                        case_ready: false,
+                    },
+                }),
+            }),
+            active_board_id: scope.board_id.clone(),
+            selected_part_ids: vec!["left-U1".into()],
+            ..ReadModel::default()
+        };
+        let selection = objects::ScopedTreeContext {
+            scope: scope.clone(),
+            context: objects::TreeContext::Component {
+                part_id: Some("left-U1".into()),
+                matrix_id: None,
+                row: None,
+                column: None,
+                assembly_id: None,
+            },
+        };
+        (model, scope, selection)
+    }
+
+    #[wasm_bindgen_test]
+    fn outline_return_requires_the_same_live_owner_and_saved_selection() {
+        let (model, scope, selection) = fixture();
+        let owner = LayoutOwnerIdentity {
+            scope: Some(scope.clone()),
+            token: Some(SnapshotToken(13)),
+            revision: Some(9),
+            generation: 2,
+            workspace: "Layout",
+        };
+        let destination = objects::TreeContext::Outline {
+            board_id: scope.board_id.clone(),
+        };
+        let target = LayoutFindingReturnTarget {
+            owner: owner.clone(),
+            selection: selection.clone(),
+            destination: destination.clone(),
+        };
+        let outline_selection = objects::ScopedTreeContext {
+            scope,
+            context: destination,
+        };
+
+        assert!(layout_finding_return_is_current(
+            &model,
+            &owner,
+            Some(&outline_selection),
+            &target,
+        ));
+
+        let empty_outline_selection = objects::ScopedTreeContext {
+            scope: outline_selection.scope.clone(),
+            context: outline_selection.context.clone(),
+        };
+        let empty_outline_target = LayoutFindingReturnTarget {
+            selection: empty_outline_selection.clone(),
+            ..target.clone()
+        };
+        assert!(layout_finding_return_is_current(
+            &model,
+            &owner,
+            Some(&empty_outline_selection),
+            &empty_outline_target,
+        ));
+
+        let component_target = LayoutFindingReturnTarget {
+            destination: selection.context.clone(),
+            ..target.clone()
+        };
+        assert!(layout_finding_return_is_current(
+            &model,
+            &owner,
+            Some(&selection),
+            &component_target,
+        ));
+
+        let mut changed_owner = owner.clone();
+        changed_owner.revision = Some(10);
+        assert!(!layout_finding_return_is_current(
+            &model,
+            &changed_owner,
+            Some(&outline_selection),
+            &target,
+        ));
+
+        let mut changed_model = model;
+        Arc::make_mut(
+            &mut changed_model
+                .accepted
+                .as_mut()
+                .expect("fixture snapshot")
+                .document,
+        )
+        .boards[0]
+            .part_ids
+            .clear();
+        assert!(!layout_finding_return_is_current(
+            &changed_model,
+            &owner,
+            Some(&outline_selection),
+            &target,
+        ));
     }
 }
 
@@ -2934,6 +3161,8 @@ fn Editor() -> Element {
     let case_layer_selection = use_signal(|| None::<case_viewer::LayerSelection>);
     let focused_keycaps_finding = use_signal(|| None::<keycaps_finding_marker::FocusedFinding>);
     let layout_findings_open = use_signal(|| false);
+    let layout_finding_return_target = use_signal(|| None::<LayoutFindingReturnTarget>);
+    let layout_finding_return_focus = use_signal(|| false);
     let pending_layout_finding = use_signal(|| None::<layout_findings::Request>);
     let pending_keycaps_navigation_fit =
         use_signal(|| None::<keycaps_navigation::PendingLayoutFit>);
@@ -3232,6 +3461,53 @@ fn Editor() -> Element {
         generation: render_generation,
         workspace: active_workspace,
     };
+    use_effect(use_reactive(
+        (
+            &layout_finding_return_target(),
+            &layout_owner,
+            &(adapter.selected_context)(),
+        ),
+        {
+            let runtime = runtime.clone();
+            let mut return_target = layout_finding_return_target;
+            move |(target, owner, current_selection)| {
+                let Some(target) = target.as_ref() else {
+                    return;
+                };
+                if !layout_finding_return_is_current(
+                    &runtime.model(),
+                    &owner,
+                    current_selection.as_ref(),
+                    target,
+                ) {
+                    return_target.set(None);
+                }
+            }
+        },
+    ));
+    use_effect(use_reactive((&layout_finding_return_focus(),), {
+        let mut return_focus = layout_finding_return_focus;
+        move |(pending,)| {
+            if !pending {
+                return;
+            }
+            return_focus.set(false);
+            if let Some(element) = web_sys::window()
+                .and_then(|window| window.document())
+                .and_then(|document| {
+                    document
+                        .query_selector(
+                            "#m1-inspector-panel-content .m1-layout-component-tabs [role='tab'][aria-selected='true']",
+                        )
+                        .ok()
+                        .flatten()
+                })
+                .and_then(|element| element.dyn_into::<HtmlElement>().ok())
+            {
+                let _ = element.focus();
+            }
+        }
+    }));
     use_effect(use_reactive((&active_workspace,), {
         let mut active_tool = layout_transform_tool;
         move |(active_workspace,)| {
@@ -5294,6 +5570,46 @@ fn Editor() -> Element {
             }
         }
     });
+    let on_return_from_layout_finding = use_callback({
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let owner = layout_owner.clone();
+        let mut selected_tab = layout_context_tab;
+        let select_tree = workspace_callbacks.select_tree;
+        let mut findings_open = layout_findings_open;
+        let mut return_target = layout_finding_return_target;
+        let mut return_focus = layout_finding_return_focus;
+        move |()| {
+            let Some(target) = return_target.peek().clone() else {
+                return;
+            };
+            if !findings_owner_is_current(&runtime, workspace, &adapter, &owner)
+                || !layout_finding_return_is_current(
+                    &runtime.model(),
+                    &owner,
+                    adapter.selected_context.read().as_ref(),
+                    &target,
+                )
+            {
+                return_target.set(None);
+                return;
+            }
+            let Some(scope) = owner.scope.clone() else {
+                return_target.set(None);
+                return;
+            };
+            selected_tab.set(layout_workspace::LayoutInspectorTab::Properties);
+            findings_open.set(false);
+            select_tree.call(objects::TreeSelectRequest {
+                scope,
+                context: target.selection.context,
+                mode: SelectionMode::Replace,
+                outline_action: None,
+            });
+            return_target.set(None);
+            return_focus.set(true);
+        }
+    });
     let on_layout_finding = use_callback({
         let runtime = runtime.clone();
         let adapter = adapter.clone();
@@ -5303,6 +5619,7 @@ fn Editor() -> Element {
         let findings_open = layout_findings_open;
         let inspector_settings = inspector_panel_settings;
         let mut pending = pending_layout_finding;
+        let mut return_target = layout_finding_return_target;
         let focused_finding = focused_keycaps_finding;
         let svg = svg.clone();
         let alive = keycaps_navigation_alive.clone();
@@ -5338,16 +5655,30 @@ fn Editor() -> Element {
                 return;
             };
             if target_board != scope.board_id {
+                return_target.set(None);
                 pending.set(Some(request));
                 active_workspace.set("Layout");
                 navigate.call((scope.clone(), target_board, None));
                 return;
             }
             if owner.workspace != "Layout" {
+                return_target.set(None);
                 pending.set(Some(request));
                 active_workspace.set("Layout");
                 return;
             }
+            let selected = adapter.selected_context.read().clone().filter(|selected| {
+                selected.scope == *scope
+                    && selection::context_is_current(&model, scope, &selected.context)
+            });
+            let Some(destination) = layout_finding_context(&model, &request.target) else {
+                return;
+            };
+            return_target.set(selected.map(|selection| LayoutFindingReturnTarget {
+                owner: owner.clone(),
+                selection,
+                destination,
+            }));
             perform_layout_finding_navigation(
                 LayoutFindingNavigationContext {
                     runtime: runtime.clone(),
@@ -7859,6 +8190,17 @@ fn Editor() -> Element {
                 ),
                 on_select_context: workspace_callbacks.select_tree,
                 outline_inspector: outline_inspector.clone().map(Box::new),
+                findings_return_available: layout_finding_return_target().as_ref().is_some_and(
+                    |target| {
+                        layout_finding_return_is_current(
+                            &model,
+                            &layout_owner,
+                            selected_tree_context.as_ref(),
+                            target,
+                        )
+                    },
+                ),
+                on_findings_return: on_return_from_layout_finding,
                 board_inspector: board_inspector_projection,
                 on_board_rename: board_inspector.on_rename,
                 findings_page: Some(layout_findings::InspectorMount {
