@@ -171,6 +171,15 @@ Process rules (2026-10-04 retro; each is checkable):
 - At most two published candidates per UTC day; `gc-builds.py` keeps the newest three plus
   served, baseline and accepted builds.
 
+Token discipline (a long session re-reads its whole context on every call):
+- Restart the session at about 150k context from a generated `handoff.md`
+  (`progress.py handoff` plus a short hand-written tail); do not wait for auto-compact.
+- Agent reports are 150 words or less: verdict, files changed, failing checks, and a path
+  to detail in a file. Do not spawn an agent for an edit under about three files.
+- No screenshots or `innerText` dumps unless a visual difference is under test; have scripts
+  return small JSON. Pipe build and test output through `tail` or `grep`.
+- Run Opus only for one diff review per batch and for bugs Sonnet could not solve.
+
 Delegate by default: dispatch bounded, disjoint-file packets to author agents in parallel
 and keep build, publish, ledger and commit ownership with the coordinator. Use the route
 for the running harness (Codex: Luna low/medium/high authors, Sol 6.1 High review, Astra

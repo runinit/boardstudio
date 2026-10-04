@@ -14,7 +14,7 @@ coordinator.
 | Mechanical packet with fixed oracle (`luna-low`) | Luna low | Sonnet 5.5 low |
 | Default bounded implementation or evidence collection (`luna-medium`) | Luna medium | Sonnet 5.5 medium |
 | Complex specified state/ownership work (`luna-high`) | Luna high | Sonnet 5.5 high |
-| Coordinator (`luna-high` role) | Luna high | Opus 5.5 high |
+| Coordinator (`luna-high` role) | Luna high | Sonnet 5.5 high (Opus 5.5 only for reviews and unresolved bugs) |
 | Consolidated candidate Standards/Spec review (`sol-review`) | Sol 6.1 High | Opus 5.5 high |
 | Difficult evidenced behavioral bug (`astra-debug`, `astra-deep-debug`) | Astra high, xhigh if unresolved | Opus 5.5 high, xhigh if unresolved |
 

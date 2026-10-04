@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T16:52:47.632259+00:00",
+    "updated_at": "2026-10-04T17:30:57.126039+00:00",
     "parent_counts": {
       "accepted": 20,
       "implementing": 30,
@@ -25,20 +25,20 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-key-catalogue-20261004",
-      "source_commit": "01dfec502a028102f9a89cb25a3a3ed4f3dba43a",
-      "root_url": "http://127.0.0.1:34819/",
-      "subpath_url": "http://127.0.0.1:34819/boardstudio/",
-      "provenance": "web/target/builds/frontend-key-catalogue-20261004/provenance.json",
-      "provenance_sha256": "4818234ad0d2c66f24b9a3e21c41d516b705fc490ae3aa147ad66499dfcf5f66",
-      "fresh_commands": 9,
-      "inherited_commands": 23,
-      "source_inputs": 1393,
+      "build_id": "frontend-review-fixes-20261004",
+      "source_commit": "df2abad6ad6a3dbdbfdf99189b40242b01c2979c",
+      "root_url": "http://127.0.0.1:34820/",
+      "subpath_url": "http://127.0.0.1:34820/boardstudio/",
+      "provenance": "web/target/builds/frontend-review-fixes-20261004/provenance.json",
+      "provenance_sha256": "bbc9f9f682fab41b8b7ee951a393e5bb7b360d67bebe65e3ea6df32f8a146054",
+      "fresh_commands": 23,
+      "inherited_commands": 0,
+      "source_inputs": 1399,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 128.060041,
+      "command_span_seconds": 535.682397,
       "package_qualification": "Combined package provenance, current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-key-catalogue-20261004/package-proof.json",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-review-fixes-20261004/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -3201,14 +3201,35 @@
               "state": "pending"
             }
           ]
+        },
+        {
+          "candidate_build_id": "frontend-key-catalogue-20261004",
+          "source_commit": "01dfec502a028102f9a89cb25a3a3ed4f3dba43a",
+          "phase": "integrating",
+          "journeys": [
+            {
+              "id": "F7.6-F8.2-authored-case-step",
+              "scope": "Fresh Sofle Left authored Plate saved; Case Update preview and Export Case STEP become enabled and STEP downloads for Left. Switching to unconfigured Right board rejects/disables the stale output; returning to Left restores correct scope. Reuse generated mechanical ZIP (34810) and shared provider evidence.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+              "source_paths": [
+                "core/src/lib.rs",
+                "web/src/case_generation_admission.rs",
+                "web/src/cad_jobs.rs",
+                "web/src/presentation/export_workspace.rs",
+                "web/src/runtime.rs"
+              ],
+              "source_paths_complete": true,
+              "state": "pending"
+            }
+          ]
         }
       ],
       "phase": "integrating",
       "unmet_start_conditions": [
         "Authored Case preview and STEP after missing-material admission repair source scope is not proven integrated into this candidate"
       ],
-      "candidate_build_id": "frontend-key-catalogue-20261004",
-      "source_commit": "01dfec502a028102f9a89cb25a3a3ed4f3dba43a",
+      "candidate_build_id": "frontend-review-fixes-20261004",
+      "source_commit": "df2abad6ad6a3dbdbfdf99189b40242b01c2979c",
       "journeys": [
         {
           "id": "F7.6-F8.2-authored-case-step",
@@ -3301,6 +3322,12 @@
         "result": "Production ScopeTransition predicate passed its WASM Chrome regression, distinguishing own accepted normalization from user clearing/navigation or a wrong generation. The package compiler will check the final busy-value dependency capture.",
         "log": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/functional-controls-repair-check-3.log"
       }
-    }
+    },
+    "candidate_publications": [
+      {
+        "build_id": "frontend-review-fixes-20261004",
+        "published_at": "2026-10-04T17:30:55.368437+00:00"
+      }
+    ]
   }
 }
