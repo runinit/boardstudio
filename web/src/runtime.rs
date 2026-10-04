@@ -4567,50 +4567,71 @@ impl Runtime {
             *self.preview_generator.borrow_mut() = Some(worker.clone());
             Ok(worker)
         };
-        let archive = {
-            let runtime = self.clone();
-            let is_current = || {
-                if runtime.pcb_handoff_capture_is_current(operation_id, &capture, &core) {
+        let (archive, protected_capture) = crate::pcb_handoff::package_then_protect(
+            {
+                let runtime = self.clone();
+                let package_capture = capture.clone();
+                let package_core = core.clone();
+                let package_plan = plan.clone();
+                async move {
+                    let is_current = || {
+                        if runtime.pcb_handoff_capture_is_current(
+                            operation_id,
+                            &package_capture,
+                            &package_core,
+                        ) {
+                            Ok(())
+                        } else {
+                            Err("KiCad export was cancelled, superseded, or its accepted source changed."
+                                .into())
+                        }
+                    };
+                    crate::pcb_handoff::build_handoff(
+                        crate::pcb_handoff::HandoffSource {
+                            operation_id,
+                            snapshot: &snapshot,
+                            scope,
+                            electrical_plan: package_plan,
+                            populations,
+                            draft,
+                        },
+                        crate::pcb_handoff::HandoffPorts {
+                            core: &package_core,
+                            store: &runtime.store,
+                            executor_epoch: package_capture.executor_epoch.0,
+                        },
+                        is_current,
+                        generator,
+                    )
+                    .await
+                }
+            },
+            || {
+                if self.pcb_handoff_capture_is_current(operation_id, &capture, &core) {
                     Ok(())
                 } else {
-                    Err(
-                        "KiCad export was cancelled, superseded, or its accepted source changed."
-                            .into(),
-                    )
+                    Err("KiCad export was superseded before wiring protection.".into())
                 }
-            };
-            crate::pcb_handoff::build_handoff(
-                crate::pcb_handoff::HandoffSource {
+            },
+            || {
+                self.commit_pcb_handoff(
                     operation_id,
-                    snapshot: &snapshot,
-                    scope,
-                    electrical_plan: plan.clone(),
-                    populations,
-                    draft,
-                },
-                crate::pcb_handoff::HandoffPorts {
-                    core: &core,
-                    store: &self.store,
-                    executor_epoch: capture.executor_epoch.0,
-                },
-                is_current,
-                generator,
-            )
-            .await?
-        };
-        if !self.pcb_handoff_capture_is_current(operation_id, &capture, &core) {
-            return Err("KiCad export was superseded before wiring protection.".into());
-        }
-        capture = self
-            .commit_pcb_handoff(
-                operation_id,
-                &capture,
-                boardstudio_application::ExportCommitRequest::ProtectElectricalHandoff { plan },
-            )
-            .await?;
-        if !self.pcb_handoff_capture_is_current(operation_id, &capture, &core) {
-            return Err("KiCad handoff was superseded before delivery.".into());
-        }
+                    &capture,
+                    boardstudio_application::ExportCommitRequest::ProtectElectricalHandoff {
+                        plan,
+                    },
+                )
+            },
+            |protected_capture| {
+                if self.pcb_handoff_capture_is_current(operation_id, protected_capture, &core) {
+                    Ok(())
+                } else {
+                    Err("KiCad handoff was superseded before delivery.".into())
+                }
+            },
+        )
+        .await?;
+        capture = protected_capture;
         Ok((archive, capture.token))
     }
 
