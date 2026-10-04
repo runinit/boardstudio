@@ -84,6 +84,13 @@ production cutover and React removal retain their separate authorization/gates.
    An unavailable fault-injection route stays explicitly unqualified; repeated
    attempts with the same mechanism add no evidence. Earlier Layout-ready
    qualification remains historical evidence.
+   A criterion does not need its own browser session: one paired journey may prove
+   several visible actions, and unchanged successful branches retain their evidence.
+   For an error or stale-result branch that has no public trigger, use one focused,
+   deterministic owner-level regression together with evidence that the mounted UI
+   presents the resulting state and retry action. State the public-observation limit
+   accurately; do not repeat browser fault-injection attempts that cannot reach the
+   provider. Evidence-only criterion reconciliation needs no new package or review.
 7. Accept a parent only from its actual criterion verdict and final joins. The
    [acceptance requirements](docs/migration/ACCEPTANCE-REQUIREMENTS.md) retain behavior,
    compatibility, accessibility, performance and retirement gates. Report parents,

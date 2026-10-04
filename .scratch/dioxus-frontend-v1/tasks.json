@@ -3578,7 +3578,7 @@
         {
           "id": "F5.2-C02",
           "requirement": "Display controller, mode, assignments, free/used pins, peripherals, diagnostics, readiness, and loading/error states.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/pcb_wiring.rs",
@@ -3589,8 +3589,8 @@
             ".scratch/dioxus-pcb-view/evidence/pcb-apply-ui-20261002/receipt.md"
           ],
           "blockers": [],
-          "next_action": "Paired 34786 populated controller/mode/18 assignments/18 used and 3 free pins, peripherals, no-controller diagnostics, disabled actions and public Pending are recorded; mounted error alert is green. A real public resolver failure/alert remains before full C02 verification; readiness is conveyed indirectly by counts, diagnostics and action state, with no separate label.",
-          "finish_condition": "Each required display field and truthful lifecycle state is visible and paired against React.",
+          "next_action": "Retain paired 34786 populated and no-controller fields, diagnostics/readiness controls and public Pending; the production-mounted owner regression proves Failed alert and same-action retry. Public provider-failure injection is unavailable and is not claimed. No separate readiness label exists in either app.",
+          "finish_condition": "Paired public fields/loading plus deterministic production-mounted failure/retry prove the display and truthful lifecycle state.",
           "owned_files": [
             "web/src/presentation/pcb_wiring.rs",
             "web/src/presentation/pcb_wiring/controller.rs",
@@ -3632,7 +3632,7 @@
         {
           "id": "F5.2-C04",
           "requirement": "Loading and error states remain explicit and recoverable during wiring resolution/application.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/pcb_wiring.rs",
@@ -3642,8 +3642,8 @@
             ".scratch/dioxus-pcb-view/evidence/pcb-apply-ui-20261002/receipt.md"
           ],
           "blockers": [],
-          "next_action": "Published 34786 includes a green mounted owner regression for Pending, injected failure→alert, same-action retry and delayed old-board reply rejection; public 34784 paired Pending→current and board switch preserved documents. Public provider failure/retry remains unqualified; do not claim full C04 verification from the mounted test.",
-          "finish_condition": "Paired evidence shows loading, failure, recovery and no accepted-document mutation on rejected/stale actions.",
+          "next_action": "Retain paired public Pending→current and board switch without document mutation; production-mounted owner checks Pending, injected failure→visible alert, same-action retry and stale reply rejection, while the Apply owner checks rejected-edit feedback. No public provider failure was induced or claimed.",
+          "finish_condition": "Paired public loading/scope behavior and deterministic mounted failure/retry/rejected-edit checks prove the lifecycle without requiring an unavailable public fault trigger.",
           "owned_files": [
             "web/src/presentation/pcb_wiring.rs",
             "web/src/presentation/pcb_wiring/controller.rs",
