@@ -2870,3 +2870,34 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
   ]
 }
 ```
+
+## RF-033: 63 plain #[test]s in wasm-only presentation modules never run natively; one pre-existing mounted test fails
+
+**Status:** open; ratchet baseline blocks new ones (scripts/check-wasm-tests-baseline.json); existing 63 not yet converted
+
+**Confidence:** confirmed by scripts/check-wasm-tests.py and a failing headless-Chrome run
+
+**Observation:** mod presentation compiles only for wasm32 and native tests reach it through ~18 hand-picked #[path] includes (RF-022). 63 plain #[test]s in 16 files (keycaps_settings.rs 8, parts/preview.rs 9, parts/catalogue.rs 8, objects/matrix_inspector_controller.rs 6, shared_viewer.rs 4 ...) are compiled only for wasm32 and therefore never run. Separately layout_component_inspector_tests::mounted_component_drafts_survive_unrelated_acceptance_and_blur_uses_latest_owner fails in headless Chrome with and without the 2026-10-04 Layout test work (left 4.00, right 7.25).
+
+**Impact:** Behavior the ledger calls covered may be untested; two defects already reached commits because of this blind spot.
+
+**Current mitigation:** Convert the 63 to wasm_bindgen_test or move pure logic into natively compiled modules, file by file as each is touched; investigate the failing mounted draft test.
+
+**Evidence:** `scripts/check-wasm-tests.py`; `scripts/check-wasm-tests-baseline.json`; `.scratch/dioxus-frontend-v1/evidence/review-opus-20261004/consolidated-review.md`
+
+**Additional recorded details:**
+
+```json
+{
+  "category": "verification / test reachability",
+  "impact_priority": "high",
+  "discovered": "2026-10-04",
+  "workflows": [
+    "F3",
+    "F4",
+    "F6",
+    "F7"
+  ],
+  "post_port": "Replace the hand-maintained #[path] mirror with a native-compilable controller layer."
+}
+```
