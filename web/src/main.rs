@@ -103,6 +103,8 @@ mod layout_viewer_source;
 
 #[cfg(all(feature = "page", test, not(target_arch = "wasm32")))]
 mod presentation {
+    pub(crate) use crate::model_delivery;
+
     #[path = "outline_grid_rounding.rs"]
     mod outline_grid_rounding_tests;
 
@@ -148,6 +150,9 @@ mod presentation {
 
         #[path = "mode.rs"]
         mod mode;
+
+        #[path = "connections.rs"]
+        mod connections;
 
         #[path = "apply.rs"]
         mod apply;

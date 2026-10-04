@@ -203,6 +203,27 @@ pub(crate) fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Elemen
                     let Some(accepted) = model.accepted.as_ref() else {
                         return;
                     };
+                    if let Some(module_id) = preview.module_for_current_pick(
+                        accepted,
+                        &preview.owner.scope,
+                        preview.owner.source_generation,
+                        &reference,
+                    ) {
+                        selection::submit_context(
+                            &runtime,
+                            &selection,
+                            TreeSelectRequest {
+                                scope: preview.owner.scope.clone(),
+                                context: objects::TreeContext::MountedModule {
+                                    board_id: preview.owner.scope.board_id.clone(),
+                                    module_id,
+                                },
+                                mode: SelectionMode::Replace,
+                                outline_action: None,
+                            },
+                        );
+                        return;
+                    }
                     let Some(part_id) = preview.part_for_current_pick(
                         accepted,
                         &preview.owner.scope,

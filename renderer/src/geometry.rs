@@ -523,6 +523,54 @@ mod tests {
     }
 
     #[test]
+    fn board_mesh_preserves_concave_notch_and_hole() {
+        let outline = [
+            [0.0, 0.0],
+            [6.0, 0.0],
+            [6.0, 2.0],
+            [2.0, 2.0],
+            [2.0, 6.0],
+            [0.0, 6.0],
+        ];
+        let hole = [[0.5, 0.5], [0.5, 1.5], [1.5, 1.5], [1.5, 0.5]];
+        let mesh = board_mesh(
+            &[
+                BoardContour {
+                    points: &outline,
+                    hole: false,
+                },
+                BoardContour {
+                    points: &hole,
+                    hole: true,
+                },
+            ],
+            1.2,
+        )
+        .unwrap();
+        let contains_on_top = |point: [f32; 2]| {
+            mesh.indices.chunks_exact(3).any(|triangle| {
+                let vertices = [triangle[0], triangle[1], triangle[2]]
+                    .map(|index| mesh.positions[index as usize]);
+                if !vertices.iter().all(|vertex| (vertex[2] - 1.2).abs() < 1e-5) {
+                    return false;
+                }
+                let cross = |a: [f32; 3], b: [f32; 3]| {
+                    (b[0] - a[0]) * (point[1] - a[1]) - (b[1] - a[1]) * (point[0] - a[0])
+                };
+                let sides = [
+                    cross(vertices[0], vertices[1]),
+                    cross(vertices[1], vertices[2]),
+                    cross(vertices[2], vertices[0]),
+                ];
+                sides.iter().all(|side| *side >= -1e-5) || sides.iter().all(|side| *side <= 1e-5)
+            })
+        };
+        assert!(contains_on_top([1.0, 4.0]));
+        assert!(!contains_on_top([4.0, 4.0]));
+        assert!(!contains_on_top([1.0, 1.0]));
+    }
+
+    #[test]
     fn external_wall_normals_face_away_from_the_board() {
         let outline = [[0.0, 0.0], [20.0, 0.0], [20.0, 20.0], [0.0, 20.0]];
         let mesh = board_mesh(

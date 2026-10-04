@@ -38,6 +38,7 @@ struct SceneInput {
     board: Option<BoardInput>,
     models: Vec<LoadedModelInput>,
     bodies: Vec<BodyInput>,
+    module_bodies: Vec<ModuleBodyInput>,
     mechanical_stack: Vec<StackLayerInput>,
     battery: Option<BatteryInput>,
     reference: Option<ReferenceInput>,
@@ -179,6 +180,16 @@ struct BodyInput {
     id: String,
     name: String,
     mesh: MeshInput,
+}
+
+#[derive(Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct ModuleBodyInput {
+    id: String,
+    name: String,
+    z: f32,
+    thickness: f32,
+    contours: Vec<ContourInput>,
 }
 
 #[derive(Default, Deserialize)]
@@ -1574,6 +1585,23 @@ fn build_scene(input: SceneInput) -> Result<BuiltScene, JsValue> {
                 }
             }
         }
+        for body in input.module_bodies {
+            if hidden(&body.id) {
+                continue;
+            }
+            let mut mesh = module_body_mesh(&body).map_err(|error| JsValue::from_str(&error))?;
+            if mesh.positions.is_empty() {
+                continue;
+            }
+            let transform = pcb_transform * Mat4::from_translation(Vec3::new(0.0, 0.0, body.z));
+            transform_mesh(&mut mesh, transform);
+            let color = if input.selected_layer == body.id {
+                [0.84, 0.63, 0.23, 1.0]
+            } else {
+                [0.28, 0.49, 0.40, 1.0]
+            };
+            push_data(&mut output, &body.id, mesh, color, 0.72, 0.0);
+        }
         for body in input.bodies {
             if hidden(&body.id) || (body.id.starts_with("keycap") && hidden("Keycaps")) {
                 continue;
@@ -1693,6 +1721,38 @@ fn build_scene(input: SceneInput) -> Result<BuiltScene, JsValue> {
         output.bounds = Some((center, radius));
     }
     Ok(output)
+}
+
+fn module_body_mesh(body: &ModuleBodyInput) -> Result<MeshData, String> {
+    if body.id.is_empty()
+        || !body.z.is_finite()
+        || !body.thickness.is_finite()
+        || body.thickness <= 0.0
+    {
+        return Err("Module body identity and thickness must be valid".into());
+    }
+    let contours = body
+        .contours
+        .iter()
+        .map(|contour| {
+            (
+                contour
+                    .points
+                    .iter()
+                    .map(|point| [point.x, point.y])
+                    .collect::<Vec<_>>(),
+                contour.hole,
+            )
+        })
+        .collect::<Vec<_>>();
+    let contour_refs = contours
+        .iter()
+        .map(|(points, hole)| BoardContour {
+            points,
+            hole: *hole,
+        })
+        .collect::<Vec<_>>();
+    board_mesh(&contour_refs, body.thickness)
 }
 
 fn push_mesh(
@@ -1817,6 +1877,19 @@ fn translate_mesh(mesh: &mut MeshData, transform: Mat4) {
     for point in &mut mesh.positions {
         let output = transform * Vec4::new(point[0], point[1], point[2], 1.0);
         *point = [output.x, output.y, output.z];
+    }
+}
+
+fn transform_mesh(mesh: &mut MeshData, transform: Mat4) {
+    translate_mesh(mesh, transform);
+    let normal_matrix = transform
+        .invert()
+        .unwrap_or_else(Mat4::identity)
+        .transpose();
+    for normal in &mut mesh.normals {
+        let transformed = normal_matrix * Vec4::new(normal[0], normal[1], normal[2], 0.0);
+        let transformed = transformed.truncate().normalize();
+        *normal = [transformed.x, transformed.y, transformed.z];
     }
 }
 

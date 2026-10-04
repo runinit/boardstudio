@@ -853,6 +853,22 @@ fn project_layout_preview(
     {
         return Err("Canonical Layout preview does not match the active viewer owner".into());
     }
+    let reference = preview
+        .board_reference
+        .as_ref()
+        .filter(|reference| reference.enabled)
+        .map(|reference| {
+            serde_json::json!({
+                "pose": &reference.pose,
+                "elevation": reference.elevation,
+            })
+        });
+    let module_bodies = layout_module_bodies(
+        &preview.module_scenes,
+        &preview.document,
+        &identity.scope.board_id,
+        preview.preview.thickness,
+    );
     let packet = serde_json::json!({
         "revision": identity.renderer_sequence,
         "kind": "assembly",
@@ -869,6 +885,8 @@ fn project_layout_preview(
             "holes": &preview.preview.holes,
             "models": &preview.preview.models
         },
+        "reference": reference,
+        "moduleBodies": &module_bodies,
         "models": [],
         "mechanicalStack": []
     });
@@ -877,6 +895,12 @@ fn project_layout_preview(
     Reflect::set(&input, &"models".into(), &models).map_err(js_error)?;
     let bodies = Array::new();
     let mut layers = vec![("pcb".to_owned(), "PCB".to_owned())];
+    for body in module_bodies {
+        layers.push((
+            body["id"].as_str().unwrap_or_default().to_owned(),
+            body["name"].as_str().unwrap_or_default().to_owned(),
+        ));
+    }
     if let Some(keycaps) = keycaps_preview {
         if keycaps.scope != identity.scope
             || keycaps.token != identity.snapshot_token
@@ -937,6 +961,91 @@ fn project_layout_preview(
         input,
         layers,
     })
+}
+
+fn layout_module_bodies(
+    modules: &[boardstudio_core::model::ResolvedModule],
+    document: &boardstudio_core::model::ProjectDoc,
+    board_id: &str,
+    pcb_top_z: f64,
+) -> Vec<serde_json::Value> {
+    modules
+        .iter()
+        .flat_map(|module| {
+            let Some(instance) = document
+                .modules
+                .iter()
+                .find(|instance| instance.id == module.id && instance.host_board_id == board_id)
+            else {
+                return Vec::new();
+            };
+            let name = document
+                .module_definitions
+                .iter()
+                .find(|definition| definition.id == instance.definition_id)
+                .map(|definition| definition.name.as_str())
+                .unwrap_or("Mounted module");
+            let contour =
+                |points: &[_], hole: bool| serde_json::json!({ "points": points, "hole": hole });
+            let mut bodies = module
+                .board
+                .iter()
+                .enumerate()
+                .map(|(index, solid)| {
+                    let mut contours = vec![contour(&solid.points, false)];
+                    contours.extend(
+                        module
+                            .board_holes
+                            .iter()
+                            .map(|hole| contour(&hole.points, true)),
+                    );
+                    serde_json::json!({
+                        "id": format!("module:{}:pcb:{index}", module.id),
+                        "name": format!("{name} · PCB"),
+                        "z": solid.z + pcb_top_z,
+                        "thickness": solid.height,
+                        "contours": contours,
+                    })
+                })
+                .collect::<Vec<_>>();
+            bodies.extend(module.volumes.iter().enumerate().map(|(index, volume)| {
+                serde_json::json!({
+                    "id": format!("module:{}:volume:{index}", module.id),
+                    "name": format!("{name} · Assembly volume"),
+                    "z": volume.geometry.z + pcb_top_z,
+                    "thickness": volume.geometry.height,
+                    "contours": [contour(&volume.geometry.points, false)],
+                })
+            }));
+            if instance.attachment == boardstudio_core::model::ModuleAttachment::Board {
+                for support in &module.mount_supports {
+                    let ring = |diameter: f64, clockwise: bool| {
+                        (0..48)
+                            .map(|index| {
+                                let direction = if clockwise { -1.0 } else { 1.0 };
+                                let angle = std::f64::consts::TAU * index as f64 / 48.0;
+                                boardstudio_core::model::Vec2 {
+                                    x: support.at.x + diameter / 2.0 * (direction * angle).cos(),
+                                    y: support.at.y + diameter / 2.0 * (direction * angle).sin(),
+                                }
+                            })
+                            .collect::<Vec<_>>()
+                    };
+                    bodies.push(serde_json::json!({
+                        "id": format!("module:{}:standoff:{}", module.id, support.mount_id),
+                        "name": format!("{} · PCB standoff", module.id),
+                        "z": support.z + pcb_top_z,
+                        "thickness": support.height,
+                        "contours": [
+                            contour(&ring(support.outer_diameter, false), false),
+                            contour(&ring(support.hole_diameter, true), true),
+                        ],
+                    }));
+                }
+            }
+            bodies
+        })
+        .collect()
 }
 
 fn project_parts_preview(
@@ -2767,6 +2876,236 @@ mod tests {
             projection_generation: 4,
             renderer_sequence: 6,
         }
+    }
+
+    #[test]
+    fn generic_layout_module_projection_preserves_board_holes_and_omits_opening_voids() {
+        use boardstudio_core::model::{
+            CaseOpening, ModuleAttachment, ModuleSupportGeometry, MountedModule, ProjectDoc,
+            ResolvedModule, Side, Vec2,
+        };
+
+        let mut document = ProjectDoc::empty("project-1", "Generic module");
+        document.modules.push(MountedModule {
+            id: "placement-generic".into(),
+            definition_id: "definition-generic".into(),
+            host_board_id: "board-1".into(),
+            host_instance_id: None,
+            host_face: Side::Front,
+            facing_face: Side::Front,
+            at: Vec2 { x: 0.0, y: 0.0 },
+            rotation: 0.0,
+            gap: 0.0,
+            attachment: ModuleAttachment::Board,
+            detached: false,
+            connection: None,
+            service_clearance: 0.0,
+            mount_supports: vec![],
+        });
+        let polygon = vec![
+            Vec2 { x: 0.0, y: 0.0 },
+            Vec2 { x: 6.0, y: 0.0 },
+            Vec2 { x: 6.0, y: 2.0 },
+            Vec2 { x: 2.0, y: 2.0 },
+            Vec2 { x: 2.0, y: 6.0 },
+            Vec2 { x: 0.0, y: 6.0 },
+        ];
+        let module = ResolvedModule {
+            id: "placement-generic".into(),
+            definition_id: "definition-generic".into(),
+            at: Vec2 { x: 0.0, y: 0.0 },
+            rotation: 0.0,
+            midplane_z: 1.6,
+            flipped: false,
+            board: vec![CaseOpening {
+                points: polygon.clone(),
+                z: 0.0,
+                height: 1.2,
+            }],
+            board_holes: vec![boardstudio_core::model::Contour {
+                points: vec![
+                    Vec2 { x: 0.5, y: 0.5 },
+                    Vec2 { x: 0.5, y: 1.5 },
+                    Vec2 { x: 1.5, y: 1.5 },
+                    Vec2 { x: 1.5, y: 0.5 },
+                ],
+                hole: true,
+            }],
+            volumes: vec![boardstudio_core::model::ModuleVolume {
+                id: "volume-1".into(),
+                geometry: CaseOpening {
+                    points: polygon,
+                    z: 1.2,
+                    height: 0.4,
+                },
+                purpose: "assembly".into(),
+                source: "fixture".into(),
+                qualified: true,
+            }],
+            openings: vec![boardstudio_core::model::ModuleVolume {
+                id: "clearance-void".into(),
+                geometry: CaseOpening {
+                    points: vec![
+                        Vec2 { x: 2.5, y: 2.5 },
+                        Vec2 { x: 3.5, y: 2.5 },
+                        Vec2 { x: 3.5, y: 3.5 },
+                    ],
+                    z: 1.0,
+                    height: 3.0,
+                },
+                purpose: "connector-clearance".into(),
+                source: "fixture".into(),
+                qualified: true,
+            }],
+            mounts: vec![],
+            mount_supports: vec![ModuleSupportGeometry {
+                mount_id: "support-1".into(),
+                at: Vec2 { x: 4.0, y: 1.0 },
+                outer_diameter: 2.0,
+                hole_diameter: 0.8,
+                z: 0.0,
+                height: 1.0,
+            }],
+            footprints: vec![],
+            models: vec![],
+            gates: vec![],
+        };
+
+        let bodies = layout_module_bodies(&[module], &document, "board-1", 1.6);
+        assert_eq!(bodies.len(), 3, "PCB, assembly volume and standoff only");
+        assert_eq!(bodies[0]["id"], "module:placement-generic:pcb:0");
+        assert_eq!(bodies[0]["contours"].as_array().unwrap().len(), 2);
+        assert_eq!(bodies[0]["contours"][1]["hole"], true);
+        assert_eq!(
+            bodies[0]["contours"][0]["points"].as_array().unwrap().len(),
+            6
+        );
+        assert_eq!(bodies[1]["id"], "module:placement-generic:volume:0");
+        assert_eq!(
+            bodies[2]["id"],
+            "module:placement-generic:standoff:support-1"
+        );
+        assert_eq!(bodies[2]["contours"][1]["hole"], true);
+        assert!(
+            bodies
+                .iter()
+                .all(|body| !body["id"].as_str().unwrap().contains("clearance-void"))
+        );
+    }
+
+    fn imported_layout_projection(
+        reference: boardstudio_core::model::BoardReference,
+    ) -> RendererSceneProjection {
+        use boardstudio_core::model::{
+            Asset, Board, BoardContours, PcbPreview, ProjectDoc, Readiness, SceneDelta,
+        };
+        use std::{collections::BTreeMap, sync::Arc};
+
+        let viewer = identity();
+        let mut document = ProjectDoc::empty("project-1", "Routed board");
+        document.revision = viewer.revision;
+        document.boards.push(Board {
+            id: "board-1".into(),
+            name: "Board".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        document.assets.push(Asset {
+            id: "routed-source".into(),
+            name: "board.kicad_pcb".into(),
+            media_type: "application/vnd.kicad.pcb".into(),
+            sha256: "ab".repeat(32),
+            license: None,
+            source: None,
+        });
+        document.board_references.push(reference);
+        let accepted = boardstudio_application::AcceptedSnapshot {
+            token: viewer.snapshot_token,
+            session_epoch: viewer.scope.session_epoch,
+            document: Arc::new(document),
+            scene: Arc::new(SceneDelta {
+                module_scenes: vec![],
+                revision: viewer.revision,
+                transaction_id: "test".into(),
+                changed_ids: vec![],
+                transforms: vec![],
+                matrix_scenes: vec![],
+                contours: vec![],
+                board_contours: vec![BoardContours {
+                    board_id: "board-1".into(),
+                    contours: vec![],
+                }],
+                board_readiness: vec![],
+                board_outline_scenes: vec![],
+                finding_markers: vec![],
+                findings: vec![],
+                readiness: Readiness {
+                    layout: false,
+                    outline: false,
+                    pcb: false,
+                    case_ready: false,
+                },
+            }),
+        };
+        let capture = super::super::layout_viewer_source::LayoutSourceCapture::capture(
+            &accepted,
+            &viewer.scope,
+            1,
+            "layout-preview-test".into(),
+            BTreeMap::new(),
+        )
+        .unwrap();
+        let preview = capture
+            .accept_preview(PcbPreview {
+                revision: viewer.revision,
+                thickness: 1.6,
+                contours: vec![],
+                surfaces: vec![],
+                holes: vec![],
+                models: vec![],
+                diagnostics: vec![],
+            })
+            .unwrap();
+        project_layout_preview(&preview, viewer, "light", None, None).unwrap()
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn imported_layout_projection_preserves_nonidentity_board_reference_pose_and_elevation() {
+        use boardstudio_core::model::{BoardReference, Pose2, Vec2};
+        use std::collections::BTreeMap;
+
+        let projection = imported_layout_projection(BoardReference {
+            id: "routed-board-1".into(),
+            board_id: "board-1".into(),
+            asset_id: "routed-source".into(),
+            enabled: true,
+            pose: Pose2 {
+                at: Vec2 { x: 17.25, y: -8.5 },
+                rotation: 31.0,
+            },
+            elevation: 4.75,
+            model_assets: BTreeMap::new(),
+        });
+        let serialized = js_sys::JSON::stringify(&projection.input)
+            .unwrap()
+            .as_string()
+            .unwrap();
+        let packet: serde_json::Value = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(
+            packet["reference"],
+            serde_json::json!({
+                "pose": {
+                    "at": { "x": 17.25, "y": -8.5 },
+                    "rotation": 31
+                },
+                "elevation": 4.75
+            })
+        );
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]

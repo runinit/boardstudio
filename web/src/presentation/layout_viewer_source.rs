@@ -7,7 +7,7 @@
 use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
 use boardstudio_core::model::{
     ArtifactRequest, Asset, BoardReference, Contour, ExportTarget, PcbPreview,
-    PrepareExportRequest, ProjectDoc,
+    PrepareExportRequest, ProjectDoc, ResolvedModule,
 };
 use std::{cell::Cell, rc::Rc};
 use std::{collections::BTreeMap, sync::Arc};
@@ -38,6 +38,8 @@ pub(crate) struct LayoutSourceCapture {
     pub(crate) owner: LayoutSourceIdentity,
     pub(crate) lease: Rc<LayoutSourceLease>,
     pub(crate) document: Arc<ProjectDoc>,
+    /// Current resolved modules from the same accepted SceneDelta as this capture.
+    pub(crate) module_scenes: Vec<ResolvedModule>,
     pub(crate) contours: Vec<Contour>,
     pub(crate) path_assets: BTreeMap<String, String>,
     pub(crate) request: LayoutPreviewRequest,
@@ -48,6 +50,8 @@ pub(crate) struct LayoutPreviewSnapshot {
     pub(crate) owner: LayoutSourceIdentity,
     pub(crate) lease: Rc<LayoutSourceLease>,
     pub(crate) document: Arc<ProjectDoc>,
+    /// Board-scoped resolved modules captured with the accepted Layout source.
+    pub(crate) module_scenes: Vec<ResolvedModule>,
     pub(crate) contours: Vec<Contour>,
     pub(crate) path_assets: BTreeMap<String, String>,
     pub(crate) board_reference: Option<BoardReference>,
@@ -332,10 +336,22 @@ impl LayoutSourceCapture {
         };
 
         let owner = LayoutSourceIdentity::from_accepted(snapshot, scope, source_generation);
+        let module_scenes = snapshot
+            .scene
+            .module_scenes
+            .iter()
+            .filter(|resolved| {
+                snapshot.document.modules.iter().any(|module| {
+                    module.id == resolved.id && module.host_board_id == scope.board_id
+                })
+            })
+            .cloned()
+            .collect();
         Ok(Self {
             lease: LayoutSourceLease::new(owner.clone()),
             owner,
             document: snapshot.document.clone(),
+            module_scenes,
             contours,
             path_assets: model_paths,
             request,
@@ -390,6 +406,7 @@ impl LayoutSourceCapture {
             owner: self.owner.clone(),
             lease: self.lease.clone(),
             document: self.document.clone(),
+            module_scenes: self.module_scenes.clone(),
             contours: self.contours.clone(),
             path_assets: self.path_assets.clone(),
             board_reference: match &self.request {
@@ -406,6 +423,46 @@ impl LayoutPreviewSnapshot {
         self.owner == expected.owner
             && Rc::ptr_eq(&self.lease, &expected.lease)
             && self.lease.matches(&self.owner)
+    }
+
+    /// Resolve a private Layout renderer ID to the mounted placement represented
+    /// by this accepted scene, rejecting stale or cross-board pick events.
+    pub(crate) fn module_for_current_pick(
+        &self,
+        snapshot: &AcceptedSnapshot,
+        scope: &Scope,
+        source_generation: u64,
+        renderer_id: &str,
+    ) -> Option<String> {
+        let module_id = self.module_scenes.iter().find_map(|module| {
+            let body = renderer_id.strip_prefix(&format!("module:{}:", module.id))?;
+            ["pcb:", "volume:", "standoff:"]
+                .iter()
+                .any(|kind| body.starts_with(kind))
+                .then_some(module.id.as_str())
+        })?;
+        if !self
+            .owner
+            .matches_current(snapshot, scope, source_generation)
+            || self.document.id != scope.document_id
+            || self.document.revision != self.owner.accepted_revision
+            || Arc::as_ptr(&self.document) as usize != self.owner.accepted_document_identity
+            || !Arc::ptr_eq(&self.document, &snapshot.document)
+            || self.preview.revision != self.owner.accepted_revision
+            || !self.lease.matches(&self.owner)
+            || !self
+                .module_scenes
+                .iter()
+                .any(|module| module.id == module_id)
+            || !self
+                .document
+                .modules
+                .iter()
+                .any(|module| module.id == module_id && module.host_board_id == scope.board_id)
+        {
+            return None;
+        }
+        Some(module_id.to_owned())
     }
 
     /// A renderer reference selects only a unique Part on this captured board and
@@ -442,7 +499,8 @@ mod tests {
     use super::*;
     use boardstudio_application::SessionEpoch;
     use boardstudio_core::model::{
-        Board, BoardContours, Contour, Part, PcbModel, Pose2, Readiness, SceneDelta, Side, Vec2,
+        Board, BoardContours, CaseOpening, Contour, ModuleAttachment, ModuleSupportGeometry,
+        MountedModule, Part, PcbModel, Pose2, Readiness, ResolvedModule, SceneDelta, Side, Vec2,
         Vec3,
     };
 
@@ -822,6 +880,103 @@ mod tests {
         assert!(
             accepted_preview
                 .part_for_current_pick(&duplicate_snapshot, &scope, 3, "U1")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn accepted_generic_module_scene_is_board_scoped_and_pick_resolves_current_placement() {
+        let (snapshot, scope) = accepted(false);
+        let mut document = snapshot.document.as_ref().clone();
+        for (id, board_id) in [("placement-generic", "left"), ("placement-other", "right")] {
+            document.modules.push(MountedModule {
+                id: id.into(),
+                definition_id: "generic-module-definition".into(),
+                host_board_id: board_id.into(),
+                host_instance_id: None,
+                host_face: Side::Front,
+                facing_face: Side::Front,
+                at: Vec2 { x: 2.0, y: 3.0 },
+                rotation: 0.0,
+                gap: 0.0,
+                attachment: ModuleAttachment::Board,
+                detached: false,
+                connection: None,
+                service_clearance: 0.0,
+                mount_supports: vec![],
+            });
+        }
+        let resolved = |id: &str| ResolvedModule {
+            id: id.into(),
+            definition_id: "generic-module-definition".into(),
+            at: Vec2 { x: 2.0, y: 3.0 },
+            rotation: 0.0,
+            midplane_z: 2.0,
+            flipped: false,
+            board: vec![CaseOpening {
+                points: vec![
+                    Vec2 { x: 0.0, y: 0.0 },
+                    Vec2 { x: 4.0, y: 0.0 },
+                    Vec2 { x: 4.0, y: 3.0 },
+                ],
+                z: 1.0,
+                height: 1.0,
+            }],
+            board_holes: vec![],
+            volumes: vec![],
+            openings: vec![],
+            mounts: vec![],
+            mount_supports: vec![ModuleSupportGeometry {
+                mount_id: "support-1".into(),
+                at: Vec2 { x: 1.0, y: 1.0 },
+                outer_diameter: 2.0,
+                hole_diameter: 0.8,
+                z: 0.0,
+                height: 1.0,
+            }],
+            footprints: vec![],
+            models: vec![],
+            gates: vec![],
+        };
+        let mut scene = snapshot.scene.as_ref().clone();
+        scene.module_scenes = vec![resolved("placement-generic"), resolved("placement-other")];
+        let snapshot = AcceptedSnapshot {
+            document: Arc::new(document),
+            scene: Arc::new(scene),
+            ..snapshot
+        };
+
+        let capture = source_capture(&snapshot, &scope);
+        assert_eq!(
+            capture
+                .module_scenes
+                .iter()
+                .map(|module| module.id.as_str())
+                .collect::<Vec<_>>(),
+            ["placement-generic"]
+        );
+        let preview = capture.accept_preview(preview()).unwrap();
+        assert_eq!(
+            preview.module_for_current_pick(&snapshot, &scope, 3, "module:placement-generic:pcb:0"),
+            Some("placement-generic".into())
+        );
+        assert!(
+            preview
+                .module_for_current_pick(&snapshot, &scope, 3, "module:placement-other:pcb:0")
+                .is_none()
+        );
+        assert!(
+            preview
+                .module_for_current_pick(&snapshot, &scope, 4, "module:placement-generic:pcb:0")
+                .is_none()
+        );
+        let stale_scene = AcceptedSnapshot {
+            scene: Arc::new(snapshot.scene.as_ref().clone()),
+            ..snapshot
+        };
+        assert!(
+            preview
+                .module_for_current_pick(&stale_scene, &scope, 3, "module:placement-generic:pcb:0")
                 .is_none()
         );
     }
