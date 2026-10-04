@@ -1,0 +1,36 @@
+{
+  "build_id": "frontend-parts-library-repairs-20261004",
+  "source_commit": "3a412978cee729a24d37e7e55e7c3664f1187fb2",
+  "provenance": "web/target/builds/frontend-parts-library-repairs-20261004/provenance.json",
+  "provenance_sha256": "98f2bdecbbfc22a7deb9780e455899c4241f2d71d0bf96ac5c17d4043a222979",
+  "source_count": 1402,
+  "source_mismatches": [],
+  "routes": {
+    "root": {
+      "http": 200,
+      "headers": {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp"
+      },
+      "asset_count": 190,
+      "mismatches": []
+    },
+    "subpath": {
+      "http": 200,
+      "headers": {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp"
+      },
+      "asset_count": 190,
+      "mismatches": []
+    }
+  },
+  "fresh_commands": 23,
+  "inherited_commands": 0,
+  "duration_seconds": 482.434469,
+  "release_warnings": {
+    "root": 0,
+    "subpath": 0
+  },
+  "qualification": "Combined package provenance, current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate."
+}

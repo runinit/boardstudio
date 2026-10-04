@@ -2645,7 +2645,7 @@
       ],
       "observation": "mod presentation compiles only for wasm32 and native tests reach it through ~18 hand-picked #[path] includes (RF-022). 63 plain #[test]s in 16 files (keycaps_settings.rs 8, parts/preview.rs 9, parts/catalogue.rs 8, objects/matrix_inspector_controller.rs 6, shared_viewer.rs 4 ...) are compiled only for wasm32 and therefore never run. Separately layout_component_inspector_tests::mounted_component_drafts_survive_unrelated_acceptance_and_blur_uses_latest_owner fails in headless Chrome with and without the 2026-10-04 Layout test work (left 4.00, right 7.25).",
       "impact": "Behavior the ledger calls covered may be untested; two defects already reached commits because of this blind spot.",
-      "during_port": "Retain the zero-baseline reachability ratchet and enforced native/page/headless gates. Investigate the known mounted assertion failures and independently review the nine external exclusion additions; do not count excluded failures as passes.",
+      "during_port": "Retain zero-baseline reachability and enforced native/page/headless gates. Five library exclusions were removed after reviewed harness corrections and enforcing integration 4812d82b passed. Investigate the eight remaining exclusions; none counts as a passing assertion.",
       "post_port": "Replace the hand-maintained #[path] mirror with a native-compilable controller layer.",
       "continuations": [
         {
@@ -2655,6 +2655,14 @@
             ".scratch/dioxus-frontend-v1/evidence/test-gates-review-20261004.md",
             ".scratch/dioxus-frontend-v1/evidence/test-gates-repair-20261004.md",
             "scripts/wasm-known-failures.json"
+          ]
+        },
+        {
+          "date": "2026-10-04",
+          "observation": "Astra consolidation review mapped redundant helper assertions to the native regression and folded independent model hide/show assertions into the existing mounted Layers test. Enforced integration 4812d82b passed native/page/reachability and changed headless modules with five library exclusions removed (13 to 8). Source review and retained execution log are attributable; no broad-suite claim is made for the remaining exclusions.",
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/astra-consolidation-review-20261004.md",
+            ".scratch/dioxus-frontend-v1/evidence/parts-library-gates-20261004/commit-gate.log"
           ]
         }
       ]

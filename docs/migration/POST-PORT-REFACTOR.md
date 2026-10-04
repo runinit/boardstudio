@@ -2891,7 +2891,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Impact:** Behavior the ledger calls covered may be untested; two defects already reached commits because of this blind spot.
 
-**Current mitigation:** Retain the zero-baseline reachability ratchet and enforced native/page/headless gates. Investigate the known mounted assertion failures and independently review the nine external exclusion additions; do not count excluded failures as passes.
+**Current mitigation:** Retain zero-baseline reachability and enforced native/page/headless gates. Five library exclusions were removed after reviewed harness corrections and enforcing integration 4812d82b passed. Investigate the eight remaining exclusions; none counts as a passing assertion.
 
 **Evidence:** `scripts/check-wasm-tests.py`; `scripts/check-wasm-tests-baseline.json`; `.scratch/dioxus-frontend-v1/evidence/review-opus-20261004/consolidated-review.md`
 
@@ -2917,6 +2917,14 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
         ".scratch/dioxus-frontend-v1/evidence/test-gates-review-20261004.md",
         ".scratch/dioxus-frontend-v1/evidence/test-gates-repair-20261004.md",
         "scripts/wasm-known-failures.json"
+      ]
+    },
+    {
+      "date": "2026-10-04",
+      "observation": "Astra consolidation review mapped redundant helper assertions to the native regression and folded independent model hide/show assertions into the existing mounted Layers test. Enforced integration 4812d82b passed native/page/reachability and changed headless modules with five library exclusions removed (13 to 8). Source review and retained execution log are attributable; no broad-suite claim is made for the remaining exclusions.",
+      "evidence": [
+        ".scratch/dioxus-frontend-v1/evidence/astra-consolidation-review-20261004.md",
+        ".scratch/dioxus-frontend-v1/evidence/parts-library-gates-20261004/commit-gate.log"
       ]
     }
   ]

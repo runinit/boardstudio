@@ -677,7 +677,7 @@
         {
           "id": "F2.2-C04",
           "requirement": "Download/reopen portable copy with referenced assets; delete only after named confirmation with cancel/success/failure/retry and durable identity outcomes.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation.rs:830",
@@ -687,10 +687,13 @@
             "web/src/presentation/library.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/f2.2-c02-c03-paired-qualification.md"
+            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/f2.2-c02-c03-paired-qualification.md",
+            ".scratch/dioxus-frontend-v1/evidence/library-mounted-repair-20261004.md",
+            ".scratch/dioxus-frontend-v1/evidence/parts-library-gates-20261004/commit-gate.log",
+            ".scratch/dioxus-frontend-v1/evidence/astra-consolidation-review-20261004.md"
           ],
           "blockers": [],
-          "next_action": "Paired 34801/5175 Project-menu Save project copy downloaded archives and reopened Sofle with 2 boards, 140 parts and 6 verified embedded assets. Retain this success evidence; qualify named delete confirmation, cancel/failure/retry and durable identity outcomes separately.",
+          "next_action": "Verified from retained paired portable-copy/embedded-asset reopen and named deletion cancel/success/reload evidence, plus the now-passing real mounted replacement-failure/retry test in enforced integration 4812d82b. Public storage-fault trigger remains unavailable; deterministic failure and mounted retry evidence used under the operating contract. F2.2-C02/C03 remain open.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation.rs",
@@ -3338,10 +3341,11 @@
             "web/src/presentation/parts/assembly_presets.rs:1"
           ],
           "evidence": [
-            ".scratch/dioxus-frontend-v1/evidence/f46-assembly-authoring-20261003/RECEIPT.md"
+            ".scratch/dioxus-frontend-v1/evidence/f46-assembly-authoring-20261003/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/consolidated-34822-20261004/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Source df22f1cc repairs the paired 34808 saved-duplicate reopen defect: matching component/model options now select persisted IDs, with focused mounted WASM RED/GREEN (1/1). Candidate 34810 reopened a duplicate with exact stable switch, Back/X=4, Custom mode and two model IDs in DOM and accepted archive. Retain this result; qualify remaining parameter/default-model branches without repeating the reopen journey.",
+          "next_action": "Paired34822/5175 Edit model defaults derives matching two STEP IDs and exact transforms; saved reopen/rename pass. Retain prior duplicate proof. Parameter overrides remain to qualify.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts/assembly_editor.rs",
@@ -3363,10 +3367,11 @@
             "web/src/presentation/parts/preview.rs:191"
           ],
           "evidence": [
-            ".scratch/dioxus-parts-catalogue/evidence/parts-assembly-34762/RESULTS.md"
+            ".scratch/dioxus-parts-catalogue/evidence/parts-assembly-34762/RESULTS.md",
+            ".scratch/dioxus-frontend-v1/evidence/consolidated-34822-20261004/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Paired empty-name and empty-member rejection verified. Supported model import, invalid transform/member branches and broader isolated-preview behavior remain.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts/assembly_editor.rs",
@@ -3389,10 +3394,11 @@
             "web/src/presentation/parts/placement_action_tests.rs:1"
           ],
           "evidence": [
-            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md"
+            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
+            ".scratch/dioxus-frontend-v1/evidence/consolidated-34822-20261004/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Reuse assembly placement/reopen evidence; qualify saved assembly edit, Undo/Redo, matrix Apply and board Apply through the public F3 seam.",
+          "next_action": "Paired saved-name edit Undo/Redo and board-origin150/10 placement plus reload pass. Public matrix Apply remains.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts/assembly_editor.rs",
@@ -3412,9 +3418,11 @@
           "sources": [
             "web/src/presentation/parts/assembly_editor.rs:1"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/consolidated-34822-20261004/RECEIPT.md"
+          ],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Paired recipe rename/member X0-to4 edit preserves existing placement name and150/10 position through reload. Exact archive-level matrix/key identity preservation remains.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts/assembly_editor.rs"
@@ -6549,7 +6557,7 @@
         {
           "id": "F7.3-C03",
           "requirement": "Support layer/model visibility, color changes and reset behavior.",
-          "state": "missing",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/shared_viewer.rs",
@@ -6559,10 +6567,12 @@
           "evidence": [
             ".scratch/dioxus-shared-viewer/evidence/issue02-case-pick-next-20261003/34762-native-preview-visibility.md",
             ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md",
-            ".scratch/dioxus-frontend-v1/evidence/parts-sample-public-20261004.md"
+            ".scratch/dioxus-frontend-v1/evidence/parts-sample-public-20261004.md",
+            ".scratch/dioxus-frontend-v1/evidence/consolidated-34822-20261004/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/astra-consolidation-review-20261004.md"
           ],
           "blockers": [],
-          "next_action": "Repair reproduced Parts sample per-model visibility: MX switch sample on34821 exposes only aggregate Models while reference5175 exposes independently toggleable P1 · 47.stp and P1 · 43.stp. Retain earlier Case layer/color/reset evidence; native RED first, then page/wasm gate and focused public replay.",
+          "next_action": "Repaired Parts per-model actions publicly pass on34822 after native RED/GREEN, reviewed exact-ID mounted coverage and enforced native/page/headless gate. Reuse retained Case layer/color/reset proof. Sample controls are local in reviewed source; no new pixel-level, archive-equality or lifecycle claim. Hashed model display labels are a deferred presentation difference.",
           "finish_condition": "Public actions demonstrate assembly layer, individual model, color edit and reset without document edits.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",
@@ -7364,7 +7374,7 @@
         {
           "id": "F7.6-C06",
           "requirement": "Enable STEP only for exact current geometry under existing warning rules, using existing export path and captured accepted snapshot.",
-          "state": "implemented",
+          "state": "missing",
           "classification": "functional",
           "sources": [
             "web/src/case_generation_lifecycle.rs",
@@ -7372,10 +7382,11 @@
             "web/src/cad_jobs.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md"
+            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
+            ".scratch/dioxus-frontend-v1/evidence/consolidated-34822-20261004/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Capture Case exact STEP readiness/disable reason and exported accepted snapshot for current candidate; 34775 mechanical package alone is not this criterion.",
+          "next_action": "Reproduced34822 configured mechanical-stack Case lacks local Export geometry despite exact current geometry. Reference5175 mounts that control after mechanical configuration (disabled on its blocked edited fixture); reference source supplies onExportMechanical. Bounded repair must mount existing export route with exact current scope/readiness and meaningful failing regression. Export-workspace proof remains valid and does not substitute for this originating control.",
           "finish_condition": "Export is disabled for preview/stale/blocked geometry and a current exact accepted snapshot downloads through existing export service.",
           "owned_files": [
             "web/src/cad_presentation.rs",

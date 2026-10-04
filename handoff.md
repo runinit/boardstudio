@@ -1,25 +1,21 @@
-# Handoff (Codex coordinator, 2026-10-04)
-
-Generated records first; current continuation notes below supersede historical notes.
-
 # Handoff (generated from records)
 
-- Branch: codex/rust-v1-ui-parity-20261001 @ f320e6b8
+- Branch: codex/rust-v1-ui-parity-20261001 @ 3a412978
 - Worktree: /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001
-- Parents: 20/61 accepted, 30 implementing, 11 planned
-- Criteria: unassessed 27, missing 0, implemented 82, verified 113; 222 total
-  - functional: implemented 69, unassessed 3, verified 109
+- Parents: 22/61 accepted, 28 implementing, 11 planned
+- Criteria: unassessed 27, missing 1, implemented 80, verified 114; 222 total
+  - functional: implemented 67, missing 1, unassessed 3, verified 110
   - release: implemented 10, unassessed 19, verified 4
   - visual: implemented 3, unassessed 5
 
 ## Served candidate
-- Build: frontend-layout-grouped-repairs-20261004
-- Source commit: f320e6b8cb782cc9deaa0cb623f187c6af1ed795
-- Root: http://127.0.0.1:34821/
-- Subpath: http://127.0.0.1:34821/boardstudio/
+- Build: frontend-parts-library-repairs-20261004
+- Source commit: 3a412978cee729a24d37e7e55e7c3664f1187fb2
+- Root: http://127.0.0.1:34822/
+- Subpath: http://127.0.0.1:34822/boardstudio/
 
 ## Parents
-- Accepted (20): INT.1, INT.2, BND.1, BND.2, F2.1, F2.3, F3.1, F3.2, F3.3, F3.4, F4.2, F5.2, F6K.1, F6K.2, F6K.3, F6C.1, F6C.2, F6C.4, F7.2, F8.2
+- Accepted (22): INT.1, INT.2, BND.1, BND.2, F2.1, F2.3, F3.1, F3.2, F3.3, F3.4, F4.2, F5.2, F5.3, F6K.1, F6K.2, F6K.3, F6K.4, F6C.1, F6C.2, F6C.4, F7.2, F8.2
 - Hold (0): none
 
 ## Criteria on hold or blocked
@@ -78,9 +74,9 @@ Generated records first; current continuation notes below supersede historical n
 - RF-033: 63 plain #[test]s in wasm-only presentation modules never run natively; one pre-existing mounted ...
 
 ## Qualification scope
-- Scope: frontend-layout-grouped-repairs-20261004 - Grouped Layout Inspector, mirror-key state and 2D/3D qualification
-- Journeys: F3.5-F3.6-grouped-layout
-- State: qualified_partial
+- Scope: frontend-parts-library-repairs-20261004 - Scoped assembly editing, shared-viewer consumption and durable project continuity
+- Journeys: F7.3-parts-individual-model-layers, F2.2-library-mounted-recovery, saved-recipe-layout, layout-keymap-keycaps, pcb-model-viewer, case-local-step-scope
+- State: repairing
 
 Last retro checkpoint: 2026-10-04T15:56:00Z
 
@@ -100,3 +96,12 @@ Last retro checkpoint: 2026-10-04T15:56:00Z
 - Fresh mirror creation is already `assembliesLocal=true` in both frontends. Do not “fix” that shared behavior. Grouped paired receipt covers Inspector/compact keyboard, numeric drafts, actual 3D orbit/pick and repeated switching. Reproduced mirrored-key disable→Undo selection loss received a real Core/Session RED-first repair; mirrored and ordinary keys now restore selection/Fit/relation. Target Choc/diode history and reload pass without changing canonical components.
 - Independent native reviews are clear for source and scoped replay. See `.scratch/dioxus-frontend-v1/evidence/layout-grouped-20261004/RECEIPT.md` and `layout-grouped-review-20261004.md`. **Still 20/61 accepted**: F3.5/F3.6 remain open for recorded context/lifecycle/fault-observation limits and F7.3 join. Unassessed F8/F9 criteria were untouched.
 - Canonical tool is **`.scratch/dioxus-frontend-v1/progress.py`**; `scripts/progress.py` does not exist. No `.codegraph` exists in this checkout, despite stale AGENTS wording. Do not reset unrelated staged/untracked evidence. No push or branch switch was performed.
+
+
+## Current continuation notes — consolidated34822 milestone
+- Source reductions and Parts model repair committed4812d82b; successful enforcing gate recorded3a412978. Native/page/reachability/changed-headless modules passed with five library exclusions removed, eight remain. Astra xhigh review frozen; F6K.4 andF5.3 closures bring22/61accepted.
+- Published frontend-parts-library-repairs-20261004 on34822 (source3a412978), root/subpath proof verified, detachedPID2135651. Reuse this single candidate for remaining journeys. Consolidated receipt: .scratch/dioxus-frontend-v1/evidence/consolidated-34822-20261004/RECEIPT.md.
+- F2.2-C04 andF7.3-C03 nowverified from bounded attributed evidence. Paired recipe default models/UndoRedo/board150,10placement/re-editX4independence/reload pass. MatrixApply/import/parameter/identity branches remain. Selector-originated3DKeymap A andKeycapsDSA/legendQ edits pass; actual3Dmesh-pick remains unqualified.
+- Candidate library keeps Grouped journey Sofle 20261004 with recipes and a separate fresh Sofle for validCase. FreshSoflePlate+mechanicalstack reaches exactgeometry; wall2.2andphysicalscopechange observedGenerating/Previous/currentrecovery. Configured Case lacks local Export geometry, reference mounts it. Authored-only context also lacks the reference local action, so do not widen the discrepancy.
+- Native subagentcase_local_export is READ-ONLY pending user clarification: native tests cannot observe this missing wasm-onlyDOMbutton. Asyncquestion requests mountedChromeREDfirst exception; no production edit authorized under that exception until reply. Do not manufacture native failures. Proposed ownedsourcecad_presentation.rs; existing Runtime::export_mechanical must be reused with exactcurrentinstance/snapshotguards.
+- No running shellheavyjob; no push/switch. Six preexistingstaged evidence files remain unrelated. Preserve them. Native browserbinding exists; fresh tabs werecandidate8/reference7 this turn, but listtabs before relying on them.
