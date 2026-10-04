@@ -555,14 +555,12 @@ fn begin_board_import(
                     paths.set(discovered);
                     paths_asset_id.set(Some(asset_id));
                 }
-                Err(message)
-                    if super::board_reference_owner_lineage_is_current(
+                Err(message) => error.set(Some(super::board_reference_effect::retryable_error(
+                    message,
+                    super::board_reference_owner_lineage_is_current(
                         &runtime, workspace, &adapter, &owner,
-                    ) =>
-                {
-                    error.set(Some(message));
-                }
-                Err(_) => {}
+                    ),
+                ))),
             }
         }
     });
@@ -604,12 +602,13 @@ fn begin_model_attachment(
         .await;
         if current_epoch() == epoch {
             busy.set(false);
-            if let Err(message) = result
-                && super::board_reference_owner_lineage_is_current(
-                    &runtime, workspace, &adapter, &owner,
-                )
-            {
-                error.set(Some(message));
+            if let Err(message) = result {
+                error.set(Some(super::board_reference_effect::retryable_error(
+                    message,
+                    super::board_reference_owner_lineage_is_current(
+                        &runtime, workspace, &adapter, &owner,
+                    ),
+                )));
             }
         }
     });
@@ -712,12 +711,13 @@ pub(super) fn Editor(
                                 model_paths.set(paths);
                                 paths_asset_id.set(Some(source_asset_id));
                             }
-                            Err(message)
-                                if super::board_reference_owner_lineage_is_current(
-                                    &runtime, workspace, &adapter, &owner,
-                                ) =>
-                            {
-                                error.set(Some(message));
+                            Err(message) => {
+                                error.set(Some(super::board_reference_effect::retryable_error(
+                                    message,
+                                    super::board_reference_owner_lineage_is_current(
+                                        &runtime, workspace, &adapter, &owner,
+                                    ),
+                                )))
                             }
                             _ => {}
                         }
