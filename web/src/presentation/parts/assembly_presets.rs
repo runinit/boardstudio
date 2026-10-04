@@ -119,36 +119,91 @@ pub(super) async fn resolve(
     preview_definition: Option<PartDefinition>,
 ) -> Result<Vec<crate::parts_preview::PartsPreviewRecipeMember>, String> {
     let preset = preset(id);
-    let find_source = |source: &str| {
-        entries.iter().find(|entry| {
-            entry
-                .definition
-                .generator
-                .as_ref()
-                .is_some_and(|generator| generator.source == source)
-        })
-    };
+    let mut members = recipe_members(
+        preset,
+        |source| {
+            entries
+                .iter()
+                .find(|entry| {
+                    entry
+                        .definition
+                        .generator
+                        .as_ref()
+                        .is_some_and(|generator| generator.source == source)
+                })
+                .map(|entry| (*entry.definition).clone())
+        },
+        reversible,
+        orientation,
+        preview_definition,
+    )?;
+    for member in &mut members {
+        if let Some(generator) = member.definition.generator.as_mut() {
+            generator
+                .parameters
+                .extend(member.generator_parameters.clone());
+        }
+        member.definition =
+            super::catalogue::normalize_generator_definition(member.definition.clone()).await?;
+    }
+    Ok(members)
+}
+
+/// Resolve the library recipe used to start a customizable assembly. It uses
+/// the same preset member construction as preview, but the reference creates a
+/// single-sided assembly from library definitions even in reversible layouts.
+pub(super) fn customization_recipe(
+    id: MatrixPresetId,
+    definitions: &[PartDefinition],
+    orientation: SwitchOrientation,
+) -> Result<Vec<crate::parts_preview::PartsPreviewRecipeMember>, String> {
+    recipe_members(
+        preset(id),
+        |source| {
+            definitions
+                .iter()
+                .find(|definition| {
+                    definition
+                        .generator
+                        .as_ref()
+                        .is_some_and(|generator| generator.source == source)
+                })
+                .cloned()
+        },
+        false,
+        orientation,
+        None,
+    )
+}
+
+fn recipe_members(
+    preset: &Preset,
+    mut find_definition: impl FnMut(&str) -> Option<PartDefinition>,
+    reversible: bool,
+    orientation: SwitchOrientation,
+    preview_definition: Option<PartDefinition>,
+) -> Result<Vec<crate::parts_preview::PartsPreviewRecipeMember>, String> {
     let main_source = preset
         .definition_id
         .strip_prefix("ergogen:")
         .unwrap_or(preset.definition_id);
-    let main = find_source(main_source)
+    let main = find_definition(main_source)
         .ok_or_else(|| format!("Missing switch footprint: {main_source}"))?;
+    let main = preview_definition
+        .filter(|definition| definition.id == main.id)
+        .unwrap_or(main);
     let mut members = vec![member(
         "switch",
-        preview_definition
-            .as_ref()
-            .filter(|definition| definition.id == main.definition.id)
-            .unwrap_or(&main.definition),
+        &main,
         Vec2 { x: 0.0, y: 0.0 },
         0.0,
         Side::Front,
         switch_parameters(preset, reversible),
     )];
-    if let Some(diode) = find_source("ceoloide/diode_tht_sod123") {
+    if let Some(diode) = find_definition("ceoloide/diode_tht_sod123") {
         members.push(member(
             "diode",
-            &diode.definition,
+            &diode,
             Vec2 { x: 7.4, y: -1.5 },
             90.0,
             Side::Back,
@@ -159,11 +214,11 @@ pub(super) async fn resolve(
         ));
     }
     if preset.led {
-        let led = find_source("ceoloide/led_sk6812mini-e")
+        let led = find_definition("ceoloide/led_sk6812mini-e")
             .ok_or_else(|| "Missing SK6812 MINI-E footprint".to_owned())?;
         members.push(member(
             "led",
-            &led.definition,
+            &led,
             Vec2 {
                 x: 0.0,
                 y: if preset.family == "choc" { -4.7 } else { -4.75 },
@@ -177,18 +232,11 @@ pub(super) async fn resolve(
         ));
     }
     for member in &mut members {
-        if let Some(generator) = member.definition.generator.as_mut() {
-            generator
-                .parameters
-                .extend(member.generator_parameters.clone());
-        }
         if orientation == SwitchOrientation::North {
             member.at.x = -member.at.x;
             member.at.y = -member.at.y;
             member.rotation = (member.rotation + 180.0) % 360.0;
         }
-        member.definition =
-            super::catalogue::normalize_generator_definition(member.definition.clone()).await?;
     }
     Ok(members)
 }

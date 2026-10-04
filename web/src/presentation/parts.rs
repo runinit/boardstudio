@@ -1090,6 +1090,7 @@ pub(super) fn PartsInspectorPanel(
                 snapshot: snapshot.clone(),
                 scope: scope.clone(),
                 definitions: snapshot.document.definitions.iter().cloned().chain(catalogue.entries.as_ref().into_iter().flat_map(|entries| entries.iter()).map(|entry| (*entry.definition).clone())).collect(),
+                preset_definitions: catalogue.entries.as_ref().into_iter().flat_map(|entries| entries.iter()).map(|entry| (*entry.definition).clone()).collect(),
                 selected_context,
                 on_place: on_place_assembly.clone(),
                 on_board_placed,

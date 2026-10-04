@@ -2935,6 +2935,13 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
         ".scratch/dioxus-frontend-v1/evidence/consolidation-followup-20261004/headless.log",
         "scripts/wasm-known-failures.json"
       ]
+    },
+    {
+      "date": "2026-10-04",
+      "observation": "Read-only triage of the sole excluded mounted component-draft test does not establish a product defect: its interceptor records blur edits without Core/Session acceptance, leaving accepted X at4 while expecting7.25 after remount. It also expects unsaved constraint state to survive a reference subtree unmount. Retain the exclusion and current production reset policy until the mounted fixture accepts real edits and a paired public check determines the correct assertions. No test pass or product fix is claimed.",
+      "evidence": [
+        ".scratch/dioxus-frontend-v1/evidence/component-draft-exclusion-triage-20261004.md"
+      ]
     }
   ]
 }

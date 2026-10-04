@@ -50,6 +50,7 @@ pub(super) fn SavedAssembliesEditor(
     snapshot: AcceptedSnapshot,
     scope: Option<Scope>,
     definitions: Vec<PartDefinition>,
+    preset_definitions: Vec<PartDefinition>,
     selected_context: Signal<Option<super::super::objects::ScopedTreeContext>>,
     on_place: EventHandler<super::super::objects::MatrixPlacementSource>,
     on_board_placed: EventHandler<()>,
@@ -58,6 +59,9 @@ pub(super) fn SavedAssembliesEditor(
     let workspace = use_context::<super::super::WorkspaceState>().0;
     let runtime_version = use_context::<Signal<u64>>();
     let _ = runtime_version();
+    let assembly_selection = use_context::<super::PartsAssemblySelection>().0;
+    let assembly_orientation = use_context::<super::PartsAssemblyOrientation>().0;
+    let has_preset_definitions = !preset_definitions.is_empty();
     let mut editing = use_signal(|| None::<AssemblyDraft>);
     let mut pending = use_signal(|| None::<PendingSave>);
     let preparing_apply = use_signal(|| false);
@@ -263,6 +267,75 @@ pub(super) fn SavedAssembliesEditor(
             Err(error) => feedback.set(Some(error)),
         }
     };
+    let customize_preset = {
+        let runtime = runtime.clone();
+        let workspace = workspace;
+        let snapshot = snapshot.clone();
+        let scope = scope.clone();
+        move |_| {
+            if pending.read().is_some() || preparing_apply() || workspace() != "Parts" {
+                return;
+            }
+            let Some(preset) = assembly_selection.peek().as_ref().copied() else {
+                feedback.set(Some("Select a key assembly before customizing it.".into()));
+                return;
+            };
+            let current_model = runtime.model();
+            let Some(current) = current_model.accepted.as_ref() else {
+                feedback.set(Some("The accepted project is unavailable.".into()));
+                return;
+            };
+            if current_model.lifecycle != Lifecycle::Ready
+                || current_model.durability
+                    != (Durability::Saved {
+                        revision: current.document.revision,
+                    })
+                || runtime.scope() != scope
+                || current.token != snapshot.token
+                || current.document.id != snapshot.document.id
+                || current.document.revision != snapshot.document.revision
+                || current.session_epoch != snapshot.session_epoch
+            {
+                feedback.set(Some(
+                    "The project or Parts scope changed. Reopen the preset before customizing it."
+                        .into(),
+                ));
+                return;
+            }
+            let id = match next_id(&current.document) {
+                Ok(id) => id,
+                Err(error) => {
+                    feedback.set(Some(error));
+                    return;
+                }
+            };
+            let recipe = match super::assembly_presets::customization_recipe(
+                preset,
+                &preset_definitions,
+                assembly_orientation.peek().to_owned(),
+            ) {
+                Ok(recipe) => recipe,
+                Err(error) => {
+                    feedback.set(Some(error));
+                    return;
+                }
+            };
+            let value = crate::parts_assembly_preset_draft::from_recipe(
+                id,
+                super::assembly_presets::name(preset).to_uppercase(),
+                recipe,
+            );
+            feedback.set(None);
+            editing.set(Some(AssemblyDraft {
+                base: None,
+                value,
+                assets: Vec::new(),
+                document_id: current.document.id.clone(),
+                session_epoch: current.session_epoch,
+                scope: scope.clone(),
+            }));
+        }
+    };
 
     let duplicate = {
         let snapshot = snapshot.clone();
@@ -404,6 +477,15 @@ pub(super) fn SavedAssembliesEditor(
         section { class: "m1-parts-assemblies", "aria-label": "Saved assemblies",
             h2 { "Assemblies" }
             button { class: "m1-parts-create-component", r#type: "button", disabled: pending.read().is_some() || preparing_apply(), onclick: new_assembly, "New assembly" }
+            if assembly_selection().is_some() {
+                button {
+                    class: "m1-parts-customize-preset",
+                    r#type: "button",
+                    disabled: pending.read().is_some() || preparing_apply() || !has_preset_definitions,
+                    onclick: customize_preset,
+                    "Customize 3D assembly"
+                }
+            }
             if saved_assemblies.is_empty() {
                 p { class: "m1-parts-empty", "No saved assemblies yet." }
             } else {

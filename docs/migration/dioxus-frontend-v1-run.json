@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T22:50:28.496268+00:00",
+    "updated_at": "2026-10-04T23:22:07.592215+00:00",
     "parent_counts": {
       "accepted": 22,
       "implementing": 28,
@@ -48,8 +48,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "3a412978cee729a24d37e7e55e7c3664f1187fb2",
-      "state": "Published shared candidate34822 (3a412978), paired Parts repair, saved recipe/history/placement/reload and selector-originated Keymap/Keycaps edits qualified. Fresh Case current/previous/scope transition observed. Reproduced missing Case-local mechanical Export geometry entry, native-first exception pending for its wasm-only UI regression. No second package or source repair yet.",
+      "source_commit": "418dcb41411b",
+      "state": "418dcb41 integrates reviewed harness consolidation and mobile deferral. Preset Customize 3D assembly repair is frozen for independent diff review, with native conversion RED/GREEN. Paired recipe import/save/reload/reopen passes on34822; validation coverage reconciliation pending. Case-local export still awaits the existing mounted-first clarification.",
       "packets": [
         {
           "stream": "Layout",
@@ -579,7 +579,7 @@
       },
       {
         "stream": "Parts + Project",
-        "state": "34822paired recipe history/matrix+boardApply/reload and public identity preservation now verifyF4.6-C03/C04. Default models and invalid first-member placement pass; C01parameter andC02import/remainingvalidation stayopen. F2.2-C04 and repairedF7.3-C03 remainverified; One mounted component-draft wasm exclusion remains; five generator exclusions were repaired and two mobile exclusions were removed under explicit deferral."
+        "state": "Preset customization repair is frozen for independent review and required native/wasm integration gate; F4.6-C01 remains unqualified publicly. C02 model import/save/reload/reopen passed paired34822/5175; validation evidence reconciliation pending. Reuse C03/C04 placement/history/identity evidence. Sole wasm exclusion is an uncorrected acceptance-fixture failure, not an established production defect; keep it until corrected execution."
       }
     ],
     "pending_join_packets": [],
@@ -3448,9 +3448,38 @@
         "public_qualification": "partial; consolidated receipt records exact observations and remaining branches"
       },
       "remaining_qualification": [
-        "Repair and replay current sample individual model visibility; actual sample pick/context-loss remain separate open F7.3 criteria.",
-        "Library mounted5failures must execute successfully before removing5allowlist entries; other exclusions remain outside scope."
-      ]
+        "Preset Customize 3D assembly repair needs guarded native/wasm checks, package and focused public replay.",
+        "Recipe supported-model import passed paired save/reload/reopen; remaining validation evidence is being reconciled.",
+        "F7.3 actual model picking, scope loss and resource/failure joins remain open; previously passed independent Parts model visibility is reusable.",
+        "Case-local Export geometry remains pending the already-requested mounted-first exception; no repeat question."
+      ],
+      "pending_source_batch": {
+        "build_id": "frontend-preset-customization-20261004",
+        "base_commit": "418dcb41411b",
+        "provider_base": "frontend-parts-library-repairs-20261004",
+        "state": "source_review_passed_integration_gates_pending",
+        "source_paths": [
+          "web/src/main.rs",
+          "web/src/parts_assembly_preset_draft.rs",
+          "web/src/presentation/parts.rs",
+          "web/src/presentation/parts/assembly_editor.rs",
+          "web/src/presentation/parts/assembly_presets.rs"
+        ],
+        "source_paths_complete": true,
+        "journeys": [
+          {
+            "id": "F4.6-preset-customization",
+            "scope": "Desktop Parts library MX Hotswap RGB -> Customize 3D assembly -> three-member independent draft, current North/South orientation, generator parameter edits, default models, Save/Undo/reopen. Ordinary New assembly stays empty. Reuse unchanged model import and existing saved-recipe placement/history evidence; no mobile qualification.",
+            "evidence": ".scratch/dioxus-frontend-v1/evidence/preset-customization-repair-20261004.md"
+          }
+        ],
+        "review": {
+          "profile": "gpt-6.1-sol/high",
+          "verdict": "source_pass",
+          "path": ".scratch/dioxus-frontend-v1/evidence/preset-customization-review-20261004.md",
+          "sha256": "079810b1db7ab213cb47faa339fa1ff9704a3c43b5ca68ac14b5d3320661845e"
+        }
+      }
     },
     "delivery_priority": {
       "authority": "User on 2026-10-03: make the app work; layout parity last; improve UI along the way because the design will change.",

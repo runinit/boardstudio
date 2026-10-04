@@ -338,7 +338,7 @@
         {
           "source": "Layout Inspector matrix-to-key context repair; integrated commit pending",
           "evidence": ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md",
-          "observation": "Layout Inspector tab state survived a matrix→key selection transition because the shared Editor-owned tab signal did not observe selection identity. A private context-scoped reset hook repairs the v1 behavior; the cross-context state owner remains in shared composition.",
+          "observation": "Layout Inspector tab state survived a matrix\u2192key selection transition because the shared Editor-owned tab signal did not observe selection identity. A private context-scoped reset hook repairs the v1 behavior; the cross-context state owner remains in shared composition.",
           "status": "bounded v1 correction; revisit context-scoped Inspector state ownership after the port"
         }
       ],
@@ -347,7 +347,7 @@
       "parts13_create_component_20261002": {
         "source": "Parts13 private create leaf and isolated Parts mount at codex/parts-new-component13-20261002",
         "evidence": ".scratch/dioxus-parts-catalogue/evidence/parts13-implementation-handoff-20261002.md",
-        "observation": "No new refactoring takeaway observed in the custom-component create path. The leaf reuses Runtime operation IDs/outcomes and the existing accepted ReplaceDocument/history path; reconciliation checks both Parts query/selection intent generation and the actual monotonic Runtime scope generation, including A→B→A scope transitions. A mounted production-effect test verifies workspace generation advances once per transition without subscribing to its own write. The Inspector resolves accepted project definitions directly while catalogue loading/error status remains visible.",
+        "observation": "No new refactoring takeaway observed in the custom-component create path. The leaf reuses Runtime operation IDs/outcomes and the existing accepted ReplaceDocument/history path; reconciliation checks both Parts query/selection intent generation and the actual monotonic Runtime scope generation, including A\u2192B\u2192A scope transitions. A mounted production-effect test verifies workspace generation advances once per transition without subscribing to its own write. The Inspector resolves accepted project definitions directly while catalogue loading/error status remains visible.",
         "status": "bounded implementation handoff with reviewed source/effect repairs; paired public browser acceptance and parent joins remain open"
       },
       "case13_battery_patch_20261002": {
@@ -669,7 +669,7 @@
       "impact": "Capabilities can be overlooked, duplicated, or falsely described as backend work; behavior and cancellation can diverge between host wrappers.",
       "during_port": "BND.1 proves the private keycap worker adapter using the existing engine; retain reference chunk/yield and revision/ID semantics.",
       "post_port_proposal": "Create an explicit capability-to-host contract map and shared conformance fixtures for required engine operations; consider reducing duplicated wrapper protocol knowledge.",
-      "validation_needed": "Every required capability has a verified engine→worker→host→UI trace, same fixture outputs and cancellation/error disposition.",
+      "validation_needed": "Every required capability has a verified engine\u2192worker\u2192host\u2192UI trace, same fixture outputs and cancellation/error disposition.",
       "decision": "proposal only; no refactor/API/schema change approved by this entry",
       "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
       "linked_tasks": [
@@ -711,7 +711,7 @@
         "source": "d425a2dfb56ac2d5576da076bed11272437f1ea2",
         "fixture": "docs/migration/evidence/new-keyboard-guide-paired-20261002/new17-final-oracle-accepted-project.json",
         "sha256": "658e2488ef3ac2514646f177c99b6c12f9f47561bd9a42211f72a93d1609b77a",
-        "observation": "Fresh4×4 MX matrix Case preview conversion rejects KIPRJMOD model path; reproduced independently. Distinct from frozen packaged model-fetch adapter; generator loop/diagnosis active, cause not yet established."
+        "observation": "Fresh4\u00d74 MX matrix Case preview conversion rejects KIPRJMOD model path; reproduced independently. Distinct from frozen packaged model-fetch adapter; generator loop/diagnosis active, cause not yet established."
       },
       "follow_up_evidence": [
         {
@@ -888,7 +888,7 @@
         {
           "source": "a896cd49; paired React5a472a94",
           "evidence": ".scratch/dioxus-workbench-parity/evidence/matrix-keycaps-wave-20261002/RESULTS.md",
-          "observation": "Exact Layout-matrix→Keycaps→SW7 journey differs: React retains matrix selection/first SW1, Dioxus selects SW7 alone. Independent source diagnosis traces React setSelectionMode(key) followed by choosePart using captured previous mode; classification as confirmed legacy stale-state bug is under review, not silently declared parity.",
+          "observation": "Exact Layout-matrix\u2192Keycaps\u2192SW7 journey differs: React retains matrix selection/first SW1, Dioxus selects SW7 alone. Independent source diagnosis traces React setSelectionMode(key) followed by choosePart using captured previous mode; classification as confirmed legacy stale-state bug is under review, not silently declared parity.",
           "status": "bounded fixes recorded; shared selection discrepancy under source diagnosis; full acceptance and structural refactor open"
         },
         {
@@ -919,7 +919,7 @@
         "post_port": "Assess whether private edit construction can encode explicit override intent without scattered flag handling."
       },
       "key_size_roundtrip_20261003": {
-        "observation": "Matched settled Sofle matrix width 1→1.25→1 changes outline min X from -3.82 to -3.97 in both frontends; final SVG bytes are identical. Earlier mismatch compared different histories, not a proven migration regression.",
+        "observation": "Matched settled Sofle matrix width 1\u21921.25\u21921 changes outline min X from -3.82 to -3.97 in both frontends; final SVG bytes are identical. Earlier mismatch compared different histories, not a proven migration regression.",
         "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
         "status": "Migration discrepancy resolved; common edit normalization merits later characterization, no engine fix claimed."
       },
@@ -1016,13 +1016,13 @@
         {
           "source": "Parts preview source review/correction candidate 05a1dac4",
           "evidence": ".scratch/dioxus-workbench-parity/evidence/integration-handoff-20261002.md; /tmp/frontend-parity-reset-20261002/parts-projects/source-spec-review.md",
-          "observation": "The first private preview draft mutated plain Cell/RefCell values returned through use_hook, so request-generation ownership did not persist across renders and an A→B→A scope cycle could alias an old owner. The reviewed correction retained shared hook state. The first geometry draft also inverted the already-Y-up graphic coordinates when computing bounds; the correction aligns bounds with rendered coordinates. These are candidate-source corrections, not integrated or paired-verified Parts behavior; exact React fixture framing remains open.",
+          "observation": "The first private preview draft mutated plain Cell/RefCell values returned through use_hook, so request-generation ownership did not persist across renders and an A\u2192B\u2192A scope cycle could alias an old owner. The reviewed correction retained shared hook state. The first geometry draft also inverted the already-Y-up graphic coordinates when computing bounds; the correction aligns bounds with rendered coordinates. These are candidate-source corrections, not integrated or paired-verified Parts behavior; exact React fixture framing remains open.",
           "status": "Original lifecycle and coordinate-frame defects closed in source review through 05a1dac4; preview remains unmounted in integration and public/build verification is pending. No new RF or broad scope abstraction is proposed."
         },
         {
           "source": "Keymap selected-option remount correction deba7087; immutable public candidate 92db0b8f",
           "evidence": "/tmp/frontend-parity-reset-20261002/keymap/green-92db0b8f/README.md; /tmp/frontend-parity-reset-20261002/keymap/paired/react-return-keys.txt",
-          "observation": "The previously red filtered SW7 return-to-Keys path now retains the same accepted selection identity after both Macros→Keys and Encoders→Keys remounts; the selected option and layer projection agree with the retained same-fixture React reference. Clearing the query and selecting SW8 on canvas also retains its identity over Function→Main while presenting Transparent then Unassigned.",
+          "observation": "The previously red filtered SW7 return-to-Keys path now retains the same accepted selection identity after both Macros\u2192Keys and Encoders\u2192Keys remounts; the selected option and layer projection agree with the retained same-fixture React reference. Clearing the query and selecting SW8 on canvas also retains its identity over Function\u2192Main while presenting Transparent then Unassigned.",
           "status": "Targeted public selection-lineage regression passes at immutable candidate 34691; read-only project revision/hash unchanged. Full Keymap/F6K and parent acceptance remain open; retained under RF-006 without a new register ID."
         },
         {
@@ -1053,7 +1053,7 @@
           "date": "2026-10-02",
           "source": "7be1770d60b1482a01a40a09b9e7e9024981bc99",
           "evidence": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/current-wave-refresh.json",
-          "observation": "Keymap search/tab lifetime must follow accepted selected-owner changes; React keys its Inspector content by board/scope/part, while the Dioxus unscoped query hid newly canvas-selected SW18 behind stale SW17 filter. Actual production-mounted repair6c2468f3 has expected red→green, independent/browser gates remain open.",
+          "observation": "Keymap search/tab lifetime must follow accepted selected-owner changes; React keys its Inspector content by board/scope/part, while the Dioxus unscoped query hid newly canvas-selected SW18 behind stale SW17 filter. Actual production-mounted repair6c2468f3 has expected red\u2192green, independent/browser gates remain open.",
           "status": "Current correctness repairs and independent/browser gates retained; structural refactoring deferred; no parent closure."
         },
         {
@@ -1144,7 +1144,7 @@
         },
         {
           "source": "PCBmountedInspector4d8/96ab, consolidated34765 review and actualchangedUndojourney",
-          "observation": "The initial mounted Inspector source read the local draft Signal it resets, and used an incomplete module mount key. Source96ab corrected both before34765 was packaged. Save/reopen and settled Undo X35→32.5/Redo→35 are GREEN on frozen17ba/provenance273ca. The earlier apparent stale Undo fields were an immediate unsettled observation on that same source, not a reproduced defect or a distinct older RED.",
+          "observation": "The initial mounted Inspector source read the local draft Signal it resets, and used an incomplete module mount key. Source96ab corrected both before34765 was packaged. Save/reopen and settled Undo X35\u219232.5/Redo\u219235 are GREEN on frozen17ba/provenance273ca. The earlier apparent stale Undo fields were an immediate unsettled observation on that same source, not a reproduced defect or a distinct older RED.",
           "mitigation": "96ab uses peek and completeScope mount key. Existing Core/Session edit/history remains authoritative. No further source change or new regression test needed for the uncertain immediate observation.",
           "post_port_follow_up": "Define accepted-baseline synchronization and transient draft ownership explicitly before centralizing form lifecycle helpers. Reuse typed scope and admission instead of independent parameter lists/keys.",
           "status": "Source finding corrected before public34765; bounded Save/reopen and settled accepted-history transitions GREEN. Full PCB criteria remain.",
@@ -1494,7 +1494,7 @@
         {
           "source": "Keymap candidate correction deba7087; immutable browser build 92db0b8f",
           "evidence": "/tmp/frontend-parity-reset-20261002/keymap/green-92db0b8f/assertions.txt; /tmp/frontend-parity-reset-20261002/keymap/green-92db0b8f/screenshots/; prior red/reference: /tmp/frontend-parity-reset-20261002/keymap/paired/",
-          "observation": "A fresh public DOM run on the same imported archive verified the previously red selected-option remount after both Macros→Keys and Encoders→Keys, plus clear-filter canvas selection and layer changes. The persisted project revision and serialized record hash were identical before/after; Undo/Redo control DOM state, browser errors, and console output were unchanged/empty. This is a targeted browser evidence loop, not full Keymap/F6K acceptance.",
+          "observation": "A fresh public DOM run on the same imported archive verified the previously red selected-option remount after both Macros\u2192Keys and Encoders\u2192Keys, plus clear-filter canvas selection and layer changes. The persisted project revision and serialized record hash were identical before/after; Undo/Redo control DOM state, browser errors, and console output were unchanged/empty. This is a targeted browser evidence loop, not full Keymap/F6K acceptance.",
           "status": "The exact remount regression is publicly green at candidate 34691 after deba7087; full feature and canonical-parent evidence remains open. Retain under RF-009 with RF-006 selection lineage; no new RF ID."
         },
         {
@@ -2467,7 +2467,7 @@
         {
           "date": "2026-10-04",
           "observation": "Core removes disabled generated keys from parts and board membership, then Session prunes selected IDs before UI subscribers run. A live semantic Key context can therefore coexist with no generated member; filtering only current IDs cannot restore selection after Undo.",
-          "during_port": "Remember the last eligible selection under the full scoped Key context; suspend through missing generated members and clear on context/session change or explicit deselection. Actual ordinary Core/Session RED→GREEN regression and paired mirrored browser reproduction are separate evidence.",
+          "during_port": "Remember the last eligible selection under the full scoped Key context; suspend through missing generated members and clear on context/session change or explicit deselection. Actual ordinary Core/Session RED\u2192GREEN regression and paired mirrored browser reproduction are separate evidence.",
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/layout-selection-undo-repair-20261004.md",
             ".scratch/dioxus-frontend-v1/evidence/layout-grouped-review-20261004.md"
@@ -2493,7 +2493,7 @@
         "web/src/presentation/canvas_interaction.rs",
         ".scratch/dioxus-frontend-v1/evidence/layout-camera-f36c01-20261004/"
       ],
-      "observation": "In a paired Sofle Layout journey, Space held from body focus plus a 90×40 px canvas drag pans the TypeScript workbench but leaves Dioxus unchanged. Focusing the Dioxus SVG first makes the same gesture pan. The Rust Space state is fed by an SVG-local key handler whereas the reference listens at window scope.",
+      "observation": "In a paired Sofle Layout journey, Space held from body focus plus a 90\u00d740 px canvas drag pans the TypeScript workbench but leaves Dioxus unchanged. Focusing the Dioxus SVG first makes the same gesture pan. The Rust Space state is fed by an SVG-local key handler whereas the reference listens at window scope.",
       "impact": "Gesture behavior changes with incidental focus, so visible Layout camera controls can appear broken after menu, Inspector or page interaction.",
       "during_port": "Use one bounded window-key admission while Layout 2D is active, preserving text-entry and workspace/gesture cancellation guards; keep camera ownership in the existing Layout controller.",
       "post_port_proposal": "Consolidate workbench keyboard gesture admission and listener lifetime into a private owner with explicit focus, editable-target and unmount semantics.",
@@ -2507,7 +2507,7 @@
         {
           "source": "frontend-keyboard-focus-20261004, 916a4054",
           "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-camera-f36c01-20261004/RECEIPT.md",
-          "observation": "On the rebuilt candidate, body-focused Space plus a 90×40 px drag moved the camera; keyup stopped it and a Board-name input did not arm pan. The prior pointer zoom and Fit evidence was reused.",
+          "observation": "On the rebuilt candidate, body-focused Space plus a 90\u00d740 px drag moved the camera; keyup stopped it and a Board-name input did not arm pan. The prior pointer zoom and Fit evidence was reused.",
           "status": "v1 correction passed focused mounted regression and packaged public check"
         }
       ]
@@ -2672,6 +2672,13 @@
             ".scratch/dioxus-frontend-v1/evidence/consolidation-followup-review-20261004.md",
             ".scratch/dioxus-frontend-v1/evidence/consolidation-followup-20261004/headless.log",
             "scripts/wasm-known-failures.json"
+          ]
+        },
+        {
+          "date": "2026-10-04",
+          "observation": "Read-only triage of the sole excluded mounted component-draft test does not establish a product defect: its interceptor records blur edits without Core/Session acceptance, leaving accepted X at4 while expecting7.25 after remount. It also expects unsaved constraint state to survive a reference subtree unmount. Retain the exclusion and current production reset policy until the mounted fixture accepts real edits and a paired public check determines the correct assertions. No test pass or product fix is claimed.",
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/component-draft-exclusion-triage-20261004.md"
           ]
         }
       ]

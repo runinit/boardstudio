@@ -1,6 +1,6 @@
 # Handoff (generated from records)
 
-- Branch: codex/rust-v1-ui-parity-20261001 @ 6b549657
+- Branch: codex/rust-v1-ui-parity-20261001 @ 418dcb41
 - Worktree: /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001
 - Parents: 22/61 accepted, 28 implementing, 11 planned
 - Criteria: unassessed 27, missing 1, implemented 78, verified 116; 222 total
@@ -113,3 +113,8 @@ Last retro checkpoint: 2026-10-04T15:56:00Z
 - User requested mobile checks removed completely for now. CONSTRAINTS and run validation_scope record the deferral; responsive product code is unchanged. Four mobile-only tests removed, one guide test converted to desktop, three mobile CSS assertions removed. No mobile verification claim.
 - Astra follow-up review covers shared fresh generator/server setup, thin legacy wrappers and strict --all/--depth inventories. Both Python suites pass26/26; wrapper probes4/4; real selected Chrome batch21/21 in7isolatedmodules. Five generator exclusions now removed; two mobile exclusions deferred; sole remaining exclusion is mounted_component_drafts_survive_unrelated_acceptance_and_blur_uses_latest_owner.
 - Evidence: consolidation-followup-review-20261004.md and consolidation-followup-20261004/headless.log. Integration uses the required guarded commit native/page/reachability/changed-module checks. Existing34822candidate still serves unchanged product source; no new package needed for tooling/test-only changes.
+
+
+## Continuation: preset customization source batch
+
+Preset Customize 3D assembly repair is source-reviewed and native converter RED/GREEN. Combined guarded commit gates and packaged public replay remain. Paired recipe model import/save/reload/reopen passed on34822; C02 malformed-import branch remains unqualified. Sole excluded mounted component-draft test has an acceptance-fixture problem, not an established product defect; keep exclusion until corrected. Mobile validation remains deferred. Preserve six unrelated staged evidence files. New source/review/import/triage receipts are in evidence/*20261004.md.
