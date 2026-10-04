@@ -165,6 +165,7 @@ pub(in crate::presentation) fn use_workspace_matrix_transform(
         if let MatrixTransformFields::Key {
             definition_id,
             choices,
+            component_choices,
             ..
         } = &mut projection.fields
             && let Some(document) = runtime.model().accepted.map(|snapshot| snapshot.document)
@@ -174,6 +175,17 @@ pub(in crate::presentation) fn use_workspace_matrix_transform(
                 &switch_catalog(),
                 definition_id,
             );
+            *component_choices = document
+                .definitions
+                .iter()
+                .chain(switch_catalog().iter())
+                .map(|definition| (definition.id.clone(), definition.name.clone()))
+                .fold(Vec::new(), |mut all: Vec<(String, String)>, entry| {
+                    if !all.iter().any(|(id, _)| *id == entry.0) {
+                        all.push(entry);
+                    }
+                    all
+                });
         }
         projection
     });
@@ -510,6 +522,15 @@ fn project_current_for(
                     .and_then(|cell| cell.definition_id.clone())
                     .unwrap_or_else(|| matrix.definition_id.clone()),
                 choices: Vec::new(),
+                assemblies: cell
+                    .map(|cell| {
+                        cell.assemblies
+                            .iter()
+                            .map(|assembly| (assembly.id.clone(), assembly.definition_id.clone()))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                component_choices: Vec::new(),
                 offset: cell
                     .and_then(|cell| cell.offset)
                     .unwrap_or(Vec2 { x: 0.0, y: 0.0 }),
@@ -647,6 +668,9 @@ fn field_value(
         }
         (MatrixTransformFields::Key { enabled, .. }, Field::KeyEnabled) => {
             Some(Value::Bool(*enabled))
+        }
+        (MatrixTransformFields::Key { assemblies, .. }, Field::KeyAttached) => {
+            Some(Value::Attached(assemblies.clone()))
         }
         (MatrixTransformFields::Key { definition_id, .. }, Field::KeyAssembly) => {
             Some(Value::Text(definition_id.clone()))

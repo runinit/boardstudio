@@ -252,6 +252,8 @@ pub(in crate::presentation) fn MatrixTransformInspector(
             enabled,
             definition_id,
             choices,
+            assemblies,
+            component_choices,
             offset,
             rotation,
         } => (
@@ -298,6 +300,12 @@ pub(in crate::presentation) fn MatrixTransformInspector(
                     choices: choices.clone(), request_sequence, editable: props.mount.editable,
                     busy: props.mount.busy, feedback: props.mount.feedback.clone(), on_edit,
                     splay_affect,
+                }
+                AttachedComponentsField {
+                    owner: owner.clone(), snapshot_token, revision, value: assemblies.clone(),
+                    choices: component_choices.clone(), request_sequence,
+                    editable: props.mount.editable, busy: props.mount.busy,
+                    feedback: props.mount.feedback.clone(), on_edit, splay_affect,
                 }
                 span { class: "m1-matrix-field-context", "Key {row}, {column}" }
             },
@@ -794,6 +802,105 @@ fn KeyAssemblyField(props: KeyAssemblyFieldProps) -> Element {
                 },
                 for (id, label) in props.choices.iter() {
                     option { key: "{id}", value: "{id}", selected: *id == props.value, "{label}" }
+                }
+            }
+        }
+        if let Some(message) = error.as_deref() { small { role: "alert", class: "m1-matrix-transform-error", "{message}" } }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct AttachedComponentsFieldProps {
+    owner: MatrixTransformInspectorOwner,
+    snapshot_token: SnapshotToken,
+    revision: u64,
+    value: Vec<(String, String)>,
+    choices: Vec<(String, String)>,
+    request_sequence: Signal<u64>,
+    editable: bool,
+    busy: bool,
+    feedback: Vec<MatrixTransformFeedback>,
+    on_edit: EventHandler<MatrixTransformRequest>,
+    splay_affect: Signal<MatrixSplayAffect>,
+}
+
+#[component]
+fn AttachedComponentsField(props: AttachedComponentsFieldProps) -> Element {
+    let mut submitted = use_signal(|| None::<u64>);
+    let error = props
+        .feedback
+        .iter()
+        .rev()
+        .find(|item| {
+            item.owner == props.owner
+                && item.field == MatrixTransformField::KeyAttached
+                && submitted() == Some(item.request_id)
+                && item.state == MatrixTransformState::Failed
+        })
+        .and_then(|item| item.message.clone());
+    let disabled = !props.editable || props.busy;
+    let sequence = props.request_sequence;
+    let owner = props.owner.clone();
+    let token = props.snapshot_token;
+    let revision = props.revision;
+    let on_edit = props.on_edit;
+    let affect = props.splay_affect;
+    let current = props.value.clone();
+    let send = move |next: Vec<(String, String)>| {
+        let mut sequence = sequence;
+        let Some(id) = sequence().checked_add(1) else {
+            return;
+        };
+        sequence.set(id);
+        submitted.set(Some(id));
+        on_edit.call(MatrixTransformRequest {
+            owner: owner.clone(),
+            request_id: id,
+            snapshot_token: token,
+            revision,
+            field: MatrixTransformField::KeyAttached,
+            baseline: MatrixTransformValue::Attached(current.clone()),
+            value: MatrixTransformValue::Attached(next),
+            splay_affect: affect(),
+        });
+    };
+    rsx! {
+        h3 { class: "m1-matrix-subtitle", "Attached components" }
+        if props.value.is_empty() {
+            p { class: "m1-matrix-empty-note", "No attached components. Apply a component in Parts." }
+        }
+        for (assembly_id, definition_id) in props.value.iter().cloned() {
+            div { key: "{assembly_id}", class: "m1-matrix-attached-row",
+                select {
+                    aria_label: "Replace {assembly_id}", disabled, value: "{definition_id}",
+                    onchange: {
+                        let assembly_id = assembly_id.clone();
+                        let all = props.value.clone();
+                        let mut send = send.clone();
+                        move |event| {
+                            send(
+                                all.iter()
+                                    .map(|(id, def)| {
+                                        if *id == assembly_id { (id.clone(), event.value()) } else { (id.clone(), def.clone()) }
+                                    })
+                                    .collect(),
+                            );
+                        }
+                    },
+                    for (id, label) in props.choices.iter() {
+                        option { key: "{id}", value: "{id}", selected: *id == definition_id, "{label}" }
+                    }
+                }
+                button {
+                    r#type: "button", class: "m1-inspector-secondary", disabled,
+                    aria_label: "Remove {assembly_id}",
+                    onclick: {
+                        let assembly_id = assembly_id.clone();
+                        let all = props.value.clone();
+                        let mut send = send.clone();
+                        move |_| send(all.iter().filter(|(id, _)| *id != assembly_id).cloned().collect())
+                    },
+                    "Remove"
                 }
             }
         }

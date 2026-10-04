@@ -27,6 +27,7 @@ pub enum MatrixTransformField {
     KeyTransformReset,
     KeyEnabled,
     KeyAssembly,
+    KeyAttached,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -39,6 +40,7 @@ pub enum MatrixTransformValue {
     Point(Vec2),
     Bool(bool),
     Text(String),
+    Attached(Vec<(String, String)>),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -67,6 +69,8 @@ pub enum MatrixTransformFields {
         enabled: bool,
         definition_id: String,
         choices: Vec<(String, String)>,
+        assemblies: Vec<(String, String)>,
+        component_choices: Vec<(String, String)>,
         offset: Vec2,
         rotation: f64,
     },
@@ -285,6 +289,11 @@ pub fn build_operation(
         )),
         (
             MatrixTransformFields::Key { row, column, .. },
+            Field::KeyAttached,
+            Value::Attached(next_list),
+        ) => Ok(set_cell_attached(matrix, *row, *column, &next_list)),
+        (
+            MatrixTransformFields::Key { row, column, .. },
             Field::KeyAssembly,
             Value::Text(definition_id),
         ) => Ok(set_cell_assembly(matrix, *row, *column, definition_id)),
@@ -379,6 +388,37 @@ fn set_cell_assembly(
             assemblies: Vec::new(),
             assemblies_local: None,
         });
+    }
+    set_matrix(next)
+}
+
+fn set_cell_attached(
+    matrix: &Matrix,
+    row: u32,
+    column: u32,
+    attached: &[(String, String)],
+) -> EditOperation {
+    let mut next = matrix.clone();
+    if let Some(cell) = next
+        .cells
+        .iter_mut()
+        .find(|cell| cell.row == row && cell.column == column)
+    {
+        cell.assemblies = cell
+            .assemblies
+            .iter()
+            .filter_map(|assembly| {
+                attached
+                    .iter()
+                    .find(|(id, _)| *id == assembly.id)
+                    .map(|(_, definition_id)| {
+                        let mut assembly = assembly.clone();
+                        assembly.definition_id = definition_id.clone();
+                        assembly
+                    })
+            })
+            .collect();
+        cell.assemblies_local = Some(true);
     }
     set_matrix(next)
 }
@@ -536,6 +576,8 @@ mod tests {
             enabled: true,
             definition_id: "switch".into(),
             choices: Vec::new(),
+            assemblies: Vec::new(),
+            component_choices: Vec::new(),
             row: 1,
             column: 2,
             offset: Vec2 { x: 6.0, y: 7.0 },
@@ -573,6 +615,8 @@ mod tests {
             enabled: true,
             definition_id: "switch".into(),
             choices: Vec::new(),
+            assemblies: Vec::new(),
+            component_choices: Vec::new(),
             row: 1,
             column: 2,
             offset: Vec2 { x: 6.0, y: 7.0 },
@@ -623,6 +667,8 @@ mod tests {
             enabled: true,
             definition_id: "switch".into(),
             choices: Vec::new(),
+            assemblies: Vec::new(),
+            component_choices: Vec::new(),
             row: 1,
             column: 2,
             offset: Vec2 { x: 6.0, y: 7.0 },
@@ -646,6 +692,52 @@ mod tests {
     }
 
     #[test]
+    fn attached_components_replace_and_remove_by_id() {
+        let mut matrix = matrix();
+        matrix.cells[0].assemblies = vec![
+            MatrixAssembly {
+                id: "diode".into(),
+                definition_id: "diode-a".into(),
+                offset: Vec2 { x: 1.0, y: 2.0 },
+                rotation: None,
+                side: None,
+            },
+            MatrixAssembly {
+                id: "led".into(),
+                definition_id: "led-a".into(),
+                offset: Vec2 { x: 3.0, y: 4.0 },
+                rotation: None,
+                side: None,
+            },
+        ];
+        let fields = MatrixTransformFields::Key {
+            enabled: true,
+            definition_id: "switch".into(),
+            choices: Vec::new(),
+            assemblies: Vec::new(),
+            component_choices: Vec::new(),
+            row: 1,
+            column: 2,
+            offset: Vec2 { x: 6.0, y: 7.0 },
+            rotation: 9.0,
+        };
+        let EditOperation::SetMatrix { matrix: next, .. } = build_operation(
+            &matrix,
+            &fields,
+            MatrixTransformField::KeyAttached,
+            MatrixTransformValue::Attached(vec![("diode".into(), "diode-b".into())]),
+            MatrixSplayAffect::Following,
+        )
+        .unwrap() else {
+            panic!("cell edits use SetMatrix");
+        };
+        assert_eq!(next.cells[0].assemblies.len(), 1);
+        assert_eq!(next.cells[0].assemblies[0].id, "diode");
+        assert_eq!(next.cells[0].assemblies[0].definition_id, "diode-b");
+        assert_eq!(next.cells[0].assemblies[0].offset, Vec2 { x: 1.0, y: 2.0 });
+    }
+
+    #[test]
     fn empty_key_cell_edit_adds_a_semantic_cell_without_part_ids() {
         let mut matrix = matrix();
         matrix.cells.clear();
@@ -654,6 +746,8 @@ mod tests {
             enabled: true,
             definition_id: "switch".into(),
             choices: Vec::new(),
+            assemblies: Vec::new(),
+            component_choices: Vec::new(),
             row: 0,
             column: 1,
             offset: Vec2 { x: 0.0, y: 0.0 },
@@ -698,6 +792,8 @@ mod tests {
             enabled: true,
             definition_id: "switch".into(),
             choices: Vec::new(),
+            assemblies: Vec::new(),
+            component_choices: Vec::new(),
             row: 1,
             column: 2,
             offset: Vec2 { x: 6.0, y: 7.0 },
@@ -950,6 +1046,8 @@ mod tests {
             enabled: true,
             definition_id: "switch".into(),
             choices: Vec::new(),
+            assemblies: Vec::new(),
+            component_choices: Vec::new(),
             row: 1,
             column: 2,
             offset: Vec2 { x: 6.0, y: 7.0 },
