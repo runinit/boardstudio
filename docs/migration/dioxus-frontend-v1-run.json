@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T23:57:39.392289+00:00",
+    "updated_at": "2026-10-04T00:01:58.490567+00:00",
     "parent_counts": {
       "accepted": 11,
       "implementing": 40,
@@ -492,7 +492,7 @@
       },
       {
         "stream": "PCB",
-        "state": "Manual conflict review criterion verified; focused lock-edit Undo/Redo and lock/unlock check active."
+        "state": "F5.3-C01 lock/conflict history and C02 manual-net review verified from paired accepted exports; protected-remap C05 and remaining net-authoring branches open."
       },
       {
         "stream": "Keymap",

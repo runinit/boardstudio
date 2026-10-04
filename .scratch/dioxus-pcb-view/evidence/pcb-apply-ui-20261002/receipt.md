@@ -53,3 +53,20 @@ I invoked `Use automatic wiring for these connections` once in each app. The con
 | `react-pin-review-after-undo.boardstudio` | 16 | diode `pad-1` | P102 | `149ba776c5c740ef34bf46c4e16d0bd42e1a4391ebf64963ebbb0ba0cb575b11` |
 
 This closes the bounded paired public `Review existing connections` + Undo/reopen journey and supplies public lock/conflict-state evidence for C01. It does not exercise Undo/Redo of the pin-lock edit itself. The imported project has `protectedHandoff: null` on both boards, so this journey does not exercise the protected-remap review action (C05); its public route still needs a package-created protected fixture. No Apply action was repeated. Source locations for the exercised production path are `web/src/presentation/pcb_wiring.rs:908-939,983-995`, `web/src/presentation/pcb_wiring/connections.rs:27-101`, and `web/src/presentation/pcb_wiring/pins.rs:256-427`.
+
+## Paired lock edit Undo/Redo qualification (2026-10-03)
+
+Candidate: `frontend-module-attachment-repair-20261003`, source `733c1da2abede39a617d2eca2e42d9bd437cea41`, `http://127.0.0.1:34782/`, session `pcb-lock-candidate-7dd31abc1fc4`. Reference: pinned React at `http://127.0.0.1:5175/`, session `pcb-lock-ts-7dd31abc1fc4`. Both used the retained paired after-conflict-Undo archives above (candidate `957351af216934e0f010a9e82be52e39b2b7627f720005e25f6fa4890e5bdd3a`; React `149ba776c5c740ef34bf46c4e16d0bd42e1a4391ebf64963ebbb0ba0cb575b11`), with Left `row/0` locked to P102 and Right board intact.
+
+On each app, I clicked `Unlock Row 1`, selected P101, and clicked `Lock Row 1`. The lock edit saved at revision 18. One Undo saved revision 19 with no Left `row/0` lock; one Redo saved revision 20 with `row/0 = P101`. This covers an explicit unlock followed by a changed lock, plus the lock edit’s one-step Undo/Redo. The accepted portable exports, rather than planner controls, are the state proof. Across all four final states, both apps’ normalized per-board hardware records and all 85 named net pin sets match. Right board hardware is exactly equal to its revision-16 baseline in the candidate exports, and all Left board assignments stay unchanged; only the lock map changes as expected.
+
+| Public export | Revision | Left `row/0` lock | Right board baseline match | SHA-256 |
+| --- | ---: | --- | --- | --- |
+| `candidate-lock-test-after-lock.boardstudio` | 18 | P101 | yes | `c17363ccae5ce9ddad5c923687bce4135b08a9e5d4b9cf85b6506428aa5c0996` |
+| `candidate-pin-lock-after-undo.boardstudio` | 19 | none | yes | `26517589770313771c8fdcfe6d3a3adab81972d8d04c3abcf6e0f4f481197a50` |
+| `candidate-pin-lock-after-redo.boardstudio` | 20 | P101 | yes | `f2abacde5bab7d67da97df8a7c6e494fc1b2aaa7c5bf4d997c862af39506d14e` |
+| `react-lock-test-after-lock.boardstudio` | 18 | P101 | — | `f1f2fd29795788cdb239b9ddc19769969141ce05579d78462de7de44a173bc59` |
+| `react-pin-lock-after-undo.boardstudio` | 19 | none | — | `31200e6e99295dba2ed136a1a4086ed89939920b1df00486969f224e6f07a231` |
+| `react-pin-lock-after-redo.boardstudio` | 20 | P101 | — | `c7e290319867d1e53be0a5ccbd2370ff573ebb9c61dc1c9072b1e6c6c3f846dc` |
+
+The candidate’s assignment selector transiently showed `Unresolved` while the saved lock was P101; the paired React selector showed P101. Both portable archives show the same accepted lock, unchanged assignments, nets, and Right-board state, so this display difference is recorded without inferring an accepted-state defect. React also kept a visible `Stale base revision` alert after the lock action while its revision-18/19/20 exports and Undo/Redo state were accepted; no further lock actions were attempted. This closes only the lock-edit history leg and does not qualify C02 protected-remap review or other pin-conflict branches.

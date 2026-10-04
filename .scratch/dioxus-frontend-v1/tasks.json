@@ -3724,7 +3724,7 @@
         {
           "id": "F5.3-C01",
           "requirement": "Pin locks and conflicts match React outcomes; lock/net edits undo and unrelated connections survive.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/pcb_wiring/pins.rs",
@@ -3732,10 +3732,11 @@
           ],
           "evidence": [
             ".scratch/dioxus-pcb-view/issues/11-board-wiring-pin-lock-controls.md",
-            ".scratch/dioxus-pcb-view/evidence/pcb-pin-lock-controls-20261003/results.md"
+            ".scratch/dioxus-pcb-view/evidence/pcb-pin-lock-controls-20261003/results.md",
+            ".scratch/dioxus-pcb-view/evidence/pcb-apply-ui-20261002/receipt.md"
           ],
           "blockers": [],
-          "next_action": "Paired P102 lock/manual conflict and net review Undo/reopen proven in existing Apply receipt. Remaining: lock edit Undo/Redo itself and lock/unlock behavior; do not repeat C02 accepted-net comparisons.",
+          "next_action": "Retain paired conflict/review Undo/reopen plus explicit unlock/change-lock/Undo/Redo public archives. Normalized boards and 85 named net pin sets match; Right board preserved. Temporary selector projection differs without accepted-state mismatch; protected remap remains C05.",
           "finish_condition": "Paired result proves persisted locks, Core conflict diagnostics, preservation of other board/net data and exact undo behavior.",
           "owned_files": [
             "web/src/presentation/pcb_wiring.rs",
