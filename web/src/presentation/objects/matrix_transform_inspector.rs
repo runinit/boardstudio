@@ -254,6 +254,8 @@ pub(in crate::presentation) fn MatrixTransformInspector(
             choices,
             assemblies,
             component_choices,
+            mirror_target,
+            assemblies_local,
             offset,
             rotation,
         } => (
@@ -303,7 +305,8 @@ pub(in crate::presentation) fn MatrixTransformInspector(
                 }
                 AttachedComponentsField {
                     owner: owner.clone(), snapshot_token, revision, value: assemblies.clone(),
-                    choices: component_choices.clone(), request_sequence,
+                    choices: component_choices.clone(), mirror_target: *mirror_target,
+                    assemblies_local: *assemblies_local, request_sequence,
                     editable: props.mount.editable, busy: props.mount.busy,
                     feedback: props.mount.feedback.clone(), on_edit, splay_affect,
                 }
@@ -816,6 +819,8 @@ struct AttachedComponentsFieldProps {
     revision: u64,
     value: Vec<(String, String)>,
     choices: Vec<(String, String)>,
+    mirror_target: bool,
+    assemblies_local: bool,
     request_sequence: Signal<u64>,
     editable: bool,
     busy: bool,
@@ -866,6 +871,22 @@ fn AttachedComponentsField(props: AttachedComponentsFieldProps) -> Element {
     };
     rsx! {
         h3 { class: "m1-matrix-subtitle", "Attached components" }
+        if props.mirror_target {
+            if props.assemblies_local {
+                ResetTransformButton {
+                    label: "Use mirrored components", owner: props.owner.clone(),
+                    snapshot_token: props.snapshot_token, revision: props.revision,
+                    field: MatrixTransformField::KeyAssembliesLocal,
+                    baseline: MatrixTransformValue::Bool(true),
+                    value: MatrixTransformValue::Bool(false),
+                    request_sequence: props.request_sequence, editable: props.editable,
+                    busy: props.busy, feedback: props.feedback.clone(),
+                    splay_affect: props.splay_affect, on_edit: props.on_edit,
+                }
+            } else {
+                p { class: "m1-matrix-empty-note", "The key assembly and attached components follow the paired half. Replacing one here keeps this key local." }
+            }
+        }
         if props.value.is_empty() {
             p { class: "m1-matrix-empty-note", "No attached components. Apply a component in Parts." }
         }

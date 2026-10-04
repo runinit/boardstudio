@@ -28,6 +28,7 @@ pub enum MatrixTransformField {
     KeyEnabled,
     KeyAssembly,
     KeyAttached,
+    KeyAssembliesLocal,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -71,6 +72,8 @@ pub enum MatrixTransformFields {
         choices: Vec<(String, String)>,
         assemblies: Vec<(String, String)>,
         component_choices: Vec<(String, String)>,
+        mirror_target: bool,
+        assemblies_local: bool,
         offset: Vec2,
         rotation: f64,
     },
@@ -288,15 +291,42 @@ pub fn build_operation(
             Some(rotation),
         )),
         (
-            MatrixTransformFields::Key { row, column, .. },
+            MatrixTransformFields::Key {
+                row,
+                column,
+                mirror_target,
+                ..
+            },
             Field::KeyAttached,
             Value::Attached(next_list),
-        ) => Ok(set_cell_attached(matrix, *row, *column, &next_list)),
+        ) => Ok(set_cell_attached(
+            matrix,
+            *row,
+            *column,
+            &next_list,
+            *mirror_target,
+        )),
         (
-            MatrixTransformFields::Key { row, column, .. },
+            MatrixTransformFields::Key {
+                row,
+                column,
+                mirror_target,
+                ..
+            },
             Field::KeyAssembly,
             Value::Text(definition_id),
-        ) => Ok(set_cell_assembly(matrix, *row, *column, definition_id)),
+        ) => Ok(set_cell_assembly(
+            matrix,
+            *row,
+            *column,
+            definition_id,
+            *mirror_target,
+        )),
+        (
+            MatrixTransformFields::Key { row, column, .. },
+            Field::KeyAssembliesLocal,
+            Value::Bool(local),
+        ) => Ok(set_cell_assemblies_local(matrix, *row, *column, local)),
         (
             MatrixTransformFields::Key { row, column, .. },
             Field::KeyEnabled,
@@ -362,11 +392,14 @@ fn set_cell_enabled(matrix: &Matrix, row: u32, column: u32, enabled: bool) -> Ed
     set_matrix(next)
 }
 
+/// Only a linked mirror target keeps an assembly edit local to its key, like the reference
+/// Workbench; edits on the canonical half must keep propagating to the paired half.
 fn set_cell_assembly(
     matrix: &Matrix,
     row: u32,
     column: u32,
     definition_id: String,
+    mirror_target: bool,
 ) -> EditOperation {
     let mut next = matrix.clone();
     if let Some(cell) = next
@@ -374,8 +407,13 @@ fn set_cell_assembly(
         .iter_mut()
         .find(|cell| cell.row == row && cell.column == column)
     {
+        let changed = cell.definition_id.as_deref() != Some(definition_id.as_str())
+            || cell.variant.as_deref() != Some(definition_id.as_str());
         cell.definition_id = Some(definition_id.clone());
         cell.variant = Some(definition_id);
+        if changed && mirror_target {
+            cell.assemblies_local = Some(true);
+        }
     } else {
         next.cells.push(MatrixCell {
             row,
@@ -386,7 +424,7 @@ fn set_cell_assembly(
             offset: None,
             rotation: None,
             assemblies: Vec::new(),
-            assemblies_local: None,
+            assemblies_local: mirror_target.then_some(true),
         });
     }
     set_matrix(next)
@@ -397,6 +435,7 @@ fn set_cell_attached(
     row: u32,
     column: u32,
     attached: &[(String, String)],
+    mirror_target: bool,
 ) -> EditOperation {
     let mut next = matrix.clone();
     if let Some(cell) = next
@@ -404,7 +443,7 @@ fn set_cell_attached(
         .iter_mut()
         .find(|cell| cell.row == row && cell.column == column)
     {
-        cell.assemblies = cell
+        let assemblies = cell
             .assemblies
             .iter()
             .filter_map(|assembly| {
@@ -417,8 +456,23 @@ fn set_cell_attached(
                         assembly
                     })
             })
-            .collect();
-        cell.assemblies_local = Some(true);
+            .collect::<Vec<_>>();
+        if mirror_target && assemblies != cell.assemblies {
+            cell.assemblies_local = Some(true);
+        }
+        cell.assemblies = assemblies;
+    }
+    set_matrix(next)
+}
+
+fn set_cell_assemblies_local(matrix: &Matrix, row: u32, column: u32, local: bool) -> EditOperation {
+    let mut next = matrix.clone();
+    if let Some(cell) = next
+        .cells
+        .iter_mut()
+        .find(|cell| cell.row == row && cell.column == column)
+    {
+        cell.assemblies_local = Some(local);
     }
     set_matrix(next)
 }
@@ -578,6 +632,8 @@ mod tests {
             choices: Vec::new(),
             assemblies: Vec::new(),
             component_choices: Vec::new(),
+            mirror_target: false,
+            assemblies_local: false,
             row: 1,
             column: 2,
             offset: Vec2 { x: 6.0, y: 7.0 },
@@ -617,6 +673,8 @@ mod tests {
             choices: Vec::new(),
             assemblies: Vec::new(),
             component_choices: Vec::new(),
+            mirror_target: false,
+            assemblies_local: false,
             row: 1,
             column: 2,
             offset: Vec2 { x: 6.0, y: 7.0 },
@@ -669,6 +727,8 @@ mod tests {
             choices: Vec::new(),
             assemblies: Vec::new(),
             component_choices: Vec::new(),
+            mirror_target: false,
+            assemblies_local: false,
             row: 1,
             column: 2,
             offset: Vec2 { x: 6.0, y: 7.0 },
@@ -716,6 +776,8 @@ mod tests {
             choices: Vec::new(),
             assemblies: Vec::new(),
             component_choices: Vec::new(),
+            mirror_target: false,
+            assemblies_local: false,
             row: 1,
             column: 2,
             offset: Vec2 { x: 6.0, y: 7.0 },
@@ -737,6 +799,123 @@ mod tests {
         assert_eq!(next.cells[0].assemblies[0].offset, Vec2 { x: 1.0, y: 2.0 });
     }
 
+    fn paired_key_fields(mirror_target: bool, assemblies_local: bool) -> MatrixTransformFields {
+        MatrixTransformFields::Key {
+            enabled: true,
+            definition_id: "switch".into(),
+            choices: Vec::new(),
+            assemblies: Vec::new(),
+            component_choices: Vec::new(),
+            mirror_target,
+            assemblies_local,
+            row: 1,
+            column: 2,
+            offset: Vec2 { x: 6.0, y: 7.0 },
+            rotation: 9.0,
+        }
+    }
+
+    fn edited_cell(
+        matrix: &Matrix,
+        fields: &MatrixTransformFields,
+        field: MatrixTransformField,
+        value: MatrixTransformValue,
+    ) -> MatrixCell {
+        set_matrix_result(
+            build_operation(matrix, fields, field, value, MatrixSplayAffect::Following).unwrap(),
+        )
+        .cells
+        .remove(0)
+    }
+
+    #[test]
+    fn assembly_edits_stay_shared_on_the_canonical_half() {
+        let mut matrix = matrix();
+        matrix.cells[0].assemblies_local = None;
+        let fields = paired_key_fields(false, false);
+        let attached = edited_cell(
+            &matrix,
+            &fields,
+            MatrixTransformField::KeyAttached,
+            MatrixTransformValue::Attached(vec![("led".into(), "led-b".into())]),
+        );
+        assert_eq!(attached.assemblies[0].definition_id, "led-b");
+        assert_eq!(attached.assemblies_local, None);
+        let assembly = edited_cell(
+            &matrix,
+            &fields,
+            MatrixTransformField::KeyAssembly,
+            MatrixTransformValue::Text("alt-switch".into()),
+        );
+        assert_eq!(assembly.assemblies_local, None);
+    }
+
+    #[test]
+    fn assembly_edits_make_a_linked_target_key_local() {
+        let mut matrix = matrix();
+        matrix.cells[0].assemblies_local = None;
+        let fields = paired_key_fields(true, false);
+        let attached = edited_cell(
+            &matrix,
+            &fields,
+            MatrixTransformField::KeyAttached,
+            MatrixTransformValue::Attached(vec![("led".into(), "led-b".into())]),
+        );
+        assert_eq!(attached.assemblies_local, Some(true));
+        let assembly = edited_cell(
+            &matrix,
+            &fields,
+            MatrixTransformField::KeyAssembly,
+            MatrixTransformValue::Text("alt-switch".into()),
+        );
+        assert_eq!(assembly.assemblies_local, Some(true));
+
+        matrix.cells.clear();
+        let created = edited_cell(
+            &matrix,
+            &fields,
+            MatrixTransformField::KeyAssembly,
+            MatrixTransformValue::Text("alt-switch".into()),
+        );
+        assert_eq!(created.assemblies_local, Some(true));
+    }
+
+    #[test]
+    fn unchanged_assembly_does_not_localize_a_linked_target_key() {
+        let mut matrix = matrix();
+        matrix.cells[0].variant = Some("switch".into());
+        matrix.cells[0].assemblies_local = None;
+        let fields = paired_key_fields(true, false);
+        let assembly = edited_cell(
+            &matrix,
+            &fields,
+            MatrixTransformField::KeyAssembly,
+            MatrixTransformValue::Text("switch".into()),
+        );
+        assert_eq!(assembly.assemblies_local, None);
+        let attached = edited_cell(
+            &matrix,
+            &fields,
+            MatrixTransformField::KeyAttached,
+            MatrixTransformValue::Attached(vec![("led".into(), "led-def".into())]),
+        );
+        assert_eq!(attached.assemblies_local, None);
+    }
+
+    #[test]
+    fn use_mirrored_components_clears_the_local_flag_only() {
+        let matrix = matrix();
+        let cell = edited_cell(
+            &matrix,
+            &paired_key_fields(true, true),
+            MatrixTransformField::KeyAssembliesLocal,
+            MatrixTransformValue::Bool(false),
+        );
+        assert_eq!(cell.assemblies_local, Some(false));
+        assert_eq!(cell.assemblies, matrix.cells[0].assemblies);
+        assert_eq!(cell.definition_id, matrix.cells[0].definition_id);
+    }
+
     #[test]
     fn empty_key_cell_edit_adds_a_semantic_cell_without_part_ids() {
         let mut matrix = matrix();
@@ -748,6 +927,8 @@ mod tests {
             choices: Vec::new(),
             assemblies: Vec::new(),
             component_choices: Vec::new(),
+            mirror_target: false,
+            assemblies_local: false,
             row: 0,
             column: 1,
             offset: Vec2 { x: 0.0, y: 0.0 },
@@ -794,6 +975,8 @@ mod tests {
             choices: Vec::new(),
             assemblies: Vec::new(),
             component_choices: Vec::new(),
+            mirror_target: false,
+            assemblies_local: false,
             row: 1,
             column: 2,
             offset: Vec2 { x: 6.0, y: 7.0 },
@@ -1048,6 +1231,8 @@ mod tests {
             choices: Vec::new(),
             assemblies: Vec::new(),
             component_choices: Vec::new(),
+            mirror_target: false,
+            assemblies_local: false,
             row: 1,
             column: 2,
             offset: Vec2 { x: 6.0, y: 7.0 },

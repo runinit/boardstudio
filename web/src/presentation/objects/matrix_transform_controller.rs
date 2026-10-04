@@ -132,22 +132,37 @@ pub(in crate::presentation) fn use_workspace_matrix_transform(
         move || alive.set(false)
     });
     let switch_catalog = use_signal(Vec::<boardstudio_core::model::PartDefinition>::new);
-    let mut switch_catalog_loaded = use_signal(|| false);
+    // The bundled catalogue is built per document reversibility (as in the Parts browser), so
+    // it is requested once per accepted reversibility and tagged with the build it holds.
+    let mut catalog_requested = use_signal(|| None::<bool>);
+    let catalog_built_for = use_signal(|| None::<bool>);
     use_effect({
         let alive = alive.clone();
+        let runtime = runtime.clone();
         move || {
-            if switch_catalog_loaded() {
+            let _ = version();
+            let Some(reversible) = runtime
+                .model()
+                .accepted
+                .map(|snapshot| crate::presentation::parts::reversible_layout(&snapshot.document))
+            else {
+                return;
+            };
+            if catalog_requested() == Some(reversible) {
                 return;
             }
-            switch_catalog_loaded.set(true);
+            catalog_requested.set(Some(reversible));
             let mut switch_catalog = switch_catalog;
+            let mut catalog_built_for = catalog_built_for;
             let alive = alive.clone();
             spawn_local(async move {
                 if let Ok(definitions) =
-                    crate::presentation::parts::load_all_catalogue_definitions(false).await
+                    crate::presentation::parts::load_all_catalogue_definitions(reversible).await
                     && alive.get()
+                    && catalog_requested() == Some(reversible)
                 {
                     switch_catalog.set(definitions);
+                    catalog_built_for.set(Some(reversible));
                 }
             });
         }
@@ -309,6 +324,22 @@ pub(in crate::presentation) fn use_workspace_matrix_transform(
             else {
                 return;
             };
+            if matches!(
+                request.field,
+                MatrixTransformField::KeyAssembly | MatrixTransformField::KeyAttached
+            ) && catalog_built_for()
+                != Some(crate::presentation::parts::reversible_layout(
+                    &snapshot.document,
+                ))
+            {
+                publish_feedback(
+                    &mut feedback,
+                    &request,
+                    MatrixTransformState::Failed,
+                    Some("The component catalogue is still loading. Retry in a moment.".into()),
+                );
+                return;
+            }
             let operation = match build_operation(
                 matrix,
                 &current.fields,
@@ -558,6 +589,12 @@ fn project_current_for(
                     })
                     .unwrap_or_default(),
                 component_choices: Vec::new(),
+                mirror_target: snapshot
+                    .document
+                    .layouts
+                    .iter()
+                    .any(|layout| layout.matrix_id == matrix.id && layout.mirror_link.is_some()),
+                assemblies_local: cell.and_then(|cell| cell.assemblies_local).unwrap_or(false),
                 offset: cell
                     .and_then(|cell| cell.offset)
                     .unwrap_or(Vec2 { x: 0.0, y: 0.0 }),
@@ -702,6 +739,12 @@ fn field_value(
         (MatrixTransformFields::Key { definition_id, .. }, Field::KeyAssembly) => {
             Some(Value::Text(definition_id.clone()))
         }
+        (
+            MatrixTransformFields::Key {
+                assemblies_local, ..
+            },
+            Field::KeyAssembliesLocal,
+        ) => Some(Value::Bool(*assemblies_local)),
         (
             MatrixTransformFields::Key {
                 offset, rotation, ..

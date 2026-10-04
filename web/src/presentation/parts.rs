@@ -1518,7 +1518,7 @@ fn selected_definition_id(
         })
 }
 
-fn reversible_layout(document: &ProjectDoc) -> bool {
+pub(super) fn reversible_layout(document: &ProjectDoc) -> bool {
     match document.parameters.get("reversibleLayout") {
         Some(serde_json::Value::Bool(reversible)) => *reversible,
         _ => document
