@@ -1,0 +1,13 @@
+{
+  "parent": "F3.4",
+  "at": "2026-10-04T05:07:34.874107+00:00",
+  "candidate_source": "3f9e8e2c4475c92cb0700ab5a17732b5d250ca01",
+  "candidate_url": "http://127.0.0.1:34796/boardstudio/",
+  "review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/candidate-34794-review.md",
+  "review_sha256": "600ba6f2e1bc4f19823863dcd24a60aa6776e12d3d62c2189887c82de799c58b",
+  "audit": ".scratch/dioxus-frontend-v1/evidence/f34-acceptance-20261004/AUDIT.json",
+  "audit_sha256": "61e6d15881d8599cd94f0669cf0adba34eaac7276f9f3e44399400d7f3730f6e",
+  "criteria_accounting": ".scratch/dioxus-frontend-v1/tasks.json",
+  "scope": "All five F3.4 functional criteria; F3.1 accepted and no acceptance_after/external gates. F7.3, wider F3/F9 and release/visual gates remain separate.",
+  "decision": "Accepted by coordinator from complete criterion accounting, paired authoring/history/reopen evidence, focused saved-ID collision regressions, final package provenance and one consolidated Sol 6.1 High Standards/Spec review."
+}

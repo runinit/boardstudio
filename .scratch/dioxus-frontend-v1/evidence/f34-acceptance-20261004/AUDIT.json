@@ -1,0 +1,65 @@
+{
+  "parent": "F3.4",
+  "at": "2026-10-04T05:07:34.874107+00:00",
+  "candidate_build": "frontend-outline-reopen-final-20261004",
+  "candidate_source": "3f9e8e2c4475c92cb0700ab5a17732b5d250ca01",
+  "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-outline-reopen-final-20261004/package-proof.json",
+  "package_proof_sha256": "eb1b642c9077db2070beb203daf89c219722cb8d3d38cf975b4fcb0e95351623",
+  "reference_source": "5a472a9426e6e38993361da402cd4ec730feb369",
+  "criteria": {
+    "F3.4-C01": {
+      "state": "verified",
+      "evidence": [
+        ".scratch/dioxus-layout-authoring/evidence/outline-settings-perimeter-journey-20261003.md",
+        ".scratch/dioxus-layout-authoring/evidence/f34d-perimeter-paired-20261003/README.md"
+      ]
+    },
+    "F3.4-C02": {
+      "state": "verified",
+      "evidence": [
+        ".scratch/dioxus-layout-authoring/evidence/f34e-manual-polygon-drafts-source-20261003.md"
+      ]
+    },
+    "F3.4-C03": {
+      "state": "verified",
+      "evidence": [
+        ".scratch/dioxus-layout-authoring/evidence/f34d-perimeter-paired-20261003/README.md"
+      ]
+    },
+    "F3.4-C04": {
+      "state": "verified",
+      "evidence": [
+        ".scratch/dioxus-layout-authoring/evidence/f34d-perimeter-paired-20261003/README.md"
+      ]
+    },
+    "F3.4-C05": {
+      "state": "verified",
+      "evidence": [
+        ".scratch/dioxus-layout-authoring/evidence/f34d-perimeter-paired-20261003/README.md",
+        ".scratch/dioxus-layout-authoring/evidence/17-layout-findings-navigation/public-34767.md"
+      ]
+    }
+  },
+  "join": {
+    "F3.1": "accepted start capability",
+    "acceptance_after": [],
+    "external_gates": []
+  },
+  "paired_evidence": [
+    ".scratch/dioxus-layout-authoring/evidence/outline-settings-perimeter-journey-20261003.md",
+    ".scratch/dioxus-layout-authoring/evidence/f34e-manual-polygon-drafts-source-20261003.md",
+    ".scratch/dioxus-layout-authoring/evidence/f34d-perimeter-paired-20261003/README.md",
+    ".scratch/dioxus-layout-authoring/evidence/17-layout-findings-navigation/public-34767.md"
+  ],
+  "review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/candidate-34794-review.md",
+  "review_sha256": "600ba6f2e1bc4f19823863dcd24a60aa6776e12d3d62c2189887c82de799c58b",
+  "result": "All five F3.4 functional criteria are verified by retained paired normal journeys and focused restart-collision repairs. The final combined package and one consolidated Sol 6.1 High review pass; no final join remains.",
+  "limits": [
+    "The saved-version browser copy did not capture its operation ID; exact collision handling is proven by source and the focused restart test, while browser Copy/reopen liveness and paired normal lifecycle were observed.",
+    "The Generated connection branch has actual public collision RED/GREEN plus distinct saved IDs, restored geometry and reopen on the final candidate.",
+    "F7.3 paired rendered Case-body picking, broader F3/F9 accessibility/performance and release requirements remain separate; visual layout parity is deferred."
+  ],
+  "refactor_handoff": [
+    "RF-021 persistent identity policy remains post-port work; current F3.4 collision repairs are integrated."
+  ]
+}

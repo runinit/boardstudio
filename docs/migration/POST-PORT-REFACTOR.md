@@ -2241,3 +2241,41 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
   "continuations": []
 }
 ```
+
+## RF-021: Saved outline entity IDs depend on a page-local operation counter
+
+**Status:** v1 collision guards integrated; broader identity policy deferred to post-port refactor
+
+**Confidence:** confirmed source and public Generated-connection RED/GREEN; version collision covered by focused regression
+
+**Observation:** Runtime operation numbers restart with each page while version and Generated connection IDs remain in saved projects. Copy's former uniqueness loop retried the same immutable ID forever on a collision. A saved connection ID collision was reproduced publicly: a second bridge saved under the same ID, Core rejected generated geometry, and Inspector controls could target the wrong connection.
+
+**Impact:** A valid reopened project can freeze version Copy or accept invalid bridge state while reporting Saved. ID aliasing also makes later connection edits and removal ambiguous.
+
+**Current mitigation:** Allocate deterministic unused suffixes against the relevant saved version or connection IDs on every affected outline creation path; retain one operation transaction and existing archive format. Focused regressions and a paired-journey supplement cover the repair.
+
+**Later proposal:** Separate persisted entity identity from ephemeral operation identity with a domain-scoped allocator and explicit uniqueness validation at the edit boundary. Audit other persisted IDs created from page-local counters without changing existing saved IDs.
+
+**Validation:** Post-port audit of other saved entity constructors and imported-project collisions; retain archive compatibility and independent edit targeting.
+
+**Evidence:** `web/src/runtime.rs`; `web/src/presentation/outline_lifecycle.rs`; `core/src/outline_controls.rs`; `.scratch/dioxus-layout-authoring/evidence/f34d-perimeter-paired-20261003/README.md`
+
+**Additional recorded details:**
+
+```json
+{
+  "category": "architecture / persistent identity",
+  "impact_priority": "high",
+  "discovered": "2026-10-04",
+  "baseline": "Dioxus frontend-finding-focus-outline-id-20261004, source 554ec792, port 34795; final repair 3f9e8e2c, port 34796",
+  "workflows": [
+    "F3.4"
+  ],
+  "decision": "Keep the narrow v1 guards for outline versions and Generated connections; defer a shared identity-policy refactor until the port is complete.",
+  "follow_up_owner": "Outline authoring / Session identity model",
+  "linked_tasks": [
+    "F3.4"
+  ],
+  "continuations": []
+}
+```

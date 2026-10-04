@@ -1495,7 +1495,7 @@
         "F3.1"
       ],
       "acceptance_after": [],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
       "shared_edit_owner": "integration coordinator",
@@ -1528,10 +1528,11 @@
             "web/src/outline_settings.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-layout-authoring/evidence/outline-settings-perimeter-journey-20261003.md"
+            ".scratch/dioxus-layout-authoring/evidence/outline-settings-perimeter-journey-20261003.md",
+            ".scratch/dioxus-layout-authoring/evidence/f34d-perimeter-paired-20261003/README.md"
           ],
           "blockers": [],
-          "next_action": "Retain paired5175/34786 Generated margin4-to-6 regeneration, fixed copy/rename/activate, portable reopen, Delete/Undo/Redo proof; no remaining C01 functional action.",
+          "next_action": "Retain paired normal-path Generated/fixed version controls and history, the focused saved-ID RED/GREEN regression across all three version creation paths, and packaged Copy/activation/reopen liveness from 34795. The browser operation ID was not captured; exact collision behavior rests on the focused regression. No remaining C01 functional action.",
           "finish_condition": "Public UI proves all named version operations, expected history behavior and activation for Generated and fixed versions.",
           "owned_files": [
             "web/src/presentation/outline_lifecycle.rs",
@@ -1591,15 +1592,18 @@
         {
           "id": "F3.4-C04",
           "requirement": "Preserve fixed edited outlines, linked refinements, protected gaps, bridges, cutouts and corner finishing according to ADR 0001/0002.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/outline_lifecycle.rs",
-            "web/src/outline_settings.rs"
+            "web/src/outline_settings.rs",
+            "core/tests/outline_versions.rs"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-layout-authoring/evidence/f34d-perimeter-paired-20261003/README.md"
+          ],
           "blockers": [],
-          "next_action": "Inspect current source against ADR 0001/0002 and existing focused receipts for each preservation rule; identify uncovered behavior before qualification.",
+          "next_action": "Retain paired 5175/34791 protected-gap movement and fixed-copy bridge/cutout/Chamfer 3.25 preservation, existing Core regressions, and the public saved-connection collision RED on 34795 versus unique-ID, valid-geometry and reopen GREEN on 34796. No remaining C04 functional action.",
           "finish_condition": "Source-reviewed and paired public evidence shows fixed outlines and all named refinement/geometry rules are preserved.",
           "owned_files": [
             "web/src/presentation/outline_lifecycle.rs",
@@ -1639,11 +1643,23 @@
         }
       ],
       "criteria_accounting": {
-        "source_commit": "07b4c3466b1f388073e8e1f9d619b0703223d770",
-        "assessed_at": "2026-10-03T19:29:50Z",
+        "source_commit": "3f9e8e2c4475c92cb0700ab5a17732b5d250ca01",
+        "assessed_at": "2026-10-04T05:05:06Z",
         "coverage": "complete",
-        "note": "All five clauses represented. The existing F34d receipt is narrow: perimeter drag, Escape, Undo/Redo/reopen, ArrowRight and Delete; no broader outline acceptance inferred."
-      }
+        "note": "All five clauses are verified from retained paired public journeys and focused affected regressions. Saved outline-version Copy and Generated connection ID collisions after Runtime restart were repaired in 554ec792/3f9e8e2c; public 34795/34796 evidence distinguishes observed connection collision RED/GREEN from C01's source/test collision proof and browser Copy/reopen liveness. Final consolidated Sol review recommends F3.4 acceptance."
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/f34-acceptance-20261004/DECISION.json"
+      },
+      "status_history": [
+        {
+          "at": "2026-10-04T05:07:40.854794+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "All five criteria verified; final package and consolidated Sol review passed",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/f34-acceptance-20261004/DECISION.json"
+        }
+      ]
     },
     {
       "id": "F3.5",
@@ -6431,7 +6447,7 @@
             ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md"
           ],
           "blockers": [],
-          "next_action": "Retain paired Sofle outline-finding navigation and Dioxus 3D focus/temporary hidden-PCB reveal/Fit proof from 34794. Dioxus rendered Case-body pick works, but pinned React body vanished with PCB hidden; qualify that paired branch only when the reference exposes a rendered body. VIK-only module scene work is deferred from v1; retain existing saved-module compatibility evidence without treating earlier 2D overlay picks as 3D proof.",
+          "next_action": "Retain paired Sofle initial outline-finding navigation and Dioxus 3D hidden-PCB focus/Fit/repeat-focus proof from 34794/34795. Dioxus rendered Case-body pick works, but pinned React body vanished with PCB hidden; qualify that paired branch only when the reference exposes a rendered body. VIK-only module scene work is deferred from v1; earlier 2D picks do not prove 3D module picking.",
           "finish_condition": "Mapped and empty picks resolve only against current consumer scope; finding focus/highlight works with hidden layers.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",
@@ -9256,8 +9272,8 @@
     "integration_slices": 2,
     "boundary_slices": 2,
     "status": {
-      "accepted": 14,
-      "implementing": 36,
+      "accepted": 15,
+      "implementing": 35,
       "planned": 11
     }
   },
