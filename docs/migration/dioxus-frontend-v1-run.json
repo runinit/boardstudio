@@ -16,29 +16,29 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T05:12:34.911429+00:00",
+    "updated_at": "2026-10-04T06:30:44.587018+00:00",
     "parent_counts": {
-      "accepted": 15,
-      "implementing": 35,
+      "accepted": 16,
+      "implementing": 34,
       "planned": 11,
       "total": 61
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-outline-reopen-final-20261004",
-      "source_commit": "3f9e8e2c4475c92cb0700ab5a17732b5d250ca01",
-      "root_url": "http://127.0.0.1:34796/",
-      "subpath_url": "http://127.0.0.1:34796/boardstudio/",
-      "provenance": "web/target/builds/frontend-outline-reopen-final-20261004/provenance.json",
-      "provenance_sha256": "52d601eef123089bcb4eabb0d64693f8a62c4fe1f32e5143a0f9fc4742b10805",
+      "build_id": "frontend-module-route-20261004",
+      "source_commit": "ad0de81fec372cc7ff9d998e325d4d3496f65cbd",
+      "root_url": "http://127.0.0.1:34798/",
+      "subpath_url": "http://127.0.0.1:34798/boardstudio/",
+      "provenance": "web/target/builds/frontend-module-route-20261004/provenance.json",
+      "provenance_sha256": "37551671fb8aa2df42bcc41d0f3f30f0f4d7207669dc1de273e4a98c72d885b8",
       "fresh_commands": 9,
       "inherited_commands": 23,
       "source_inputs": 1390,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 126.3927,
+      "command_span_seconds": 118.308825,
       "package_qualification": "Combined package provenance, current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-outline-reopen-final-20261004/package-proof.json",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-module-route-20261004/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -48,8 +48,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "3f9e8e2c4475c92cb0700ab5a17732b5d250ca01",
-      "state": "Published frontend-outline-reopen-final-20261004 at 34796 (source 3f9e8e2c): compiler/package/root/subpath passed with verified full-provider reuse. F3.4 accepted after five verified criteria, a saved-connection public RED/GREEN, focused saved-version regression and one consolidated Sol review. Repeated Layout 3D finding focus after Fit passed publicly; F7.3-C05 remains implemented pending paired rendered Case-body evidence. RF-021 records the post-port persisted-ID design follow-up.",
+      "source_commit": "ad0de81fec372cc7ff9d998e325d4d3496f65cbd",
+      "state": "Published frontend-module-route-20261004 at 34798 (source ad0de81f) with compiler, package, root/subpath and guarded provider reuse checks. A paired generic mounted-module 3D pick now reaches the Parts definition and PCB placement editor; one consolidated Sol 6.1 High review confirms the route repair. F7.3-C05 verified, F2.1 accepted. F7.3-C06 mounted asset models remain missing. RF-001/RF-019/RF-022 retain composition, producer and test-graph follow-ups.",
       "packets": [
         {
           "stream": "Layout",
@@ -460,10 +460,10 @@
     },
     "execution_policy": "docs/agents/issue-tracker.md#frontend-delivery-records",
     "candidate_review": {
-      "candidate": "frontend-outline-reopen-final-20261004",
-      "review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/candidate-34794-review.md",
-      "review_sha256": "600ba6f2e1bc4f19823863dcd24a60aa6776e12d3d62c2189887c82de799c58b",
-      "state": "One consolidated Sol 6.1 High review: Standards/Spec PASS for repaired focus and outline identities; F3.4 parent closure PASS. F7.3-C05 remains partial for paired Case-body evidence.",
+      "candidate": "frontend-module-route-20261004",
+      "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-routed-module-bb4f2216-review-sol-20261004.md",
+      "review_sha256": "36405a7bab07830e3094a7a5e429ec87b22843e0b25f9f5b3fde0e4b1240deff",
+      "state": "One consolidated Sol 6.1 High Standards/Spec review and final delta: prior generic-module route P2 repaired at ad0de81f. F7.3-C05 verified from paired module, part, Case-body and finding journeys; C06 mounted asset models missing. F2.1 closure support unchanged.",
       "previous_review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/candidate-34791-review.md"
     },
     "parent_acceptances": [
@@ -482,6 +482,10 @@
       {
         "parent": "F6K.1",
         "decision_record": ".scratch/dioxus-frontend-v1/evidence/keymap-f6k1-acceptance-20261003/DECISION.json"
+      },
+      {
+        "parent": "F2.1",
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/f21-acceptance-20261004/DECISION.json"
       }
     ],
     "active_streams": [
@@ -504,24 +508,24 @@
       },
       {
         "stream": "Case",
-        "state": "F7.3-C02/C03/C04 verified. C05 remains implemented: ordinary 3D outline focus, hidden-PCB temporary reveal, Fit restoration and repeated focus pass; paired rendered Case-body pick is still unqualified because pinned React body vanished with PCB hidden."
+        "state": "F7.3-C02/C03/C04/C05 verified. Paired generated Case-body and empty picks, ordinary 3D finding focus, generic mounted-module body and guarded edit-route RED/GREEN are receipted. C06 mounted model assets remain missing. Project switch briefly showed the prior editor before settling; stale Save was not exercised."
       },
       {
         "stream": "Parts + Project",
-        "state": "F4.2 accepted. F2.1-C02 search, C03 list Loading/error/Retry, and C04 damaged-preview fallback/editable copy are verified. The paired malformed archive exposed a React fallback defect; Dioxus keeps Open available. C01 public Loading capture remains."
+        "state": "F4.2 and F2.1 accepted. F2.1 has four verified criteria covering project list/Loading, search, controlled error/Retry, editable demos, and damaged-preview access. The malformed React preview difference is recorded as a defensive Dioxus correction. Continue other F2/F4 criteria from the focused queue."
       }
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Qualify ready implemented functional criteria from progress.py ready --kind qualify, using retained evidence and one waiting packet per workbench stream.",
-      "Finish F7.3-C05 rendered Case-body pairing only when the pinned reference exposes a body; keep VIK-only 3D scenes outside v1.",
-      "Resolve F2.1-C01 public Loading and the remaining PCB/Keycaps provider-failure branches with bounded, reproducible triggers; retain existing mounted evidence where a public provider failure cannot be induced."
+      "Implement the confirmed missing F7.3-C06 mounted model-asset path from Core ModuleResolution.model_placements through the accepted shared viewer; keep VIK-only catalogue/demo outside v1.",
+      "Advance the six workbench queues from progress.py ready/remaining, reusing retained evidence. Qualify PCB/Keycaps provider-failure branches only with a supported reproducible trigger; keep visual parity and release gates separate.",
+      "Check the transient project-switch old-editor display with a focused state/interaction journey when the surrounding project-lifecycle criterion is next qualified; preserve current action guards."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
       "implementation": "CONSTRAINTS.md; scripts/migration-deliver.py; scripts/build-m1.py; .scratch/dioxus-frontend-v1/progress.py; .scratch/dioxus-frontend-v1/qualification.py",
       "architectural_observation": ".scratch/dioxus-frontend-v1/refactor-findings.json:RF-009.delivery_retro_20261003",
-      "qualification": "All five workflow fixes implemented and exercised; Sol workflow approval with full-build-lineage repair. Candidate34774 entered focused qualification. Layout source shortcut finding open; paired browser attempt unexecuted due verifier session-result handling. No parent acceptance added.",
+      "qualification": "Current candidate34798 reached the Parts module definition and guarded placement editor from a trusted Layout 3D body pick after a public RED on34797. F2.1 accepted: four verified criteria and one consolidated Sol review. Test-only module mirror drift and zero-executed-test false green are captured in RF-022; no duplicate compiler or review gate was added.",
       "checks": {
         "build_reuse": 33,
         "source_inventory": 3,
@@ -658,7 +662,7 @@
               "scope": "Sofle selection, contextual Objects/Inspector Properties and Relations, matrix/key edits, Undo and reopen",
               "spec": ".scratch/dioxus-layout-authoring/spec.md",
               "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/journey.md",
-              "verified": "Three Properties shortcut routes and key width1→1.25→Undo1→Redo1.25→reload1.25 match reference behavior.",
+              "verified": "Three Properties shortcut routes and key width1\u21921.25\u2192Undo1\u2192Redo1.25\u2192reload1.25 match reference behavior.",
               "remaining": "Inspector arrangement/typography/context footer and Objects-to-toolbar selection-kind synchronization; broader authoring criteria unchanged."
             },
             {
@@ -1595,52 +1599,122 @@
               "state": "pending"
             }
           ]
+        },
+        {
+          "candidate_build_id": "frontend-outline-reopen-final-20261004",
+          "source_commit": "3f9e8e2c4475c92cb0700ab5a17732b5d250ca01",
+          "phase": "qualifying",
+          "review": {
+            "profile": "sol-review",
+            "state": "scoped repairs and F3.4 parent PASS; F7.3-C05 partial",
+            "receipt": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/candidate-34794-review.md",
+            "sha256": "600ba6f2e1bc4f19823863dcd24a60aa6776e12d3d62c2189887c82de799c58b"
+          },
+          "journeys": [
+            {
+              "id": "F3.4-C02",
+              "scope": "Paired addition/cutout/bridge draft preview, point Undo, cancel without accepted writes, Finish on 34789 and pinned 5175",
+              "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+              "state": "passed",
+              "result": "Retained paired draft preview/finish/cancel evidence on unchanged owner; F3.4 accepted.",
+              "evidence": ".scratch/dioxus-layout-authoring/evidence/f34e-manual-polygon-drafts-source-20261003.md"
+            },
+            {
+              "id": "F5.2-C01",
+              "scope": "Paired multi-board Resolve/Apply plus focused stale board/controller mounted owner checks",
+              "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
+              "state": "passed",
+              "result": "Retained paired multi-board Resolve/Apply and stale-owner proof on unchanged owner.",
+              "evidence": ".scratch/dioxus-pcb-view/evidence/public-pcb-qualification-20261002/paired-walkthrough.md"
+            },
+            {
+              "id": "F2.1-negative-branches",
+              "scope": "Mounted Loading/error/Retry and damaged-preview fallback supplement paired success; unchanged public finish conditions open",
+              "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
+              "state": "partial",
+              "remaining": "Exact public Loading capture remains; mounted error/Retry and damaged-preview branches are retained."
+            },
+            {
+              "id": "F7.3-C05",
+              "scope": "3D part pick proven; common viewer Case-body/module/finding mapping remains open",
+              "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+              "state": "partial",
+              "evidence": ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md",
+              "remaining": "Paired rendered Case-body pick remains unavailable in pinned React PCB-hidden fixture; Dioxus repeat focus passed."
+            }
+          ]
+        },
+        {
+          "candidate_build_id": "frontend-routed-module-20261004",
+          "source_commit": "bb4f221687a49098e93a451dc854b74134abdf72",
+          "phase": "qualifying",
+          "review": {
+            "profile": "sol-review",
+            "state": "pending"
+          },
+          "journeys": [
+            {
+              "id": "F3.4-C02",
+              "scope": "Paired addition/cutout/bridge draft preview, point Undo, cancel without accepted writes, Finish on 34789 and pinned 5175",
+              "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+              "state": "pending"
+            },
+            {
+              "id": "F5.2-C01",
+              "scope": "Paired multi-board Resolve/Apply plus focused stale board/controller mounted owner checks",
+              "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
+              "state": "pending"
+            },
+            {
+              "id": "F2.1-negative-branches",
+              "scope": "Mounted Loading/error/Retry and damaged-preview fallback supplement paired success; unchanged public finish conditions open",
+              "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
+              "state": "pending"
+            },
+            {
+              "id": "F7.3-C05",
+              "scope": "3D part pick proven; common viewer Case-body/module/finding mapping remains open",
+              "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+              "state": "pending"
+            }
+          ]
         }
       ],
       "phase": "qualifying",
       "unmet_start_conditions": [],
-      "candidate_build_id": "frontend-outline-reopen-final-20261004",
-      "source_commit": "3f9e8e2c4475c92cb0700ab5a17732b5d250ca01",
+      "candidate_build_id": "frontend-module-route-20261004",
+      "source_commit": "ad0de81fec372cc7ff9d998e325d4d3496f65cbd",
       "journeys": [
         {
           "id": "F3.4-C02",
           "scope": "Paired addition/cutout/bridge draft preview, point Undo, cancel without accepted writes, Finish on 34789 and pinned 5175",
           "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
-          "state": "passed",
-          "result": "Retained paired draft preview/finish/cancel evidence on unchanged owner; F3.4 accepted.",
-          "evidence": ".scratch/dioxus-layout-authoring/evidence/f34e-manual-polygon-drafts-source-20261003.md"
+          "state": "pending"
         },
         {
           "id": "F5.2-C01",
           "scope": "Paired multi-board Resolve/Apply plus focused stale board/controller mounted owner checks",
           "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
-          "state": "passed",
-          "result": "Retained paired multi-board Resolve/Apply and stale-owner proof on unchanged owner.",
-          "evidence": ".scratch/dioxus-pcb-view/evidence/public-pcb-qualification-20261002/paired-walkthrough.md"
+          "state": "pending"
         },
         {
           "id": "F2.1-negative-branches",
           "scope": "Mounted Loading/error/Retry and damaged-preview fallback supplement paired success; unchanged public finish conditions open",
           "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
-          "state": "partial",
-          "remaining": "Exact public Loading capture remains; mounted error/Retry and damaged-preview branches are retained."
+          "state": "pending"
         },
         {
           "id": "F7.3-C05",
           "scope": "3D part pick proven; common viewer Case-body/module/finding mapping remains open",
           "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
-          "state": "partial",
-          "evidence": ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md",
-          "remaining": "Paired rendered Case-body pick remains unavailable in pinned React PCB-hidden fixture; Dioxus repeat focus passed."
+          "state": "pending"
         }
       ],
       "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
-      "started_at": "2026-10-04T05:02:12.495766+00:00",
+      "started_at": "2026-10-04T06:23:01.318141+00:00",
       "review": {
         "profile": "sol-review",
-        "state": "scoped repairs and F3.4 parent PASS; F7.3-C05 partial",
-        "receipt": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/candidate-34794-review.md",
-        "sha256": "600ba6f2e1bc4f19823863dcd24a60aa6776e12d3d62c2189887c82de799c58b"
+        "state": "pending"
       }
     },
     "delivery_priority": {

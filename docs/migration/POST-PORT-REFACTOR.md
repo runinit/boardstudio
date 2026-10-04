@@ -412,6 +412,19 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
       "current_mitigation": "A private supported-layer selection route now calls the existing guarded Case viewer signal; row selection opens the Inspector appearance controls while Hide/Show remains independent. Paired Plate colour/reset and visibility passed on 34785.",
       "post_port_follow_up": "Review the workbench object/selection composition so scene selection, layer rows and contextual Inspector consume one scoped selection owner without each consumer wiring a separate navigation path.",
       "status": "functional reachability repaired and paired; broader shared composition refactor deferred"
+    },
+    {
+      "date": "2026-10-04",
+      "source": "frontend-routed-module-20261004 bb4f2216 RED; frontend-module-route-20261004 ad0de81f GREEN",
+      "observation": "Layout 3D mounted-module pick-to-editor route was omitted because the generic viewer submitted selection locally while the guarded Parts navigation callback was wired only to PCB. The same module became visible/pickable in Layout but exposed only a heading. During a later project switch, the previous module editor was visible in one immediate snapshot before the new project settled; stale actions remain guarded.",
+      "evidence": [
+        "web/src/presentation.rs",
+        "web/src/presentation/layout_viewer.rs",
+        ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md"
+      ],
+      "current_mitigation": "The PCB and Layout module picks now share one guarded private navigation callback; a trusted public pick reaches the Parts module and PCB placement editor. Project switch cleared the old editor after settlement.",
+      "post_port_follow_up": "Define one scoped scene-pick destination contract for all workbench consumers, including contextual editor route and transition lifetime, instead of attaching navigation separately at each composition site.",
+      "status": "functional edit destination repaired; brief transition display and broader composition refactor retained"
     }
   ],
   "continuation_notes": [
@@ -2157,7 +2170,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 ## RF-019: Layout 3D scene projection omits mounted module bodies
 
-**Status:** Post-v1 refactor candidate; VIK-specific 3D repair removed from the active first-release roadmap by user decision.
+**Status:** Generic saved-module 3D behavior is active F7.3 work; typed scene-producer redesign remains a post-port refactor candidate. VIK-specific catalogue and demo work is deferred.
 
 **Confidence:** confirmed source and paired public mismatch; full repair scope pending source mapping
 
@@ -2165,11 +2178,11 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Impact:** Mounted modules can be placed in PCB 2D yet disappear from the shared 3D assembly and cannot be selected there, hiding a functional workbench relationship.
 
-**Current mitigation:** Preserve existing saved-module compatibility and generic viewer behavior; do not dispatch the VIK-specific scene repair for v1.
+**Current mitigation:** Repair generic saved-module scene projection and trusted picking under F7.3, using Core's accepted solid and hole semantics. Preserve saved-module compatibility; leave VIK-specific catalogue and demo authoring outside v1.
 
 **Later proposal:** Consolidate board, module, case and finding scene inputs into a typed accepted-scene producer with explicit owner identity and one renderer-facing projection. Keep consumer-specific edit actions in their workbenches.
 
-**Validation:** If mounted-module 3D support returns after v1, pair module/standoff projection and trusted selection across board/project changes before accepting it.
+**Validation:** Pair a supported non-VIK saved-module board/standoff scene and trusted selection across board/project changes before verifying F7.3-C05. Defer only the typed scene-producer redesign.
 
 **Evidence:** `web/src/presentation/shared_viewer.rs`; `.scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md`; `app/src/ui/AssemblyViewer.tsx`
 
@@ -2186,7 +2199,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
     "F5.7",
     "F6.6"
   ],
-  "decision": "User removed unfinished VIK parts from the first release on 2026-10-03. Keep this confirmed architecture gap in the RF ledger, outside the active v1 criterion queue.",
+  "decision": "The 2026-10-03 VIK exclusion removed VIK-only catalogue, demo and authoring work. F7.3-C05 still requires generic mounted-module viewer behavior; the earlier broader deferral is superseded by this scope correction.",
   "follow_up_owner": "F7.3 shared viewer / F5 module integration",
   "linked_tasks": [
     "F7.3",
@@ -2197,6 +2210,16 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
       "at": "2026-10-03",
       "decision": "VIK-specific Layout 3D repair removed from active v1 parent/criterion roadmap; unfinished private patch preserved at /home/chris/.local/share/boardstudio/retained-tmp/20261003/deferred-vik-layout3d.patch (SHA-256 657be894d91bccac879c7925d0bd555653ed4ab7b60c1e1c627fdd3ba3b71e9f).",
       "evidence": "User instruction in current migration task; preserved original mismatch receipt."
+    },
+    {
+      "at": "2026-10-04",
+      "decision": "Corrected the scope reading: the active F7.3-C05 requirement covers generic saved mounted modules, while VIK-specific catalogue/demo authoring remains excluded. Reuse Core module preview semantics for geometry; keep the typed scene-producer redesign for the post-port refactor.",
+      "evidence": "CONSTRAINTS.md first-release scope; .scratch/dioxus-frontend-v1/tasks.json F7.3-C05; core/src/modules/preview.rs; app/src/assemblyPreview.ts"
+    },
+    {
+      "at": "2026-10-04",
+      "decision": "The generic scene body and model-asset separation is now explicit: current Layout preview projects Core-resolved mounted PCB, volume and support geometry and routes picks to the module editor; Core ModuleResolution.model_placements are still dropped before the shared viewer asset path, so F7.3-C06 remains missing.",
+      "evidence": "bb4f2216 and ad0de81f; .scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md"
     }
   ]
 }
@@ -2275,6 +2298,44 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
   "follow_up_owner": "Outline authoring / Session identity model",
   "linked_tasks": [
     "F3.4"
+  ],
+  "continuations": []
+}
+```
+
+## RF-022: Native frontend test harness duplicates the production presentation module tree
+
+**Status:** v1 test-only mirror repaired for model delivery and PCB connections; structural consolidation deferred
+
+**Confidence:** confirmed by focused native compile failures and repair
+
+**Observation:** The native test build substitutes a manually copied presentation module tree for the production tree. It omitted model_delivery and pcb_wiring::connections, so a focused Layout source regression could not compile even though the wasm page path compiled. Both missing links surfaced successively only after invoking the native test binary.
+
+**Impact:** Native regressions can be blocked by unrelated mirror drift, encouraging compile-only or zero-test claims and delaying functional verification.
+
+**Current mitigation:** Add the two missing test-only module links and require a nonzero executed-test count for focused checks; retain the production wasm compiler gate and existing single candidate review.
+
+**Later proposal:** Replace the hand-maintained native presentation mirror with one shared module graph or a narrow testable library boundary so production and native tests resolve the same private modules.
+
+**Validation:** Run focused native Layout source and PCB wiring tests after future module additions; verify the same source still compiles for wasm page packaging.
+
+**Evidence:** `web/src/main.rs`; `web/src/presentation.rs`; `web/src/parts_preview.rs`; `web/src/presentation/pcb_wiring/apply.rs`
+
+**Additional recorded details:**
+
+```json
+{
+  "category": "test architecture / module ownership",
+  "impact_priority": "medium",
+  "discovered": "2026-10-04",
+  "baseline": "Migration integration source f1627e51 before generic F7.3 module scene repair",
+  "workflows": [
+    "F7.3"
+  ],
+  "decision": "Keep the minimal test-only mirror repair for the current candidate and defer structural test-harness consolidation to the post-port refactor.",
+  "follow_up_owner": "Frontend test architecture",
+  "linked_tasks": [
+    "F7.3"
   ],
   "continuations": []
 }

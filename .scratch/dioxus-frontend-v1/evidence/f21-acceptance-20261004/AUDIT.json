@@ -1,0 +1,54 @@
+{
+  "parent": "F2.1",
+  "at": "2026-10-04T06:19:56.233652+00:00",
+  "candidate_build": "frontend-routed-module-20261004",
+  "candidate_source": "bb4f221687a49098e93a451dc854b74134abdf72",
+  "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-routed-module-20261004/package-proof.json",
+  "package_proof_sha256": "21d6d69f3af8c850fac3fe5656c9935acc52d5e1e3f9b2192efaaeaad4042369",
+  "reference_source": "5a472a9426e6e38993361da402cd4ec730feb369",
+  "criteria": {
+    "F2.1-C01": {
+      "state": "verified",
+      "evidence": [
+        ".scratch/dioxus-frontend-tranche-1/evidence/project-demo-cards-fresh-copies-34767/RESULTS.md"
+      ]
+    },
+    "F2.1-C02": {
+      "state": "verified",
+      "evidence": [
+        ".scratch/dioxus-frontend-tranche-1/evidence/project-demo-cards-fresh-copies-34767/RESULTS.md"
+      ]
+    },
+    "F2.1-C03": {
+      "state": "verified",
+      "evidence": [
+        ".scratch/dioxus-frontend-tranche-1/evidence/project-demo-cards-fresh-copies-34767/RESULTS.md"
+      ]
+    },
+    "F2.1-C04": {
+      "state": "verified",
+      "evidence": [
+        ".scratch/dioxus-frontend-tranche-1/evidence/project-demo-cards-fresh-copies-34767/RESULTS.md"
+      ]
+    }
+  },
+  "join": {
+    "INT.1": "accepted",
+    "acceptance_after": [],
+    "external_gates": []
+  },
+  "paired_evidence": [
+    ".scratch/dioxus-frontend-tranche-1/evidence/project-demo-cards-fresh-copies-34767/RESULTS.md"
+  ],
+  "paired_evidence_sha256": "2b5eebd33ca7fe8e0895e4fc1eedcc747b13d37a2a7a598da5609d6333f2aa1d",
+  "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-routed-module-bb4f2216-review-sol-20261004.md",
+  "review_sha256": "36405a7bab07830e3094a7a5e429ec87b22843e0b25f9f5b3fde0e4b1240deff",
+  "result": "All four F2.1 functional criteria are verified. Saved/demo entry, search, editable copies and nonmutating browsing, controlled Loading/error/Retry, and damaged-preview access are receipted. The full candidate package and one consolidated Sol 6.1 High review pass; no final join remains.",
+  "limits": [
+    "The damaged archive exposes a React preview fallback difference; Dioxus preserves access and shows the intended fallback.",
+    "Broader project lifecycle, visual parity and release gates remain in their own parents."
+  ],
+  "refactor_handoff": [
+    "No new architecture/refactor finding was established by this F2.1 closure; the existing RF ledger remains authoritative."
+  ]
+}

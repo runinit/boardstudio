@@ -406,7 +406,7 @@
         "INT.1"
       ],
       "acceptance_after": [],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
       "shared_edit_owner": "integration coordinator",
@@ -432,7 +432,7 @@
         {
           "id": "F2.1-C01",
           "requirement": "Entry/library shows loading, empty, populated, saved-project and demo cards with previews/counts/current marker.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             ".scratch/dioxus-frontend-v1/workflows/F2.json:17",
@@ -444,7 +444,7 @@
             ".scratch/dioxus-frontend-tranche-1/evidence/project-demo-cards-fresh-copies-34767/RESULTS.md"
           ],
           "blockers": [],
-          "next_action": "Paired empty and one-saved-Sofle galleries show 58-key/2-board counts, Current marker and 19 demo previews; normal navigation settled before Loading could be observed. Source renders ListStatus::Loading while pending; qualify that visible branch before full C01 verification.",
+          "next_action": "Retain paired empty, populated, 58-key/two-board saved Sofle, Current marker and 19-demo preview evidence plus the controlled six-second IndexedDB Loading capture on 34796/5175; no source change required.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/library.rs"
@@ -534,7 +534,19 @@
         "assessed_at": "2026-10-03T19:37:09Z",
         "coverage": "complete",
         "note": "Split existing parent acceptance text into independently decidable behaviors; original scope and joins preserved. Implemented is source inspection only; verified cites existing journey/receipt."
-      }
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/f21-acceptance-20261004/DECISION.json"
+      },
+      "status_history": [
+        {
+          "at": "2026-10-04T06:20:02.470276+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "All four functional criteria verified with retained paired browser journeys, current package proof and one consolidated Sol 6.1 High review; INT.1 accepted and no remaining final join.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/f21-acceptance-20261004/DECISION.json"
+        }
+      ]
     },
     {
       "id": "F2.2",
@@ -2271,7 +2283,7 @@
         {
           "id": "F3.8-C01",
           "requirement": "New/select/name/Rhai source/Enable on Apply/Apply/Core findings match React.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/geometry_scripts.rs",
@@ -2281,7 +2293,7 @@
             ".scratch/dioxus-layout-authoring/evidence/f38-geometry-scripts-20261003/README.md"
           ],
           "blockers": [],
-          "next_action": "Use the current mounted route to qualify a paired new/select/name/source/enable/apply/findings journey; existing README proves the prior RED route gap and describes current source ownership but explicitly has no GREEN journey.",
+          "next_action": "Retain the 34796/5175 paired New, name, Rhai source, enable, Apply, one SVG hole and matching Core warning journey in the existing F3.8 receipt.",
           "finish_condition": "Paired public UI shows all listed script controls and Core findings matching React on the current candidate.",
           "owned_files": [
             "web/src/presentation/geometry_scripts.rs",
@@ -2295,14 +2307,16 @@
         {
           "id": "F3.8-C02",
           "requirement": "Blank source cannot apply; drafts reset at reference boundaries.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/geometry_scripts.rs"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-layout-authoring/evidence/f38-geometry-scripts-20261003/README.md"
+          ],
           "blockers": [],
-          "next_action": "Inspect current disabled/apply guard and draft reset triggers, then prove blank-source rejection and each reference reset boundary in paired public UI.",
+          "next_action": "Retain paired 34796/5175 blank-source guard and unsaved-draft boundaries: script selection resets, board switch preserves, project switch clears. React closes the route after project switch while Dioxus leaves an empty panel; this contextual UI difference did not retain or submit the draft. F3.8 parent still waits for the F3.5 acceptance join.",
           "finish_condition": "Blank source never submits and script drafts reset at every characterized reference boundary, demonstrated through public scenarios.",
           "owned_files": [
             "web/src/presentation/geometry_scripts.rs"
@@ -2315,15 +2329,17 @@
         {
           "id": "F3.8-C03",
           "requirement": "Applied scripts preserve core execution, history, stable identity and save/reload.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/geometry_scripts.rs",
             "web/src/presentation.rs"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-layout-authoring/evidence/f38-geometry-scripts-20261003/README.md"
+          ],
           "blockers": [],
-          "next_action": "Execute one current-candidate script edit/apply scenario and verify generated Core output/findings, history, stable script identity and save/reload; current evidence README explicitly says this GREEN receipt is pending.",
+          "next_action": "Retain the 34796/5175 one-hole Apply, one-step Undo/Redo, reload and saved portable project archives; no additional script execution pass is required for C03.",
           "finish_condition": "Paired public UI proves applied script execution and findings plus history, stable identity and save/reload.",
           "owned_files": [
             "web/src/presentation/geometry_scripts.rs",
@@ -4400,21 +4416,25 @@
         {
           "id": "F5.7-C04",
           "requirement": "F7 viewer effect for routed references is checked at F5.8 after the actual F7 join.",
-          "state": "unassessed",
+          "state": "implemented",
           "classification": "functional",
           "sources": [
-            "web/src/presentation/board_reference_effect.rs"
+            "web/src/presentation/board_reference_effect.rs",
+            "web/src/presentation/layout_viewer_source.rs",
+            "web/src/presentation/shared_viewer.rs",
+            "renderer/src/wasm.rs"
           ],
           "evidence": [],
           "blockers": [
             "F7.3"
           ],
-          "next_action": "Join F7.3 routed-reference projection and verify enabled pose/elevation/attached model in shared viewer.",
+          "next_action": "The shared-viewer projection now forwards the accepted enabled BoardReference pose/elevation; a nonidentity packet regression was RED before and GREEN after. On one imported routed-board archive, pair current visible PCB and attached-model transforms, save/reopen, then verify selected physical-instance effects at F5.8. Do not infer this public join from the packet test.",
           "finish_condition": "Paired integrated viewer shows accepted reference geometry and pose matching React.",
           "owned_files": [
             "web/src/presentation/pcb_board_reference.rs",
             "web/src/presentation/board_reference_effect.rs",
-            "web/src/presentation/model_delivery.rs"
+            "web/src/presentation/model_delivery.rs",
+            "web/src/presentation/shared_viewer.rs"
           ],
           "capabilities": [
             "shared viewer routed-reference effect"
@@ -6431,7 +6451,7 @@
         {
           "id": "F7.3-C05",
           "requirement": "Support selection/picking and mapping to available project part, module, case body and finding; support focus/highlight.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/shared_viewer.rs",
@@ -6444,15 +6464,17 @@
             ".scratch/dioxus-shared-viewer/evidence/issue02-selection-summary-20261003/public-receipt-34765.md",
             ".scratch/dioxus-shared-viewer/evidence/issue02-case-pick-next-20261003/34762-native-preview-visibility.md",
             ".scratch/dioxus-case-workspace/evidence/12-generated-layer-context-public-20261003/RESULTS.md",
-            ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md"
+            ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md",
+            ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-routed-module-bb4f2216-review-sol-20261004.md"
           ],
           "blockers": [],
-          "next_action": "Retain paired Sofle initial outline-finding navigation and Dioxus 3D hidden-PCB focus/Fit/repeat-focus proof from 34794/34795. Dioxus rendered Case-body pick works, but pinned React body vanished with PCB hidden; qualify that paired branch only when the reference exposes a rendered body. VIK-only module scene work is deferred from v1; earlier 2D picks do not prove 3D module picking.",
+          "next_action": "Retain paired ordinary part/empty and generated Case-body/empty picks, hidden-layer 3D finding focus, and the generic non-VIK module scene/pick-to-editor RED/GREEN on 34797\u219234798. The Sol delta review confirms the guarded Parts and PCB placement route; board switch clears selection and project switch clears the editor after settlement. One transient old-editor frame was observed during project replacement, without a stale Save attempt. Mounted-module asset models remain F7.3-C06; VIK-only catalogue/demo authoring stays outside v1.",
           "finish_condition": "Mapped and empty picks resolve only against current consumer scope; finding focus/highlight works with hidden layers.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",
             "web/src/presentation/case_viewer.rs",
-            "web/src/presentation/layout_viewer.rs"
+            "web/src/presentation/layout_viewer.rs",
+            "web/src/presentation/layout_viewer_source.rs"
           ],
           "capabilities": [
             "picking",
@@ -6463,12 +6485,16 @@
         {
           "id": "F7.3-C06",
           "requirement": "Load supported STL/WRL assets through existing renderer decode and STEP/CAD assets through existing import paths, including supported module/mechanical inputs and BND.1 keycap solids/inlays.",
-          "state": "implemented",
+          "state": "missing",
           "classification": "functional",
           "sources": [
             "web/src/presentation/shared_viewer.rs",
+            "web/src/presentation/layout_viewer_source.rs",
+            "web/src/presentation/model_delivery.rs",
             "web/src/case_model_lifecycle.rs",
             "web/src/case_preview.rs",
+            "core/src/modules/preview.rs",
+            "app/src/assemblyPreview.ts",
             ".scratch/dioxus-frontend-v1/issues/07-case-3d.md"
           ],
           "evidence": [
@@ -6476,10 +6502,12 @@
             ".scratch/dioxus-frontend-v1/evidence/keycaps-3d-preview-20261003/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Inspect retained adapter receipts for actual STL and WRL bytes, keycap body/inlay identity and STEP archive/reopen coverage.",
+          "next_action": "After the F7.3-C05 generic module-body packet integrates, carry Core ModuleResolution.model_placements (computed from ResolvedModule.models by prepare_preview) through an accepted producer and the shared Layout viewer's asset delivery path; the current source covers PCB preview models but drops mounted-module asset models that React AssemblyPreview includes. Then inspect retained STL/WRL, keycap inlay and STEP archive/reopen receipts and qualify only missing branches.",
           "finish_condition": "Actual supported asset bytes traverse their existing adapter/decode path with stable IDs and useful unavailable/error feedback.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",
+            "web/src/presentation/layout_viewer_source.rs",
+            "web/src/presentation/model_delivery.rs",
             "web/src/case_model_lifecycle.rs"
           ],
           "capabilities": [
@@ -9272,8 +9300,8 @@
     "integration_slices": 2,
     "boundary_slices": 2,
     "status": {
-      "accepted": 15,
-      "implementing": 35,
+      "accepted": 16,
+      "implementing": 34,
       "planned": 11
     }
   },
