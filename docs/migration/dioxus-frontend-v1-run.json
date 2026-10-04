@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T02:18:53.039508+00:00",
+    "updated_at": "2026-10-04T02:32:22.920777+00:00",
     "parent_counts": {
       "accepted": 14,
       "implementing": 37,
@@ -49,7 +49,7 @@
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
       "source_commit": "6619d5f2be0ce4167939426dd7efd3a13fcbd1e3",
-      "state": "Published34789 source6619d5f2 with compiler/package/root/subpath checks and zero warnings. Consolidated Sol 6.1 High review passes Standards, F3.4-C02 and PCB F5.2-C01; F2.1 public negative branches and F7.3-C05 common-3D mappings remain open. F3.2/F3.3 Layout and F4.2 Parts parents accepted.",
+      "state": "Published34789 source6619d5f2 with compiler/package/root/subpath checks and zero warnings. Consolidated Sol review passes Standards, F3.4-C02 and PCB F5.2-C01; subsequent paired controlled public Project list failure/Retry verifies F2.1-C03. F2.1 C01/C04 and F7.3-C05 common-3D mapping remain open.",
       "packets": [
         {
           "stream": "Layout",
@@ -508,13 +508,13 @@
       },
       {
         "stream": "Parts + Project",
-        "state": "F4.2 accepted. F2.1-C02 search verified; C03 Loading/error/Retry mounted regression passed and paired-public failure trigger unavailable; C04 damaged-preview fallback remains."
+        "state": "F4.2 accepted. F2.1-C02 search and C03 list Loading/error/Retry verified; C03 uses paired one-shot controlled IndexedDB getAll fault plus mounted transient Loading. C01 public Loading capture and C04 paired damaged-preview fallback remain."
       }
     ],
     "pending_join_packets": [],
     "next_work": [
       "Continue F3.4-C03 contour dimensions, insertion/removal, pointer capture and cancel/Escape/lost-capture qualification; retain passed C01/C02 without rerunning.",
-      "Complete F7.3-C05 actual shared-3D Case-body, module and finding mapping or record precise unsupported branches; keep F2.1 negative branches implemented until original paired-public finish conditions are met.",
+      "Qualify F2.1-C01 transient Loading and C04 public damaged-preview fallback without altering saved originals; complete F7.3-C05 actual shared-3D Case-body/module/finding mapping or record precise unsupported branches.",
       "Consolidate the next functional candidate and one Sol 6.1 High review only when ready; preserve all parent joins and RF findings."
     ],
     "process_retro": {
@@ -626,7 +626,7 @@
               "scope": "Sofle selection, contextual Objects/Inspector Properties and Relations, matrix/key edits, Undo and reopen",
               "spec": ".scratch/dioxus-layout-authoring/spec.md",
               "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/journey.md",
-              "verified": "Three Properties shortcut routes and key width1→1.25→Undo1→Redo1.25→reload1.25 match reference behavior.",
+              "verified": "Three Properties shortcut routes and key width1\u21921.25\u2192Undo1\u2192Redo1.25\u2192reload1.25 match reference behavior.",
               "remaining": "Inspector arrangement/typography/context footer and Objects-to-toolbar selection-kind synchronization; broader authoring criteria unchanged."
             },
             {

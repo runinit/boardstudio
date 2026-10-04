@@ -482,7 +482,7 @@
         {
           "id": "F2.1-C03",
           "requirement": "List loading/error states are distinct and failed listing offers retry.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/library.rs:14",
@@ -493,7 +493,7 @@
             ".scratch/dioxus-frontend-tranche-1/evidence/project-demo-cards-fresh-copies-34767/RESULTS.md"
           ],
           "blockers": [],
-          "next_action": "Mounted Library regression proves visible Loading, alert on injected list failure, same-action Retry, recovered saved card and current marker; pinned React has analogous list-rejection test. Neither public UI has a supported deterministic list-failure action, so paired public failure remains unqualified under the unchanged finish condition.",
+          "next_action": "Retain mounted candidate Loading and paired5175/34787 public Project failure/Retry/recovery under the same one-shot IndexedDB getAll fault. Each wrapper restored before throwing, intercepted exactly one list request and changed no stored data; both kept the current Sofle card and recovered the saved list. This is controlled browser fault evidence, not a natural UI failure.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/library.rs"
