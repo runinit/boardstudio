@@ -49,7 +49,7 @@
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
       "source_commit": "f551e4e0",
-      "state": "Candidate frontend-case-geometry-admission-20261004/source f551e4e0 published at 34814. Authored Case preview and Left STEP delivery passed; Right rejected; Left restored (receipt .scratch/dioxus-frontend-v1/evidence/case-authored-step-34814-20261004/RECEIPT.md). F8.2-C01 verified; F7.6-C01 implemented pending consolidated Sol review. Layout Pick-origin pass carried forward from 34812.",
+      "state": "Served candidate and counts come from served_candidate and progress.py show; prose here is not authoritative. Case admission and key Inspector controls qualified on 34814-34819; F8.2 accepted on the Opus 5.5 review; review follow-up fixes (mirrored-pair locality, reversible catalogue, Case tests) are committed but not yet packaged or browser-checked.",
       "packets": [
         {
           "stream": "Layout",
@@ -584,9 +584,9 @@
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Pin the f551e4e0 authored Case changed-action qualification scope before one full package; the source tree is committed and the preflight now rejects dirty build inputs.",
-      "Run one saved authored Left Plate preview/STEP/Right-scope journey on the new candidate; reuse Layout, generated ZIP and unchanged provider evidence, then obtain one consolidated Sol review and close only supported parent joins.",
-      "Use bounded functional packets across the workbench queues; skip visual parity and per-packet package/review checks."
+      "Package one candidate after the in-flight Layout owner tests and process tooling land; check mirrored-pair Attached/Key Assembly edits on a linked-layout fixture (F3.5-C05).",
+      "Run the grouped F3.5/F3.6 Layout journey once (script in the planner output; closes locked/driven numeric, findings, keyboard/compact and 3D lifecycle criteria).",
+      "Then Parts/Project recovery (F2.2) and further Opus 5.5 batch reviews before parent acceptance."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",

@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import re
+import subprocess
 import sys
 import tempfile
 from urllib.error import URLError
@@ -567,6 +568,139 @@ def validate(run, graph):
     if len({finding["id"] for finding in findings}) != len(findings):
         raise ValueError("Duplicate RF ID")
 
+BUILD_ID_PATTERN = re.compile(r"\bfrontend-[a-z0-9]+(?:-[a-z0-9]+)*-\d{8}\b")
+COMMIT_PATTERN = re.compile(r"\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{8,40}\b")
+STALE_NEXT_ACTION = re.compile(r"^(Qualify|Inspect)|remains? unqualified|still pending")
+
+
+def known_candidates(progress):
+    """Candidate build ids recorded in structured fields (best-effort recent history)."""
+    known = []
+    served = progress.get("served_candidate", {}).get("build_id")
+    phase = progress.get("qualification", {})
+    for value in (
+        served,
+        progress.get("candidate_review", {}).get("candidate"),
+        progress.get("process_retro", {}).get("cadence", {}).get("last_checkpoint_candidate"),
+        phase.get("active_scope", {}).get("id"),
+        phase.get("active_scope", {}).get("previous_scope", {}).get("id"),
+    ):
+        if value and value not in known:
+            known.append(value)
+    return known[:5]
+
+
+def staleness_findings(run, graph):
+    """Return (errors, warnings) for hand-written status that no longer matches the records."""
+    errors, warnings = [], []
+    for task in graph["tasks"]:
+        for criterion in task.get("criteria", []):
+            action = criterion["next_action"]
+            if criterion["state"] == "verified" and STALE_NEXT_ACTION.search(action):
+                errors.append(f"Stale next_action on verified criterion {criterion['id']}: {action[:80]}")
+    progress = run["current_progress"]
+    served = progress.get("served_candidate", {})
+    known = known_candidates(progress)
+    commits = {value for value in (served.get("source_commit"),
+                                   progress.get("integration", {}).get("source_commit"),
+                                   progress.get("process_retro", {}).get("cadence", {}).get("last_checkpoint_source_fix"))
+               if value}
+    for index, entry in enumerate(progress.get("next_work", [])):
+        text = entry if isinstance(entry, str) else json.dumps(entry)
+        for build in BUILD_ID_PATTERN.findall(text):
+            if build not in known:
+                warnings.append(f"next_work[{index}] names build {build}, not the served or a recent candidate")
+        for commit in COMMIT_PATTERN.findall(text):
+            if not any(known_commit.startswith(commit) or commit.startswith(known_commit)
+                       for known_commit in commits):
+                warnings.append(f"next_work[{index}] names commit {commit}, not a recorded candidate source")
+    served_build = served.get("build_id")
+    state = progress.get("integration", {}).get("state", "")
+    if served_build:
+        for build in BUILD_ID_PATTERN.findall(state):
+            if build != served_build:
+                warnings.append(f"integration.state names {build} but the served candidate is {served_build}")
+    return errors, warnings
+
+
+def _git(*arguments):
+    try:
+        result = subprocess.run(["git", "-C", str(ROOT), *arguments], capture_output=True,
+                                text=True, timeout=10, check=True)
+        return result.stdout.strip() or "unknown"
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+
+
+def git_context():
+    return {"branch": _git("rev-parse", "--abbrev-ref", "HEAD"), "worktree": str(ROOT),
+            "head": _git("rev-parse", "--short", "HEAD")}
+
+
+def _flat(text, limit=200):
+    text = " ".join(str(text).split())
+    return text if len(text) <= limit else text[:limit - 3] + "..."
+
+
+def handoff_markdown(run, graph, findings, git=None):
+    """Render a compact handoff from records only; absent fields read as unknown."""
+    git = git or {}
+    progress = run.get("current_progress", {})
+    candidate = progress.get("served_candidate", {})
+    unknown = "unknown"
+    tasks = graph.get("tasks", [])
+    tally = counts(tasks)
+    lines = ["# Handoff (generated from records)", "",
+             f"- Branch: {git.get('branch', unknown)} @ {git.get('head', unknown)}",
+             f"- Worktree: {git.get('worktree', unknown)}",
+             f"- Parents: {tally.get('accepted', 0)}/{tally['total']} accepted, "
+             f"{tally.get('implementing', 0)} implementing, {tally.get('planned', 0)} planned"]
+    summary = criterion_counts(graph)
+    states = summary["by_state"]
+    lines.append("- Criteria: " + ", ".join(f"{state} {states.get(state, 0)}" for state in
+                 ("unassessed", "missing", "implemented", "verified")) + f"; {summary['total']} total")
+    by_class = Counter()
+    for task in tasks:
+        for criterion in task.get("criteria", []):
+            by_class[(criterion["classification"], criterion["state"])] += 1
+    for classification in sorted(CRITERION_CLASSIFICATIONS):
+        lines.append(f"  - {classification}: " + (", ".join(
+            f"{state} {number}" for (kind, state), number in sorted(by_class.items())
+            if kind == classification) or "none"))
+    lines += ["", "## Served candidate",
+              f"- Build: {candidate.get('build_id', unknown)}",
+              f"- Source commit: {candidate.get('source_commit', unknown)}",
+              f"- Root: {candidate.get('root_url', unknown)}",
+              f"- Subpath: {candidate.get('subpath_url', unknown)}"]
+    accepted = [task["id"] for task in tasks if task["status"] == "accepted"]
+    held = sorted({task["id"] for task in tasks if task["status"] != "accepted"
+                   for criterion in task.get("criteria", [])
+                   if "HOLD" in criterion.get("next_action", "")})
+    lines += ["", "## Parents", f"- Accepted ({len(accepted)}): " + (", ".join(accepted) or "none"),
+              f"- Hold ({len(held)}): " + (", ".join(held) or "none")]
+    lines += ["", "## Criteria on hold or blocked"]
+    rows = [criterion for task in tasks for criterion in task.get("criteria", [])
+            if criterion["state"] in ("implemented", "missing", "unassessed")
+            and ("HOLD" in criterion.get("next_action", "") or criterion.get("blockers"))]
+    for criterion in rows:
+        lines.append(f"- {criterion['id']} [{criterion['state']}]: {_flat(criterion['next_action'])}")
+    if not rows:
+        lines.append("- none")
+    open_findings = [item for item in findings
+                     if not re.search(r"closed|resolved", str(item.get("status", "")), re.I)]
+    lines += ["", f"## Open RF findings ({len(open_findings)})"]
+    lines += [f"- {item.get('id', unknown)}: {_flat(item.get('title', unknown), 100)}" for item in open_findings]
+    scope = progress.get("qualification", {}).get("active_scope", {})
+    journeys = ", ".join(journey.get("id", unknown) for journey in scope.get("journeys", [])) or unknown
+    phase = progress.get("qualification", {})
+    lines += ["", "## Qualification scope",
+              f"- Scope: {scope.get('id', unknown)} - {_flat(scope.get('label', unknown), 120)}",
+              f"- Journeys: {journeys}",
+              f"- State: {phase.get('phase', unknown)}"]
+    checkpoint = progress.get("process_retro", {}).get("cadence", {}).get("last_checkpoint_at", unknown)
+    lines += ["", f"Last retro checkpoint: {checkpoint}", ""]
+    return "\n".join(lines)
+
 
 def _acceptance_evidence(task, tasks):
     """Check canonical criteria and final joins before preparing an acceptance record."""
@@ -700,6 +834,8 @@ def main():
     ready.add_argument("--classification", choices=tuple(sorted(CRITERION_CLASSIFICATIONS)))
     ready.add_argument("--json", action="store_true")
     commands.add_parser("check", help="Check record consistency without running application tests")
+    handoff = commands.add_parser("handoff", help="Print a handoff generated only from the records")
+    handoff.add_argument("--out", help="write the handoff to this path instead of printing")
     commands.add_parser("sync", help="Refresh derived counts and the readable RF report")
     status = commands.add_parser("set-status", help="Coordinator-only parent transition and derived refresh")
     status.add_argument("parent", nargs="+", help="one or more parent IDs; updates publish together")
@@ -725,6 +861,13 @@ def main():
                 print("  Pending: " + condition)
         return
     run, graph = read(RUN), read(TASKS)
+    if args.command == "handoff":
+        text = handoff_markdown(run, graph, read(RF)["findings"], git_context())
+        if args.out:
+            Path(args.out).write_text(text)
+        else:
+            print(text, end="")
+        return
     if args.command == "parent":
         validate_criteria(graph)
         match = next((task for task in graph["tasks"] if task["id"] == args.parent), None)
@@ -782,6 +925,11 @@ def main():
         validate(run, graph)
         if (ROOT / REPORT).read_text() != refactor_report():
             raise ValueError("Derived RF report is stale; run sync")
+        errors, warnings = staleness_findings(run, graph)
+        for warning in warnings:
+            print("Warning: " + warning, file=sys.stderr)
+        if errors:
+            raise ValueError("Stale status records:\n  " + "\n  ".join(errors))
         print(f"Progress, {len(graph['tasks'])} parents and RF report are consistent")
         return
     progress = run["current_progress"]

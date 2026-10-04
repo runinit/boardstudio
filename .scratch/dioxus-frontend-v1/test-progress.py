@@ -541,5 +541,67 @@ class ProgressTests(unittest.TestCase):
             progress.validate_criteria(graph)
 
 
+    def stale_run(self):
+        return {"current_progress": {
+            "served_candidate": {"build_id": "frontend-a-20261004", "source_commit": "a" * 40,
+                                 "root_url": "http://x/", "subpath_url": "http://x/b/"},
+            "integration": {"state": "Candidate frontend-b-20261004 published", "source_commit": "bbbbbbbb"},
+            "next_work": ["Pin the f551e4e0 scope", "Use frontend-a-20261004 as is"],
+            "qualification": {"phase": "integrating", "active_scope": {
+                "id": "scope-1", "label": "Label", "journeys": [{"id": "J1"}]}},
+            "process_retro": {"cadence": {"last_checkpoint_at": "2026-10-04T15:56:00Z"}},
+        }}
+
+    def test_staleness_flags_verified_criteria_still_asking_for_qualification(self):
+        graph = self.criterion_graph()
+        graph["tasks"][3]["criteria"][0]["next_action"] = "Qualify on the next candidate"
+        errors, _ = progress.staleness_findings(self.stale_run(), graph)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("F3.4-C01", errors[0])
+        graph["tasks"][3]["criteria"][0]["next_action"] = "None; later work remains unqualified"
+        self.assertEqual(len(progress.staleness_findings(self.stale_run(), graph)[0]), 1)
+        graph["tasks"][3]["criteria"][0]["next_action"] = "Maintain regression"
+        self.assertEqual(progress.staleness_findings(self.stale_run(), graph)[0], [])
+
+    def test_staleness_warns_on_foreign_next_work_and_integration_candidate(self):
+        _, warnings = progress.staleness_findings(self.stale_run(), self.criterion_graph())
+        text = "\n".join(warnings)
+        self.assertIn("f551e4e0", text)
+        self.assertIn("integration.state names frontend-b-20261004", text)
+        self.assertNotIn("frontend-a-20261004 as", text)
+        self.assertEqual(len([w for w in warnings if "next_work" in w]), 1)
+
+    def test_handoff_is_generated_compact_and_tolerates_missing_fields(self):
+        graph = self.criterion_graph()
+        graph["tasks"][1]["criteria"][0]["next_action"] = "HOLD " + "x" * 400
+        findings = [{"id": "RF-1", "title": "Open one", "status": "open"},
+                    {"id": "RF-2", "title": "Done one", "status": "closed in 1234"}]
+        text = progress.handoff_markdown(self.stale_run(), graph, findings,
+                                         {"branch": "br", "worktree": "/w", "head": "abc"})
+        for expected in ("br @ abc", "/w", "frontend-a-20261004", "http://x/b/", "RF-1: Open one",
+                         "F3.2-C01 [missing]", "scope-1", "J1", "2026-10-04T15:56:00Z",
+                         "Accepted (1): F3.1", "Hold (1): F3.2"):
+            self.assertIn(expected, text)
+        self.assertNotIn("RF-2", text)
+        self.assertNotIn("x" * 201, text)
+        self.assertLess(len(text.splitlines()), 120)
+        sparse = progress.handoff_markdown({"current_progress": {}}, {"tasks": []}, [])
+        self.assertIn("Build: unknown", sparse)
+        self.assertIn("Last retro checkpoint: unknown", sparse)
+
+    def test_handoff_command_writes_out_file(self):
+        out = self.root / "handoff.md"
+        graph = self.criterion_graph()
+        with patch.object(progress, "ROOT", self.root), patch.object(progress, "RUN", Path("run.json")), \
+                patch.object(progress, "TASKS", Path("tasks.json")), patch.object(progress, "RF", Path("rf.json")), \
+                patch.object(progress, "git_context", return_value={"branch": "b"}), \
+                patch("sys.argv", ["progress.py", "handoff", "--out", str(out)]):
+            self.run_path.write_text(json.dumps(self.stale_run()))
+            (self.root / "tasks.json").write_text(json.dumps(graph))
+            (self.root / "rf.json").write_text(json.dumps({"findings": []}))
+            progress.main()
+        self.assertIn("# Handoff", out.read_text())
+
+
 if __name__ == "__main__":
     unittest.main()

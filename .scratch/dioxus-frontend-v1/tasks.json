@@ -611,7 +611,7 @@
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md"
           ],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Verified; evidence: .scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md. No open action.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/library.rs",
@@ -2552,7 +2552,7 @@
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md"
           ],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Verified; evidence: .scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md. No open action.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts.rs"
@@ -2910,7 +2910,7 @@
             ".scratch/dioxus-parts-catalogue/evidence/07-generator-settings-dioxus-paired-journey-20261003.md"
           ],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Verified; evidence: .scratch/dioxus-parts-catalogue/evidence/07-generator-settings-dioxus-paired-journey-20261003.md. No open action.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts/generator_settings.rs",
