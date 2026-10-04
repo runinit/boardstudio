@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T22:20:32.895306+00:00",
+    "updated_at": "2026-10-04T22:31:15.522201+00:00",
     "parent_counts": {
       "accepted": 22,
       "implementing": 28,
@@ -579,7 +579,7 @@
       },
       {
         "stream": "Parts + Project",
-        "state": "Candidate34822 passes repaired individual Parts model controls and paired saved-recipe default-model/history/board-placement/reload checks. F2.2-C04 verified using paired portable/delete evidence plus passing mounted failure/retry. F4.6 remains open for import, matrix Apply, parameter/invalid branches and exact identity preservation."
+        "state": "34822paired recipe history/matrix+boardApply/reload and public identity preservation now verifyF4.6-C03/C04. Default models and invalid first-member placement pass; C01parameter andC02import/remainingvalidation stayopen. F2.2-C04 and repairedF7.3-C03 remainverified; eightwasmexclusions remain."
       }
     ],
     "pending_join_packets": [],
@@ -3404,7 +3404,7 @@
           "source_paths_complete": false,
           "state": "partial",
           "evidence": ".scratch/dioxus-frontend-v1/evidence/consolidated-34822-20261004/RECEIPT.md",
-          "verified": "Paired default models, save/reopen, rename/history, board-origin placement and recipe/placement independence through reload. Matrix Apply/import/remaining parameter and identity branches open."
+          "verified": "Paired default models, saved history, board and selected-matrix Apply, invalid non-origin member rejection, reload and recipe/placement/public-key-identity independence. Model import/parameter/remaining validation branches open."
         },
         {
           "id": "layout-keymap-keycaps",

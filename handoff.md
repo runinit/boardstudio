@@ -1,10 +1,10 @@
 # Handoff (generated from records)
 
-- Branch: codex/rust-v1-ui-parity-20261001 @ 3a412978
+- Branch: codex/rust-v1-ui-parity-20261001 @ be570f3b
 - Worktree: /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001
 - Parents: 22/61 accepted, 28 implementing, 11 planned
-- Criteria: unassessed 27, missing 1, implemented 80, verified 114; 222 total
-  - functional: implemented 67, missing 1, unassessed 3, verified 110
+- Criteria: unassessed 27, missing 1, implemented 78, verified 116; 222 total
+  - functional: implemented 65, missing 1, unassessed 3, verified 112
   - release: implemented 10, unassessed 19, verified 4
   - visual: implemented 3, unassessed 5
 
@@ -105,3 +105,6 @@ Last retro checkpoint: 2026-10-04T15:56:00Z
 - Candidate library keeps Grouped journey Sofle 20261004 with recipes and a separate fresh Sofle for validCase. FreshSoflePlate+mechanicalstack reaches exactgeometry; wall2.2andphysicalscopechange observedGenerating/Previous/currentrecovery. Configured Case lacks local Export geometry, reference mounts it. Authored-only context also lacks the reference local action, so do not widen the discrepancy.
 - Native subagentcase_local_export is READ-ONLY pending user clarification: native tests cannot observe this missing wasm-onlyDOMbutton. Asyncquestion requests mountedChromeREDfirst exception; no production edit authorized under that exception until reply. Do not manufacture native failures. Proposed ownedsourcecad_presentation.rs; existing Runtime::export_mechanical must be reused with exactcurrentinstance/snapshotguards.
 - No running shellheavyjob; no push/switch. Six preexistingstaged evidence files remain unrelated. Preserve them. Native browserbinding exists; fresh tabs werecandidate8/reference7 this turn, but listtabs before relying on them.
+
+- Matrix continuation: same34822candidate nowqualifiesF4.6-C03/C04. PairedApply toselectedkeys initiallyrejectsfirstmemberX4, succeedsafterSaveX0, Undo/Redo/reloadretainsmatrixandSW2A. LaterrecipeX4editpreservesall30candidate/60referencepublickeyIDsandbindings; rawJSONinconsolidated-34822-20261004/recipe-public-identities.json. BothrejectScaleX0byretaining1. C01parameterandC02import/remainingmalformedinputcasesopen.
+- case_local_export investigationcomplete, sourceuntouched; detailin case-local-export-repair-20261004.md. Native-firstexceptionstillawaitsuser; no implicit approval.

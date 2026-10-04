@@ -1,0 +1,750 @@
+{
+  "candidate": {
+    "before": [
+      {
+        "id": "",
+        "label": "Choose on the layout…"
+      },
+      {
+        "id": "matrix/left-keys/r0c0",
+        "label": "left-keys-SW1 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r0c1",
+        "label": "left-keys-SW2 · A"
+      },
+      {
+        "id": "matrix/left-keys/r0c2",
+        "label": "left-keys-SW3 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r0c3",
+        "label": "left-keys-SW4 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r0c4",
+        "label": "left-keys-SW5 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r0c5",
+        "label": "left-keys-SW6 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r1c0",
+        "label": "left-keys-SW7 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r1c1",
+        "label": "left-keys-SW8 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r1c2",
+        "label": "left-keys-SW9 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r1c3",
+        "label": "left-keys-SW10 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r1c4",
+        "label": "left-keys-SW11 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r1c5",
+        "label": "left-keys-SW12 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r2c0",
+        "label": "left-keys-SW13 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r2c1",
+        "label": "left-keys-SW14 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r2c2",
+        "label": "left-keys-SW15 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r2c3",
+        "label": "left-keys-SW16 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r2c4",
+        "label": "left-keys-SW17 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r2c5",
+        "label": "left-keys-SW18 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r3c0",
+        "label": "left-keys-SW19 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r3c1",
+        "label": "left-keys-SW20 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r3c2",
+        "label": "left-keys-SW21 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r3c3",
+        "label": "left-keys-SW22 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r3c4",
+        "label": "left-keys-SW23 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r3c5",
+        "label": "left-keys-SW24 · Unassigned"
+      },
+      {
+        "id": "matrix/left-thumbs/r0c0",
+        "label": "left-thumbs-SW1 · Unassigned"
+      },
+      {
+        "id": "matrix/left-thumbs/r0c1",
+        "label": "left-thumbs-SW2 · Unassigned"
+      },
+      {
+        "id": "matrix/left-thumbs/r0c2",
+        "label": "left-thumbs-SW3 · Unassigned"
+      },
+      {
+        "id": "matrix/left-thumbs/r0c3",
+        "label": "left-thumbs-SW4 · Unassigned"
+      },
+      {
+        "id": "matrix/left-thumbs/r0c4",
+        "label": "left-thumbs-SW5 · Unassigned"
+      },
+      {
+        "id": "assembly-assembly-7fc9d29c-de8b-4d70-aa0e-8215ed9cd7c7-43/component-7853c6a1",
+        "label": "Grouped recipe revised 20261004 component-7853c6a1 · Unassigned"
+      }
+    ],
+    "after": [
+      {
+        "id": "",
+        "label": "Choose on the layout…"
+      },
+      {
+        "id": "matrix/left-keys/r0c0",
+        "label": "left-keys-SW1 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r0c1",
+        "label": "left-keys-SW2 · A"
+      },
+      {
+        "id": "matrix/left-keys/r0c2",
+        "label": "left-keys-SW3 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r0c3",
+        "label": "left-keys-SW4 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r0c4",
+        "label": "left-keys-SW5 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r0c5",
+        "label": "left-keys-SW6 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r1c0",
+        "label": "left-keys-SW7 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r1c1",
+        "label": "left-keys-SW8 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r1c2",
+        "label": "left-keys-SW9 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r1c3",
+        "label": "left-keys-SW10 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r1c4",
+        "label": "left-keys-SW11 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r1c5",
+        "label": "left-keys-SW12 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r2c0",
+        "label": "left-keys-SW13 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r2c1",
+        "label": "left-keys-SW14 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r2c2",
+        "label": "left-keys-SW15 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r2c3",
+        "label": "left-keys-SW16 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r2c4",
+        "label": "left-keys-SW17 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r2c5",
+        "label": "left-keys-SW18 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r3c0",
+        "label": "left-keys-SW19 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r3c1",
+        "label": "left-keys-SW20 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r3c2",
+        "label": "left-keys-SW21 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r3c3",
+        "label": "left-keys-SW22 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r3c4",
+        "label": "left-keys-SW23 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r3c5",
+        "label": "left-keys-SW24 · Unassigned"
+      },
+      {
+        "id": "matrix/left-thumbs/r0c0",
+        "label": "left-thumbs-SW1 · Unassigned"
+      },
+      {
+        "id": "matrix/left-thumbs/r0c1",
+        "label": "left-thumbs-SW2 · Unassigned"
+      },
+      {
+        "id": "matrix/left-thumbs/r0c2",
+        "label": "left-thumbs-SW3 · Unassigned"
+      },
+      {
+        "id": "matrix/left-thumbs/r0c3",
+        "label": "left-thumbs-SW4 · Unassigned"
+      },
+      {
+        "id": "matrix/left-thumbs/r0c4",
+        "label": "left-thumbs-SW5 · Unassigned"
+      },
+      {
+        "id": "assembly-assembly-7fc9d29c-de8b-4d70-aa0e-8215ed9cd7c7-43/component-7853c6a1",
+        "label": "Grouped recipe revised 20261004 component-7853c6a1 · Unassigned"
+      }
+    ]
+  },
+  "reference": {
+    "before": [
+      {
+        "id": "",
+        "label": "Choose on the layout…"
+      },
+      {
+        "id": "matrix/left-keys/r0c0",
+        "label": "left-keys-SW1 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r0c1",
+        "label": "left-keys-SW2 · A"
+      },
+      {
+        "id": "matrix/left-keys/r0c2",
+        "label": "left-keys-SW3 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r0c3",
+        "label": "left-keys-SW4 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r0c4",
+        "label": "left-keys-SW5 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r0c5",
+        "label": "left-keys-SW6 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r1c0",
+        "label": "left-keys-SW7 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r1c1",
+        "label": "left-keys-SW8 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r1c2",
+        "label": "left-keys-SW9 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r1c3",
+        "label": "left-keys-SW10 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r1c4",
+        "label": "left-keys-SW11 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r1c5",
+        "label": "left-keys-SW12 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r2c0",
+        "label": "left-keys-SW13 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r2c1",
+        "label": "left-keys-SW14 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r2c2",
+        "label": "left-keys-SW15 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r2c3",
+        "label": "left-keys-SW16 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r2c4",
+        "label": "left-keys-SW17 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r2c5",
+        "label": "left-keys-SW18 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r3c0",
+        "label": "left-keys-SW19 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r3c1",
+        "label": "left-keys-SW20 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r3c2",
+        "label": "left-keys-SW21 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r3c3",
+        "label": "left-keys-SW22 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r3c4",
+        "label": "left-keys-SW23 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r3c5",
+        "label": "left-keys-SW24 · Unassigned"
+      },
+      {
+        "id": "matrix/left-thumbs/r0c0",
+        "label": "left-thumbs-SW1 · Unassigned"
+      },
+      {
+        "id": "matrix/left-thumbs/r0c1",
+        "label": "left-thumbs-SW2 · Unassigned"
+      },
+      {
+        "id": "matrix/left-thumbs/r0c2",
+        "label": "left-thumbs-SW3 · Unassigned"
+      },
+      {
+        "id": "matrix/left-thumbs/r0c3",
+        "label": "left-thumbs-SW4 · Unassigned"
+      },
+      {
+        "id": "matrix/left-thumbs/r0c4",
+        "label": "left-thumbs-SW5 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r0c0",
+        "label": "SW1 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r0c1",
+        "label": "SW3 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r0c2",
+        "label": "SW5 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r0c3",
+        "label": "SW7 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r0c4",
+        "label": "SW9 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r0c5",
+        "label": "SW11 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r1c0",
+        "label": "SW13 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r1c1",
+        "label": "SW15 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r1c2",
+        "label": "SW17 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r1c3",
+        "label": "SW19 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r1c4",
+        "label": "SW21 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r1c5",
+        "label": "SW23 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r2c0",
+        "label": "SW25 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r2c1",
+        "label": "SW27 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r2c2",
+        "label": "SW29 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r2c3",
+        "label": "SW31 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r2c4",
+        "label": "SW33 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r2c5",
+        "label": "SW35 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r3c0",
+        "label": "SW37 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r3c1",
+        "label": "SW39 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r3c2",
+        "label": "SW41 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r3c3",
+        "label": "SW43 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r3c4",
+        "label": "SW45 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r3c5",
+        "label": "SW47 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-061564c3-7c1c-4a09-8790-991ad3d9fd1c/r0c0",
+        "label": "SW49 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-061564c3-7c1c-4a09-8790-991ad3d9fd1c/r0c1",
+        "label": "SW51 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-061564c3-7c1c-4a09-8790-991ad3d9fd1c/r0c2",
+        "label": "SW53 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-061564c3-7c1c-4a09-8790-991ad3d9fd1c/r0c3",
+        "label": "SW55 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-061564c3-7c1c-4a09-8790-991ad3d9fd1c/r0c4",
+        "label": "SW57 · Unassigned"
+      },
+      {
+        "id": "f32d69ba-621a-4ec1-9d6b-a5f8bf426c96/component-2cc7c7e3",
+        "label": "Grouped recipe revised 20261004 component-2cc7c7e3 · Unassigned"
+      },
+      {
+        "id": "ui-2c592da0-9e38-4f5e-828c-04de2f2615a9::mirror::f32d69ba-621a-4ec1-9d6b-a5f8bf426c96/component-2cc7c7e3",
+        "label": "Grouped recipe revised 20261004 component-2cc7c7e3_M · Unassigned"
+      }
+    ],
+    "after": [
+      {
+        "id": "",
+        "label": "Choose on the layout…"
+      },
+      {
+        "id": "matrix/left-keys/r0c0",
+        "label": "left-keys-SW1 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r0c1",
+        "label": "left-keys-SW2 · A"
+      },
+      {
+        "id": "matrix/left-keys/r0c2",
+        "label": "left-keys-SW3 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r0c3",
+        "label": "left-keys-SW4 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r0c4",
+        "label": "left-keys-SW5 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r0c5",
+        "label": "left-keys-SW6 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r1c0",
+        "label": "left-keys-SW7 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r1c1",
+        "label": "left-keys-SW8 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r1c2",
+        "label": "left-keys-SW9 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r1c3",
+        "label": "left-keys-SW10 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r1c4",
+        "label": "left-keys-SW11 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r1c5",
+        "label": "left-keys-SW12 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r2c0",
+        "label": "left-keys-SW13 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r2c1",
+        "label": "left-keys-SW14 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r2c2",
+        "label": "left-keys-SW15 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r2c3",
+        "label": "left-keys-SW16 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r2c4",
+        "label": "left-keys-SW17 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r2c5",
+        "label": "left-keys-SW18 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r3c0",
+        "label": "left-keys-SW19 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r3c1",
+        "label": "left-keys-SW20 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r3c2",
+        "label": "left-keys-SW21 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r3c3",
+        "label": "left-keys-SW22 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r3c4",
+        "label": "left-keys-SW23 · Unassigned"
+      },
+      {
+        "id": "matrix/left-keys/r3c5",
+        "label": "left-keys-SW24 · Unassigned"
+      },
+      {
+        "id": "matrix/left-thumbs/r0c0",
+        "label": "left-thumbs-SW1 · Unassigned"
+      },
+      {
+        "id": "matrix/left-thumbs/r0c1",
+        "label": "left-thumbs-SW2 · Unassigned"
+      },
+      {
+        "id": "matrix/left-thumbs/r0c2",
+        "label": "left-thumbs-SW3 · Unassigned"
+      },
+      {
+        "id": "matrix/left-thumbs/r0c3",
+        "label": "left-thumbs-SW4 · Unassigned"
+      },
+      {
+        "id": "matrix/left-thumbs/r0c4",
+        "label": "left-thumbs-SW5 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r0c0",
+        "label": "SW1 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r0c1",
+        "label": "SW3 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r0c2",
+        "label": "SW5 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r0c3",
+        "label": "SW7 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r0c4",
+        "label": "SW9 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r0c5",
+        "label": "SW11 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r1c0",
+        "label": "SW13 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r1c1",
+        "label": "SW15 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r1c2",
+        "label": "SW17 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r1c3",
+        "label": "SW19 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r1c4",
+        "label": "SW21 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r1c5",
+        "label": "SW23 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r2c0",
+        "label": "SW25 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r2c1",
+        "label": "SW27 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r2c2",
+        "label": "SW29 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r2c3",
+        "label": "SW31 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r2c4",
+        "label": "SW33 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r2c5",
+        "label": "SW35 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r3c0",
+        "label": "SW37 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r3c1",
+        "label": "SW39 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r3c2",
+        "label": "SW41 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r3c3",
+        "label": "SW43 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r3c4",
+        "label": "SW45 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-1a6ef551-31ff-40b0-8579-466db6d6c9bb/r3c5",
+        "label": "SW47 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-061564c3-7c1c-4a09-8790-991ad3d9fd1c/r0c0",
+        "label": "SW49 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-061564c3-7c1c-4a09-8790-991ad3d9fd1c/r0c1",
+        "label": "SW51 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-061564c3-7c1c-4a09-8790-991ad3d9fd1c/r0c2",
+        "label": "SW53 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-061564c3-7c1c-4a09-8790-991ad3d9fd1c/r0c3",
+        "label": "SW55 · Unassigned"
+      },
+      {
+        "id": "matrix/ui-061564c3-7c1c-4a09-8790-991ad3d9fd1c/r0c4",
+        "label": "SW57 · Unassigned"
+      },
+      {
+        "id": "f32d69ba-621a-4ec1-9d6b-a5f8bf426c96/component-2cc7c7e3",
+        "label": "Grouped recipe revised 20261004 component-2cc7c7e3 · Unassigned"
+      },
+      {
+        "id": "ui-2c592da0-9e38-4f5e-828c-04de2f2615a9::mirror::f32d69ba-621a-4ec1-9d6b-a5f8bf426c96/component-2cc7c7e3",
+        "label": "Grouped recipe revised 20261004 component-2cc7c7e3_M · Unassigned"
+      }
+    ]
+  }
+}

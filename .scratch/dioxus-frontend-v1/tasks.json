@@ -3371,7 +3371,7 @@
             ".scratch/dioxus-frontend-v1/evidence/consolidated-34822-20261004/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Paired empty-name and empty-member rejection verified. Supported model import, invalid transform/member branches and broader isolated-preview behavior remain.",
+          "next_action": "Paired empty-name/empty-member, non-origin first-member matrix-apply rejection, and nonpositive model ScaleX0 rejection (retains1) verified. Actual supported model import and remaining malformed transform/member branches remain.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts/assembly_editor.rs",
@@ -3387,7 +3387,7 @@
         {
           "id": "F4.6-C03",
           "requirement": "Save through edit/Undo/Redo/reload; Apply to matrix or board via F3 public seam.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/parts/assembly_editor.rs:1",
@@ -3398,7 +3398,7 @@
             ".scratch/dioxus-frontend-v1/evidence/consolidated-34822-20261004/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Paired saved-name edit Undo/Redo and board-origin150/10 placement plus reload pass. Public matrix Apply remains.",
+          "next_action": "Paired34822/5175 saved recipe history, valid selected-matrix Apply, board-origin placement and reload verified; retained SW2 identity andA. Each fixture own Undo/Redo transition recorded without whole-document/count equality claim.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts/assembly_editor.rs",
@@ -3413,16 +3413,17 @@
         {
           "id": "F4.6-C04",
           "requirement": "Editing saved recipe preserves existing placement snapshots and matrix/key identities.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/parts/assembly_editor.rs:1"
           ],
           "evidence": [
-            ".scratch/dioxus-frontend-v1/evidence/consolidated-34822-20261004/RECEIPT.md"
+            ".scratch/dioxus-frontend-v1/evidence/consolidated-34822-20261004/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/consolidated-34822-20261004/recipe-public-identities.json"
           ],
           "blockers": [],
-          "next_action": "Paired recipe rename/member X0-to4 edit preserves existing placement name and150/10 position through reload. Exact archive-level matrix/key identity preservation remains.",
+          "next_action": "Paired recipe re-edit preserves existing placement name/150,10throughreload and all publicly exposed key identities/bindings (30candidate/60reference), including every represented matrixID. Current saved_document only merges recipe/missingassets/definitions into latest accepted snapshot; no archive-byte/general race claim.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts/assembly_editor.rs"
