@@ -393,7 +393,8 @@
       "harness": "Claude Code (Agent tool, SendMessage, code-review skill)",
       "models": {
         "opus": "claude-opus-5-5",
-        "sonnet": "claude-sonnet-5-5"
+        "sonnet": "claude-sonnet-5-5",
+        "haiku": "claude-haiku-4-5-20251001"
       },
       "profiles": {
         "sonnet-low": {
@@ -451,6 +452,14 @@
           "role": "independent consolidated Standards and Spec review (code-review skill)",
           "fork_turns": "none",
           "per_call_effort_override_supported": false
+        },
+        "haiku-triage": {
+          "model": "claude-haiku-4-5-20251001",
+          "agent_tool_model": "haiku",
+          "reasoning_effort": "low",
+          "role": "read-only search, log and test-output triage, fixed-checklist evidence collection; never edits source",
+          "fork_turns": "none",
+          "per_call_effort_override_supported": false
         }
       },
       "profile_map": {
@@ -459,7 +468,8 @@
         "luna-high": "sonnet-high",
         "astra-debug": "opus-debug",
         "astra-deep-debug": "opus-deep-debug",
-        "sol-review": "opus-review"
+        "sol-review": "opus-review",
+        "haiku-triage": "haiku-triage"
       },
       "coordinator_profile": "sonnet-high",
       "dispatch": {
@@ -467,7 +477,9 @@
         "effort": "The Agent tool has no per-call effort setting. Effort comes from the agent definition or session; record the requested effort and note when it was not enforced.",
         "isolation": "Do not use isolation worktree (needs origin/main, would branch from main). Parallel authors edit disjoint files in the one checkout, do not commit, and the coordinator verifies and commits exact files.",
         "reuse": "SendMessage continues an agent with its launched model; start a new Agent to change model.",
-        "review": "Consolidated review runs once per coherent candidate on opus-review; the author never reviews its own packet."
+        "review": "Consolidated review runs once per coherent candidate on opus-review; the author never reviews its own packet.",
+        "reports": "Agent reports are 150 words or less: verdict, files changed, failing checks, and a path to detail in a file.",
+        "economy": "Do not spawn an agent for an edit under about three files or for facts already in context; combine related packets into one agent; each cold start re-reads 60k-200k tokens."
       },
       "constraints": [
         "Reviewer and author must be different agent invocations.",
