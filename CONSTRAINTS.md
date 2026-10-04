@@ -72,7 +72,9 @@ production cutover and React removal retain their separate authorization/gates.
    signatures early. The author continues the next real gap once its packet lands.
 5. Integrate several runnable functional packets before freezing a candidate. Run
    one combined format/compiler check for the batch, not one full check per author
-   packet. Package
+   packet. Pin the candidate's changed-action qualification scope and source-file
+   footprint in the run record before packaging; later disjoint author edits do not
+   change the published package's identity or its reusable evidence. Package
    early only for a blocking interaction that cannot be checked from source or focused
    tests. The package helper runs the existing locked Dioxus page compiler check once
    per batch. Repair its diagnostic list in place; reuse verified unchanged providers
@@ -147,6 +149,12 @@ real gaps without another approval quiz; use assigned relevant bases; directly i
 ready source; omit mandatory TDD for ordinary UI, separate merger/review chains, worktree
 reset/cleanup and duplicate receipts. Explicitly invoked decision interviews still honor
 the user's requested design checkpoint. These overrides apply only to this project.
+
+Run the existing `retro` skill briefly after every two published functional candidates,
+or immediately when the same avoidable failure repeats. Use the run record and RF ledger
+as sources; apply the highest-impact process fix in place without opening another
+review chain or document. This is a project cadence, not a gate before the next author
+packet. Record the last checkpoint in the run record so the cadence survives handoffs.
 
 Use Luna low/medium/high for bounded implementation, Sol 6.1 High for candidate review,
 and Astra high/xhigh for difficult evidenced bugs. Runtime slots bound the user ceiling

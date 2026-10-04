@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T14:51:11.441923+00:00",
+    "updated_at": "2026-10-04T16:13:09.557423+00:00",
     "parent_counts": {
       "accepted": 19,
       "implementing": 31,
@@ -25,20 +25,20 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-dynamic-selects-20261004",
-      "source_commit": "df22f1ccd52b7e8fe112fa6895de9ae66a8deb4f",
-      "root_url": "http://127.0.0.1:34810/",
-      "subpath_url": "http://127.0.0.1:34810/boardstudio/",
-      "provenance": "web/target/builds/frontend-dynamic-selects-20261004/provenance.json",
-      "provenance_sha256": "1d9cea933800186137bc6a5b18cfca87041d131698997656d4d4b949499632a9",
-      "fresh_commands": 9,
-      "inherited_commands": 23,
+      "build_id": "frontend-case-geometry-admission-20261004",
+      "source_commit": "f551e4e0cd985f143f7e4f000ac376d6aa1cb567",
+      "root_url": "http://127.0.0.1:34814/",
+      "subpath_url": "http://127.0.0.1:34814/boardstudio/",
+      "provenance": "web/target/builds/frontend-case-geometry-admission-20261004/provenance.json",
+      "provenance_sha256": "b5613ff7d193295fd66b221d6bbbf4688ac66c77c0586c7fb11cd74e8ee7a1f2",
+      "fresh_commands": 23,
+      "inherited_commands": 0,
       "source_inputs": 1393,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 131.142465,
+      "command_span_seconds": 564.285435,
       "package_qualification": "Combined package provenance, current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-dynamic-selects-20261004/package-proof.json",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-case-geometry-admission-20261004/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -48,8 +48,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "df22f1cc",
-      "state": "Candidate frontend-dynamic-selects-20261004/source df22f1cc passed the combined locked Dioxus page compiler, root/subpath/offline package and live asset/provenance checks. Both affected journeys passed: Parts saved duplicate reopened with exact component/model IDs, and PCB Wiring retained all saved pins after encoder-A became Unresolved and after reopen. One consolidated Sol 6.1 High review accepted BND.2 and F8.2-C02/C03 but held the candidate on two Case profile-assignment defects; a single Case repair packet is in progress. F8.2-C01 remains open for authored Case STEP and generated mechanical ZIP selected-instance delivery.",
+      "source_commit": "f551e4e0",
+      "state": "Candidate frontend-case-geometry-admission-20261004/source f551e4e0 published at 34814. Authored Case preview and Left STEP delivery passed; Right rejected; Left restored (receipt .scratch/dioxus-frontend-v1/evidence/case-authored-step-34814-20261004/RECEIPT.md). F8.2-C01 verified; F7.6-C01 implemented pending consolidated Sol review. Layout Pick-origin pass carried forward from 34812.",
       "packets": [
         {
           "stream": "Layout",
@@ -559,11 +559,11 @@
       {
         "stream": "Layout",
         "priority": "Functional gaps alongside other streams; exact visual parity deferred",
-        "state": "Functional Layout authoring remains open, with visual parity deferred. Candidate 34809 locked component fields preserve accepted values. One bounded F3.6-C02 view-switch tool-cancellation and camera/selection return journey is running; grouped Inspector selection and driven numeric branches remain later."
+        "state": "F3.6-C02 is verified on candidate 34812: switching 2D→3D cancels pending Pick origin and returns with camera, selection and history unchanged. Functional Layout authoring and other grouped Inspector/driven numeric criteria remain open; visual parity is deferred."
       },
       {
         "stream": "PCB",
-        "state": "F5.2 and export boundary BND.2 are accepted. PCB Wiring dynamic-option display passed the saved-pin/reopen candidate journey on 34810. A bounded mounted-placement Inspector circuit/constituent save/reopen join is running; missing-asset/stale async routed cases remain."
+        "state": "F5.2 and export boundary BND.2 are accepted. PCB Wiring dynamic-option display passed saved-pin/reopen on 34810. Generic mounted placement scope reopened correctly on 34810; circuit/constituent edit evidence and missing-asset/stale async routed cases remain."
       },
       {
         "stream": "Keymap",
@@ -575,21 +575,27 @@
       },
       {
         "stream": "Case",
-        "state": "F7.4 compatible MX assignment, Plate thickness, Undo/Redo/reopen and board-scope clearing passed on 34809, but consolidated review found Custom stabilizer eligibility and first unknown-to-known family defaults broken. One author owns both narrow repairs. A saved ready Case fixture is being prepared for the exact F8.2-C01 STEP/ZIP output proof; F7.5/F7.6 remain open and visual parity is deferred."
+        "state": "F7.4 Custom stabilizer eligibility and first family defaults were repaired; Choc plate/foam/gap values passed on 34811. Generated mechanical ZIP for selected Left passed on 34810. Authored Plate preview and Left STEP delivery passed on 34814 (f551e4e0 repaired the absent-PLA default); Right is correctly rejected. F8.2-C01 verified; F7.6-C01 awaits consolidated review. F7.5/F7.6 remain open; visual parity is deferred."
       },
       {
         "stream": "Parts + Project",
-        "state": "F4.6 saved assembly duplicate reopened on candidate 34810 with exact component and model IDs displayed and retained in the accepted archive. F4.5 mechanical-profile evidence/qualification and stale-scope clauses are being resolved from one bounded Parts journey; other evidence remains reusable."
+        "state": "F4.6 saved assembly duplicate reopened on candidate 34810 with exact component and model IDs. F4.5 mechanical-profile save, Undo/Redo and reopen passed a paired journey; stale extraction completion remains unqualified and needs only a focused owner-level regression. Other evidence remains reusable."
       }
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Land the two Case profile-assignment repairs in one packet and check only their changed behavior; retain the passed Parts/PCB candidate journeys.",
-      "Qualify the exact F8.2-C01 Case output consumers from one saved ready fixture, then close supported export/Keymap/PCB joins without repeating provider fault setup.",
+      "Pin the f551e4e0 authored Case changed-action qualification scope before one full package; the source tree is committed and the preflight now rejects dirty build inputs.",
+      "Run one saved authored Left Plate preview/STEP/Right-scope journey on the new candidate; reuse Layout, generated ZIP and unchanged provider evidence, then obtain one consolidated Sol review and close only supported parent joins.",
       "Use bounded functional packets across the workbench queues; skip visual parity and per-packet package/review checks."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
+      "cadence": {
+        "trigger": "After two further published functional candidates, or immediately when the same avoidable failure repeats; run the existing retro skill briefly without holding author packets.",
+        "last_checkpoint_at": "2026-10-04T15:56:00Z",
+        "last_checkpoint_candidate": "frontend-authored-case-and-layout-20261004",
+        "last_checkpoint_source_fix": "f551e4e0"
+      },
       "implementation": "CONSTRAINTS.md; scripts/migration-deliver.py; scripts/build-m1.py; .scratch/dioxus-frontend-v1/progress.py; .scratch/dioxus-frontend-v1/qualification.py",
       "architectural_observation": ".scratch/dioxus-frontend-v1/refactor-findings.json:RF-009.delivery_retro_20261003",
       "qualification": "Current candidate 34799 adds a non-VIK mounted STEP model to Layout 3D through verified delivery. The model layer is visible and independently toggled; pick and error-path qualification remain queued. The zero-executed-test guard caught an earlier false green, and a focused nonuniform-normal regression failed before and passed after the fix. Browser/review work now batches at functional milestones.",
@@ -670,6 +676,21 @@
             "priority": "high",
             "observation": "The old one-waiting-packet limit treated integrated source as blocked until later browser qualification, contradicting the user-selected multi-packet integration cadence.",
             "action": "CONSTRAINTS.md and agent-policy now limit only unintegrated packets per stream. After a combined compile, authors may take the next functional action while changed journeys wait for one milestone package, browser pass and consolidated review."
+          },
+          {
+            "priority": "high",
+            "observation": "A full build accepted a required unstaged Case source line while naming only HEAD as its source commit. The source manifest proved working-tree bytes, but a reviewer checking the commit alone could not reproduce the package.",
+            "action": "Commit f551e4e0 adds a cheap committed-source preflight before full or reuse output reservation. Its focused regression failed with the guard disabled and passed with it enabled; documentation and ignored vendor assets remain allowed."
+          },
+          {
+            "priority": "high",
+            "observation": "Synthetic Case-readiness tests omitted the real Sofle demo's undefined PLA material reference, so the first geometry admission repair compiled and packaged but left the public action disabled.",
+            "action": "Commit f551e4e0 reproduces the saved-Plate material finding in Core preparation, admits only metadata-only material findings for solids, and creates new bodies without a dangling fallback material. Package and run one affected authored Case journey next."
+          },
+          {
+            "priority": "medium",
+            "observation": "A rigid turn-count retro timer would interrupt implementation at arbitrary points and has no native app trigger.",
+            "action": "Use the existing retro skill after every two published functional candidates or repeated avoidable failure, record its last checkpoint here, and apply its highest-impact fix without a new review chain."
           }
         ],
         "existing_guardrail": "CI and package already execute the Dioxus compiler check; no duplicate compiler gate added.",
@@ -679,34 +700,68 @@
     "qualification": {
       "trigger": "functional_scope",
       "active_scope": {
-        "id": "frontend-dynamic-selects-20261004",
-        "label": "Saved Parts and PCB Wiring select values on the functional candidate",
-        "source_commit": "df22f1ccd52b7e8fe112fa6895de9ae66a8deb4f",
+        "id": "frontend-case-geometry-admission-20261004",
+        "label": "Authored Case preview and STEP after missing-material admission repair",
+        "source_commit": "f551e4e0",
         "streams": [
-          "Parts+Project",
-          "PCB"
+          "Case"
         ],
         "journeys": [
           {
-            "id": "F4.6-saved-assembly-selection",
-            "scope": "On one saved named assembly with a stable switch member and two custom model assets, duplicate/save/reopen; displayed Component and Asset selectors retain the authored IDs, side and pose stay saved. Reuse the pinned TypeScript comparison and earlier archive inspection.",
-            "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
+            "id": "F7.6-F8.2-authored-case-step",
+            "scope": "Fresh Sofle Left authored Plate saved; Case Update preview and Export Case STEP become enabled and STEP downloads for Left. Switching to unconfigured Right board rejects/disables the stale output; returning to Left restores correct scope. Reuse generated mechanical ZIP (34810) and shared provider evidence.",
+            "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
             "source_paths": [
-              "web/src/presentation/parts/assembly_editor.rs"
-            ],
-            "source_paths_complete": true
-          },
-          {
-            "id": "F5.3-retained-pin-selection",
-            "scope": "With the retained partial-wiring fixture, set only encoder-A to Unresolved; after settlement and reopen, other pin selectors display their saved pins while accepted assignments remain unchanged. Reuse the pinned TypeScript comparison.",
-            "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
-            "source_paths": [
-              "web/src/presentation/pcb_wiring.rs",
-              "web/src/presentation/pcb_wiring/pins.rs"
+              "core/src/lib.rs",
+              "web/src/case_generation_admission.rs",
+              "web/src/cad_jobs.rs",
+              "web/src/presentation/export_workspace.rs",
+              "web/src/runtime.rs"
             ],
             "source_paths_complete": true
           }
-        ]
+        ],
+        "carried_forward": {
+          "F3.6-pending-origin-pick-switch": {
+            "candidate": "frontend-authored-case-and-layout-20261004",
+            "receipt": ".scratch/dioxus-frontend-v1/evidence/layout-camera-f36c01-20261004/RECEIPT.md",
+            "reason": "web/src/presentation.rs footprint unchanged"
+          }
+        },
+        "previous_scope": {
+          "id": "frontend-authored-case-and-layout-20261004",
+          "label": "Authored Case STEP and Layout origin-pick cancellation",
+          "source_commit": "f709ab602cd085aca78dbebf530952f74f35625b",
+          "streams": [
+            "Layout",
+            "Case"
+          ],
+          "journeys": [
+            {
+              "id": "F3.6-pending-origin-pick-switch",
+              "scope": "In Layout 2D, arm Inspector Pick origin; switching to 3D removes its pending hint/action, returning to 2D does not revive it, and board selection/camera remain current. Reuse the prior paired placement/camera round trip.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+              "source_paths": [
+                "web/src/presentation.rs"
+              ],
+              "source_paths_complete": true
+            },
+            {
+              "id": "F7.6-F8.2-authored-case-step",
+              "scope": "From a saved Left PCB authored Case body and current outer contour, reach current Case preview without requiring PCB readiness; Export Case STEP delivers the selected Left board/instance. Switching to an unconfigured Right board disables the old output and returning to Left restores correct scope. Reuse generated mechanical ZIP and shared provider lifecycle evidence.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+              "source_paths": [
+                "core/src/lib.rs",
+                "web/src/case_generation_admission.rs",
+                "web/src/cad_jobs.rs",
+                "web/src/presentation/export_workspace.rs",
+                "web/src/runtime.rs"
+              ],
+              "source_paths_complete": true
+            }
+          ]
+        },
+        "state": "passed"
       },
       "history": [
         {
@@ -2720,50 +2775,322 @@
               }
             ]
           }
-        }
-      ],
-      "phase": "qualifying",
-      "unmet_start_conditions": [],
-      "candidate_build_id": "frontend-dynamic-selects-20261004",
-      "source_commit": "df22f1ccd52b7e8fe112fa6895de9ae66a8deb4f",
-      "journeys": [
-        {
-          "id": "F4.6-saved-assembly-selection",
-          "scope": "On one saved named assembly with a stable switch member and two custom model assets, duplicate/save/reopen; displayed Component and Asset selectors retain the authored IDs, side and pose stay saved. Reuse the pinned TypeScript comparison and earlier archive inspection.",
-          "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
-          "source_paths": [
-            "web/src/presentation/parts/assembly_editor.rs"
-          ],
-          "source_paths_complete": true,
-          "state": "passed",
-          "evidence": ".scratch/dioxus-frontend-v1/evidence/f46-assembly-authoring-20261003/RECEIPT.md",
-          "result": "Candidate 34810 saved and reopened a duplicated assembly with stable switch ID, Back/X=4, Custom mode and both exact model asset IDs in DOM and accepted archive; prior TS comparison reused.",
-          "completed_at": "2026-10-04T14:36:13.044100Z"
         },
         {
-          "id": "F5.3-retained-pin-selection",
-          "scope": "With the retained partial-wiring fixture, set only encoder-A to Unresolved; after settlement and reopen, other pin selectors display their saved pins while accepted assignments remain unchanged. Reuse the pinned TypeScript comparison.",
-          "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
-          "source_paths": [
-            "web/src/presentation/pcb_wiring.rs",
-            "web/src/presentation/pcb_wiring/pins.rs"
+          "candidate_build_id": "frontend-dynamic-selects-20261004",
+          "source_commit": "df22f1ccd52b7e8fe112fa6895de9ae66a8deb4f",
+          "phase": "qualifying",
+          "review": {
+            "profile": "sol-review",
+            "state": "hold",
+            "evidence": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-dynamic-selects-df22f1cc-review-sol-20261004.md",
+            "finding_count": 2,
+            "repair_owner": "Case profile assignment"
+          },
+          "journeys": [
+            {
+              "id": "F4.6-saved-assembly-selection",
+              "scope": "On one saved named assembly with a stable switch member and two custom model assets, duplicate/save/reopen; displayed Component and Asset selectors retain the authored IDs, side and pose stay saved. Reuse the pinned TypeScript comparison and earlier archive inspection.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
+              "source_paths": [
+                "web/src/presentation/parts/assembly_editor.rs"
+              ],
+              "source_paths_complete": true,
+              "state": "passed",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/f46-assembly-authoring-20261003/RECEIPT.md",
+              "result": "Candidate 34810 saved and reopened a duplicated assembly with stable switch ID, Back/X=4, Custom mode and both exact model asset IDs in DOM and accepted archive; prior TS comparison reused.",
+              "completed_at": "2026-10-04T14:36:13.044100Z"
+            },
+            {
+              "id": "F5.3-retained-pin-selection",
+              "scope": "With the retained partial-wiring fixture, set only encoder-A to Unresolved; after settlement and reopen, other pin selectors display their saved pins while accepted assignments remain unchanged. Reuse the pinned TypeScript comparison.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
+              "source_paths": [
+                "web/src/presentation/pcb_wiring.rs",
+                "web/src/presentation/pcb_wiring/pins.rs"
+              ],
+              "source_paths_complete": true,
+              "state": "passed",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/export-zmk-route-20261003/34770-RECEIPT.md",
+              "result": "Candidate 34810 retained every saved pin selector after encoder-A became Unresolved; revision-13 archive changed only the encoder-A lock, and reopen retained displayed values. Pinned TS settled comparison reused; same-revision paired F5.3 evidence shows the omitted encoder-A row in both apps, so it is not a candidate-only gap.",
+              "completed_at": "2026-10-04T14:36:13.044100Z"
+            }
+          ]
+        },
+        {
+          "trigger": "functional_scope",
+          "active_scope": {
+            "id": "frontend-dynamic-selects-20261004",
+            "label": "Saved Parts and PCB Wiring select values on the functional candidate",
+            "source_commit": "df22f1ccd52b7e8fe112fa6895de9ae66a8deb4f",
+            "streams": [
+              "Parts+Project",
+              "PCB"
+            ],
+            "journeys": [
+              {
+                "id": "F4.6-saved-assembly-selection",
+                "scope": "On one saved named assembly with a stable switch member and two custom model assets, duplicate/save/reopen; displayed Component and Asset selectors retain the authored IDs, side and pose stay saved. Reuse the pinned TypeScript comparison and earlier archive inspection.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
+                "source_paths": [
+                  "web/src/presentation/parts/assembly_editor.rs"
+                ],
+                "source_paths_complete": true
+              },
+              {
+                "id": "F5.3-retained-pin-selection",
+                "scope": "With the retained partial-wiring fixture, set only encoder-A to Unresolved; after settlement and reopen, other pin selectors display their saved pins while accepted assignments remain unchanged. Reuse the pinned TypeScript comparison.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
+                "source_paths": [
+                  "web/src/presentation/pcb_wiring.rs",
+                  "web/src/presentation/pcb_wiring/pins.rs"
+                ],
+                "source_paths_complete": true
+              }
+            ]
+          },
+          "phase": "qualifying",
+          "unmet_start_conditions": [],
+          "candidate_build_id": "frontend-case-profile-repair-20261004",
+          "source_commit": "39ca24b3a75f46ee5e6334c7c1b3457c3b09838e",
+          "journeys": [
+            {
+              "id": "F4.6-saved-assembly-selection",
+              "scope": "On one saved named assembly with a stable switch member and two custom model assets, duplicate/save/reopen; displayed Component and Asset selectors retain the authored IDs, side and pose stay saved. Reuse the pinned TypeScript comparison and earlier archive inspection.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
+              "source_paths": [
+                "web/src/presentation/parts/assembly_editor.rs"
+              ],
+              "source_paths_complete": true,
+              "result": "Candidate 34810 saved and reopened a duplicated assembly with stable switch ID, Back/X=4, Custom mode and both exact model asset IDs in DOM and accepted archive; prior TS comparison reused.",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/f46-assembly-authoring-20261003/RECEIPT.md",
+              "completed_at": "2026-10-04T14:36:13.044100Z",
+              "state": "passed",
+              "reuse": "unchanged_scoped_source"
+            },
+            {
+              "id": "F5.3-retained-pin-selection",
+              "scope": "With the retained partial-wiring fixture, set only encoder-A to Unresolved; after settlement and reopen, other pin selectors display their saved pins while accepted assignments remain unchanged. Reuse the pinned TypeScript comparison.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
+              "source_paths": [
+                "web/src/presentation/pcb_wiring.rs",
+                "web/src/presentation/pcb_wiring/pins.rs"
+              ],
+              "source_paths_complete": true,
+              "result": "Candidate 34810 retained every saved pin selector after encoder-A became Unresolved; revision-13 archive changed only the encoder-A lock, and reopen retained displayed values. Pinned TS settled comparison reused; same-revision paired F5.3 evidence shows the omitted encoder-A row in both apps, so it is not a candidate-only gap.",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/export-zmk-route-20261003/34770-RECEIPT.md",
+              "completed_at": "2026-10-04T14:36:13.044100Z",
+              "state": "passed",
+              "reuse": "unchanged_scoped_source"
+            }
           ],
-          "source_paths_complete": true,
-          "state": "passed",
-          "evidence": ".scratch/dioxus-frontend-v1/evidence/export-zmk-route-20261003/34770-RECEIPT.md",
-          "result": "Candidate 34810 retained every saved pin selector after encoder-A became Unresolved; revision-13 archive changed only the encoder-A lock, and reopen retained displayed values. Pinned TS settled comparison reused; same-revision paired F5.3 evidence shows the omitted encoder-A row in both apps, so it is not a candidate-only gap.",
-          "completed_at": "2026-10-04T14:36:13.044100Z"
+          "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
+          "started_at": "2026-10-04T15:04:06.427245+00:00",
+          "review": {
+            "profile": "sol-review",
+            "state": "pending"
+          },
+          "next_scope": {
+            "id": "frontend-case-profile-repair-20261004",
+            "label": "Case placed-profile assignment and first-family defaults",
+            "source_commit": "39ca24b3a75f46ee5e6334c7c1b3457c3b09838e",
+            "streams": [
+              "Case"
+            ],
+            "journeys": [
+              {
+                "id": "F7.4-custom-stabilizer-profile",
+                "scope": "From a placed unassigned Custom stabilizer in the active board, the Case profile selector offers the target and accepts a built-in MX stabilizer profile; a board change cannot apply to the old target. Use an existing fixture if public setup is available, otherwise retain the focused RED/GREEN limit.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+                "source_paths": [
+                  "web/src/presentation/mechanical_settings.rs",
+                  "web/src/presentation/mechanical_settings_controller.rs"
+                ],
+                "source_paths_complete": true
+              },
+              {
+                "id": "F7.4-first-family-defaults",
+                "scope": "From a placed unknown Switch with incompatible 4 mm prior plate, first Choc v1 assignment applies the family default plate thickness/gap/foam and succeeds in the current scope; unchanged-family edits preserve configured values. Use an existing fixture if public setup is available, otherwise retain the focused RED/GREEN limit.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+                "source_paths": [
+                  "web/src/presentation/mechanical_settings_controller.rs"
+                ],
+                "source_paths_complete": true
+              }
+            ]
+          }
+        },
+        {
+          "trigger": "functional_scope",
+          "active_scope": {
+            "id": "frontend-case-profile-repair-20261004",
+            "label": "Case placed-profile assignment and first-family defaults",
+            "source_commit": "39ca24b3a75f46ee5e6334c7c1b3457c3b09838e",
+            "streams": [
+              "Case"
+            ],
+            "journeys": [
+              {
+                "id": "F7.4-custom-stabilizer-profile",
+                "scope": "From a placed unassigned Custom stabilizer in the active board, the Case profile selector offers the target and accepts a built-in MX stabilizer profile; a board change cannot apply to the old target. Use an existing fixture if public setup is available, otherwise retain the focused RED/GREEN limit.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+                "source_paths": [
+                  "web/src/presentation/mechanical_settings.rs",
+                  "web/src/presentation/mechanical_settings_controller.rs"
+                ],
+                "source_paths_complete": true
+              },
+              {
+                "id": "F7.4-first-family-defaults",
+                "scope": "From a placed unknown Switch with incompatible 4 mm prior plate, first Choc v1 assignment applies the family default plate thickness/gap/foam and succeeds in the current scope; unchanged-family edits preserve configured values. Use an existing fixture if public setup is available, otherwise retain the focused RED/GREEN limit.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+                "source_paths": [
+                  "web/src/presentation/mechanical_settings_controller.rs"
+                ],
+                "source_paths_complete": true
+              }
+            ]
+          },
+          "phase": "qualifying",
+          "unmet_start_conditions": [],
+          "candidate_build_id": "frontend-case-profile-repair-20261004",
+          "source_commit": "39ca24b3a75f46ee5e6334c7c1b3457c3b09838e",
+          "journeys": [
+            {
+              "id": "F7.4-custom-stabilizer-profile",
+              "scope": "From a placed unassigned Custom stabilizer in the active board, the Case profile selector offers the target and accepts a built-in MX stabilizer profile; a board change cannot apply to the old target. Use an existing fixture if public setup is available, otherwise retain the focused RED/GREEN limit.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+              "source_paths": [
+                "web/src/presentation/mechanical_settings.rs",
+                "web/src/presentation/mechanical_settings_controller.rs"
+              ],
+              "source_paths_complete": true,
+              "state": "passed",
+              "evidence": ".scratch/dioxus-case-workspace/evidence/public-mechanical-settings/candidate-0cad7577/RESULTS.md",
+              "result": "Candidate 34811 offered placed Custom STAB_MX_2u and accepted MX 2u and 6.25u built-in profiles in separate imports; focused RED/GREEN covers admission.",
+              "limitation": "The retained TypeScript browser fixture had no comparable Case stabilizer target; pinned TS source comparison is in the consolidated review. Preview geometry was blocked by fixture mechanical findings.",
+              "completed_at": "2026-10-04T15:22:33.963144+00:00"
+            },
+            {
+              "id": "F7.4-first-family-defaults",
+              "scope": "From a placed unknown Switch with incompatible 4 mm prior plate, first Choc v1 assignment applies the family default plate thickness/gap/foam and succeeds in the current scope; unchanged-family edits preserve configured values. Use an existing fixture if public setup is available, otherwise retain the focused RED/GREEN limit.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+              "source_paths": [
+                "web/src/presentation/mechanical_settings_controller.rs"
+              ],
+              "source_paths_complete": true,
+              "state": "passed",
+              "evidence": ".scratch/dioxus-case-workspace/evidence/public-mechanical-settings/candidate-0cad7577/RESULTS.md",
+              "result": "On the same copied unknown-switch fixture, candidate and pinned TS both accepted first Choc v1 assignment and saved 1.30 mm Plate, 2.00 mm foam and 2.20 mm gap after 4.00 mm prior Plate.",
+              "limitation": "The fixture did not qualify Case geometry generation or STEP.",
+              "completed_at": "2026-10-04T15:22:33.963144+00:00"
+            }
+          ],
+          "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
+          "started_at": "2026-10-04T15:11:21.323274+00:00",
+          "review": {
+            "profile": "sol-review",
+            "state": "pending"
+          },
+          "next_scope": {
+            "id": "frontend-authored-case-and-layout-20261004",
+            "label": "Authored Case STEP and Layout origin-pick cancellation",
+            "source_commit": "f709ab602cd085aca78dbebf530952f74f35625b",
+            "streams": [
+              "Layout",
+              "Case"
+            ],
+            "journeys": [
+              {
+                "id": "F3.6-pending-origin-pick-switch",
+                "scope": "In Layout 2D, arm Inspector Pick origin; switching to 3D removes its pending hint/action, returning to 2D does not revive it, and board selection/camera remain current. Reuse the prior paired placement/camera round trip.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+                "source_paths": [
+                  "web/src/presentation.rs"
+                ],
+                "source_paths_complete": true
+              },
+              {
+                "id": "F7.6-F8.2-authored-case-step",
+                "scope": "From a saved Left PCB authored Case body and current outer contour, reach current Case preview without requiring PCB readiness; Export Case STEP delivers the selected Left board/instance. Switching to an unconfigured Right board disables the old output and returning to Left restores correct scope. Reuse generated mechanical ZIP and shared provider lifecycle evidence.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+                "source_paths": [
+                  "core/src/lib.rs",
+                  "web/src/case_generation_admission.rs",
+                  "web/src/cad_jobs.rs",
+                  "web/src/presentation/export_workspace.rs",
+                  "web/src/runtime.rs"
+                ],
+                "source_paths_complete": true
+              }
+            ]
+          }
+        },
+        {
+          "candidate_build_id": "frontend-authored-case-and-layout-20261004",
+          "source_commit": "f709ab602cd085aca78dbebf530952f74f35625b",
+          "phase": "repairing",
+          "review": {
+            "profile": "sol-review",
+            "state": "pending"
+          },
+          "journeys": [
+            {
+              "id": "F3.6-pending-origin-pick-switch",
+              "scope": "In Layout 2D, arm Inspector Pick origin; switching to 3D removes its pending hint/action, returning to 2D does not revive it, and board selection/camera remain current. Reuse the prior paired placement/camera round trip.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+              "source_paths": [
+                "web/src/presentation.rs"
+              ],
+              "source_paths_complete": true,
+              "state": "passed",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-camera-f36c01-20261004/RECEIPT.md",
+              "result": "Candidate 34812 cancels pending Pick origin on 2D→3D and return while board, Column 1 selection, origin coordinates, 2D camera and Undo/Redo state remain unchanged. Earlier placement cancellation evidence reused; TS retains the pending hint, so this is the specified functional correction rather than exact legacy behavior.",
+              "completed_at": "2026-10-04T15:43:18Z"
+            },
+            {
+              "id": "F7.6-F8.2-authored-case-step",
+              "scope": "From a saved Left PCB authored Case body and current outer contour, reach current Case preview without requiring PCB readiness; Export Case STEP delivers the selected Left board/instance. Switching to an unconfigured Right board disables the old output and returning to Left restores correct scope. Reuse generated mechanical ZIP and shared provider lifecycle evidence.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+              "source_paths": [
+                "core/src/lib.rs",
+                "web/src/case_generation_admission.rs",
+                "web/src/cad_jobs.rs",
+                "web/src/presentation/export_workspace.rs",
+                "web/src/runtime.rs"
+              ],
+              "source_paths_complete": true,
+              "state": "failed",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/export-workspace-34763-20261003/RECEIPT.md",
+              "result": "Candidate 34812 fresh Sofle Left authored Plate saved at revision 4 without generated stack, but Case Update preview and Export Case STEP stayed disabled; no STEP could start. Narrow Case admission repair is in progress.",
+              "completed_at": "2026-10-04T15:43:18Z"
+            }
+          ]
         }
       ],
-      "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
-      "started_at": "2026-10-04T14:29:02.721695+00:00",
-      "review": {
-        "profile": "sol-review",
-        "state": "hold",
-        "evidence": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-dynamic-selects-df22f1cc-review-sol-20261004.md",
-        "finding_count": 2,
-        "repair_owner": "Case profile assignment"
-      }
+      "phase": "integrating",
+      "unmet_start_conditions": [
+        "Authored Case preview and STEP after missing-material admission repair source scope is not proven integrated into this candidate"
+      ],
+      "candidate_build_id": "frontend-case-geometry-admission-20261004",
+      "source_commit": "f551e4e0cd985f143f7e4f000ac376d6aa1cb567",
+      "journeys": [
+        {
+          "id": "F7.6-F8.2-authored-case-step",
+          "scope": "Fresh Sofle Left authored Plate saved; Case Update preview and Export Case STEP become enabled and STEP downloads for Left. Switching to unconfigured Right board rejects/disables the stale output; returning to Left restores correct scope. Reuse generated mechanical ZIP (34810) and shared provider evidence.",
+          "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+          "source_paths": [
+            "core/src/lib.rs",
+            "web/src/case_generation_admission.rs",
+            "web/src/cad_jobs.rs",
+            "web/src/presentation/export_workspace.rs",
+            "web/src/runtime.rs"
+          ],
+          "source_paths_complete": true,
+          "state": "pending"
+        }
+      ],
+      "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03"
     },
     "delivery_priority": {
       "authority": "User on 2026-10-03: make the app work; layout parity last; improve UI along the way because the design will change.",

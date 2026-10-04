@@ -2780,7 +2780,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 ## RF-031: Mechanical profile targets and family defaults are split across presentation and controller rules
 
-**Status:** two v1 Case assignment repairs in progress; shared policy refactor deferred
+**Status:** two v1 Case assignment repairs landed in 39ca24b3 and passed focused RED/GREEN; changed-action public qualification pending; shared policy refactor deferred
 
 **Confidence:** confirmed consolidated source review against pinned TypeScript behavior
 
@@ -2812,6 +2812,61 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
   "linked_tasks": [
     "F7.4"
   ],
-  "continuations": []
+  "continuations": [
+    {
+      "source": "frontend-case-profile-repair-20261004, 39ca24b3",
+      "evidence": "web/src/presentation/mechanical_settings_controller.rs",
+      "observation": "Separate Switch/Stabilizer/ImportedGeometry target admission and first unknown-to-known family default policy landed with two focused RED/GREEN regressions; the combined page/offline package passed.",
+      "status": "v1 source repair packaged; changed-action browser qualification pending"
+    }
+  ]
+}
+```
+
+## RF-032: PCB-coupled Case readiness prevents authored-body preview and STEP delivery
+
+**Status:** narrow authored-Case readiness and material-default repair committed in f551e4e0 and browser-qualified on 34814 (preview and Left STEP delivered, Right rejected); broader readiness model refactor deferred
+
+**Confidence:** confirmed paired public blocker and Core-to-UI source trace
+
+**Observation:** Core BoardReadiness.case_ready couples PCB readiness with authored Case and broad Case-error status. An initial derived geometry capability repaired the PCB coupling, but candidate 34812 still disabled Case preview and STEP: Dioxus created a default Plate with materialId=pla even though the Sofle demo has no PLA material, yielding case:authored-plate:material. Core PrepareCase accepts that geometry because material metadata is not a solid prerequisite. The selected-instance generated mechanical ZIP was ready and delivered from a configured stack.
+
+**Impact:** A valid authored Case body on a PCB-unready board cannot reach a current preview or its STEP export, despite being an independent authored geometry output. A single readiness flag also hides which prerequisite actually blocks the user action.
+
+**Current mitigation:** Committed f709ab60/f551e4e0: derive authored-Case geometry readiness without changing serialized PCB-coupled case_ready; ignore only material-metadata findings for solid admission; persist a default PLA reference only when that material exists. Keep current board/instance/revision guards. Browser qualification of authored STEP remains.
+
+**Later proposal:** Replace broad cross-workbench readiness booleans with typed per-output prerequisites and reason projections so Case, PCB, export and guide controls share one explicit policy without coupling unrelated fabrication paths.
+
+**Validation:** Focused Core/admission RED/GREEN, one saved authored-body current-preview and selected-scope STEP journey, stale-scope rejection; reuse generated mechanical ZIP and prior provider lifecycle evidence.
+
+**Evidence:** `core/src/model.rs`; `web/src/case_generation_admission.rs`; `web/src/cad_jobs.rs`; `web/src/presentation/export_workspace.rs`; `web/src/runtime.rs`; `.scratch/dioxus-frontend-v1/evidence/export-workspace-34763-20261003/RECEIPT.md`; `.scratch/dioxus-frontend-v1/evidence/case-authored-step-34814-20261004/RECEIPT.md`
+
+**Additional recorded details:**
+
+```json
+{
+  "category": "readiness ownership / provider admission",
+  "impact_priority": "high",
+  "discovered": "2026-10-04",
+  "baseline": "frontend-dynamic-selects-20261004, source df22f1cc",
+  "workflows": [
+    "F7.6",
+    "F8.2"
+  ],
+  "decision": "Repair the v1 authored Case output path through a narrow derived capability; defer the general readiness model redesign until the post-port refactor.",
+  "follow_up_owner": "Core readiness and Case/Export integration",
+  "linked_tasks": [
+    "F7.6",
+    "F8.2"
+  ],
+  "continuations": [
+    {
+      "date": "2026-10-04",
+      "source": "f551e4e0",
+      "observation": "The 34812 saved Plate exposed an invalid default material reference that synthetic admission tests had missed; focused Core preparation reproduced the block before the narrow repair.",
+      "during_port": "Source regressions and compiler checks pass. Package and run one current authored-Plate preview/STEP/instance-scope journey before claiming F7.6-C01 or F8.2-C01 verified.",
+      "post_port": "Make readiness and reason projections output-specific so material metadata, solid geometry, PCB manufacture and generated stack are independently explainable."
+    }
+  ]
 }
 ```

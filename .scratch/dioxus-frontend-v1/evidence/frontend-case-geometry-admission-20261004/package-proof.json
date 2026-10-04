@@ -1,0 +1,36 @@
+{
+  "build_id": "frontend-case-geometry-admission-20261004",
+  "source_commit": "f551e4e0cd985f143f7e4f000ac376d6aa1cb567",
+  "provenance": "web/target/builds/frontend-case-geometry-admission-20261004/provenance.json",
+  "provenance_sha256": "b5613ff7d193295fd66b221d6bbbf4688ac66c77c0586c7fb11cd74e8ee7a1f2",
+  "source_count": 1393,
+  "source_mismatches": [],
+  "routes": {
+    "root": {
+      "http": 200,
+      "headers": {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp"
+      },
+      "asset_count": 190,
+      "mismatches": []
+    },
+    "subpath": {
+      "http": 200,
+      "headers": {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp"
+      },
+      "asset_count": 190,
+      "mismatches": []
+    }
+  },
+  "fresh_commands": 23,
+  "inherited_commands": 0,
+  "duration_seconds": 564.285435,
+  "release_warnings": {
+    "root": 0,
+    "subpath": 0
+  },
+  "qualification": "Combined package provenance, current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate."
+}

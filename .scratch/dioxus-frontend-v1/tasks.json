@@ -1961,16 +1961,18 @@
         {
           "id": "F3.6-C02",
           "requirement": "Changing views cancels active placement/gesture tools; 2D camera and selection restore when returning from 3D.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/layout_workspace.rs",
             "web/src/presentation/layout_camera.rs",
             "web/src/presentation.rs"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/layout-camera-f36c01-20261004/RECEIPT.md"
+          ],
           "blockers": [],
-          "next_action": "Inspect view-switch owner invalidation and current paired evidence for active tool cancellation plus 2D camera/selection restoration.",
+          "next_action": "Verified on published candidate 34812: active Pick origin cancels on 2D→3D and stays canceled on return; board, Column 1 selection, origin coordinates, camera, and Undo/Redo state remain unchanged. Earlier paired placement/camera evidence is reused. The TS reference retains this one pending hint across views; the required cancellation is an intentional functional correction recorded in the receipt.",
           "finish_condition": "Public paired switching scenario proves active placement/gesture cancellation and exact camera/selection restoration after 3D return.",
           "owned_files": [
             "web/src/presentation/layout_workspace.rs",
@@ -6630,7 +6632,7 @@
         {
           "id": "F7.3-C08",
           "requirement": "Keep canonical-board consumers on canonical assembly and Case on selected physical-instance projection with no scope bleed.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/case_viewer.rs",
@@ -6641,7 +6643,7 @@
             ".scratch/dioxus-case-workspace/evidence/default-instance-public/README.md"
           ],
           "blockers": [],
-          "next_action": "Capture Case-to-Layout/Keymap/Keycaps switching while changing physical instance and compare scene ownership.",
+          "next_action": "Retain the paired two-instance Sofle 34810/5175 journey and current source ownership trace: Case switched Left→Right assembly and back, while Layout/Keymap/Keycaps stayed on the selected Right PCB's canonical board scene/key IDs. The fixture lacked generated geometry, so no geometry-success claim is made.",
           "finish_condition": "Case scene, selection and pending result switch to selected instance; canonical consumers remain canonical.",
           "owned_files": [
             "web/src/presentation/case_viewer.rs",
@@ -7175,10 +7177,12 @@
             "web/src/case_generation_admission.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md"
+            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
+            ".scratch/dioxus-frontend-v1/evidence/export-workspace-34763-20261003/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-authored-step-34814-20261004/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Use 34775 generation-control receipt for these basic actions; next qualify cancelled/retry/error branches on the current candidate.",
+          "next_action": "Candidate 34814 (f551e4e0) now reaches a current authored Left Plate preview (Update preview enabled, exact geometry ready) and unconfigured Right stays disabled; see receipt. Cancel/retry/failed states rely on retained 34775 evidence and were not re-exercised; close at the consolidated Sol review if it accepts that reuse.",
           "finish_condition": "Visible control/state transitions match accepted UI for every generation status and supported retry/cancel action.",
           "owned_files": [
             "web/src/presentation/case_workspace.rs",
@@ -7925,7 +7929,7 @@
         {
           "id": "F8.2-C01",
           "requirement": "Public UI actions dispatch existing archive/Core/artifact/firmware/electrical/CAD providers from one accepted document/scene snapshot, with document/session/revision/board and relevant instance scope.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/runtime.rs:3820",
@@ -7938,10 +7942,11 @@
             ".scratch/dioxus-frontend-v1/evidence/export-footprints-20261003/RECEIPT.md",
             ".scratch/dioxus-frontend-v1/evidence/export-zmk-route-20261003/34770-RECEIPT.md",
             ".scratch/dioxus-frontend-v1/evidence/export-pcb-handoff-20261003/34769-RECEIPT.md",
-            ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-dynamic-selects-df22f1cc-review-sol-20261004.md"
+            ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-dynamic-selects-df22f1cc-review-sol-20261004.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-authored-step-34814-20261004/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Existing paired evidence qualifies outline, footprint, firmware and KiCad outputs. Qualify authored Case STEP and generated mechanical ZIP from a saved ready Case fixture, including selected-instance delivery; reuse the established shared lifecycle evidence. The consolidated review leaves only these output consumers unverified.",
+          "next_action": "Verified: generated mechanical ZIP (34810) plus authored Case STEP on 34814 delivered Sofle v2-Left_PCB-case.step (816,239 bytes, model/step) for Left; Right PCB offers no Case STEP export (Needs work); Left returns to Export. Content of the STEP file was not inspected.",
           "finish_condition": "Every mounted output dispatches the correct existing provider from captured accepted scope and rejects changed document/session/revision/board/instance before delivery.",
           "owned_files": [
             "web/src/runtime.rs",
