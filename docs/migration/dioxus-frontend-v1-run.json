@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T02:57:56.844079+00:00",
+    "updated_at": "2026-10-04T03:12:15.371294+00:00",
     "parent_counts": {
       "accepted": 14,
       "implementing": 36,
@@ -25,20 +25,20 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-outline-hitorder-20261003",
-      "source_commit": "6619d5f2be0ce4167939426dd7efd3a13fcbd1e3",
-      "root_url": "http://127.0.0.1:34789/",
-      "subpath_url": "http://127.0.0.1:34789/boardstudio/",
-      "provenance": "web/target/builds/frontend-outline-hitorder-20261003/provenance.json",
-      "provenance_sha256": "0af98a154da398cfdf3e9bebeb0a49b530418571e26f6a7fe7b5acc72525e634",
+      "build_id": "frontend-no-vik-v1-20261003",
+      "source_commit": "8a9d45db69ffd661c3243f480fc71e51018256c6",
+      "root_url": "http://127.0.0.1:34790/",
+      "subpath_url": "http://127.0.0.1:34790/boardstudio/",
+      "provenance": "web/target/builds/frontend-no-vik-v1-20261003/provenance.json",
+      "provenance_sha256": "b37a064f8d84f19e1ba3c248523dd4c5ecb33f20453b4117e09d58d41bd49dd4",
       "fresh_commands": 8,
       "inherited_commands": 22,
       "source_inputs": 1390,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 157.428894,
+      "command_span_seconds": 130.646718,
       "package_qualification": "Combined package provenance, current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-outline-hitorder-20261003/package-proof.json",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-no-vik-v1-20261003/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -626,7 +626,7 @@
               "scope": "Sofle selection, contextual Objects/Inspector Properties and Relations, matrix/key edits, Undo and reopen",
               "spec": ".scratch/dioxus-layout-authoring/spec.md",
               "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/journey.md",
-              "verified": "Three Properties shortcut routes and key width1→1.25→Undo1→Redo1.25→reload1.25 match reference behavior.",
+              "verified": "Three Properties shortcut routes and key width1\u21921.25\u2192Undo1\u2192Redo1.25\u2192reload1.25 match reference behavior.",
               "remaining": "Inspector arrangement/typography/context footer and Objects-to-toolbar selection-kind synchronization; broader authoring criteria unchanged."
             },
             {
@@ -1415,49 +1415,84 @@
               "state": "partial"
             }
           ]
+        },
+        {
+          "candidate_build_id": "frontend-outline-hitorder-20261003",
+          "source_commit": "6619d5f2be0ce4167939426dd7efd3a13fcbd1e3",
+          "phase": "qualifying",
+          "review": {
+            "profile": "sol-review",
+            "model": "gpt-6.1-sol",
+            "reasoning": "high",
+            "state": "completed",
+            "verdict": "standards_pass_scoped_spec_pass_with_open_criteria",
+            "review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/candidate-34789-review.md",
+            "review_sha256": "1dea03581aeee9778fef553644ad9b6677fd68b2564dad9fc720aa19f9bc3e1c",
+            "source_commit": "6619d5f2be0ce4167939426dd7efd3a13fcbd1e3"
+          },
+          "journeys": [
+            {
+              "id": "F3.4-C02",
+              "scope": "Paired addition/cutout/bridge draft preview, point Undo, cancel without accepted writes, Finish on 34789 and pinned 5175",
+              "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+              "state": "passed"
+            },
+            {
+              "id": "F5.2-C01",
+              "scope": "Paired multi-board Resolve/Apply plus focused stale board/controller mounted owner checks",
+              "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
+              "state": "passed"
+            },
+            {
+              "id": "F2.1-negative-branches",
+              "scope": "Mounted Loading/error/Retry and damaged-preview fallback supplement paired success; unchanged public finish conditions open",
+              "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
+              "state": "partial"
+            },
+            {
+              "id": "F7.3-C05",
+              "scope": "3D part pick proven; common viewer Case-body/module/finding mapping remains open",
+              "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+              "state": "partial"
+            }
+          ]
         }
       ],
       "phase": "qualifying",
       "unmet_start_conditions": [],
-      "candidate_build_id": "frontend-outline-hitorder-20261003",
-      "source_commit": "6619d5f2be0ce4167939426dd7efd3a13fcbd1e3",
+      "candidate_build_id": "frontend-no-vik-v1-20261003",
+      "source_commit": "8a9d45db69ffd661c3243f480fc71e51018256c6",
       "journeys": [
         {
           "id": "F3.4-C02",
           "scope": "Paired addition/cutout/bridge draft preview, point Undo, cancel without accepted writes, Finish on 34789 and pinned 5175",
           "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
-          "state": "passed"
+          "state": "pending"
         },
         {
           "id": "F5.2-C01",
           "scope": "Paired multi-board Resolve/Apply plus focused stale board/controller mounted owner checks",
           "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
-          "state": "passed"
+          "state": "pending"
         },
         {
           "id": "F2.1-negative-branches",
           "scope": "Mounted Loading/error/Retry and damaged-preview fallback supplement paired success; unchanged public finish conditions open",
           "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
-          "state": "partial"
+          "state": "pending"
         },
         {
           "id": "F7.3-C05",
           "scope": "3D part pick proven; common viewer Case-body/module/finding mapping remains open",
           "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
-          "state": "partial"
+          "state": "pending"
         }
       ],
       "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
-      "started_at": "2026-10-04T02:10:07.778703+00:00",
+      "started_at": "2026-10-04T03:04:38.643357+00:00",
       "review": {
         "profile": "sol-review",
-        "model": "gpt-6.1-sol",
-        "reasoning": "high",
-        "state": "completed",
-        "verdict": "standards_pass_scoped_spec_pass_with_open_criteria",
-        "review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/candidate-34789-review.md",
-        "review_sha256": "1dea03581aeee9778fef553644ad9b6677fd68b2564dad9fc720aa19f9bc3e1c",
-        "source_commit": "6619d5f2be0ce4167939426dd7efd3a13fcbd1e3"
+        "state": "pending"
       }
     },
     "delivery_priority": {

@@ -2044,6 +2044,36 @@
           "evidence": "User instruction in current migration task; preserved original mismatch receipt."
         }
       ]
+    },
+    {
+      "id": "RF-020",
+      "title": "Imported project definitions leak into reusable Parts choices",
+      "category": "architecture / catalogue provenance",
+      "confidence": "confirmed public saved-project repro and focused RED/GREEN regression",
+      "impact_priority": "medium",
+      "status": "v1 creation surface guarded; post-port catalogue ownership refactor deferred",
+      "discovered": "2026-10-03",
+      "baseline": "Dioxus candidate frontend-no-vik-v1-20261003, source 8a9d45db; imported existing VIK review archive",
+      "workflows": [
+        "F4.1",
+        "F5.5"
+      ],
+      "evidence": [
+        "web/src/presentation/parts/catalogue.rs",
+        ".scratch/dioxus-frontend-v1/evidence/case-keymap-current/public/layered-fixture/vik-review-ui-export.boardstudio"
+      ],
+      "observation": "The Parts catalogue merges every project PartDefinition into new-part choices. Reopening an existing VIK project therefore surfaced source-owned host connectors and embedded circuit constituents as independently placeable Parts entries after the VIK module category was removed.",
+      "impact": "A compatibility import can silently re-enable retired or source-owned creation paths; catalogue filtering and selection provenance have no explicit reusable-versus-internal domain distinction.",
+      "during_port": "Filter VIK source/embedded definitions from new Parts choices while retaining the full accepted project definitions for saved-project resolution and existing placements.",
+      "post_port_proposal": "Represent reusable library candidates separately from project-owned, source-owned and embedded circuit definitions; derive creation lists from explicit provenance/capability instead of ID-string patterns.",
+      "validation_needed": "Reopen a saved module project, keep placed data available, and confirm neither VIK connectors nor embedded constituents appear in Parts browse or Add object while ordinary components remain available.",
+      "decision": "Keep the narrow v1 choice filter; defer domain separation until the post-port refactor.",
+      "follow_up_owner": "Parts catalogue / project import",
+      "linked_tasks": [
+        "F4.1",
+        "F5.5"
+      ],
+      "continuations": []
     }
   ]
 }

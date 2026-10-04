@@ -693,6 +693,19 @@ fn is_catalogue_choice(entry: &CatalogEntry) -> bool {
         .as_ref()
         .is_none_or(|generator| generator.source != "infused-kim/nice_nano_pretty")
         && !is_assembly_snapshot(&entry.definition)
+        && !is_vik_part(&entry.definition)
+}
+
+fn is_vik_part(definition: &PartDefinition) -> bool {
+    // Retain imported definitions for saved-project resolution, but do not offer
+    // their unfinished VIK connector/embedded-circuit parts as new v1 choices.
+    let id = definition.id.to_ascii_lowercase();
+    id.starts_with("vik:")
+        || id.contains("/definition/vik:")
+        || definition
+            .hardware_profile
+            .as_ref()
+            .is_some_and(|profile| profile.vik_role.is_some())
 }
 
 fn is_assembly_snapshot(definition: &PartDefinition) -> bool {
@@ -752,6 +765,26 @@ fn is_uuid(value: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn saved_vik_parts_are_not_new_catalogue_choices() {
+        let ordinary = imported_definitions().remove(0);
+        let mut source_connector = ordinary.clone();
+        source_connector.id = "vik:source:horizontal-host-connector".into();
+        let mut embedded = ordinary.clone();
+        embedded.id = "embedded/review/definition/vik:haptic/component/5".into();
+        let entries = [ordinary, source_connector, embedded]
+            .into_iter()
+            .map(|definition| CatalogEntry {
+                definition: Rc::new(definition),
+                source: CatalogueSource::Project,
+            })
+            .collect::<Vec<_>>();
+
+        let choices = catalogue_choices(&entries);
+        assert_eq!(choices.len(), 1);
+        assert_eq!(choices[0].definition.id, entries[0].definition.id);
+    }
 
     fn imported_definitions() -> Vec<PartDefinition> {
         let catalogue: ImportedCatalogue =
