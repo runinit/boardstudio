@@ -249,11 +249,17 @@ pub(in crate::presentation) fn MatrixTransformInspector(
         MatrixTransformFields::Key {
             row,
             column,
+            enabled,
             offset,
             rotation,
         } => (
             "Key properties",
             rsx! {
+                EnabledTransformField {
+                    owner: owner.clone(), snapshot_token, revision, value: *enabled,
+                    request_sequence, editable: props.mount.editable, busy: props.mount.busy,
+                    feedback: props.mount.feedback.clone(), on_edit, splay_affect,
+                }
                 div { class: "m1-matrix-inspector-fields",
                     NumericTransformField {
                         owner: owner.clone(), snapshot_token, revision,
@@ -662,6 +668,65 @@ fn OriginModeTransformField(props: OriginModeTransformFieldProps) -> Element {
             }
             if let Some(message) = error.as_deref() { small { role: "alert", "{message}" } }
         }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct EnabledTransformFieldProps {
+    owner: MatrixTransformInspectorOwner,
+    snapshot_token: SnapshotToken,
+    revision: u64,
+    value: bool,
+    request_sequence: Signal<u64>,
+    editable: bool,
+    busy: bool,
+    feedback: Vec<MatrixTransformFeedback>,
+    on_edit: EventHandler<MatrixTransformRequest>,
+    splay_affect: Signal<MatrixSplayAffect>,
+}
+
+#[component]
+fn EnabledTransformField(props: EnabledTransformFieldProps) -> Element {
+    let mut submitted = use_signal(|| None::<u64>);
+    let error = props
+        .feedback
+        .iter()
+        .rev()
+        .find(|item| {
+            item.owner == props.owner
+                && item.field == MatrixTransformField::KeyEnabled
+                && submitted() == Some(item.request_id)
+                && item.state == MatrixTransformState::Failed
+        })
+        .and_then(|item| item.message.clone());
+    let disabled = !props.editable || props.busy;
+    let mut sequence = props.request_sequence;
+    let owner = props.owner.clone();
+    let current = props.value;
+    let token = props.snapshot_token;
+    let revision = props.revision;
+    let on_edit = props.on_edit;
+    let affect = props.splay_affect;
+    rsx! {
+        label { class: "m1-matrix-key-enabled",
+            input {
+                r#type: "checkbox", aria_label: "Key enabled", checked: current, disabled,
+                onchange: move |event| {
+                    let Some(id) = sequence().checked_add(1) else { return; };
+                    sequence.set(id);
+                    submitted.set(Some(id));
+                    on_edit.call(MatrixTransformRequest {
+                        owner: owner.clone(), request_id: id, snapshot_token: token, revision,
+                        field: MatrixTransformField::KeyEnabled,
+                        baseline: MatrixTransformValue::Bool(current),
+                        value: MatrixTransformValue::Bool(event.checked()),
+                        splay_affect: affect(),
+                    });
+                },
+            }
+            " Enabled"
+        }
+        if let Some(message) = error.as_deref() { small { role: "alert", class: "m1-matrix-transform-error", "{message}" } }
     }
 }
 

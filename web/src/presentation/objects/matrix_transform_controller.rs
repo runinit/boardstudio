@@ -435,6 +435,7 @@ fn project_current_for(
             MatrixTransformFields::Key {
                 row: *row,
                 column: *column,
+                enabled: cell.is_none_or(|cell| cell.enabled),
                 offset: cell
                     .and_then(|cell| cell.offset)
                     .unwrap_or(Vec2 { x: 0.0, y: 0.0 }),
@@ -569,6 +570,9 @@ fn field_value(
         }
         (MatrixTransformFields::Key { rotation, .. }, Field::KeyRotation) => {
             Some(Value::Number(*rotation))
+        }
+        (MatrixTransformFields::Key { enabled, .. }, Field::KeyEnabled) => {
+            Some(Value::Bool(*enabled))
         }
         (
             MatrixTransformFields::Key {

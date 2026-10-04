@@ -25,6 +25,7 @@ pub enum MatrixTransformField {
     KeyOffsetY,
     KeyRotation,
     KeyTransformReset,
+    KeyEnabled,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -35,6 +36,7 @@ pub enum MatrixTransformValue {
     CellTransform { offset: Vec2, rotation: f64 },
     OriginMode(bool),
     Point(Vec2),
+    Bool(bool),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -60,6 +62,7 @@ pub enum MatrixTransformFields {
     Key {
         row: u32,
         column: u32,
+        enabled: bool,
         offset: Vec2,
         rotation: f64,
     },
@@ -278,6 +281,11 @@ pub fn build_operation(
         )),
         (
             MatrixTransformFields::Key { row, column, .. },
+            Field::KeyEnabled,
+            Value::Bool(enabled),
+        ) => Ok(set_cell_enabled(matrix, *row, *column, enabled)),
+        (
+            MatrixTransformFields::Key { row, column, .. },
             Field::KeyTransformReset,
             Value::CellTransform { offset, rotation },
         ) => Ok(set_cell_transform(
@@ -309,6 +317,30 @@ fn set_matrix_offset(matrix: &Matrix, row_axis: bool, index: u32, value: Vec2) -
         offsets.push(Vec2 { x: 0.0, y: 0.0 });
     }
     offsets[index as usize] = value;
+    set_matrix(next)
+}
+
+fn set_cell_enabled(matrix: &Matrix, row: u32, column: u32, enabled: bool) -> EditOperation {
+    let mut next = matrix.clone();
+    if let Some(cell) = next
+        .cells
+        .iter_mut()
+        .find(|cell| cell.row == row && cell.column == column)
+    {
+        cell.enabled = enabled;
+    } else {
+        next.cells.push(MatrixCell {
+            row,
+            column,
+            enabled,
+            definition_id: None,
+            variant: None,
+            offset: None,
+            rotation: None,
+            assemblies: Vec::new(),
+            assemblies_local: None,
+        });
+    }
     set_matrix(next)
 }
 
@@ -462,6 +494,7 @@ mod tests {
     fn key_reset_preserves_assembly_and_cell_identity() {
         let matrix = matrix();
         let fields = MatrixTransformFields::Key {
+            enabled: true,
             row: 1,
             column: 2,
             offset: Vec2 { x: 6.0, y: 7.0 },
@@ -493,11 +526,60 @@ mod tests {
     }
 
     #[test]
+    fn key_enabled_toggle_preserves_cell_and_creates_missing_cell() {
+        let matrix = matrix();
+        let fields = MatrixTransformFields::Key {
+            enabled: true,
+            row: 1,
+            column: 2,
+            offset: Vec2 { x: 6.0, y: 7.0 },
+            rotation: 9.0,
+        };
+        let operation = build_operation(
+            &matrix,
+            &fields,
+            MatrixTransformField::KeyEnabled,
+            MatrixTransformValue::Bool(false),
+            MatrixSplayAffect::Following,
+        )
+        .expect("enabled is a supported key edit");
+        let EditOperation::SetMatrix { matrix: next, .. } = operation else {
+            panic!("cell edits use SetMatrix");
+        };
+        assert_eq!(next.cells.len(), 1);
+        assert!(!next.cells[0].enabled);
+        assert_eq!(next.cells[0].offset, matrix.cells[0].offset);
+        assert_eq!(next.cells[0].assemblies, matrix.cells[0].assemblies);
+
+        let mut empty = matrix.clone();
+        empty.cells.clear();
+        let EditOperation::SetMatrix { matrix: next, .. } = build_operation(
+            &empty,
+            &fields,
+            MatrixTransformField::KeyEnabled,
+            MatrixTransformValue::Bool(false),
+            MatrixSplayAffect::Following,
+        )
+        .unwrap() else {
+            panic!("cell edits use SetMatrix");
+        };
+        assert_eq!(
+            (
+                next.cells[0].row,
+                next.cells[0].column,
+                next.cells[0].enabled
+            ),
+            (1, 2, false)
+        );
+    }
+
+    #[test]
     fn empty_key_cell_edit_adds_a_semantic_cell_without_part_ids() {
         let mut matrix = matrix();
         matrix.cells.clear();
         matrix.part_ids = vec!["existing-primary".into()];
         let fields = MatrixTransformFields::Key {
+            enabled: true,
             row: 0,
             column: 1,
             offset: Vec2 { x: 0.0, y: 0.0 },
@@ -539,6 +621,7 @@ mod tests {
         });
         let untouched = matrix.cells[1].clone();
         let fields = MatrixTransformFields::Key {
+            enabled: true,
             row: 1,
             column: 2,
             offset: Vec2 { x: 6.0, y: 7.0 },
@@ -788,6 +871,7 @@ mod tests {
         }
 
         let key_fields = MatrixTransformFields::Key {
+            enabled: true,
             row: 1,
             column: 2,
             offset: Vec2 { x: 6.0, y: 7.0 },
