@@ -48,6 +48,18 @@ pub(crate) fn preference_ids(id: &str) -> Vec<String> {
     }
 }
 
+pub(crate) fn is_visible(display: &CaseDisplay, id: &str) -> bool {
+    !preference_ids(id)
+        .iter()
+        .all(|alias| display.hidden.contains(alias))
+}
+
+pub(crate) fn is_inspector_visible(display: &CaseDisplay, id: &str) -> bool {
+    !preference_ids(id)
+        .iter()
+        .any(|alias| display.hidden.contains(alias))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -95,5 +107,16 @@ mod tests {
         display.set_color("gasket:pair:lower", "");
         assert!(display.colors.is_empty());
         assert_eq!(display.hidden, vec!["PCB"]);
+    }
+
+    #[test]
+    fn inspector_visibility_requires_every_alias_to_be_visible_while_tree_uses_all_hidden() {
+        let display = CaseDisplay {
+            hidden: vec!["PCB".into()],
+            ..CaseDisplay::default()
+        };
+
+        assert!(is_visible(&display, "pcb"));
+        assert!(!is_inspector_visible(&display, "pcb"));
     }
 }

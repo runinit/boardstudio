@@ -1265,7 +1265,7 @@ mod tests {
         ));
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn field_keys_cover_all_typed_variants_without_collapsing_empty_kinds() {
         let layer_id = "nav-stable-id".to_owned();
         let values = [
@@ -1320,7 +1320,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn field_updates_preserve_sibling_values_from_fresh_binding() {
         let current = KeyBinding::ModTap {
             hold: "LCTRL".into(),

@@ -762,8 +762,11 @@ fn KeycodeField(props: KeycodeFieldProps) -> Element {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wasm_bindgen_test::wasm_bindgen_test;
 
-    #[test]
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    #[wasm_bindgen_test]
     fn binding_targets_have_distinct_stable_identities() {
         let targets = [
             BindingTarget::Key {
@@ -795,7 +798,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn layer_defaults_use_stable_non_base_then_first_ids() {
         let layers = [
             BindingLayerChoice {
@@ -823,7 +826,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn macro_and_empty_bindings_keep_their_typed_distinction() {
         let macros = [BindingMacroChoice {
             id: "macro-id".into(),
@@ -845,7 +848,7 @@ mod tests {
         assert_ne!(KeyBinding::Transparent, KeyBinding::None);
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn accepted_value_reversion_hides_a_stale_code_error_without_a_request() {
         assert!(!code_draft_failure_visible("A", "A"));
         assert!(!code_draft_failure_visible(" A ", "A"));

@@ -1,18 +1,1 @@
-{
-  "web/src/presentation/case_assembly_layers.rs": 1,
-  "web/src/presentation/case_workspace.rs": 1,
-  "web/src/presentation/footprint_graphics.rs": 1,
-  "web/src/presentation/keycaps_settings.rs": 8,
-  "web/src/presentation/keymap/binding_controller.rs": 2,
-  "web/src/presentation/keymap/binding_editor.rs": 4,
-  "web/src/presentation/keymap/layer_controller.rs": 4,
-  "web/src/presentation/objects/layout_toolbar.rs": 5,
-  "web/src/presentation/objects/matrix_inspector_controller.rs": 6,
-  "web/src/presentation/panels/policy.rs": 5,
-  "web/src/presentation/parts/catalogue.rs": 8,
-  "web/src/presentation/parts/preview.rs": 9,
-  "web/src/presentation/parts_import_footprint.rs": 1,
-  "web/src/presentation/pcb_wiring.rs": 1,
-  "web/src/presentation/pcb_wiring/part_input_settings.rs": 3,
-  "web/src/presentation/shared_viewer.rs": 4
-}
+{}

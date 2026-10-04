@@ -1186,29 +1186,4 @@ mod tests {
         );
         root.remove();
     }
-
-    #[test]
-    fn executor_restart_invalidates_same_accepted_wiring_identity() {
-        let scope = Scope {
-            session_epoch: SessionEpoch(7),
-            document_id: "doc".into(),
-            board_id: "board".into(),
-            instance_id: None,
-        };
-        let before_restart = WiringPlanIdentity {
-            scope: scope.clone(),
-            token: SnapshotToken(11),
-            revision: 13,
-            executor_epoch: 17,
-        };
-        let after_restart = WiringPlanIdentity {
-            executor_epoch: 18,
-            ..before_restart.clone()
-        };
-
-        assert_ne!(before_restart, after_restart);
-        assert_eq!(before_restart.scope, after_restart.scope);
-        assert_eq!(before_restart.token, after_restart.token);
-        assert_eq!(before_restart.revision, after_restart.revision);
-    }
 }

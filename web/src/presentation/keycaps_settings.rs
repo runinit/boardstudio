@@ -1922,6 +1922,9 @@ fn change_label(change: &KeycapEditChange) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
     fn test_scope() -> Scope {
         Scope {
@@ -1932,7 +1935,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn width_and_depth_intents_merge_with_the_latest_accepted_sibling() {
         let scope = test_scope();
         let document = ProjectDoc {
@@ -1991,7 +1994,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn setting_change_acknowledgement_preserves_null_and_blank_legend() {
         let scope = test_scope();
         let document = ProjectDoc {
@@ -2022,7 +2025,7 @@ mod tests {
         ));
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn selection_owner_generation_changes_when_a_key_is_reselected() {
         let scope = Scope {
             session_epoch: boardstudio_application::SessionEpoch(1),
@@ -2037,7 +2040,7 @@ mod tests {
         assert!(first < other && other < returned);
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn latest_same_owner_retry_intent_survives_older_operation_failure() {
         let scope = Scope {
             session_epoch: boardstudio_application::SessionEpoch(1),
@@ -2114,7 +2117,7 @@ mod tests {
         assert!(!drafts.contains_key(&(target, KeycapEditField::UnitsWidth)));
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn untouched_inherited_legend_does_not_materialize_an_explicit_blank() {
         assert!(!legend_change_required("", None));
         assert!(!legend_change_required("", Some("")));
@@ -2123,7 +2126,7 @@ mod tests {
         assert!(!legend_blur_requires_reconciliation("", None, false));
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn pending_overlap_retains_a_reverted_user_intent() {
         let target = KeycapsEditTarget::Key("sw1".into());
         assert!(changes_overlap(
@@ -2158,7 +2161,7 @@ mod tests {
         ));
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn board_and_matrix_settings_use_existing_core_operations() {
         let scope = test_scope();
         let document = ProjectDoc::empty("keycaps-settings-test", "Keycaps settings test");
@@ -2204,7 +2207,7 @@ mod tests {
         ));
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn discard_feedback_cleanup_is_exact_and_never_hides_pending_work() {
         let scope = Scope {
             session_epoch: boardstudio_application::SessionEpoch(1),

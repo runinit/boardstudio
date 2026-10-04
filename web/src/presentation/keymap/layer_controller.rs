@@ -589,6 +589,9 @@ fn failure_is_current(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
     use boardstudio_core::model::{KeymapConfiguration, KeymapLayer};
     use std::collections::BTreeMap;
 
@@ -607,7 +610,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn retained_removed_id_resolves_then_restores_by_stable_identity() {
         let with_child = keymap(&["custom-primary", "layer-a"]);
         let after_remove = keymap(&["custom-primary"]);
@@ -626,7 +629,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn fallback_rename_and_terminal_feedback_follow_the_resolved_layer() {
         let map = keymap(&["custom-primary"]);
         let rename = LayerEditIntent::Rename {
@@ -662,7 +665,7 @@ mod tests {
         ));
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn rejected_rename_feedback_tracks_the_admitted_name_key() {
         let mut accepted = keymap(&["layer-a"]);
         accepted.layers[0].name = "Original".into();
@@ -691,7 +694,7 @@ mod tests {
         ));
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn completed_add_mismatch_survives_a_later_rename_at_acknowledgement_token() {
         let request = LayerEditIntent::Add {
             layer_id: "layer-new".into(),

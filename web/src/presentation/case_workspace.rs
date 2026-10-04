@@ -3,7 +3,7 @@
 use super::{
     InstanceSelection, MechanicalSettings, MechanicalSettingsMount, MechanicalSettingsProps,
     case_controller::CaseBodyInspector,
-    case_display::preference_ids,
+    case_display::{is_inspector_visible, is_visible, preference_ids},
     case_viewer::{BodySelection, CaseSelection},
     objects::{ScopedTreeContext, TreeSelectRequest},
     selection::SelectionAdapter,
@@ -1205,18 +1205,6 @@ fn case_roots(document: &ProjectDoc) -> Vec<CaseRoot> {
     }
 }
 
-fn is_visible(display: &CaseDisplay, id: &str) -> bool {
-    !preference_ids(id)
-        .iter()
-        .all(|alias| display.hidden.contains(alias))
-}
-
-fn is_inspector_visible(display: &CaseDisplay, id: &str) -> bool {
-    !preference_ids(id)
-        .iter()
-        .any(|alias| display.hidden.contains(alias))
-}
-
 fn assembly_display_scope(scope: &Scope, board_id: &str, instance_id: Option<String>) -> Scope {
     Scope {
         session_epoch: scope.session_epoch,
@@ -1301,22 +1289,6 @@ fn toggle_tree(mut expanded: Signal<BTreeSet<String>>, id: &str) {
     let mut state = expanded.write();
     if !state.remove(id) {
         state.insert(id.to_owned());
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn inspector_visibility_requires_every_alias_to_be_visible_while_tree_uses_all_hidden() {
-        let display = CaseDisplay {
-            hidden: vec!["PCB".into()],
-            ..CaseDisplay::default()
-        };
-
-        assert!(is_visible(&display, "pcb"));
-        assert!(!is_inspector_visible(&display, "pcb"));
     }
 }
 

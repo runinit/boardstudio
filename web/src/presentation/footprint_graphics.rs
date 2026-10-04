@@ -94,8 +94,11 @@ fn generator_preview_defaults_from_parameters(
 mod preview_default_tests {
     use super::*;
     use serde_json::json;
+    use wasm_bindgen_test::wasm_bindgen_test;
 
-    #[test]
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    #[wasm_bindgen_test]
     fn projects_values_from_the_retained_generator_parameter_envelope() {
         assert_eq!(
             generator_preview_defaults_from_parameters(&json!({

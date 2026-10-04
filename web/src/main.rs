@@ -96,6 +96,11 @@ mod renderer_host_source_sync;
 mod case_display;
 
 #[cfg(all(feature = "page", test, not(target_arch = "wasm32")))]
+#[path = "presentation/parts_import_footprint.rs"]
+#[allow(dead_code)]
+mod parts_import_footprint;
+
+#[cfg(all(feature = "page", test, not(target_arch = "wasm32")))]
 #[path = "presentation/model_delivery.rs"]
 mod model_delivery;
 
@@ -113,6 +118,12 @@ mod presentation {
     pub(crate) mod objects {
         #[path = "keycap_resize.rs"]
         mod keycap_resize;
+    }
+
+    pub(crate) mod panels {
+        #[allow(dead_code)]
+        #[path = "policy.rs"]
+        mod policy;
     }
 
     pub(crate) mod pcb_wiring {

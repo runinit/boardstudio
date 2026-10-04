@@ -585,7 +585,9 @@ mod lifecycle_tests {
             .unwrap()
             .dyn_into::<HtmlCanvasElement>()
             .unwrap();
-        canvas.set_attribute("style", "width:200px;height:100px").unwrap();
+        canvas
+            .set_attribute("style", "width:200px;height:100px")
+            .unwrap();
         document.body().unwrap().append_child(&canvas).unwrap();
         canvas
     }
@@ -629,18 +631,33 @@ mod lifecycle_tests {
         settle().await;
         assert_eq!(state(&canvas).as_deref(), Some("active"));
         assert!(calls(&renderer, "render") >= 1, "first frame is submitted");
-        assert!(spy.live_listeners() > baseline, "lifecycle listeners are installed");
+        assert!(
+            spy.live_listeners() > baseline,
+            "lifecycle listeners are installed"
+        );
 
         let init = web_sys::EventInit::new();
         init.set_cancelable(true);
         let lost = web_sys::Event::new_with_event_init_dict("webglcontextlost", &init).unwrap();
         canvas.dispatch_event(&lost).unwrap();
-        assert!(lost.default_prevented(), "loss must be reported, not auto-restored");
+        assert!(
+            lost.default_prevented(),
+            "loss must be reported, not auto-restored"
+        );
         assert_eq!(state(&canvas).as_deref(), Some("context-lost"));
-        assert!(log.borrow().iter().any(|message| message.contains("context lost")));
+        assert!(
+            log.borrow()
+                .iter()
+                .any(|message| message.contains("context lost"))
+        );
 
         // Callers settle with an error instead of waiting on a dead renderer.
-        for result in [host.zoom(1.2), host.fit(), host.orbit(1.0, 1.0), host.view("top")] {
+        for result in [
+            host.zoom(1.2),
+            host.fit(),
+            host.orbit(1.0, 1.0),
+            host.view("top"),
+        ] {
             assert!(result.unwrap_err().contains("unavailable"));
         }
         let renders = calls(&renderer, "render");
@@ -650,8 +667,16 @@ mod lifecycle_tests {
             .dispatch_event(&web_sys::Event::new("resize").unwrap())
             .unwrap();
         settle().await;
-        assert_eq!(calls(&renderer, "render"), renders, "no frame after context loss");
-        assert_eq!(calls(&renderer, "zoom"), zooms, "no camera call reaches a lost renderer");
+        assert_eq!(
+            calls(&renderer, "render"),
+            renders,
+            "no frame after context loss"
+        );
+        assert_eq!(
+            calls(&renderer, "zoom"),
+            zooms,
+            "no camera call reaches a lost renderer"
+        );
 
         drop(host);
         assert_eq!(calls(&renderer, "dispose"), 1);
@@ -660,7 +685,9 @@ mod lifecycle_tests {
         assert_eq!(spy.live_listeners(), baseline, "all listeners released");
         assert_eq!(spy.live_observers(), 0, "resize observer disconnected");
         // A late loss event after unmount must not resurrect state.
-        canvas.dispatch_event(&web_sys::Event::new("webglcontextlost").unwrap()).unwrap();
+        canvas
+            .dispatch_event(&web_sys::Event::new("webglcontextlost").unwrap())
+            .unwrap();
         assert_eq!(state(&canvas).as_deref(), Some("disposed"));
         canvas.remove();
     }
@@ -681,7 +708,11 @@ mod lifecycle_tests {
         assert!(host.zoom(1.1).unwrap_err().contains("unavailable"));
         let renders = calls(&renderer, "render");
         settle().await;
-        assert_eq!(calls(&renderer, "render"), renders, "failed host does not retry frames");
+        assert_eq!(
+            calls(&renderer, "render"),
+            renders,
+            "failed host does not retry frames"
+        );
         host.dispose().unwrap();
         assert_eq!(state(&canvas).as_deref(), Some("disposed"));
         canvas.remove();
@@ -720,7 +751,11 @@ mod lifecycle_tests {
             drop(host);
             assert_eq!(calls(&renderer, "dispose"), 1, "cycle {cycle}");
             assert_eq!(calls(&renderer, "free"), 1, "cycle {cycle}");
-            assert_eq!(spy.live_listeners(), baseline, "listeners leaked in cycle {cycle}");
+            assert_eq!(
+                spy.live_listeners(),
+                baseline,
+                "listeners leaked in cycle {cycle}"
+            );
             assert_eq!(spy.live_observers(), 0, "observer leaked in cycle {cycle}");
             canvas.remove();
         }

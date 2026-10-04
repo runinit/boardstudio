@@ -1020,6 +1020,9 @@ fn PartsPreviewLayers(
 mod tests {
     use super::*;
     use boardstudio_application::SessionEpoch;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
     use boardstudio_core::model::{EnvelopeSource, PartGenerator, PartKind};
 
     fn definition() -> PartDefinition {
@@ -1067,7 +1070,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn mx_preview_layer_options_follow_geometry_and_retained_source_layers() {
         let definition = definition();
         let drawings = vec![Graphic {
@@ -1099,7 +1102,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn mx_view_box_contains_the_source_envelope_and_rendered_graphics() {
         let definition = definition();
         let drawings = vec![Graphic {
@@ -1127,7 +1130,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn view_box_keeps_the_reference_origin_for_one_sided_graphics() {
         let mut definition = definition();
         definition.pads.clear();
@@ -1153,7 +1156,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn layer_options_omit_source_shapes_that_cannot_be_toggled() {
         let mut definition = definition();
         definition.pads = vec![pad("1", Side::Front, None)];
@@ -1177,7 +1180,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn stale_async_result_cannot_reclaim_same_definition_after_selection_round_trip() {
         let input_a = PreviewInput {
             selection_generation: 1,
@@ -1219,7 +1222,7 @@ mod tests {
         assert!(!owner_is_current(&scoped_owner, &returned_a));
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn generated_keycap_uses_retained_dimensions_unless_the_envelope_is_authored() {
         let defaults = footprint_graphics::GeneratorPreviewDefaults {
             keycap_width: Some(18.0),
@@ -1256,7 +1259,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn keycap_visibility_prefers_generator_value_then_retained_default() {
         let defaults = footprint_graphics::GeneratorPreviewDefaults {
             include_keycap: Some(false),
@@ -1273,7 +1276,7 @@ mod tests {
         assert!(include_keycap(&definition, defaults));
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn non_plated_drills_keep_the_mechanical_hole_class() {
         let mut mechanical = pad("NPTH", Side::Front, Some(1.0));
         mechanical.plated = Some(false);
@@ -1282,7 +1285,7 @@ mod tests {
         assert_eq!(drill_class(&plated), "m1-part-drill");
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn visibility_is_one_definition_pair_like_the_reference_workspace() {
         let stored_a = Visibility {
             definition_id: "a".into(),

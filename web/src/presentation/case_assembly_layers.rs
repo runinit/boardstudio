@@ -523,7 +523,7 @@ mod tests {
         assert_eq!(plate.availability, LayerAvailability::Available);
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn display_selection_normalizes_pcb_and_only_exposes_supported_layers() {
         let selectable = vec!["pcb".to_owned(), "plate".to_owned()];
         assert_eq!(

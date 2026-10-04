@@ -3076,7 +3076,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn generic_layout_module_projection_preserves_board_holes_and_omits_opening_voids() {
         use boardstudio_core::model::{
             CaseOpening, ModuleAttachment, ModuleSupportGeometry, MountedModule, ProjectDoc,
@@ -3742,7 +3742,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn pointer_completion_keeps_its_starting_projection_identity() {
         let started = identity();
         let mut current = started.clone();
@@ -3771,7 +3771,7 @@ mod tests {
         assert!(!owner_is_current(&owner, pointer.identity()));
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn pointer_event_cannot_take_reused_id_from_another_projection() {
         let started = identity();
         let mut current = started.clone();
@@ -3797,7 +3797,7 @@ mod tests {
         assert!(pointer.borrow().is_none());
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn display_preference_aliases_match_case_display_groups() {
         assert_eq!(
             preference_ids("pcb"),

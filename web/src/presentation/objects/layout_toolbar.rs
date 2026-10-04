@@ -161,8 +161,11 @@ fn finite_positive(value: f64) -> Option<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wasm_bindgen_test::wasm_bindgen_test;
 
-    #[test]
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    #[wasm_bindgen_test]
     fn retained_cell_survives_key_row_column_and_key_mode_changes() {
         let anchor = TreeCellAnchor {
             matrix_id: "matrix-1".to_owned(),
@@ -202,7 +205,7 @@ mod tests {
         assert_eq!(retained_coordinates(&changed_row, &anchor), None);
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn part_scope_is_a_real_component_or_an_empty_semantic_cell() {
         let cell = TreeContext::Key {
             matrix_id: "matrix-1".to_owned(),
@@ -234,7 +237,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn gesture_inputs_preserve_off_fractional_and_world_millimeter_modes() {
         let settings = LayoutSnapSettings {
             snap_fraction: 0.0,
@@ -257,7 +260,7 @@ mod tests {
         assert_eq!(mm.gap, None);
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn gesture_gap_uses_live_matrix_then_one_millimeter_and_respects_toggles() {
         let mut settings = LayoutSnapSettings {
             gap_override: "not a number".to_owned(),
@@ -276,7 +279,7 @@ mod tests {
         assert_eq!(gesture_snap_inputs(&settings, None, Some(1.4)).gap, None);
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn invalid_pitch_axes_fall_back_independently_and_nonfinite_fraction_is_safe() {
         let settings = LayoutSnapSettings {
             snap_fraction: f64::NAN,

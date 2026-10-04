@@ -765,8 +765,11 @@ fn is_uuid(value: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wasm_bindgen_test::wasm_bindgen_test;
 
-    #[wasm_bindgen_test::wasm_bindgen_test]
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    #[wasm_bindgen_test]
     fn saved_vik_parts_are_not_new_catalogue_choices() {
         let ordinary = imported_definitions().remove(0);
         let mut source_connector = ordinary.clone();
@@ -796,7 +799,7 @@ mod tests {
             .collect()
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn imported_source_hash_matches_the_bundled_source_digest() {
         assert_eq!(
             imported_parts_hash(),
@@ -804,7 +807,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn every_imported_static_definition_decodes_as_the_existing_core_type() {
         let definitions = imported_definitions();
         assert_eq!(definitions.len(), 9);
@@ -815,7 +818,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn imported_and_project_overrides_keep_the_first_id_position() {
         let actual = imported_definitions().remove(0);
         let id = actual.id.clone();
@@ -837,7 +840,7 @@ mod tests {
         assert_eq!(entries[0].source, CatalogueSource::Project);
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn overlay_and_selected_handle_share_untouched_bundled_definitions() {
         let definitions = imported_definitions();
         let mut overridden = definitions[0].clone();
@@ -857,7 +860,7 @@ mod tests {
         ));
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn category_remains_searchable_alongside_special_search_aliases() {
         let mut led = imported_definitions().remove(0);
         led.id = "ergogen:ceoloide/led_sk6812mini-e".into();
@@ -884,7 +887,7 @@ mod tests {
         assert!(entry.matches_library_search("solder hotswap"));
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn typed_generator_parameters_serialize_as_plain_json_objects() {
         let mut definition = imported_definitions().remove(0);
         let mut parameters = std::collections::BTreeMap::new();
@@ -902,7 +905,7 @@ mod tests {
         assert_eq!(json["generator"]["parameters"]["hotswap"], false);
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn assembly_dot_matches_javascript_line_terminator_rules() {
         for terminator in ["\n", "\r", "\u{2028}", "\u{2029}"] {
             assert!(!js_regex_dot_matches(&format!("before{terminator}after")));
@@ -910,7 +913,7 @@ mod tests {
         assert!(js_regex_dot_matches("parent/child"));
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn catalog_hides_retired_generator_and_unassigned_assembly_snapshots() {
         let mut definitions = imported_definitions();
         let mut snapshot = definitions[0].clone();

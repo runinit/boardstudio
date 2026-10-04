@@ -418,7 +418,6 @@ mod tests {
         project(&project_fixture(), "left", "matrix/main/r0c0").unwrap()
     }
 
-    #[test]
     #[wasm_bindgen_test]
     fn pcb_part_input_projection_preserves_ts_routing_and_matrix_predicate() {
         let document = project_fixture();
@@ -438,7 +437,6 @@ mod tests {
         assert!(project(&document, "right", "matrix/main/r0c0").is_none());
     }
 
-    #[test]
     #[wasm_bindgen_test]
     fn pcb_part_input_matrix_choice_requires_membership_and_independent_press() {
         let mut document = project_fixture();
@@ -475,7 +473,6 @@ mod tests {
         assert_eq!(projection.press_mode, Some(PressScanMode::Matrix));
     }
 
-    #[test]
     #[wasm_bindgen_test]
     fn pcb_part_input_schema_keeps_only_supported_nonterminal_net_and_anchor_fields() {
         let schema = BTreeMap::from([

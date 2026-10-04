@@ -70,7 +70,18 @@ impl RendererHost {
         let arguments = Array::new();
         arguments.push(&canvas);
         let renderer = Reflect::construct(&constructor, &arguments).map_err(js_error)?;
+        Self::attach(renderer, canvas, input, status, is_current)
+    }
 
+    /// Take ownership of an already constructed renderer object. Everything
+    /// fallible after this point is covered by the cleanup guard below.
+    fn attach(
+        renderer: JsValue,
+        canvas: HtmlCanvasElement,
+        input: JsValue,
+        status: Rc<dyn Fn(String)>,
+        is_current: Rc<dyn Fn() -> bool>,
+    ) -> Result<Self, String> {
         // From the first allocation onward all fallible initialization is owned
         // by this guard; any failure runs every available cleanup step.
         let inner = Rc::new(RendererInner {
@@ -472,4 +483,328 @@ fn js_error(error: JsValue) -> String {
                 .and_then(|value| value.as_string())
         })
         .unwrap_or_else(|| "unknown browser error".to_owned())
+}
+
+#[cfg(test)]
+mod lifecycle_tests {
+    //! Deterministic lifecycle checks against a scripted renderer object. They need
+    //! a browser DOM (canvas, window, ResizeObserver) but no real WebGL context:
+    //! teardown tolerates a canvas without one, and `loseContext` is only reached
+    //! when the browser happens to provide a context.
+    use super::*;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    fn scripted_renderer(fail: &str) -> JsValue {
+        Function::new_with_args(
+            "fail",
+            "const calls = { setScene: 0, fit: 0, resize: 0, render: 0, dispose: 0, free: 0, zoom: 0 };
+             const hook = (name) => function () {
+               calls[name] += 1;
+               if (fail === name) { throw new Error(name + ' failed'); }
+             };
+             return { calls, setScene: hook('setScene'), fit: hook('fit'), resize: hook('resize'),
+                      render: hook('render'), dispose: hook('dispose'), free: hook('free'),
+                      zoom: hook('zoom') };",
+        )
+        .call1(&JsValue::NULL, &JsValue::from_str(fail))
+        .unwrap()
+    }
+
+    fn calls(renderer: &JsValue, name: &str) -> u32 {
+        let calls = Reflect::get(renderer, &JsValue::from_str("calls")).unwrap();
+        Reflect::get(&calls, &JsValue::from_str(name))
+            .unwrap()
+            .as_f64()
+            .unwrap() as u32
+    }
+
+    /// Count live (target, type, callback) registrations for the listener types the
+    /// host installs, plus ResizeObserver observe/disconnect balance.
+    struct ListenerSpy;
+
+    impl ListenerSpy {
+        fn install() -> Self {
+            Function::new_no_args(
+                "if (window.__rendererSpy) { return; }
+                 const spy = { entries: [], observers: 0, original: {} };
+                 const watched = ['resize', 'change', 'webglcontextlost'];
+                 const proto = EventTarget.prototype;
+                 spy.original.add = proto.addEventListener;
+                 spy.original.remove = proto.removeEventListener;
+                 proto.addEventListener = function (type, callback, options) {
+                   if (watched.includes(type) && !spy.entries.some((e) => e.t === this && e.type === type && e.cb === callback)) {
+                     spy.entries.push({ t: this, type, cb: callback });
+                   }
+                   return spy.original.add.call(this, type, callback, options);
+                 };
+                 proto.removeEventListener = function (type, callback, options) {
+                   spy.entries = spy.entries.filter((e) => !(e.t === this && e.type === type && e.cb === callback));
+                   return spy.original.remove.call(this, type, callback, options);
+                 };
+                 spy.original.observe = ResizeObserver.prototype.observe;
+                 spy.original.disconnect = ResizeObserver.prototype.disconnect;
+                 ResizeObserver.prototype.observe = function (...args) { spy.observers += 1; return spy.original.observe.apply(this, args); };
+                 ResizeObserver.prototype.disconnect = function (...args) { spy.observers -= 1; return spy.original.disconnect.apply(this, args); };
+                 window.__rendererSpy = spy;",
+            )
+            .call0(&JsValue::NULL)
+            .unwrap();
+            Self
+        }
+
+        fn live_listeners(&self) -> u32 {
+            Function::new_no_args("return window.__rendererSpy.entries.length")
+                .call0(&JsValue::NULL)
+                .unwrap()
+                .as_f64()
+                .unwrap() as u32
+        }
+
+        fn live_observers(&self) -> i32 {
+            Function::new_no_args("return window.__rendererSpy.observers")
+                .call0(&JsValue::NULL)
+                .unwrap()
+                .as_f64()
+                .unwrap() as i32
+        }
+    }
+
+    impl Drop for ListenerSpy {
+        fn drop(&mut self) {
+            let _ = Function::new_no_args(
+                "const spy = window.__rendererSpy; if (!spy) { return; }
+                 EventTarget.prototype.addEventListener = spy.original.add;
+                 EventTarget.prototype.removeEventListener = spy.original.remove;
+                 ResizeObserver.prototype.observe = spy.original.observe;
+                 ResizeObserver.prototype.disconnect = spy.original.disconnect;
+                 delete window.__rendererSpy;",
+            )
+            .call0(&JsValue::NULL);
+        }
+    }
+
+    fn make_canvas() -> HtmlCanvasElement {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let canvas = document
+            .create_element("canvas")
+            .unwrap()
+            .dyn_into::<HtmlCanvasElement>()
+            .unwrap();
+        canvas
+            .set_attribute("style", "width:200px;height:100px")
+            .unwrap();
+        document.body().unwrap().append_child(&canvas).unwrap();
+        canvas
+    }
+
+    fn status_log() -> (Rc<dyn Fn(String)>, Rc<RefCell<Vec<String>>>) {
+        let log = Rc::new(RefCell::new(Vec::new()));
+        let sink = log.clone();
+        (Rc::new(move |message| sink.borrow_mut().push(message)), log)
+    }
+
+    fn attach(
+        renderer: &JsValue,
+        canvas: &HtmlCanvasElement,
+        status: Rc<dyn Fn(String)>,
+    ) -> Result<RendererHost, String> {
+        RendererHost::attach(
+            renderer.clone(),
+            canvas.clone(),
+            JsValue::from_str("scene"),
+            status,
+            Rc::new(|| true),
+        )
+    }
+
+    async fn settle() {
+        gloo_timers::future::TimeoutFuture::new(120).await;
+    }
+
+    fn state(canvas: &HtmlCanvasElement) -> Option<String> {
+        canvas.get_attribute("data-renderer-state")
+    }
+
+    #[wasm_bindgen_test]
+    async fn context_loss_settles_callers_stops_rendering_and_unmount_releases_everything() {
+        let spy = ListenerSpy::install();
+        let baseline = spy.live_listeners();
+        let renderer = scripted_renderer("");
+        let canvas = make_canvas();
+        let (status, log) = status_log();
+        let host = attach(&renderer, &canvas, status).expect("scripted renderer attaches");
+        settle().await;
+        assert_eq!(state(&canvas).as_deref(), Some("active"));
+        assert!(calls(&renderer, "render") >= 1, "first frame is submitted");
+        assert!(
+            spy.live_listeners() > baseline,
+            "lifecycle listeners are installed"
+        );
+
+        let init = web_sys::EventInit::new();
+        init.set_cancelable(true);
+        let lost = web_sys::Event::new_with_event_init_dict("webglcontextlost", &init).unwrap();
+        canvas.dispatch_event(&lost).unwrap();
+        assert!(
+            lost.default_prevented(),
+            "loss must be reported, not auto-restored"
+        );
+        assert_eq!(state(&canvas).as_deref(), Some("context-lost"));
+        assert!(
+            log.borrow()
+                .iter()
+                .any(|message| message.contains("context lost"))
+        );
+
+        // Callers settle with an error instead of waiting on a dead renderer.
+        for result in [
+            host.zoom(1.2),
+            host.fit(),
+            host.orbit(1.0, 1.0),
+            host.view("top"),
+        ] {
+            assert!(result.unwrap_err().contains("unavailable"));
+        }
+        let renders = calls(&renderer, "render");
+        let zooms = calls(&renderer, "zoom");
+        web_sys::window()
+            .unwrap()
+            .dispatch_event(&web_sys::Event::new("resize").unwrap())
+            .unwrap();
+        settle().await;
+        assert_eq!(
+            calls(&renderer, "render"),
+            renders,
+            "no frame after context loss"
+        );
+        assert_eq!(
+            calls(&renderer, "zoom"),
+            zooms,
+            "no camera call reaches a lost renderer"
+        );
+
+        drop(host);
+        assert_eq!(calls(&renderer, "dispose"), 1);
+        assert_eq!(calls(&renderer, "free"), 1);
+        assert_eq!(state(&canvas).as_deref(), Some("disposed"));
+        assert_eq!(spy.live_listeners(), baseline, "all listeners released");
+        assert_eq!(spy.live_observers(), 0, "resize observer disconnected");
+        // A late loss event after unmount must not resurrect state.
+        canvas
+            .dispatch_event(&web_sys::Event::new("webglcontextlost").unwrap())
+            .unwrap();
+        assert_eq!(state(&canvas).as_deref(), Some("disposed"));
+        canvas.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn render_submission_error_marks_the_host_failed_and_settles_callers() {
+        let renderer = scripted_renderer("render");
+        let canvas = make_canvas();
+        let (status, log) = status_log();
+        let host = attach(&renderer, &canvas, status).expect("attach succeeds before first frame");
+        settle().await;
+        assert_eq!(state(&canvas).as_deref(), Some("frame-failed"));
+        assert!(
+            log.borrow()
+                .iter()
+                .any(|message| message.contains("Renderer submission failed"))
+        );
+        assert!(host.zoom(1.1).unwrap_err().contains("unavailable"));
+        let renders = calls(&renderer, "render");
+        settle().await;
+        assert_eq!(
+            calls(&renderer, "render"),
+            renders,
+            "failed host does not retry frames"
+        );
+        host.dispose().unwrap();
+        assert_eq!(state(&canvas).as_deref(), Some("disposed"));
+        canvas.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn dispose_is_idempotent_and_drop_after_dispose_does_not_free_twice() {
+        let spy = ListenerSpy::install();
+        let baseline = spy.live_listeners();
+        let renderer = scripted_renderer("");
+        let canvas = make_canvas();
+        let (status, _) = status_log();
+        let host = attach(&renderer, &canvas, status).unwrap();
+        settle().await;
+        host.dispose().unwrap();
+        host.dispose().unwrap();
+        drop(host);
+        assert_eq!(calls(&renderer, "dispose"), 1);
+        assert_eq!(calls(&renderer, "free"), 1);
+        assert_eq!(spy.live_listeners(), baseline);
+        canvas.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn repeated_mount_and_unmount_does_not_accumulate_listeners_or_observers() {
+        let spy = ListenerSpy::install();
+        let baseline = spy.live_listeners();
+        for cycle in 0..8 {
+            let renderer = scripted_renderer("");
+            let canvas = make_canvas();
+            let (status, _) = status_log();
+            let host = attach(&renderer, &canvas, status).unwrap();
+            if cycle % 2 == 0 {
+                settle().await;
+            }
+            drop(host);
+            assert_eq!(calls(&renderer, "dispose"), 1, "cycle {cycle}");
+            assert_eq!(calls(&renderer, "free"), 1, "cycle {cycle}");
+            assert_eq!(
+                spy.live_listeners(),
+                baseline,
+                "listeners leaked in cycle {cycle}"
+            );
+            assert_eq!(spy.live_observers(), 0, "observer leaked in cycle {cycle}");
+            canvas.remove();
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn cancelled_or_failed_initialization_releases_partial_resources() {
+        let spy = ListenerSpy::install();
+        let baseline = spy.live_listeners();
+
+        // Mount scope cancelled after the lifecycle was installed.
+        let renderer = scripted_renderer("");
+        let canvas = make_canvas();
+        let (status, _) = status_log();
+        let checks = Rc::new(Cell::new(0u32));
+        let counter = checks.clone();
+        let result = RendererHost::attach(
+            renderer.clone(),
+            canvas.clone(),
+            JsValue::from_str("scene"),
+            status,
+            Rc::new(move || {
+                counter.set(counter.get() + 1);
+                counter.get() < 2
+            }),
+        );
+        assert!(result.err().unwrap().contains("cancelled"));
+        assert_eq!(calls(&renderer, "dispose"), 1);
+        assert_eq!(calls(&renderer, "free"), 1);
+        assert_eq!(state(&canvas).as_deref(), Some("disposed"));
+        assert_eq!(spy.live_listeners(), baseline);
+        canvas.remove();
+
+        // Renderer rejects the scene.
+        let renderer = scripted_renderer("setScene");
+        let canvas = make_canvas();
+        let (status, _) = status_log();
+        let result = attach(&renderer, &canvas, status);
+        assert!(result.err().unwrap().contains("setScene failed"));
+        assert_eq!(calls(&renderer, "dispose"), 1);
+        assert_eq!(calls(&renderer, "free"), 1);
+        assert_eq!(spy.live_listeners(), baseline);
+        canvas.remove();
+    }
 }

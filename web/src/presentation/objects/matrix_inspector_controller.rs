@@ -2583,8 +2583,11 @@ pub(in crate::presentation) fn matrix_with_preset(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wasm_bindgen_test::wasm_bindgen_test;
 
-    #[test]
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    #[wasm_bindgen_test]
     fn variant_owner_does_not_claim_a_later_open_even_with_the_same_project_id() {
         let original_operation = boardstudio_application::SessionEpoch(12);
         let reopened_variant = boardstudio_application::SessionEpoch(13);
@@ -2634,7 +2637,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn resizing_real_preset_matrix_preserves_cells_and_inherits_only_electrical_members() {
         let mut matrix = reviung_matrix();
         matrix.rows = 2;
@@ -2705,7 +2708,7 @@ mod tests {
         assert_eq!(matrix.cells[0].assemblies.len(), template.assemblies.len());
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn resize_preserves_sparse_holes_and_trims_only_cells_outside_new_bounds() {
         let mut matrix = reviung_matrix();
         matrix.rows = 2;
@@ -2763,7 +2766,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn custom_resize_leaves_cells_unchanged_and_rejects_oversized_dimensions_before_allocation() {
         let mut matrix = reviung_matrix();
         matrix.cells.iter_mut().for_each(|cell| cell.variant = None);
@@ -2781,7 +2784,7 @@ mod tests {
         assert!(matrix_edit(&matrix, MatrixEditField::Rows, MatrixEditValue::Rows(0),).is_err());
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn matrix_pitch_request_preserves_every_unrelated_accepted_matrix_field() {
         let matrix = reviung_matrix();
         let next = request_matrix(
@@ -2798,7 +2801,7 @@ mod tests {
         assert_eq!(next.board_id, matrix.board_id);
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn owning_layout_name_request_uses_set_layout_without_renaming_the_matrix() {
         let document = reviung_document();
         let matrix = document
