@@ -163,3 +163,37 @@ context retains the tab across unrelated accepted revisions. GREEN:
 with the wasm-bindgen Chrome runner passed (1 passed, 216 filtered). Rustfmt
 check passed for the three touched Layout files. The 34803 package was not
 rebuilt or rechecked; no TS source, package, tracker, or run file was changed.
+
+### C01 matrix→Key tab reset retest (2026-10-04; source `58145c17`)
+
+On updated candidate `frontend-context-gap-20261004` at
+`http://127.0.0.1:34804/`, a fresh import of the same saved Sofle fixture
+selected `keys`, switched Relations, expanded Column 1, and selected tree child
+`Key 1.1 left-keys-SW1`. The inspector context became `keys · Key 1.1`, Properties
+was selected, and Key Properties (Local X/Y and Key rotation) were visible;
+Relations was no longer selected. This is GREEN for the exact Matrix→Key
+transition that failed on 34803 and was already covered by the focused RED/GREEN
+regression. The paired React 5175 RED comparison and regression receipts above
+are reused; no other selection contexts were tested. Browser session closed.
+
+### C04 Board and Outline return focus follow-up (2026-10-04; source `58145c17`)
+
+Sol review found that the Back return effect only focused the selected Properties
+tab. That covered a prior component selection but left keyboard focus without a
+destination after returning to Board or Outline contexts. The return effect now
+focuses the first enabled Board or Outline inspector control, and falls back to
+the restored inspector context when its controls are disabled. Component returns
+continue to focus Properties.
+
+The focused mounted wasm regression dispatched Enter on Back in Board and
+Outline inspector DOMs and verified focus moved to the Board name and Active
+outline controls. A stale board scope left focus on Back and did not redirect to
+the other board. The same regression keeps a valid empty Outline context
+returnable. Against the previous tabs-only focus lookup, the focused test was
+RED: Enter left focus on Back instead of the Board name input. After the
+context-aware focus lookup, `wasm-pack test --headless --chrome --mode no-install web
+--no-default-features --features page --bin boardstudio-web --
+mounted_back_enter_focuses_board_and_outline_inspectors_and_rejects_stale_scope`
+passed (1 passed, 0 failed). `rustfmt --edition 2024 web/src/presentation.rs`
+and `git diff --check -- web/src/presentation.rs` passed. This source-level
+mounted regression does not qualify a paired public React/Dioxus journey.

@@ -3,6 +3,10 @@
 //! This arbitrates the Layout canvas' owner-backed pointer workflows. It is not
 //! a general gesture framework.
 use std::{cell::Cell, rc::Rc};
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::{JsCast, closure::Closure};
+#[cfg(target_arch = "wasm32")]
+use web_sys::{HtmlElement, KeyboardEvent, Window};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum CanvasInteractionOwner {
@@ -62,6 +66,77 @@ pub(super) fn pending_part_drag_threshold_reached(
     dx != 0.0 || dy != 0.0
 }
 
+/// Whether a Layout-level keyboard event should enable Space-drag panning.
+/// This is intentionally independent of canvas focus so pointer-over-canvas
+/// Space gestures work before the SVG has received a click or keyboard focus.
+pub(super) fn layout_space_pan_keydown(key: &str, code: &str, typing_target: bool) -> bool {
+    !typing_target && (key == " " || code == "Space")
+}
+
+#[cfg(target_arch = "wasm32")]
+pub(super) struct LayoutSpacePanWindowListener {
+    window: Window,
+    keydown: Closure<dyn FnMut(KeyboardEvent)>,
+    keyup: Closure<dyn FnMut(KeyboardEvent)>,
+}
+
+#[cfg(target_arch = "wasm32")]
+impl LayoutSpacePanWindowListener {
+    pub(super) fn install(
+        is_layout: Rc<dyn Fn() -> bool>,
+        space_down: Rc<Cell<bool>>,
+    ) -> Option<Self> {
+        let window = web_sys::window()?;
+        let keydown_space = space_down.clone();
+        let keydown = Closure::wrap(Box::new(move |event: KeyboardEvent| {
+            let typing_target = event
+                .target()
+                .and_then(|target| target.dyn_into::<HtmlElement>().ok())
+                .is_some_and(|target| {
+                    matches!(target.tag_name().as_str(), "INPUT" | "TEXTAREA" | "SELECT")
+                });
+            if is_layout() && layout_space_pan_keydown(&event.key(), &event.code(), typing_target) {
+                keydown_space.set(true);
+                event.prevent_default();
+            }
+        }) as Box<dyn FnMut(_)>);
+        let keyup_space = space_down;
+        let keyup = Closure::wrap(Box::new(move |event: KeyboardEvent| {
+            if event.key() == " " || event.code() == "Space" {
+                keyup_space.set(false);
+            }
+        }) as Box<dyn FnMut(_)>);
+        window
+            .add_event_listener_with_callback("keydown", keydown.as_ref().unchecked_ref())
+            .ok()?;
+        if window
+            .add_event_listener_with_callback("keyup", keyup.as_ref().unchecked_ref())
+            .is_err()
+        {
+            let _ = window
+                .remove_event_listener_with_callback("keydown", keydown.as_ref().unchecked_ref());
+            return None;
+        }
+        Some(Self {
+            window,
+            keydown,
+            keyup,
+        })
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl Drop for LayoutSpacePanWindowListener {
+    fn drop(&mut self) {
+        let _ = self
+            .window
+            .remove_event_listener_with_callback("keydown", self.keydown.as_ref().unchecked_ref());
+        let _ = self
+            .window
+            .remove_event_listener_with_callback("keyup", self.keyup.as_ref().unchecked_ref());
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -108,5 +183,49 @@ mod tests {
         // If panel reflow changes the SVG/world mapping while the pointer stays
         // at the same client coordinates, the pending click must remain still.
         assert!(!pending_part_drag_threshold_reached(start, start));
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn layout_space_pan_uses_global_space_key_without_a_focus_precondition() {
+        assert!(layout_space_pan_keydown(" ", "Space", false));
+        assert!(layout_space_pan_keydown("Space", "Space", false));
+        assert!(!layout_space_pan_keydown(" ", "Space", true));
+        assert!(!layout_space_pan_keydown("x", "KeyX", false));
+
+        let space_down = Rc::new(Cell::new(false));
+        let is_layout = Rc::new(Cell::new(true));
+        let listener = LayoutSpacePanWindowListener::install(
+            {
+                let is_layout = is_layout.clone();
+                Rc::new(move || is_layout.get())
+            },
+            space_down.clone(),
+        )
+        .expect("window listeners install");
+        let window = web_sys::window().expect("window");
+        let init = web_sys::KeyboardEventInit::new();
+        init.set_key(" ");
+        init.set_code("Space");
+        init.set_bubbles(true);
+        init.set_cancelable(true);
+        let down = web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+            .expect("Space keydown");
+        window.dispatch_event(&down).unwrap();
+        assert!(space_down.get(), "window Space keydown enables pan");
+        assert!(down.default_prevented(), "Space does not scroll the page");
+
+        let up = web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keyup", &init)
+            .expect("Space keyup");
+        window.dispatch_event(&up).unwrap();
+        assert!(!space_down.get(), "window Space keyup releases pan");
+
+        is_layout.set(false);
+        space_down.set(false);
+        window.dispatch_event(&down).unwrap();
+        assert!(
+            !space_down.get(),
+            "other workspaces do not acquire Layout pan"
+        );
+        drop(listener);
     }
 }

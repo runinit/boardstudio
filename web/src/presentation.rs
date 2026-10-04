@@ -1187,6 +1187,40 @@ fn layout_finding_return_is_current(
         })
 }
 
+fn focus_layout_finding_return_destination() -> bool {
+    let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+        return false;
+    };
+    for selector in [
+        "#m1-inspector-panel-content .m1-layout-component-tabs [role='tab'][aria-selected='true']",
+        "#m1-inspector-panel-content .m1-board-inspector :is(input, select, button):not(:disabled)",
+        "#m1-inspector-panel-content .m1-outline-inspector :is(input, select, button):not(:disabled)",
+    ] {
+        if let Some(element) = document
+            .query_selector(selector)
+            .ok()
+            .flatten()
+            .and_then(|element| element.dyn_into::<HtmlElement>().ok())
+        {
+            let _ = element.focus();
+            return true;
+        }
+    }
+    if let Some(element) = document
+        .query_selector(
+            "#m1-inspector-panel-content .m1-inspector-body, #m1-inspector-panel-content .m1-selected-context, #m1-inspector-panel-content .m1-board-inspector, #m1-inspector-panel-content .m1-outline-inspector",
+        )
+        .ok()
+        .flatten()
+        .and_then(|element| element.dyn_into::<HtmlElement>().ok())
+    {
+        let _ = element.set_attribute("tabindex", "-1");
+        let _ = element.focus();
+        return true;
+    }
+    false
+}
+
 #[cfg(test)]
 mod layout_finding_return_regression_tests {
     use super::*;
@@ -1195,6 +1229,7 @@ mod layout_finding_return_regression_tests {
         Board, Part, PartDefinition, PartKind, Pose2, ProjectDoc, Readiness, SceneDelta, Side, Vec2,
     };
     use std::sync::Arc;
+    use wasm_bindgen::{JsCast, closure::Closure};
     use wasm_bindgen_test::wasm_bindgen_test;
 
     fn fixture() -> (ReadModel, Scope, objects::ScopedTreeContext) {
@@ -1357,6 +1392,19 @@ mod layout_finding_return_regression_tests {
             &target,
         ));
 
+        let mut changed_scope_owner = owner.clone();
+        changed_scope_owner
+            .scope
+            .as_mut()
+            .expect("fixture scope")
+            .board_id = "other-board".into();
+        assert!(!layout_finding_return_is_current(
+            &model,
+            &changed_scope_owner,
+            Some(&outline_selection),
+            &target,
+        ));
+
         let mut changed_model = model;
         Arc::make_mut(
             &mut changed_model
@@ -1374,6 +1422,149 @@ mod layout_finding_return_regression_tests {
             Some(&outline_selection),
             &target,
         ));
+    }
+
+    #[wasm_bindgen_test]
+    fn mounted_back_enter_focuses_board_and_outline_inspectors_and_rejects_stale_scope() {
+        let (model, scope, selection) = fixture();
+        let owner = LayoutOwnerIdentity {
+            scope: Some(scope.clone()),
+            token: Some(SnapshotToken(13)),
+            revision: Some(9),
+            generation: 2,
+            workspace: "Layout",
+        };
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document
+            .create_element("div")
+            .unwrap()
+            .dyn_into::<HtmlElement>()
+            .unwrap();
+        root.set_id("m1-inspector-panel-content");
+        document.body().unwrap().append_child(&root).unwrap();
+
+        for (inspector, destination, expected_focus) in [
+            (
+                r#"<button id="back">Back to selection</button><section class="m1-board-inspector"><input id="board-name"></section>"#,
+                objects::TreeContext::Board {
+                    board_id: scope.board_id.clone(),
+                },
+                "board-name",
+            ),
+            (
+                r#"<button id="back">Back to selection</button><section class="m1-outline-inspector"><select id="outline-version"><option>Generated</option></select></section>"#,
+                objects::TreeContext::Outline {
+                    board_id: scope.board_id.clone(),
+                },
+                "outline-version",
+            ),
+        ] {
+            root.set_inner_html(inspector);
+            let back = document
+                .get_element_by_id("back")
+                .unwrap()
+                .dyn_into::<HtmlElement>()
+                .unwrap();
+            let target = LayoutFindingReturnTarget {
+                owner: owner.clone(),
+                selection: selection.clone(),
+                destination: destination.clone(),
+            };
+            let current_selection = objects::ScopedTreeContext {
+                scope: scope.clone(),
+                context: destination,
+            };
+            let model = model.clone();
+            let owner = owner.clone();
+            let back_key = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
+                if event.key() == "Enter"
+                    && layout_finding_return_is_current(
+                        &model,
+                        &owner,
+                        Some(&current_selection),
+                        &target,
+                    )
+                {
+                    event.prevent_default();
+                    let _ = focus_layout_finding_return_destination();
+                }
+            }) as Box<dyn FnMut(_)>);
+            back.add_event_listener_with_callback("keydown", back_key.as_ref().unchecked_ref())
+                .unwrap();
+            back.focus().unwrap();
+            let init = web_sys::KeyboardEventInit::new();
+            init.set_key("Enter");
+            init.set_bubbles(true);
+            back.dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+                    .unwrap(),
+            )
+            .unwrap();
+            assert_eq!(
+                document
+                    .active_element()
+                    .and_then(|element| element.get_attribute("id")),
+                Some(expected_focus.to_owned()),
+                "Enter returns focus into {expected_focus}"
+            );
+            back.remove_event_listener_with_callback("keydown", back_key.as_ref().unchecked_ref())
+                .unwrap();
+        }
+
+        root.set_inner_html(
+            r#"<button id="back">Back to selection</button><section class="m1-board-inspector"><input id="board-name"></section>"#,
+        );
+        let back = document
+            .get_element_by_id("back")
+            .unwrap()
+            .dyn_into::<HtmlElement>()
+            .unwrap();
+        let target = LayoutFindingReturnTarget {
+            owner: owner.clone(),
+            selection,
+            destination: objects::TreeContext::Board {
+                board_id: scope.board_id.clone(),
+            },
+        };
+        let current_selection = objects::ScopedTreeContext {
+            scope,
+            context: target.destination.clone(),
+        };
+        let mut stale_owner = owner.clone();
+        stale_owner.scope.as_mut().expect("fixture scope").board_id = "other-board".into();
+        let model = model.clone();
+        let stale_key = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
+            if event.key() == "Enter"
+                && layout_finding_return_is_current(
+                    &model,
+                    &stale_owner,
+                    Some(&current_selection),
+                    &target,
+                )
+            {
+                event.prevent_default();
+                let _ = focus_layout_finding_return_destination();
+            }
+        }) as Box<dyn FnMut(_)>);
+        back.add_event_listener_with_callback("keydown", stale_key.as_ref().unchecked_ref())
+            .unwrap();
+        back.focus().unwrap();
+        let init = web_sys::KeyboardEventInit::new();
+        init.set_key("Enter");
+        back.dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            document
+                .active_element()
+                .and_then(|element| element.get_attribute("id")),
+            Some("back".to_owned()),
+            "a stale scope cannot move focus into another board's Inspector"
+        );
+        back.remove_event_listener_with_callback("keydown", stale_key.as_ref().unchecked_ref())
+            .unwrap();
+        document.body().unwrap().remove_child(&root).unwrap();
     }
 }
 
@@ -3496,20 +3687,7 @@ fn Editor() -> Element {
                 return;
             }
             return_focus.set(false);
-            if let Some(element) = web_sys::window()
-                .and_then(|window| window.document())
-                .and_then(|document| {
-                    document
-                        .query_selector(
-                            "#m1-inspector-panel-content .m1-layout-component-tabs [role='tab'][aria-selected='true']",
-                        )
-                        .ok()
-                        .flatten()
-                })
-                .and_then(|element| element.dyn_into::<HtmlElement>().ok())
-            {
-                let _ = element.focus();
-            }
+            let _ = focus_layout_finding_return_destination();
         }
     }));
     use_effect(use_reactive((&active_workspace,), {
@@ -5300,6 +5478,16 @@ fn Editor() -> Element {
     }));
     let drag = use_hook(|| Rc::new(RefCell::new(None::<Drag>)));
     let space_down = use_hook(|| Rc::new(Cell::new(false)));
+    let space_pan_window_listener = use_hook({
+        let workspace = workspace;
+        let space_down = space_down.clone();
+        move || {
+            let is_layout: Rc<dyn Fn() -> bool> = Rc::new(move || workspace() == "Layout");
+            canvas_interaction::LayoutSpacePanWindowListener::install(is_layout, space_down.clone())
+                .map(Rc::new)
+        }
+    });
+    use_drop(move || drop(space_pan_window_listener));
     let interaction_version = use_signal(|| 0_u64);
     let observed_interaction_version = interaction_version();
     let navigate_scoped = {

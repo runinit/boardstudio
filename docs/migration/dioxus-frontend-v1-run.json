@@ -16,29 +16,29 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T10:16:53.390537+00:00",
+    "updated_at": "2026-10-04T10:40:21.626959+00:00",
     "parent_counts": {
-      "accepted": 16,
-      "implementing": 34,
+      "accepted": 17,
+      "implementing": 33,
       "planned": 11,
       "total": 61
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-findings-panels-20261004",
-      "source_commit": "f399d8c2e8ef1b409bbadfd17bfe59907fb8a272",
-      "root_url": "http://127.0.0.1:34803/",
-      "subpath_url": "http://127.0.0.1:34803/boardstudio/",
-      "provenance": "web/target/builds/frontend-findings-panels-20261004/provenance.json",
-      "provenance_sha256": "870530bcadd5c9c25e7fd2ad53b1d1d5a4c345b261e30e50e1da12de2cde3e6f",
+      "build_id": "frontend-context-gap-20261004",
+      "source_commit": "58145c178156ee0a88ccaadc33dcae194c0f1639",
+      "root_url": "http://127.0.0.1:34804/",
+      "subpath_url": "http://127.0.0.1:34804/boardstudio/",
+      "provenance": "web/target/builds/frontend-context-gap-20261004/provenance.json",
+      "provenance_sha256": "8c6c3d52439370a0d85f95b6f7f09ea352af4735a983a37632b30b0d0f7b7773",
       "fresh_commands": 9,
       "inherited_commands": 23,
       "source_inputs": 1393,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 130.629418,
+      "command_span_seconds": 128.906175,
       "package_qualification": "Combined package provenance, current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-findings-panels-20261004/package-proof.json",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-context-gap-20261004/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -48,8 +48,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "f399d8c2e8ef1b409bbadfd17bfe59907fb8a272",
-      "state": "Candidate 34803/source f399d8c2 passed compiler/root/subpath/offline packaging. Layout finding Back and desktop panel pointer-resize changed actions passed focused public browser journeys; all F2.3 criteria are verified, pending the single consolidated candidate review and acceptance decision. Concurrent six-stream passes found two more narrow gaps: matrix→key Inspector tab retention and Case empty-profile derived-gap omission. Both source repairs have focused RED/GREEN regressions; next combined candidate will package them once.",
+      "source_commit": "58145c178156ee0a88ccaadc33dcae194c0f1639",
+      "state": "Candidate 34804/source 58145c17 passed compiler/root/subpath/offline packaging and both focused public browser journeys: matrix\u2192key Inspector tab reset and Case configured-gap guidance. One consolidated Sol review verified source/provenance, found a bounded F3.5 Board/Outline Back focus gap now repaired in the next source batch, and recommended F2.3 acceptance. All four F2.3 criteria are verified; parent accepted. PCB decorative finding marker and Layout Space-pan keyboard scope are next functional source packets.",
       "packets": [
         {
           "stream": "Layout",
@@ -366,8 +366,8 @@
           "change": "F2.3 pointer and keyboard desktop pane resizing with persistence"
         }
       ],
-      "qualification": "34803 changed-action browser journeys passed; source repairs for the next candidate are settled. Reuse unaffected paired evidence and run one consolidated Sol review after the next candidate browser pass. Case valid Handle release remains unqualified without a deterministic public hit target.",
-      "application_candidate_source": "f399d8c2e8ef1b409bbadfd17bfe59907fb8a272"
+      "qualification": "34804 changed-action journeys 2/2 passed and one consolidated Sol review completed. F2.3 has a decision record; later source repairs require their own next batched candidate browser pass, without repeating unchanged evidence.",
+      "application_candidate_source": "58145c178156ee0a88ccaadc33dcae194c0f1639"
     },
     "journeys": [
       {
@@ -551,7 +551,7 @@
       {
         "stream": "Layout",
         "priority": "Functional gaps alongside other streams; exact visual parity deferred",
-        "state": "F3.5-C04 missing Back after Show outline is assigned a scoped return-path repair. An earlier same-build matrix rotation mismatch did not reproduce under fresh worker-instrumented 34801 replay; 0°→5° accepted and Undo restored 0. Preserve both observations without a speculative source change. Pick origin Escape passed; visual parity deferred."
+        "state": "F3.5-C04 missing Back after Show outline is assigned a scoped return-path repair. An earlier same-build matrix rotation mismatch did not reproduce under fresh worker-instrumented 34801 replay; 0\u00b0\u21925\u00b0 accepted and Undo restored 0. Preserve both observations without a speculative source change. Pick origin Escape passed; visual parity deferred."
       },
       {
         "stream": "PCB",
@@ -559,7 +559,7 @@
       },
       {
         "stream": "Keymap",
-        "state": "F6K.3 unchanged valid macro-step blur passed paired 34801/5175 without revision change; A→C committed once. F6K.4 verified; wider F6 joins remain."
+        "state": "F6K.3 unchanged valid macro-step blur passed paired 34801/5175 without revision change; A\u2192C committed once. F6K.4 verified; wider F6 joins remain."
       },
       {
         "stream": "Keycaps",
@@ -671,23 +671,23 @@
     "qualification": {
       "trigger": "functional_scope",
       "active_scope": {
-        "id": "frontend-findings-panels-20261004",
-        "label": "Finding return and pane pointer capture",
-        "source_commit": "f399d8c2e8ef1b409bbadfd17bfe59907fb8a272",
+        "id": "frontend-context-gap-20261004",
+        "label": "Contextual Inspector tab and Case derived gap",
+        "source_commit": "58145c178156ee0a88ccaadc33dcae194c0f1639",
         "streams": [
           "Layout",
-          "Parts+Project"
+          "Case"
         ],
         "journeys": [
           {
-            "id": "F3.5-finding-return",
-            "scope": "On the saved Sofle fixture, enter a Layout finding from a selected component, use Show outline, then Back to selection. Restore the prior live selection and Properties focus; reject stale owner/revision scope. Reuse prior paired TypeScript and Dioxus RED evidence.",
+            "id": "F3.5-matrix-key-tab",
+            "scope": "On the saved Sofle fixture select keys matrix Relations, then Key 1.1; Properties becomes selected. Reuse paired TS and old Dioxus RED plus focused 1/1 mounted regression.",
             "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md"
           },
           {
-            "id": "F2.3-pointer-resize",
-            "scope": "On desktop, pointer-resize both Objects and Inspect panes and confirm opposing-pane bounds and release behavior. Reuse paired TypeScript and Dioxus RED plus prior keyboard/persistence/compact evidence.",
-            "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md"
+            "id": "F7.4-empty-profile-gap",
+            "scope": "On the saved split Sofle fixture change plate thickness 1.5\u21922.0 and observe plate foam 3.0\u21922.8, configured gap 3.00 mm and unavailable supported range with no explicit fit profile. Reuse paired TS/old Dioxus RED and focused 1/1 mounted regression.",
+            "spec": ".scratch/dioxus-frontend-v1/issues/07-case.md"
           }
         ]
       },
@@ -735,7 +735,7 @@
               "scope": "Sofle selection, contextual Objects/Inspector Properties and Relations, matrix/key edits, Undo and reopen",
               "spec": ".scratch/dioxus-layout-authoring/spec.md",
               "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/journey.md",
-              "verified": "Three Properties shortcut routes and key width1→1.25→Undo1→Redo1.25→reload1.25 match reference behavior.",
+              "verified": "Three Properties shortcut routes and key width1\u21921.25\u2192Undo1\u2192Redo1.25\u2192reload1.25 match reference behavior.",
               "remaining": "Inspector arrangement/typography/context footer and Objects-to-toolbar selection-kind synchronization; broader authoring criteria unchanged."
             },
             {
@@ -1832,7 +1832,7 @@
             "journeys": [
               {
                 "id": "F7.3-C05-module-route",
-                "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797→34798 RED/GREEN unless changed source affects it.",
+                "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797\u219234798 RED/GREEN unless changed source affects it.",
                 "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md"
               },
               {
@@ -1859,7 +1859,7 @@
           "journeys": [
             {
               "id": "F7.3-C05-module-route",
-              "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797→34798 RED/GREEN unless changed source affects it.",
+              "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797\u219234798 RED/GREEN unless changed source affects it.",
               "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
               "state": "pending"
             },
@@ -1928,7 +1928,7 @@
             "journeys": [
               {
                 "id": "F7.3-C05-module-route",
-                "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797→34798 RED/GREEN unless changed source affects it.",
+                "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797\u219234798 RED/GREEN unless changed source affects it.",
                 "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md"
               },
               {
@@ -1950,7 +1950,7 @@
           "journeys": [
             {
               "id": "F7.3-C05-module-route",
-              "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797→34798 RED/GREEN unless changed source affects it.",
+              "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797\u219234798 RED/GREEN unless changed source affects it.",
               "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
               "state": "pending"
             },
@@ -2155,7 +2155,7 @@
               "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
               "state": "partial",
               "evidence": ".scratch/dioxus-pcb-view/evidence/22-mounted-module-inspector-20261003/placement-save-reopen.md",
-              "verified": "Accepted removal deleted the selected placement (3→2) and updated findings (97→85). React also clears selection without a success label, so Inspector unmount is not a parity defect.",
+              "verified": "Accepted removal deleted the selected placement (3\u21922) and updated findings (97\u219285). React also clears selection without a success label, so Inspector unmount is not a parity defect.",
               "remaining": "Public rejected/cancelled/pending state and stale-scope outcome were not induced; F5.5-C04 remains open."
             },
             {
@@ -2164,7 +2164,7 @@
               "spec": ".scratch/dioxus-keymap-layers/spec.md",
               "state": "passed",
               "evidence": ".scratch/dioxus-keymap-layers/evidence/macro09-zmk-root-public-qualification/RESULTS.md",
-              "verified": "Paired imported fixture: unchanged A blur kept revision 29 and project hash; A→C submitted once and advanced to revision 30 in both apps."
+              "verified": "Paired imported fixture: unchanged A blur kept revision 29 and project hash; A\u2192C submitted once and advanced to revision 30 in both apps."
             },
             {
               "id": "F2.2-project-copy-menu",
@@ -2283,33 +2283,110 @@
               }
             ]
           }
+        },
+        {
+          "trigger": "functional_scope",
+          "active_scope": {
+            "id": "frontend-findings-panels-20261004",
+            "label": "Finding return and pane pointer capture",
+            "source_commit": "f399d8c2e8ef1b409bbadfd17bfe59907fb8a272",
+            "streams": [
+              "Layout",
+              "Parts+Project"
+            ],
+            "journeys": [
+              {
+                "id": "F3.5-finding-return",
+                "scope": "On the saved Sofle fixture, enter a Layout finding from a selected component, use Show outline, then Back to selection. Restore the prior live selection and Properties focus; reject stale owner/revision scope. Reuse prior paired TypeScript and Dioxus RED evidence.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md"
+              },
+              {
+                "id": "F2.3-pointer-resize",
+                "scope": "On desktop, pointer-resize both Objects and Inspect panes and confirm opposing-pane bounds and release behavior. Reuse paired TypeScript and Dioxus RED plus prior keyboard/persistence/compact evidence.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md"
+              }
+            ]
+          },
+          "phase": "qualifying",
+          "unmet_start_conditions": [],
+          "candidate_build_id": "frontend-findings-panels-20261004",
+          "source_commit": "f399d8c2e8ef1b409bbadfd17bfe59907fb8a272",
+          "journeys": [
+            {
+              "id": "F3.5-finding-return",
+              "scope": "On the saved Sofle fixture, enter a Layout finding from a selected component, use Show outline, then Back to selection. Restore the prior live selection and Properties focus; reject stale owner/revision scope. Reuse prior paired TypeScript and Dioxus RED evidence.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+              "state": "passed",
+              "evidence": ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md"
+            },
+            {
+              "id": "F2.3-pointer-resize",
+              "scope": "On desktop, pointer-resize both Objects and Inspect panes and confirm opposing-pane bounds and release behavior. Reuse paired TypeScript and Dioxus RED plus prior keyboard/persistence/compact evidence.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
+              "state": "passed",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/compact-shell-parity-20261003/f23-public-qualification.md"
+            }
+          ],
+          "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
+          "started_at": "2026-10-04T09:56:40.920284+00:00",
+          "review": {
+            "profile": "sol-review",
+            "state": "pending"
+          },
+          "next_scope": {
+            "id": "frontend-context-gap-20261004",
+            "label": "Contextual Inspector tab and Case derived gap",
+            "source_commit": "58145c178156ee0a88ccaadc33dcae194c0f1639",
+            "streams": [
+              "Layout",
+              "Case"
+            ],
+            "journeys": [
+              {
+                "id": "F3.5-matrix-key-tab",
+                "scope": "On the saved Sofle fixture select keys matrix Relations, then Key 1.1; Properties becomes selected. Reuse paired TS and old Dioxus RED plus focused 1/1 mounted regression.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md"
+              },
+              {
+                "id": "F7.4-empty-profile-gap",
+                "scope": "On the saved split Sofle fixture change plate thickness 1.5\u21922.0 and observe plate foam 3.0\u21922.8, configured gap 3.00 mm and unavailable supported range with no explicit fit profile. Reuse paired TS/old Dioxus RED and focused 1/1 mounted regression.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/07-case.md"
+              }
+            ]
+          }
         }
       ],
-      "phase": "qualifying",
+      "phase": "qualified",
       "unmet_start_conditions": [],
-      "candidate_build_id": "frontend-findings-panels-20261004",
-      "source_commit": "f399d8c2e8ef1b409bbadfd17bfe59907fb8a272",
+      "candidate_build_id": "frontend-context-gap-20261004",
+      "source_commit": "58145c178156ee0a88ccaadc33dcae194c0f1639",
       "journeys": [
         {
-          "id": "F3.5-finding-return",
-          "scope": "On the saved Sofle fixture, enter a Layout finding from a selected component, use Show outline, then Back to selection. Restore the prior live selection and Properties focus; reject stale owner/revision scope. Reuse prior paired TypeScript and Dioxus RED evidence.",
+          "id": "F3.5-matrix-key-tab",
+          "scope": "On the saved Sofle fixture select keys matrix Relations, then Key 1.1; Properties becomes selected. Reuse paired TS and old Dioxus RED plus focused 1/1 mounted regression.",
           "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
           "state": "passed",
           "evidence": ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md"
         },
         {
-          "id": "F2.3-pointer-resize",
-          "scope": "On desktop, pointer-resize both Objects and Inspect panes and confirm opposing-pane bounds and release behavior. Reuse paired TypeScript and Dioxus RED plus prior keyboard/persistence/compact evidence.",
-          "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
+          "id": "F7.4-empty-profile-gap",
+          "scope": "On the saved split Sofle fixture change plate thickness 1.5\u21922.0 and observe plate foam 3.0\u21922.8, configured gap 3.00 mm and unavailable supported range with no explicit fit profile. Reuse paired TS/old Dioxus RED and focused 1/1 mounted regression.",
+          "spec": ".scratch/dioxus-frontend-v1/issues/07-case.md",
           "state": "passed",
-          "evidence": ".scratch/dioxus-frontend-v1/evidence/compact-shell-parity-20261003/f23-public-qualification.md"
+          "evidence": ".scratch/dioxus-case-workspace/evidence/public-mechanical-settings/candidate-0cad7577/RESULTS.md"
         }
       ],
       "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
-      "started_at": "2026-10-04T09:56:40.920284+00:00",
+      "started_at": "2026-10-04T10:22:09.033434+00:00",
       "review": {
         "profile": "sol-review",
-        "state": "pending"
+        "state": "completed",
+        "workflow_verdict": "pass_with_open_F3.5_focus_repair",
+        "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-context-gap-58145c17-review-sol-20261004.md",
+        "review_sha256": "c2fe8a22f1b08ef1b0d26cbfe21692f7da8677ae59d19942197b4ee825f1217c",
+        "audit": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-context-gap-58145c17-audit.json",
+        "audit_sha256": "3f686067c0ba1a42c363083fb6f275553e1585eda826f58b9d88a897c4d44cba",
+        "remaining": "F3.5 Board/Outline Back focus is a P2 source finding and has a narrow RED/GREEN repair in the next source batch; F7.4 Case gap and F3.5 matrix-key changed actions passed on 34804. F2.3 accepted separately."
       }
     },
     "delivery_priority": {

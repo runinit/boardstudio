@@ -628,7 +628,7 @@
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/f2.2-c02-c03-paired-qualification.md"
           ],
           "blockers": [],
-          "next_action": "Paired saved Sofle\u2192Corne\u2192reopened Sofle retained a renamed 70-part board. Qualify unavailable/corrupt saved-project recovery and library route; do not repeat the successful reopen branch.",
+          "next_action": "Paired saved Sofle→Corne→reopened Sofle retained a renamed 70-part board. Qualify unavailable/corrupt saved-project recovery and library route; do not repeat the successful reopen branch.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/library.rs",
@@ -720,7 +720,7 @@
         "INT.1"
       ],
       "acceptance_after": [],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
       "shared_edit_owner": "integration coordinator",
@@ -742,6 +742,13 @@
           "from": "planned",
           "to": "implementing",
           "reason": "Existing keycap CAD bridge, Session export-owned token sequencing and mounted panels/drawers are implemented; source reconciliation and final candidate qualification remain active, not unstarted planning."
+        },
+        {
+          "at": "2026-10-04T10:35:34.518744+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "All four F2.3 functional criteria verified by paired desktop/compact journeys and frozen candidate 58145c17; consolidated Sol review recommends acceptance.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/compact-shell-parity-20261003/F2.3-DECISION.json"
         }
       ],
       "criteria": [
@@ -783,7 +790,7 @@
             ".scratch/dioxus-frontend-v1/evidence/compact-shell-parity-20261003/f23-public-qualification.md"
           ],
           "blockers": [],
-          "next_action": "Verified on packaged source f399d8c2: paired desktop Objects/Inspect pointer and Arrow-key resize clamp to the public 200\u2013420/280\u2013480 ranges; pinned/auto-hide widths and modes survive reload. Existing F2.3 receipt holds the 34802 RED and 34803 GREEN.",
+          "next_action": "Verified on packaged source f399d8c2: paired desktop Objects/Inspect pointer and Arrow-key resize clamp to the public 200–420/280–480 ranges; pinned/auto-hide widths and modes survive reload. Existing F2.3 receipt holds the 34802 RED and 34803 GREEN.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/panels.rs",
@@ -850,6 +857,9 @@
         "assessed_at": "2026-10-03T19:37:09Z",
         "coverage": "complete",
         "note": "Split existing parent acceptance text into independently decidable behaviors; original scope and joins preserved. Implemented is source inspection only; verified cites existing journey/receipt."
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/compact-shell-parity-20261003/F2.3-DECISION.json"
       }
     },
     {
@@ -897,16 +907,18 @@
         {
           "id": "F2.4-C01",
           "requirement": "Setup guide has five freely navigable stages, current/readiness/detail state, Previous and Back to Objects; ready/incomplete stages have distinct accessible labels.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/setup_guide.rs:25",
             "web/src/presentation/setup_guide.rs:267",
             "web/src/presentation/setup_guide.rs:311"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/setup-guide-readiness-20261003/receipt.md"
+          ],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Verified on packaged 34804 against TS 5175: five freely navigable stages/readiness/detail/Previous/Back and per-project guide open/stage persistence through new-project creation and saved Sofle reopen. Existing setup-guide receipt holds one paired journey.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/setup_guide.rs"
@@ -920,16 +932,18 @@
         {
           "id": "F2.4-C02",
           "requirement": "Guide stage/open state persists per project, including new-project association and reopen.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation.rs:465",
             "web/src/presentation.rs:2752",
             "web/src/presentation/setup_guide.rs:455"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/setup-guide-readiness-20261003/receipt.md"
+          ],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Verified on packaged 34804 against TS 5175: five freely navigable stages/readiness/detail/Previous/Back and per-project guide open/stage persistence through new-project creation and saved Sofle reopen. Existing setup-guide receipt holds one paired journey.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation.rs",
@@ -1175,7 +1189,7 @@
             ".scratch/dioxus-layout-authoring/evidence/f32d-matrix-settings-20261003/README.md"
           ],
           "blockers": [],
-          "next_action": "Retain paired 34785 custom 2\u00d73 and mirrored 2\u00d72 pair preview, commit, one Undo, board-scoped identities and saved-project reopen. Preset placement is recorded in the same receipt; remaining Layout clauses stay separate.",
+          "next_action": "Retain paired 34785 custom 2×3 and mirrored 2×2 pair preview, commit, one Undo, board-scoped identities and saved-project reopen. Preset placement is recorded in the same receipt; remaining Layout clauses stay separate.",
           "finish_condition": "Public UI paired scenario proves custom and preset matrices plus mirrored pairs preview without durable writes, then commit through existing operations.",
           "owned_files": [
             "web/src/presentation/objects/matrix_setup.rs",
@@ -1201,7 +1215,7 @@
             ".scratch/dioxus-layout-authoring/evidence/f32-preset-placement-20261003/receipt.md"
           ],
           "blockers": [],
-          "next_action": "Retain paired active Grid \u00bcu ArrowRight +4.7625mm preview, Enter Matrix 5 commit, second ArrowUp/Escape non-durable cancel, and one Undo to baseline. Older pointer/reload evidence retained.",
+          "next_action": "Retain paired active Grid ¼u ArrowRight +4.7625mm preview, Enter Matrix 5 commit, second ArrowUp/Escape non-durable cancel, and one Undo to baseline. Older pointer/reload evidence retained.",
           "finish_condition": "Arrow adjustment, Enter commit and Escape cancellation all preserve the stated snap/revision/history semantics in paired public scenarios.",
           "owned_files": [
             "web/src/presentation/objects/matrix_placement_controller.rs",
@@ -1254,7 +1268,7 @@
             ".scratch/dioxus-layout-authoring/evidence/f32d-matrix-settings-20261003/README.md"
           ],
           "blockers": [],
-          "next_action": "Retain paired34786 keys matrix 4\u00d76\u21925\u00d76 structural edit, one Undo/Redo, saved-copy reopen and rejected 4096\u00d72 setup with unchanged revision/board. All F3.2 criteria now verified; run final parent join/review before acceptance.",
+          "next_action": "Retain paired34786 keys matrix 4×6→5×6 structural edit, one Undo/Redo, saved-copy reopen and rejected 4096×2 setup with unchanged revision/board. All F3.2 criteria now verified; run final parent join/review before acceptance.",
           "finish_condition": "Public UI scenarios cover commit, save/reload, Undo/redo, and invalid input for matrix/component authoring.",
           "owned_files": [
             "web/src/presentation/objects/matrix_inspector.rs",
@@ -1774,7 +1788,7 @@
             ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md"
           ],
           "blockers": [],
-          "next_action": "The first paired 34801 matrix rotation attempt showed a saved-transform mismatch/no Undo, but a fresh same-build, same-fixture worker-instrumented replay accepted left-keys 0\u00b0\u21925\u00b0, exported rotation 5 and Undo restored 0; native mapper\u2192Core replay also passed. No stable source defect is established. Retain both observations; do not repeat generic attempts. Characterize exact unsettled import/edit timing only if the failure recurs, and qualify locked/driven numeric boundaries separately.",
+          "next_action": "The first paired 34801 matrix rotation attempt showed a saved-transform mismatch/no Undo, but a fresh same-build, same-fixture worker-instrumented replay accepted left-keys 0°→5°, exported rotation 5 and Undo restored 0; native mapper→Core replay also passed. No stable source defect is established. Retain both observations; do not repeat generic attempts. Characterize exact unsettled import/edit timing only if the failure recurs, and qualify locked/driven numeric boundaries separately.",
           "finish_condition": "Paired public evidence demonstrates characterized draft boundaries, no edit dispatch for invalid input, and unavailable locked/driven values.",
           "owned_files": [
             "web/src/presentation/inspector/layout_component_inspector.rs",
@@ -1828,7 +1842,7 @@
             ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md"
           ],
           "blockers": [],
-          "next_action": "Source now captures a scoped prior selection before findings navigation, renders Back on live destination Inspectors and restores selection/Properties focus with stale owner/part guards. Focused Chrome wasm regression passed 1/1; recheck outline and component Back once on the next packaged candidate, then retain the earlier compact keyboard evidence.",
+          "next_action": "Frozen 34804 component Back and matrix→key focus pass. Sol found Board/Outline Back missing a focus target; narrow presentation.rs fallback has focused mounted RED/GREEN. Recheck one Board and one Outline keyboard Back on the next packaged candidate; retain compact component evidence.",
           "finish_condition": "Paired public keyboard scenarios prove tabs, nested routes, Escape/back and focus restoration in compact drawers.",
           "owned_files": [
             "web/src/presentation/inspector.rs",
@@ -1919,9 +1933,11 @@
             "web/src/presentation/layout_workspace.rs",
             "web/src/presentation/canvas_interaction.rs"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/layout-camera-f36c01-20261004/RECEIPT.md"
+          ],
           "blockers": [],
-          "next_action": "Inspect current camera implementation and existing focused receipts; qualify pointer zoom, pan and both fit bounds for rotated envelopes and visible outlines.",
+          "next_action": "Paired 34804/5175 pointer zoom and Fit rotated thumb/visible outline matched. Unfocused Space-drag failed on Dioxus but worked after SVG focus; a Layout-scoped window listener has focused RED browser and GREEN mounted regression. Recheck unfocused Space-pan once on next packaged candidate, reusing zoom/Fit evidence.",
           "finish_condition": "Paired public scenarios establish zoom/pan and reference-matched board/selection fit bounds and limits for all listed geometry.",
           "owned_files": [
             "web/src/presentation/layout_camera.rs",
@@ -2528,7 +2544,7 @@
         "red": "Dioxus Parts has no custom definition form or KiCad/model file import action.",
         "green": "Create a custom definition; import a supported KiCad footprint; edit supported courtyard, pad and profile fields; preserve source-owned geometry, IDs, assets, terminal/net relationships and unrelated document data; reject malformed input locally; commit through one normal edit/Undo/Redo/save/reopen path. Import errors, invalid fields and changed-project async races leave the prior document intact. Do not claim board placement in this slice; F3 owns that public action."
       },
-      "boundary_status": "Rust ImportFootprint/compile and normal Edit operations exist; coordinator-owned typed Runtime artifact and model-asset fa\u00e7ade is a required adapter gap; no core contract/schema change. Editing/import/round-trip do not require full F3.",
+      "boundary_status": "Rust ImportFootprint/compile and normal Edit operations exist; coordinator-owned typed Runtime artifact and model-asset façade is a required adapter gap; no core contract/schema change. Editing/import/round-trip do not require full F3.",
       "workflow": "F4",
       "owner": "F4 workflow lead",
       "start_after": [
@@ -2830,7 +2846,7 @@
             ".scratch/dioxus-parts-catalogue/evidence/07-generator-settings-dioxus-paired-journey-20261003.md"
           ],
           "blockers": [],
-          "next_action": "Paired 34802/5175 journey showed Dioxus Generating\u2192Ready with Apply disabled while pending; width-zero and malformed JSON kept prior preview/document and disabled Apply in both apps. Genuine provider failure and delayed stale-result supersession remain unqualified; do not repeat the successful field/invalid branches. Dioxus width error adds a verbose JsValue stack, a presentation issue for later polish.",
+          "next_action": "Paired 34802/5175 journey showed Dioxus Generating→Ready with Apply disabled while pending; width-zero and malformed JSON kept prior preview/document and disabled Apply in both apps. Genuine provider failure and delayed stale-result supersession remain unqualified; do not repeat the successful field/invalid branches. Dioxus width error adds a verbose JsValue stack, a presentation issue for later polish.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts/generator_settings.rs",
@@ -3088,7 +3104,7 @@
         "red": "Dioxus Parts has no library-level part-fit profile editor or source-geometry extraction flow.",
         "green": "From a selected part, edit supported purpose, measured dimensions, clearances, evidence and qualification fields; extract only supported mappings from source geometry; show extraction/validation failures and preserve unqualified gates for unknown or unreviewed facts. Reject stale extraction results after selection/scope changes. Save through normal edit/Undo/Redo/save/reopen behavior without asserting case fit or fabrication readiness."
       },
-      "boundary_status": "Existing mechanical profile and ArtifactRequest::ExtractMechanical service behavior is available; there is no typed Dioxus Runtime fa\u00e7ade for profile/extraction calls, so coordinator adapter work is required. No schema or backend behavior change; case-level acceptance remains F7.",
+      "boundary_status": "Existing mechanical profile and ArtifactRequest::ExtractMechanical service behavior is available; there is no typed Dioxus Runtime façade for profile/extraction calls, so coordinator adapter work is required. No schema or backend behavior change; case-level acceptance remains F7.",
       "workflow": "F4",
       "owner": "F4 workflow lead",
       "start_after": [
@@ -3394,7 +3410,7 @@
       "progress_evidence": {
         "updated_at": "2026-10-03T08:59:38.988296+00:00",
         "checkpoint": "Served d7742d46/34757; next batch source38757073+84fbf801+ead8fe7c+0c17fd37",
-        "scope": "Actual PCB selected-board canvas, host layers and scoped visibility mounted;34748\u201334755 geometry/history receipts retained. PCB18 contextual inventory ead8fe7c integrated for next candidate.",
+        "scope": "Actual PCB selected-board canvas, host layers and scoped visibility mounted;34748–34755 geometry/history receipts retained. PCB18 contextual inventory ead8fe7c integrated for next candidate.",
         "remaining": "Default/finding visibility differences, remaining theme/compact qualification and full parent acceptance remain.",
         "acceptance": "Existing acceptance/dependencies unchanged. Boundary_status is the historical planning statement; this progress entry describes current implementation."
       },
@@ -3624,7 +3640,7 @@
             ".scratch/dioxus-pcb-view/evidence/pcb-apply-ui-20261002/receipt.md"
           ],
           "blockers": [],
-          "next_action": "Published 34786 includes a green mounted owner regression for Pending, injected failure\u2192alert, same-action retry and delayed old-board reply rejection; public 34784 paired Pending\u2192current and board switch preserved documents. Public provider failure/retry remains unqualified; do not claim full C04 verification from the mounted test.",
+          "next_action": "Published 34786 includes a green mounted owner regression for Pending, injected failure→alert, same-action retry and delayed old-board reply rejection; public 34784 paired Pending→current and board switch preserved documents. Public provider failure/retry remains unqualified; do not claim full C04 verification from the mounted test.",
           "finish_condition": "Paired evidence shows loading, failure, recovery and no accepted-document mutation on rejected/stale actions.",
           "owned_files": [
             "web/src/presentation/pcb_wiring.rs",
@@ -3764,7 +3780,7 @@
             ".scratch/dioxus-pcb-view/evidence/pcb-apply-ui-20261002/receipt.md"
           ],
           "blockers": [],
-          "next_action": "Retain paired named-net/diode-pad mapping, Direct GPIO\u2194Unassigned input-mode history, 83 unrelated named nets preserved, and fresh reopen. Parent acceptance joins remain open.",
+          "next_action": "Retain paired named-net/diode-pad mapping, Direct GPIO↔Unassigned input-mode history, 83 unrelated named nets preserved, and fresh reopen. Parent acceptance joins remain open.",
           "finish_condition": "Public paired actions prove net creation/mapping, supported input mode changes, unrelated pin preservation, Undo/Redo and save/reopen.",
           "owned_files": [
             "web/src/presentation/pcb_wiring.rs",
@@ -3798,7 +3814,7 @@
             ".scratch/dioxus-pcb-view/evidence/17-controller-chooser-20261003/source-handoff.md"
           ],
           "blockers": [],
-          "next_action": "Retain paired selected-board binding edit/Undo/Redo/reopen and ordinary Add controller\u2192Parts\u2192Place\u2192PCB edit/Undo/Redo/reopen evidence. Project/board race and broader PCB presentation remain separate parent criteria.",
+          "next_action": "Retain paired selected-board binding edit/Undo/Redo/reopen and ordinary Add controller→Parts→Place→PCB edit/Undo/Redo/reopen evidence. Project/board race and broader PCB presentation remain separate parent criteria.",
           "finish_condition": "Current paired evidence proves PCB binding editor placement/values, one accepted edit, Undo/Redo, and save/reopen; the F5.2/F8.2/F6K.4 parent joins remain separately open.",
           "owned_files": [
             "web/src/firmware_position_projection.rs",
@@ -3935,7 +3951,7 @@
             ".scratch/dioxus-pcb-view/evidence/24-module-source-route-20261003/receipt.md"
           ],
           "blockers": [],
-          "next_action": "Packaged source 14434d50 reveals the owning hidden module outline on keyboard finding focus; Escape and host-finding focus restore visibility without changing layer settings. Reuse that receipt. Qualify pointer activation through the actual finding-list action, a board switch and a fixture with nonempty clearance geometry. The React SVG marker is decorative (pointer-events:none), so do not retry clicking its polygon as a parity requirement.",
+          "next_action": "Paired finding-list action routes to Layout and retains hidden PCB layers in both apps. The Dioxus SVG marker misleadingly advertised a button while CSS disabled pointer events; narrow decorative-marker correction has focused RED/GREEN and awaits one packaged DOM/selection check. Independent host/module layer visibility and nonempty clearance remain separate.",
           "finish_condition": "Paired evidence proves independent visibility and focused finding visibility override without altering project data.",
           "owned_files": [
             "web/src/presentation/pcb_scene.rs",
@@ -4245,7 +4261,7 @@
         },
         {
           "id": "F5.6-C03",
-          "requirement": "Case exposes controls to change an instance\u2019s associated PCB design and flip that PCB.",
+          "requirement": "Case exposes controls to change an instance’s associated PCB design and flip that PCB.",
           "state": "verified",
           "classification": "functional",
           "sources": [
@@ -4258,7 +4274,7 @@
           ],
           "blockers": [],
           "next_action": "None for this control criterion. Broader controller/mechanical retention and shared-preview joins remain F5.6-C04/C05; history focus behavior is recorded without unqualified TS parity claims.",
-          "finish_condition": "Case controls change the selected instance\u2019s board and flip state as React does, with correct scope, Undo/Redo, and reload behavior.",
+          "finish_condition": "Case controls change the selected instance’s board and flip state as React does, with correct scope, Undo/Redo, and reload behavior.",
           "owned_files": [
             "web/src/presentation/case_workspace.rs",
             "web/src/presentation/pcb_physical_setup/controller.rs"
@@ -5218,7 +5234,7 @@
       "progress_evidence": {
         "updated_at": "2026-10-03T04:53:39.015941+00:00",
         "checkpoint": "served a201/34740; next baseline8afaaa2f",
-        "scope": "Paired profileSA\u2192Cherry/UndoRedo/reload green; headercounter child activelyporting; fullcriteriaremain.",
+        "scope": "Paired profileSA→Cherry/UndoRedo/reload green; headercounter child activelyporting; fullcriteriaremain.",
         "acceptance": "No criteria/dependencies waived; partial source and bounded proof only."
       },
       "status_history": [
@@ -5337,7 +5353,7 @@
             ".scratch/dioxus-frontend-v1/evidence/keycaps-size-reflow-20261003/paired-linked-resize.md"
           ],
           "blockers": [],
-          "next_action": "Retain paired Mixed\u2192Wide/Tall common long/short sizing and individual post-save selection checks. Different representative mixed pairs are recorded; broader sizing/history criteria remain separate.",
+          "next_action": "Retain paired Mixed→Wide/Tall common long/short sizing and individual post-save selection checks. Different representative mixed pairs are recorded; broader sizing/history criteria remain separate.",
           "finish_condition": "Heterogeneous sizes display Mixed; Wide and Tall apply the common long/short pair to all selected keys.",
           "owned_files": [
             "web/src/presentation/objects/keycap_size.rs",
@@ -5418,7 +5434,7 @@
             ".scratch/dioxus-frontend-v1/evidence/keycaps-size-reflow-20261003/paired-linked-resize.md"
           ],
           "blockers": [],
-          "next_action": "Retain paired both-mirrored-key selected Width 1\u21921.25u, both envelopes 18\u219222.8125mm, symmetric neighbor reflow X\u00b128.23\u2192\u00b130.63625mm and one Undo/Redo. Broader selection scopes remain C04.",
+          "next_action": "Retain paired both-mirrored-key selected Width 1→1.25u, both envelopes 18→22.8125mm, symmetric neighbor reflow X±28.23→±30.63625mm and one Undo/Redo. Broader selection scopes remain C04.",
           "finish_condition": "Reflow matches the established policy for neighbors and canonical linked halves, including deduplication when both halves are selected.",
           "owned_files": [
             "web/src/presentation/objects/keycap_size.rs",
@@ -5877,7 +5893,7 @@
             ".scratch/dioxus-keymap-layers/evidence/binding-editor-reference/README.md"
           ],
           "blockers": [],
-          "next_action": "Retain paired selection/layer/binding/macro/encoder evidence and the 34799 same-fixture legacy PCB quick binding\u2192typed Main edit, Undo/Redo and reload join. Continue separate F6.6 criteria and F5/F7/F8 parent joins without repeating C02.",
+          "next_action": "Retain paired selection/layer/binding/macro/encoder evidence and the 34799 same-fixture legacy PCB quick binding→typed Main edit, Undo/Redo and reload join. Continue separate F6.6 criteria and F5/F7/F8 parent joins without repeating C02.",
           "finish_condition": "Paired public journeys on equivalent saved fixtures show the listed Keymap and PCB quick-binding behavior.",
           "owned_files": [
             "web/src/presentation/keymap.rs",
@@ -5905,7 +5921,7 @@
             ".scratch/dioxus-frontend-v1/evidence/keycaps-3d-preview-20261003/f6c2-settings-receipt.md"
           ],
           "blockers": [],
-          "next_action": "Verified from one saved c6 fixture: paired 34803/5175 profile SA\u2192DCS and clearance 0.5\u21920.6 retained matching 27 fit findings and Undo/Redo, with existing same-fixture legend/color and linked-size receipts reused. Broader F6.6 history, workspace/export and release joins remain separate.",
+          "next_action": "Verified from one saved c6 fixture: paired 34803/5175 profile SA→DCS and clearance 0.5→0.6 retained matching 27 fit findings and Undo/Redo, with existing same-fixture legend/color and linked-size receipts reused. Broader F6.6 history, workspace/export and release joins remain separate.",
           "finish_condition": "Representative paired profile, legend, size, color and fit workflows use equivalent saved fixtures and preserve accepted state.",
           "owned_files": [
             "web/src/presentation/keycaps_settings.rs",
@@ -6391,7 +6407,7 @@
             ".scratch/dioxus-frontend-v1/evidence/parts-chooser-public-34739-20261002/RESULTS.md"
           ],
           "blockers": [],
-          "next_action": "Next inspect each consumer\u2019s current scene producer/selector on one frozen source and reconcile scoped interaction coverage.",
+          "next_action": "Next inspect each consumer’s current scene producer/selector on one frozen source and reconcile scoped interaction coverage.",
           "finish_condition": "All five consumer routes are publicly shown to use the same implementation and accepted scope projection.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",
@@ -6417,7 +6433,7 @@
             ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md"
           ],
           "blockers": [],
-          "next_action": "Retain paired Case shade/wireframe/hybrid/hidden-line, assembled/exploded and XY/YZ Section controls plus matched YZ Section position 0\u219240% clipped-scene change on34785. Other viewer controls remain separate C03/C04/C05.",
+          "next_action": "Retain paired Case shade/wireframe/hybrid/hidden-line, assembled/exploded and XY/YZ Section controls plus matched YZ Section position 0→40% clipped-scene change on34785. Other viewer controls remain separate C03/C04/C05.",
           "finish_condition": "Each named mode, assembly state and supported plane/position change is exercised with visible outcome.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs"
@@ -6442,7 +6458,7 @@
             ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md"
           ],
           "blockers": [],
-          "next_action": "Retain paired Plate selection\u2192Inspector Colour/Reset, visible black change\u2192default #b4bac2 reset and independent Hide/Show. Native picker automation did not qualify arbitrary hue; category/model visibility receipts retained. Control placement parity remains visual work.",
+          "next_action": "Retain paired Plate selection→Inspector Colour/Reset, visible black change→default #b4bac2 reset and independent Hide/Show. Native picker automation did not qualify arbitrary hue; category/model visibility receipts retained. Control placement parity remains visual work.",
           "finish_condition": "Public actions demonstrate assembly layer, individual model, color edit and reset without document edits.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",
@@ -6498,7 +6514,7 @@
             ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-routed-module-bb4f2216-review-sol-20261004.md"
           ],
           "blockers": [],
-          "next_action": "Retain paired ordinary part/empty and generated Case-body/empty picks, hidden-layer 3D finding focus, and the generic non-VIK module scene/pick-to-editor RED/GREEN on 34797\u219234798. The Sol delta review confirms the guarded Parts and PCB placement route; board switch clears selection and project switch clears the editor after settlement. One transient old-editor frame was observed during project replacement, without a stale Save attempt. Mounted-module asset models remain F7.3-C06; VIK-only catalogue/demo authoring stays outside v1.",
+          "next_action": "Retain paired ordinary part/empty and generated Case-body/empty picks, hidden-layer 3D finding focus, and the generic non-VIK module scene/pick-to-editor RED/GREEN on 34797→34798. The Sol delta review confirms the guarded Parts and PCB placement route; board switch clears selection and project switch clears the editor after settlement. One transient old-editor frame was observed during project replacement, without a stale Save attempt. Mounted-module asset models remain F7.3-C06; VIK-only catalogue/demo authoring stays outside v1.",
           "finish_condition": "Mapped and empty picks resolve only against current consumer scope; a mounted-module pick reaches its Parts context and placement editor, board/project replacement clears that route after settlement, and finding focus/highlight works with hidden layers. In-flight stale Save remains a C07 lifecycle check.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",
@@ -6787,7 +6803,7 @@
             ".scratch/dioxus-case-workspace/evidence/f74-closure-fit-hardware-form-20261003/IMPLEMENTATION.md"
           ],
           "blockers": [],
-          "next_action": "Treat the form\u2019s source coverage as implemented; next gather bounded paired proof for closure hardware, critical fits, battery/cable and process/stabilizer fields.",
+          "next_action": "Treat the form’s source coverage as implemented; next gather bounded paired proof for closure hardware, critical fits, battery/cable and process/stabilizer fields.",
           "finish_condition": "Every represented field has its existing scoped patch path; unsupported options are absent and current resolver errors remain visible.",
           "owned_files": [
             "web/src/presentation/mechanical_settings.rs",
@@ -6933,7 +6949,7 @@
       "criteria": [
         {
           "id": "F7.5-C01",
-          "requirement": "Support the source UI\u2019s existing gasket/mount handle edits and unlink actions through viewer handles and scoped draft operations.",
+          "requirement": "Support the source UI’s existing gasket/mount handle edits and unlink actions through viewer handles and scoped draft operations.",
           "state": "implemented",
           "classification": "functional",
           "sources": [
@@ -7501,7 +7517,7 @@
       "criteria": [
         {
           "id": "F7.8-C01",
-          "requirement": "Wire Layout, Parts, Keymap, Keycaps and Case to the same viewer implementation, with each workflow\u2019s correct scope projection and controls.",
+          "requirement": "Wire Layout, Parts, Keymap, Keycaps and Case to the same viewer implementation, with each workflow’s correct scope projection and controls.",
           "state": "implemented",
           "classification": "functional",
           "sources": [
@@ -8864,7 +8880,7 @@
       "criteria": [
         {
           "id": "F9.4-C01",
-          "requirement": "React\u2194Dioxus round trip retains supported fields/assets, and actual saved writes are verified.",
+          "requirement": "React↔Dioxus round trip retains supported fields/assets, and actual saved writes are verified.",
           "state": "unassessed",
           "classification": "release",
           "sources": [
@@ -9100,7 +9116,7 @@
             "F9.4",
             "F9.5"
           ],
-          "next_action": "After F9.1\u2013F9.5 and F2\u2013F8 exits, reconcile every remaining placeholder/React island against inventory.",
+          "next_action": "After F9.1–F9.5 and F2–F8 exits, reconcile every remaining placeholder/React island against inventory.",
           "finish_condition": "No required UI behavior remains a placeholder or React island.",
           "owned_files": [
             ".scratch/dioxus-frontend-v1/evidence/tsx-inventory.json"
@@ -9335,8 +9351,8 @@
     "integration_slices": 2,
     "boundary_slices": 2,
     "status": {
-      "accepted": 16,
-      "implementing": 34,
+      "accepted": 17,
+      "implementing": 33,
       "planned": 11
     }
   },

@@ -1,0 +1,13 @@
+{
+  "parent": "F2.3",
+  "at": "2026-10-04T10:35:34.418186+00:00",
+  "candidate_source": "58145c178156ee0a88ccaadc33dcae194c0f1639",
+  "candidate_url": "http://127.0.0.1:34804/",
+  "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-context-gap-58145c17-review-sol-20261004.md",
+  "review_sha256": "c2fe8a22f1b08ef1b0d26cbfe21692f7da8677ae59d19942197b4ee825f1217c",
+  "audit": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-context-gap-58145c17-audit.json",
+  "audit_sha256": "3f686067c0ba1a42c363083fb6f275553e1585eda826f58b9d88a897c4d44cba",
+  "criteria_accounting": ".scratch/dioxus-frontend-v1/tasks.json",
+  "scope": "F2.3 desktop pinned/auto-hide/collapsed panes, bounded pointer/keyboard resize and persistence, compact drawer/keyboard focus, and nonmutating panel actions; paired reference and packaged Dioxus evidence are in the existing f23 public qualification receipt.",
+  "decision": "Accept all four verified functional criteria and no unmet acceptance joins. The consolidated Sol review recommends functional F2.3 acceptance; broader visual parity and release AT gates remain separate."
+}

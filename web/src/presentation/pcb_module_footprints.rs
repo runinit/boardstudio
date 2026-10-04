@@ -26,7 +26,6 @@ pub(super) struct ModuleSourceFootprintsProps {
     module_id: String,
     snapshot: AcceptedSnapshot,
     on_select: EventHandler<String>,
-    focused: bool,
 }
 
 #[component]
@@ -35,7 +34,6 @@ pub(super) fn ModuleSourceFootprints(props: ModuleSourceFootprintsProps) -> Elem
     let hidden = (visibility.modules_hidden)();
     let host_hidden = (visibility.hidden)();
     let on_select = props.on_select;
-    let focused = props.focused;
     let Some(module) = props
         .snapshot
         .scene
@@ -63,7 +61,7 @@ pub(super) fn ModuleSourceFootprints(props: ModuleSourceFootprintsProps) -> Elem
         .unwrap_or_else(|| props.module_id.clone());
     rsx! {
         g {
-            class: if focused { "m1-module-pcb-overlay is-finding-focused" } else { "m1-module-pcb-overlay" },
+            class: "m1-module-pcb-overlay",
             "data-module-id": "{props.module_id}",
             role: "button",
             tabindex: "0",
@@ -77,21 +75,19 @@ pub(super) fn ModuleSourceFootprints(props: ModuleSourceFootprintsProps) -> Elem
                     on_select.call(id.clone());
                 }
             } },
-            if module_geometry_visible(&hidden, "module-outlines", focused) {
+            if !hidden.contains("module-outlines") {
                 for (index, outline) in module.board.iter().enumerate() {
                     polygon {
                         key: "outline-{index}",
-                        class: if focused { "m1-module-board-outline is-finding-focused" } else { "m1-module-board-outline" },
-                        style: if focused { "stroke: var(--wb-accent); stroke-width: .35" } else { "" },
+                        class: "m1-module-board-outline",
                         points: points(&outline.points),
                     }
                 }
             }
-            if module_geometry_visible(&hidden, "module-clearances", focused) {
+            if !hidden.contains("module-clearances") {
                 for volume in module.volumes.iter().chain(&module.openings) {
                     polygon {
                         key: "clearance-{volume.id}", class: "m1-module-clearance",
-                        style: if focused { "stroke: var(--wb-accent); stroke-width: .35" } else { "" },
                         points: points(&volume.geometry.points), "data-qualified": "{volume.qualified}",
                     }
                 }
@@ -212,17 +208,8 @@ pub(super) fn ModuleSourceFootprints(props: ModuleSourceFootprintsProps) -> Elem
     }
 }
 
-fn module_geometry_visible(hidden: &BTreeSet<String>, layer: &str, focused: bool) -> bool {
-    focused || !hidden.contains(layer)
-}
-
 #[component]
-pub(super) fn PcbFindingMarkers(
-    snapshot: AcceptedSnapshot,
-    board_id: String,
-    focused_finding_id: Option<String>,
-    on_focus: EventHandler<String>,
-) -> Element {
+pub(super) fn PcbFindingMarkers(snapshot: AcceptedSnapshot, board_id: String) -> Element {
     let visibility = use_context::<LayerVisibility>();
     let module_findings_hidden = (visibility.modules_hidden)().contains("module-findings");
     let module_ids = snapshot
@@ -261,25 +248,12 @@ pub(super) fn PcbFindingMarkers(
     rsx! {
         for marker in snapshot.scene.finding_markers.iter().filter(|marker| {
             marker.board_id == board_id
-                && (visible_error_ids.contains(marker.finding_id.as_str())
-                    || focused_finding_id.as_deref() == Some(marker.finding_id.as_str()))
+                && visible_error_ids.contains(marker.finding_id.as_str())
         }) {
             g {
                 key: "{marker.finding_id}",
-                class: if focused_finding_id.as_deref() == Some(marker.finding_id.as_str()) { "wb-outline-finding is-focused" } else { "wb-outline-finding" },
-                "data-finding-id": "{marker.finding_id}", role: "button", tabindex: "0",
-                "aria-label": "Focus PCB finding {marker.finding_id}",
-                onpointerdown: move |event: PointerEvent| event.stop_propagation(),
-                onclick: { let id = marker.finding_id.clone(); move |_| on_focus.call(id.clone()) },
-                onkeydown: { let id = marker.finding_id.clone(); move |event: KeyboardEvent| {
-                    if event.key() == Key::Escape {
-                        event.prevent_default();
-                        on_focus.call(String::new());
-                    } else if event.key() == Key::Enter || event.key() == Key::Character(" ".into()) {
-                        event.prevent_default();
-                        on_focus.call(id.clone());
-                    }
-                } },
+                class: "wb-outline-finding",
+                "data-finding-id": "{marker.finding_id}",
                 for (index, contour) in marker.contours.iter().enumerate() {
                     polygon { key: "contour-{index}", points: points(&contour.points) }
                 }

@@ -42,7 +42,6 @@ pub(in crate::presentation) struct PcbSceneProps {
 
 #[component]
 pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
-    let mut focused_finding = use_signal(|| None::<(Scope, SnapshotToken, String)>);
     let snapshot = props.snapshot;
     let scope = props.scope;
     let selected_ids = props.selected_ids;
@@ -69,24 +68,6 @@ pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
         };
     };
     let board_id = board.id.as_str();
-    let focused_id = focused_finding()
-        .filter(|(owner, token, _)| owner == &scope && *token == snapshot.token)
-        .map(|(_, _, id)| id);
-    let focused_module_id = focused_id.as_deref().and_then(|finding_id| {
-        let finding = snapshot
-            .scene
-            .findings
-            .iter()
-            .find(|finding| finding.id == finding_id)?;
-        document
-            .modules
-            .iter()
-            .find(|module| {
-                module.host_board_id == scope.board_id
-                    && finding.target_ids.iter().any(|target| target == &module.id)
-            })
-            .map(|module| module.id.as_str())
-    });
     let contours = snapshot
         .scene
         .board_contours
@@ -97,9 +78,6 @@ pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
         .unwrap_or_default();
     let member_ids: BTreeSet<&str> = board.part_ids.iter().map(String::as_str).collect();
     let scene_transforms = snapshot.scene.transforms.as_slice();
-    let focus_scope = scope.clone();
-    let focus_token = snapshot.token;
-
     rsx! {
         g { class: "m1-pcb-scene", "data-board-id": board_id, "data-scene-status": "ready",
             if !hidden_layers.contains("Edge.Cuts") {
@@ -271,24 +249,10 @@ pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
                     module_id: module.id.clone(),
                     snapshot: snapshot.clone(),
                     on_select: on_module_select,
-                    focused: focused_module_id == Some(module.id.as_str()),
                 }
             }
             super::pcb_module_footprints::PcbFindingMarkers {
                 snapshot: snapshot.clone(), board_id: scope.board_id.clone(),
-                focused_finding_id: focused_id,
-                on_focus: move |id: String| {
-                    let already_focused = focused_finding().as_ref().is_some_and(
-                        |(owner, token, existing)| {
-                            owner == &focus_scope && *token == focus_token && existing == &id
-                        },
-                    );
-                    if id.is_empty() || already_focused {
-                        focused_finding.set(None);
-                    } else {
-                        focused_finding.set(Some((focus_scope.clone(), focus_token, id)));
-                    }
-                },
             }
         }
     }
@@ -478,6 +442,52 @@ mod mounted_layer_tests {
         }
     }
 
+    fn mounted_finding_marker() -> Element {
+        let (mut snapshot, scope) = fixture();
+        let mut scene = (*snapshot.scene).clone();
+        let finding_id = "board:board:pcb-error";
+        scene.findings.push(boardstudio_core::model::Finding {
+            id: finding_id.into(),
+            severity: boardstudio_core::model::Severity::Error,
+            scope: boardstudio_core::model::Scope::Pcb,
+            message: "Test PCB error".into(),
+            target_ids: vec!["part".into()],
+        });
+        scene
+            .finding_markers
+            .push(boardstudio_core::model::FindingMarker {
+                finding_id: finding_id.into(),
+                board_id: "board".into(),
+                contours: vec![Contour {
+                    points: vec![
+                        Vec2 { x: 1.0, y: 1.0 },
+                        Vec2 { x: 2.0, y: 1.0 },
+                        Vec2 { x: 2.0, y: 2.0 },
+                    ],
+                    hole: false,
+                }],
+            });
+        snapshot.scene = Arc::new(scene);
+        let hidden = use_signal(BTreeSet::new);
+        let footprints = use_signal(|| true);
+        let modules_hidden = use_signal(super::super::pcb_module_footprints::default_hidden_layers);
+        use_context_provider(|| super::super::LayerVisibility {
+            hidden,
+            modules_hidden,
+            footprints,
+        });
+        rsx! {
+            div { id: "pcb-finding-marker-mount",
+                svg {
+                    super::super::pcb_module_footprints::PcbFindingMarkers {
+                        snapshot,
+                        board_id: scope.board_id,
+                    }
+                }
+            }
+        }
+    }
+
     fn mounted_board_switch() -> Element {
         let (mut snapshot, scope) = fixture();
         let mut document = (*snapshot.document).clone();
@@ -654,6 +664,28 @@ mod mounted_layer_tests {
         click("#switch-pcb-board");
         settle().await;
         assert_eq!(count("button[aria-label='Hide F.Cu']"), 1);
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn pcb_finding_marker_is_decorative_and_does_not_advertise_activation() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("pcb-finding-marker-test-root");
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(mounted_finding_marker),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        settle().await;
+
+        let marker = document
+            .query_selector("#pcb-finding-marker-mount g[data-finding-id='board:board:pcb-error']")
+            .unwrap()
+            .expect("the accepted finding marker is rendered");
+        assert_eq!(marker.get_attribute("role"), None);
+        assert_eq!(marker.get_attribute("tabindex"), None);
+        assert_eq!(marker.get_attribute("aria-label"), None);
         root.remove();
     }
 

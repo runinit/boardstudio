@@ -2234,7 +2234,7 @@
       "category": "interface semantics / canvas interaction",
       "confidence": "confirmed source and bounded packaged-browser observation",
       "impact_priority": "low",
-      "status": "open v1 affordance correction; unrelated PCB work continues",
+      "status": "v1 decorative-marker correction implemented; next packaged PCB pass pending; shared overlay policy remains post-port",
       "discovered": "2026-10-04",
       "baseline": "Packaged frontend-functional-batch-20261004, source 14434d50",
       "workflows": [
@@ -2248,15 +2248,22 @@
       ],
       "observation": "Dioxus gives the SVG finding overlay role=button, tabindex and onclick, while the inherited .wb-outline-finding CSS disables pointer events. Keyboard Enter focuses it, but a pointer cannot. The TypeScript overlay is decorative and routes finding activation through its Findings list, so SVG-marker clicking is not a parity requirement.",
       "impact": "The Dioxus affordance promises a pointer action that cannot fire and can mislead both users and browser qualification.",
-      "during_port": "Keep F5.4 focus qualification on the actual mounted finding action. Before F5.4 acceptance, make the overlay consistently decorative or provide a real bounded hit target without obscuring PCB selection.",
+      "during_port": "The PCB finding marker now uses decorative SVG semantics like React; keep finding activation in the mounted Findings list. Qualify the next packaged candidate for no hidden marker focus and unchanged module selection.",
       "post_port_proposal": "Define one shared canvas-overlay interaction policy for visible markers, accessible names, keyboard focus and pointer hit regions.",
       "validation_needed": "A focused PCB pointer/keyboard journey confirms the chosen semantics and no regression to module or host selection.",
-      "decision": "Record the misleading affordance and correct it in the remaining PCB UI pass; do not repeat an impossible SVG click as a React parity test.",
+      "decision": "Use the narrow v1 decorative-marker correction; retain the shared overlay interaction-policy refactor for post-port.",
       "follow_up_owner": "PCB scene and findings UI",
       "linked_tasks": [
         "F5.4"
       ],
-      "continuations": []
+      "continuations": [
+        {
+          "source": "PCB decorative marker source correction; integrated commit pending",
+          "evidence": ".scratch/dioxus-pcb-view/evidence/24-module-source-route-20261003/receipt.md",
+          "observation": "The mounted regression failed on a marker advertising role=button with pointer events disabled, then passed after removing the misleading role, keyboard and click handlers. The actual Findings-list route and module selection remained separate.",
+          "status": "source RED/GREEN complete; public package retest pending"
+        }
+      ]
     },
     {
       "id": "RF-025",
@@ -2373,6 +2380,36 @@
       "follow_up_owner": "Selection and Inspector architecture",
       "linked_tasks": [
         "F3.5"
+      ],
+      "continuations": []
+    },
+    {
+      "id": "RF-029",
+      "title": "Layout keyboard gestures depend on SVG focus rather than workbench scope",
+      "category": "interaction ownership / keyboard scope",
+      "confidence": "confirmed paired public behavior and source path",
+      "impact_priority": "medium",
+      "status": "narrow Space-pan correction in progress; shared gesture ownership deferred",
+      "discovered": "2026-10-04",
+      "baseline": "frontend-context-gap-20261004, source 58145c17",
+      "workflows": [
+        "F3.6",
+        "F2.4"
+      ],
+      "evidence": [
+        "web/src/presentation.rs",
+        "web/src/presentation/canvas_interaction.rs",
+        ".scratch/dioxus-frontend-v1/evidence/layout-camera-f36c01-20261004/"
+      ],
+      "observation": "In a paired Sofle Layout journey, Space held from body focus plus a 90×40 px canvas drag pans the TypeScript workbench but leaves Dioxus unchanged. Focusing the Dioxus SVG first makes the same gesture pan. The Rust Space state is fed by an SVG-local key handler whereas the reference listens at window scope.",
+      "impact": "Gesture behavior changes with incidental focus, so visible Layout camera controls can appear broken after menu, Inspector or page interaction.",
+      "during_port": "Use one bounded window-key admission while Layout 2D is active, preserving text-entry and workspace/gesture cancellation guards; keep camera ownership in the existing Layout controller.",
+      "post_port_proposal": "Consolidate workbench keyboard gesture admission and listener lifetime into a private owner with explicit focus, editable-target and unmount semantics.",
+      "validation_needed": "Focused body-focus Space-pan and text-field exclusion, followed by one changed-action packaged journey; camera and history stay unchanged on cancellation.",
+      "decision": "Repair the v1 Space-pan path narrowly; defer a cross-workbench keyboard framework.",
+      "follow_up_owner": "Layout interaction and post-port UI architecture",
+      "linked_tasks": [
+        "F3.6"
       ],
       "continuations": []
     }
