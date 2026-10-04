@@ -49,7 +49,7 @@
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
       "source_commit": "6619d5f2be0ce4167939426dd7efd3a13fcbd1e3",
-      "state": "Published34789 source6619d5f2 with compiler/package/root/subpath checks and zero release warnings. F3.2/F3.3 Layout and F4.2 Parts accepted; F3.4-C01/C02 and F5.2-C01 verified. Consolidated review is checking F7.3-C05 common-3D mapping after distinguishing its 2D module/finding evidence.",
+      "state": "Published34789 source6619d5f2 with compiler/package/root/subpath checks and zero warnings. Consolidated Sol 6.1 High review passes Standards, F3.4-C02 and PCB F5.2-C01; F2.1 public negative branches and F7.3-C05 common-3D mappings remain open. F3.2/F3.3 Layout and F4.2 Parts parents accepted.",
       "packets": [
         {
           "stream": "Layout",
@@ -504,7 +504,7 @@
       },
       {
         "stream": "Case",
-        "state": "F7.3-C02/C03/C04 verified paired. C05 part/case-body 3D picks and 2D module/finding focus are evidenced; actual common 3D module/finding mapping remains unqualified under review. C01 scene/consumer joins open."
+        "state": "F7.3-C02/C03/C04 verified paired. C05 has 3D part/empty picks and 2D module/finding focus; rendered Case-body, module and finding 3D mapping remain unqualified after consolidated review. C01 scene/consumer joins open."
       },
       {
         "stream": "Parts + Project",
@@ -514,7 +514,7 @@
     "pending_join_packets": [],
     "next_work": [
       "Continue F3.4-C03 contour dimensions, insertion/removal, pointer capture and cancel/Escape/lost-capture qualification; retain passed C01/C02 without rerunning.",
-      "Complete F7.3-C05 actual common-3D module/finding mapping or record precise unsupported branch; keep F2.1 negative branches implemented until original paired-public finish conditions are met.",
+      "Complete F7.3-C05 actual shared-3D Case-body, module and finding mapping or record precise unsupported branches; keep F2.1 negative branches implemented until original paired-public finish conditions are met.",
       "Consolidate the next functional candidate and one Sol 6.1 High review only when ready; preserve all parent joins and RF findings."
     ],
     "process_retro": {
@@ -551,18 +551,36 @@
     "qualification": {
       "trigger": "functional_scope",
       "active_scope": {
-        "id": "parts-search-feedback-20261003",
+        "id": "frontend-outline-hitorder-20261003",
         "streams": [
-          "Parts/Project"
+          "Layout",
+          "PCB",
+          "Parts/Project",
+          "Case"
         ],
+        "source_commit": "6619d5f2be0ce4167939426dd7efd3a13fcbd1e3",
         "journeys": [
           {
-            "id": "assembly-query-feedback",
-            "scope": "Assembly-only query has matching rows and no no-match status; true no-match has zero rows and exactly one status. Retain verified filtering and selection behavior.",
-            "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md"
+            "id": "F3.4-C02",
+            "scope": "Paired addition/cutout/bridge draft preview, point Undo, cancel without accepted writes, Finish on 34789 and pinned 5175",
+            "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md"
+          },
+          {
+            "id": "F5.2-C01",
+            "scope": "Paired multi-board Resolve/Apply plus focused stale board/controller mounted owner checks",
+            "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md"
+          },
+          {
+            "id": "F2.1-negative-branches",
+            "scope": "Mounted Loading/error/Retry and damaged-preview fallback supplement paired success; unchanged public finish conditions open",
+            "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md"
+          },
+          {
+            "id": "F7.3-C05",
+            "scope": "3D part pick proven; common viewer Case-body/module/finding mapping remains open",
+            "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md"
           }
-        ],
-        "source_commit": "b2bb813cdb75340a2725ac4488dfde6752104484"
+        ]
       },
       "history": [
         {
@@ -608,7 +626,7 @@
               "scope": "Sofle selection, contextual Objects/Inspector Properties and Relations, matrix/key edits, Undo and reopen",
               "spec": ".scratch/dioxus-layout-authoring/spec.md",
               "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/journey.md",
-              "verified": "Three Properties shortcut routes and key width1\u21921.25\u2192Undo1\u2192Redo1.25\u2192reload1.25 match reference behavior.",
+              "verified": "Three Properties shortcut routes and key width1→1.25→Undo1→Redo1.25→reload1.25 match reference behavior.",
               "remaining": "Inspector arrangement/typography/context footer and Objects-to-toolbar selection-kind synchronization; broader authoring criteria unchanged."
             },
             {
@@ -1356,6 +1374,47 @@
               "state": "pending"
             }
           ]
+        },
+        {
+          "candidate_build_id": "frontend-outline-hitorder-20261003",
+          "source_commit": "6619d5f2be0ce4167939426dd7efd3a13fcbd1e3",
+          "phase": "qualifying",
+          "review": {
+            "profile": "sol-review",
+            "model": "gpt-6.1-sol",
+            "reasoning": "high",
+            "state": "completed",
+            "verdict": "standards_pass_scoped_spec_pass_with_open_criteria",
+            "review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/candidate-34789-review.md",
+            "review_sha256": "1dea03581aeee9778fef553644ad9b6677fd68b2564dad9fc720aa19f9bc3e1c",
+            "source_commit": "6619d5f2be0ce4167939426dd7efd3a13fcbd1e3"
+          },
+          "journeys": [
+            {
+              "id": "F3.4-C02",
+              "scope": "Paired addition/cutout/bridge draft preview, point Undo, cancel without accepted writes, Finish on 34789 and pinned 5175",
+              "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+              "state": "passed"
+            },
+            {
+              "id": "F5.2-C01",
+              "scope": "Paired multi-board Resolve/Apply plus focused stale board/controller mounted owner checks",
+              "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
+              "state": "passed"
+            },
+            {
+              "id": "F2.1-negative-branches",
+              "scope": "Mounted Loading/error/Retry and damaged-preview fallback supplement paired success; unchanged public finish conditions open",
+              "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
+              "state": "partial"
+            },
+            {
+              "id": "F7.3-C05",
+              "scope": "3D part pick proven; common viewer Case-body/module/finding mapping remains open",
+              "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+              "state": "partial"
+            }
+          ]
         }
       ],
       "phase": "qualifying",
@@ -1364,17 +1423,41 @@
       "source_commit": "6619d5f2be0ce4167939426dd7efd3a13fcbd1e3",
       "journeys": [
         {
-          "id": "assembly-query-feedback",
-          "scope": "Assembly-only query has matching rows and no no-match status; true no-match has zero rows and exactly one status. Retain verified filtering and selection behavior.",
-          "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
-          "state": "pending"
+          "id": "F3.4-C02",
+          "scope": "Paired addition/cutout/bridge draft preview, point Undo, cancel without accepted writes, Finish on 34789 and pinned 5175",
+          "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+          "state": "passed"
+        },
+        {
+          "id": "F5.2-C01",
+          "scope": "Paired multi-board Resolve/Apply plus focused stale board/controller mounted owner checks",
+          "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
+          "state": "passed"
+        },
+        {
+          "id": "F2.1-negative-branches",
+          "scope": "Mounted Loading/error/Retry and damaged-preview fallback supplement paired success; unchanged public finish conditions open",
+          "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
+          "state": "partial"
+        },
+        {
+          "id": "F7.3-C05",
+          "scope": "3D part pick proven; common viewer Case-body/module/finding mapping remains open",
+          "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+          "state": "partial"
         }
       ],
       "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
       "started_at": "2026-10-04T02:10:07.778703+00:00",
       "review": {
         "profile": "sol-review",
-        "state": "pending"
+        "model": "gpt-6.1-sol",
+        "reasoning": "high",
+        "state": "completed",
+        "verdict": "standards_pass_scoped_spec_pass_with_open_criteria",
+        "review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/candidate-34789-review.md",
+        "review_sha256": "1dea03581aeee9778fef553644ad9b6677fd68b2564dad9fc720aa19f9bc3e1c",
+        "source_commit": "6619d5f2be0ce4167939426dd7efd3a13fcbd1e3"
       }
     },
     "delivery_priority": {

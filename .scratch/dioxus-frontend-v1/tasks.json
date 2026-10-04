@@ -6618,7 +6618,7 @@
             ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md"
           ],
           "blockers": [],
-          "next_action": "Paired34786 3D switch/empty and earlier Case-body picks are retained. Paired34787 VIK module click and hidden-Footprints SW2 finding focus occurred in PCB/Layout 2D overlays, not proven common 3D viewer-object mapping. Consolidated review is checking retained 3D evidence; qualify actual shared-viewer module/finding paths before C05 verification.",
+          "next_action": "Paired34786 3D switch/empty pick is retained. Prior Plate selection used the Objects tree and PCB-part-in-Case does not prove a rendered Case-body pick. Paired34787 VIK module click and hidden-Footprints SW2 finding focus used PCB/Layout 2D overlays. Qualify actual shared-3D Case-body, module and finding paths before C05 verification.",
           "finish_condition": "Mapped and empty picks resolve only against current consumer scope; finding focus/highlight works with hidden layers.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",
