@@ -47,7 +47,15 @@ fn detached_count() -> usize {
 
 mod runtime {
     use super::*;
-    use boardstudio_core::model::KeycapResolution;
+    use boardstudio_core::model::{KeycapResolution, KeycapSpec};
+
+    #[derive(Clone, Debug, PartialEq)]
+    pub(crate) struct KeycapsPreviewInput {
+        pub(crate) scope: Scope,
+        pub(crate) token: SnapshotToken,
+        pub(crate) revision: u64,
+        pub(crate) specs: Vec<KeycapSpec>,
+    }
 
     #[derive(Default)]
     pub struct Runtime {
@@ -100,7 +108,9 @@ fn mounted_fit() -> Element {
         keycaps_fit::KeycapsFitInspector {
             document,
             state: fit.state,
+            mechanical_layer_ids: Rc::from([]),
             on_retry: fit.on_retry,
+            on_navigate: |_| {},
         }
     }
 }

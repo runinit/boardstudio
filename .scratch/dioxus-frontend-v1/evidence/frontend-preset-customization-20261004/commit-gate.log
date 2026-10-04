@@ -1,0 +1,11 @@
+migration-deliver: 3 wasm-relevant Rust file(s) in this commit (e.g. web/src/presentation/parts.rs); running wasm32 cargo check before committing
+migration-deliver: running native web tests before committing
+migration-deliver: running scripts/check-wasm-tests.py for Rust files in this commit
+migration-deliver: running wasm-bindgen tests in headless Chrome for changed wasm test modules
+[codex/rust-v1-ui-parity-20261001 4e716156] Connect Parts presets to editable assembly drafts
+ 15 files changed, 640 insertions(+), 52 deletions(-)
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/component-draft-exclusion-triage-20261004.md
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/preset-customization-repair-20261004.md
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/preset-customization-review-20261004.md
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/recipe-import-qualification-20261004.md
+ create mode 100644 web/src/parts_assembly_preset_draft.rs

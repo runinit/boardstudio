@@ -3079,10 +3079,11 @@
             "web/src/renderer_host_page_base.rs:198"
           ],
           "evidence": [
-            ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/parts/F4.4-C03-34779.md"
+            ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/parts/F4.4-C03-34779.md",
+            ".scratch/dioxus-frontend-v1/evidence/recipe-import-invalid-20261004/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Qualify actual model/provider failure and 2D-to-3D retry, plus renderer initialization failure. Actual WebGL context loss, reported stop and usable 2D return passed on34779; attempted request abort still returned200 and proves no failure/retry.",
+          "next_action": "Real malformed STEP in isolated assembly sample now exposes conversion failure, usable2Dreturn/retry and recovery after removal; reference3/4 ->3/3observed. Renderer initialization failure and the single-definition sample route remain unqualified. Retain existing WebGL context-loss stop/2Dreturn evidence.",
           "finish_condition": "Current public evidence demonstrates provider/model failure then retry/recovery for the isolated Parts sample, and confirms renderer initialization/context loss reports/stops with the 2D route available and no canvas retry control.",
           "owned_files": [
             "web/src/runtime.rs",
@@ -3100,7 +3101,7 @@
         {
           "id": "F4.4-C04",
           "requirement": "Preview toggle/select/unmount do not alter active project/revision; stale scene results are rejected and resources released.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/parts/preview.rs:89",
@@ -3109,9 +3110,11 @@
             "web/src/presentation/parts/preview.rs:122",
             "web/src/presentation/parts/preview.rs:426"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/parts-preview-lifecycle-20261004/RECEIPT.md"
+          ],
           "blockers": [],
-          "next_action": "Qualify selection supersession, 2D/3D toggling and unmount against currentness/revision and lifecycle cleanup.",
+          "next_action": "Published4e716156paired selection/toggle/unmount keeps candidate current name/revision24Saved; reference keeps name/Saved state (no public numeric revision). Existing successful native/Parts gates prove lease/stale-token rejection; fresh renderer host5/5proves deterministic lifecycle cleanup. No whole-archive/GPU-memory benchmark claim.",
           "finish_condition": "Evidence confirms stale/unmounted results are ignored, resources are released, and preview-only interactions leave document identity/revision unchanged.",
           "owned_files": [
             "web/src/presentation/parts/preview.rs",
@@ -3334,7 +3337,7 @@
         {
           "id": "F4.6-C01",
           "requirement": "Create/edit/duplicate/save named assembly with members, side/pose, parameter overrides and default/custom models.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/parts/assembly_editor.rs:1",
@@ -3344,10 +3347,11 @@
             ".scratch/dioxus-frontend-v1/evidence/f46-assembly-authoring-20261003/RECEIPT.md",
             ".scratch/dioxus-frontend-v1/evidence/consolidated-34822-20261004/RECEIPT.md",
             ".scratch/dioxus-frontend-v1/evidence/preset-customization-repair-20261004.md",
-            ".scratch/dioxus-frontend-v1/evidence/preset-customization-review-20261004.md"
+            ".scratch/dioxus-frontend-v1/evidence/preset-customization-review-20261004.md",
+            ".scratch/dioxus-frontend-v1/evidence/frontend-preset-customization-20261004/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Independent source review passed preset customization repair with native conversion RED/GREEN. Required combined native/wasm gate, packaged Customize -> parameter edit -> Save/Undo/reopen and North orientation replay remain; retain existing recipe CRUD/model-default proofs.",
+          "next_action": "Published4e716156paired North preset Customize -> parameter edits -> Save/reload/reopen passes; candidate Undo/Redo and ordinary empty New assembly also pass. Reuse retained saved CRUD/custom-model proofs; all F4.6 criteria verified, parent awaits F4.4 prerequisite acceptance.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts/assembly_editor.rs",
@@ -3361,7 +3365,7 @@
         {
           "id": "F4.6-C02",
           "requirement": "Support model import; isolated draft preview; validate empty/name/transform/member errors.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/parts/assembly_editor.rs:1",
@@ -3371,10 +3375,11 @@
           "evidence": [
             ".scratch/dioxus-parts-catalogue/evidence/parts-assembly-34762/RESULTS.md",
             ".scratch/dioxus-frontend-v1/evidence/consolidated-34822-20261004/RECEIPT.md",
-            ".scratch/dioxus-frontend-v1/evidence/recipe-import-qualification-20261004.md"
+            ".scratch/dioxus-frontend-v1/evidence/recipe-import-qualification-20261004.md",
+            ".scratch/dioxus-frontend-v1/evidence/recipe-import-invalid-20261004/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Paired supported STEP import/save/reload/reopen and candidate isolated preview passed. Retain paired empty-name/member, non-origin first-member Apply and nonpositive Scale X rejection. Validation coverage map distinguishes source-only guards; bounded malformed-file follow-up remains unqualified.",
+          "next_action": "Paired supported import/save/reload/reopen, empty-file rejection and malformed-model recovery qualified alongside earlier empty-name/member, first-member pose Apply and nonpositive model-scale validation. Candidate isolated draft preview qualified. Non-public identifier guards remain source-corroborated only; no arbitrary STEP syntax or max-size boundary claim.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts/assembly_editor.rs",
@@ -6695,10 +6700,11 @@
           "evidence": [
             ".scratch/dioxus-shared-viewer/evidence/source-contract-reviewed-20261002/final-standards-review.md",
             ".scratch/dioxus-shared-viewer/evidence/case-viewport-layout/public-final/README.md",
-            ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md"
+            ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md",
+            ".scratch/dioxus-frontend-v1/evidence/parts-preview-lifecycle-20261004/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Start with the observed project-replacement transient: while the prior mounted placement editor is visible, attempt its old Save and verify the new project stays unchanged. Then publicly exercise retryable provider/model failure, context loss, unmount/remount and surrounding form availability; reuse unchanged lifecycle evidence.",
+          "next_action": "Reuse Parts no-mutation/currentness and renderer host5/5cleanup plus real model failure/retry/recovery and prior context-loss receipts. Remaining broader theme/DPR/consumer lifecycle and old mounted-editor Save during project replacement remain unqualified; do not repeat passing Parts branches.",
           "finish_condition": "Each lifecycle/error transition suppresses stale publication, releases renderer/listener resources and preserves the 2D/form route.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",
@@ -6776,10 +6782,11 @@
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
             ".scratch/dioxus-frontend-v1/evidence/parts-chooser-public-34739-20261002/RESULTS.md",
-            ".scratch/dioxus-frontend-v1/evidence/parts-sample-public-20261004.md"
+            ".scratch/dioxus-frontend-v1/evidence/parts-sample-public-20261004.md",
+            ".scratch/dioxus-frontend-v1/evidence/parts-preview-lifecycle-20261004/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Retain34821paired MX sample camera/render/aggregate/2D/form evidence and34822verified per-model rows (F7.3-C03); that repair is complete. Qualify remaining sample pick/scope and renderer failure/cleanup behavior with attributable owner/mounted evidence; do not repeat unavailable public fault injection. Mobile checks deferred by user.",
+          "next_action": "Reuse paired sample controls/per-model rows and newly verified F4.4-C04 nonmutation/currentness/renderer cleanup. Remaining Parts mounted renderer-initialization error presentation and any actual sample-pick/scope branch remain open; no repeated unavailable public fault injection. Mobile deferred.",
           "finish_condition": "Sample cannot mutate live project; renderer failure retains form and 2D access; retry remains only where existing provider/model retry supports it.",
           "owned_files": [
             "web/src/presentation/parts",

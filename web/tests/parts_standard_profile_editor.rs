@@ -231,6 +231,11 @@ fn host() -> Element {
         });
     let ports = ManualProfileEditorPorts {
         request_standard_profile,
+        request_mechanical_extraction: Rc::new(|_, _| {
+            let future: editor_component::MechanicalExtractionFuture =
+                Box::pin(async { Err("unexpected fixture extraction request".to_owned()) });
+            (OperationId(0), future)
+        }),
         spawn_detached,
         current_scope,
         accepted_owner_is_current,

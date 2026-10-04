@@ -1236,7 +1236,7 @@ pub(super) fn cad_preview_fixture(board_id: &str, token: u64, revision: u64) -> 
     state
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_arch = "wasm32"))]
 mod tests {
     use super::*;
     use boardstudio_application::{SessionEpoch, SnapshotToken};

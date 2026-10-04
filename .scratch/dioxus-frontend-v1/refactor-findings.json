@@ -2263,7 +2263,16 @@
       "linked_tasks": [
         "F7.3"
       ],
-      "continuations": []
+      "continuations": [
+        {
+          "date": "2026-10-04",
+          "observation": "A no-bin focused invocation exposed three native integration harnesses lagging production Props/ports and a wasm-only inline test module incorrectly registering under native integration. Local fixture/port stubs plus a target-wasm guard restore Matrix4/4, Parts18/18 and Keycaps4/4 without removing assertions or copying another module graph. All9Keycaps browser tests remain; independent source review CLEAR, coordinator affected-WASM gate still required. Broader native presentation graph consolidation remains deferred.",
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/native-harness-drift-triage-20261004.md",
+            ".scratch/dioxus-frontend-v1/evidence/native-harness-drift-review-20261004.md"
+          ]
+        }
+      ]
     },
     {
       "id": "RF-023",

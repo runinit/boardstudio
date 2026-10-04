@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T23:22:07.592215+00:00",
+    "updated_at": "2026-10-04T23:52:43.507428+00:00",
     "parent_counts": {
       "accepted": 22,
       "implementing": 28,
@@ -25,20 +25,20 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-parts-library-repairs-20261004",
-      "source_commit": "3a412978cee729a24d37e7e55e7c3664f1187fb2",
+      "build_id": "frontend-preset-customization-20261004",
+      "source_commit": "4e716156a0692972b1309798cdc883739c7ff73b",
       "root_url": "http://127.0.0.1:34822/",
       "subpath_url": "http://127.0.0.1:34822/boardstudio/",
-      "provenance": "web/target/builds/frontend-parts-library-repairs-20261004/provenance.json",
-      "provenance_sha256": "98f2bdecbbfc22a7deb9780e455899c4241f2d71d0bf96ac5c17d4043a222979",
+      "provenance": "web/target/builds/frontend-preset-customization-20261004/provenance.json",
+      "provenance_sha256": "c53962a274d9ac1a54b862bc4290c53c71d144b38c0e5fa03c178757f5d1e4fe",
       "fresh_commands": 23,
       "inherited_commands": 0,
-      "source_inputs": 1402,
+      "source_inputs": 1403,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 482.434469,
+      "command_span_seconds": 470.716564,
       "package_qualification": "Combined package provenance, current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-parts-library-repairs-20261004/package-proof.json",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-preset-customization-20261004/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -48,8 +48,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "418dcb41411b",
-      "state": "418dcb41 integrates reviewed harness consolidation and mobile deferral. Preset Customize 3D assembly repair is frozen for independent diff review, with native conversion RED/GREEN. Paired recipe import/save/reload/reopen passes on34822; validation coverage reconciliation pending. Case-local export still awaits the existing mounted-first clarification.",
+      "source_commit": "4e716156a0692972b1309798cdc883739c7ff73b",
+      "state": "Native harness drift repair is source-reviewed CLEAR; Matrix4/4, Parts18/18, Keycaps4/4 executed and passed. Only fixture/stub fields and a wasm-only test-module guard changed, with all assertions retained. Required native/page/affected-Keycaps wasm gate pending guarded integration. Published application remains4e716156; no package needed for these test-only changes. F4.4-C04 now qualified with public revision24 nonmutation and renderer lifecycle5/5.",
       "packets": [
         {
           "stream": "Layout",
@@ -367,7 +367,7 @@
         }
       ],
       "qualification": "34805 changed-action journeys 3/3 passed and one consolidated Sol review completed. Reuse earlier paired Layout camera, panel, Case and Keymap evidence; no broad suite was run.",
-      "application_candidate_source": "916a40549444e7ac73c144e422f632a129fd2eaa"
+      "application_candidate_source": "4e716156a0692972b1309798cdc883739c7ff73b"
     },
     "journeys": [
       {
@@ -579,7 +579,7 @@
       },
       {
         "stream": "Parts + Project",
-        "state": "Preset customization repair is frozen for independent review and required native/wasm integration gate; F4.6-C01 remains unqualified publicly. C02 model import/save/reload/reopen passed paired34822/5175; validation evidence reconciliation pending. Reuse C03/C04 placement/history/identity evidence. Sole wasm exclusion is an uncorrected acceptance-fixture failure, not an established production defect; keep it until corrected execution."
+        "state": "All F4.6 criteria verified; parent awaits F4.4. F4.4-C04 nonmutation/currentness/cleanup now verified. C03 still needs mounted renderer-init error presentation, visual C05 deferred. Existing stale-result checks reused; renderer lifecycle5/5executed. Three native harness repairs passed26tests and independent source review; guarded test-maintenance commit pending."
       }
     ],
     "pending_join_packets": [],
@@ -3364,12 +3364,92 @@
             "F3.5 remaining empty/multiple contextual routes, nested keyboard routes and locked/driven public fixtures.",
             "F3.6 remaining lifecycle/resource evidence and F7.3 acceptance join."
           ]
+        },
+        {
+          "candidate_build_id": "frontend-parts-library-repairs-20261004",
+          "source_commit": "3a412978cee729a24d37e7e55e7c3664f1187fb2",
+          "phase": "repairing",
+          "review": {
+            "profile": "gpt-6-astra/xhigh",
+            "state": "completed",
+            "verdict": "source_clear_execution_pending",
+            "review": ".scratch/dioxus-frontend-v1/evidence/astra-consolidation-review-20261004.md",
+            "review_sha256": "514ba7891dc078610f07c23cd46ae1d36f09c6cae38c8f0c8b85cb56b046f34b",
+            "execution_gate": "passed",
+            "execution_evidence": ".scratch/dioxus-frontend-v1/evidence/parts-library-gates-20261004/commit-gate.log",
+            "public_qualification": "partial; consolidated receipt records exact observations and remaining branches"
+          },
+          "journeys": [
+            {
+              "id": "F7.3-parts-individual-model-layers",
+              "scope": "Paired MX switch Parts 3D sample: current sample model rows each hide/show independently, aggregate visibility and2D form return remain available; no mutation of live project. Reuse existing shared camera and Case controls evidence.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+              "source_paths": [
+                "web/src/presentation/shared_viewer.rs",
+                "web/src/presentation/case_display.rs",
+                "web/src/presentation/case_assembly_layers.rs"
+              ],
+              "source_paths_complete": true,
+              "state": "partial",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/consolidated-34822-20261004/RECEIPT.md",
+              "verified": "Independent model controls,2D form retention and project-context return pass; sample picking/full project equality/fault branches remain."
+            },
+            {
+              "id": "F2.2-library-mounted-recovery",
+              "scope": "Execute corrected mounted Project-menu suite with actual passing named confirmation/cancel/delete/replacement failure/retry/history and name/copy actions. Remove only exclusions proven green. Reuse retained paired portable-copy and delete receipts, retain public storage-fault observation limit.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
+              "source_paths": [
+                "web/src/presentation/library.rs"
+              ],
+              "source_paths_complete": true,
+              "state": "passed",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/parts-library-gates-20261004/commit-gate.log"
+            },
+            {
+              "id": "saved-recipe-layout",
+              "scope": "Saved recipe parameter/model and invalid-input branches; apply to matrix and board origin, then re-edit without mutating placed snapshots and save/reopen.",
+              "review_plan": ".scratch/dioxus-frontend-v1/evidence/astra-consolidation-review-20261004.md",
+              "source_paths": [],
+              "source_paths_complete": false,
+              "state": "partial",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/consolidated-34822-20261004/RECEIPT.md",
+              "verified": "Paired default models, saved history, board and selected-matrix Apply, invalid non-origin member rejection, reload and recipe/placement/public-key-identity independence. Model import/parameter/remaining validation branches open."
+            },
+            {
+              "id": "layout-keymap-keycaps",
+              "scope": "Current-board 3D pick into Keymap and Keycaps editors with accepted edits, 2D return and scope changes; reuse proven Layout history/orbit.",
+              "review_plan": ".scratch/dioxus-frontend-v1/evidence/astra-consolidation-review-20261004.md",
+              "source_paths": [],
+              "source_paths_complete": false,
+              "state": "partial",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/consolidated-34822-20261004/RECEIPT.md",
+              "verified": "Selector-originated SW2 binding A with3Dactive and2Dreturn, paired board clearing, DSA profile and legendQ accepted with3Dactive. Actual3Dpick remains unqualified."
+            },
+            {
+              "id": "pcb-model-viewer",
+              "scope": "Retained routed/module fixture: model pick into owning editor, actual unavailable-model feedback, pose/save/reopen and Case projection.",
+              "review_plan": ".scratch/dioxus-frontend-v1/evidence/astra-consolidation-review-20261004.md",
+              "source_paths": [],
+              "source_paths_complete": false,
+              "state": "pending"
+            },
+            {
+              "id": "case-local-step-scope",
+              "scope": "Valid authored Plate: Case-local STEP delivery/signature and observable pending-operation scope change, Previous/current admission, canonical consumer return.",
+              "review_plan": ".scratch/dioxus-frontend-v1/evidence/astra-consolidation-review-20261004.md",
+              "source_paths": [],
+              "source_paths_complete": false,
+              "state": "partial",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/consolidated-34822-20261004/RECEIPT.md",
+              "verified": "Fresh Sofle reaches exact Plate/mechanical geometry; observed Generating and Previous feedback plus Right-to-Left switch/recovery. Local Export geometry control absent in configured stack; repair needs mounted regression exception to native-first instruction."
+            }
+          ]
         }
       ],
-      "phase": "repairing",
+      "phase": "qualified_partial",
       "unmet_start_conditions": [],
-      "candidate_build_id": "frontend-parts-library-repairs-20261004",
-      "source_commit": "3a412978cee729a24d37e7e55e7c3664f1187fb2",
+      "candidate_build_id": "frontend-preset-customization-20261004",
+      "source_commit": "4e716156a0692972b1309798cdc883739c7ff73b",
       "journeys": [
         {
           "id": "F7.3-parts-individual-model-layers",
@@ -3381,9 +3461,7 @@
             "web/src/presentation/case_assembly_layers.rs"
           ],
           "source_paths_complete": true,
-          "state": "partial",
-          "evidence": ".scratch/dioxus-frontend-v1/evidence/consolidated-34822-20261004/RECEIPT.md",
-          "verified": "Independent model controls,2D form retention and project-context return pass; sample picking/full project equality/fault branches remain."
+          "state": "pending"
         },
         {
           "id": "F2.2-library-mounted-recovery",
@@ -3394,17 +3472,25 @@
           ],
           "source_paths_complete": true,
           "state": "passed",
-          "evidence": ".scratch/dioxus-frontend-v1/evidence/parts-library-gates-20261004/commit-gate.log"
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/parts-library-gates-20261004/commit-gate.log",
+          "reuse": "unchanged_scoped_source"
         },
         {
           "id": "saved-recipe-layout",
           "scope": "Saved recipe parameter/model and invalid-input branches; apply to matrix and board origin, then re-edit without mutating placed snapshots and save/reopen.",
           "review_plan": ".scratch/dioxus-frontend-v1/evidence/astra-consolidation-review-20261004.md",
-          "source_paths": [],
-          "source_paths_complete": false,
-          "state": "partial",
-          "evidence": ".scratch/dioxus-frontend-v1/evidence/consolidated-34822-20261004/RECEIPT.md",
-          "verified": "Paired default models, saved history, board and selected-matrix Apply, invalid non-origin member rejection, reload and recipe/placement/public-key-identity independence. Model import/parameter/remaining validation branches open."
+          "source_paths": [
+            "web/src/main.rs",
+            "web/src/parts_assembly_preset_draft.rs",
+            "web/src/presentation/parts.rs",
+            "web/src/presentation/parts/assembly_editor.rs",
+            "web/src/presentation/parts/assembly_presets.rs"
+          ],
+          "source_paths_complete": true,
+          "state": "passed",
+          "source_scope": "Changed preset originating action; unchanged import/placement/history branches reuse their attributable earlier receipts.",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/frontend-preset-customization-20261004/RECEIPT.md",
+          "verified": "Preset North parameter edits/defaults/history/reopen and ordinary New assembly passed on4e716156; supported/empty/malformed model import and previously verified matrix/board placement/snapshot branches reused. Invalid-input claim is limited to the named exercised branches in those receipts. F4.6 parent remains gated by F4.4."
         },
         {
           "id": "layout-keymap-keycaps",
@@ -3412,9 +3498,7 @@
           "review_plan": ".scratch/dioxus-frontend-v1/evidence/astra-consolidation-review-20261004.md",
           "source_paths": [],
           "source_paths_complete": false,
-          "state": "partial",
-          "evidence": ".scratch/dioxus-frontend-v1/evidence/consolidated-34822-20261004/RECEIPT.md",
-          "verified": "Selector-originated SW2 binding A with3Dactive and2Dreturn, paired board clearing, DSA profile and legendQ accepted with3Dactive. Actual3Dpick remains unqualified."
+          "state": "pending"
         },
         {
           "id": "pcb-model-viewer",
@@ -3430,34 +3514,21 @@
           "review_plan": ".scratch/dioxus-frontend-v1/evidence/astra-consolidation-review-20261004.md",
           "source_paths": [],
           "source_paths_complete": false,
-          "state": "partial",
-          "evidence": ".scratch/dioxus-frontend-v1/evidence/consolidated-34822-20261004/RECEIPT.md",
-          "verified": "Fresh Sofle reaches exact Plate/mechanical geometry; observed Generating and Previous feedback plus Right-to-Left switch/recovery. Local Export geometry control absent in configured stack; repair needs mounted regression exception to native-first instruction."
+          "state": "pending"
         }
       ],
       "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
-      "started_at": "2026-10-04T21:59:48.647174+00:00",
-      "review": {
-        "profile": "gpt-6-astra/xhigh",
-        "state": "completed",
-        "verdict": "source_clear_execution_pending",
-        "review": ".scratch/dioxus-frontend-v1/evidence/astra-consolidation-review-20261004.md",
-        "review_sha256": "514ba7891dc078610f07c23cd46ae1d36f09c6cae38c8f0c8b85cb56b046f34b",
-        "execution_gate": "passed",
-        "execution_evidence": ".scratch/dioxus-frontend-v1/evidence/parts-library-gates-20261004/commit-gate.log",
-        "public_qualification": "partial; consolidated receipt records exact observations and remaining branches"
-      },
       "remaining_qualification": [
-        "Preset Customize 3D assembly repair needs guarded native/wasm checks, package and focused public replay.",
-        "Recipe supported-model import passed paired save/reload/reopen; remaining validation evidence is being reconciled.",
-        "F7.3 actual model picking, scope loss and resource/failure joins remain open; previously passed independent Parts model visibility is reusable.",
-        "Case-local Export geometry remains pending the already-requested mounted-first exception; no repeat question."
+        "F4.6criteria verified; prerequisite F4.4 remains open.",
+        "F4.4-C04verified. Remaining mounted Parts renderer initialization error presentation, applicable single-definition error path, and deferred visual C05 stay open.",
+        "F7.3broader consumer/model-pick/theme/DPR/stale-editor/resource joins retain exact scope; reuse passing Parts lifecycle and real model-failure receipts.",
+        "Case-local Export geometry awaits the existing mounted-first clarification; no repeat request."
       ],
       "pending_source_batch": {
         "build_id": "frontend-preset-customization-20261004",
         "base_commit": "418dcb41411b",
         "provider_base": "frontend-parts-library-repairs-20261004",
-        "state": "source_review_passed_integration_gates_pending",
+        "state": "qualified",
         "source_paths": [
           "web/src/main.rs",
           "web/src/parts_assembly_preset_draft.rs",
@@ -3478,7 +3549,18 @@
           "verdict": "source_pass",
           "path": ".scratch/dioxus-frontend-v1/evidence/preset-customization-review-20261004.md",
           "sha256": "079810b1db7ab213cb47faa339fa1ff9704a3c43b5ca68ac14b5d3320661845e"
-        }
+        },
+        "source_commit": "4e716156a0692972b1309798cdc883739c7ff73b",
+        "gate_evidence": ".scratch/dioxus-frontend-v1/evidence/frontend-preset-customization-20261004/commit-gate.log",
+        "package_mode": "full",
+        "reuse_preflight": "Rejected before reserving output: unsupported module registration in included renderer_host_page_base.rs (existing inline lifecycle_tests). No source change; full build fallback.",
+        "public_receipt": ".scratch/dioxus-frontend-v1/evidence/frontend-preset-customization-20261004/RECEIPT.md",
+        "public_result": "Confirmed new asset hash after offline shell refresh. North3member poses/defaults/parameter edit save/history/reload/reopen pass; ordinary New assembly empty. No parent acceptance."
+      },
+      "started_at": "2026-10-04T23:36:43.776961+00:00",
+      "review": {
+        "profile": "sol-review",
+        "state": "pending"
       }
     },
     "delivery_priority": {
@@ -3569,6 +3651,11 @@
         "build_id": "frontend-parts-library-repairs-20261004",
         "published_at": "2026-10-04T21:59:46.880077+00:00",
         "extra_candidate_reason": "Reproduced Parts per-model visibility repair, reviewed test consolidation and library recovery; one shared candidate for Parts/Project, Layout, Keymap, Keycaps, PCB and Case journeys."
+      },
+      {
+        "build_id": "frontend-preset-customization-20261004",
+        "published_at": "2026-10-04T23:36:41.994477+00:00",
+        "extra_candidate_reason": "Repair publicly reproduced missing preset Customize 3D assembly entrypoint; reviewed source4e716156 and required native/wasm gates pass. Reuse retained desktop fixtures on the same local origin for one combined recipe action/parameter/history replay."
       }
     ],
     "validation_scope": {

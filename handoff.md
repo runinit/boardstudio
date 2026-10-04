@@ -1,16 +1,16 @@
 # Handoff (generated from records)
 
-- Branch: codex/rust-v1-ui-parity-20261001 @ 418dcb41
+- Branch: codex/rust-v1-ui-parity-20261001 @ 4e716156
 - Worktree: /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001
 - Parents: 22/61 accepted, 28 implementing, 11 planned
-- Criteria: unassessed 27, missing 1, implemented 78, verified 116; 222 total
-  - functional: implemented 65, missing 1, unassessed 3, verified 112
+- Criteria: unassessed 27, missing 1, implemented 75, verified 119; 222 total
+  - functional: implemented 62, missing 1, unassessed 3, verified 115
   - release: implemented 10, unassessed 19, verified 4
   - visual: implemented 3, unassessed 5
 
 ## Served candidate
-- Build: frontend-parts-library-repairs-20261004
-- Source commit: 3a412978cee729a24d37e7e55e7c3664f1187fb2
+- Build: frontend-preset-customization-20261004
+- Source commit: 4e716156a0692972b1309798cdc883739c7ff73b
 - Root: http://127.0.0.1:34822/
 - Subpath: http://127.0.0.1:34822/boardstudio/
 
@@ -76,7 +76,7 @@
 ## Qualification scope
 - Scope: frontend-parts-library-repairs-20261004 - Scoped assembly editing, shared-viewer consumption and durable project continuity
 - Journeys: F7.3-parts-individual-model-layers, F2.2-library-mounted-recovery, saved-recipe-layout, layout-keymap-keycaps, pcb-model-viewer, case-local-step-scope
-- State: repairing
+- State: qualified_partial
 
 Last retro checkpoint: 2026-10-04T15:56:00Z
 
@@ -118,3 +118,17 @@ Last retro checkpoint: 2026-10-04T15:56:00Z
 ## Continuation: preset customization source batch
 
 Preset Customize 3D assembly repair is source-reviewed and native converter RED/GREEN. Combined guarded commit gates and packaged public replay remain. Paired recipe model import/save/reload/reopen passed on34822; C02 malformed-import branch remains unqualified. Sole excluded mounted component-draft test has an acceptance-fixture problem, not an established product defect; keep exclusion until corrected. Mobile validation remains deferred. Preserve six unrelated staged evidence files. New source/review/import/triage receipts are in evidence/*20261004.md.
+
+
+## Current continuation: published preset action and validation
+
+HEAD4e716156; full frontend-preset-customization-20261004 now serves root34822/subpath on detached PID2239133. All guarded native/wasm gates and full package succeeded. Reuse preflight rejected existing inline test module in included renderer_host_page_base.rs, so full build was used. Same-origin browser first served old offline shell; second navigation loaded new script hash dxh7a84b355b3d74c. New Customize action, North3member poses, defaults, Hotswap/side edits, Save/Undo/Redo/reload/reopen and empty New assembly pass. F4.6 all4criteria verified; parent stays implementing for F4.4. Model import success/empty-file rejection/real malformed STEP failure and2Dretry/recovery are recorded; no parent or arbitrary invalid-input claim.
+
+Current own uncommitted records/receipts describe this milestone; combine at next source integration. Six unrelated staged files remain untouched. draft_failure_triage now owns only the3stale native integration harness targets (matrix top+harness, Parts profile, Keycaps fit), with RED-first compile then executed GREEN; heavy slot1 assigned, no production edits/commit. recipe_import_qualification maps remaining F4.4/F7.3 owner/mounted/evidence coverage read-only. Reviewer preset_batch_review finished CLEAR. Sole component-draft exclusion remains an invalid acceptance fixture, not proven product bug. Case-local export still awaits existing user clarification; do not ask again. Mobile checks remain removed/deferred.
+
+
+## Current continuation: native fixtures and preview lifecycle
+
+Native harness repair frozen/reviewed: only Matrix harness fields/handlers/seven-input counts, Parts extraction requester stub, Keycaps props/runtime input stub, and keycaps_fit.rs wasm-only test-module cfg. Native targets26/26 passed (4+18+4), no assertions removed. Independent native-harness-drift-review CLEAR with hashes. Guarded integration must still run affected Keycaps9wasm tests. No application package is needed: served4e716156release graph unchanged.
+
+Parts preview public MX/Choc/MX selection,2D/3D andLayout/Parts unmount retains candidate current name/Revision24Saved; reference name/Saved state unchanged (no public numeric revision). Existing4e716156native/Parts-subtree gate proves lease/stale-token tests without duplicate rerun. Fresh renderer_host_page lifecycle5/5 passed. F4.4-C04 now verified; broader F7.3 and missing mounted Parts renderer-init error feedback remain open. Detailed parts-preview-lifecycle-20261004/RECEIPT.md plus coverage map. No heavy jobs or source authors remain other than current root commit gate. Six unrelated staged evidence files remain untouched.

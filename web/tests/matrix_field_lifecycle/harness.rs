@@ -1,6 +1,7 @@
 #[path = "../../src/presentation/objects/matrix_inspector.rs"]
 mod matrix_inspector;
 use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
+use boardstudio_core::model::DiodeDirection;
 use dioxus::core::{AttributeValue, ElementId, Mutation, Mutations};
 use dioxus::html::{
     FileData, FormValue, HasFileData, HasFocusData, HasFormData, HtmlEventConverter,
@@ -98,6 +99,15 @@ fn projection(matrix: &str) -> MatrixInspectorProjection {
         columns: 4,
         pitch_x: 19.05,
         pitch_y: 19.05,
+        definition_id: "switch-definition".into(),
+        switch_choices: Vec::new(),
+        diode_direction: DiodeDirection::Row2col,
+        edge_gap_x: 1.0,
+        edge_gap_y: 1.0,
+        preset: None,
+        orientation: None,
+        baseline_variant: None,
+        layout_relation: None,
     }
 }
 fn host() -> Element {
@@ -105,7 +115,18 @@ fn host() -> Element {
     let request_sequence = use_signal(|| 0);
     let projection = probe.projection.borrow().clone();
     let feedback = probe.feedback.borrow().clone();
-    rsx! { MatrixInspector { projection, request_sequence, editable:true, busy:false, feedback, on_edit:move |request| probe.requests.borrow_mut().push(request) } }
+    rsx! { MatrixInspector {
+        projection,
+        request_sequence,
+        editable: true,
+        busy: false,
+        feedback,
+        on_edit: move |request| probe.requests.borrow_mut().push(request),
+        on_apply_preset: move |_| {},
+        on_delete: move |_| {},
+        on_unlink: move |_| {},
+        on_duplicate: move |_| {},
+    } }
 }
 #[derive(Default)]
 struct DomState {
@@ -167,7 +188,7 @@ fn mounted() -> (Probe, VirtualDom, DomState) {
     let mut state = DomState::default();
     state.apply(dom.rebuild_to_vec());
     flush(&mut dom, &mut state);
-    assert_eq!(state.inputs.len(), 5);
+    assert_eq!(state.inputs.len(), 7);
     (probe, dom, state)
 }
 fn event(dom: &VirtualDom, id: ElementId, name: &str, value: &str) {
@@ -214,7 +235,7 @@ fn unrelated_revision_keeps_the_same_owners_uncommitted_draft() {
         next.revision = 2;
     }
     flush(&mut dom, &mut state);
-    assert_eq!(state.inputs.len(), 5, "same owner must not remount");
+    assert_eq!(state.inputs.len(), 7, "same owner must not remount");
     assert_eq!(
         state.values.get(&input).map(String::as_str),
         Some("Draft A")

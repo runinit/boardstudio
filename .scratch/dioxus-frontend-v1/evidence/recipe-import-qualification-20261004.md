@@ -1,5 +1,7 @@
 # F4.6-C02 recipe import qualification — 2026-10-04
 
+Candidate attribution: `frontend-parts-library-repairs-20261004`, source `3a412978cee729a24d37e7e55e7c3664f1187fb2`, before the34822server was replaced by the preset candidate.
+
 ## Result
 
 Paired public UI import, save, reload, and reopen succeeded on candidate
