@@ -1189,6 +1189,54 @@ pub(super) fn browser_navigation_fixture() -> (FindingNavigationRequest, Keycaps
 }
 
 #[cfg(test)]
+pub(super) fn cad_preview_fixture(board_id: &str, token: u64, revision: u64) -> KeycapsFitState {
+    use boardstudio_application::SessionEpoch;
+    use boardstudio_core::model::{KeycapMount, KeycapProfile, KeycapResolution, KeycapSpec};
+
+    let source = KeycapsFitSource {
+        scope: Scope {
+            session_epoch: SessionEpoch(2),
+            document_id: "keycaps-preview-test-document".into(),
+            board_id: board_id.into(),
+            instance_id: None,
+        },
+        token: SnapshotToken(token),
+        revision,
+        case_preview_current: false,
+    };
+    let mut state = KeycapsFitState::begin(source.clone(), None);
+    state.finish(Ok(KeycapResolution {
+        revision,
+        specs: vec![KeycapSpec {
+            id: format!("key-{board_id}"),
+            reference: "A1".into(),
+            profile: KeycapProfile::Cherry,
+            mount: KeycapMount::Mx,
+            row: 1,
+            size: Vec2 { x: 18.0, y: 18.0 },
+            top_size: Vec2 { x: 12.0, y: 12.0 },
+            height: 8.0,
+            tilt: 0.0,
+            dish_depth: 0.0,
+            spherical: false,
+            wall_thickness: 1.2,
+            pose: Pose2 {
+                at: Vec2 { x: 0.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            z: 8.4,
+            travel: 4.0,
+            legend: String::new(),
+            color: "#b0b5bd".into(),
+            legend_color: "#202124".into(),
+        }],
+        findings: Vec::new(),
+    }));
+    state
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use boardstudio_application::{SessionEpoch, SnapshotToken};

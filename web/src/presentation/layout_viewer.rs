@@ -9,7 +9,39 @@ use crate::runtime::Runtime;
 use boardstudio_application::SelectionMode;
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
+#[cfg(test)]
+use std::{future::Future, pin::Pin};
 use wasm_bindgen_futures::spawn_local;
+
+#[cfg(test)]
+type KeycapsPreviewFuture =
+    Pin<Box<dyn Future<Output = Result<crate::runtime::KeycapsCadPreview, String>>>>;
+
+#[cfg(test)]
+#[derive(Clone)]
+struct KeycapsPreviewProvider(
+    Rc<dyn Fn(crate::runtime::KeycapsPreviewInput) -> KeycapsPreviewFuture>,
+);
+
+#[cfg(test)]
+impl KeycapsPreviewProvider {
+    fn request(&self, input: crate::runtime::KeycapsPreviewInput) -> KeycapsPreviewFuture {
+        (self.0)(input)
+    }
+}
+
+async fn request_keycaps_preview(
+    runtime: &Rc<Runtime>,
+    input: crate::runtime::KeycapsPreviewInput,
+    #[cfg(test)] provider: Option<KeycapsPreviewProvider>,
+) -> Result<crate::runtime::KeycapsCadPreview, String> {
+    #[cfg(test)]
+    if let Some(provider) = provider {
+        return provider.request(input).await;
+    }
+
+    runtime.request_keycaps_cad_preview(input).await
+}
 
 #[derive(Props, Clone, PartialEq)]
 pub(crate) struct LayoutCanonicalViewerProps {
@@ -45,11 +77,15 @@ pub(crate) fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Elemen
     let mut keycaps_preview_error = use_signal(|| None::<String>);
     let mut keycaps_preview_sequence = use_signal(|| 0_u64);
     let mut keycaps_retry_generation = use_signal(|| 0_u64);
+    #[cfg(test)]
+    let test_preview_provider = try_consume_context::<KeycapsPreviewProvider>();
     use_effect(use_reactive(
         (&keycaps_input, &keycaps_retry_generation()),
         {
             let runtime = runtime.clone();
             let alive = alive.clone();
+            #[cfg(test)]
+            let test_preview_provider = test_preview_provider.clone();
             move |(input, _retry)| {
                 // This effect owns the sequence; reading it reactively here would make its
                 // own write restart the effect and continually cancel the CAD request.
@@ -65,8 +101,16 @@ pub(crate) fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Elemen
                 keycaps_preview_pending.set(true);
                 let runtime = runtime.clone();
                 let alive = alive.clone();
+                #[cfg(test)]
+                let test_preview_provider = test_preview_provider.clone();
                 spawn_local(async move {
-                    let result = runtime.request_keycaps_cad_preview(input).await;
+                    let result = request_keycaps_preview(
+                        &runtime,
+                        input,
+                        #[cfg(test)]
+                        test_preview_provider,
+                    )
+                    .await;
                     if !alive.get() || keycaps_preview_sequence.peek().ne(&sequence) {
                         return;
                     }
@@ -259,5 +303,194 @@ pub(crate) fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Elemen
                 inline_case_controls: false,
             }
         }
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod mounted_keycaps_preview_tests {
+    use super::*;
+    use crate::presentation::selection::SelectionAdapter;
+    use futures_channel::oneshot;
+    use gloo_timers::future::TimeoutFuture;
+    use std::{cell::RefCell, collections::VecDeque};
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::wasm_bindgen_test;
+    use web_sys::{Element as DomElement, HtmlElement};
+
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    struct PendingPreview {
+        input: crate::runtime::KeycapsPreviewInput,
+        reply: oneshot::Sender<Result<crate::runtime::KeycapsCadPreview, String>>,
+    }
+
+    #[derive(Clone)]
+    struct PreviewProbe {
+        runtime: Rc<Runtime>,
+        first_fit: super::super::keycaps_fit::KeycapsFitState,
+        newer_fit: super::super::keycaps_fit::KeycapsFitState,
+    }
+
+    fn mounted_preview_host() -> dioxus::prelude::Element {
+        let probe = use_context::<PreviewProbe>();
+        use_context_provider(|| probe.runtime.clone());
+        let mut fit_signal = use_signal(|| Some(probe.first_fit.clone()));
+
+        let selected_context = use_signal(|| None::<super::super::objects::ScopedTreeContext>);
+        let anchor_scope = use_signal(|| None::<boardstudio_application::Scope>);
+        let generation = use_signal(|| 1_u64);
+        let adapter =
+            use_hook(|| SelectionAdapter::new(selected_context, anchor_scope, generation));
+        use_context_provider(|| adapter.clone());
+        let theme = use_memo(|| "light");
+        use_context_provider(|| super::super::ResolvedTheme(theme));
+        let _: Signal<u64> = use_context_provider(|| Signal::new(0_u64));
+
+        let fit = fit_signal();
+        let newer_fit = probe.newer_fit.clone();
+        rsx! {
+            button {
+                id: "keycaps-preview-advance-owner",
+                onclick: move |_| fit_signal.set(Some(newer_fit.clone())),
+                "Advance board and revision"
+            }
+            LayoutCanonicalViewer { keycaps_fit: fit }
+        }
+    }
+
+    fn preview_provider(requests: Rc<RefCell<VecDeque<PendingPreview>>>) -> KeycapsPreviewProvider {
+        KeycapsPreviewProvider(Rc::new(move |input| {
+            let (reply, response) = oneshot::channel();
+            requests
+                .borrow_mut()
+                .push_back(PendingPreview { input, reply });
+            Box::pin(async move {
+                response
+                    .await
+                    .unwrap_or_else(|_| Err("controlled Keycaps provider was dropped".into()))
+            })
+        }))
+    }
+
+    async fn next_preview(requests: &Rc<RefCell<VecDeque<PendingPreview>>>) -> PendingPreview {
+        for _ in 0..100 {
+            if let Some(request) = requests.borrow_mut().pop_front() {
+                return request;
+            }
+            TimeoutFuture::new(10).await;
+        }
+        panic!("mounted Keycaps hook did not request a preview");
+    }
+
+    fn completed_preview(
+        input: &crate::runtime::KeycapsPreviewInput,
+    ) -> crate::runtime::KeycapsCadPreview {
+        crate::runtime::KeycapsCadPreview {
+            generation: input.revision,
+            scope: input.scope.clone(),
+            token: input.token,
+            revision: input.revision,
+            specs: input.specs.clone(),
+            bodies: Vec::new(),
+        }
+    }
+
+    async fn settle() {
+        TimeoutFuture::new(30).await;
+    }
+
+    fn alert(root: &DomElement) -> Option<String> {
+        root.query_selector("[role=alert]")
+            .unwrap()
+            .and_then(|node| node.text_content())
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_preview_failure_retries_and_ignores_a_late_old_owner_reply() {
+        let first_fit = super::super::keycaps_fit::cad_preview_fixture("left", 7, 11);
+        let newer_fit = super::super::keycaps_fit::cad_preview_fixture("right", 8, 12);
+        let runtime = Runtime::new().expect("browser runtime fixture initializes");
+        let requests = Rc::new(RefCell::new(VecDeque::new()));
+        let probe = PreviewProbe {
+            runtime,
+            first_fit,
+            newer_fit,
+        };
+        let provider = preview_provider(requests.clone());
+
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("mounted-keycaps-preview-provider-test");
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = dioxus::prelude::VirtualDom::new(mounted_preview_host);
+        dom.provide_root_context(probe.clone());
+        dom.provide_root_context(provider);
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+
+        let initial = next_preview(&requests).await;
+        assert_eq!(initial.input.scope.board_id, "left");
+        assert_eq!(initial.input.revision, 11);
+        initial
+            .reply
+            .send(Err("injected Keycaps CAD provider failure".into()))
+            .unwrap();
+        settle().await;
+        assert_eq!(
+            alert(&root).as_deref(),
+            Some("Keycap preview failed: injected Keycaps CAD provider failure")
+        );
+
+        let buttons = root.query_selector_all("button").unwrap();
+        let retry_button = buttons
+            .item(1)
+            .expect("retry follows the host owner-change control");
+        assert_eq!(
+            retry_button.text_content().as_deref(),
+            Some("Retry keycaps")
+        );
+        retry_button.dyn_into::<HtmlElement>().unwrap().click();
+        let retried = next_preview(&requests).await;
+        assert_eq!(
+            retried.input, initial.input,
+            "Retry uses the same accepted input"
+        );
+
+        root.query_selector("#keycaps-preview-advance-owner")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<HtmlElement>()
+            .unwrap()
+            .click();
+        let newer = next_preview(&requests).await;
+        assert_eq!(newer.input.scope.board_id, "right");
+        assert_eq!(newer.input.revision, 12);
+        newer
+            .reply
+            .send(Ok(completed_preview(&newer.input)))
+            .unwrap();
+        settle().await;
+        assert_eq!(alert(&root), None, "the current owner recovers");
+
+        retried
+            .reply
+            .send(Err("late failure from old board revision 11".into()))
+            .unwrap();
+        settle().await;
+        assert_eq!(
+            alert(&root),
+            None,
+            "an older board/revision reply cannot publish over the successful current request"
+        );
+        assert!(
+            !root
+                .text_content()
+                .unwrap_or_default()
+                .contains("late failure from old board"),
+            "the old provider response stays invisible"
+        );
+        root.remove();
     }
 }
