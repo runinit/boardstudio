@@ -317,19 +317,43 @@ def _tail(text, lines=60):
     return "\n".join(text.strip().splitlines()[-lines:])
 
 
+NATIVE_WEB_TEST_COMMAND = ["cargo", "test", "--manifest-path", "web/Cargo.toml", "--locked", "--bin", "boardstudio-web"]
+NATIVE_CORE_TEST_COMMAND = ["cargo", "test", "--manifest-path", "core/Cargo.toml", "--locked"]
+_FAILED_TEST = re.compile(r"^test (\S+) \.\.\. FAILED", re.M)
+
+
+def _run_native_tests(root, command, label):
+    print(f"migration-deliver: running native {label} tests before committing", file=sys.stderr)
+    try:
+        result = subprocess.run(command, cwd=root, text=True, capture_output=True)
+    except FileNotFoundError as error:
+        raise GuardError(f"cannot run native {label} tests: {error.filename} not found on PATH") from error
+    if result.returncode:
+        output = result.stdout + "\n" + result.stderr
+        names = sorted(set(_FAILED_TEST.findall(output)))
+        listing = "\n".join(f"  FAILED {name}" for name in names) or "  (no failing test names found; likely a build error)"
+        raise GuardError(
+            f"native {label} tests failed (`{' '.join(command)}`). Fix and retry.\n{listing}\n"
+            f"Output tail:\n{_tail(output)}"
+        )
+
+
 def _check_wasm_commit(root, paths):
-    """Run the wasm compile check and native-test reachability lint when the commit needs them.
+    """Compile-check, lint and test the Rust files in a commit.
 
     Native `cargo test` never compiles wasm32-only modules, so a commit touching them
-    must prove they compile for wasm32 and that their tests are reachable.
+    must prove they compile for wasm32, that their tests are reachable, and that those tests pass in
+    headless Chrome. Any web/core Rust change also has to keep the native test suites green.
     """
-    rust = [name for name in _committed_files(root, paths)
-            if name.startswith("web/src/") and name.endswith(".rs")]
-    if not rust:
+    files = _committed_files(root, paths)
+    rust = [name for name in files if name.startswith("web/src/") and name.endswith(".rs")]
+    core = [name for name in files if name.startswith("core/src/") and name.endswith(".rs")]
+    if not rust and not core:
         return
-    lint = _load_wasm_lint()
-    wasm_only = set(lint.wasm_only_files(root))
-    needs_wasm = [name for name in rust if name.startswith("web/src/presentation/") or name in wasm_only]
+    needs_wasm = []
+    if rust:
+        wasm_only = set(_load_wasm_lint().wasm_only_files(root))
+        needs_wasm = [name for name in rust if name.startswith("web/src/presentation/") or name in wasm_only]
     if needs_wasm:
         print(f"migration-deliver: {len(needs_wasm)} wasm-only Rust file(s) in this commit "
               f"(e.g. {needs_wasm[0]}); running wasm32 cargo check before committing", file=sys.stderr)
@@ -339,6 +363,11 @@ def _check_wasm_commit(root, paths):
                 "wasm32 page check failed; native cargo test does not compile this code. "
                 f"Fix and retry. Compiler output tail:\n{_tail(result.stderr or result.stdout)}"
             )
+    _run_native_tests(root, NATIVE_WEB_TEST_COMMAND, "web")
+    if core:
+        _run_native_tests(root, NATIVE_CORE_TEST_COMMAND, "core")
+    if not rust:
+        return
     print("migration-deliver: running scripts/check-wasm-tests.py for Rust files in this commit", file=sys.stderr)
     result = subprocess.run(
         [sys.executable, str(Path(__file__).with_name("check-wasm-tests.py")), "--root", str(root)],
@@ -349,6 +378,19 @@ def _check_wasm_commit(root, paths):
             "check-wasm-tests.py found plain #[test]s that native cargo test never runs:\n"
             + _tail(result.stdout + result.stderr)
         )
+    if needs_wasm:
+        print("migration-deliver: running wasm-bindgen tests in headless Chrome for the changed modules", file=sys.stderr)
+        result = subprocess.run(
+            [sys.executable, str(Path(__file__).with_name("run-wasm-tests.py")), "--root", str(root),
+             "--files", *needs_wasm],
+            cwd=root, text=True, capture_output=True,
+        )
+        if result.returncode:
+            raise GuardError(
+                "headless-Chrome wasm tests failed or could not run "
+                "(see scripts/run-wasm-tests.py; known failures live in scripts/wasm-known-failures.json):\n"
+                + _tail(result.stdout + "\n" + result.stderr)
+            )
 
 
 def _commit(root, intent, message, paths):

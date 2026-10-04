@@ -91,7 +91,7 @@ class MigrationDeliverTests(unittest.TestCase):
         self.assertEqual(result.returncode, 7)
         self.assertIn("test result: FAILED", result.stdout)
 
-    def wasm_fixture(self, cargo_exit, test_attr="#[wasm_bindgen_test]"):
+    def wasm_fixture(self, cargo_exit, test_attr="#[wasm_bindgen_test]", wasm_exit=0):
         src = self.root / "web/src"
         (src / "presentation").mkdir(parents=True)
         (src / "lib.rs").write_text("")
@@ -113,6 +113,17 @@ class MigrationDeliverTests(unittest.TestCase):
         cargo.chmod(0o755)
         env = os.environ.copy()
         env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+        self.wasm_log = Path(self.temp.name) / "wasm-runner.log"
+        self.wasm_log.write_text("")
+        runner = bin_dir / "fake-wasm-runner"
+        runner.write_text(
+            "#!/bin/sh\n"
+            f"echo \"$@\" >> '{self.wasm_log}'\n"
+            "echo 'test presentation::view::t ... ok'\n"
+            f"exit {wasm_exit}\n"
+        )
+        runner.chmod(0o755)
+        env["BOARDSTUDIO_WASM_TEST_COMMAND"] = str(runner)
         return env
 
     def commit_wrapped(self, env):
@@ -139,6 +150,61 @@ class MigrationDeliverTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("web/src/presentation/view.rs:1", result.stderr)
 
+    def native_fixture(self, native_output, extra_files=()):
+        """Fake cargo: `check` succeeds, `test` prints native_output and fails when it has a FAILED line."""
+        env = self.wasm_fixture(cargo_exit=0)
+        for name in extra_files:
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("pub fn f() {}\n")
+            run_git(self.root, "add", name)
+        cargo = Path(self.temp.name) / "wasm-bin" / "cargo"
+        cargo.write_text(
+            "#!/bin/sh\n"
+            f"echo \"$@\" >> '{self.cargo_log}'\n"
+            "if [ \"$1\" = test ]; then\n"
+            f"  printf '%s\\n' '{native_output}'\n"
+            "  case \"$*\" in *core/Cargo.toml*) exit ${FAKE_CORE_EXIT:-0};; esac\n"
+            f"  exit ${{FAKE_WEB_EXIT:-0}}\n"
+            "fi\n"
+            "exit 0\n"
+        )
+        return env
+
+    def test_commit_refuses_when_native_web_tests_fail_and_names_the_failures(self):
+        env = self.native_fixture("test renderer_host_source_sync::private_page_host_matches ... FAILED")
+        env["FAKE_WEB_EXIT"] = "101"
+        result = self.commit_wrapped(env)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("native web tests failed", result.stderr)
+        self.assertIn("FAILED renderer_host_source_sync::private_page_host_matches", result.stderr)
+        log = self.cargo_log.read_text()
+        self.assertIn("test --manifest-path web/Cargo.toml --locked --bin boardstudio-web", log)
+        self.assertEqual(self.wasm_log.read_text(), "")
+
+    def test_commit_runs_native_web_tests_and_changed_wasm_modules_when_green(self):
+        env = self.native_fixture("test result: ok.")
+        result = self.commit_wrapped(env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("test --manifest-path web/Cargo.toml --locked --bin boardstudio-web", self.cargo_log.read_text())
+        self.assertNotIn("core/Cargo.toml", self.cargo_log.read_text())
+        self.assertEqual("presentation::", self.wasm_log.read_text().strip())
+
+    def test_commit_with_core_files_also_runs_core_tests(self):
+        env = self.native_fixture("test model::t ... FAILED", extra_files=["core/src/lib.rs"])
+        env["FAKE_CORE_EXIT"] = "101"
+        result = self.commit_wrapped(env)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("native core tests failed", result.stderr)
+        self.assertIn("test --manifest-path core/Cargo.toml --locked", self.cargo_log.read_text())
+
+    def test_commit_refuses_when_wasm_tests_fail(self):
+        env = self.wasm_fixture(cargo_exit=0, wasm_exit=1)
+        result = self.commit_wrapped(env)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("headless-Chrome wasm tests failed", result.stderr)
+        self.assertEqual(run_git(self.root, "log", "--format=%s").stdout.count("wasm change"), 0)
+
     def test_docs_only_commit_does_not_run_cargo_or_lint(self):
         env = self.wasm_fixture(cargo_exit=101)
         run_git(self.root, "reset", "-q")
@@ -146,6 +212,7 @@ class MigrationDeliverTests(unittest.TestCase):
         result = self.commit_wrapped(env)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.cargo_log.read_text(), "")
+        self.assertEqual(self.wasm_log.read_text(), "")
 
     def test_registered_wrong_branch_fails_and_unregistered_wrapper_rejects(self):
         self.assertEqual(run_guard(self.root, "check").returncode, 0)
