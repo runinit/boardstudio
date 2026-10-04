@@ -1414,9 +1414,11 @@
             "web/src/presentation/objects/layout_align_controller.rs",
             "web/src/presentation/objects/layout_align_geometry.rs"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/layout/RESULTS.md"
+          ],
           "blockers": [],
-          "next_action": "Inspect exact current guards and obtain public scenarios for locked/driven targets, row scope crossing and stale revision rejection.",
+          "next_action": "Paired differently-splayed row and driven Offset target disable all Align actions correctly. Locked-only public-import fixture check pending; no public lock toggle needed. Stale action admission source guard inspected; adjacent old-scope settlement test is not a full action-admission regression.",
           "finish_condition": "Guard behavior is demonstrated in public UI for all listed targets and stale revisions cannot publish edits.",
           "owned_files": [
             "web/src/presentation/objects/layout_align.rs",
