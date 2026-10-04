@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T00:01:58.490567+00:00",
+    "updated_at": "2026-10-04T00:10:32.296913+00:00",
     "parent_counts": {
       "accepted": 11,
       "implementing": 40,
@@ -488,7 +488,7 @@
       {
         "stream": "Layout",
         "priority": "Functional gaps alongside other streams; exact visual parity deferred",
-        "state": "Transforms/snap/nudge verified; row-crossing splay guard matches reference. Driven/locked guard bounded check active, stale race evidence remains source/tests."
+        "state": "F3.3-C05 row/locked/driven Align guards verified in paired public UI; stale request admission backed by current source and adjacent settlement regression. C03 broader pointer history/cancel gates remain open."
       },
       {
         "stream": "PCB",
