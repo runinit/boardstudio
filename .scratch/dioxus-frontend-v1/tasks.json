@@ -1613,7 +1613,7 @@
         {
           "id": "F3.4-C05",
           "requirement": "Alt bypasses snapping; arrows move selected point by one snap step and Shift+arrows by ten; verify save/reload/Undo and findings navigation.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/outline_lifecycle.rs",
@@ -1625,7 +1625,7 @@
             ".scratch/dioxus-layout-authoring/evidence/17-layout-findings-navigation/public-34767.md"
           ],
           "blockers": [],
-          "next_action": "Receipt covers one-step ArrowRight, Delete, Undo/Redo and reopen, but not Shift+arrow, Alt bypass or full findings target navigation; qualify those gaps.",
+          "next_action": "Retain paired one/ten-step nudges, trusted Alt off-grid drag, one-step Undo/Redo, reload persistence and live findings navigation; no remaining C05 functional action.",
           "finish_condition": "Paired UI proves Alt bypass, one/ten-step nudges, save/reload/Undo and live findings navigation.",
           "owned_files": [
             "web/src/presentation/outline_lifecycle.rs",
