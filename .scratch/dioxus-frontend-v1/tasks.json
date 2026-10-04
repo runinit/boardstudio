@@ -6499,7 +6499,7 @@
         {
           "id": "F7.3-C02",
           "requirement": "Support shaded, wireframe, hybrid and hidden-line rendering plus assembled/exploded/section views and supported section-plane controls.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/shared_viewer.rs",
@@ -6510,7 +6510,7 @@
             ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md"
           ],
           "blockers": [],
-          "next_action": "Paired Case shade/wireframe/hybrid/hidden-line, assembled/exploded and XY/YZ Section controls respond on the current candidate. The reference Section position change was not captured; finish that bounded leg before full verification.",
+          "next_action": "Retain paired Case shade/wireframe/hybrid/hidden-line, assembled/exploded and XY/YZ Section controls plus matched YZ Section position 0→40% clipped-scene change on34785. Other viewer controls remain separate C03/C04/C05.",
           "finish_condition": "Each named mode, assembly state and supported plane/position change is exercised with visible outcome.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs"
