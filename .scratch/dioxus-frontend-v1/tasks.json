@@ -1517,15 +1517,17 @@
         {
           "id": "F3.4-C01",
           "requirement": "Inspect Generated and fixed versions; configure, regenerate, copy, rename, delete and activate versions with expected history behavior.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/outline_lifecycle.rs",
             "web/src/outline_settings.rs"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-layout-authoring/evidence/outline-settings-perimeter-journey-20261003.md"
+          ],
           "blockers": [],
-          "next_action": "Inspect current version-management controls and history behavior; collect a public paired journey covering generated and fixed version operations.",
+          "next_action": "Retain paired5175/34786 Generated margin4-to-6 regeneration, fixed copy/rename/activate, portable reopen, Delete/Undo/Redo proof; no remaining C01 functional action.",
           "finish_condition": "Public UI proves all named version operations, expected history behavior and activation for Generated and fixed versions.",
           "owned_files": [
             "web/src/presentation/outline_lifecycle.rs",
