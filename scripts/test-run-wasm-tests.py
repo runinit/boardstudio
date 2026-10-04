@@ -77,6 +77,21 @@ class RunWasmTestsTests(unittest.TestCase):
         filters = runner.filters_for_files(["web/src/presentation/case_display.rs"], self.dir)
         self.assertEqual(filters, ["presentation::case_display::"])
 
+    def test_path_attribute_modules_accept_dot_root(self):
+        (self.dir / "web/src/main.rs").write_text(
+            '#[cfg(target_arch = "wasm32")]\n'
+            '#[path = "presentation/case_display.rs"]\nmod case_display;\n')
+        (self.dir / "web/src/presentation/case_display.rs").write_text("")
+        original = Path.cwd()
+        os.chdir(self.dir)
+        try:
+            modules = runner.path_attr_modules(".")
+        finally:
+            os.chdir(original)
+        self.assertEqual(modules, {
+            "web/src/presentation/case_display.rs": ("web/src/main.rs", "case_display")
+        })
+
     def test_nested_filters_collapse_into_their_prefix(self):
         filters = runner.filters_for_files([
             "web/src/presentation/keymap/binding_editor.rs",

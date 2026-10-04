@@ -38,7 +38,8 @@ class RunnerError(RuntimeError):
 def path_attr_modules(root):
     """Map active wasm `#[path]` modules to their declaring file and module name."""
     found = {}
-    base = Path(root) / "web/src"
+    root = Path(root).resolve()
+    base = root / "web/src"
     lint_path = Path(__file__).with_name("check-wasm-tests.py")
     spec = importlib.util.spec_from_file_location("check_wasm_tests_for_runner", lint_path)
     lint = importlib.util.module_from_spec(spec)
@@ -54,8 +55,8 @@ def path_attr_modules(root):
                 continue
             target = lint.resolve(source, declaration, root_files)
             if target and target.is_file():
-                found[target.relative_to(Path(root)).as_posix()] = (
-                    source.relative_to(Path(root)).as_posix(), declaration["name"])
+                found[target.relative_to(root).as_posix()] = (
+                    source.relative_to(root).as_posix(), declaration["name"])
     return found
 
 
