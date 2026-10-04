@@ -1,6 +1,6 @@
 {
-  "version": 2,
-  "date": "2026-10-03",
+  "version": 3,
+  "date": "2026-10-04",
   "operating_contract": "CONSTRAINTS.md",
   "records": "docs/agents/issue-tracker.md#frontend-delivery-records",
   "history": "docs/migration/history/OPERATING-RULES-before-20261003.md",
@@ -373,5 +373,107 @@
     "max_heavy_jobs": 2,
     "max_package_builds": 1
   },
-  "qualification_trigger": "Coherent multi-stream functional milestone with a compiled, verified package; changed user journeys checked once and one consolidated Sol review while other streams continue"
+  "qualification_trigger": "Coherent multi-stream functional milestone with a compiled, verified package; changed user journeys checked once and one consolidated Sol review while other streams continue",
+  "profile_semantics": "Profile names in default_*, coordinator_profile and task_assignments are logical roles (luna-low/medium/high, astra-debug, astra-deep-debug, sol-review). Each route resolves a role to a concrete model; the top-level `profiles` block is the Codex resolution and is unchanged.",
+  "routes": {
+    "codex": {
+      "harness": "Codex",
+      "resolution": "profiles",
+      "profile_map": {
+        "luna-low": "luna-low",
+        "luna-medium": "luna-medium",
+        "luna-high": "luna-high",
+        "astra-debug": "astra-debug",
+        "astra-deep-debug": "astra-deep-debug",
+        "sol-review": "sol-review"
+      },
+      "note": "Existing Luna/Astra/Sol allocation, unchanged."
+    },
+    "claude": {
+      "harness": "Claude Code (Agent tool, SendMessage, code-review skill)",
+      "models": {
+        "opus": "claude-opus-5-5",
+        "sonnet": "claude-sonnet-5-5"
+      },
+      "profiles": {
+        "sonnet-low": {
+          "model": "claude-sonnet-5-5",
+          "agent_tool_model": "sonnet",
+          "reasoning_effort": "low",
+          "role": "mechanical fixed-oracle packet",
+          "fork_turns": "none",
+          "per_call_effort_override_supported": false
+        },
+        "sonnet-medium": {
+          "model": "claude-sonnet-5-5",
+          "agent_tool_model": "sonnet",
+          "reasoning_effort": "medium",
+          "role": "default bounded implementation or evidence collection",
+          "fork_turns": "none",
+          "per_call_effort_override_supported": false
+        },
+        "sonnet-high": {
+          "model": "claude-sonnet-5-5",
+          "agent_tool_model": "sonnet",
+          "reasoning_effort": "high",
+          "role": "complex specified implementation / state-ownership work",
+          "fork_turns": "none",
+          "per_call_effort_override_supported": false
+        },
+        "opus-coordinator": {
+          "model": "claude-opus-5-5",
+          "agent_tool_model": "opus",
+          "reasoning_effort": "high",
+          "role": "coordinator: integration, ledger, build/publish and qualification decisions",
+          "fork_turns": "none",
+          "per_call_effort_override_supported": false
+        },
+        "opus-debug": {
+          "model": "claude-opus-5-5",
+          "agent_tool_model": "opus",
+          "reasoning_effort": "high",
+          "role": "evidence-led behavioral bug diagnosis and repair",
+          "fork_turns": "none",
+          "per_call_effort_override_supported": false
+        },
+        "opus-deep-debug": {
+          "model": "claude-opus-5-5",
+          "agent_tool_model": "opus",
+          "reasoning_effort": "xhigh",
+          "role": "difficult unresolved bug diagnosis and repair",
+          "fork_turns": "none",
+          "per_call_effort_override_supported": false
+        },
+        "opus-review": {
+          "model": "claude-opus-5-5",
+          "agent_tool_model": "opus",
+          "reasoning_effort": "high",
+          "role": "independent consolidated Standards and Spec review (code-review skill)",
+          "fork_turns": "none",
+          "per_call_effort_override_supported": false
+        }
+      },
+      "profile_map": {
+        "luna-low": "sonnet-low",
+        "luna-medium": "sonnet-medium",
+        "luna-high": "sonnet-high",
+        "astra-debug": "opus-debug",
+        "astra-deep-debug": "opus-deep-debug",
+        "sol-review": "opus-review"
+      },
+      "coordinator_profile": "opus-coordinator",
+      "dispatch": {
+        "tool": "Agent with model set to the profile's agent_tool_model; subagent_type claude/general-purpose for authoring, Explore for read-only search, Plan for design",
+        "effort": "The Agent tool has no per-call effort setting. Effort comes from the agent definition or session; record the requested effort and note when it was not enforced.",
+        "isolation": "Use worktree isolation for authors that edit source; the coordinator keeps sole commit, build and publish ownership.",
+        "reuse": "SendMessage continues an agent with its launched model; start a new Agent to change model.",
+        "review": "Consolidated review runs once per coherent candidate on opus-review; the author never reviews its own packet."
+      },
+      "constraints": [
+        "Reviewer and author must be different agent invocations.",
+        "Heavy-job and package-build limits in `concurrency` apply to both routes."
+      ]
+    }
+  },
+  "route_selection": "Use the route matching the harness running the coordinator (Codex -> routes.codex, Claude Code -> routes.claude). Per-task assignments are shared; do not edit them per route."
 }
