@@ -1019,7 +1019,35 @@ mod mounted_resolution_tests {
     }
 
     fn board_input(board_id: &str, token: u64) -> WiringInput {
-        let document = ProjectDoc::empty("resolver-test", "Resolver test");
+        board_input_with_controller(board_id, token, 0, None)
+    }
+
+    fn board_input_with_controller(
+        board_id: &str,
+        token: u64,
+        revision: u64,
+        controller_part_id: Option<&str>,
+    ) -> WiringInput {
+        let mut document = ProjectDoc::empty("resolver-test", "Resolver test");
+        document.revision = revision;
+        document.boards.push(boardstudio_core::model::Board {
+            id: board_id.into(),
+            name: board_id.into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        document.hardware = Some(boardstudio_core::model::HardwareConfiguration {
+            boards: vec![boardstudio_core::model::ElectricalBoardConfiguration {
+                board_id: board_id.into(),
+                controller_part_id: controller_part_id.map(str::to_owned),
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
         let identity = WiringPlanIdentity {
             scope: Scope {
                 session_epoch: SessionEpoch(1),
@@ -1028,7 +1056,7 @@ mod mounted_resolution_tests {
                 instance_id: None,
             },
             token: SnapshotToken(token),
-            revision: document.revision,
+            revision,
             executor_epoch: 1,
         };
         let accepted = AcceptedSnapshot {
@@ -1236,6 +1264,64 @@ mod mounted_resolution_tests {
             probe.latest.borrow().as_ref().unwrap().resolution,
             PcbWiringResolution::Current { ref identity, .. }
                 if identity.scope.board_id == "right"
+        ));
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_resolution_ignores_old_same_board_reply_after_controller_revision_changes() {
+        let probe = Rc::new(Probe {
+            version: Cell::new(0),
+            input: RefCell::new(Some(board_input_with_controller(
+                "left",
+                10,
+                10,
+                Some("left/U1"),
+            ))),
+            replies: RefCell::default(),
+            calls: Cell::new(0),
+            latest: RefCell::default(),
+        });
+        let mut dom = VirtualDom::new(host);
+        dom.provide_root_context(probe.clone());
+        dom.rebuild_to_vec();
+        flush(&mut dom);
+
+        until_calls(&probe, &mut dom, 1).await;
+
+        // Model a controller selection edit accepted on the same board: both the snapshot token
+        // and document revision advance, while the controller ID in the saved board config changes.
+        *probe.input.borrow_mut() =
+            Some(board_input_with_controller("left", 11, 11, Some("left/U2")));
+        probe.version.set(1);
+        tick(&mut dom).await;
+        until_calls(&probe, &mut dom, 2).await;
+
+        let mut new_plan = test_plan("left", 11);
+        new_plan.controller_part_id = Some("left/U2".into());
+        reply_at(&probe, 1, Ok(new_plan));
+        tick(&mut dom).await;
+        assert!(matches!(
+            probe.latest.borrow().as_ref().unwrap().resolution,
+            PcbWiringResolution::Current { ref identity, ref plan }
+                if identity.scope.board_id == "left"
+                    && identity.token == SnapshotToken(11)
+                    && identity.revision == 11
+                    && plan.revision == 11
+                    && plan.controller_part_id.as_deref() == Some("left/U2")
+        ));
+
+        let mut old_plan = test_plan("left", 10);
+        old_plan.controller_part_id = Some("left/U1".into());
+        reply(&probe, Ok(old_plan));
+        tick(&mut dom).await;
+        assert!(matches!(
+            probe.latest.borrow().as_ref().unwrap().resolution,
+            PcbWiringResolution::Current { ref identity, ref plan }
+                if identity.scope.board_id == "left"
+                    && identity.token == SnapshotToken(11)
+                    && identity.revision == 11
+                    && plan.revision == 11
+                    && plan.controller_part_id.as_deref() == Some("left/U2")
         ));
     }
 }

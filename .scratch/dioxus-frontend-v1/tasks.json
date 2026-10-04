@@ -3614,7 +3614,7 @@
         {
           "id": "F5.2-C01",
           "requirement": "Resolve and apply wiring for populated-controller fixtures and multiple boards, with plans scoped to current document revision and board.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/pcb_wiring.rs",
@@ -3626,7 +3626,7 @@
             ".scratch/dioxus-pcb-view/evidence/public-pcb-qualification-20261002/paired-walkthrough.md"
           ],
           "blockers": [],
-          "next_action": "Paired Left changed-Apply and current34786 Right idempotent Resolve/Apply preserve board-scoped state; mounted stale-Left reply cannot replace newer Right. Forced public stale-revision/controller result remains unqualified; reuse source identity guards and focus only those exact branches.",
+          "next_action": "Retain paired Left changed-Apply and34786 Right idempotent Resolve/Apply with matching saved board-scoped projects, plus two green mounted owner regressions: delayed old Left after Right and same-board old U1 revision10 after current U2 revision11. Public forced stale race was unavailable; exact request identity/plan admission is source-checked.",
           "finish_condition": "Paired same-archive journey shows current plan identity and matching resolve/apply outputs on multiple boards; stale revision/board/controller results cannot publish.",
           "owned_files": [
             "web/src/presentation/pcb_wiring.rs",
@@ -6608,10 +6608,11 @@
           "evidence": [
             ".scratch/dioxus-shared-viewer/evidence/issue02-selection-summary-20261003/public-receipt-34765.md",
             ".scratch/dioxus-shared-viewer/evidence/issue02-case-pick-next-20261003/34762-native-preview-visibility.md",
-            ".scratch/dioxus-case-workspace/evidence/12-generated-layer-context-public-20261003/RESULTS.md"
+            ".scratch/dioxus-case-workspace/evidence/12-generated-layer-context-public-20261003/RESULTS.md",
+            ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md"
           ],
           "blockers": [],
-          "next_action": "Next public check should cover the unproven empty/unmapped pick and non-Case part/module mappings.",
+          "next_action": "Paired34786 visible switch model maps to Key 5.2/left-keys-SW11 and empty CANVAS click preserves current selection; earlier Case-body pick retained. Qualify module mapping and finding focus/highlight with hidden layers before C05 verification.",
           "finish_condition": "Mapped and empty picks resolve only against current consumer scope; finding focus/highlight works with hidden layers.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",
