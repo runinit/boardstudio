@@ -131,6 +131,31 @@ enum ConstraintKind {
     Mirror,
 }
 
+fn position_input_disabled(locked: bool) -> bool {
+    locked
+}
+
+fn position_commit_value(draft: &str, locked: bool) -> Option<f64> {
+    if locked {
+        return None;
+    }
+    draft.parse::<f64>().ok().filter(|value| value.is_finite())
+}
+
+#[cfg(test)]
+mod locked_position_tests {
+    use super::{position_commit_value, position_input_disabled};
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn locked_position_is_unavailable_and_cannot_dispatch_a_value() {
+        assert!(position_input_disabled(true));
+        assert_eq!(position_commit_value("124.73", true), None);
+
+        assert!(!position_input_disabled(false));
+        assert_eq!(position_commit_value("125.73", false), Some(125.73));
+    }
+}
+
 #[component]
 pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element {
     let projection = props.projection.clone();
@@ -347,22 +372,22 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
     let commit_position: Rc<dyn Fn(ComponentPositionAxis)> = {
         let latest_capture = latest_capture;
         let position = projection.position;
+        let locked = projection.locked;
         let action = props.on_action;
         let error = error;
         Rc::new(move |axis| {
+            if position_input_disabled(locked) {
+                return;
+            }
             let mut error = error;
             let (draft, current) = match axis {
                 ComponentPositionAxis::X => (x(), position.x),
                 ComponentPositionAxis::Y => (y(), position.y),
             };
-            let Ok(value) = draft.parse::<f64>() else {
+            let Some(value) = position_commit_value(&draft, locked) else {
                 error.set(Some("Enter a finite position coordinate.".to_owned()));
                 return;
             };
-            if !value.is_finite() {
-                error.set(Some("Enter a finite position coordinate.".to_owned()));
-                return;
-            }
             error.set(None);
             if value != current {
                 action.call(LayoutComponentInspectorAction::SetPosition {
@@ -507,6 +532,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                 div { class: "m1-layout-component-position",
                     label { "X (mm)" input {
                         r#type: "number", step: "0.1", value: "{x}", aria_label: "X mm",
+                        disabled: position_input_disabled(projection.locked),
                         oninput: move |event| x.set(event.value()),
                         onblur: { let commit = commit_position.clone(); move |_| commit(ComponentPositionAxis::X) },
                         onkeydown: { let commit = commit_position.clone(); move |event: KeyboardEvent| {
@@ -519,6 +545,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                     } }
                     label { "Y (mm)" input {
                         r#type: "number", step: "0.1", value: "{y}", aria_label: "Y mm",
+                        disabled: position_input_disabled(projection.locked),
                         oninput: move |event| y.set(event.value()),
                         onblur: { let commit = commit_position.clone(); move |_| commit(ComponentPositionAxis::Y) },
                         onkeydown: { let commit = commit_position.clone(); move |event: KeyboardEvent| {
