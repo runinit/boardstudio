@@ -61,6 +61,7 @@ pub(super) fn focused_finding_for_admitted_route(
             token: request.source.token,
             revision: request.source.revision,
             finding_id: request.finding.id.clone(),
+            navigation_id: 0,
         }
     })
 }

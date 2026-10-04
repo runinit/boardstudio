@@ -59,6 +59,7 @@ fn focused(finding_id: &str) -> FocusedFinding {
         token: SnapshotToken(11),
         revision: 8,
         finding_id: finding_id.into(),
+        navigation_id: 0,
     }
 }
 

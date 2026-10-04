@@ -1296,11 +1296,13 @@ fn perform_layout_finding_navigation(
         }
     }
 
+    let navigation_id = keycaps_finding_marker::next_navigation_id(focused_finding.peek().as_ref());
     focused_finding.set(Some(keycaps_finding_marker::FocusedFinding {
         scope: scope.clone(),
         token: request.source.token,
         revision: request.source.revision,
         finding_id: request.finding.id,
+        navigation_id,
     }));
     findings_open.set(false);
     objects_open.set(false);

@@ -90,6 +90,7 @@ impl CaseSelection {
             scope: scene.scope.clone(),
             snapshot_token: scene.token,
             revision: scene.snapshot.document.revision,
+            navigation_id: 0,
             target_ids: vec![id],
         })
     }

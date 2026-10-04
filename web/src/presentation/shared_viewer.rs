@@ -107,6 +107,7 @@ pub(crate) struct ViewerFocusRequest {
     pub(crate) scope: Scope,
     pub(crate) snapshot_token: SnapshotToken,
     pub(crate) revision: u64,
+    pub(crate) navigation_id: u64,
     pub(crate) target_ids: Vec<String>,
 }
 
@@ -2769,15 +2770,29 @@ mod tests {
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
-    fn finding_focus_rejects_stale_project_board_token_and_revision() {
+    fn finding_focus_retriggers_repeats_and_rejects_stale_project_board_token_and_revision() {
         let identity = identity();
         let request = ViewerFocusRequest {
             scope: identity.scope.clone(),
             snapshot_token: identity.snapshot_token,
             revision: identity.revision,
+            navigation_id: 1,
             target_ids: vec!["plate".into()],
         };
         assert!(focus_request_matches(&request, &identity));
+
+        let focused = super::super::keycaps_finding_marker::FocusedFinding {
+            scope: identity.scope.clone(),
+            token: identity.snapshot_token,
+            revision: identity.revision,
+            finding_id: "finding-1".into(),
+            navigation_id: request.navigation_id,
+        };
+        let mut repeated = request.clone();
+        repeated.navigation_id =
+            super::super::keycaps_finding_marker::next_navigation_id(Some(&focused));
+        assert_ne!(repeated, request);
+        assert!(focus_request_matches(&repeated, &identity));
 
         let mut stale = request.clone();
         stale.scope.document_id.push_str("-other");

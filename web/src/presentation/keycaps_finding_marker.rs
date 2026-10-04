@@ -11,6 +11,11 @@ pub(super) struct FocusedFinding {
     pub token: SnapshotToken,
     pub revision: u64,
     pub finding_id: String,
+    pub navigation_id: u64,
+}
+
+pub(super) fn next_navigation_id(current: Option<&FocusedFinding>) -> u64 {
+    current.map_or(0, |focused| focused.navigation_id.wrapping_add(1))
 }
 
 /// Retire marker state when its accepted Layout owner is no longer current. The Editor and the

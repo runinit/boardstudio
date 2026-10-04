@@ -300,6 +300,7 @@ pub(crate) fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Elemen
                 scope: focused.scope.clone(),
                 snapshot_token: focused.token,
                 revision: focused.revision,
+                navigation_id: focused.navigation_id,
                 target_ids,
             },
         )
