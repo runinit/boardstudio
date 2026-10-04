@@ -41,6 +41,9 @@ production cutover and React removal retain their separate authorization/gates.
    for unassessed criteria, qualification for implemented criteria, and closure only
    when every criterion and final join is satisfied. Pin the relevant settled TypeScript journey, inspect current Rust code and refine
    the existing spec/ticket. Start when the capabilities actually consumed are proven.
+   Before calling a functional criterion implemented, locate its mounted originating
+   control, destination edit/service port, and current-scope admission; a source
+   pointer to a helper alone does not establish the user action.
    Preserve parent criteria and original dependency rationale. Create a new ticket only
    for distinct runnable work. A no-gap audit returns source pointers by message.
    For an interactive slice, its finish condition names the originating control,

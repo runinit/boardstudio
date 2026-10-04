@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T07:19:45.186761+00:00",
+    "updated_at": "2026-10-04T07:45:48.249811+00:00",
     "parent_counts": {
       "accepted": 16,
       "implementing": 34,
@@ -48,8 +48,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "18ff7659",
-      "state": "Published frontend-module-assets-20261004 at 34799 (source 18ff7659): combined page compiler, package, root/subpath assets and guarded provider reuse passed. The non-VIK saved-module STEP model now appears as its own Layout 3D layer and toggles independently. F7.3-C06 advances to implemented, pending model pick and error-path qualification at a batched functional milestone. F7.3-C05 and F2.1 remain verified/accepted; RF-019/RF-022 retain producer and test-graph refactors.",
+      "source_commit": "8c4c7db9",
+      "state": "Source-integrated Layout Pick origin, PCB finding focus and Parts KiCad mechanical extraction at 8c4c7db9; combined wasm page compile, formatting and diff checks pass. Served candidate 34799 remains source 18ff7659. These actions are implemented, pending one batched functional browser/package/review milestone.",
       "packets": [
         {
           "stream": "Layout",
@@ -304,6 +304,21 @@
           "change": "Properties shortcut routes, missing-reference effect loop, standalone regression packaging classification, warning-only capture cleanup",
           "receipt": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/journey.md",
           "qualification": "Paired focused behavior passed on34775; visual/context parity findings remain."
+        },
+        {
+          "stream": "Layout",
+          "integrated_commit": "8c4c7db9",
+          "change": "Selected-column Pick origin and atomic splay-origin edit"
+        },
+        {
+          "stream": "PCB",
+          "integrated_commit": "8c4c7db9",
+          "change": "Scoped finding focus reveals owning module region through hidden layers"
+        },
+        {
+          "stream": "Parts + Project",
+          "integrated_commit": "8c4c7db9",
+          "change": "KiCad mechanical purpose mapping and profile extraction"
         }
       ],
       "qualification": "Filter regression RED/GREEN, compiler/package/served assets pass; rendered feedback browser RED34783 and GREEN34784. Broader loading/source-error remains unqualified.",
@@ -492,11 +507,11 @@
       {
         "stream": "Layout",
         "priority": "Functional gaps alongside other streams; exact visual parity deferred",
-        "state": "F3.1/F3.2/F3.3/F3.4 accepted. F3.4 saved version/connection restart collisions repaired and qualified; all five criteria verified. Continue functional Layout gaps from criterion queue; exact visual parity remains deferred."
+        "state": "Pick origin source-integrated at 8c4c7db9; F3.5 contextual Inspector remains open for batched public qualification. Existing F3.4 and F3.8 evidence retained; visual layout deferred."
       },
       {
         "stream": "PCB",
-        "state": "F5.2-C01 verified by paired Left/Right Resolve/Apply and two mounted stale-owner cases. C02/C04 have mounted error/retry proof but no supported public provider-failure trigger; exact qualification limit retained. F5.3 all criteria verified, parent joins open."
+        "state": "F5.4-C02 scoped finding focus source-integrated at 8c4c7db9; paired marker/hidden-layer/board-switch journey pending. F5.2 provider-failure limits remain."
       },
       {
         "stream": "Keymap",
@@ -512,12 +527,12 @@
       },
       {
         "stream": "Parts + Project",
-        "state": "F4.2 and F2.1 accepted. F2.1 has four verified criteria covering project list/Loading, search, controlled error/Retry, editable demos, and damaged-preview access. The malformed React preview difference is recorded as a defensive Dioxus correction. Continue other F2/F4 criteria from the focused queue."
+        "state": "F4.5-C02 KiCad geometry read/map/apply source-integrated at 8c4c7db9 after correcting a false implemented label; imported-footprint and history/reopen journey pending. F4.2 and F2.1 remain accepted."
       }
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Keep F7.3-C06 model pick/unavailable feedback and F7.3-C07 stale Save in the next batched Case qualification; do not reimplement the now-working Core-to-Layout model delivery.",
+      "Freeze one functional candidate after another runnable packet or a cross-workbench interaction needs the browser. Then qualify only changed Layout Pick origin, PCB finding focus and Parts KiCad extraction journeys, plus queued F7.3 model pick/error, and use one consolidated Sol review.",
       "Advance the six workbench queues from progress.py ready/remaining, reusing retained evidence. Qualify PCB/Keycaps provider-failure branches only with a supported reproducible trigger; keep visual parity and release gates separate.",
       "Check the transient project-switch old-editor display with a focused state/interaction journey when the surrounding project-lifecycle criterion is next qualified; preserve current action guards."
     ],
@@ -593,6 +608,11 @@
             "priority": "medium",
             "observation": "The active qualification scope still asked for accepted F2.1 and older outline journeys, and the C07 stale Save interval was not exercised by a quick project-switch probe.",
             "action": "Selected a fresh module-assets scope for the new package, retained conservative evidence reuse, and left C07 pending rather than treating a settled editor disappearance as stale-action proof."
+          },
+          {
+            "priority": "high",
+            "observation": "F4.5-C02 was labelled implemented although its visible KiCad layer-reading, purpose-mapping and apply controls plus Runtime extraction port were absent. A zero-missing queue concealed this actionable feature gap; three other bounded stream probes found source-backed behavior and correctly produced no code.",
+            "action": "Integrated the missing Parts action with a private Core artifact facade in 8c4c7db9. Future source probes must confirm the originating user control, destination edit and async admission before calling a criterion implemented; no-gap probes return pointers without extra receipts."
           }
         ],
         "existing_guardrail": "CI and package already execute the Dioxus compiler check; no duplicate compiler gate added.",
@@ -1836,7 +1856,10 @@
       "implemented": [
         "Criterion dispatch/qualification/closure queries for all 52 open parents",
         "Current electrical-plan encoder projection with fingerprint/scope and own-edit settlement",
-        "Provenance-derived publication and owned browser helper"
+        "Provenance-derived publication and owned browser helper",
+        "Selected-column Pick origin with atomic splay-origin edit and Escape cancellation (8c4c7db9)",
+        "Scoped PCB finding focus reveals owning module geometry through hidden layers (8c4c7db9)",
+        "Parts KiCad layer purpose mapping and mechanical profile extraction (8c4c7db9)"
       ],
       "verified_behaviors": [
         "Paired real-plan encoder rotation/push ZMK source output",

@@ -1726,14 +1726,16 @@
             "web/src/presentation/inspector.rs",
             "web/src/presentation/inspector/layout_component_inspector.rs",
             "web/src/presentation/objects/matrix_inspector.rs",
-            "web/src/presentation/board_inspector.rs"
+            "web/src/presentation/board_inspector.rs",
+            "web/src/presentation/objects/matrix_transform_inspector.rs",
+            "web/src/presentation.rs"
           ],
           "evidence": [
             ".scratch/dioxus-layout-authoring/evidence/f35a-layout-membership-tab-reset-20261003/README.md",
             ".scratch/dioxus-layout-authoring/evidence/board-inspector-frontier-20261003/reference.json"
           ],
           "blockers": [],
-          "next_action": "Complete current-candidate paired coverage for board, matrix, key, component, relations and empty/single/multiple selection; evidence read proves only component membership/tab reset and board route inspection.",
+          "next_action": "Source 8c4c7db9 adds selected-column Pick origin, one atomic splay-origin edit, canvas hint and Escape cancellation. At the batched functional milestone, check click result, Undo, project/selection switch rejection and the remaining board/matrix/key/component/relations Inspector contexts.",
           "finish_condition": "Paired public scenarios show the correct contextual properties and relation state for each selection cardinality and object context.",
           "owned_files": [
             "web/src/presentation/inspector.rs",
@@ -3129,12 +3131,15 @@
           "classification": "functional",
           "sources": [
             "web/src/presentation/parts/mechanical_profile.rs:156",
-            "web/src/runtime.rs:668"
+            "web/src/runtime.rs:668",
+            "web/src/presentation/parts/mechanical_profile_editor.rs",
+            "web/src/presentation/parts/mechanical_profile_ui.rs",
+            "web/src/runtime.rs"
           ],
           "evidence": [],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
-          "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
+          "next_action": "Corrected false source-complete verdict: source 8c4c7db9 now mounts Read KiCad layers, purpose mapping and Apply selected geometry through the existing Core extraction artifact. At the batched milestone, use an imported footprint to check mapped contours/holes, unsupported/validation feedback and retained unreviewed qualifications.",
+          "finish_condition": "An imported KiCad definition exposes supported source primitives and purpose choices, applies only selected extraction fields to the fit-profile draft, reports extraction/validation errors, and preserves unknown/unreviewed facts as unqualified.",
           "owned_files": [
             "web/src/presentation/parts/mechanical_profile.rs",
             "web/src/runtime.rs"
@@ -3151,11 +3156,12 @@
           "classification": "functional",
           "sources": [
             "web/src/presentation/parts/mechanical_profile.rs:1",
-            "web/src/presentation/parts/mechanical_profile_ui.rs:21"
+            "web/src/presentation/parts/mechanical_profile_ui.rs:21",
+            "web/src/presentation/parts/mechanical_profile_editor.rs"
           ],
           "evidence": [],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Source 8c4c7db9 guards extraction replies by mounted owner, accepted snapshot, selection, scope, workspace and request identity. At the Parts milestone check selection/board/project switches, Save/Undo/Redo/reopen and retained fit-readiness qualifiers.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts/mechanical_profile.rs",
@@ -3169,10 +3175,10 @@
         }
       ],
       "criteria_accounting": {
-        "source_commit": "07b4c3466b1f388073e8e1f9d619b0703223d770",
+        "source_commit": "8c4c7db9453cecdaf7ecec1ee5fb9874f618d71a",
         "assessed_at": "2026-10-03T19:37:09Z",
         "coverage": "complete",
-        "note": "Split existing parent acceptance text into independently decidable behaviors; original scope and joins preserved. Implemented is source inspection only; verified cites existing journey/receipt."
+        "note": "Split existing parent acceptance text into independently decidable behaviors; original scope and joins preserved. Implemented is source inspection only; verified cites existing journey/receipt. Correction on 2026-10-04: C02 was marked implemented before the extraction control and private Runtime port existed; source 8c4c7db9 adds them. Public qualification remains pending."
       }
     },
     {
@@ -3902,14 +3908,15 @@
           "classification": "functional",
           "sources": [
             "web/src/presentation/pcb_layers.rs",
-            "web/src/presentation/pcb_module_footprints.rs"
+            "web/src/presentation/pcb_module_footprints.rs",
+            "web/src/presentation/pcb_scene.rs"
           ],
           "evidence": [
             ".scratch/dioxus-pcb-view/evidence/15-mounted-module-layers-20261003/public-receipt.md",
             ".scratch/dioxus-pcb-view/evidence/24-module-source-route-20261003/receipt.md"
           ],
           "blockers": [],
-          "next_action": "Retain qualified module layer controls and host interaction evidence; implement/qualify finding-focus visibility when PCB has a focused-finding owner.",
+          "next_action": "Source 8c4c7db9 adds scope/token-bound PCB finding focus and reveals its owning module outline/clearances through hidden module layers. At the batched milestone, exercise marker click/keyboard, Escape, board switch and unchanged saved layer visibility; keep the criterion open until that route is paired.",
           "finish_condition": "Paired evidence proves independent visibility and focused finding visibility override without altering project data.",
           "owned_files": [
             "web/src/presentation/pcb_scene.rs",

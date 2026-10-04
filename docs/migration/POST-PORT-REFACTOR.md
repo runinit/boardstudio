@@ -326,6 +326,12 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
       "evidence": "web/src/presentation/panels.rs",
       "observation": "Panel/theme preference access previously duplicated storage calls and swallowed failures. A shared private helper now reports failure through one root notice while controls retain in-memory state; project storage remains separately owned.",
       "status": "bounded mitigation implemented; real storage-failure qualification pending"
+    },
+    {
+      "source": "8c4c7db9",
+      "evidence": "web/src/presentation.rs; web/src/runtime.rs; web/src/presentation/parts/mechanical_profile_editor.rs",
+      "observation": "A Layout Inspector Pick origin action still required wiring several root presentation pointer paths, while the Parts KiCad mapping UI needed a coordinator-owned Runtime artifact facade. The private feature modules own the leaf controls, but shared composition and service integration remain a repeat edit hotspot.",
+      "status": "bounded feature integration complete; structural redesign remains post-port"
     }
   ],
   "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted.",
@@ -1479,6 +1485,12 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
         ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/strict-check-followup3.json"
       ],
       "post_port_follow_up": "Keep reusable installed-framework composition examples and typed scope/context bundles near owned modules; assess agent handoff coherence separately from broad behavioral qualification."
+    },
+    {
+      "date": "2026-10-04",
+      "task": "F4.5-C02 criterion source correction",
+      "observation": "The criterion was labelled implemented while the user-facing KiCad source-geometry action and Runtime extraction port did not exist; the implementation queue returned zero missing items despite an actionable feature gap.",
+      "current_mitigation": "Check originating control, destination edit and async admission when classifying implemented criteria; source 8c4c7db9 supplies the missing action, with public qualification still queued."
     }
   ],
   "handoff_evidence": [
