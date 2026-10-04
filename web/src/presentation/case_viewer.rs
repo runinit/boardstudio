@@ -197,6 +197,7 @@ pub(crate) fn CaseViewer(
             &scene.scope,
             &scene.token,
             &scene.snapshot.document.revision,
+            &(Rc::as_ptr(&scene) as usize),
         ),
         {
             let gesture = gesture.clone();
@@ -355,6 +356,7 @@ pub(crate) fn CaseViewer(
     rsx! {
         CaseSharedViewer {
             scene: Some(display_scene),
+            handle_source: Some(scene.clone()),
             preview,
             layout_preview: None,
             keycaps_preview: None,

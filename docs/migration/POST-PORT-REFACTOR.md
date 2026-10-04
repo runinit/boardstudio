@@ -2441,3 +2441,43 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
   "continuations": []
 }
 ```
+
+## RF-025: Case gesture ownership conflates accepted source with provisional render identity
+
+**Status:** v1 narrow handle transfer repaired; deeper identity split deferred
+
+**Confidence:** confirmed by Sol source review and focused WASM RED/GREEN regression
+
+**Observation:** Publishing valid provisional Case geometry replaced the displayed Rc<CadScene>. The shared viewer treated that display pointer as a new source, cancelled the active Handle capture and rejected later Move/End before the accepted edit. Accepted gesture lineage and renderer projection sequence are distinct identities.
+
+**Impact:** A valid mount/gasket drag could preview yet never commit; stale draft and pointer capture could survive until an unrelated action, while source-only owner tests missed the renderer handoff.
+
+**Current mitigation:** Anchor Handle ownership to the accepted Case scene, rebind the full pointer identity only across an admitted same-anchor preview transition, retain strict Move/End and stale-callback guards, and qualify an accepted edit on the next packaged candidate.
+
+**Later proposal:** Model accepted source lineage and disposable display/projection generation as separate viewer-owned types, with one explicit gesture admission API instead of identity comparisons repeated across owner, event and signal paths.
+
+**Validation:** Run one packaged valid provisional drag through End/Undo, plus scope replacement and renderer lifecycle checks; keep focused invalid-transition regression as a guard.
+
+**Evidence:** `web/src/presentation/case_viewer.rs`; `web/src/presentation/shared_viewer.rs`; `.scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/case/receipt.md`
+
+**Additional recorded details:**
+
+```json
+{
+  "category": "viewer ownership / gesture lifecycle",
+  "impact_priority": "high",
+  "discovered": "2026-10-04",
+  "baseline": "Candidate frontend-actions-20261004, source 9eda1b5d",
+  "workflows": [
+    "F7.5",
+    "F7.3"
+  ],
+  "decision": "Make the narrow v1 correction now; preserve renderer identity checks and defer structural viewer ownership redesign until the post-port refactor.",
+  "follow_up_owner": "Case and shared viewer architecture",
+  "linked_tasks": [
+    "F7.5",
+    "F7.3"
+  ],
+  "continuations": []
+}
+```

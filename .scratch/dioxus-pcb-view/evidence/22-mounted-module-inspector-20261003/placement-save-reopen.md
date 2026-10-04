@@ -18,3 +18,11 @@ Existing screenshots and archive downloads are retained under `/home/chris/.loca
 - `after-save-before-reload.boardstudio` SHA-256 `9cfc7be0593fa7847310956ca08b9641318a2c2eb73c1f5bf0f0d60dfdb849d6`
 
 The settled mounted Undo/Redo DOM check is recorded separately at `/home/chris/.local/share/boardstudio/reviews/pcb-mounted-module-inspector-20261003/undo-redo-settled-34765.md` (receipt SHA-256 `90dc01973a42657cae720e46110da3250b6e8455f11aa7efe71cd1f0189ac47b`). This receipt covers ordinary placement persistence only. Service-clearance/support controls and their save journey are the next child; no complete F5.5, F4.7 or parent acceptance is claimed.
+
+## Remove terminal-feedback follow-up — 2026-10-04
+
+Candidate: `http://127.0.0.1:34801/`, packaged source `9eda1b5d4c194a97b7216a43544036b5709a65f8`. React reference: `http://127.0.0.1:5175/`. Both were opened in isolated `agent-browser` sessions and imported the same retained fixture, `vik-module-review.boardstudio`, SHA-256 `952b26565a4df3ae1122fd0716017560279c938ee19fb6c15af966c88c1d35b0`.
+
+On the candidate PCB, keyboard Enter selected the existing `review/splitter-above` placement and opened its placement Inspector. One click on **Remove module** reduced the visible mounted-module DOM count from 3 to 2 and the PCB findings count from 97 to 85, consistent with the selected placement being removed. The placement Inspector then unmounted and the resulting page contained neither “Removing placement…” nor “Placement removed.” The Remove control disappeared with the selected placement, so a repeat action was not available. This is a visible terminal-feedback defect: the operation was accepted, but its success result was not presented after the selected placement left scope. The private `remove_feedback_tests::removal_feedback_reports_the_terminal_edit_result` regression separately passes Completed, Rejected and PersistenceFailed feedback mapping.
+
+The paired React removal, candidate Undo/reopen, and observable pending-state timing were not run after this candidate RED. No fault injection was attempted. This is a focused candidate observation, not full paired F5.5 acceptance.

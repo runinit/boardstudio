@@ -389,8 +389,8 @@ fn panel_frame(
                     "{ids.rail_text}"
                 }
             }
-            div {
-                id: ids.content,
+                div {
+                    id: ids.content,
                 class: "m1-panel-content",
                 inert: content_hidden.then_some(""),
                 aria_hidden: if content_hidden { "true" } else { "false" },
@@ -477,6 +477,68 @@ fn panel_frame(
                             }
                         }
                     }
+                    if !compact() && current.mode == PanelMode::Pinned {
+                        div {
+                            class: match side {
+                                PanelSide::Objects => "m1-panel-resize is-left",
+                                PanelSide::Inspector => "m1-panel-resize is-right",
+                            },
+                            role: "separator",
+                            aria_label: match side {
+                                PanelSide::Objects => "Resize objects",
+                                PanelSide::Inspector => "Resize inspector",
+                            },
+                            aria_orientation: "vertical",
+                            aria_valuemin: "{side.minimum_width()}",
+                            aria_valuemax: "{side.resize_width(f64::MAX, available_panel_width(side))}",
+                            aria_valuenow: "{current.width.unwrap_or_else(|| panel_rendered_width(side).unwrap_or_else(|| default_panel_width(side)))}",
+                            tabindex: 0,
+                            onkeydown: move |event: KeyboardEvent| {
+                                let Some(raw) = event.data().try_as_web_event() else { return; };
+                                let key = raw.key();
+                                if key != "ArrowLeft" && key != "ArrowRight" { return; }
+                                event.prevent_default();
+                                event.stop_propagation();
+                                let arrow = if key == "ArrowRight" { 1.0 } else { -1.0 };
+                                let direction = if side == PanelSide::Objects { arrow } else { -arrow };
+                                let step = if raw.shift_key() { 40.0 } else { 20.0 };
+                                let width = panel_rendered_width(side)
+                                    .or(current.width)
+                                    .unwrap_or_else(|| default_panel_width(side));
+                                set_panel_width(settings, side, width + direction * step);
+                            },
+                            onpointerdown: move |event: dioxus::prelude::PointerEvent| {
+                                let Some(raw) = event.data().try_as_web_event() else { return; };
+                                if raw.button() != 0 { return; }
+                                event.prevent_default();
+                                if let Some(target) = raw.current_target().and_then(|target| target.dyn_into::<web_sys::Element>().ok()) {
+                                    let _ = target.set_pointer_capture(raw.pointer_id());
+                                }
+                            },
+                            onpointermove: move |event: dioxus::prelude::PointerEvent| {
+                                let Some(raw) = event.data().try_as_web_event() else { return; };
+                                let Some(target) = raw.current_target().and_then(|target| target.dyn_into::<web_sys::Element>().ok()) else { return; };
+                                if !target.has_pointer_capture(raw.pointer_id()) { return; }
+                                if let Some(width) = pointer_panel_width(side, raw.client_x()) {
+                                    set_panel_width(settings, side, width);
+                                }
+                            },
+                            onpointerup: move |event: dioxus::prelude::PointerEvent| {
+                                if let Some(raw) = event.data().try_as_web_event()
+                                    && let Some(target) = raw.current_target().and_then(|target| target.dyn_into::<web_sys::Element>().ok())
+                                {
+                                    let _ = target.release_pointer_capture(raw.pointer_id());
+                                }
+                            },
+                            onpointercancel: move |event: dioxus::prelude::PointerEvent| {
+                                if let Some(raw) = event.data().try_as_web_event()
+                                    && let Some(target) = raw.current_target().and_then(|target| target.dyn_into::<web_sys::Element>().ok())
+                                {
+                                    let _ = target.release_pointer_capture(raw.pointer_id());
+                                }
+                            },
+                        }
+                    }
                 {children}
             }
         }
@@ -544,6 +606,70 @@ impl PanelSide {
             Self::Inspector => "inspector",
         }
     }
+}
+
+const MINIMUM_CENTER_WIDTH: f64 = 280.0;
+
+fn default_panel_width(side: PanelSide) -> f64 {
+    match side {
+        PanelSide::Objects => 260.0,
+        PanelSide::Inspector => 360.0,
+    }
+}
+
+fn panel_rendered_width(side: PanelSide) -> Option<f64> {
+    let id = PanelIds::for_side(side);
+    web_sys::window()
+        .and_then(|window| window.document())
+        .and_then(|document| document.get_element_by_id(id.shell))
+        .and_then(|shell| shell.query_selector(".m1-panel-content").ok().flatten())
+        .map(|content| content.get_bounding_client_rect().width())
+        .filter(|width| width.is_finite() && *width > 0.0)
+}
+
+fn available_panel_width(side: PanelSide) -> f64 {
+    let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+        return f64::MAX;
+    };
+    let Some(shell) = document.get_element_by_id(PanelIds::for_side(side).shell) else {
+        return f64::MAX;
+    };
+    let Some(frame) = shell.closest(".m1-editor-body").ok().flatten() else {
+        return f64::MAX;
+    };
+    let mut opposing_width = 0.0;
+    let opposing = match side {
+        PanelSide::Objects => PanelSide::Inspector,
+        PanelSide::Inspector => PanelSide::Objects,
+    };
+    let opposing_compact = media_query(opposing).is_some_and(|query| query.matches());
+    if !opposing_compact
+        && document
+            .get_element_by_id(PanelIds::for_side(opposing).shell)
+            .is_some_and(|other| other.get_attribute("data-mode").as_deref() == Some("pinned"))
+    {
+        if let Some(other) = document.get_element_by_id(PanelIds::for_side(opposing).shell) {
+            opposing_width = other.get_bounding_client_rect().width();
+        }
+    }
+    (frame.get_bounding_client_rect().width() - opposing_width - MINIMUM_CENTER_WIDTH).max(0.0)
+}
+
+fn pointer_panel_width(side: PanelSide, client_x: i32) -> Option<f64> {
+    let document = web_sys::window()?.document()?;
+    let shell = document.get_element_by_id(PanelIds::for_side(side).shell)?;
+    let frame = shell.closest(".m1-editor-body").ok().flatten()?;
+    let rect = frame.get_bounding_client_rect();
+    Some(match side {
+        PanelSide::Objects => f64::from(client_x) - rect.left(),
+        PanelSide::Inspector => rect.right() - f64::from(client_x),
+    })
+}
+
+fn set_panel_width(mut settings: Signal<PanelSettings>, side: PanelSide, requested: f64) {
+    let mut next = settings();
+    next.width = Some(side.resize_width(requested, available_panel_width(side)));
+    settings.set(next);
 }
 
 pub(super) fn focus_panel_toggle(side: PanelSide) {

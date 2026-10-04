@@ -291,6 +291,7 @@ pub(crate) fn CaseSharedViewer(
     on_display_change: EventHandler<ScopedDisplayChange>,
     mechanical_settings: Option<super::MechanicalSettingsProps>,
     #[props(default)] inline_case_controls: bool,
+    #[props(default)] handle_source: Option<Rc<CadScene>>,
     #[props(default)] handles: Vec<ViewerHandle>,
     #[props(default)] handle_preview: Option<Vec<ViewerHandle>>,
     #[props(default)] gesture_message: Option<String>,
@@ -366,6 +367,23 @@ pub(crate) fn CaseSharedViewer(
             .unwrap_or_default(),
         theme: theme.clone(),
     };
+    // Case supplies the accepted scene independently of its disposable display
+    // scene. Only a currently admitted preview may carry that gesture source.
+    let handle_projection = handle_source
+        .filter(|accepted| {
+            runtime
+                .cad_scene()
+                .as_ref()
+                .is_some_and(|current| Rc::ptr_eq(current, accepted))
+                && matches!(&source, ViewerSource::Cad(displayed)
+                    if Rc::ptr_eq(displayed, accepted)
+                        || runtime.case_gesture_preview_scene(accepted).as_ref()
+                            .is_some_and(|preview| Rc::ptr_eq(displayed, preview)))
+        })
+        .map(|source| CaseHandleProjection {
+            source,
+            inputs: inputs.clone(),
+        });
     let identity = match source.identity(&owner, &inputs) {
         Ok(identity) => identity,
         Err(error) => {
@@ -516,6 +534,7 @@ pub(crate) fn CaseSharedViewer(
             on_display_change,
             mechanical_settings,
             inline_case_controls,
+            handle_projection,
             handles,
             handle_preview,
             gesture_message,
@@ -1346,6 +1365,28 @@ impl Default for TransientView {
 }
 
 #[derive(Clone)]
+struct CaseHandleProjection {
+    source: Rc<CadScene>,
+    inputs: ProjectionInputs,
+}
+
+impl PartialEq for CaseHandleProjection {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.source, &other.source) && self.inputs == other.inputs
+    }
+}
+
+impl CaseHandleProjection {
+    fn continues_preview(&self, next: &Self) -> bool {
+        Rc::ptr_eq(&self.source, &next.source)
+            && self.inputs.source != next.inputs.source
+            && self.inputs.preview == next.inputs.preview
+            && self.inputs.models == next.inputs.models
+            && self.inputs.theme == next.inputs.theme
+    }
+}
+
+#[derive(Clone)]
 enum PointerOwner {
     Orbit {
         identity: ViewerIdentity,
@@ -1359,6 +1400,7 @@ enum PointerOwner {
     },
     Handle {
         identity: ViewerIdentity,
+        projection: Option<CaseHandleProjection>,
         pointer_id: i32,
         z: f32,
         id: String,
@@ -1396,6 +1438,7 @@ fn SharedViewer(
     on_display_change: EventHandler<ScopedDisplayChange>,
     mechanical_settings: Option<super::MechanicalSettingsProps>,
     inline_case_controls: bool,
+    handle_projection: Option<CaseHandleProjection>,
     handles: Vec<ViewerHandle>,
     handle_preview: Option<Vec<ViewerHandle>>,
     gesture_message: Option<String>,
@@ -1417,12 +1460,19 @@ fn SharedViewer(
     let applied_sequence = use_hook(|| Rc::new(Cell::new(0_u64)));
     let applied_identity = use_hook(|| Rc::new(RefCell::new(None::<ViewerIdentity>)));
 
-    use_effect(use_reactive((&projection,), {
+    use_effect(use_reactive((&projection, &handle_projection), {
         let pointer = pointer.clone();
         let canvas = canvas.clone();
         let owner = owner.clone();
-        move |(_projection,)| {
-            cancel_superseded_pointer(&pointer, &canvas, &owner);
+        let live_source = live_source.clone();
+        move |(_projection, handle_projection)| {
+            cancel_superseded_pointer(
+                &pointer,
+                &canvas,
+                &owner,
+                handle_projection.as_ref(),
+                (live_source.borrow().0)(),
+            );
         }
     }));
 
@@ -1843,6 +1893,7 @@ fn SharedViewer(
         editing_mounts(),
     );
     let on_pointer_down = {
+        let handle_projection = handle_projection.clone();
         let projection = projection.clone();
         let host = host.clone();
         let owner = owner.clone();
@@ -1919,6 +1970,7 @@ fn SharedViewer(
                     },
                 );
                 *pointer.borrow_mut() = Some(PointerOwner::Handle {
+                    projection: handle_projection.clone(),
                     identity: projection.identity.clone(),
                     pointer_id: event.pointer_id(),
                     z: handle.z,
@@ -2046,6 +2098,7 @@ fn SharedViewer(
                 }
                 PointerOwner::Handle {
                     identity: pointer_identity,
+                    projection: handle_projection,
                     pointer_id,
                     z,
                     id,
@@ -2067,6 +2120,7 @@ fn SharedViewer(
                                 ViewerSignalKind::Failed(error),
                             );
                             *pointer.borrow_mut() = Some(PointerOwner::Handle {
+                                projection: handle_projection,
                                 identity: pointer_identity,
                                 pointer_id,
                                 z,
@@ -2092,6 +2146,7 @@ fn SharedViewer(
                         },
                     );
                     *pointer.borrow_mut() = Some(PointerOwner::Handle {
+                        projection: handle_projection,
                         identity: pointer_identity,
                         pointer_id,
                         z,
@@ -2854,14 +2909,38 @@ fn cancel_superseded_pointer(
     pointer: &Rc<RefCell<Option<PointerOwner>>>,
     canvas: &Rc<RefCell<Option<HtmlCanvasElement>>>,
     owner: &Rc<ViewerOwner>,
+    handle_projection: Option<&CaseHandleProjection>,
+    source_current: bool,
 ) {
     let stale_pointer = {
         let mut active = pointer.borrow_mut();
         let current_identity = owner.identity.borrow();
+        if owner.active.get()
+            && source_current
+            && let Some(current) = current_identity.as_ref()
+            && let Some(PointerOwner::Handle {
+                identity,
+                projection: Some(previous),
+                ..
+            }) = active.as_mut()
+            && let Some(next) = handle_projection
+            && identity.scope == current.scope
+            && identity.snapshot_token == current.snapshot_token
+            && identity.revision == current.revision
+            && identity.viewer_instance == current.viewer_instance
+            && previous.continues_preview(next)
+        {
+            // Transfer this gesture to the new render; event admission remains
+            // full-identity checked, so callbacks from the old render stay stale.
+            *identity = current.clone();
+            *previous = next.clone();
+        }
         if active.as_ref().is_some_and(|active| {
-            current_identity
-                .as_ref()
-                .is_none_or(|identity| active.identity() != identity)
+            !owner.active.get()
+                || (matches!(active, PointerOwner::Handle { .. }) && !source_current)
+                || current_identity
+                    .as_ref()
+                    .is_none_or(|identity| active.identity() != identity)
         }) {
             active.take().map(|active| active.pointer_id())
         } else {
@@ -3394,6 +3473,273 @@ mod tests {
         assert!(signal.is_current());
         owner.active.set(false);
         assert!(!signal.is_current());
+    }
+
+    fn gesture_scene(identity: &ViewerIdentity) -> Rc<CadScene> {
+        use boardstudio_core::model::{PreparedCaseAssemblyIR, ProjectDoc, Readiness, SceneDelta};
+        use std::sync::Arc;
+        let mut document = ProjectDoc::empty(&identity.scope.document_id, "Gesture source");
+        document.revision = identity.revision;
+        Rc::new(CadScene {
+            scope: identity.scope.clone(),
+            token: identity.snapshot_token,
+            snapshot: boardstudio_application::AcceptedSnapshot {
+                token: identity.snapshot_token,
+                session_epoch: identity.scope.session_epoch,
+                document: Arc::new(document),
+                scene: Arc::new(SceneDelta {
+                    module_scenes: vec![],
+                    revision: identity.revision,
+                    transaction_id: String::new(),
+                    changed_ids: vec![],
+                    transforms: vec![],
+                    matrix_scenes: vec![],
+                    contours: vec![],
+                    board_contours: vec![],
+                    board_readiness: vec![],
+                    board_outline_scenes: vec![],
+                    finding_markers: vec![],
+                    findings: vec![],
+                    readiness: Readiness {
+                        layout: true,
+                        outline: true,
+                        pcb: true,
+                        case_ready: true,
+                    },
+                }),
+            },
+            result: boardstudio_web::cad_jobs::CadResult::default(),
+            prepared: PreparedCaseAssemblyIR {
+                revision: identity.revision,
+                bodies: vec![],
+            },
+            physical_fingerprint: None,
+            mechanical: None,
+            exact: true,
+            contours: vec![],
+        })
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn case_handle_survives_published_provisional_scene_until_pointer_up() {
+        let source_identity = identity();
+        let accepted = gesture_scene(&source_identity);
+        let owner = ViewerOwner::new().unwrap();
+        let mut inputs = ProjectionInputs {
+            source: Rc::as_ptr(&accepted) as usize,
+            preview: 0,
+            models: vec![],
+            theme: "light".into(),
+        };
+        let started = ViewerSource::Cad(accepted.clone())
+            .identity(&owner, &inputs)
+            .unwrap();
+        let pointer = Rc::new(RefCell::new(Some(PointerOwner::Handle {
+            identity: started.clone(),
+            pointer_id: 9,
+            z: 0.0,
+            id: "mount-1".into(),
+            projection: Some(CaseHandleProjection {
+                source: accepted.clone(),
+                inputs: inputs.clone(),
+            }),
+        })));
+        let mut preview = crate::case_gesture_preview::CaseGesturePreviewState::default();
+        let preview_owner = preview
+            .begin(
+                started.scope.clone(),
+                started.snapshot_token,
+                started.revision,
+            )
+            .unwrap();
+        assert!(preview.publish(&preview_owner, gesture_scene(&source_identity)));
+        let display_scene = preview
+            .scene(
+                &accepted.scope,
+                accepted.token,
+                accepted.snapshot.document.revision,
+            )
+            .unwrap();
+        assert!(!Rc::ptr_eq(&accepted, &display_scene));
+        inputs.source = Rc::as_ptr(&display_scene) as usize;
+        let current = ViewerSource::Cad(display_scene)
+            .identity(&owner, &inputs)
+            .unwrap();
+        assert!(current.projection_generation > started.projection_generation);
+        assert!(current.renderer_sequence > started.renderer_sequence);
+
+        let handle_projection = CaseHandleProjection {
+            source: accepted.clone(),
+            inputs,
+        };
+        cancel_superseded_pointer(
+            &pointer,
+            &Rc::new(RefCell::new(None)),
+            &owner,
+            Some(&handle_projection),
+            true,
+        );
+        assert!(
+            pointer.borrow().is_some(),
+            "Publishing this gesture's preview must retain its handle capture"
+        );
+        assert!(
+            take_pointer_for_event(&pointer, 9, &started).is_none(),
+            "Old callbacks must stay stale"
+        );
+        let dom = VirtualDom::new(|| rsx! { div {} });
+        let delivered = Rc::new(RefCell::new(Vec::new()));
+        let on_signal = dom.in_scope(ScopeId::ROOT, {
+            let delivered = delivered.clone();
+            move || {
+                EventHandler::new(move |event: ScopedViewerSignal| {
+                    assert!(
+                        event.is_current(),
+                        "Case must receive a current owner stamp"
+                    );
+                    if let ViewerSignalKind::HandleGesture { phase, .. } = event.kind {
+                        delivered.borrow_mut().push(phase);
+                    }
+                })
+            }
+        });
+        // The same admission used by Move/Up must see the current full identity,
+        // including the renderer sequence, while old emissions remain rejected.
+        let moved =
+            take_pointer_for_event(&pointer, 9, &current).expect("Move must still own the handle");
+        let applied_identity = current.clone();
+        assert_eq!(moved.identity(), &applied_identity);
+        emit_signal(
+            &owner,
+            on_signal,
+            &started,
+            ViewerSignalKind::HandleGesture {
+                phase: HandleGesturePhase::End,
+                handle_id: "mount-1".into(),
+                point: None,
+            },
+        );
+        assert!(delivered.borrow().is_empty());
+        emit_signal(
+            &owner,
+            on_signal,
+            moved.identity(),
+            ViewerSignalKind::HandleGesture {
+                phase: HandleGesturePhase::Move,
+                handle_id: "mount-1".into(),
+                point: Some([1.0, 2.0, 0.0]),
+            },
+        );
+        *pointer.borrow_mut() = Some(moved);
+        let completed = take_pointer_for_event(&pointer, 9, &current)
+            .expect("Pointer-up must still own the handle");
+        emit_signal(
+            &owner,
+            on_signal,
+            completed.identity(),
+            ViewerSignalKind::HandleGesture {
+                phase: HandleGesturePhase::End,
+                handle_id: "mount-1".into(),
+                point: Some([1.0, 2.0, 0.0]),
+            },
+        );
+        assert_eq!(
+            *delivered.borrow(),
+            [HandleGesturePhase::Move, HandleGesturePhase::End]
+        );
+        assert!(
+            preview.cancel(&preview_owner),
+            "End must retire the provisional preview"
+        );
+        assert!(
+            preview
+                .scene(
+                    &accepted.scope,
+                    accepted.token,
+                    accepted.snapshot.document.revision
+                )
+                .is_none()
+        );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn case_handle_preview_transfer_rejects_replaced_source_scope_revision_and_owner() {
+        for change in [
+            "source", "session", "document", "board", "instance", "token", "revision", "viewer",
+            "unmount", "stale", "models", "theme", "preview", "missing", "orbit",
+        ] {
+            let accepted = gesture_scene(&identity());
+            let owner = ViewerOwner::new().unwrap();
+            let inputs = ProjectionInputs {
+                source: Rc::as_ptr(&accepted) as usize,
+                preview: 0,
+                models: vec![],
+                theme: "light".into(),
+            };
+            let started = ViewerSource::Cad(accepted.clone())
+                .identity(&owner, &inputs)
+                .unwrap();
+            let mut next = CaseHandleProjection {
+                source: accepted.clone(),
+                inputs: inputs.clone(),
+            };
+            let display_scene = gesture_scene(&started);
+            next.inputs.source = Rc::as_ptr(&display_scene) as usize;
+            let mut current = ViewerSource::Cad(display_scene)
+                .identity(&owner, &next.inputs)
+                .unwrap();
+            match change {
+                "source" => next.source = gesture_scene(&started),
+                "session" => current.scope.session_epoch = SessionEpoch(99),
+                "document" => current.scope.document_id.push_str("-other"),
+                "board" => current.scope.board_id.push_str("-other"),
+                "instance" => current.scope.instance_id = None,
+                "token" => current.snapshot_token = SnapshotToken(99),
+                "revision" => current.revision += 1,
+                "viewer" => current.viewer_instance += 1,
+                "unmount" => owner.active.set(false),
+                "models" => next.inputs.models.push(("model".into(), 1)),
+                "theme" => next.inputs.theme = "dark".into(),
+                "preview" => next.inputs.preview += 1,
+                _ => {}
+            }
+            *owner.identity.borrow_mut() = Some(current);
+            let active = if change == "orbit" {
+                PointerOwner::Orbit {
+                    identity: started,
+                    pointer_id: 9,
+                    last_x: 0.0,
+                    last_y: 0.0,
+                    start_x: 0.0,
+                    start_y: 0.0,
+                    moved: false,
+                    picked: None,
+                }
+            } else {
+                PointerOwner::Handle {
+                    identity: started,
+                    projection: Some(CaseHandleProjection {
+                        source: accepted,
+                        inputs,
+                    }),
+                    pointer_id: 9,
+                    z: 0.0,
+                    id: "mount-1".into(),
+                }
+            };
+            let pointer = Rc::new(RefCell::new(Some(active)));
+            cancel_superseded_pointer(
+                &pointer,
+                &Rc::new(RefCell::new(None)),
+                &owner,
+                (change != "missing").then_some(&next),
+                change != "stale",
+            );
+            assert!(
+                pointer.borrow().is_none(),
+                "{change} must cancel the old capture"
+            );
+        }
     }
 
     #[test]

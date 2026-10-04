@@ -37,3 +37,22 @@ origin by Undo.
 The action and one-step Undo work on the current project and selected column.
 The Dioxus pending-pick route still needs Escape cancellation before this
 focused interaction can pass; this result does not close F3.5-C01 or F3.5.
+
+### Escape cancellation repair: paired GREEN (2026-10-04)
+
+On repaired candidate `9eda1b5d4c194a97b7216a43544036b5709a65f8` at
+`http://127.0.0.1:34801/`, the same editable Start Sofle v2 demo was opened on
+Left PCB and `keys · Column 1` selected. The Pick origin button retained focus
+when clicked; pressing Escape and then clicking the empty canvas left Origin
+X/Y unchanged at about `9.18 / -78.048`. Undo availability was unchanged across
+the cancellation. A subsequent Pick origin and canvas click changed Origin X/Y
+to about `158.14 / -42.16`, showing the canceled arm did not disable a live pick;
+one Undo restored the original origin. The project remained Sofle v2 and the
+selected context remained Column 1.
+
+The pinned React reference at `http://127.0.0.1:5175/` uses the same Start
+Sofle v2 / Left PCB / Column 1 route. Its Escape cancellation and subsequent
+live-pick behavior were observed in the paired run above (`f35-pick-react`);
+no duplicate reference journey was run for this repair. The focused Escape
+journey is GREEN. F3.5-C01 and F3.5 remain open for their other acceptance
+clauses.

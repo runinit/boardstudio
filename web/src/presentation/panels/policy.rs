@@ -18,6 +18,20 @@ impl PanelSide {
             Self::Inspector => (280.0, 480.0),
         }
     }
+
+    pub(super) fn resize_width(self, requested: f64, available: f64) -> f64 {
+        let (minimum, maximum) = self.width_bounds();
+        let maximum = maximum.min(available.max(minimum));
+        if requested.is_finite() {
+            requested.clamp(minimum, maximum)
+        } else {
+            minimum
+        }
+    }
+
+    pub(super) fn minimum_width(self) -> f64 {
+        self.width_bounds().0
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -133,5 +147,13 @@ mod tests {
             decode_settings(PanelSide::Objects, Some("invalid"), None),
             PanelSettings::default_pinned()
         );
+    }
+
+    #[test]
+    fn resize_width_respects_panel_and_available_workspace_bounds() {
+        assert_eq!(PanelSide::Objects.resize_width(350.0, 520.0), 350.0);
+        assert_eq!(PanelSide::Objects.resize_width(420.0, 360.0), 360.0);
+        assert_eq!(PanelSide::Inspector.resize_width(100.0, 500.0), 280.0);
+        assert_eq!(PanelSide::Inspector.resize_width(600.0, 700.0), 480.0);
     }
 }

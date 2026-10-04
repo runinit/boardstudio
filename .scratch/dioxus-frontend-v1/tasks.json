@@ -675,11 +675,14 @@
             "web/src/presentation.rs:830",
             "web/src/runtime.rs:4836",
             "web/src/presentation/library.rs:835",
-            "web/src/presentation/library.rs:896"
+            "web/src/presentation/library.rs:896",
+            "web/src/presentation/library.rs"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/f2.2-c02-c03-paired-qualification.md"
+          ],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Paired 34801/5175 Project-menu Save project copy downloaded archives and reopened Sofle with 2 boards, 140 parts and 6 verified embedded assets. Retain this success evidence; qualify named delete confirmation, cancel/failure/retry and durable identity outcomes separately.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation.rs",
@@ -770,14 +773,15 @@
           "state": "implemented",
           "classification": "functional",
           "sources": [
-            "web/src/presentation/panels.rs:117",
-            "web/src/presentation/panels.rs:295",
-            "web/src/presentation/panels.rs:346",
-            "web/src/presentation/panels/policy.rs"
+            "web/src/presentation/panels.rs",
+            "web/src/presentation/panels/policy.rs",
+            "web/assets/m1.css"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/compact-shell-parity-20261003/f23-public-qualification.md"
+          ],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Desktop pinned pane separators now handle captured pointer drag and Arrow-key resizing, clamp against the other pinned pane plus a 280 px center reserve, and persist settings; compact drawers hide separators. On the next functional candidate, run one paired pointer/keyboard/bounds/reload journey before verification.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/panels.rs",
@@ -1730,14 +1734,16 @@
             "web/src/presentation/objects/matrix_inspector.rs",
             "web/src/presentation/board_inspector.rs",
             "web/src/presentation/objects/matrix_transform_inspector.rs",
-            "web/src/presentation.rs"
+            "web/src/presentation.rs",
+            "web/src/presentation/layout_workspace.rs"
           ],
           "evidence": [
             ".scratch/dioxus-layout-authoring/evidence/f35a-layout-membership-tab-reset-20261003/README.md",
-            ".scratch/dioxus-layout-authoring/evidence/board-inspector-frontier-20261003/reference.json"
+            ".scratch/dioxus-layout-authoring/evidence/board-inspector-frontier-20261003/reference.json",
+            ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md"
           ],
           "blockers": [],
-          "next_action": "Source 8c4c7db9 adds selected-column Pick origin, one atomic splay-origin edit, canvas hint and Escape cancellation. At the batched functional milestone, check click result, Undo, project/selection switch rejection and the remaining board/matrix/key/component/relations Inspector contexts.",
+          "next_action": "Source 9eda1b5d and paired 34801 action prove Inspector-focused Escape cancels Pick origin; a later live pick and Undo work. Broader empty/single/multiple Inspector contexts and relation state remain for the grouped Layout milestone.",
           "finish_condition": "Paired public scenarios show the correct contextual properties and relation state for each selection cardinality and object context.",
           "owned_files": [
             "web/src/presentation/inspector.rs",
@@ -4111,7 +4117,7 @@
             ".scratch/dioxus-pcb-view/evidence/22-mounted-module-inspector-20261003/undo-redo-settled-34765.md"
           ],
           "blockers": [],
-          "next_action": "Retain bounded placement Save/reopen and history receipts; qualify pending/error/cancel and cross-board/instance stale action cases.",
+          "next_action": "The 34801 public Remove success deleted the selected placement and updated findings. React also clears selection without a success label, so Inspector unmount is not a parity failure. Keep pending/rejected/cancelled outcome, resolver projection and stale board/instance scope unqualified; reuse existing Save and successful Remove evidence.",
           "finish_condition": "Same-fixture paired evidence confirms identities, resolver projections and stale/pending/error/cancel behavior.",
           "owned_files": [
             "web/src/presentation/pcb_module_inspector.rs",
@@ -6953,7 +6959,7 @@
           ],
           "evidence": [],
           "blockers": [],
-          "next_action": "Scoped live-only Case draft geometry now uses the existing Core/CAD preview path. The focused owner-state supersession test passes; Runtime orchestration and actual valid/invalid/canceled drag, rejected non-commit and accepted history need one public candidate journey before verification.",
+          "next_action": "The accepted Case scene now anchors live preview Handle capture across provisional scene publication; focused WASM RED/GREEN covers current Move/End and 15 invalid owner transitions. On the next candidate, run one valid and one rejected handle drag, showing provisional output and accepted history/Undo; reuse prior blocked-move evidence.",
           "finish_condition": "Invalid movement remains preview-only and does not partially modify accepted document; each transient state is visible.",
           "owned_files": [
             "web/src/presentation/case_viewer.rs"
@@ -6973,7 +6979,7 @@
           ],
           "evidence": [],
           "blockers": [],
-          "next_action": "Run one focused public lifecycle journey through pointer cancel, Escape, navigation and unmount while a handle drag is active.",
+          "next_action": "Focused WASM regression now covers preview swap identity rebind, current Move/End emission and cancellation on source, scope, token, revision, mount or presentation-input changes. Qualify Escape/navigation/unmount in one public Case gesture journey; do not rerun the same source-level cancellation matrix.",
           "finish_condition": "Every exit clears preview handles/draft and releases pointer/renderer ownership; stale gesture replies are ignored.",
           "owned_files": [
             "web/src/presentation/case_viewer.rs",

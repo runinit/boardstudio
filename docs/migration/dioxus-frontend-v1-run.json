@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T08:57:13.236882+00:00",
+    "updated_at": "2026-10-04T09:18:17.079486+00:00",
     "parent_counts": {
       "accepted": 16,
       "implementing": 34,
@@ -25,20 +25,20 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-functional-batch-20261004",
-      "source_commit": "14434d50c6bee16c595609a39f34396edf37cbd1",
-      "root_url": "http://127.0.0.1:34800/",
-      "subpath_url": "http://127.0.0.1:34800/boardstudio/",
-      "provenance": "web/target/builds/frontend-functional-batch-20261004/provenance.json",
-      "provenance_sha256": "e36fc559c8bfb9eccb0334b9feac004ab530b2e4b7a474d939317cc8cca230d6",
+      "build_id": "frontend-actions-20261004",
+      "source_commit": "9eda1b5d4c194a97b7216a43544036b5709a65f8",
+      "root_url": "http://127.0.0.1:34801/",
+      "subpath_url": "http://127.0.0.1:34801/boardstudio/",
+      "provenance": "web/target/builds/frontend-actions-20261004/provenance.json",
+      "provenance_sha256": "2b9e82d6b191df84716d83c2c8c86064f1b325322b98fbe48ae0b6d1c5267195",
       "fresh_commands": 9,
       "inherited_commands": 23,
       "source_inputs": 1393,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 135.70339,
+      "command_span_seconds": 127.800838,
       "package_qualification": "Combined package provenance, current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-functional-batch-20261004/package-proof.json",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-actions-20261004/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -48,8 +48,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "14434d50",
-      "state": "Integrated Layout Pick origin, PCB finding focus, Parts KiCad extraction, routed model basename reuse, Case live gesture geometry and compact Escape through b5e49eca; page-only registration repair at 14434d50. Combined page compiler, root/subpath package and asset checks pass; focused Case owner test passes. Candidate 34800 serves source 14434d50 for five changed-action journeys.",
+      "source_commit": "9eda1b5d4c194a97b7216a43544036b5709a65f8",
+      "state": "Integrated four more functional actions at 9eda1b5d: Layout Pick origin Escape, PCB Remove terminal feedback, Keymap unchanged macro-step no-op and Project-menu copy. The combined locked page compiler and root/subpath/offline package passed; 34801 serves exact packaged assets. Four changed-action public journeys and one consolidated candidate review are underway; older partial Case/PCB/Parts branches remain open.",
       "packets": [
         {
           "stream": "Layout",
@@ -334,10 +334,30 @@
           "stream": "Parts + Project",
           "integrated_commit": "b5e49eca",
           "change": "Compact visibility-toggle Escape closes an open drawer and restores focus"
+        },
+        {
+          "stream": "Layout",
+          "integrated_commit": "9eda1b5d",
+          "change": "Inspector-focused Pick origin Escape cancellation"
+        },
+        {
+          "stream": "PCB",
+          "integrated_commit": "9eda1b5d",
+          "change": "Mounted-module Remove terminal outcome and repeat guard"
+        },
+        {
+          "stream": "Keymap",
+          "integrated_commit": "9eda1b5d",
+          "change": "Unchanged valid macro-step keycode no-op"
+        },
+        {
+          "stream": "Parts + Project",
+          "integrated_commit": "9eda1b5d",
+          "change": "Project-menu Save project copy action"
         }
       ],
-      "qualification": "Filter regression RED/GREEN, compiler/package/served assets pass; rendered feedback browser RED34783 and GREEN34784. Broader loading/source-error remains unqualified.",
-      "application_candidate_source": "3f9e8e2c4475c92cb0700ab5a17732b5d250ca01"
+      "qualification": "Focused Layout, PCB, Keymap and Project regressions GREEN; combined compiler/package and root/subpath live asset hashes pass. Changed-action browser checks and consolidated review are pending.",
+      "application_candidate_source": "9eda1b5d4c194a97b7216a43544036b5709a65f8"
     },
     "journeys": [
       {
@@ -522,15 +542,15 @@
       {
         "stream": "Layout",
         "priority": "Functional gaps alongside other streams; exact visual parity deferred",
-        "state": "Pick origin source-integrated at 8c4c7db9; F3.5 contextual Inspector remains open for batched public qualification. Existing F3.4 and F3.8 evidence retained; visual layout deferred."
+        "state": "F3.5 Pick origin Escape is source-integrated and passed focused 34801 public behavior; broader contextual Inspector criteria remain open. Visual layout deferred."
       },
       {
         "stream": "PCB",
-        "state": "F5.4-C02 scoped finding focus source-integrated at 8c4c7db9; paired marker/hidden-layer/board-switch journey pending. F5.2 provider-failure limits remain."
+        "state": "F5.4 keyboard finding focus reveals the hidden owner outline; nonempty-clearance and board-switch remain open. F5.5 Remove now observes terminal outcome; public 34801 journey pending."
       },
       {
         "stream": "Keymap",
-        "state": "F6K.4 criteria verified; parent joins F5.2/F8.2 open. F8.2-C03 shared export failure/stale tests identified, but PCB-specific packaging-before-protection regression remains."
+        "state": "F6K.3 unchanged valid macro-step no-op is source-integrated with mounted RED/GREEN; public 34801 journey pending. F6K.4 criteria verified; wider F6 joins remain."
       },
       {
         "stream": "Keycaps",
@@ -538,18 +558,18 @@
       },
       {
         "stream": "Case",
-        "state": "F7.3-C02/C03/C04/C05 verified. Generic module body and edit route are retained; C06 source is implemented and packaged model layer is visible/toggleable on 34799. Model pick/error feedback and C07 stale Save remain unverified for a later batched milestone."
+        "state": "F7.5 blocked mount move produced no accepted edit; valid provisional geometry/commit/Undo remain unqualified. F7.3 module model layer appears; model pick/error and stale Save remain open."
       },
       {
         "stream": "Parts + Project",
-        "state": "F4.5-C02 KiCad geometry read/map/apply source-integrated at 8c4c7db9 after correcting a false implemented label; imported-footprint and history/reopen journey pending. F4.2 and F2.1 remain accepted."
+        "state": "F4.5 paired KiCad extraction/apply/Undo/reopen passed for two mapped purposes; stale selection remains open. Project-menu copy is source-integrated; public 34801 archive journey pending."
       }
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Freeze one functional candidate after another runnable packet or a cross-workbench interaction needs the browser. Then qualify only changed Layout Pick origin, PCB finding focus and Parts KiCad extraction journeys, plus queued F7.3 model pick/error, and use one consolidated Sol review.",
-      "Advance the six workbench queues from progress.py ready/remaining, reusing retained evidence. Qualify PCB/Keycaps provider-failure branches only with a supported reproducible trigger; keep visual parity and release gates separate.",
-      "Check the transient project-switch old-editor display with a focused state/interaction journey when the surrounding project-lifecycle criterion is next qualified; preserve current action guards."
+      "Qualify only the four newly changed actions on the packaged source, reusing earlier paired workbench setup and all unaffected evidence; one consolidated Sol review follows the frozen candidate.",
+      "Continue bounded source action probes across six streams after integration; convert only reproduced gaps to missing work. Keep one waiting packet per stream and batch the next compile/package.",
+      "Leave the older Case valid-handle, PCB nonempty-clearance and provider-failure branches explicitly partial until a supported fixture or deterministic trigger exists; do not repeat unsuccessful probes."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
@@ -642,40 +662,34 @@
     "qualification": {
       "trigger": "functional_scope",
       "active_scope": {
-        "id": "frontend-functional-batch-20261004",
-        "label": "Integrated workbench action batch",
-        "source_commit": "14434d50c6bee16c595609a39f34396edf37cbd1",
+        "id": "frontend-actions-20261004",
+        "label": "Four changed functional actions",
+        "source_commit": "9eda1b5d4c194a97b7216a43544036b5709a65f8",
         "streams": [
           "Layout",
           "PCB",
-          "Case",
-          "Parts+Project",
-          "Shared"
+          "Keymap",
+          "Parts+Project"
         ],
         "journeys": [
           {
-            "id": "F3.5-C01-origin-pick",
-            "scope": "Pick a selected column origin from key, component and empty canvas; confirm one accepted edit, Escape cancellation and Undo on the same saved board.",
+            "id": "F3.5-origin-Escape",
+            "scope": "From the selected-column Inspector, arm Pick origin, press Escape while the button has focus, then click empty canvas; no edit or history entry occurs. A subsequent live pick remains editable.",
             "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md"
           },
           {
-            "id": "F5.4-C02-finding-focus",
-            "scope": "Focus a current PCB finding with its module layers hidden; the owner outline/clearance becomes visible, and Escape or board change clears the temporary focus without changing saved visibility.",
+            "id": "F5.5-remove-result",
+            "scope": "On a saved mounted module, Remove reports pending then terminal success or rejection without repeat submission; selection/project replacement cannot apply an old removal.",
             "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md"
           },
           {
-            "id": "F4.5-C02-KiCad-extraction",
-            "scope": "Read an imported KiCad footprint's mechanical layers, assign the four supported purposes, apply selected geometry to the same profile draft, then Undo and reopen; stale selection cannot apply to another part.",
-            "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md"
+            "id": "F6K.3-macro-noop",
+            "scope": "Blur an unchanged valid macro-step keycode without a revision/history edit; changing it still commits once and the legacy-normalization path remains usable.",
+            "spec": ".scratch/dioxus-keymap-layers/spec.md"
           },
           {
-            "id": "F7.5-C02-gesture-preview",
-            "scope": "A live Case gasket or mount handle drag shows provisional geometry before release; invalid/canceled motion makes no accepted edit, and a valid release commits once with Undo.",
-            "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md"
-          },
-          {
-            "id": "F2.3-C03-compact-Escape",
-            "scope": "At a compact width, Escape from an open drawer's focused visibility toggle closes the drawer, restores focus and keeps hidden controls inert without changing the document.",
+            "id": "F2.2-project-copy-menu",
+            "scope": "Use Project menu Save project copy on the current saved keyboard; exported archive has the expected project/assets and reopens, and the menu closes.",
             "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md"
           }
         ]
@@ -724,7 +738,7 @@
               "scope": "Sofle selection, contextual Objects/Inspector Properties and Relations, matrix/key edits, Undo and reopen",
               "spec": ".scratch/dioxus-layout-authoring/spec.md",
               "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/journey.md",
-              "verified": "Three Properties shortcut routes and key width1→1.25→Undo1→Redo1.25→reload1.25 match reference behavior.",
+              "verified": "Three Properties shortcut routes and key width1\u21921.25\u2192Undo1\u2192Redo1.25\u2192reload1.25 match reference behavior.",
               "remaining": "Inspector arrangement/typography/context footer and Objects-to-toolbar selection-kind synchronization; broader authoring criteria unchanged."
             },
             {
@@ -1821,7 +1835,7 @@
             "journeys": [
               {
                 "id": "F7.3-C05-module-route",
-                "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797→34798 RED/GREEN unless changed source affects it.",
+                "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797\u219234798 RED/GREEN unless changed source affects it.",
                 "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md"
               },
               {
@@ -1848,7 +1862,7 @@
           "journeys": [
             {
               "id": "F7.3-C05-module-route",
-              "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797→34798 RED/GREEN unless changed source affects it.",
+              "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797\u219234798 RED/GREEN unless changed source affects it.",
               "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
               "state": "pending"
             },
@@ -1917,7 +1931,7 @@
             "journeys": [
               {
                 "id": "F7.3-C05-module-route",
-                "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797→34798 RED/GREEN unless changed source affects it.",
+                "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797\u219234798 RED/GREEN unless changed source affects it.",
                 "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md"
               },
               {
@@ -1939,7 +1953,7 @@
           "journeys": [
             {
               "id": "F7.3-C05-module-route",
-              "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797→34798 RED/GREEN unless changed source affects it.",
+              "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797\u219234798 RED/GREEN unless changed source affects it.",
               "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
               "state": "pending"
             },
@@ -1962,56 +1976,177 @@
             "profile": "sol-review",
             "state": "pending"
           }
+        },
+        {
+          "trigger": "functional_scope",
+          "active_scope": {
+            "id": "frontend-functional-batch-20261004",
+            "label": "Integrated workbench action batch",
+            "source_commit": "14434d50c6bee16c595609a39f34396edf37cbd1",
+            "streams": [
+              "Layout",
+              "PCB",
+              "Case",
+              "Parts+Project",
+              "Shared"
+            ],
+            "journeys": [
+              {
+                "id": "F3.5-C01-origin-pick",
+                "scope": "Pick a selected column origin from key, component and empty canvas; confirm one accepted edit, Escape cancellation and Undo on the same saved board.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md"
+              },
+              {
+                "id": "F5.4-C02-finding-focus",
+                "scope": "Focus a current PCB finding with its module layers hidden; the owner outline/clearance becomes visible, and Escape or board change clears the temporary focus without changing saved visibility.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md"
+              },
+              {
+                "id": "F4.5-C02-KiCad-extraction",
+                "scope": "Read an imported KiCad footprint's mechanical layers, assign the four supported purposes, apply selected geometry to the same profile draft, then Undo and reopen; stale selection cannot apply to another part.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md"
+              },
+              {
+                "id": "F7.5-C02-gesture-preview",
+                "scope": "A live Case gasket or mount handle drag shows provisional geometry before release; invalid/canceled motion makes no accepted edit, and a valid release commits once with Undo.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md"
+              },
+              {
+                "id": "F2.3-C03-compact-Escape",
+                "scope": "At a compact width, Escape from an open drawer's focused visibility toggle closes the drawer, restores focus and keeps hidden controls inert without changing the document.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md"
+              }
+            ]
+          },
+          "phase": "repairing",
+          "unmet_start_conditions": [],
+          "candidate_build_id": "frontend-functional-batch-20261004",
+          "source_commit": "14434d50c6bee16c595609a39f34396edf37cbd1",
+          "journeys": [
+            {
+              "id": "F3.5-C01-origin-pick",
+              "scope": "Pick a selected column origin from key, component and empty canvas; confirm one accepted edit, Escape cancellation and Undo on the same saved board.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+              "state": "failed",
+              "evidence": ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md",
+              "limitation": "Escape from the Inspector left Pick origin pending on source 14434d50; source repair is awaiting the next package."
+            },
+            {
+              "id": "F5.4-C02-finding-focus",
+              "scope": "Focus a current PCB finding with its module layers hidden; the owner outline/clearance becomes visible, and Escape or board change clears the temporary focus without changing saved visibility.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
+              "state": "partial",
+              "evidence": ".scratch/dioxus-pcb-view/evidence/24-module-source-route-20261003/receipt.md",
+              "limitation": "Keyboard focus and hidden-outline reveal passed; nonempty clearance and board-switch remain unqualified. React SVG marker is decorative."
+            },
+            {
+              "id": "F4.5-C02-KiCad-extraction",
+              "scope": "Read an imported KiCad footprint's mechanical layers, assign the four supported purposes, apply selected geometry to the same profile draft, then Undo and reopen; stale selection cannot apply to another part.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
+              "state": "partial",
+              "evidence": ".scratch/dioxus-parts-catalogue/evidence/parts-fit-profile-capability-receipt-20261002.md",
+              "limitation": "Paired two-purpose extraction, apply, Undo/Redo and reopen passed; stale selection and other layer purposes remain unqualified."
+            },
+            {
+              "id": "F7.5-C02-gesture-preview",
+              "scope": "A live Case gasket or mount handle drag shows provisional geometry before release; invalid/canceled motion makes no accepted edit, and a valid release commits once with Undo.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+              "state": "partial",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/case/receipt.md",
+              "limitation": "Blocked move was not saved; a valid placement, provisional geometry update and Undo were not observed."
+            },
+            {
+              "id": "F2.3-C03-compact-Escape",
+              "scope": "At a compact width, Escape from an open drawer's focused visibility toggle closes the drawer, restores focus and keeps hidden controls inert without changing the document.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
+              "state": "passed",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/compact-shell-parity-20261003/f23-public-qualification.md",
+              "limitation": "Both compact drawers closed on trigger-focused Escape with focus return, scrim removal and inert hidden slots; retained Close-button behavior also passed."
+            }
+          ],
+          "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
+          "started_at": "2026-10-04T08:33:11.387657+00:00",
+          "review": {
+            "profile": "sol-review",
+            "state": "pending"
+          },
+          "next_scope": {
+            "id": "frontend-actions-20261004",
+            "label": "Four changed functional actions",
+            "source_commit": "9eda1b5d4c194a97b7216a43544036b5709a65f8",
+            "streams": [
+              "Layout",
+              "PCB",
+              "Keymap",
+              "Parts+Project"
+            ],
+            "journeys": [
+              {
+                "id": "F3.5-origin-Escape",
+                "scope": "From the selected-column Inspector, arm Pick origin, press Escape while the button has focus, then click empty canvas; no edit or history entry occurs. A subsequent live pick remains editable.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md"
+              },
+              {
+                "id": "F5.5-remove-result",
+                "scope": "On a saved mounted module, Remove reports pending then terminal success or rejection without repeat submission; selection/project replacement cannot apply an old removal.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md"
+              },
+              {
+                "id": "F6K.3-macro-noop",
+                "scope": "Blur an unchanged valid macro-step keycode without a revision/history edit; changing it still commits once and the legacy-normalization path remains usable.",
+                "spec": ".scratch/dioxus-keymap-layers/spec.md"
+              },
+              {
+                "id": "F2.2-project-copy-menu",
+                "scope": "Use Project menu Save project copy on the current saved keyboard; exported archive has the expected project/assets and reopens, and the menu closes.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md"
+              }
+            ]
+          }
         }
       ],
-      "phase": "repairing",
+      "phase": "qualifying",
       "unmet_start_conditions": [],
-      "candidate_build_id": "frontend-functional-batch-20261004",
-      "source_commit": "14434d50c6bee16c595609a39f34396edf37cbd1",
+      "candidate_build_id": "frontend-actions-20261004",
+      "source_commit": "9eda1b5d4c194a97b7216a43544036b5709a65f8",
       "journeys": [
         {
-          "id": "F3.5-C01-origin-pick",
-          "scope": "Pick a selected column origin from key, component and empty canvas; confirm one accepted edit, Escape cancellation and Undo on the same saved board.",
+          "id": "F3.5-origin-Escape",
+          "scope": "From the selected-column Inspector, arm Pick origin, press Escape while the button has focus, then click empty canvas; no edit or history entry occurs. A subsequent live pick remains editable.",
           "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
-          "state": "failed",
+          "state": "passed",
           "evidence": ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md",
-          "limitation": "Escape from the Inspector left Pick origin pending on source 14434d50; source repair is awaiting the next package."
+          "verified": "Focused 34801 action passed: Inspector-focused Escape canceled the pending pick, subsequent empty canvas did not edit, later live pick and Undo worked. Reused prior React behavior observation."
         },
         {
-          "id": "F5.4-C02-finding-focus",
-          "scope": "Focus a current PCB finding with its module layers hidden; the owner outline/clearance becomes visible, and Escape or board change clears the temporary focus without changing saved visibility.",
+          "id": "F5.5-remove-result",
+          "scope": "On a saved mounted module, Remove reports pending then terminal success or rejection without repeat submission; selection/project replacement cannot apply an old removal.",
           "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
           "state": "partial",
-          "evidence": ".scratch/dioxus-pcb-view/evidence/24-module-source-route-20261003/receipt.md",
-          "limitation": "Keyboard focus and hidden-outline reveal passed; nonempty clearance and board-switch remain unqualified. React SVG marker is decorative."
+          "evidence": ".scratch/dioxus-pcb-view/evidence/22-mounted-module-inspector-20261003/placement-save-reopen.md",
+          "verified": "Accepted removal deleted the selected placement (3\u21922) and updated findings (97\u219285). React also clears selection without a success label, so Inspector unmount is not a parity defect.",
+          "remaining": "Public rejected/cancelled/pending state and stale-scope outcome were not induced; F5.5-C04 remains open."
         },
         {
-          "id": "F4.5-C02-KiCad-extraction",
-          "scope": "Read an imported KiCad footprint's mechanical layers, assign the four supported purposes, apply selected geometry to the same profile draft, then Undo and reopen; stale selection cannot apply to another part.",
-          "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
-          "state": "partial",
-          "evidence": ".scratch/dioxus-parts-catalogue/evidence/parts-fit-profile-capability-receipt-20261002.md",
-          "limitation": "Paired two-purpose extraction, apply, Undo/Redo and reopen passed; stale selection and other layer purposes remain unqualified."
+          "id": "F6K.3-macro-noop",
+          "scope": "Blur an unchanged valid macro-step keycode without a revision/history edit; changing it still commits once and the legacy-normalization path remains usable.",
+          "spec": ".scratch/dioxus-keymap-layers/spec.md",
+          "state": "passed",
+          "evidence": ".scratch/dioxus-keymap-layers/evidence/macro09-zmk-root-public-qualification/RESULTS.md",
+          "verified": "Paired imported fixture: unchanged A blur kept revision 29 and project hash; A\u2192C submitted once and advanced to revision 30 in both apps."
         },
         {
-          "id": "F7.5-C02-gesture-preview",
-          "scope": "A live Case gasket or mount handle drag shows provisional geometry before release; invalid/canceled motion makes no accepted edit, and a valid release commits once with Undo.",
-          "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
-          "state": "partial",
-          "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/case/receipt.md",
-          "limitation": "Blocked move was not saved; a valid placement, provisional geometry update and Undo were not observed."
-        },
-        {
-          "id": "F2.3-C03-compact-Escape",
-          "scope": "At a compact width, Escape from an open drawer's focused visibility toggle closes the drawer, restores focus and keeps hidden controls inert without changing the document.",
+          "id": "F2.2-project-copy-menu",
+          "scope": "Use Project menu Save project copy on the current saved keyboard; exported archive has the expected project/assets and reopens, and the menu closes.",
           "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
           "state": "passed",
-          "evidence": ".scratch/dioxus-frontend-v1/evidence/compact-shell-parity-20261003/f23-public-qualification.md",
-          "limitation": "Both compact drawers closed on trigger-focused Escape with focus return, scrim removal and inert hidden slots; retained Close-button behavior also passed."
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/f2.2-c02-c03-paired-qualification.md",
+          "verified": "Paired Project-menu copy downloaded actual archives; fresh sessions reopened Sofle with two boards, 140 parts and six hash-valid embedded assets.",
+          "remaining": "F2.2-C04 broader delete and failure/retry branches remain open."
         }
       ],
       "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
-      "started_at": "2026-10-04T08:33:11.387657+00:00",
+      "started_at": "2026-10-04T09:03:26.431215+00:00",
       "review": {
         "profile": "sol-review",
         "state": "pending"
@@ -2044,7 +2179,11 @@
         "Parts KiCad layer purpose mapping and mechanical profile extraction (8c4c7db9)",
         "Unique routed-model basename reuse (336d17ac+b5e49eca)",
         "Scoped provisional Case handle geometry without accepted-history writes (b5e49eca)",
-        "Compact drawer toggle Escape and focus return (b5e49eca)"
+        "Compact drawer toggle Escape and focus return (b5e49eca)",
+        "Inspector-focused Pick origin Escape cancellation (9eda1b5d)",
+        "Mounted-module Remove terminal feedback (9eda1b5d)",
+        "Unchanged valid macro-step blur no-op (9eda1b5d)",
+        "Project-menu Save project copy (9eda1b5d)"
       ],
       "verified_behaviors": [
         "Paired real-plan encoder rotation/push ZMK source output",
