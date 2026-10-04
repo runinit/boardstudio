@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T02:15:28.011230+00:00",
+    "updated_at": "2026-10-04T02:18:53.039508+00:00",
     "parent_counts": {
       "accepted": 14,
       "implementing": 37,
@@ -49,7 +49,7 @@
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
       "source_commit": "6619d5f2be0ce4167939426dd7efd3a13fcbd1e3",
-      "state": "Published34789 source6619d5f2 with compiler/package/root/subpath checks and zero release warnings. F3.2/F3.3 Layout and F4.2 Parts accepted; F3.4-C01/C02, F5.2-C01 and F7.3-C05 verified. Paired outline draft addition/cutout/bridge preview, Undo, cancel and Finish passed after hit-area and paint-order repair.",
+      "state": "Published34789 source6619d5f2 with compiler/package/root/subpath checks and zero release warnings. F3.2/F3.3 Layout and F4.2 Parts accepted; F3.4-C01/C02 and F5.2-C01 verified. Consolidated review is checking F7.3-C05 common-3D mapping after distinguishing its 2D module/finding evidence.",
       "packets": [
         {
           "stream": "Layout",
@@ -504,7 +504,7 @@
       },
       {
         "stream": "Case",
-        "state": "F7.3-C02/C03/C04/C05 verified paired, including section position, appearance/reset, camera, module/case/part pick, and hidden-Footprints finding focus. C01 and remaining scene/provider joins open."
+        "state": "F7.3-C02/C03/C04 verified paired. C05 part/case-body 3D picks and 2D module/finding focus are evidenced; actual common 3D module/finding mapping remains unqualified under review. C01 scene/consumer joins open."
       },
       {
         "stream": "Parts + Project",
@@ -514,7 +514,7 @@
     "pending_join_packets": [],
     "next_work": [
       "Continue F3.4-C03 contour dimensions, insertion/removal, pointer capture and cancel/Escape/lost-capture qualification; retain passed C01/C02 without rerunning.",
-      "Keep six queues moving from remaining criteria: Case scene/provider, Project public failure limits, PCB/Keycaps genuine-provider failure and Keymap PCB-specific export ordering.",
+      "Complete F7.3-C05 actual common-3D module/finding mapping or record precise unsupported branch; keep F2.1 negative branches implemented until original paired-public finish conditions are met.",
       "Consolidate the next functional candidate and one Sol 6.1 High review only when ready; preserve all parent joins and RF findings."
     ],
     "process_retro": {

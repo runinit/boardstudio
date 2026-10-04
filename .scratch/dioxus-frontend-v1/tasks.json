@@ -6604,7 +6604,7 @@
         {
           "id": "F7.3-C05",
           "requirement": "Support selection/picking and mapping to available project part, module, case body and finding; support focus/highlight.",
-          "state": "verified",
+          "state": "implemented",
           "classification": "functional",
           "sources": [
             "web/src/presentation/shared_viewer.rs",
@@ -6618,7 +6618,7 @@
             ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md"
           ],
           "blockers": [],
-          "next_action": "Retain paired34786 switch/empty-canvas and earlier Case-body picks, plus34787 VIK module identity and SW2 finding focus/highlight with Footprints hidden. Shared viewer admits picks only for current owner and applied projection identity; no remaining C05 functional action.",
+          "next_action": "Paired34786 3D switch/empty and earlier Case-body picks are retained. Paired34787 VIK module click and hidden-Footprints SW2 finding focus occurred in PCB/Layout 2D overlays, not proven common 3D viewer-object mapping. Consolidated review is checking retained 3D evidence; qualify actual shared-viewer module/finding paths before C05 verification.",
           "finish_condition": "Mapped and empty picks resolve only against current consumer scope; finding focus/highlight works with hidden layers.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",
