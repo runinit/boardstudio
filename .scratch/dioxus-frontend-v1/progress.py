@@ -34,7 +34,7 @@ def read(path):
 
 def write(path, value):
     target = ROOT / path
-    content = json.dumps(value, indent=2) + "\n"
+    content = json.dumps(value, ensure_ascii=False, indent=2) + "\n"
     if target.read_text() != content:
         target.write_text(content)
 
@@ -42,7 +42,7 @@ def write(path, value):
 def atomic_write_json(path, value):
     """Replace one JSON record atomically after its complete value is ready."""
     target = ROOT / path
-    content = json.dumps(value, indent=2) + "\n"
+    content = json.dumps(value, ensure_ascii=False, indent=2) + "\n"
     if target.read_text() == content:
         return False
     mode = target.stat().st_mode

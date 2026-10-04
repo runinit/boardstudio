@@ -605,6 +605,185 @@ fn fail_all(state: &Rc<RefCell<ClientState>>, error: CadWorkerError) {
     }
 }
 
+#[cfg(all(test, target_arch = "wasm32"))]
+mod keycaps_worker_tests {
+    use super::*;
+    use crate::cad_jobs::validate_reply;
+    use boardstudio_core::model::{KeycapMount, KeycapProfile, Pose2, Side, Vec2};
+    use wasm_bindgen_test::wasm_bindgen_test;
+    use web_sys::{Blob, BlobPropertyBag, Url};
+
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    struct WorkerSource(String);
+
+    impl WorkerSource {
+        fn new(source: &str) -> Self {
+            let parts = Array::of1(&JsValue::from_str(source));
+            let options = BlobPropertyBag::new();
+            options.set_type("text/javascript");
+            let blob = Blob::new_with_str_sequence_and_options(&parts, &options).unwrap();
+            Self(Url::create_object_url_with_blob(&blob).unwrap())
+        }
+    }
+
+    impl Drop for WorkerSource {
+        fn drop(&mut self) {
+            let _ = Url::revoke_object_url(&self.0);
+        }
+    }
+
+    fn spec() -> KeycapSpec {
+        KeycapSpec {
+            id: "key-1".into(),
+            reference: "A1".into(),
+            profile: KeycapProfile::Cherry,
+            mount: KeycapMount::Mx,
+            row: 1,
+            size: Vec2 { x: 18.0, y: 18.0 },
+            top_size: Vec2 { x: 12.0, y: 12.0 },
+            height: 8.0,
+            tilt: 0.0,
+            dish_depth: 0.0,
+            spherical: false,
+            wall_thickness: 1.2,
+            pose: Pose2 {
+                at: Vec2 { x: 0.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            z: 8.4,
+            travel: 4.0,
+            legend: String::new(),
+            color: "#b0b5bd".into(),
+            legend_color: "#202124".into(),
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn keycaps_worker_failure_late_reply_step_errors_and_retry_are_correlated() {
+        let source = WorkerSource::new(
+            r#"
+            self.postMessage({ kind: "ready" });
+            self.onmessage = (event) => {
+              const input = JSON.parse(event.data.frame);
+              const respond = (outcome, error, bodyId, revision = input.identity.revision) => {
+                const frame = JSON.stringify({
+                  requestId: input.requestId,
+                  jobId: input.jobId,
+                  identity: input.identity,
+                  operation: input.operation,
+                  outcome,
+                  error,
+                });
+                const result = {
+                  revision,
+                  step: new Uint8Array([73, 83, 79, 45, 49, 48, 51, 48, 51, 45, 50, 49, 59]),
+                  mesh: null,
+                  bodies: input.operation === "preview"
+                    ? [{ id: bodyId, name: "test cap", positions: new Float32Array([0, 0, 0]), normals: new Float32Array([0, 0, 1]) }]
+                    : [],
+                  bounds: null,
+                };
+                self.postMessage({ kind: "reply", frame, result });
+              };
+              if (input.requestId === "keycaps-preview-old") {
+                respond("failed", "injected preview provider failure", "keycap:key-1");
+                setTimeout(() => respond("completed", null, "keycap:late-old"), 25);
+              } else if (input.requestId === "keycaps-preview-current") {
+                setTimeout(() => respond("completed", null, "keycap:key-1"), 60);
+              } else if (input.requestId === "keycaps-step-failed") {
+                respond("failed", "injected STEP provider failure", "");
+              } else if (input.requestId === "keycaps-step-stale") {
+                respond("completed", null, "", input.identity.revision + 1);
+              }
+            };
+            "#,
+        );
+        let worker = CadWorker::new(&source.0).unwrap();
+        worker.ready().await.unwrap();
+
+        let identity = CadSnapshotIdentity {
+            token: 7,
+            session_epoch: 2,
+            document_id: "keycaps-worker-test".into(),
+            board_id: "left".into(),
+            instance_id: None,
+            revision: 11,
+        };
+        let keycap = spec();
+        let failed_preview = worker
+            .request_keycaps_preview(
+                "keycaps-preview-old".into(),
+                "preview-old-job".into(),
+                identity.clone(),
+                vec![keycap.clone()],
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(failed_preview.0, "injected preview provider failure");
+
+        let current_preview = worker
+            .request_keycaps_preview(
+                "keycaps-preview-current".into(),
+                "preview-current-job".into(),
+                identity.clone(),
+                vec![keycap.clone()],
+            )
+            .await
+            .expect("the current preview must settle after the delayed old reply");
+        assert_eq!(current_preview.revision, identity.revision);
+        assert_eq!(current_preview.bodies[0].id, "keycap:key-1");
+
+        let failed_step = worker
+            .request_keycaps_step(
+                "keycaps-step-failed".into(),
+                "step-failed-job".into(),
+                identity.clone(),
+                vec![keycap.clone()],
+            )
+            .await
+            .unwrap();
+        let failed_step_request = CadRequest {
+            request_id: "keycaps-step-failed".into(),
+            job_id: "step-failed-job".into(),
+            identity: identity.clone(),
+            operation: CadOperation::ExportStep,
+            prepared: None,
+            input_bytes: Vec::new(),
+        };
+        assert!(matches!(
+            validate_reply(&failed_step_request, failed_step, &identity),
+            Err(crate::cad_jobs::CadJobError::Failed(message))
+                if message == "injected STEP provider failure"
+        ));
+
+        let stale_step = worker
+            .request_keycaps_step(
+                "keycaps-step-stale".into(),
+                "step-stale-job".into(),
+                identity.clone(),
+                vec![keycap],
+            )
+            .await
+            .unwrap();
+        let stale_step_request = CadRequest {
+            request_id: "keycaps-step-stale".into(),
+            job_id: "step-stale-job".into(),
+            identity: identity.clone(),
+            operation: CadOperation::ExportStep,
+            prepared: None,
+            input_bytes: Vec::new(),
+        };
+        assert!(matches!(
+            validate_reply(&stale_step_request, stale_step, &identity),
+            Err(crate::cad_jobs::CadJobError::Stale(message))
+                if message == "CAD result has another document revision"
+        ));
+        worker.close();
+    }
+}
+
 fn js_error(error: JsValue) -> CadWorkerError {
     CadWorkerError(
         error

@@ -827,23 +827,12 @@ fn project_scene_rows(
     if display_assembly.is_none() && current_assembly.is_none() {
         return None;
     }
-    let layers: Vec<_> = display_assembly
-        .into_iter()
-        .flat_map(|assembly| assembly.stack.iter().map(move |layer| (assembly, layer)))
-        .map(|(assembly, layer)| MechanicalLayerRow {
-            id: layer.id.clone(),
-            label: mechanical_layer_label(&layer.id, internal_gasket),
-            z: layer.z,
-            thickness: layer.thickness,
-            resolved_body_thickness: assembly
-                .case
-                .bodies
-                .iter()
-                .find(|body| body.body.id == layer.id)
-                .map(|body| body.body.thickness),
-            is_previous,
-        })
-        .collect();
+    let layers = project_layer_rows(
+        display_assembly,
+        current_assembly,
+        internal_gasket,
+        is_previous,
+    );
     let support_assembly = current_assembly.or(display_assembly);
     let supports_are_previous = current_assembly.is_none() && is_previous;
     let gasket_supports: Vec<_> = support_assembly
@@ -912,7 +901,7 @@ fn project_scene_rows(
         })
         .collect::<Vec<_>>();
     Some(MechanicalSceneRows {
-        layers: Rc::from(layers),
+        layers,
         gasket_supports: Rc::from(gasket_supports),
         fit_parts: Rc::from(fit_parts),
         fit_parts_resolved,
@@ -920,6 +909,76 @@ fn project_scene_rows(
         suggested_mounts: Rc::from(suggested_mounts),
         findings: Rc::from(findings),
     })
+}
+
+fn project_layer_rows(
+    display_assembly: Option<&MechanicalAssembly>,
+    current_assembly: Option<&MechanicalAssembly>,
+    internal_gasket: bool,
+    is_previous: bool,
+) -> Rc<[MechanicalLayerRow]> {
+    // Current assemblies have already passed the exact scope/token/revision admission above.
+    // Prefer their rows so the settings view can show the accepted resolved stack before the
+    // viewport publishes a current scene; only fall back to display geometry as explicitly
+    // previous rows when no current assembly is available.
+    let (assembly, rows_are_previous) = current_assembly
+        .map(|assembly| (Some(assembly), false))
+        .unwrap_or((display_assembly, is_previous));
+    let layers: Vec<_> = assembly
+        .into_iter()
+        .flat_map(|assembly| assembly.stack.iter().map(move |layer| (assembly, layer)))
+        .map(|(assembly, layer)| MechanicalLayerRow {
+            id: layer.id.clone(),
+            label: mechanical_layer_label(&layer.id, internal_gasket),
+            z: layer.z,
+            thickness: layer.thickness,
+            resolved_body_thickness: assembly
+                .case
+                .bodies
+                .iter()
+                .find(|body| body.body.id == layer.id)
+                .map(|body| body.body.thickness),
+            is_previous: rows_are_previous,
+        })
+        .collect();
+    Rc::from(layers)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    fn assembly_with_plate(thickness: f64) -> MechanicalAssembly {
+        serde_json::from_value(serde_json::json!({
+            "revision": 1,
+            "case": { "revision": 1, "bodies": [] },
+            "stack": [{ "id": "plate", "z": 3.5, "thickness": thickness }],
+            "suggestedMounts": [],
+            "nominalPlateContours": [],
+            "plateContours": [],
+            "diagnostics": []
+        }))
+        .expect("valid minimal mechanical assembly")
+    }
+
+    #[wasm_bindgen_test]
+    fn current_resolution_layers_precede_previous_display_layers() {
+        let previous = assembly_with_plate(1.5);
+        let current = assembly_with_plate(2.0);
+        let rows = project_layer_rows(Some(&previous), Some(&current), false, true);
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].thickness, 2.0);
+        assert!(!rows[0].is_previous);
+
+        let fallback = project_layer_rows(Some(&previous), None, false, true);
+        assert_eq!(fallback.len(), 1);
+        assert_eq!(fallback[0].thickness, 1.5);
+        assert!(fallback[0].is_previous);
+    }
 }
 
 fn current_source_key(runtime: &Runtime) -> Option<SettingsSourceKey> {

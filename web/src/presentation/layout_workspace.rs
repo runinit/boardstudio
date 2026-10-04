@@ -174,6 +174,37 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
 }
 
 pub(super) fn inspector(mut input: InspectorInput) -> Element {
+    let mut matrix_relationship_escape_target = use_signal(|| None::<objects::TreeSelectRequest>);
+    let component_owner = input
+        .component_inspector
+        .as_ref()
+        .map(|projection| projection.owner.clone());
+    let board_inspector_visible = input.board_inspector.is_some();
+    let observed_relationship_target = matrix_relationship_escape_target();
+    let observed_component_owner = component_owner.clone();
+    let observed_board_visible = board_inspector_visible;
+    use_effect(use_reactive!(
+        |observed_relationship_target, observed_component_owner, observed_board_visible| {
+            let Some(target_value) = observed_relationship_target.as_ref() else {
+                return;
+            };
+            if observed_board_visible
+                || observed_component_owner.as_ref().is_some_and(|owner| {
+                    !matrix_relationship_escape_target_is_current(target_value, owner)
+                })
+            {
+                matrix_relationship_escape_target.set(None);
+            }
+        }
+    ));
+    let mut inspector_tab = input.inspector_tab;
+    let mut return_target = matrix_relationship_escape_target;
+    let on_matrix_relationship_escape =
+        EventHandler::new(move |request: objects::TreeSelectRequest| {
+            return_target.set(None);
+            inspector_tab.set(LayoutInspectorTab::Properties);
+            input.on_select_context.call(request);
+        });
     if let Some(page) = input.findings_page.filter(|page| page.open) {
         return rsx! {
             PendingSplayOriginPickEscape {
@@ -212,6 +243,11 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
         PendingSplayOriginPickEscape {
             pending: input.splay_origin_pick_pending,
             on_cancel: input.on_cancel_splay_origin_pick,
+        }
+        MatrixRelationshipEscape {
+            target: matrix_relationship_escape_target(),
+            component_owner,
+            on_escape: on_matrix_relationship_escape,
         }
         if input.findings_return_available {
             div { class: "m1-layout-findings-return",
@@ -256,6 +292,7 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
                     button {
                         r#type: "button",
                         onclick: move |_| {
+                            matrix_relationship_escape_target.set(Some(target.clone()));
                             input.inspector_tab.set(LayoutInspectorTab::Properties);
                             input.on_select_context.call(target.clone());
                         },
@@ -308,6 +345,132 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
             }
         }
     }
+}
+
+#[component]
+fn MatrixRelationshipEscape(
+    target: Option<objects::TreeSelectRequest>,
+    component_owner: Option<super::inspector::LayoutComponentInspectorOwner>,
+    on_escape: EventHandler<objects::TreeSelectRequest>,
+) -> Element {
+    #[cfg(target_arch = "wasm32")]
+    {
+        use std::{cell::RefCell, rc::Rc};
+        use wasm_bindgen::{JsCast, closure::Closure};
+
+        type Listener = Rc<
+            RefCell<
+                Option<(
+                    web_sys::Document,
+                    Closure<dyn FnMut(web_sys::KeyboardEvent)>,
+                )>,
+            >,
+        >;
+
+        let listener = use_hook(Listener::default);
+        let effect_listener = listener.clone();
+        use_effect(use_reactive!(|target, component_owner| {
+            let listener = effect_listener.clone();
+            if let Some((document, callback)) = listener.borrow_mut().take() {
+                let _ = document.remove_event_listener_with_callback(
+                    "keydown",
+                    callback.as_ref().unchecked_ref(),
+                );
+            }
+            let (Some(target), Some(component_owner)) = (target.as_ref(), component_owner.as_ref())
+            else {
+                return;
+            };
+            if !matrix_relationship_escape_target_is_current(target, component_owner) {
+                return;
+            }
+            let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+                return;
+            };
+            let target = target.clone();
+            let component_owner = component_owner.clone();
+            let on_escape = on_escape;
+            let callback = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
+                if event
+                    .target()
+                    .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
+                    .is_some_and(|target| {
+                        target
+                            .closest("input, textarea, select, [contenteditable='true']")
+                            .ok()
+                            .flatten()
+                            .is_some()
+                    })
+                {
+                    return;
+                }
+                let Some(request) = matrix_relationship_escape_return_request(
+                    &target,
+                    &component_owner,
+                    &event.key(),
+                    event.default_prevented(),
+                ) else {
+                    return;
+                };
+                event.prevent_default();
+                event.stop_propagation();
+                on_escape.call(request);
+            }) as Box<dyn FnMut(_)>);
+            let _ = document
+                .add_event_listener_with_callback("keydown", callback.as_ref().unchecked_ref());
+            *listener.borrow_mut() = Some((document, callback));
+        }));
+        use_drop({
+            let listener = listener.clone();
+            move || {
+                if let Some((document, callback)) = listener.borrow_mut().take() {
+                    let _ = document.remove_event_listener_with_callback(
+                        "keydown",
+                        callback.as_ref().unchecked_ref(),
+                    );
+                }
+            }
+        });
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = (target, component_owner, on_escape);
+    rsx! {}
+}
+
+fn matrix_relationship_escape_target_is_current(
+    target: &objects::TreeSelectRequest,
+    component_owner: &super::inspector::LayoutComponentInspectorOwner,
+) -> bool {
+    target.scope == component_owner.scope
+        && matches!(
+            &target.context,
+            objects::TreeContext::Component {
+                part_id: Some(part_id),
+                ..
+            } if part_id == &component_owner.part_id
+        )
+}
+
+fn matrix_relationship_escape_return_request(
+    target: &objects::TreeSelectRequest,
+    component_owner: &super::inspector::LayoutComponentInspectorOwner,
+    key: &str,
+    default_prevented: bool,
+) -> Option<objects::TreeSelectRequest> {
+    if key != "Escape"
+        || default_prevented
+        || !matrix_relationship_escape_target_is_current(target, component_owner)
+    {
+        return None;
+    }
+    Some(objects::TreeSelectRequest {
+        scope: target.scope.clone(),
+        context: objects::TreeContext::Board {
+            board_id: target.scope.board_id.clone(),
+        },
+        mode: target.mode.clone(),
+        outline_action: None,
+    })
 }
 
 #[component]
@@ -448,6 +611,105 @@ mod origin_pick_escape_regression_tests {
                 .as_deref(),
             Some("false"),
             "Escape from the Inspector must clear the pending canvas pick"
+        );
+        root.remove();
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod relation_escape_regression_tests {
+    use super::*;
+    use boardstudio_application::{Scope, SelectionMode, SessionEpoch};
+    use wasm_bindgen_test::*;
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    fn route() -> (
+        objects::TreeSelectRequest,
+        super::super::inspector::LayoutComponentInspectorOwner,
+    ) {
+        let scope = Scope {
+            session_epoch: SessionEpoch(5),
+            document_id: "layout-escape".into(),
+            board_id: "left".into(),
+            instance_id: None,
+        };
+        let part_id = "left-keys-SW1".to_owned();
+        (
+            objects::TreeSelectRequest {
+                scope: scope.clone(),
+                context: objects::TreeContext::Component {
+                    part_id: Some(part_id.clone()),
+                    matrix_id: Some("left-keys".into()),
+                    row: Some(0),
+                    column: Some(0),
+                    assembly_id: None,
+                },
+                mode: SelectionMode::Replace,
+                outline_action: None,
+            },
+            super::super::inspector::LayoutComponentInspectorOwner {
+                scope,
+                snapshot_token: boardstudio_application::SnapshotToken(13),
+                revision: 9,
+                context_generation: 2,
+                scope_generation: 3,
+                part_id,
+            },
+        )
+    }
+
+    #[component]
+    fn relation_escape_host() -> Element {
+        let (target, owner) = route();
+        let mut context = use_signal(|| "component");
+        rsx! {
+            MatrixRelationshipEscape {
+                target: Some(target),
+                component_owner: Some(owner),
+                on_escape: EventHandler::new(move |request: objects::TreeSelectRequest| {
+                    context.set(if matches!(request.context, objects::TreeContext::Board { .. }) {
+                        "board"
+                    } else {
+                        "unexpected"
+                    });
+                }),
+            }
+            output { id: "selection-context", "{context()}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn escape_from_matrix_relationship_component_returns_to_board_context() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(relation_escape_host);
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(40).await;
+
+        let options = web_sys::KeyboardEventInit::new();
+        options.set_key("Escape");
+        options.set_bubbles(true);
+        document
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &options)
+                    .unwrap(),
+            )
+            .unwrap();
+        gloo_timers::future::TimeoutFuture::new(40).await;
+
+        assert_eq!(
+            root.query_selector("#selection-context")
+                .unwrap()
+                .unwrap()
+                .text_content()
+                .as_deref(),
+            Some("board"),
+            "Escape after Edit placement relationship returns to the Board Inspector context"
         );
         root.remove();
     }

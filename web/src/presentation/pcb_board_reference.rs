@@ -932,14 +932,18 @@ pub(super) fn Editor(
                 for path in current_paths.iter().cloned() {
                     {
                         let selected_asset_id = reference.model_assets.get(&path).cloned().unwrap_or_default();
-                        let current_asset = selected_asset_id.clone();
+                        let available_selection = matching::selected_available_asset(
+                            &selected_asset_id,
+                            options.iter().map(|asset| asset.id.as_str()),
+                        );
+                        let saved_asset_unavailable = !selected_asset_id.is_empty()
+                            && available_selection.is_none();
                         let path_for_select = path.clone();
                         let path_for_file = path.clone();
                         rsx! {
                             label { key: "{path}", "Model asset for {path}"
                                 select {
                                     aria_label: "Model asset for {path}",
-                                    value: "{selected_asset_id}",
                                     disabled: disabled || busy,
                                     onchange: move |event: FormEvent| {
                                         let selected = event.value();
@@ -948,12 +952,12 @@ pub(super) fn Editor(
                                             asset_id: if selected.is_empty() { None } else { Some(selected) },
                                         });
                                     },
-                                    option { value: "", "Resolve bundled model" }
-                                    if !current_asset.is_empty() && !options.iter().any(|asset| asset.id == current_asset) {
-                                        option { value: "{current_asset}", "Saved model asset is unavailable" }
+                                    option { value: "", selected: selected_asset_id.is_empty(), "Resolve bundled model" }
+                                    if saved_asset_unavailable {
+                                        option { value: "{selected_asset_id}", selected: true, "Saved model asset is unavailable" }
                                     }
                                     for asset in &options {
-                                        option { key: "{asset.id}", value: "{asset.id}", "{asset.name}" }
+                                        option { key: "{asset.id}", value: "{asset.id}", selected: available_selection == Some(asset.id.as_str()), "{asset.name}" }
                                     }
                                 }
                                 input {
