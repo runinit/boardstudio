@@ -16,10 +16,11 @@ use boardstudio_application::{
 use boardstudio_core::model::{
     CaseOpening, GasketConstructionVersion, GasketPlacement, HardwareTransport, InsertInstallation,
     InternalClosureHardware, InternalGasketConfiguration, MechanicalAssembly, MechanicalBattery,
-    MechanicalBottomStyle, MechanicalConfiguration, MechanicalCriticalFit, MechanicalGasketLayout,
-    MechanicalHardwareSpecification, MechanicalMount, MechanicalPartProfile,
-    MechanicalSwitchFamily, Mount, MountKind, Part, PartDefinition, PartGenerator, PartKind,
-    PlateMethod, ProjectDoc, ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Vec2, Vec3,
+    MechanicalBottomStyle, MechanicalBuiltinProfile, MechanicalConfiguration,
+    MechanicalCriticalFit, MechanicalGasketLayout, MechanicalHardwareSpecification,
+    MechanicalMount, MechanicalPartProfile, MechanicalSwitchFamily, Mount, MountKind, Part,
+    PartDefinition, PartGenerator, PartKind, PlateMethod, ProjectDoc, ScrewDrive, ScrewHeadProfile,
+    ScrewLengthDatum, Vec2, Vec3,
 };
 use std::{
     cell::{Cell, RefCell},
@@ -42,7 +43,8 @@ pub(crate) type ProjectClosureClearancePort =
 pub(crate) type LoadSwitchProfilePort = Rc<
     dyn Fn(
         String,
-        MechanicalSwitchFamily,
+        MechanicalBuiltinProfile,
+        Option<MechanicalSwitchFamily>,
         f64,
     ) -> LocalFuture<Result<MechanicalPartProfile, String>>,
 >;
@@ -494,9 +496,19 @@ impl MechanicalSettingsController {
                             configuration.plate_thickness
                         };
                         let plate_to_pcb = mounting_datum(*family) - plate_thickness;
+                        let source = match family {
+                            MechanicalSwitchFamily::Mx => MechanicalBuiltinProfile::MxSwitch,
+                            MechanicalSwitchFamily::ChocV1 => {
+                                MechanicalBuiltinProfile::ChocV1Switch
+                            }
+                            MechanicalSwitchFamily::ChocV2 => {
+                                MechanicalBuiltinProfile::ChocV2Switch
+                            }
+                        };
                         let mut profile = (ports.load_switch_profile)(
                             definition_id.clone(),
-                            *family,
+                            source,
+                            Some(*family),
                             plate_to_pcb,
                         )
                         .await?;
@@ -516,6 +528,42 @@ impl MechanicalSettingsController {
                             configuration.plate_foam_thickness =
                                 default_plate_foam_thickness(plate_to_pcb);
                         }
+                        configuration.profiles.push(profile);
+                    }
+                    MechanicalSettingsPatch::AssignStabilizerProfile {
+                        definition_id,
+                        source,
+                    } => {
+                        if !matches!(
+                            source,
+                            MechanicalBuiltinProfile::MxStab2u
+                                | MechanicalBuiltinProfile::MxStab625u
+                        ) {
+                            return Err("The selected stabilizer profile is not supported.".into());
+                        }
+                        validate_profile_target(
+                            base_document,
+                            &request.identity.active_board_id,
+                            &configuration,
+                            definition_id,
+                            true,
+                        )?;
+                        let mut profile = (ports.load_switch_profile)(
+                            definition_id.clone(),
+                            *source,
+                            None,
+                            configuration.plate_to_pcb,
+                        )
+                        .await?;
+                        if !Self::still_current(&ports, &controller, request) {
+                            return Err("The mechanical settings scope changed while loading the stabilizer profile.".into());
+                        }
+                        if profile.definition_id != *definition_id
+                            || profile.switch_family.is_some()
+                        {
+                            return Err("Core returned a different stabilizer profile.".into());
+                        }
+                        profile.plate_to_pcb = configuration.plate_to_pcb;
                         configuration.profiles.push(profile);
                     }
                     MechanicalSettingsPatch::AssignImportedGeometryProfile { definition_id } => {
@@ -1578,6 +1626,7 @@ fn apply_patch(
                 .clear();
         }
         MechanicalSettingsPatch::AssignSwitchProfile { .. }
+        | MechanicalSettingsPatch::AssignStabilizerProfile { .. }
         | MechanicalSettingsPatch::AssignImportedGeometryProfile { .. } => {
             return Err(
                 "Profile assignment must be prepared from the current accepted Case scope.".into(),

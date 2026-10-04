@@ -146,14 +146,15 @@ pub(crate) fn use_mechanical_settings_mount(
                 Rc::new(|| Box::pin(parts::load_mounting_hole_definition()));
             let profile_runtime = runtime_for_operation.clone();
             let load_switch_profile: LoadSwitchProfilePort =
-                Rc::new(move |definition_id, family, plate_to_pcb| {
+                Rc::new(move |definition_id, source, family, plate_to_pcb| {
                     let operation_id = profile_runtime.operation();
                     let runtime = profile_runtime.clone();
                     Box::pin(async move {
                         runtime
-                            .standard_switch_profile(
+                            .standard_builtin_profile(
                                 operation_id,
                                 definition_id,
+                                source,
                                 family,
                                 plate_to_pcb,
                             )

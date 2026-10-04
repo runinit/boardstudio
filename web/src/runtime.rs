@@ -662,18 +662,37 @@ impl Runtime {
         family: MechanicalSwitchFamily,
         plate_to_pcb: f64,
     ) -> Result<MechanicalPartProfile, String> {
-        let executor_epoch = self.session.borrow().core_executor_epoch();
-        let core = self.core.borrow().clone();
-        let request_id = format!("parts-standard-profile-{}", operation_id.0);
         let source = match family {
             MechanicalSwitchFamily::Mx => MechanicalBuiltinProfile::MxSwitch,
             MechanicalSwitchFamily::ChocV1 => MechanicalBuiltinProfile::ChocV1Switch,
             MechanicalSwitchFamily::ChocV2 => MechanicalBuiltinProfile::ChocV2Switch,
         };
+        self.standard_builtin_profile(
+            operation_id,
+            definition_id,
+            source,
+            Some(family),
+            plate_to_pcb,
+        )
+        .await
+    }
+
+    /// Load a reviewed Core builtin profile for the Case editor's private assignment path.
+    pub(crate) async fn standard_builtin_profile(
+        &self,
+        operation_id: OperationId,
+        definition_id: String,
+        source: MechanicalBuiltinProfile,
+        expected_family: Option<MechanicalSwitchFamily>,
+        plate_to_pcb: f64,
+    ) -> Result<MechanicalPartProfile, String> {
+        let executor_epoch = self.session.borrow().core_executor_epoch();
+        let core = self.core.borrow().clone();
+        let request_id = format!("parts-standard-profile-{}", operation_id.0);
         let request = CoreRequest::MechanicalProfile {
             id: request_id.clone(),
             definition_id: definition_id.clone(),
-            source,
+            source: source.clone(),
             plate_to_pcb,
         };
         let reply = core
@@ -685,13 +704,26 @@ impl Runtime {
         {
             return Err("Core worker changed during standard switch fit lookup.".into());
         }
-        crate::parts_mechanical_profile::standard_profile_reply_matches(
-            reply,
-            &request_id,
-            &definition_id,
-            family,
-            plate_to_pcb,
-        )
+        match reply {
+            CoreReply::MechanicalProfile { id, profile } if id == request_id => {
+                if profile.definition_id != definition_id
+                    || profile.switch_family != expected_family
+                    || (profile.plate_to_pcb - plate_to_pcb).abs() > f64::EPSILON
+                    || (matches!(
+                        source,
+                        MechanicalBuiltinProfile::MxStab2u | MechanicalBuiltinProfile::MxStab625u
+                    ) && profile.source_geometry.is_none())
+                {
+                    return Err("Core returned a different standard mechanical profile.".into());
+                }
+                Ok(profile)
+            }
+            CoreReply::Error { id, message, .. } if id == request_id => Err(message),
+            CoreReply::MechanicalProfile { .. } | CoreReply::Error { .. } => {
+                Err("Core returned a stale standard mechanical profile reply.".into())
+            }
+            _ => Err("Core returned an unexpected standard mechanical profile reply.".into()),
+        }
     }
 
     /// Import a source-owned KiCad footprint through the existing artifact worker.

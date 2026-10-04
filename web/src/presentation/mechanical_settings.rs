@@ -5,9 +5,10 @@ pub(crate) use crate::mechanical_feedback::{
 };
 use boardstudio_core::model::{
     CaseOpening, GasketPlacement, HardwareTransport, InsertInstallation, InternalClosureHardware,
-    MechanicalBattery, MechanicalBottomStyle, MechanicalCriticalFit, MechanicalGasketAnchor,
-    MechanicalHardwareSpecification, MechanicalMount, MechanicalSwitchFamily, Mount, MountKind,
-    PlateMethod, ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Severity, Vec2,
+    MechanicalBattery, MechanicalBottomStyle, MechanicalBuiltinProfile, MechanicalCriticalFit,
+    MechanicalGasketAnchor, MechanicalHardwareSpecification, MechanicalMount,
+    MechanicalSwitchFamily, Mount, MountKind, PlateMethod, ScrewDrive, ScrewHeadProfile,
+    ScrewLengthDatum, Severity, Vec2,
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -528,6 +529,10 @@ pub(crate) enum MechanicalSettingsPatch {
         definition_id: String,
         family: MechanicalSwitchFamily,
     },
+    AssignStabilizerProfile {
+        definition_id: String,
+        source: MechanicalBuiltinProfile,
+    },
     AssignImportedGeometryProfile {
         definition_id: String,
     },
@@ -655,6 +660,9 @@ impl MechanicalSettingsPatch {
             Self::ResetGasketPlacement => "reset-gasket-placement".to_owned(),
             Self::AssignSwitchProfile { definition_id, .. } => {
                 format!("assign-switch-profile:{definition_id}")
+            }
+            Self::AssignStabilizerProfile { definition_id, .. } => {
+                format!("assign-stabilizer-profile:{definition_id}")
             }
             Self::AssignImportedGeometryProfile { definition_id } => {
                 format!("assign-imported-profile:{definition_id}")
@@ -2678,6 +2686,7 @@ struct ProfileGuidanceProps {
 #[component]
 fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
     let mut selected_family = use_signal(String::new);
+    let mut selected_stabilizer = use_signal(String::new);
     rsx! {
         section { class: "m1-mechanical-group", aria_label: "Switch fit profiles",
             h3 { "Switch fit profiles" }
@@ -2766,6 +2775,58 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                                             MechanicalSettingsPatch::AssignSwitchProfile {
                                                 definition_id,
                                                 family,
+                                            },
+                                        );
+                                    }
+                                }
+                            },
+                            option { value: "", "Choose a placed switch type…" }
+                            for target in props.targets.iter().filter(|target| target.switch_profile) {
+                                option { value: "{target.definition_id}", "{target.name}" }
+                            }
+                        }
+                    }
+                }
+                div { class: "m1-mechanical-profile-assignment",
+                    label { class: "m1-mechanical-field",
+                        span { "Library stabilizer profile" }
+                        select {
+                            aria_label: "Library stabilizer profile",
+                            disabled: !props.editable,
+                            value: selected_stabilizer(),
+                            onchange: move |event: FormEvent| selected_stabilizer.set(event.value()),
+                            option { value: "", "Choose a stabilizer size…" }
+                            option { value: "mx-stab2u", "MX stabilizer · 2u" }
+                            option { value: "mx-stab625u", "MX stabilizer · 6.25u" }
+                        }
+                    }
+                    label { class: "m1-mechanical-field",
+                        span { "Assign library stabilizer profile to" }
+                        select {
+                            aria_label: "Assign library stabilizer profile to",
+                            disabled: !props.editable || selected_stabilizer().is_empty(),
+                            value: "",
+                            onchange: {
+                                let identity = props.identity.clone();
+                                let mut sequence = props.request_sequence;
+                                let on_request = props.on_request;
+                                let selected_stabilizer = selected_stabilizer;
+                                move |event: FormEvent| {
+                                    let source = match selected_stabilizer().as_str() {
+                                        "mx-stab2u" => Some(MechanicalBuiltinProfile::MxStab2u),
+                                        "mx-stab625u" => Some(MechanicalBuiltinProfile::MxStab625u),
+                                        _ => None,
+                                    };
+                                    if !event.value().is_empty()
+                                        && let Some(source) = source
+                                    {
+                                        send_request(
+                                            &mut sequence,
+                                            &identity,
+                                            on_request,
+                                            MechanicalSettingsPatch::AssignStabilizerProfile {
+                                                definition_id: event.value(),
+                                                source,
                                             },
                                         );
                                     }
