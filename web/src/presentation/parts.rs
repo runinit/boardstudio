@@ -682,11 +682,6 @@ mod add_object_menu_tests {
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
-    async fn mounted_browse_button_preserves_search_and_reveals_compact_objects() {
-        browse_from_mounted_chooser(true).await;
-    }
-
-    #[wasm_bindgen_test::wasm_bindgen_test]
     async fn mounted_browse_button_preserves_search_and_pins_desktop_objects() {
         browse_from_mounted_chooser(false).await;
     }

@@ -30,6 +30,11 @@ record architectural reasons in the RF ledger. Preserve unrelated changes, saved
 projects, exports and history. Reset/discard/history rewrite, external publication,
 production cutover and React removal retain their separate authorization/gates.
 
+Mobile/compact validation is deferred by user instruction on 2026-10-04. Remove its
+active automated checks and omit mobile browser qualification for now; retain desktop
+checks and the responsive application behavior. Existing mobile evidence is historical,
+not a current passing gate or acceptance requirement during this deferral.
+
 ## Delivery loop
 
 1. Keep six workbench queues: Layout, PCB, Keymap, Keycaps, Case/shared 3D, and

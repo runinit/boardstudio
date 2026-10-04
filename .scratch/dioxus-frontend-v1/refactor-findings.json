@@ -2645,7 +2645,7 @@
       ],
       "observation": "mod presentation compiles only for wasm32 and native tests reach it through ~18 hand-picked #[path] includes (RF-022). 63 plain #[test]s in 16 files (keycaps_settings.rs 8, parts/preview.rs 9, parts/catalogue.rs 8, objects/matrix_inspector_controller.rs 6, shared_viewer.rs 4 ...) are compiled only for wasm32 and therefore never run. Separately layout_component_inspector_tests::mounted_component_drafts_survive_unrelated_acceptance_and_blur_uses_latest_owner fails in headless Chrome with and without the 2026-10-04 Layout test work (left 4.00, right 7.25).",
       "impact": "Behavior the ledger calls covered may be untested; two defects already reached commits because of this blind spot.",
-      "during_port": "Retain zero-baseline reachability and enforced native/page/headless gates. Five library exclusions were removed after reviewed harness corrections and enforcing integration 4812d82b passed. Investigate the eight remaining exclusions; none counts as a passing assertion.",
+      "during_port": "Retain zero-baseline reachability and enforced native/page/headless gates. Shared fresh generator setup restores five tests to the enforcing gate; mobile checks are deferred by user instruction, not repaired. The sole remaining exclusion is the unresolved mounted component draft assertion.",
       "post_port": "Replace the hand-maintained #[path] mirror with a native-compilable controller layer.",
       "continuations": [
         {
@@ -2663,6 +2663,15 @@
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/astra-consolidation-review-20261004.md",
             ".scratch/dioxus-frontend-v1/evidence/parts-library-gates-20261004/commit-gate.log"
+          ]
+        },
+        {
+          "date": "2026-10-04",
+          "observation": "Follow-up Astra review supports a shared generator package/server and thin legacy wrappers with preserved path-mapping, catalogue and part-input coverage. RED-first --all/--depth inventory regressions now reject missing, unexpected and incomplete outcomes. Both Python suites pass 26/26; four wrapper selection/exit probes pass. Actual five-file headless batch executes 21/21 across seven isolated modules, including exact PASS receipts for all five generator exclusions, which are removed. User explicitly deferred mobile checks: four mobile-only tests and three mobile CSS assertions removed, one mounted guide test converted to desktop; two mobile exclusions removed as scope deferral. Allowlist is now one unresolved component-draft failure. This is not a full-suite or parent-acceptance claim; the guarded integration commit still owns its required native/page/reachability/affected-module checks.",
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/consolidation-followup-review-20261004.md",
+            ".scratch/dioxus-frontend-v1/evidence/consolidation-followup-20261004/headless.log",
+            "scripts/wasm-known-failures.json"
           ]
         }
       ]

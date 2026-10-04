@@ -10,6 +10,9 @@ from pathlib import Path
 import re
 import tempfile
 import unittest
+from urllib.error import HTTPError, URLError
+from urllib.request import urlopen
+from unittest.mock import patch
 
 SCRIPT = Path(__file__).with_name("run-wasm-tests.py")
 spec = importlib.util.spec_from_file_location("run_wasm_tests", SCRIPT)
@@ -229,14 +232,131 @@ class RunWasmTestsTests(unittest.TestCase):
     def test_all_mode_lists_tests_and_runs_one_filter_per_module(self):
         self.fake(
             'if [ "$1" = --list ]; then printf "%s\\n" "a::m1::t1: test" "a::m1::t2: test" "b::m2::t3: test"; exit 0; fi\n'
-            'echo "test ${1}t ... ok"'
+            'case "$1" in a::m1::) echo "test a::m1::t1 ... ok"; echo "test a::m1::t2 ... ok";; '
+            'b::m2::) echo "test b::m2::t3 ... ok";; esac'
         )
         code, out, _ = self.main("--all")
         self.assertEqual(code, 0, out)
         calls = self.log.read_text().split("\n")
         self.assertIn("--list", calls[0])
         self.assertEqual(sorted(c for c in calls[1:] if c), ["a::m1::", "b::m2::"])
-        self.assertIn("executed 2", out)
+        self.assertIn("executed 3", out)
+
+    def test_all_mode_rejects_listed_tests_missing_from_terminal_outcomes(self):
+        self.fake(
+            'if [ "$1" = --list ]; then printf "%s\\n" '
+            '"a::m1::t1: test" "a::m1::t2: test" "b::m2::t3: test"; exit 0; fi\n'
+            'case "$1" in a::m1::) echo "test a::m1::t1 ... ok";; '
+            'b::m2::) echo "test b::m2::t3 ... ok";; esac'
+        )
+        code, _, err = self.main("--all")
+        self.assertEqual(code, 1)
+        self.assertIn("listed tests were not completed", err)
+        self.assertIn("a::m1::t2", err)
+
+    def test_all_depth_mode_rejects_unexpected_and_incomplete_outcomes(self):
+        self.fake(
+            'if [ "$1" = --list ]; then printf "%s\\n" '
+            '"a::m1::t1: test" "a::m2::t2: test"; exit 0; fi\n'
+            'echo "test a::m1::t1 ... ok"\n'
+            'echo "    Invoking test: a::m2::t2"\n'
+            'echo "test a::m1::extra ... ok"'
+        )
+        code, _, err = self.main("--all", "--depth", "1")
+        self.assertEqual(code, 1)
+        self.assertIn("incomplete execution", err)
+        self.assertIn("unlisted tests matched", err)
+
+    def test_generator_harness_builds_once_serves_allowlisted_assets_and_cleans_up(self):
+        calls = []
+
+        def build(command, **_kwargs):
+            calls.append(command)
+            assets = Path(command[-1])
+            (assets / "layout-generators/src").mkdir(parents=True)
+            (assets / "layout-generators/generated").mkdir(parents=True)
+            (assets / "layout-generators/src/index.js").write_text("export const test = true;")
+            (assets / "layout-generators/generated/catalogue.mjs").write_text("export const catalogue = [];")
+            return type("Result", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+        source_env = {"KEEP": "unchanged"}
+        with patch.object(runner.subprocess, "run", side_effect=build):
+            with runner.packaged_generator_harness(self.dir, source_env) as env:
+                module_url = env[runner.GENERATOR_MODULE_URL_ENV]
+                with urlopen(module_url) as response:
+                    self.assertEqual(response.headers["Access-Control-Allow-Origin"], "*")
+                    self.assertEqual(response.read(), b"export const test = true;")
+                with self.assertRaises(HTTPError) as response:
+                    urlopen(module_url.replace("src/index.js", "../../etc/passwd"))
+                self.assertEqual(response.exception.code, 404)
+                response.exception.close()
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(source_env, {"KEEP": "unchanged"})
+            with self.assertRaises(URLError):
+                urlopen(module_url, timeout=1)
+
+    def test_generator_harness_is_selected_only_for_relevant_sources(self):
+        self.assertTrue(runner.selected_generator_sources(["web/src/bundled_models.rs"], self.dir))
+        self.assertTrue(runner.selected_generator_sources(
+            ["web/src/presentation/parts/catalogue.rs"], self.dir))
+        self.assertFalse(runner.selected_generator_sources(
+            ["web/src/presentation/layout_camera.rs"], self.dir))
+
+    def test_desktop_webdriver_config_is_wide_and_preserves_explicit_override(self):
+        with runner.desktop_webdriver_config({}) as env:
+            config_path = Path(env[runner.WEBDRIVER_CONFIG_ENV])
+            self.assertEqual(json.loads(config_path.read_text()), {
+                "goog:chromeOptions": {"args": ["--window-size=1280,900"]}
+            })
+        self.assertFalse(config_path.exists())
+        supplied = self.dir / "caller-webdriver.json"
+        supplied.write_text('{"goog:chromeOptions":{"args":["--window-size=1440,1000"]}}')
+        with runner.desktop_webdriver_config({runner.WEBDRIVER_CONFIG_ENV: str(supplied)}) as env:
+            self.assertEqual(env[runner.WEBDRIVER_CONFIG_ENV], str(supplied))
+        crate_config = self.dir / "web/webdriver.json"
+        crate_config.parent.mkdir(parents=True, exist_ok=True)
+        crate_config.write_text('{"goog:chromeOptions":{"args":["--window-size=1360,900"]}}')
+        with runner.desktop_webdriver_config({}, self.dir) as env:
+            self.assertEqual(env[runner.WEBDRIVER_CONFIG_ENV], str(crate_config.resolve()))
+
+    def test_main_keeps_one_generator_url_and_webdriver_config_through_listing_and_runs(self):
+        build_calls, seen_urls, seen_configs = [], [], []
+
+        def build(command, **_kwargs):
+            build_calls.append(command)
+            assets = Path(command[-1])
+            (assets / "layout-generators/src").mkdir(parents=True)
+            (assets / "layout-generators/generated").mkdir(parents=True)
+            (assets / "layout-generators/src/index.js").write_text("export const test = true;")
+            (assets / "layout-generators/generated/catalogue.mjs").write_text("export const catalogue = [];")
+            return type("Result", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+        def list_tests(env, _root):
+            seen_urls.append(env[runner.GENERATOR_MODULE_URL_ENV])
+            seen_configs.append(env[runner.WEBDRIVER_CONFIG_ENV])
+            self.assertTrue(Path(seen_configs[-1]).exists())
+            return ["a::m1::t1", "b::m2::t2"]
+
+        def run_filter(filter_, env, _root):
+            seen_urls.append(env[runner.GENERATOR_MODULE_URL_ENV])
+            seen_configs.append(env[runner.WEBDRIVER_CONFIG_ENV])
+            name = "a::m1::t1" if filter_ == "a::m1::" else "b::m2::t2"
+            return 0, {name: "ok"}, f"test {name} ... ok"
+
+        with (
+            patch.dict(os.environ, {runner.RUNNER_ENV: ""}),
+            patch.object(runner, "runner_environment", return_value={"PATH": os.environ.get("PATH", "")}),
+            patch.object(runner, "list_wasm_tests", side_effect=list_tests),
+            patch.object(runner, "run_filter", side_effect=run_filter),
+            patch.object(runner.subprocess, "run", side_effect=build),
+        ):
+            code = runner.main(["--all", "--root", str(self.dir)])
+
+        self.assertEqual(code, 0)
+        self.assertEqual(len(build_calls), 1)
+        self.assertEqual(len(set(seen_urls)), 1)
+        self.assertEqual(len(set(seen_configs)), 1)
+        self.assertFalse(Path(seen_configs[0]).exists())
 
 
 if __name__ == "__main__":

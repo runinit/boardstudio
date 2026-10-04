@@ -2891,7 +2891,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Impact:** Behavior the ledger calls covered may be untested; two defects already reached commits because of this blind spot.
 
-**Current mitigation:** Retain zero-baseline reachability and enforced native/page/headless gates. Five library exclusions were removed after reviewed harness corrections and enforcing integration 4812d82b passed. Investigate the eight remaining exclusions; none counts as a passing assertion.
+**Current mitigation:** Retain zero-baseline reachability and enforced native/page/headless gates. Shared fresh generator setup restores five tests to the enforcing gate; mobile checks are deferred by user instruction, not repaired. The sole remaining exclusion is the unresolved mounted component draft assertion.
 
 **Evidence:** `scripts/check-wasm-tests.py`; `scripts/check-wasm-tests-baseline.json`; `.scratch/dioxus-frontend-v1/evidence/review-opus-20261004/consolidated-review.md`
 
@@ -2925,6 +2925,15 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
       "evidence": [
         ".scratch/dioxus-frontend-v1/evidence/astra-consolidation-review-20261004.md",
         ".scratch/dioxus-frontend-v1/evidence/parts-library-gates-20261004/commit-gate.log"
+      ]
+    },
+    {
+      "date": "2026-10-04",
+      "observation": "Follow-up Astra review supports a shared generator package/server and thin legacy wrappers with preserved path-mapping, catalogue and part-input coverage. RED-first --all/--depth inventory regressions now reject missing, unexpected and incomplete outcomes. Both Python suites pass 26/26; four wrapper selection/exit probes pass. Actual five-file headless batch executes 21/21 across seven isolated modules, including exact PASS receipts for all five generator exclusions, which are removed. User explicitly deferred mobile checks: four mobile-only tests and three mobile CSS assertions removed, one mounted guide test converted to desktop; two mobile exclusions removed as scope deferral. Allowlist is now one unresolved component-draft failure. This is not a full-suite or parent-acceptance claim; the guarded integration commit still owns its required native/page/reachability/affected-module checks.",
+      "evidence": [
+        ".scratch/dioxus-frontend-v1/evidence/consolidation-followup-review-20261004.md",
+        ".scratch/dioxus-frontend-v1/evidence/consolidation-followup-20261004/headless.log",
+        "scripts/wasm-known-failures.json"
       ]
     }
   ]

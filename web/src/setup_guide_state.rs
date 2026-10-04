@@ -75,28 +75,6 @@ mod tests {
     }
 
     #[test]
-    fn compact_guide_and_settings_reveal_the_requested_surface() {
-        assert_eq!(
-            panel_reveal(GuideReveal::Guide, true),
-            PanelReveal {
-                objects_open: true,
-                inspector_open: false,
-                pin_objects: false,
-                pin_inspector: false,
-            }
-        );
-        assert_eq!(
-            panel_reveal(GuideReveal::Settings, true),
-            PanelReveal {
-                objects_open: false,
-                inspector_open: true,
-                pin_objects: false,
-                pin_inspector: false,
-            }
-        );
-    }
-
-    #[test]
     fn desktop_reveal_pins_only_the_requested_panel() {
         assert!(panel_reveal(GuideReveal::Guide, false).pin_objects);
         assert!(!panel_reveal(GuideReveal::Guide, false).pin_inspector);

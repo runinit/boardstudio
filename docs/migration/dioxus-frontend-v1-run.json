@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T22:31:15.522201+00:00",
+    "updated_at": "2026-10-04T22:50:28.496268+00:00",
     "parent_counts": {
       "accepted": 22,
       "implementing": 28,
@@ -567,7 +567,7 @@
       },
       {
         "stream": "Keymap",
-        "state": "F6K.4 accepted through independent seven-clause closure review and verified F5.2/F8.2 joins; existing successful encoder, legacy Wiring and real ZMK evidence reused. Broader release and unqualified compact duplicate-download limits remain with their owners."
+        "state": "F6K.4 accepted through independent seven-clause closure review and verified F5.2/F8.2 joins; existing successful encoder, legacy Wiring and real ZMK evidence reused. Broader release remains with its owners; compact/mobile duplicate-download checks are deferred by user instruction."
       },
       {
         "stream": "Keycaps",
@@ -579,7 +579,7 @@
       },
       {
         "stream": "Parts + Project",
-        "state": "34822paired recipe history/matrix+boardApply/reload and public identity preservation now verifyF4.6-C03/C04. Default models and invalid first-member placement pass; C01parameter andC02import/remainingvalidation stayopen. F2.2-C04 and repairedF7.3-C03 remainverified; eightwasmexclusions remain."
+        "state": "34822paired recipe history/matrix+boardApply/reload and public identity preservation now verifyF4.6-C03/C04. Default models and invalid first-member placement pass; C01parameter andC02import/remainingvalidation stayopen. F2.2-C04 and repairedF7.3-C03 remainverified; One mounted component-draft wasm exclusion remains; five generator exclusions were repaired and two mobile exclusions were removed under explicit deferral."
       }
     ],
     "pending_join_packets": [],
@@ -3541,6 +3541,12 @@
         "published_at": "2026-10-04T21:59:46.880077+00:00",
         "extra_candidate_reason": "Reproduced Parts per-model visibility repair, reviewed test consolidation and library recovery; one shared candidate for Parts/Project, Layout, Keymap, Keycaps, PCB and Case journeys."
       }
-    ]
+    ],
+    "validation_scope": {
+      "desktop": "active",
+      "mobile": "deferred by explicit user instruction on 2026-10-04; remove active mobile checks and omit mobile browser qualification for now",
+      "evidence_policy": "Retain historical mobile receipts; deferral is not a passing test or verified mobile criterion.",
+      "consolidation": "Shared generator harness and strict all-mode inventories; 21/21 affected browser tests and both 26-test Python suites pass. One real draft-state exclusion remains. Mobile tests removed/deferred; desktop coverage retained."
+    }
   }
 }

@@ -12,6 +12,7 @@ Override the runner with BOARDSTUDIO_WASM_TEST_COMMAND (shell-split; the filter,
 """
 
 import argparse
+from contextlib import contextmanager, nullcontext
 import glob
 import importlib.util
 import json
@@ -22,6 +23,10 @@ import shlex
 import shutil
 import subprocess
 import sys
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from tempfile import TemporaryDirectory
+from threading import Thread
+from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parent.parent
 KNOWN_FAILURES = Path(__file__).with_name("wasm-known-failures.json")
@@ -29,6 +34,16 @@ RUNNER_ENV = "BOARDSTUDIO_WASM_TEST_COMMAND"
 WASM_PACK = ["wasm-pack", "test", "--headless", "--chrome", "--mode", "no-install", "web",
              "--no-default-features", "--features", "page", "--bin", "boardstudio-web", "--"]
 CHROME_BINARIES = ("google-chrome-stable", "google-chrome", "chromium", "chromium-browser", "chrome")
+GENERATOR_SOURCE_FILES = (
+    "web/src/bundled_models.rs",
+    "web/src/presentation/parts/catalogue.rs",
+)
+GENERATOR_MODULE_URL_ENV = "BOARDSTUDIO_TEST_LAYOUT_GENERATOR_MODULE_URL"
+WEBDRIVER_CONFIG_ENV = "WASM_BINDGEN_TEST_WEBDRIVER_JSON"
+GENERATOR_ASSETS = (
+    "/layout-generators/src/index.js",
+    "/layout-generators/generated/catalogue.mjs",
+)
 TEST_LINE = re.compile(r"^test (\S+) \.\.\. (ok|FAILED|FAIL)\b", re.M)
 INVOKED_LINE = re.compile(r"^\s*Invoking test: (\S+)", re.M)
 class RunnerError(RuntimeError):
@@ -195,18 +210,101 @@ def filters_for_listed_files(files, env, root=ROOT):
     return filters, expected, unmatched
 
 
-def all_module_filters(env, root=ROOT, depth=None):
+def all_module_selection(env, root=ROOT, depth=None):
     """One filter per test module (or per `depth` leading path segments): a single unfiltered run
     shares one page, so a crash or leaked state in one module masks or breaks the rest."""
     names = list_wasm_tests(env, root)
     modules = sorted({test_module_filter(name, depth) for name in names})
-    return [m for m in modules if not any(o != m and m.startswith(o) for o in modules)]
+    filters = [m for m in modules if not any(o != m and m.startswith(o) for o in modules)]
+    expected = {module: [name for name in names if name.startswith(module)] for module in filters}
+    return filters, expected
+
+
+def selected_generator_sources(files, root=ROOT):
+    requested = filters_for_files(files, root)
+    generator = filters_for_files(GENERATOR_SOURCE_FILES, root)
+    return any(not request or not source or request.startswith(source) or source.startswith(request)
+               for request in requested for source in generator)
+
+
+@contextmanager
+def desktop_webdriver_config(env, root=ROOT):
+    """Set a deterministic desktop Chrome viewport unless the caller supplied capabilities."""
+    env = dict(env)
+    if env.get(WEBDRIVER_CONFIG_ENV):
+        yield env
+        return
+    existing = next((path for path in (Path(root) / "web/webdriver.json", Path(root) / "webdriver.json")
+                     if path.is_file()), None)
+    if existing:
+        env[WEBDRIVER_CONFIG_ENV] = str(existing.resolve())
+        yield env
+        return
+    with TemporaryDirectory(prefix="boardstudio-wasm-webdriver-") as temporary:
+        config = Path(temporary) / "webdriver.json"
+        config.write_text(json.dumps({"goog:chromeOptions": {"args": ["--window-size=1280,900"]}}))
+        env[WEBDRIVER_CONFIG_ENV] = str(config)
+        yield env
+
+
+@contextmanager
+def packaged_generator_harness(root=ROOT, env=None):
+    """Build and serve a fresh, allow-listed generator package for one CLI run."""
+    root = Path(root).resolve()
+    env = dict(env or os.environ)
+    with TemporaryDirectory(prefix="boardstudio-wasm-generators-") as temporary:
+        assets = Path(temporary) / "assets"
+        try:
+            build = subprocess.run(
+                ["node", str(Path(root) / "scripts/web/build-layout-generators.mjs"), str(assets)],
+                cwd=root, text=True, capture_output=True,
+            )
+        except OSError as error:
+            raise RunnerError(f"could not start layout-generator asset build: {error}") from error
+        if build.returncode:
+            raise RunnerError("could not build packaged layout generators:\n" +
+                              "\n".join((build.stdout + build.stderr).strip().splitlines()[-30:]))
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                path = urlsplit(self.path).path
+                if path not in GENERATOR_ASSETS:
+                    self.send_error(404)
+                    return
+                try:
+                    body = (assets / path.lstrip("/")).read_bytes()
+                except OSError:
+                    self.send_error(404)
+                    return
+                self.send_response(200)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Content-Type", "text/javascript")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *_args):
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        server_thread = Thread(target=server.serve_forever, daemon=True)
+        server_thread.start()
+        address, port = server.server_address
+        env[GENERATOR_MODULE_URL_ENV] = f"http://{address}:{port}{GENERATOR_ASSETS[0]}"
+        try:
+            yield env
+        finally:
+            server.shutdown()
+            server.server_close()
+            server_thread.join()
 
 
 def run(filters, known, root=ROOT, expected_tests=None, env=None, unmatched_filters=None):
     """Returns (executed, failed_names, passing_known_names, problems)."""
     env = env if env is not None else (os.environ.copy() if os.environ.get(RUNNER_ENV) else runner_environment(root))
     outcomes, problems, logs = {}, [], []
+    if not filters and not unmatched_filters:
+        problems.append("no wasm tests selected; refusing an empty passing run")
     for filter_ in unmatched_filters or []:
         problems.append(f"zero tests executed for filter {filter_ or '<all tests>'}; "
                         "no matching module appeared in the wasm test list")
@@ -214,7 +312,7 @@ def run(filters, known, root=ROOT, expected_tests=None, env=None, unmatched_filt
         label = filter_ or "<all tests>"
         print(f"run-wasm-tests: [{index}/{len(filters)}] {label}", file=sys.stderr)
         code, found, output = run_filter(filter_, env, root)
-        if (not found and (not expected_tests or filter_ not in expected_tests)
+        if (not found and (expected_tests is None or filter_ not in expected_tests)
                 and filter_.count("::") > 2 and parent_filter(filter_)):
             parent = parent_filter(filter_)
             print(f"run-wasm-tests: no tests under {label}; widening to {parent}", file=sys.stderr)
@@ -236,7 +334,7 @@ def run(filters, known, root=ROOT, expected_tests=None, env=None, unmatched_filt
         failed_here = sorted(name for name, status in found.items() if status == "FAILED")
         if failed_here:
             logs.append(f"--- {label} ---\n" + "\n".join(output.strip().splitlines()[-40:]))
-        if expected_tests and filter_ in expected_tests:
+        if expected_tests is not None and filter_ in expected_tests:
             terminal = {name for name, status in found.items() if status in ("ok", "FAILED")}
             missing = sorted(set(expected_tests[filter_]) - terminal)
             unexpected = sorted(set(found) - set(expected_tests[filter_]))
@@ -268,18 +366,23 @@ def main(argv=None):
                              "(fewer, faster runs; less isolation)")
     parser.add_argument("--root", default=str(ROOT))
     args = parser.parse_args(argv)
-    root = Path(args.root)
+    root = Path(args.root).resolve()
     try:
         known = load_known_failures()
-        env = os.environ.copy() if os.environ.get(RUNNER_ENV) else runner_environment(root)
-        expected_tests = None
-        if args.files:
-            filters, expected_tests, unmatched_filters = filters_for_listed_files(args.files, env, root)
-        else:
-            filters = all_module_filters(env, root, args.depth)
-            unmatched_filters = []
-        executed, failed, passing_known, problems, logs = run(
-            filters, known, root, expected_tests, env, unmatched_filters)
+        custom_runner = bool(os.environ.get(RUNNER_ENV))
+        env = os.environ.copy() if custom_runner else runner_environment(root)
+        needs_generator = not custom_runner and (
+            args.all or selected_generator_sources(args.files, root))
+        browser_setup = not custom_runner
+        with (desktop_webdriver_config(env, root) if browser_setup else nullcontext(env)) as env:
+            with (packaged_generator_harness(root, env) if needs_generator else nullcontext(env)) as env:
+                if args.files:
+                    filters, expected_tests, unmatched_filters = filters_for_listed_files(args.files, env, root)
+                else:
+                    filters, expected_tests = all_module_selection(env, root, args.depth)
+                    unmatched_filters = []
+                executed, failed, passing_known, problems, logs = run(
+                    filters, known, root, expected_tests, env, unmatched_filters)
     except RunnerError as error:
         print(f"run-wasm-tests: {error}", file=sys.stderr)
         return 2

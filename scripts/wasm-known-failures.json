@@ -1,34 +1,6 @@
 [
   {
-    "test": "generator_recognition_uses_packaged_source_membership",
-    "reason": "RF-033: needs the BOARDSTUDIO_TEST_LAYOUT_GENERATOR_MODULE_URL harness"
-  },
-  {
-    "test": "pcb_part_packaged_reversible_proposal_uses_gateron_normalizer",
-    "reason": "RF-033: needs the BOARDSTUDIO_TEST_LAYOUT_GENERATOR_MODULE_URL harness"
-  },
-  {
-    "test": "pcb_part_packaged_binding_schema_uses_generator_parameters",
-    "reason": "RF-033: needs the BOARDSTUDIO_TEST_LAYOUT_GENERATOR_MODULE_URL harness"
-  },
-  {
     "test": "mounted_component_drafts_survive_unrelated_acceptance_and_blur_uses_latest_owner",
     "reason": "RF-033: real failing assertion (left \"4.00\", right \"7.25\")"
-  },
-  {
-    "test": "generated_models_use_packaged_generator_part_overrides",
-    "reason": "RF-033: fails in headless Chrome without the packaged generator/ergogen test harness (observed failing in module-isolated run)"
-  },
-  {
-    "test": "native_preview_paths_use_the_packaged_ergogen_asset_identity_helper",
-    "reason": "RF-033: fails in headless Chrome without the packaged generator/ergogen test harness (observed failing in module-isolated run)"
-  },
-  {
-    "test": "compact_inspector_preserves_the_page_scroll_route",
-    "reason": "RF-033: asserts a compact (<=760px) viewport; needs a narrow-window webdriver.json, default headless window is wide"
-  },
-  {
-    "test": "compact_case_stage_keeps_the_real_guide_visible_until_settings_action",
-    "reason": "RF-033: asserts a compact (<=760px) viewport; needs a narrow-window webdriver.json, default headless window is wide"
   }
 ]
