@@ -1867,7 +1867,7 @@
         {
           "id": "F3.5-C05",
           "requirement": "Key Properties tab provides Enabled, Key Assembly and Attached components (replace/remove, mirror-target local override) like the reference Matrix inspector.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/objects/matrix_transform_inspector.rs",
@@ -1877,7 +1877,7 @@
             ".scratch/dioxus-frontend-v1/evidence/layout-key-inspector-gap-20261004/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Enabled (34815), Key Assembly (34816) and Attached components replace/remove (34817) landed; Enabled/Assembly/Remove passed with Undo. Remaining before verified: Replace and mirror-target override check, tactile option parity with the reference, ownership card/breadcrumb and Wide/Tall pressed state, reopen persistence.",
+          "next_action": "Verified on 34817-34819: Enabled, Key Assembly (option set equals reference), Attached components Replace/Remove edit the selected key, persist across reload and Undo. Mirror-target local override and Redo were not exercised; Wide/Tall highlight is visual work. Catalog-definition attach bug found and fixed during qualification.",
           "finish_condition": "Enabled, Key Assembly and Attached components edit the selected key through the public Dioxus Inspector, persist across reopen and Undo/Redo, and match reference option sets.",
           "owned_files": [
             "web/src/presentation/objects/matrix_transform_inspector.rs",

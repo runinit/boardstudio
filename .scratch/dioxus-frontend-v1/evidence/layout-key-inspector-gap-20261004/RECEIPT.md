@@ -35,3 +35,12 @@ Reopen persistence and Redo were not exercised.
 remove drops the id. Focused tests 11/11; wasm page check passes. Replace choices = document definitions + matrix template catalog (no kind filtering).
 Public check, Sofle v2 Left PCB key 0,3: one attached `diode` with Replace select and Remove; Remove -> 70 -> 69 parts, "No attached components" shown, no alert;
 Undo -> 70 parts, Remove button back. Replace and the mirror-target "Use mirrored components" override were not exercised; reopen persistence unchecked.
+
+## Replace, persistence and option parity — candidates 34818 and 34819
+- 34817 Replace with a catalog-only LED was rejected ("Matrix assembly is invalid", document unchanged) because the catalog definition was not attached.
+  Fixed (controller attaches missing catalog definitions for KeyAttached, as for KeyAssembly); on 34818 the same Replace succeeded with no alert, and after a full page reload
+  the replaced `led_sk6812mini-e` was still the attached component of key 0,3.
+- 34819 key-level choices use the full bundled catalogue (`load_all_catalogue_definitions`). Key Assembly options now equal the reference list:
+  rotary encoder ec11 ec12, Choc V1/V2, Gateron KS27/KS33, MX, THQWGD001C 2-pin tactile reversible, THQWGD001C 4-pin tactile reversible, rotary encoder (sofle), switch mx.
+- Wide/Tall already set `aria-pressed`; the missing highlight is styling and is deferred as visual work. The ownership card exists for matrix selection and the key-level text is on the Relations tab (placement difference, not a missing capability).
+Not exercised: Redo, the mirror-target "Use mirrored components" override (needs a linked layout fixture).
