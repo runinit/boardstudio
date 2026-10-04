@@ -1867,17 +1867,18 @@
         {
           "id": "F3.5-C05",
           "requirement": "Key Properties tab provides Enabled, Key Assembly and Attached components (replace/remove, mirror-target local override) like the reference Matrix inspector.",
-          "state": "verified",
+          "state": "implemented",
           "classification": "functional",
           "sources": [
             "web/src/presentation/objects/matrix_transform_inspector.rs",
             "app/src/ui/MatrixInspector.tsx"
           ],
           "evidence": [
-            ".scratch/dioxus-frontend-v1/evidence/layout-key-inspector-gap-20261004/RECEIPT.md"
+            ".scratch/dioxus-frontend-v1/evidence/layout-key-inspector-gap-20261004/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/review-opus-20261004/consolidated-review.md"
           ],
           "blockers": [],
-          "next_action": "Verified on 34817-34819: Enabled, Key Assembly (option set equals reference), Attached components Replace/Remove edit the selected key, persist across reload and Undo. Mirror-target local override and Redo were not exercised; Wide/Tall highlight is visual work. Catalog-definition attach bug found and fixed during qualification.",
+          "next_action": "Opus 5.5 review HOLD: attached/assembly edits mishandle assemblies_local on mirrored pairs (canonical edit decouples the key; target assembly edit rewrites the canonical half), catalogue loads non-reversible, and the mirror-target 'Use mirrored components' control is missing. Repair in flight; then re-check on a linked-pair fixture.",
           "finish_condition": "Enabled, Key Assembly and Attached components edit the selected key through the public Dioxus Inspector, persist across reopen and Undo/Redo, and match reference option sets.",
           "owned_files": [
             "web/src/presentation/objects/matrix_transform_inspector.rs",
@@ -7205,7 +7206,8 @@
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
             ".scratch/dioxus-frontend-v1/evidence/export-workspace-34763-20261003/RECEIPT.md",
-            ".scratch/dioxus-frontend-v1/evidence/case-authored-step-34814-20261004/RECEIPT.md"
+            ".scratch/dioxus-frontend-v1/evidence/case-authored-step-34814-20261004/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/review-opus-20261004/consolidated-review.md"
           ],
           "blockers": [],
           "next_action": "Candidate 34814 (f551e4e0) now reaches a current authored Left Plate preview (Update preview enabled, exact geometry ready) and unconfigured Right stays disabled; see receipt. Cancel/retry/failed states rely on retained 34775 evidence and were not re-exercised; close at the consolidated Sol review if it accepts that reuse.",
@@ -7926,7 +7928,7 @@
         "INT.2",
         "BND.2"
       ],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md",
       "shared_edit_owner": "integration coordinator",
@@ -7949,6 +7951,13 @@
           "from": "planned",
           "to": "implementing",
           "reason": "Current source contains mounted guide/readiness, mechanical-fit editing, module inspection, physical-setup ownership, guarded export coordination and PCB/Case export consumers; remaining source completion and candidate qualification are active. This corrects stale planned status without accepting any parent or waiving its final joins."
+        },
+        {
+          "at": "2026-10-04T16:52:47.530023+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "All four functional criteria verified; independent Opus 5.5 consolidated review accepted the parent; follow-up defect 4 (non-running Case body test) is tracked separately.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/review-opus-20261004/consolidated-review-f8-2-decision.json"
         }
       ],
       "criteria": [
@@ -7969,7 +7978,8 @@
             ".scratch/dioxus-frontend-v1/evidence/export-zmk-route-20261003/34770-RECEIPT.md",
             ".scratch/dioxus-frontend-v1/evidence/export-pcb-handoff-20261003/34769-RECEIPT.md",
             ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-dynamic-selects-df22f1cc-review-sol-20261004.md",
-            ".scratch/dioxus-frontend-v1/evidence/case-authored-step-34814-20261004/RECEIPT.md"
+            ".scratch/dioxus-frontend-v1/evidence/case-authored-step-34814-20261004/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/review-opus-20261004/consolidated-review.md"
           ],
           "blockers": [],
           "next_action": "Verified: generated mechanical ZIP (34810) plus authored Case STEP on 34814 delivered Sofle v2-Left_PCB-case.step (816,239 bytes, model/step) for Left; Right PCB offers no Case STEP export (Needs work); Left returns to Export. Content of the STEP file was not inspected.",
@@ -8072,6 +8082,9 @@
         "assessed_at": "2026-10-03T19:35:06Z",
         "coverage": "complete",
         "note": "All current acceptance clauses for this parent were split into independently decidable criteria; broad baseline RED context was excluded as a requirement. Parent remains open unless all required criteria and joins are accepted."
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/review-opus-20261004/consolidated-review-f8-2-decision.json"
       }
     },
     {
@@ -9428,8 +9441,8 @@
     "integration_slices": 2,
     "boundary_slices": 2,
     "status": {
-      "accepted": 19,
-      "implementing": 31,
+      "accepted": 20,
+      "implementing": 30,
       "planned": 11
     }
   },

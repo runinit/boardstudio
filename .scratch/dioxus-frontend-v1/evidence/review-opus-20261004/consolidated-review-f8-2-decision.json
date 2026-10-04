@@ -1,0 +1,20 @@
+{
+  "parent": "F8.2",
+  "reason": "All four functional criteria verified; independent Opus 5.5 consolidated review accepted the parent; follow-up defect 4 (non-running Case body test) is tracked separately.",
+  "review": ".scratch/dioxus-frontend-v1/evidence/review-opus-20261004/consolidated-review.md",
+  "review_sha256": "f2f17c8992b2a2f42ec17741132a39902a19a96ea295cde5b4fd728bc8651faa",
+  "criteria_accounting": {
+    "source_commit": "07b4c3466b1f388073e8e1f9d619b0703223d770",
+    "coverage": "complete",
+    "verified_criteria": [
+      "F8.2-C01",
+      "F8.2-C02",
+      "F8.2-C03",
+      "F8.2-C04"
+    ]
+  },
+  "accepted_joins": [
+    "INT.2",
+    "BND.2"
+  ]
+}
