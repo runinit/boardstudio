@@ -6502,7 +6502,7 @@
             ".scratch/dioxus-frontend-v1/evidence/keycaps-3d-preview-20261003/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "After the F7.3-C05 generic module-body packet integrates, carry Core ModuleResolution.model_placements (computed from ResolvedModule.models by prepare_preview) through an accepted producer and the shared Layout viewer's asset delivery path; the current source covers PCB preview models but drops mounted-module asset models that React AssemblyPreview includes. Then inspect retained STL/WRL, keycap inlay and STEP archive/reopen receipts and qualify only missing branches.",
+        "next_action": "With F7.3-C05 generic body/pick verified on ad0de81f, carry Core ModuleResolution.model_placements (computed from ResolvedModule.models by prepare_preview) through an accepted producer and the shared Layout viewer's asset delivery path; current source covers PCB preview models but drops mounted-module asset models that React AssemblyPreview includes. Then reuse retained STL/WRL, keycap inlay and STEP archive/reopen receipts and qualify only missing branches.",
           "finish_condition": "Actual supported asset bytes traverse their existing adapter/decode path with stable IDs and useful unavailable/error feedback.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",
