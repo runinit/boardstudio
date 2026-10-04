@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-fn is_model_filename(filename: &str) -> bool {
+pub(super) fn is_model_filename(filename: &str) -> bool {
     [".step", ".stp", ".stl", ".wrl"]
         .iter()
         .any(|extension| filename.to_ascii_lowercase().ends_with(extension))

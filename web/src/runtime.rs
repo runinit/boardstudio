@@ -414,6 +414,9 @@ pub struct Runtime {
     project_deletion_open: Cell<Option<OperationId>>,
     cad_scene: RefCell<Option<Rc<CadScene>>>,
     cad_worker: RefCell<Option<(Scope, Rc<CadWorker>)>>,
+    case_gesture_preview: RefCell<crate::case_gesture_preview::CaseGesturePreviewState>,
+    case_gesture_preview_job:
+        RefCell<Option<(crate::case_gesture_preview::CaseGesturePreviewOwner, String)>>,
     keycaps_preview_generation: Cell<u64>,
     keycaps_preview_worker: RefCell<Option<(u64, Rc<CadWorker>)>>,
     cad_jobs: RefCell<BTreeMap<JobId, Rc<Cell<bool>>>>,
@@ -508,6 +511,8 @@ impl Runtime {
             project_deletion_open: Cell::new(None),
             cad_scene: RefCell::new(None),
             cad_worker: RefCell::new(None),
+            case_gesture_preview: RefCell::new(Default::default()),
+            case_gesture_preview_job: RefCell::new(None),
             keycaps_preview_generation: Cell::new(0),
             keycaps_preview_worker: RefCell::new(None),
             cad_jobs: RefCell::new(BTreeMap::new()),
@@ -881,6 +886,57 @@ impl Runtime {
         if stale {
             self.cancel_native_case_preview();
         }
+    }
+
+    fn cancel_case_gesture_preview_job(
+        &self,
+        owner: &crate::case_gesture_preview::CaseGesturePreviewOwner,
+    ) {
+        let job = {
+            let mut active = self.case_gesture_preview_job.borrow_mut();
+            if active.as_ref().is_some_and(|(current, _)| current == owner) {
+                active.take().map(|(_, job)| job)
+            } else {
+                None
+            }
+        };
+        if let Some(job) = job
+            && let Some((_, worker)) = self.cad_worker.borrow().as_ref()
+        {
+            let _ = worker.cancel(&job);
+        }
+    }
+
+    fn cancel_active_case_gesture_preview(&self) {
+        let owner = self.case_gesture_preview.borrow().active_owner();
+        if let Some(owner) = owner {
+            self.cancel_case_gesture_preview_job(&owner);
+            self.case_gesture_preview.borrow_mut().cancel(&owner);
+        }
+    }
+
+    pub(crate) fn cancel_case_gesture_preview(
+        &self,
+        owner: &crate::case_gesture_preview::CaseGesturePreviewOwner,
+    ) {
+        if self.case_gesture_preview.borrow_mut().cancel(owner) {
+            self.cancel_case_gesture_preview_job(owner);
+            self.changed();
+        }
+    }
+
+    fn case_gesture_preview_is_current(
+        &self,
+        owner: &crate::case_gesture_preview::CaseGesturePreviewOwner,
+    ) -> bool {
+        self.case_gesture_preview.borrow().is_current(owner)
+            && self.scope().as_ref() == Some(&owner.scope)
+            && self.model().accepted.as_ref().is_some_and(|accepted| {
+                accepted.token == owner.snapshot_token
+                    && accepted.document.revision == owner.revision
+                    && accepted.document.id == owner.scope.document_id
+                    && accepted.session_epoch == owner.scope.session_epoch
+            })
     }
 
     pub(crate) fn cancel_native_case_preview(&self) {
@@ -1685,6 +1741,7 @@ impl Runtime {
             .as_ref()
             .map(|snapshot| (snapshot.token, snapshot.document.revision));
         if self.scope() != previous_scope || accepted_snapshot != previous_snapshot {
+            self.cancel_active_case_gesture_preview();
             self.cancel_keycaps_cad_preview();
         }
         if self.scope() != previous_scope {
@@ -1835,6 +1892,7 @@ impl Runtime {
             .as_ref()
             .map(|snapshot| (snapshot.token, snapshot.document.revision));
         if self.scope() != previous_scope || accepted_snapshot != previous_snapshot {
+            self.cancel_active_case_gesture_preview();
             self.cancel_keycaps_cad_preview();
         }
         self.changed();
@@ -2381,6 +2439,201 @@ impl Runtime {
             *cached = Some(Rc::new(rebound));
         }
         cached.as_ref().cloned()
+    }
+
+    pub(crate) fn case_gesture_preview_scene(&self, source: &CadScene) -> Option<Rc<CadScene>> {
+        let owner = self.case_gesture_preview.borrow().active_owner()?;
+        if !self.case_gesture_preview_is_current(&owner)
+            || owner.scope != source.scope
+            || owner.snapshot_token != source.token
+            || owner.revision != source.snapshot.document.revision
+        {
+            return None;
+        }
+        self.case_gesture_preview
+            .borrow()
+            .scene(&owner.scope, owner.snapshot_token, owner.revision)
+    }
+
+    pub(crate) fn case_gesture_preview_message(&self) -> Option<String> {
+        let owner = self.case_gesture_preview.borrow().active_owner()?;
+        self.case_gesture_preview_is_current(&owner)
+            .then(|| self.case_gesture_preview.borrow().message(&owner))
+            .flatten()
+    }
+
+    /// Start a disposable preview of one Case gesture draft. It uses the
+    /// accepted scene and snapshot identity, but only the Case CAD preview
+    /// result is overlaid; it never replaces the accepted generation cache.
+    pub(crate) fn update_case_gesture_preview(
+        self: &Rc<Self>,
+        scope: Scope,
+        token: SnapshotToken,
+        revision: u64,
+        draft_document: ProjectDoc,
+    ) -> Option<crate::case_gesture_preview::CaseGesturePreviewOwner> {
+        let accepted = self.model().accepted?;
+        if self.scope().as_ref() != Some(&scope)
+            || accepted.token != token
+            || accepted.document.revision != revision
+            || accepted.document.id != scope.document_id
+            || accepted.session_epoch != scope.session_epoch
+            || draft_document.id != accepted.document.id
+            || draft_document.revision != revision
+            || accepted.scene.revision != revision
+        {
+            return None;
+        }
+        // A newer pointer sample replaces the pending owner while retaining
+        // the last accepted provisional scene for display. Retiring only the
+        // worker job here also makes its eventual reply stale without ending
+        // the gesture overlay itself.
+        if let Some(previous) = self.case_gesture_preview.borrow().active_owner() {
+            self.cancel_case_gesture_preview_job(&previous);
+        }
+        let owner = self
+            .case_gesture_preview
+            .borrow_mut()
+            .begin(scope.clone(), token, revision)
+            .ok()?;
+        let job_id = format!("case-gesture-{}-{}-{}", token.0, revision, owner.generation);
+        *self.case_gesture_preview_job.borrow_mut() = Some((owner.clone(), job_id.clone()));
+        let mut draft_snapshot = accepted;
+        draft_snapshot.document = std::sync::Arc::new(draft_document);
+        self.changed();
+        let runtime = Rc::downgrade(self);
+        let worker_job_id = job_id.clone();
+        let task_owner = owner.clone();
+        spawn_local(async move {
+            let Some(runtime) = runtime.upgrade() else {
+                return;
+            };
+            let result = runtime
+                .prepare_case_gesture_preview(
+                    task_owner.clone(),
+                    draft_snapshot,
+                    worker_job_id.clone(),
+                )
+                .await;
+            if runtime
+                .case_gesture_preview_job
+                .borrow()
+                .as_ref()
+                .is_some_and(|(active, active_job)| {
+                    active == &task_owner && active_job == &worker_job_id
+                })
+            {
+                runtime.case_gesture_preview_job.borrow_mut().take();
+            }
+            match result {
+                Ok(scene) if runtime.case_gesture_preview_is_current(&task_owner) => {
+                    runtime
+                        .case_gesture_preview
+                        .borrow_mut()
+                        .publish(&task_owner, Rc::new(scene));
+                    runtime.changed();
+                }
+                Err(error) if runtime.case_gesture_preview_is_current(&task_owner) => {
+                    runtime
+                        .case_gesture_preview
+                        .borrow_mut()
+                        .fail(&task_owner, error);
+                    runtime.changed();
+                }
+                _ => {}
+            }
+        });
+        Some(owner)
+    }
+
+    async fn prepare_case_gesture_preview(
+        self: &Rc<Self>,
+        owner: crate::case_gesture_preview::CaseGesturePreviewOwner,
+        snapshot: AcceptedSnapshot,
+        job_id: String,
+    ) -> Result<CadScene, String> {
+        let is_current = || self.case_gesture_preview_is_current(&owner);
+        if !is_current() {
+            return Err("Case gesture preview was superseded".into());
+        }
+        // Coalesce rapid pointer samples. A newer move advances the owner while
+        // this delay is pending, so only the latest draft reaches Core/CAD.
+        TimeoutFuture::new(45).await;
+        if !is_current() {
+            return Err("Case gesture preview was superseded".into());
+        }
+        let core = self.core.borrow().clone();
+        let executor_epoch = self.session.borrow().core_executor_epoch().0.to_string();
+        let prepared =
+            prepare_captured_case(&core, &executor_epoch, &job_id, &snapshot, &owner.scope)
+                .await
+                .map_err(|error| format!("Case preview preparation failed: {error:?}"))?;
+        if !is_current() {
+            return Err("Case gesture preview was superseded".into());
+        }
+        let existing_worker = self
+            .cad_worker
+            .borrow()
+            .as_ref()
+            .filter(|(scope, worker)| scope == &owner.scope && !worker.is_closed())
+            .map(|(_, worker)| worker.clone());
+        let worker = if let Some(worker) = existing_worker {
+            worker
+        } else {
+            if let Some((_, previous)) = self.cad_worker.borrow_mut().take() {
+                previous.close();
+            }
+            let worker = Rc::new(
+                CadWorker::new(
+                    &resource_url("assets/cad-worker/entry.js")
+                        .map_err(|error| error.to_string())?,
+                )
+                .map_err(|error| error.to_string())?,
+            );
+            *self.cad_worker.borrow_mut() = Some((owner.scope.clone(), worker.clone()));
+            worker
+        };
+        worker.ready().await.map_err(|error| error.to_string())?;
+        if !is_current() {
+            let _ = worker.cancel(&job_id);
+            return Err("Case gesture preview was superseded".into());
+        }
+        let request = CadRequest {
+            request_id: format!("{job_id}-preview"),
+            job_id: job_id.clone(),
+            identity: prepared.identity.clone(),
+            operation: CadOperation::Preview,
+            prepared: Some(prepared.prepared.clone()),
+            input_bytes: vec![],
+        };
+        let reply = worker
+            .request(request.clone())
+            .await
+            .map_err(|error| error.to_string())?;
+        if !is_current() {
+            return Err("Case gesture preview was superseded".into());
+        }
+        let mut result = validate_reply(&request, reply, &prepared.identity)
+            .map_err(|error| format!("Case preview CAD failed: {error:?}"))?;
+        result.step.clear();
+        let contours = captured_case_scene(&snapshot, &owner.scope)
+            .map_err(|error| format!("Case preview contours failed: {error:?}"))?
+            .board_contours
+            .into_iter()
+            .find(|board| board.board_id == owner.scope.board_id)
+            .ok_or_else(|| "Case preview contours are unavailable".to_owned())?
+            .contours;
+        Ok(CadScene {
+            scope: owner.scope.clone(),
+            token: owner.snapshot_token,
+            snapshot,
+            result,
+            prepared: prepared.prepared,
+            physical_fingerprint: None,
+            mechanical: prepared.mechanical_assembly,
+            exact: false,
+            contours,
+        })
     }
 
     pub(crate) fn native_case_preview(

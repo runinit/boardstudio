@@ -9,7 +9,7 @@ use crate::runtime::{CadScene, Runtime};
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{
     CaseKind, GasketPlacement, MechanicalGasketAnchor, MechanicalGasketSupport,
-    MechanicalGasketTrack, MechanicalMount, Mount, MountKind, Vec2,
+    MechanicalGasketTrack, MechanicalMount, Mount, MountKind, ProjectDoc, Vec2,
 };
 use boardstudio_web::cad_jobs::captured_case_document;
 use dioxus::prelude::*;
@@ -131,6 +131,9 @@ pub(crate) fn CaseViewer(
 ) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let instance_selection = use_context::<InstanceSelection>();
+    let case_generation = use_context::<super::CaseGenerationState>();
+    let runtime_version = use_context::<Signal<u64>>();
+    let _ = runtime_version();
     let selection_adapter = use_context::<SelectionAdapter>();
     let selection = use_context::<CaseSelection>();
     let theme = use_context::<ResolvedTheme>().0;
@@ -181,6 +184,11 @@ pub(crate) fn CaseViewer(
         (selection.body_edit_portal.editable)(),
     );
     let gesture = use_hook(|| Rc::new(RefCell::new(None::<CaseGestureDraft>)));
+    let draft_preview_owner = use_hook(|| {
+        Rc::new(RefCell::new(
+            None::<crate::case_gesture_preview::CaseGesturePreviewOwner>,
+        ))
+    });
     let handle_preview = use_signal(|| None::<Vec<ViewerHandle>>);
     let gesture_field = use_signal(|| None::<String>);
     let gesture_message = use_signal(|| None::<String>);
@@ -195,7 +203,12 @@ pub(crate) fn CaseViewer(
             let mut handle_preview = handle_preview;
             let mut gesture_field = gesture_field;
             let mut gesture_message = gesture_message;
+            let draft_preview_owner = draft_preview_owner.clone();
+            let runtime = runtime.clone();
             move |_| {
+                if let Some(owner) = draft_preview_owner.borrow_mut().take() {
+                    runtime.cancel_case_gesture_preview(&owner);
+                }
                 *gesture.borrow_mut() = None;
                 handle_preview.set(None);
                 gesture_field.set(None);
@@ -203,6 +216,24 @@ pub(crate) fn CaseViewer(
             }
         },
     ));
+    use_effect(use_reactive((&(case_generation.live_preview)(),), {
+        let draft_preview_owner = draft_preview_owner.clone();
+        let runtime = runtime.clone();
+        move |(live_preview,)| {
+            if !live_preview && let Some(owner) = draft_preview_owner.borrow_mut().take() {
+                runtime.cancel_case_gesture_preview(&owner);
+            }
+        }
+    }));
+    use_drop({
+        let runtime = runtime.clone();
+        let draft_preview_owner = draft_preview_owner.clone();
+        move || {
+            if let Some(owner) = draft_preview_owner.borrow_mut().take() {
+                runtime.cancel_case_gesture_preview(&owner);
+            }
+        }
+    });
     let on_signal = {
         let runtime = runtime.clone();
         let scene = scene.clone();
@@ -214,6 +245,8 @@ pub(crate) fn CaseViewer(
         let mut handle_preview = handle_preview;
         let mut gesture_field = gesture_field;
         let mut gesture_message = gesture_message;
+        let draft_preview_owner = draft_preview_owner.clone();
+        let live_preview = (case_generation.live_preview)();
         move |event: super::shared_viewer::ScopedViewerSignal| {
             if !event.is_current()
                 || !source_is_current(&runtime, instance_selection, &scene, &event.identity)
@@ -275,6 +308,9 @@ pub(crate) fn CaseViewer(
                         feedback_field: &mut gesture_field,
                         message: &mut gesture_message,
                         selection,
+                        runtime: &runtime,
+                        draft_preview_owner: &draft_preview_owner,
+                        live_preview,
                     },
                     phase,
                     &handle_id,
@@ -306,14 +342,19 @@ pub(crate) fn CaseViewer(
             selection.save_display(&scope, event.display.clone());
         }
     };
-    let displayed_gesture_message = direct_gesture_message(
-        gesture_field(),
-        gesture_message(),
-        mechanical_settings.as_ref(),
-    );
+    let displayed_gesture_message = runtime.case_gesture_preview_message().or_else(|| {
+        direct_gesture_message(
+            gesture_field(),
+            gesture_message(),
+            mechanical_settings.as_ref(),
+        )
+    });
+    let display_scene = runtime
+        .case_gesture_preview_scene(&scene)
+        .unwrap_or_else(|| scene.clone());
     rsx! {
         CaseSharedViewer {
-            scene: Some(scene),
+            scene: Some(display_scene),
             preview,
             layout_preview: None,
             keycaps_preview: None,
@@ -631,6 +672,10 @@ struct CaseGestureContext<'a> {
     feedback_field: &'a mut Signal<Option<String>>,
     message: &'a mut Signal<Option<String>>,
     selection: CaseSelection,
+    runtime: &'a Rc<Runtime>,
+    draft_preview_owner:
+        &'a Rc<RefCell<Option<crate::case_gesture_preview::CaseGesturePreviewOwner>>>,
+    live_preview: bool,
 }
 
 fn handle_case_gesture(
@@ -649,6 +694,9 @@ fn handle_case_gesture(
         feedback_field,
         message,
         selection,
+        runtime,
+        draft_preview_owner,
+        live_preview,
     } = context;
     let identity_current = scene.exact
         && scene.scope == identity.scope
@@ -771,6 +819,7 @@ fn handle_case_gesture(
             let Some(current) = gesture.borrow().clone() else {
                 return;
             };
+            let mut valid_point = false;
             match current {
                 CaseGestureDraft::Gasket {
                     support_id,
@@ -779,6 +828,7 @@ fn handle_case_gesture(
                     tracks,
                 } => {
                     if let Some(next) = move_gasket_support(point, &support_id, &before, &tracks) {
+                        valid_point = true;
                         *gesture.borrow_mut() = Some(CaseGestureDraft::Gasket {
                             support_id,
                             before,
@@ -802,6 +852,7 @@ fn handle_case_gesture(
                     constraints,
                 } => {
                     if let Some(next) = move_case_mount(point, &mount_id, &before, &constraints) {
+                        valid_point = true;
                         *gesture.borrow_mut() = Some(CaseGestureDraft::Mount {
                             target: target.clone(),
                             mount_id,
@@ -825,8 +876,24 @@ fn handle_case_gesture(
                     }
                 }
             }
+            if valid_point
+                && live_preview
+                && let Some(draft) = gesture.borrow().clone()
+                && let Some(document) = case_gesture_preview_document(scene, &draft)
+                && let Some(owner) = runtime.update_case_gesture_preview(
+                    scene.scope.clone(),
+                    scene.token,
+                    scene.snapshot.document.revision,
+                    document,
+                )
+            {
+                *draft_preview_owner.borrow_mut() = Some(owner);
+            }
         }
         HandleGesturePhase::End => {
+            if let Some(owner) = draft_preview_owner.borrow_mut().take() {
+                runtime.cancel_case_gesture_preview(&owner);
+            }
             if !identity_current {
                 *gesture.borrow_mut() = None;
                 preview.set(None);
@@ -963,6 +1030,9 @@ fn handle_case_gesture(
             preview.set(None);
         }
         HandleGesturePhase::Cancel => {
+            if let Some(owner) = draft_preview_owner.borrow_mut().take() {
+                runtime.cancel_case_gesture_preview(&owner);
+            }
             *gesture.borrow_mut() = None;
             preview.set(None);
             feedback_field.set(None);
@@ -1040,6 +1110,82 @@ fn gasket_anchor(support: &MechanicalGasketSupport) -> MechanicalGasketAnchor {
         placement: Some(GasketPlacement::User),
         unlinked: support.unlinked,
     }
+}
+
+fn case_gesture_preview_document(scene: &CadScene, draft: &CaseGestureDraft) -> Option<ProjectDoc> {
+    let mut effective = captured_case_document(&scene.snapshot, &scene.scope).ok()?;
+    let mut document = (*scene.snapshot.document).clone();
+    let mut mechanical_draft = None;
+    match draft {
+        CaseGestureDraft::Gasket {
+            before, pending, ..
+        } => {
+            let mut configuration = effective.mechanical.take()?;
+            let layout = configuration.gasket_layout.as_mut()?;
+            for support in pending.iter().filter(|support| {
+                before
+                    .iter()
+                    .find(|old| old.id == support.id)
+                    .is_none_or(|old| (old.anchor - support.anchor).abs() > 1e-7)
+            }) {
+                let anchor = gasket_anchor(support);
+                if let Some(existing) = layout
+                    .supports
+                    .iter_mut()
+                    .find(|existing| existing.id == support.id)
+                {
+                    *existing = anchor;
+                } else {
+                    layout.supports.push(anchor);
+                }
+            }
+            mechanical_draft = Some(configuration);
+        }
+        CaseGestureDraft::Mount {
+            target: CaseMountTarget::Mechanical(collection),
+            pending,
+            ..
+        } => {
+            let mut configuration = effective.mechanical.take()?;
+            match collection {
+                super::mechanical_settings::MechanicalMountCollection::Suspension => {
+                    configuration.mounts = pending.clone();
+                }
+                super::mechanical_settings::MechanicalMountCollection::Closure => {
+                    configuration.closure_mounts = Some(pending.clone());
+                }
+            }
+            mechanical_draft = Some(configuration);
+        }
+        CaseGestureDraft::Mount {
+            target: CaseMountTarget::Authored { body_id },
+            pending,
+            ..
+        } => {
+            let body = document
+                .case_bodies
+                .iter_mut()
+                .find(|body| body.id == *body_id && body.board_id == scene.scope.board_id)?;
+            body.mounts = Some(pending.clone());
+        }
+    }
+    if let Some(configuration) = mechanical_draft {
+        if let Some(instance_id) = scene.scope.instance_id.as_deref() {
+            let instance = document
+                .hardware
+                .as_mut()?
+                .instances
+                .iter_mut()
+                .find(|instance| instance.id == instance_id)?;
+            // The effective configuration includes shared defaults. The
+            // existing projection reapplies those defaults and retains the
+            // instance-local mount and gasket placement fields.
+            instance.mechanical = Some(configuration);
+        } else {
+            document.mechanical = Some(configuration);
+        }
+    }
+    Some(document)
 }
 
 fn supports_equal_positions(a: &[MechanicalGasketSupport], b: &[MechanicalGasketSupport]) -> bool {

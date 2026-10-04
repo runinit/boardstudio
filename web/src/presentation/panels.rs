@@ -42,6 +42,17 @@ pub(super) fn CompactPanelControls() -> Element {
     let inspector_open = state.inspector_open;
     rsx! {
         nav { class: "m1-compact-panel-controls", "aria-label": "Panel visibility",
+            onkeydown: move |event: KeyboardEvent| {
+                if event.data().key().to_string() != "Escape" || (!objects_open() && !inspector_open()) {
+                    return;
+                }
+                event.prevent_default();
+                event.stop_propagation();
+                let side = if objects_open() { PanelSide::Objects } else { PanelSide::Inspector };
+                set_bool(objects_open, false);
+                set_bool(inspector_open, false);
+                focus_panel_toggle(side);
+            },
             if objects_compact() && workspace() != "Export" {
                 button {
                     class: "m1-panel-toggle",

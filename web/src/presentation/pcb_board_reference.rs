@@ -819,7 +819,7 @@ pub(super) fn Editor(
 
     let options = assets
         .iter()
-        .filter(|asset| is_model_filename(&asset.name))
+        .filter(|asset| matching::is_model_filename(&asset.name))
         .collect::<Vec<_>>();
     let current_paths = model_paths();
     let busy = busy();

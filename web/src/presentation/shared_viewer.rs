@@ -674,10 +674,14 @@ impl ViewerSource {
                         .accepted
                         .as_ref()
                         .is_some_and(|snapshot| snapshot.token == scene.token)
-                    && runtime
+                    && (runtime
                         .cad_scene()
                         .as_ref()
                         .is_some_and(|current| Rc::ptr_eq(current, scene))
+                        || runtime
+                            .case_gesture_preview_scene(scene)
+                            .as_ref()
+                            .is_some_and(|current| Rc::ptr_eq(current, scene)))
             }
             Self::Native(preview) => runtime.native_case_preview().is_some_and(|current| {
                 current.owner == preview.owner && Rc::ptr_eq(&current.lease, &preview.lease)
