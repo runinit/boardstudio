@@ -1204,7 +1204,7 @@
         {
           "id": "F3.2-C04",
           "requirement": "Verify commit, save/reload, Undo/redo and invalid-input behavior through public UI scenarios.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/objects/matrix_inspector.rs",
@@ -1217,7 +1217,7 @@
             ".scratch/dioxus-layout-authoring/evidence/f32d-matrix-settings-20261003/README.md"
           ],
           "blockers": [],
-          "next_action": "Close the remaining current-candidate evidence gap for structural edits and invalid input; existing receipts prove preset placement and Edge gap history/reopen only.",
+          "next_action": "Retain paired34786 keys matrix 4\u00d76\u21925\u00d76 structural edit, one Undo/Redo, saved-copy reopen and rejected 4096\u00d72 setup with unchanged revision/board. All F3.2 criteria now verified; run final parent join/review before acceptance.",
           "finish_condition": "Public UI scenarios cover commit, save/reload, Undo/redo, and invalid input for matrix/component authoring.",
           "owned_files": [
             "web/src/presentation/objects/matrix_inspector.rs",
@@ -6510,7 +6510,7 @@
             ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md"
           ],
           "blockers": [],
-          "next_action": "Retain paired Case shade/wireframe/hybrid/hidden-line, assembled/exploded and XY/YZ Section controls plus matched YZ Section position 0→40% clipped-scene change on34785. Other viewer controls remain separate C03/C04/C05.",
+          "next_action": "Retain paired Case shade/wireframe/hybrid/hidden-line, assembled/exploded and XY/YZ Section controls plus matched YZ Section position 0\u219240% clipped-scene change on34785. Other viewer controls remain separate C03/C04/C05.",
           "finish_condition": "Each named mode, assembly state and supported plane/position change is exercised with visible outcome.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs"
