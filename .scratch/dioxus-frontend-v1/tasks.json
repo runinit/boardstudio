@@ -1565,7 +1565,7 @@
         {
           "id": "F3.4-C03",
           "requirement": "Edit dimensions and contour points, insert/remove points, drag under pointer capture, and restore on cancel/Escape/lost capture.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/outline_lifecycle.rs",
@@ -1575,7 +1575,7 @@
             ".scratch/dioxus-layout-authoring/evidence/f34d-perimeter-paired-20261003/README.md"
           ],
           "blockers": [],
-          "next_action": "Reuse the perimeter receipt for drag/Escape/Undo/reopen and ArrowRight/Delete only; verify dimension editing, insertion, lost capture and other cancellation paths on current source.",
+          "next_action": "Retain earlier paired drag/Escape/Undo/reopen/ArrowRight/Delete and current5175/34789 Bridge width10-to-12/Undo, point coordinate, insert/remove, pointer capture and lost-capture restoration. Rectangle width/height was not reachable in this fixture; supported feature dimension editing is proven by Bridge width.",
           "finish_condition": "Public paired scenarios cover dimensions, contour edits, insertion/removal, captured drag, and all specified restore paths.",
           "owned_files": [
             "web/src/presentation/outline_lifecycle.rs",
@@ -6604,7 +6604,7 @@
         {
           "id": "F7.3-C05",
           "requirement": "Support selection/picking and mapping to available project part, module, case body and finding; support focus/highlight.",
-          "state": "implemented",
+          "state": "missing",
           "classification": "functional",
           "sources": [
             "web/src/presentation/shared_viewer.rs",
@@ -6618,7 +6618,7 @@
             ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md"
           ],
           "blockers": [],
-          "next_action": "Paired34786 3D switch/empty pick is retained. Prior Plate selection used the Objects tree and PCB-part-in-Case does not prove a rendered Case-body pick. Paired34787 VIK module click and hidden-Footprints SW2 finding focus used PCB/Layout 2D overlays. Qualify actual shared-3D Case-body, module and finding paths before C05 verification.",
+          "next_action": "Paired34789 and source review confirm Layout 3D VIK module/standoff objects are absent from the shared-viewer scene; TS lists them. Implement current accepted module scene projection and module pick mapping first. Then address 3D finding focus (currently SVG-only) and qualify rendered Case-body pick; Dioxus Plate pick works, but pinned React body vanished with PCB hidden, so that paired branch remains unresolved. Retain earlier 3D part/empty and separately labeled 2D module/finding evidence.",
           "finish_condition": "Mapped and empty picks resolve only against current consumer scope; finding focus/highlight works with hidden layers.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",

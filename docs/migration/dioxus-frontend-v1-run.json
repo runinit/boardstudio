@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T02:32:22.920777+00:00",
+    "updated_at": "2026-10-04T02:35:20.778925+00:00",
     "parent_counts": {
       "accepted": 14,
       "implementing": 37,
@@ -49,7 +49,7 @@
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
       "source_commit": "6619d5f2be0ce4167939426dd7efd3a13fcbd1e3",
-      "state": "Published34789 source6619d5f2 with compiler/package/root/subpath checks and zero warnings. Consolidated Sol review passes Standards, F3.4-C02 and PCB F5.2-C01; subsequent paired controlled public Project list failure/Retry verifies F2.1-C03. F2.1 C01/C04 and F7.3-C05 common-3D mapping remain open.",
+      "state": "Published34789 source6619d5f2, compiler/package/root/subpath passed with zero warnings. F3.4-C01/C02/C03 and F2.1-C03 are verified through paired journeys. Consolidated Sol review found F7.3-C05 shared-3D gaps; module projection repair assigned. F3.2/F3.3 Layout and F4.2 Parts parents accepted.",
       "packets": [
         {
           "stream": "Layout",
@@ -488,7 +488,7 @@
       {
         "stream": "Layout",
         "priority": "Functional gaps alongside other streams; exact visual parity deferred",
-        "state": "F3.2/F3.3 accepted. F3.4-C01 version lifecycle and C02 addition/cutout/bridge draft lifecycle verified paired5175/34789; C03-C05 remain. Exact visual parity deferred."
+        "state": "F3.2/F3.3 accepted. F3.4-C01/C02/C03 verified paired, including outline versions, drafts and feature dimensions/contour capture. C04/C05 remain; exact visual parity deferred."
       },
       {
         "stream": "PCB",
@@ -504,7 +504,7 @@
       },
       {
         "stream": "Case",
-        "state": "F7.3-C02/C03/C04 verified paired. C05 has 3D part/empty picks and 2D module/finding focus; rendered Case-body, module and finding 3D mapping remain unqualified after consolidated review. C01 scene/consumer joins open."
+        "state": "F7.3-C02/C03/C04 verified. C05 is missing: Layout 3D omits mounted module/standoff scene, 3D finding focus is SVG-only, and paired Case-body pick is unresolved despite a Dioxus rendered-body pick. Module scene repair is assigned."
       },
       {
         "stream": "Parts + Project",
@@ -513,9 +513,9 @@
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Continue F3.4-C03 contour dimensions, insertion/removal, pointer capture and cancel/Escape/lost-capture qualification; retain passed C01/C02 without rerunning.",
-      "Qualify F2.1-C01 transient Loading and C04 public damaged-preview fallback without altering saved originals; complete F7.3-C05 actual shared-3D Case-body/module/finding mapping or record precise unsupported branches.",
-      "Consolidate the next functional candidate and one Sol 6.1 High review only when ready; preserve all parent joins and RF findings."
+      "Implement F7.3-C05 accepted mounted-module 3D scene and pick mapping, then address 3D finding focus and Case-body parity; retain RF-019 for later scene-producer consolidation.",
+      "Continue F3.4-C04/C05 and F2.1-C01/C04 exact functional criteria without rerunning accepted journeys.",
+      "Consolidate the next source packet into one compiler/package and one Sol 6.1 High review when functionally ready; preserve all parent joins and RF findings."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",

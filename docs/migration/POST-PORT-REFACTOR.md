@@ -2145,3 +2145,44 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
   "continuations": []
 }
 ```
+
+## RF-019: Layout 3D scene projection omits mounted module bodies
+
+**Status:** functional repair queued under F7.3-C05; post-port projection consolidation deferred
+
+**Confidence:** confirmed source and paired public mismatch; full repair scope pending source mapping
+
+**Observation:** On the VIK module-review demo, pinned React Layout 3D lists module and standoff layers, including review/splitter-above, while Dioxus Layout 3D lists only regular board component/model rows. The Dioxus project_layout_preview projection reads board surfaces and preview models but does not project mounted module scenes; there is no rendered module object for the viewer pick callback to map.
+
+**Impact:** Mounted modules can be placed in PCB 2D yet disappear from the shared 3D assembly and cannot be selected there, hiding a functional workbench relationship.
+
+**Current mitigation:** Add a scoped current-module scene projection and pick identity through the existing F7-owned viewer, reusing accepted module geometry rather than creating another renderer or saved representation.
+
+**Later proposal:** Consolidate board, module, case and finding scene inputs into a typed accepted-scene producer with explicit owner identity and one renderer-facing projection. Keep consumer-specific edit actions in their workbenches.
+
+**Validation:** Paired VIK Layout 3D shows the same mounted module/standoff, and a trusted pick selects the current project module; verify stale board/project input does not leave a foreign module pick.
+
+**Evidence:** `web/src/presentation/shared_viewer.rs`; `.scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md`; `app/src/ui/AssemblyViewer.tsx`
+
+**Additional recorded details:**
+
+```json
+{
+  "category": "architecture / scene projection ownership",
+  "impact_priority": "high",
+  "discovered": "2026-10-03",
+  "baseline": "Pinned TypeScript 5a472a9426e6e38993361da402cd4ec730feb369; Dioxus candidate 6619d5f2be0ce4167939426dd7efd3a13fcbd1e3",
+  "workflows": [
+    "F7.3",
+    "F5.7",
+    "F6.6"
+  ],
+  "decision": "Treat missing 3D module projection as current functional migration work; defer producer consolidation to the post-port refactor.",
+  "follow_up_owner": "F7.3 shared viewer / F5 module integration",
+  "linked_tasks": [
+    "F7.3",
+    "F5.7"
+  ],
+  "continuations": []
+}
+```
