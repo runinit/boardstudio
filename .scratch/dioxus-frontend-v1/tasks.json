@@ -456,15 +456,17 @@
         {
           "id": "F2.1-C02",
           "requirement": "Case-insensitive search, no-match and clear-search work.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/library.rs:100",
             "web/src/presentation/library.rs:738"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-tranche-1/evidence/project-demo-cards-fresh-copies-34767/RESULTS.md"
+          ],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Retain paired public saved Sofle card: mixed-case sOfLe returns exactly one match, unique no-match gives the same empty state, and Clear restores the card and demo gallery. Earlier empty-library branch is recorded in the same receipt.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/library.rs"
@@ -1274,7 +1276,7 @@
       "acceptance_after": [
         "F3.2"
       ],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
       "shared_edit_owner": "integration coordinator",
@@ -1296,6 +1298,13 @@
           "from": "planned",
           "to": "implementing",
           "reason": "Reconcile verified mounted source/bounded evidence; preserve all parent acceptance criteria."
+        },
+        {
+          "at": "2026-10-04T01:30:44.456444+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "All five functional criteria verified; F3.1 and F3.2 joins accepted; Sol 6.1 High final review and candidate provenance clear",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/f33-acceptance-20261003/DECISION.json"
         }
       ],
       "progress_evidence": [
@@ -1453,6 +1462,9 @@
         "assessed_at": "2026-10-03T19:29:50Z",
         "coverage": "complete",
         "note": "All five acceptance clauses represented. Current source files exist; the only accepted paired receipt read is deliberately limited to Column/Key field edits and does not establish parent acceptance."
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/f33-acceptance-20261003/DECISION.json"
       }
     },
     {
@@ -9428,8 +9440,8 @@
     "integration_slices": 2,
     "boundary_slices": 2,
     "status": {
-      "accepted": 13,
-      "implementing": 38,
+      "accepted": 14,
+      "implementing": 37,
       "planned": 11
     }
   },

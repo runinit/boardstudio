@@ -16,10 +16,10 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T01:28:07.131358+00:00",
+    "updated_at": "2026-10-04T01:31:50.294665+00:00",
     "parent_counts": {
-      "accepted": 13,
-      "implementing": 38,
+      "accepted": 14,
+      "implementing": 37,
       "planned": 11,
       "total": 62
     },
@@ -49,7 +49,7 @@
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
       "source_commit": "733c1da2abede39a617d2eca2e42d9bd437cea41",
-      "state": "Published34786 source924ba282 with PCB resolver owner regression; F3.2 and F4.2 accepted. F3.3 joins now satisfied; Case F7.3-C02/C03/C04 and F6C.3 all criteria verified. Functional work continues in six streams.",
+      "state": "Published34786 source924ba282; F3.2/F3.3 Layout and F4.2 Parts parents accepted. Case F7.3-C02/C03/C04, F6C.3 all and F2.1-C02 verified. PCB resolver-owner regression integrated; exact negative branches remain.",
       "packets": [
         {
           "stream": "Layout",
@@ -488,7 +488,7 @@
       {
         "stream": "Layout",
         "priority": "Functional gaps alongside other streams; exact visual parity deferred",
-        "state": "F3.2 accepted after all four paired criteria and one Sol 6.1 High final review; F3.3 all criteria verified and its F3.2 join is now met, pending final parent review. Exact visual/control-state parity deferred."
+        "state": "F3.2 and F3.3 accepted after complete paired functional criteria and consolidated Sol 6.1 High final reviews; exact visual/control-state parity deferred. Next Layout parents remain."
       },
       {
         "stream": "PCB",
@@ -508,14 +508,14 @@
       },
       {
         "stream": "Parts + Project",
-        "state": "F4.2 accepted. F2.1-C04 paired demo editable-copy and non-mutating browse evidenced; damaged preview fallback remains. C02 search/no-match/clear qualification is active."
+        "state": "F4.2 accepted. F2.1-C02 paired mixed-case saved-card search/no-match/Clear verified; C04 demo editable copy and non-mutating browse evidenced, damaged preview fallback remains."
       }
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Review and accept F3.3 if its five criteria and final join pass; reuse source/package and paired evidence without another browser sweep.",
-      "Complete exact F5.2 stale-revision/controller and public provider-error branches, plus Project search and Keycaps controlled provider lifecycle.",
-      "Finish Case scene/pick mapping criteria and continue functional workbench queues; defer visual/control placement parity."
+      "Continue functional Layout parents released by F3.2/F3.3; use criterion queue and retain visual/control placement parity for later.",
+      "Complete exact PCB stale-revision/controller and public provider-error branches; integrate controlled Keycaps provider lifecycle proof once its private source packet passes.",
+      "Finish Case scene/pick mappings and Project list/fallback/error criteria while reusing paired search/demo evidence."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
