@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T05:10:09.418728+00:00",
+    "updated_at": "2026-10-04T05:12:34.911429+00:00",
     "parent_counts": {
       "accepted": 15,
       "implementing": 35,
@@ -557,6 +557,11 @@
           },
           {
             "priority": "medium",
+            "observation": "A synthetic saved connection ID 1 or 2 did not actually collide because setup consumed operation numbers; two visible rows alone were ambiguous.",
+            "action": "Use the downloaded archive IDs and Core finding text as the public collision predicate. The ID-23 fixture proved duplicate IDs on the old candidate and unique IDs on the repaired one; keep noncolliding probe captures outside canonical evidence."
+          },
+          {
+            "priority": "medium",
             "observation": "A repeated finding action compared equal after Fit reset renderer focus.",
             "action": "Added admitted navigation identity and checked the public repeat-after-Fit transition."
           },
@@ -653,7 +658,7 @@
               "scope": "Sofle selection, contextual Objects/Inspector Properties and Relations, matrix/key edits, Undo and reopen",
               "spec": ".scratch/dioxus-layout-authoring/spec.md",
               "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/journey.md",
-              "verified": "Three Properties shortcut routes and key width1\u21921.25\u2192Undo1\u2192Redo1.25\u2192reload1.25 match reference behavior.",
+              "verified": "Three Properties shortcut routes and key width1→1.25→Undo1→Redo1.25→reload1.25 match reference behavior.",
               "remaining": "Inspector arrangement/typography/context footer and Objects-to-toolbar selection-kind synchronization; broader authoring criteria unchanged."
             },
             {
