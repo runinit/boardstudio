@@ -461,7 +461,6 @@ fn DemoKeyboardCards(project_menu: bool) -> Element {
                 DemoKeyboardCard { key: "voyager104", name: "Voyager104 · ANSI", fixture: "measured-voyager104" }
                 DemoKeyboardCard { key: "plaid", name: "Plaid", fixture: "measured-plaid" }
                 DemoKeyboardCard { key: "lumberjack", name: "Lumberjack", fixture: "measured-lumberjack" }
-                DemoKeyboardCard { key: "vik-module-review", name: "VIK module review · above and below", fixture: "vik-module-review" }
             }
         }
     }

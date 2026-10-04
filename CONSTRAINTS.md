@@ -13,6 +13,11 @@ parity comes last, with UI improvements allowed along the way because the design
 will change. Control placement, typography and cosmetic matching must not block
 functional integration. Missing actions, incorrect edits and unusable controls
 remain functional work. Retain earlier visual findings as deferred design inputs.
+On 2026-10-03 the user removed unfinished VIK parts from the first release and
+explicitly removed their dedicated parent and criteria from the active roadmap.
+Hide the VIK demo/catalogue without breaking existing saved projects; generic
+mounted-module, part, Case and viewer behavior remains in scope. The previous
+requirements and decisions remain recoverable in Git history.
 Use functioning Rust engines and existing providers. Backend/kernel replacement
 and the major structural refactor remain separate phases. Deliberate necessary UX
 changes get a reason and comparison evidence; placeholders do not establish parity.
@@ -81,7 +86,8 @@ checked-in precommit pipeline as a side effect. Inspect command `--help` for exa
 
 [Issue tracker](docs/agents/issue-tracker.md#frontend-delivery-records) maps each fact to
 its one authoritative record. Update that record once; generated views and existing
-specs link to it. Retain all 62 parents, blocker history and every RF observation.
+specs link to it. Preserve blocker history and every RF observation. The original
+62-parent portfolio remains in Git history; the active portfolio excludes F4.7.
 
 Local overrides for to-spec, to-tickets and implement-spec: refine existing specs and
 real gaps without another approval quiz; use assigned relevant bases; directly integrate

@@ -2,7 +2,7 @@
 
 **Triage:** ready-for-agent
 **Authority:** 2026-10-01 request and clarification: 100% frontend; all existing TSX, theming and UI behavior ported to Dioxus.
-**Execution:** F1/F3a are verified increments; the 2026-10-02 workflow specs and 62-task graph plan F2–F9 with independent author/reviewer roles. See [execution plan](PLAN.md) and [ownership/dispatch](EXECUTION.md).
+**Execution:** F1/F3a are verified increments; the 2026-10-02 workflow specs originally planned F2–F9; the current 61-parent graph excludes VIK-only F4.7 with independent author/reviewer roles. See [execution plan](PLAN.md) and [ownership/dispatch](EXECUTION.md).
 
 ## Problem Statement
 

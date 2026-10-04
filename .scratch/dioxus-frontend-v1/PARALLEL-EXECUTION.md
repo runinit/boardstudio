@@ -1,6 +1,6 @@
 # Frontend v1: portfolio and parallel dispatch view
 
-**Portfolio:** 62 canonical parent work packages; 48 bounded ticket records published across the feature frontier, of which 47 are non-superseded. The retained superseded F6K.4 aggregate is included only in the historical record count. Child tickets do not replace parent tasks or alter the graph. INT.1 is accepted; F1 and F3a remain previously verified increments. This is a dispatch view, not a scope reduction or a claim that all 62 have been decomposed.
+**Current portfolio:** 61 active parent work packages; VIK-only F4.7 is deferred from first release. The original 62-row graph remains recoverable in Git history; the current tasks.json has 61 active parents. There are 48 bounded ticket records, of which 47 are non-superseded; the superseded F6K.4 aggregate is included only in that historical record count. INT.1 is accepted; F1 and F3a remain previously verified increments.
 
 ## How to read the dependencies
 
@@ -8,7 +8,7 @@
 
 ## Confirmed six-stream execution refinement
 
-The user confirmed a six-workspace persistent execution model and narrowly approved proven capability-level starts. The full paired-parity spec and current worktree/ticket mapping are in [six-stream Workbench parity](../dioxus-workbench-parity/spec.md) and [stream reconciliation](../dioxus-workbench-parity/stream-reconciliation.md). These are execution details: all 62 canonical rows, start rationale, original criteria and final `acceptance_after` joins remain authoritative and unchanged. The composition preparation associated with accepted INT.1 and Case issue09 are implementing against reviewed private contracts; neither closes a parent. Current child counts remain 48 published records / 47 non-superseded records.
+The user confirmed a six-workspace persistent execution model and narrowly approved proven capability-level starts. The full paired-parity spec and current worktree/ticket mapping are in [six-stream Workbench parity](../dioxus-workbench-parity/spec.md) and [stream reconciliation](../dioxus-workbench-parity/stream-reconciliation.md). Active scope has 61 parents; the original 62-row graph in Git history keeps its rationale, while current tasks.json excludes VIK-only F4.7 and its joins. The composition preparation associated with accepted INT.1 and Case issue09 are implementing against reviewed private contracts; neither closes a parent. Current child counts remain 48 published records / 47 non-superseded records.
 
 ## Full portfolio
 
@@ -36,15 +36,14 @@ The user confirmed a six-workspace persistent execution model and narrowly appro
 | Parts library | F4.4 | Inspect isolated 2D and 3D library previews | F4.1, F7.1 | F7.3, INT.2 | Parts 03 |
 | Parts library | F4.5 | Edit and save part mechanical-fit profiles | F4.1 | INT.2 | — |
 | Parts library | F4.6 | Author and save reusable key assemblies | F4.1 | F4.4, F3.2 | — |
-| Parts library | F4.7 | Inspect VIK module sources and edit library profiles | F4.1 | INT.2, F4.4 | — |
 | PCB | F5.1 | PCB workspace and host layers | INT.1 | — | PCB 01–02 |
 | PCB | F5.2 | Electrical resolver and wiring summary | F5.1 | INT.2 | — |
 | PCB | F5.3 | Manual pin review, nets, and protected handoff | F5.2 | F4.2, F3.2, F6K.4 | — |
 | PCB | F5.4 | Mounted-module PCB overlays and finding focus | F5.1 | INT.2 | — |
-| PCB | F5.5 | Mounted-module placement and inspector integration | F5.4 | F4.7 | — |
+| PCB | F5.5 | Mounted-module placement and inspector integration | F5.4 | — | — |
 | PCB | F5.6 | Physical-board instance setup and Case handoff | INT.1 | — | — |
 | PCB | F5.7 | Routed KiCad board and model references | INT.1 | INT.2 | — |
-| PCB | F5.8 | PCB cross-workspace parity and inventory closure | F5.1, F5.2, F5.3, F5.4, F5.5, F5.6, F5.7 | F2.3, F4.7, F6K.4, F7.3, F7.7 | — |
+| PCB | F5.8 | PCB cross-workspace parity and inventory closure | F5.1, F5.2, F5.3, F5.4, F5.5, F5.6, F5.7 | F2.3, F6K.4, F7.3, F7.7 | — |
 | Keymap and Keycaps | F6K.1 | Keymap projection, layers, selection, and active-layer 2D view | INT.1 | F3.1 | Keymap 01–02 |
 | Keymap and Keycaps | F6K.2 | Binding editor, supported behavior fields, and keycode search | F6K.1 | — | Keymap 03 |
 | Keymap and Keycaps | F6K.3 | Structured macro editor | F6K.1, F6K.2 | INT.2 | Keymap 04 |
@@ -68,9 +67,9 @@ The user confirmed a six-workspace persistent execution model and narrowly appro
 | Export | F8.3 | Integrate selected-board KiCad, draft, outline, and footprint exports | F8.1, F8.2 | F3.4, F4.3, F5.2, F5.3, F5.5 | — |
 | Export | F8.4 | Join firmware and local keycap STEP exports through F6 owners | F8.1, F8.2 | F5.2, F6K.4, F6C.5 | — |
 | Export | F8.5 | Join authored and generated mechanical outputs through F7 owners | F8.1, F8.2 | F7.2, F7.6, F7.7 | — |
-| Export | F8.6 | Qualify end-to-end project-to-export journeys and delivery cleanup | F8.1, F8.2, F8.3, F8.4, F8.5 | F2.2, F3.7, F4.5, F4.6, F4.7, F5.8, F6.6, F7.8 | — |
+| Export | F8.6 | Qualify end-to-end project-to-export journeys and delivery cleanup | F8.1, F8.2, F8.3, F8.4, F8.5 | F2.2, F3.7, F4.5, F4.6, F5.8, F6.6, F7.8 | — |
 | Qualification and adoption | F9.1 | Inventory and transferable tests | — | — | — |
-| Qualification and adoption | F9.2 | Paired workflow verification | — | F2.2, F2.4, F3.7, F4.5, F4.6, F4.7, F5.8, F6.6, F7.8, F8.6 | — |
+| Qualification and adoption | F9.2 | Paired workflow verification | — | F2.2, F2.4, F3.7, F4.5, F4.6, F5.8, F6.6, F7.8, F8.6 | — |
 | Qualification and adoption | F9.3 | Assistive technology qualification | — | F9.2 | — |
 | Qualification and adoption | F9.4 | Compatibility and offline journeys | — | F8.6 | — |
 | Qualification and adoption | F9.5 | Affected performance and resource gates | — | F9.2 | — |
@@ -98,18 +97,17 @@ For F3.1, T1-10 already covers hierarchy and board groups, independent disclosur
 
 INT.1 is already accepted and directly unlocks 13 more parents: INT.2, F2.1, F2.3, F3.1, F4.1, F5.1, F5.6, F5.7, F6K.1, F6C.1, F7.2, F7.4 and F8.1. Together with the eight other initial packets, that makes 21 start-eligible parents, not 21 concurrent workers. This is a continuous pull queue: start any packet whose own `start_after` is satisfied as an owner and review slot becomes available. Do not hold all work for a whole tranche or milestone. Later acceptance joins remain enforced at each parent.
 
-Current pull work includes remaining F2.1 lifecycle/search, F2.3 compact drawers, F3.1 tree/outline/range acceptance, mounted Parts catalogue proof, PCB/Keymap/Keycaps consumers, Case settings/controllers and export rows. Start each child from its actual parent start gate; do not wait for full completion of another workflow unless the canonical graph names that dependency. F9 test and resource work proceeds alongside feature implementation; its final joins continue to gate qualification and adoption.
+Current pull work includes remaining F2.1 lifecycle/search, F2.3 compact drawers, F3.1 tree/outline/range acceptance, Parts footprint/assembly proof, PCB/Keymap/Keycaps consumers, Case settings/controllers and export rows. Start each child from its active parent start gate; do not wait for full completion of another workflow unless the active roadmap names that dependency. F9 test and resource work proceeds alongside feature implementation; its final joins continue to gate qualification and adoption.
 
 ## Capacity, ownership and review
 
-Keep six persistent private workbench author queues. The user/configured ceiling is30, while tool metadata and observed spawn rejection currently impose11 live slots including root. Dispatch within actual capacity and reserve independent verification, Sol 6.1 High Standards/Spec review, QA and serial root integration/builds. Reduce simultaneous authoring when review or public verification queues. Historical Astra reviews remain evidence; new review dispatch follows [current routing](AGENT-ROUTING.md). All62 tasks and acceptance joins remain unchanged.
+Keep six persistent private workbench author queues. The user/configured ceiling is30, while tool metadata and observed spawn rejection currently impose11 live slots including root. Dispatch within actual capacity and reserve independent verification, Sol 6.1 High Standards/Spec review, QA and serial root integration/builds. Reduce simultaneous authoring when review or public verification queues. Historical Astra reviews remain evidence; new review dispatch follows [current routing](AGENT-ROUTING.md). The active roadmap has 61 parents.
 
 The coordinator owns shared presentation/runtime/shell, global CSS, build files, shared control contracts and the portfolio/dispatch ledger. Feature authors edit their explicitly owned private modules and hand off bounded shared changes for coordinator integration. Use the [integration handoff and root lease](integration-handoff-template.md) to serialize overlapping shared-file edits and freeze packaging inputs.
 
-This view is derived from the [62-parent graph](tasks.json), whose start and
-acceptance edges remain authoritative, and the [first-wave child proposal](../dioxus-frontend-tranche-1/proposal.json). The current published-child mapping is listed in the table above. The [model policy](AGENT-ROUTING.md) governs assignments.
+This active view is derived from the [61-parent graph](tasks.json); the original VIK-only F4.7 parent and edges remain recoverable in Git history. The first-wave child proposal remains at [proposal.json](../dioxus-frontend-tranche-1/proposal.json). The current published-child mapping is listed in the table above. The [model policy](AGENT-ROUTING.md) governs assignments.
 
-The user authorized implementation and automatic bounded-ticket publication on 2026-10-02; 48 bounded ticket records are published, of which 47 are non-superseded. This cumulative count includes the retained superseded F6K.4 aggregate; it does not imply dispatch readiness or acceptance. Remaining parent scopes without a bounded child still require source-checked decomposition before broad implementation dispatch. This view changes neither that authorization nor parent statuses and authorizes no API or cutover changes. The 62-parent graph, including each original start and acceptance edge, remains authoritative. Planning/review may continue while implementation and verification use the available capacity.
+The user authorized implementation and automatic bounded-ticket publication on 2026-10-02; 48 bounded ticket records are published, of which 47 are non-superseded. This cumulative count includes the retained superseded F6K.4 aggregate; it does not imply dispatch readiness or acceptance. Remaining active parent scopes without a bounded child still require source-checked decomposition before broad implementation dispatch. This view changes neither that authorization nor parent statuses and authorizes no API or cutover changes. The original graph remains in Git history; this dispatch view and current tasks.json have 61 active parents. Planning/review may continue while implementation and verification use the available capacity.
 
 
-Current portfolio addendum (2026-10-02): the F6K.4 encoder/firmware aggregate issue05 is superseded for dispatch by published issues06–08; its criteria/history remain. Counts are 48 published records total / 47 non-superseded records, with 62 canonical parents unchanged. F6K.4 still starts after F6K.1/F6K.2 and keeps F5.2/F8.2 as acceptance joins. Issue06’s private binding-target contract has cleared review. Source correction `868edfcb` is mounted and the eight-command/973-hash build `frontend-encoder-select-fixed-20261002` is served at 34687; targeted 34687 browser regression now passes (all three empty values are `none`). The genuine physical-fixture workflow now passes: fresh None defaults, clockwise/counterclockwise/push edits, Undo/Redo and export/reimport. The final separate regression/layout packet covers both offline routes and ordinary non-first binding selections after reload. Scope switching, full keyboard/focus/AT, module rejection/recovery, F5.2/F8.2 and issue06/parent acceptance remain open.
+Retained portfolio history (2026-10-02): the F6K.4 encoder/firmware aggregate issue05 is superseded for dispatch by published issues06–08; its criteria/history remain. At that checkpoint counts were 48 published records total / 47 non-superseded records, with 62 source-graph parents. F6K.4 still starts after F6K.1/F6K.2 and keeps F5.2/F8.2 as acceptance joins. Issue06’s private binding-target contract has cleared review. Source correction `868edfcb` is mounted and the eight-command/973-hash build `frontend-encoder-select-fixed-20261002` is served at 34687; targeted 34687 browser regression now passes (all three empty values are `none`). The genuine physical-fixture workflow now passes: fresh None defaults, clockwise/counterclockwise/push edits, Undo/Redo and export/reimport. The final separate regression/layout packet covers both offline routes and ordinary non-first binding selections after reload. Scope switching, full keyboard/focus/AT, module rejection/recovery, F5.2/F8.2 and issue06/parent acceptance remained open at that checkpoint.

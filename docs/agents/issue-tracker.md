@@ -10,7 +10,7 @@ Specs and issues remain Markdown under `.scratch/<feature>/`.
 | Fact | Authoritative record |
 | --- | --- |
 | Current candidate, six queues, pending joins, phase, journey progress | [run JSON](../migration/dioxus-frontend-v1-run.json), `current_progress` |
-| 62 parents, criterion states/evidence/next actions, status, dependencies and final joins | [tasks.json](../../.scratch/dioxus-frontend-v1/tasks.json) |
+| Active parents, criterion states/evidence/next actions, status, dependencies and final joins | [tasks.json](../../.scratch/dioxus-frontend-v1/tasks.json) |
 | Workflow requirements and source coverage | [spec](../../.scratch/dioxus-frontend-v1/spec.md), existing child issues and [coverage](../../.scratch/dioxus-frontend-v1/coverage.json) |
 | Architecture/design/theory/quality findings | [RF ledger](../../.scratch/dioxus-frontend-v1/refactor-findings.json) |
 | Candidate review | One finalized candidate review/audit, referenced by parent decisions using path/hash |

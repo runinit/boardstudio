@@ -80,7 +80,7 @@ The milestone-level prerequisites above describe integration context. The refine
 | Slice | Start after | Acceptance joins |
 | --- | --- | --- |
 | F9.1 | Baseline; preparation may start | Own slice acceptance |
-| F9.2 | Baseline; preparation may start | F2.2, F2.4, F3.7, F4.5, F4.6, F4.7, F5.8, F6.6, F7.8, F8.6 |
+| F9.2 | Baseline; preparation may start | F2.2, F2.4, F3.7, F4.5, F4.6, F5.8, F6.6, F7.8, F8.6 |
 | F9.3 | Baseline; preparation may start | F9.2 |
 | F9.4 | Baseline; preparation may start | F8.6 |
 | F9.5 | Baseline; preparation may start | F9.2 |

@@ -506,7 +506,7 @@
         {
           "id": "F2.1-C04",
           "requirement": "Damaged preview falls back without blocking access; demo opens as an editable copy; browsing does not mutate revision/history/active selection.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/library.rs:163",
@@ -517,7 +517,7 @@
             ".scratch/dioxus-frontend-tranche-1/evidence/project-demo-cards-fresh-copies-34767/RESULTS.md"
           ],
           "blockers": [],
-          "next_action": "Paired Sofle demo editable copy and nonmutating browse retained; one focused mounted production-path test now proves zero-width damaged preview fallback leaves accessible Open and a healthy card. Public React/Dioxus damaged-preview pairing is unavailable through supported UI; decide this exact evidence substitution at consolidated F2.1 acceptance review.",
+          "next_action": "Paired public import of the same zero-width-keycap archive kept Open enabled in both apps; Dioxus correctly showed the damaged-preview fallback while the pinned React reference rendered zero-width rectangles without fallback. This is an intentional defensive behavior correction, not a parity blocker. Reuse prior paired editable-copy/nonmutating browse and mounted healthy-card coexistence evidence. No further C04 action.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/library.rs"
@@ -2336,7 +2336,7 @@
       "effort": "M",
       "acceptance": {
         "red": "On the current Dioxus source, opening Parts shows the unavailable-workspace placeholder; there is no parts query, category list, selection or module loading state.",
-        "green": "Through the public browser UI, search and select canonical/legacy/custom footprint entries, key assemblies and grouped VIK module variants; keyboard selection, query changes, empty/no-match/loading/source-error states and selected-row labels match React fixtures. Selection opens the correct definition/assembly/module details without changing the document revision."
+        "green": "Through the public browser UI, search and select canonical/legacy/custom footprint entries, key assemblies; keyboard selection, query changes, empty/no-match/loading/source-error states and selected-row labels match React fixtures. Selection opens the correct definition/assembly/module details without changing the document revision."
       },
       "boundary_status": "Existing catalogue/definition data; private Dioxus browsing UI can start after minimal shell contract. F2 panel completion joins final UI qualification, not catalogue implementation.",
       "workflow": "F4",
@@ -2381,7 +2381,7 @@
       "criteria": [
         {
           "id": "F4.1-C01",
-          "requirement": "Browse/select canonical, legacy, custom footprint, assembly and grouped VIK entries.",
+          "requirement": "Browse/select canonical, legacy, and custom footprint entries and key assemblies.",
           "state": "implemented",
           "classification": "functional",
           "sources": [
@@ -2393,7 +2393,7 @@
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md"
           ],
           "blockers": [],
-          "next_action": "Canonical/assembly/grouped VIK selection passes; same-name nice-view/nice-nano IDs are identical in both apps and differing labels are presentation-only. Remaining legacy/custom project-override selection needs representative fixture; do not reopen disproved mapping investigation.",
+          "next_action": "Canonical and assembly selection passes. Same-name nice-view/nice-nano IDs are identical in both apps and differing labels are presentation-only. Remaining legacy/custom project-override selection needs representative fixture; do not reopen disproved mapping investigation.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts.rs",
@@ -3293,154 +3293,6 @@
       }
     },
     {
-      "id": "F4.7",
-      "title": "Inspect VIK module sources and edit library profiles",
-      "depends_on": [
-        "F4.1",
-        "INT.2",
-        "F4.4"
-      ],
-      "priority": "P2",
-      "effort": "L",
-      "acceptance": {
-        "red": "Dioxus Parts has no module catalogue, source preview or module profile editor.",
-        "green": "Browse grouped module variants with source/license/readiness metadata; inspect bundled source-board/constituent footprint preview; edit supported definition-level measured volumes, openings, models and rotary profile facts with evidence/qualification states; save through existing module-definition/edit services; show loading/extraction/save errors; reject stale async results after selection/scope change; preserve project assets/source provenance. Mounted placements, connectors, wiring, circuit copies and PCB layer behavior are not claimed by this slice."
-      },
-      "boundary_status": "bundled module catalogue, ImportModuleBoard/SetModuleDefinition and profile/extraction services exist; Runtime fa\u00e7ade is coordinator-owned; mounted module and PCB presentation remain F5 and physical fit acceptance remains F7",
-      "workflow": "F4",
-      "owner": "F4 workflow lead",
-      "start_after": [
-        "F4.1"
-      ],
-      "acceptance_after": [
-        "INT.2",
-        "F4.4"
-      ],
-      "status": "implementing",
-      "external_gates": [],
-      "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
-      "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
-      "agent_routing": {
-        "author_profile": "luna-medium",
-        "verifier_profile": "luna-medium",
-        "reviewer_profile": "sol-review",
-        "review_mode": "integrated_candidate_batch",
-        "contract_review_before_implementation": false,
-        "requires_dispatch_packet": true,
-        "policy": "AGENT-ROUTING.md",
-        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
-        "refactoring_handoff_required": true
-      },
-      "status_history": [
-        {
-          "at": "2026-10-03T14:36:06.025011+00:00",
-          "from": "planned",
-          "to": "implementing",
-          "reason": "Current source contains mounted guide/readiness, mechanical-fit editing, module inspection, physical-setup ownership, guarded export coordination and PCB/Case export consumers; remaining source completion and candidate qualification are active. This corrects stale planned status without accepting any parent or waiving its final joins."
-        }
-      ],
-      "criteria": [
-        {
-          "id": "F4.7-C01",
-          "requirement": "Browse grouped VIK variants with source/license/readiness metadata; inspect bundled source-board and constituent footprint preview.",
-          "state": "implemented",
-          "classification": "functional",
-          "sources": [
-            "web/src/presentation/parts/modules_catalogue.rs:1",
-            "web/src/presentation/parts/modules_catalogue.rs:65"
-          ],
-          "evidence": [
-            ".scratch/dioxus-parts-catalogue/evidence/issue02-vik-modules-34764/RESULTS.md"
-          ],
-          "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
-          "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
-          "owned_files": [
-            "web/src/presentation/parts/modules_catalogue.rs"
-          ],
-          "capabilities": [
-            "vik-catalogue",
-            "source-preview"
-          ]
-        },
-        {
-          "id": "F4.7-C02",
-          "requirement": "Edit supported definition-level volumes/openings/models/rotary facts with evidence and qualification; save using existing module-definition/edit services.",
-          "state": "implemented",
-          "classification": "functional",
-          "sources": [
-            "web/src/presentation/parts/module_profile_editor.rs:304",
-            "web/src/presentation/parts/module_profile_editor.rs:551"
-          ],
-          "evidence": [
-            ".scratch/dioxus-parts-catalogue/evidence/issue02-vik-module-preview-34765/RESULTS.md"
-          ],
-          "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
-          "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
-          "owned_files": [
-            "web/src/presentation/parts/module_profile_editor.rs"
-          ],
-          "capabilities": [
-            "module-profile",
-            "save"
-          ]
-        },
-        {
-          "id": "F4.7-C03",
-          "requirement": "Loading/extraction/save failures are visible; stale async results are rejected; project assets/source provenance are preserved.",
-          "state": "implemented",
-          "classification": "functional",
-          "sources": [
-            "web/src/presentation/parts/module_profile_editor.rs:105",
-            "web/src/presentation/parts/module_profile_editor.rs:331",
-            "web/src/presentation/parts/modules_catalogue.rs:65"
-          ],
-          "evidence": [],
-          "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
-          "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
-          "owned_files": [
-            "web/src/presentation/parts/module_profile_editor.rs",
-            "web/src/presentation/parts/modules_catalogue.rs"
-          ],
-          "capabilities": [
-            "async-errors",
-            "stale-result",
-            "asset-provenance"
-          ]
-        },
-        {
-          "id": "F4.7-C04",
-          "requirement": "Mounted placement/connectors/wiring/circuit copies/PCB layer behavior remain downstream and are not claimed here.",
-          "state": "implemented",
-          "classification": "functional",
-          "sources": [
-            "web/src/presentation/parts/modules_catalogue.rs:1",
-            "web/src/presentation/parts/module_profile_editor.rs:304"
-          ],
-          "evidence": [],
-          "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
-          "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
-          "owned_files": [
-            "web/src/presentation/parts/modules_catalogue.rs",
-            "web/src/presentation/parts/module_profile_editor.rs"
-          ],
-          "capabilities": [
-            "scope-boundary"
-          ]
-        }
-      ],
-      "criteria_accounting": {
-        "source_commit": "07b4c3466b1f388073e8e1f9d619b0703223d770",
-        "assessed_at": "2026-10-03T19:37:09Z",
-        "coverage": "complete",
-        "note": "Split existing parent acceptance text into independently decidable behaviors; original scope and joins preserved. Implemented is source inspection only; verified cites existing journey/receipt."
-      }
-    },
-    {
       "id": "F5.1",
       "title": "PCB workspace and host layers",
       "depends_on": [
@@ -4103,21 +3955,18 @@
       "id": "F5.5",
       "title": "Mounted-module placement and inspector integration",
       "depends_on": [
-        "F5.4",
-        "F4.7"
+        "F5.4"
       ],
       "priority": "P1",
       "effort": "L",
-      "acceptance": "The PCB selection opens the mounted-placement inspector for its module/instance scope, face, pose, gap, attachment, clearance, supports, connection, circuit joins and individual-component actions. It reuses F4-owned definition selection, source readiness/profile editing and asset/model presentation. Placement identity, pending/error/cancel behavior, resolver results and board/instance scope match React.",
-      "boundary_status": "F5 Dioxus placement Inspector source is now an isolated first child consuming existing module definitions, physical instances, resolved scenes and Core Set/Remove edits. Root integration, changed paired public journey and remaining F5.5/F4.7 joins are open; F4 still owns definition/profile/readiness/assets.",
+      "acceptance": "The PCB selection opens the mounted-placement inspector for its module/instance scope, face, pose, gap, attachment, clearance, supports, connection, circuit joins and individual-component actions. It reuses F4-owned definition selection, asset/model presentation. Placement identity, pending/error/cancel behavior, resolver results and board/instance scope match React.",
+      "boundary_status": "F5 Dioxus placement Inspector source is an isolated first child consuming existing module definitions, physical instances, resolved scenes and Core Set/Remove edits. Root integration, changed paired public journey and remaining F5.5 joins are open; F4 owns definition selection and asset/model presentation.",
       "workflow": "F5",
       "owner": "F5 workflow lead",
       "start_after": [
         "F5.4"
       ],
-      "acceptance_after": [
-        "F4.7"
-      ],
+      "acceptance_after": [],
       "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
@@ -4140,14 +3989,7 @@
         "scope": "First placement Inspector child consumes current ProjectDoc module/definition/physical-instance data and existing Core SetMountedModule/RemoveMountedModule edits. It adds scoped mounted-module selection from the PCB overlay. Supports, connection, circuit joins, source editing, full F5.4 criteria and all parent joins remain open.",
         "child": "PCB22 mounted-module placement Inspector",
         "acceptance": "Source packet only; root integration, combined check/package, paired Save/Remove/Undo/Redo/reopen journey and all original parent criteria/dependencies remain open.",
-        "capability_gate_updates": [
-          {
-            "criterion": "F5.5-C03",
-            "blocker": "F4.7",
-            "resolved_for": "implementation and focused qualification start",
-            "reason": "Consumed catalogue definition/profile/readiness and existing Core SetMountedModule capabilities are present and used by the mounted attachment. Whole F4.7 remains parent acceptance_after; its unqualified criteria do not prevent exercising this concrete route."
-          }
-        ]
+        "capability_gate_updates": []
       },
       "status_history": [
         {
@@ -4213,37 +4055,6 @@
           ]
         },
         {
-          "id": "F5.5-C03",
-          "requirement": "Reuse F4-owned definition selection, source readiness/profile editing and asset/model presentation.",
-          "state": "verified",
-          "classification": "functional",
-          "sources": [
-            "web/src/presentation/parts/modules_catalogue.rs",
-            "web/src/presentation/parts/module_profile_editor.rs",
-            "web/src/presentation/pcb_module_inspector.rs",
-            "web/src/presentation/parts/modules_catalogue/module_attachment.rs",
-            "web/src/presentation/parts_workspace.rs"
-          ],
-          "evidence": [
-            ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md",
-            ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/modules/vik-splitter-gnd-join-ad26b07a.md"
-          ],
-          "blockers": [],
-          "next_action": "Retain paired source profile/model binding edit, exact asset bytes, persistent module/connector identity and fresh public archive reopen on34782/5175. Candidate physical alignment remains unverified and is not asserted by this F4-control-reuse criterion; pending/error scope branches remain C04 and F4.7 parent join remains.",
-          "finish_condition": "Integrated PCB placement selection reuses exact F4 definition/readiness/profile/asset controls and reflects their accepted state.",
-          "owned_files": [
-            "web/src/presentation/pcb_module_inspector.rs",
-            "web/src/presentation/pcb_physical_setup/controller.rs",
-            "web/src/presentation.rs",
-            "web/src/presentation/workspace_composition.rs"
-          ],
-          "capabilities": [
-            "F4 definition selection",
-            "readiness/profile editor",
-            "model asset presentation"
-          ]
-        },
-        {
           "id": "F5.5-C04",
           "requirement": "Placement identity, pending/error/cancel behavior, resolver results and board/instance scope match React.",
           "state": "implemented",
@@ -4276,7 +4087,7 @@
         "source_commit": "07b4c3466b1f388073e8e1f9d619b0703223d770",
         "assessed_at": "2026-10-03T19:32:35+00:00",
         "coverage": "complete",
-        "note": "Split every clause of the existing parent acceptance into independent checks; states reflect source/evidence qualification, not parent acceptance. Historical baseline/prose findings are retained as context and are not newly classified as defects."
+        "note": "Current active F5.5 acceptance clauses are split into independent checks; the removed definition-profile clause and its unfinished dependency are absent from the active parent. Historical scope records remain in Git."
       }
     },
     {
@@ -4611,7 +4422,6 @@
         "F5.6",
         "F5.7",
         "F2.3",
-        "F4.7",
         "F6K.4",
         "F7.3",
         "F7.7"
@@ -4633,7 +4443,6 @@
       ],
       "acceptance_after": [
         "F2.3",
-        "F4.7",
         "F6K.4",
         "F7.3",
         "F7.7"
@@ -6618,7 +6427,7 @@
             ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md"
           ],
           "blockers": [],
-          "next_action": "Paired34789 and source review confirm Layout 3D VIK module/standoff objects are absent from the shared-viewer scene; TS lists them. Implement current accepted module scene projection and module pick mapping first. Then address 3D finding focus (currently SVG-only) and qualify rendered Case-body pick; Dioxus Plate pick works, but pinned React body vanished with PCB hidden, so that paired branch remains unresolved. Retain earlier 3D part/empty and separately labeled 2D module/finding evidence.",
+          "next_action": "Address 3D finding focus (currently SVG-only) and qualify rendered Case-body pick. Dioxus Plate pick works, but pinned React body vanished with PCB hidden, so that paired branch remains unresolved. Retain earlier 3D part/empty and separately labeled 2D finding evidence.",
           "finish_condition": "Mapped and empty picks resolve only against current consumer scope; finding focus/highlight works with hidden layers.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",
@@ -8540,7 +8349,6 @@
         "F3.7",
         "F4.5",
         "F4.6",
-        "F4.7",
         "F5.8",
         "F6.6",
         "F7.8"
@@ -8566,7 +8374,6 @@
         "F3.7",
         "F4.5",
         "F4.6",
-        "F4.7",
         "F5.8",
         "F6.6",
         "F7.8"
@@ -8608,7 +8415,6 @@
             "F3.7",
             "F4.5",
             "F4.6",
-            "F4.7",
             "F5.8",
             "F6.6",
             "F7.8"
@@ -8787,7 +8593,6 @@
         "F3.7",
         "F4.5",
         "F4.6",
-        "F4.7",
         "F5.8",
         "F6.6",
         "F7.8",
@@ -8806,7 +8611,6 @@
         "F3.7",
         "F4.5",
         "F4.6",
-        "F4.7",
         "F5.8",
         "F6.6",
         "F7.8",
@@ -8853,7 +8657,6 @@
             "F3.7",
             "F4.5",
             "F4.6",
-            "F4.7",
             "F5.8",
             "F6.6",
             "F7.8",
@@ -9410,7 +9213,6 @@
     "F7.6",
     "F3.7",
     "F4.6",
-    "F4.7",
     "F6K.3",
     "F6K.4",
     "F6C.4",
@@ -9444,13 +9246,13 @@
     "F9.5"
   ],
   "counts": {
-    "total": 62,
-    "workflow_slices": 58,
+    "total": 61,
+    "workflow_slices": 57,
     "integration_slices": 2,
     "boundary_slices": 2,
     "status": {
       "accepted": 14,
-      "implementing": 37,
+      "implementing": 36,
       "planned": 11
     }
   },

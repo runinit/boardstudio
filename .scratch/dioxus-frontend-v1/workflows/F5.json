@@ -164,21 +164,18 @@
       "id": "F5.5",
       "title": "Mounted-module placement and inspector integration",
       "depends_on": [
-        "F5.4",
-        "F4.7"
+        "F5.4"
       ],
       "priority": "P1",
       "effort": "L",
-      "acceptance": "The PCB selection opens the mounted-placement inspector for its module/instance scope, face, pose, gap, attachment, clearance, supports, connection, circuit joins and individual-component actions. It reuses F4-owned definition selection, source readiness/profile editing and asset/model presentation. Placement identity, pending/error/cancel behavior, resolver results and board/instance scope match React.",
-      "boundary_status": "Public mounted-module edits and resolution exist; F5 Dioxus placement adapter missing. F4 owns module definitions, readiness/profile editing and library asset presentation; F5 consumes those seams without duplicating them.",
+      "acceptance": "The PCB selection opens the mounted-placement inspector for its module/instance scope, face, pose, gap, attachment, clearance, supports, connection, circuit joins and individual-component actions. It reuses F4-owned definition selection, asset/model presentation. Placement identity, pending/error/cancel behavior, resolver results and board/instance scope match React.",
+      "boundary_status": "Public mounted-module edits and resolution exist; F5 Dioxus placement adapter is in progress. F4 owns module definition selection and library asset/model presentation; F5 consumes those seams.",
       "workflow": "F5",
       "owner": "F5 workflow lead",
       "start_after": [
         "F5.4"
       ],
-      "acceptance_after": [
-        "F4.7"
-      ],
+      "acceptance_after": [],
       "status": "planned",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
@@ -194,7 +191,8 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      }
+      },
+      "criteria": []
     },
     {
       "id": "F5.6",
@@ -277,7 +275,6 @@
         "F5.6",
         "F5.7",
         "F2.3",
-        "F4.7",
         "F6K.4",
         "F7.3",
         "F7.7"
@@ -299,7 +296,6 @@
       ],
       "acceptance_after": [
         "F2.3",
-        "F4.7",
         "F6K.4",
         "F7.3",
         "F7.7"

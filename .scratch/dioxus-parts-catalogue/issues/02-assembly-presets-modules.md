@@ -1,31 +1,20 @@
-# 02: Choose bundled key assemblies and VIK module variants
+# 02: Choose bundled key assemblies
 
-**What to build:** Parts includes the reference’s bundled key assembly presets and source-backed VIK module catalogue. A designer can select a preset or module row, switch among its variants, and inspect the selected item’s existing details without editing it.
+**Current first-release scope:** the active issue covers bundled key assembly presets. VIK module catalogue rows, variants, previews and new placement are deferred; saved module data remains reopenable for compatibility. Existing VIK evidence is retained below and in its evidence files, with no dispatch.
 
 **Blocked by:** 01: component-catalogue (the Parts query, result selection, and selected-detail surface).
 
-**Status:** implementing the bundled VIK module row/variant browser; parent acceptance remains open.
+**Status:** active for bundled key assembly presets; VIK work is historical/deferred.
 
 ## Bounded current slice
 
-The eight existing `matrixPresetDefinitions` rows are mounted in the Parts Objects panel. Selecting a row selects its lead switch definition and hands the stable preset ID to Issue 03 for read-only companion composition. Names and member behavior follow `app/src/ui/assemblyCatalog.ts` and `app/src/ui/assemblyPresets.ts`, including project reversible-layout construction. The current bounded slice adds source-backed VIK row/variant browsing, a read-only center preview of the selected module snapshot's board contours/holes/circuit outlines, and read-only provenance/readiness details. Neither slice implements VIK placement or editing, placing an assembly, editing a recipe, or full Issue 02/parent acceptance.
+The eight existing `matrixPresetDefinitions` rows are mounted in the Parts Objects panel. Selecting a row selects its lead switch definition and hands the stable preset ID to Issue 03 for read-only companion composition. Names and member behavior follow `app/src/ui/assemblyCatalog.ts` and `app/src/ui/assemblyPresets.ts`, including project reversible-layout construction. Placing an assembly, editing a recipe, and full Issue 02/parent acceptance remain separate criteria.
 
-## Current bounded slice: VIK module rows and variants
-
-Use the existing `app/src/modules/imported-modules.json` source, not hand-authored module metadata. Load it lazily while Parts is mounted, retain successful package data for re-entry, and allow a failed load to retry after leaving and re-entering Parts. Merge the accepted document's `moduleDefinitions` by stable ID with project precedence, preserving the bundled row identity for a matching override. Group by that reviewed row identity (falling back to module ID only for project-only snapshots), filter the actual name/row/family/variant fields with the shared Parts query, and select one exact module snapshot. The Inspector exposes only the existing variant, pinned source, provenance and hardware-gate summaries; it does not edit the module or claim placement, wiring, fabrication, or model alignment. The center preview uses only that selected snapshot's recorded board contours, holes, source circuit courtyards and source drilled pads. Missing outlines stay empty and explicit; no fallback shape is authored.
-
-- [ ] Show source-backed VIK module rows grouped by `catalogueRow`/reviewed row, including duplicate-name disambiguation and exact variant count; selecting a row selects its first source snapshot.
-- [ ] Switch among only the selected row's stable module identities and display that snapshot's source URL, license/revision and recorded readiness gates.
-- [ ] Keep the center canvas bound to the selected module snapshot and render its recorded board contours, holes and available source circuit geometry; never leave the previously selected footprint preview in place.
-- [ ] Project snapshots override bundled snapshots by ID without changing row membership; project-only snapshots use their existing row metadata or ID fallback.
-- [ ] Loading, failure, re-entry retry and no-match states remain scoped to the mounted Parts catalogue. Query and selection remain read-only.
-- [ ] Pin one actual React row/variant journey and replay only the changed behavior on the packaged Dioxus candidate. This bounded evidence does not cover every module row, override or lifecycle failure.
-- [ ] Preserve RF-001/RF-009 observations and the inherited shared acceptance/review gates; parent acceptance remains open.
+Historical VIK slice record: the prior row/variant browser proposal and its evidence are deferred from first release. Do not dispatch or treat its unfinished criteria as active; retain the existing evidence files for future work.
 
 - [ ] Show and select the eight existing `matrixPresetDefinitions` entries with their reference names and behavior; selecting one chooses its lead switch and activates its source-backed recipe preview. Do not limit this area to saved project assemblies.
-- [ ] Load bundled module entries from the existing imported module catalogue, merge project snapshots by ID with project precedence, group by reviewed catalogue row, and provide the reference variant selector.
-- [ ] Selected preset/module details identify the actual definition/source and available readiness data; no new catalogue content or readiness/fabrication claims are introduced.
+- [ ] Selected preset details identify the actual definition/source and available readiness data; no new catalogue content or readiness/fabrication claims are introduced.
 - [ ] Preserve reference loading/error/no-match behavior, including its existing re-entry retry lifecycle; do not add a Retry button or ordinary-definition loading/error UI absent from the reference.
-- [ ] Query and selection remain read-only. Paired public browser evidence covers all bundled presets, a duplicate-name/multi-variant module row, project override precedence, loading/error and no-match; record RF observations.
+- [ ] Query and selection remain read-only. Paired public browser evidence covers all bundled presets; record RF observations.
 
-- [ ] Complete inherited shared acceptance, independent Standards/Spec review and RF handoff; parent acceptance/joins remain open. This bounded slice leaves VIK module variants and the remaining Issue 02 criteria unchecked.
+- [ ] Complete inherited shared acceptance, independent Standards/Spec review and RF handoff; parent acceptance/joins remain open.

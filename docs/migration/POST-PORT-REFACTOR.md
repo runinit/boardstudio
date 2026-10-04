@@ -2148,7 +2148,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 ## RF-019: Layout 3D scene projection omits mounted module bodies
 
-**Status:** functional repair queued under F7.3-C05; post-port projection consolidation deferred
+**Status:** Post-v1 refactor candidate; VIK-specific 3D repair removed from the active first-release roadmap by user decision.
 
 **Confidence:** confirmed source and paired public mismatch; full repair scope pending source mapping
 
@@ -2156,11 +2156,11 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Impact:** Mounted modules can be placed in PCB 2D yet disappear from the shared 3D assembly and cannot be selected there, hiding a functional workbench relationship.
 
-**Current mitigation:** Add a scoped current-module scene projection and pick identity through the existing F7-owned viewer, reusing accepted module geometry rather than creating another renderer or saved representation.
+**Current mitigation:** Preserve existing saved-module compatibility and generic viewer behavior; do not dispatch the VIK-specific scene repair for v1.
 
 **Later proposal:** Consolidate board, module, case and finding scene inputs into a typed accepted-scene producer with explicit owner identity and one renderer-facing projection. Keep consumer-specific edit actions in their workbenches.
 
-**Validation:** Paired VIK Layout 3D shows the same mounted module/standoff, and a trusted pick selects the current project module; verify stale board/project input does not leave a foreign module pick.
+**Validation:** If mounted-module 3D support returns after v1, pair module/standoff projection and trusted selection across board/project changes before accepting it.
 
 **Evidence:** `web/src/presentation/shared_viewer.rs`; `.scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md`; `app/src/ui/AssemblyViewer.tsx`
 
@@ -2177,12 +2177,18 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
     "F5.7",
     "F6.6"
   ],
-  "decision": "Treat missing 3D module projection as current functional migration work; defer producer consolidation to the post-port refactor.",
+  "decision": "User removed unfinished VIK parts from the first release on 2026-10-03. Keep this confirmed architecture gap in the RF ledger, outside the active v1 criterion queue.",
   "follow_up_owner": "F7.3 shared viewer / F5 module integration",
   "linked_tasks": [
     "F7.3",
     "F5.7"
   ],
-  "continuations": []
+  "continuations": [
+    {
+      "at": "2026-10-03",
+      "decision": "VIK-specific Layout 3D repair removed from active v1 parent/criterion roadmap; unfinished private patch preserved at /home/chris/.local/share/boardstudio/retained-tmp/20261003/deferred-vik-layout3d.patch (SHA-256 657be894d91bccac879c7925d0bd555653ed4ab7b60c1e1c627fdd3ba3b71e9f).",
+      "evidence": "User instruction in current migration task; preserved original mismatch receipt."
+    }
+  ]
 }
 ```

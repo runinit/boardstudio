@@ -2,7 +2,7 @@
 
 This is the retained quality contract, disclosed when preparing parent acceptance
 or cutover. [CONSTRAINTS.md](../../CONSTRAINTS.md) owns execution timing and authority.
-The 62 canonical task rows retain their individual criteria and final dependency joins.
+The active canonical task rows retain their individual criteria and final dependency joins. The user removed the unfinished VIK-only parent from the first-release roadmap on 2026-10-03; its prior requirements remain in Git history.
 A requirement here applies to the affected workflow; global performance, corpus,
 accessibility and retirement qualification belong to their milestone, not author dispatch.
 User-authorized necessary API/design changes follow the compatibility rules below.

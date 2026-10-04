@@ -110,7 +110,7 @@ qualification. None of these receipts closes F8.2–F8.6 or the F8 parent.
 | Portable project copy (F8.6/F2.2 join) | 34763 shows the mounted option/control. Other public `.boardstudio` archives prove archive delivery in their own workflows; the shared owner implementation is in F2.2. | No paired Export-route download has verified project-name filename, both model-option semantics, archive round-trip and unchanged live document. Do not infer this from unrelated archive downloads. |
 | Full/draft KiCad and ordering (F8.3/F8.6) | [Pinned React full/draft receipt](../evidence/export-pcb-handoff-20261003/REACT-RECEIPT.md), [34769 paired Dioxus receipt](../evidence/export-pcb-handoff-20261003/34769-RECEIPT.md), and [34770 corrected-heading leg](../evidence/export-pcb-handoff-20261003/34770-HEADING-GREEN.md) record actual ZIPs, entries, assembly text, and nested board/report outputs. | Applied-wiring history/reopen and “failed package does not protect” remain unqualified, along with shared stale/order and F8.6 joins. These bounded output leaves do not close the parents. |
 | Authored Case STEP / generated mechanical ZIP (F8.5/F8.6) | Pinned React `exportCase` always prepares canonical saved `caseBodies` for the selected board, even when `generatedCase` changes the row label to “Authored Case STEP”. Dioxus now uses Core `PrepareCase` plus the exact CAD worker for that authored output. Generated mechanical uses the effective selected-instance document, resolver, exact CAD worker, outline/plate artifacts and ZIP provider. See [authored Case STEP source map](../evidence/export-workspace-20261003/authored-case-step-source-map.md). | Actual authored STEP download/name and generated ZIP contents/selected-instance delivery remain unqualified. Preserve their distinct canonical versus selected-instance inputs; one path does not prove the other. |
-| Shared lifecycle and final joins (F8.2/F8.6) | Bounded footprint, outline, firmware-local and STEP-local receipts exercise their owner paths; session/export identity guards are source-visible. | No public stale-scope, failed-package, retry, URL cleanup, export-owned protection-ordering, or one-project Layout→Parts→PCB→Keymap→Keycaps→Case→Export join has been qualified. F2.2/F3.7/F4.5–4.7/F5.8/F6.6/F7.8 joins remain required. |
+| Shared lifecycle and final joins (F8.2/F8.6) | Bounded footprint, outline, firmware-local and STEP-local receipts exercise their owner paths; session/export identity guards are source-visible. | No public stale-scope, failed-package, retry, URL cleanup, export-owned protection-ordering, or one-project Layout→Parts→PCB→Keymap→Keycaps→Case→Export join has been qualified. F2.2/F3.7/F4.5–4.6/F5.8/F6.6/F7.8 joins remain required. |
 
 The retained [34763 route and SVG/DXF receipt](../evidence/export-workspace-20261003/34763-RECEIPT.md)
 and [34767 footprints ZIP receipt](../evidence/export-footprints-20261003/RECEIPT.md)
@@ -157,7 +157,7 @@ The milestone-level prerequisites above describe integration context. The refine
 | F8.3 | F8.1, F8.2 | F3.4, F4.3, F5.2, F5.3, F5.5 |
 | F8.4 | F8.1, F8.2 | F5.2, F6K.4, F6C.5 |
 | F8.5 | F8.1, F8.2 | F7.2, F7.6, F7.7 |
-| F8.6 | F8.1, F8.2, F8.3, F8.4, F8.5 | F2.2, F3.7, F4.5, F4.6, F4.7, F5.8, F6.6, F7.8 |
+| F8.6 | F8.1, F8.2, F8.3, F8.4, F8.5 | F2.2, F3.7, F4.5, F4.6, F5.8, F6.6, F7.8 |
 
 ### Refactoring observation handoff
 

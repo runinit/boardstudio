@@ -174,8 +174,8 @@ def _repo_reference(value, label, suffix):
 def validate_criteria(graph):
     """Validate optional criterion accounting while preserving legacy parents."""
     tasks = graph["tasks"]
-    if len(tasks) != 62 or len({task["id"] for task in tasks}) != 62:
-        raise ValueError("The 62 canonical parents must remain unique and intact")
+    if len(tasks) != len({task["id"] for task in tasks}):
+        raise ValueError("Canonical parents must remain unique")
     parent_ids = {task["id"] for task in tasks}
     criteria_by_id = {}
     for task in tasks:
@@ -547,12 +547,17 @@ def record_candidate(proof_relative, root_url=None, subpath_url=None):
 def validate(run, graph):
     tasks = graph["tasks"]
     ids = {task["id"] for task in tasks}
-    if len(ids) != len(tasks) or len(tasks) != 62:
-        raise ValueError("The 62 canonical parents must remain unique and intact")
+    if len(ids) != len(tasks):
+        raise ValueError("Canonical parents must remain unique")
     expected = counts(tasks)
     if run["current_progress"]["parent_counts"] != expected:
         raise ValueError("Derived parent counts are stale; run sync")
     if graph["counts"]["status"] != {k: v for k, v in expected.items() if k != "total"}:
+        raise ValueError("Task count cache is stale; run sync")
+    if (graph["counts"].get("total") != expected["total"]
+            or graph["counts"].get("workflow_slices")
+            != expected["total"] - graph["counts"]["integration_slices"]
+            - graph["counts"]["boundary_slices"]):
         raise ValueError("Task count cache is stale; run sync")
     for task in tasks:
         if any(join not in ids for join in task["depends_on"]):
@@ -691,6 +696,11 @@ def main():
             set_status(graph, argparse.Namespace(**(vars(args) | {"parent": parent})))
     if args.command in ("sync", "set-status"):
         parent_counts = counts(graph["tasks"])
+        graph["counts"]["total"] = parent_counts["total"]
+        graph["counts"]["workflow_slices"] = (
+            parent_counts["total"] - graph["counts"]["integration_slices"]
+            - graph["counts"]["boundary_slices"]
+        )
         graph["counts"]["status"] = {k: v for k, v in parent_counts.items() if k != "total"}
         run["current_progress"]["parent_counts"] = parent_counts
         run["current_progress"]["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -702,7 +712,7 @@ def main():
         validate(run, graph)
         if (ROOT / REPORT).read_text() != refactor_report():
             raise ValueError("Derived RF report is stale; run sync")
-        print("Progress, 62 parents and RF report are consistent")
+        print(f"Progress, {len(graph['tasks'])} parents and RF report are consistent")
         return
     progress = run["current_progress"]
     if args.command == "show" and args.json:

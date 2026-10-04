@@ -16,12 +16,12 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T02:35:20.778925+00:00",
+    "updated_at": "2026-10-04T02:57:56.844079+00:00",
     "parent_counts": {
       "accepted": 14,
-      "implementing": 37,
+      "implementing": 36,
       "planned": 11,
-      "total": 62
+      "total": 61
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
@@ -49,7 +49,7 @@
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
       "source_commit": "6619d5f2be0ce4167939426dd7efd3a13fcbd1e3",
-      "state": "Published34789 source6619d5f2, compiler/package/root/subpath passed with zero warnings. F3.4-C01/C02/C03 and F2.1-C03 are verified through paired journeys. Consolidated Sol review found F7.3-C05 shared-3D gaps; module projection repair assigned. F3.2/F3.3 Layout and F4.2 Parts parents accepted.",
+      "state": "Published34789 source6619d5f2; compiler/package/root/subpath passed with zero warnings. F3.4-C01/C02/C03 and F2.1-C03 are verified through paired journeys. The active graph now has 61 parents and 221 criteria; unfinished VIK-specific Parts work and its dependent profile-reuse criterion were removed. F7.3-C05 remains active for 3D finding focus and paired Case-body qualification. F3.2/F3.3 Layout and F4.2 Parts parents accepted.",
       "packets": [
         {
           "stream": "Layout",
@@ -504,17 +504,17 @@
       },
       {
         "stream": "Case",
-        "state": "F7.3-C02/C03/C04 verified. C05 is missing: Layout 3D omits mounted module/standoff scene, 3D finding focus is SVG-only, and paired Case-body pick is unresolved despite a Dioxus rendered-body pick. Module scene repair is assigned."
+        "state": "F7.3-C02/C03/C04 verified. C05 remains open for 3D finding focus and paired Case-body pick qualification."
       },
       {
         "stream": "Parts + Project",
-        "state": "F4.2 accepted. F2.1-C02 search and C03 list Loading/error/Retry verified; C03 uses paired one-shot controlled IndexedDB getAll fault plus mounted transient Loading. C01 public Loading capture and C04 paired damaged-preview fallback remain."
+        "state": "F4.2 accepted. F2.1-C02 search, C03 list Loading/error/Retry, and C04 damaged-preview fallback/editable copy are verified. The paired malformed archive exposed a React fallback defect; Dioxus keeps Open available. C01 public Loading capture remains."
       }
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Implement F7.3-C05 accepted mounted-module 3D scene and pick mapping, then address 3D finding focus and Case-body parity; retain RF-019 for later scene-producer consolidation.",
-      "Continue F3.4-C04/C05 and F2.1-C01/C04 exact functional criteria without rerunning accepted journeys.",
+      "Continue F7.3-C05 with 3D finding focus and paired rendered Case-body pick qualification; retain RF-019 for later scene-producer consolidation.",
+      "Continue F3.4-C04/C05 and F2.1-C01 exact functional criteria without rerunning accepted journeys.",
       "Consolidate the next source packet into one compiler/package and one Sol 6.1 High review when functionally ready; preserve all parent joins and RF findings."
     ],
     "process_retro": {
@@ -626,7 +626,7 @@
               "scope": "Sofle selection, contextual Objects/Inspector Properties and Relations, matrix/key edits, Undo and reopen",
               "spec": ".scratch/dioxus-layout-authoring/spec.md",
               "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/journey.md",
-              "verified": "Three Properties shortcut routes and key width1\u21921.25\u2192Undo1\u2192Redo1.25\u2192reload1.25 match reference behavior.",
+              "verified": "Three Properties shortcut routes and key width1→1.25→Undo1→Redo1.25→reload1.25 match reference behavior.",
               "remaining": "Inspector arrangement/typography/context footer and Objects-to-toolbar selection-kind synchronization; broader authoring criteria unchanged."
             },
             {
@@ -1472,7 +1472,7 @@
         "Restore reference Inspector section order/context presentation and perimeter handle sizing using the saved paired screenshots."
       ],
       "retained_functional_work": "Layout authoring, actual selection semantics, outline geometry correctness, usable snapping/grid controls and all other workbench capabilities remain in scope.",
-      "acceptance": "Retain all 62 parent criteria, statuses and prior evidence. Functional progress is reported separately from unfinished visual/design criteria; no parent is accepted by reprioritization.",
+      "acceptance": "The active roadmap has 61 parents and 221 criteria with current statuses and prior evidence; scope changes do not imply acceptance.",
       "previous_priority": "Layout-first closure and contextual visual parity packet."
     },
     "functional_batch": {

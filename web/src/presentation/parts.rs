@@ -798,12 +798,6 @@ pub(super) fn PartsLibraryPanel(
     let mut assembly_orientation = use_context::<PartsAssemblyOrientation>().0;
     let mut selection_generation = use_context::<PartsSelectionGeneration>().0;
     let catalogue = use_catalogue(&snapshot, &scope);
-    let module_id = modules_catalogue::selected_id(selected(), &scope);
-    let module_catalogue = modules_catalogue::use_catalogue(
-        true,
-        snapshot.token,
-        snapshot.document.module_definitions.clone(),
-    );
     let content = if let Some(entries) = catalogue.entries {
         let choices = group_choices(&entries);
         let listed_entries = catalogue_choices(&entries);
@@ -823,24 +817,9 @@ pub(super) fn PartsLibraryPanel(
             .collect::<Vec<_>>();
         let result_count = groups.iter().map(|(_, items)| items.len()).sum::<usize>();
         let selected_id = selected_definition_id(&listed_entries, &search, selected(), &scope);
-        let module_groups = module_catalogue
-            .entries
-            .as_deref()
-            .map(|entries| modules_catalogue::group_choices(entries))
-            .unwrap_or_default();
-        let visible_module_groups = module_groups
-            .iter()
-            .filter(|group| group.matches(&search))
-            .cloned()
-            .collect::<Vec<_>>();
-        let module_count = visible_module_groups.len();
         let visible_assemblies = matching_assembly_presets(&search);
         let matching_assembly = !visible_assemblies.is_empty();
-        let no_matches = groups.is_empty()
-            && module_count == 0
-            && !matching_assembly
-            && !module_catalogue.pending
-            && module_catalogue.error.is_none();
+        let no_matches = groups.is_empty() && !matching_assembly;
 
         rsx! {
             label { class: "m1-parts-search-label", "Search parts"
@@ -937,47 +916,6 @@ pub(super) fn PartsLibraryPanel(
                                     }
                                 }
                             }
-                        }
-                    }
-                }
-            }
-            details { class: "m1-parts-catalogue-scroll", open: true,
-                summary { "VIK modules" small { "{module_count}" } }
-                if let Some(error) = module_catalogue.error.as_ref() {
-                    p { class: "m1-parts-load-error", role: "alert", "Module sources could not be loaded: {error}" }
-                } else if module_catalogue.pending {
-                    p { class: "m1-parts-loading", role: "status", "Loading module sources…" }
-                }
-                div { role: "listbox", "aria-label": "VIK modules",
-                    for group in &visible_module_groups {
-                        { let row = group.row.clone();
-                          let first_id = group.entries[0].definition.id.clone();
-                          let name = group.name.clone();
-                          let duplicate_name = visible_module_groups.iter().any(|other| other.row != row && other.name == name);
-                          let selected_module = module_id.as_deref().is_some_and(|id| group.entries.iter().any(|entry| entry.definition.id == id));
-                          let module_selection_id = format!("module:{first_id}");
-                          let mut selected = selected;
-                          let scope = scope.clone();
-                          rsx! {
-                            button {
-                                key: "{row}",
-                                class: "m1-parts-catalogue-choice",
-                                r#type: "button",
-                                role: "option",
-                                title: "{row}",
-                                "aria-selected": "{selected_module}",
-                                onclick: move |_| {
-                                    assembly_selection.set(None);
-                                    selected.set(Some((scope.clone(), module_selection_id.clone())));
-                                    view_generation.set(view_generation() + 1);
-                                    generation.with_mut(|value| *value = value.wrapping_add(1));
-                                    preview_activation.with_mut(|value| *value = value.wrapping_add(1));
-                                    on_select.call(());
-                                },
-                                "{name}"
-                                small { if duplicate_name { " · {row}" } if group.entries.len() > 1 { " · {group.entries.len()} variants" } }
-                            }
-                          }
                         }
                     }
                 }

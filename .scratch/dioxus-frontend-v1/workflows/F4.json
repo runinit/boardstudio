@@ -13,7 +13,7 @@
       "effort": "M",
       "acceptance": {
         "red": "On the current Dioxus source, opening Parts shows the unavailable-workspace placeholder; there is no parts query, category list, selection or module loading state.",
-        "green": "Through the public browser UI, search and select canonical/legacy/custom footprint entries, key assemblies and grouped VIK module variants; keyboard selection, query changes, empty/no-match/loading/source-error states and selected-row labels match React fixtures. Selection opens the correct definition/assembly/module details without changing the document revision."
+        "green": "Through the public browser UI, search and select canonical/legacy/custom footprint entries, key assemblies; keyboard selection, query changes, empty/no-match/loading/source-error states and selected-row labels match React fixtures. Selection opens the correct definition/assembly/module details without changing the document revision."
       },
       "boundary_status": "Existing catalogue/definition data; private Dioxus browsing UI can start after minimal shell contract. F2 panel completion joins final UI qualification, not catalogue implementation.",
       "workflow": "F4",
@@ -236,47 +236,6 @@
       "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
       "agent_routing": {
         "author_profile": "luna-high",
-        "verifier_profile": "luna-medium",
-        "reviewer_profile": "sol-review",
-        "review_mode": "integrated_candidate_batch",
-        "contract_review_before_implementation": false,
-        "requires_dispatch_packet": true,
-        "policy": "AGENT-ROUTING.md",
-        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
-        "refactoring_handoff_required": true
-      }
-    },
-    {
-      "id": "F4.7",
-      "title": "Inspect VIK module sources and edit library profiles",
-      "depends_on": [
-        "F4.1",
-        "INT.2",
-        "F4.4"
-      ],
-      "priority": "P2",
-      "effort": "L",
-      "acceptance": {
-        "red": "Dioxus Parts has no module catalogue, source preview or module profile editor.",
-        "green": "Browse grouped module variants with source/license/readiness metadata; inspect bundled source-board/constituent footprint preview; edit supported definition-level measured volumes, openings, models and rotary profile facts with evidence/qualification states; save through existing module-definition/edit services; show loading/extraction/save errors; reject stale async results after selection/scope change; preserve project assets/source provenance. Mounted placements, connectors, wiring, circuit copies and PCB layer behavior are not claimed by this slice."
-      },
-      "boundary_status": "bundled module catalogue, ImportModuleBoard/SetModuleDefinition and profile/extraction services exist; Runtime fa\u00e7ade is coordinator-owned; mounted module and PCB presentation remain F5 and physical fit acceptance remains F7",
-      "workflow": "F4",
-      "owner": "F4 workflow lead",
-      "start_after": [
-        "F4.1"
-      ],
-      "acceptance_after": [
-        "INT.2",
-        "F4.4"
-      ],
-      "status": "planned",
-      "external_gates": [],
-      "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
-      "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
-      "agent_routing": {
-        "author_profile": "luna-medium",
         "verifier_profile": "luna-medium",
         "reviewer_profile": "sol-review",
         "review_mode": "integrated_candidate_batch",
