@@ -70,3 +70,35 @@ On each app, I clicked `Unlock Row 1`, selected P101, and clicked `Lock Row 1`. 
 | `react-pin-lock-after-redo.boardstudio` | 20 | P101 | — | `c7e290319867d1e53be0a5ccbd2370ff573ebb9c61dc1c9072b1e6c6c3f846dc` |
 
 The candidate’s assignment selector transiently showed `Unresolved` while the saved lock was P101; the paired React selector showed P101. Both portable archives show the same accepted lock, unchanged assignments, nets, and Right-board state, so this display difference is recorded without inferring an accepted-state defect. React also kept a visible `Stale base revision` alert after the lock action while its revision-18/19/20 exports and Undo/Redo state were accepted; no further lock actions were attempted. This closes only the lock-edit history leg and does not qualify C02 protected-remap review or other pin-conflict branches.
+
+## Package-created protected handoff and explicit review (2026-10-03)
+
+Candidate: build `frontend-module-attachment-repair-20261003`, source `733c1da2abede39a617d2eca2e42d9bd437cea41`, route `http://127.0.0.1:34782/`, package proof `.scratch/dioxus-frontend-v1/evidence/frontend-module-attachment-repair-20261003/package-proof.json`. Reference: pinned React `5a472a9426e6e38993361da402cd4ec730feb369` at `http://127.0.0.1:5175/`. Named sessions were `pcb-c05-candidate-20261003` and `pcb-c05-react-20261003`. Both imported `/home/chris/.local/share/boardstudio/retained-tmp/20261002/keycaps-findings-f6c4-c6.boardstudio`, SHA-256 `9027125846d2878176f127ec39b60c9ab605a0eb2a4b9019e10dbba846fe87a6`, revision 12 with no protected handoff on either board.
+
+On both apps, I selected Left PCB, opened Export, and used the ordinary `Export KiCad board` package action once. Both returned a full KiCad ZIP. The candidate displayed the protected summary in the board Wiring inspector: “Pins protected by PCB handoff at revision 12”. The accepted `.boardstudio` archives from both apps show Left `protectedHandoff` with revision 12 and identical fingerprint `78b4c271ad9dccfe2de964ce4496c5e53eed2e2eee47a1311e0d3f7d6ce9e026`, including the complete 18-assignment baseline; Right remains unprotected. Normalized full `project.json` documents match across apps after package creation.
+
+I expanded `Review PCB remap` and clicked `Start a new PCB revision` once in each app. Dioxus showed “New PCB revision started. Regenerate PCB and firmware before export.” Its accepted archive advances to revision 13, clears only Left `protectedHandoff`, and preserves all other project fields and both board configurations; React produces the same normalized revision-13 document with the selected protection cleared. In each app the only normalized document delta from its package-created archive is Left `protectedHandoff` (apart from the overall revision increment). This supplies the requested package-created fixture and paired explicit-review state. It does not claim a reload/reopen, adjacent Undo/Redo, or a stale-fingerprint rejection in this leg.
+
+| Artifact | Bytes | SHA-256 | Accepted state |
+| --- | ---: | --- | --- |
+| `candidate-c05-full-kicad.zip` | 1,522,648 | `d2d3943027796403f93425e8670a3f5f6cfb81cf58c0753ed74f0ef84f054b30` | Full handoff ZIP; matches retained 34770 candidate hash |
+| `react-c05-full-kicad.zip` | 1,522,941 | `6806f92904db3924c890ba6de21d502f6c6dc7aa68216a099caf5fdac6789b7d` | Full handoff ZIP |
+| `candidate-c05-after-package.boardstudio` | — | `e8bb38218e3d3d78be1db37916f67619856e3896f84141e148d80636bb5c6d35` | Rev 12, Left protected fingerprint `78b4c271…e026`, Right unprotected |
+| `candidate-c05-after-review.boardstudio` | — | `fee1668053a3f1a209537ab0b67ae5d61cb9e854c08f30107e752d5fde254275` | Rev 13, Left/Right unprotected |
+| `react-c05-after-package.boardstudio` | — | `345f8473bff8a8da3c653686f097eafaf018441b07aac583ce790703b828501c` | Rev 12, same Left protection fingerprint, Right unprotected |
+| `react-c05-after-review.boardstudio` | — | `6bca180e15ed728fbd9cede45fd7bb8f3a25a916b85a6f2d1eb871c445347029` | Rev 13, Left/Right unprotected |
+
+The exercised source path is the full-export callback in `web/src/presentation/export_workspace.rs:272-289`, which reaches the guarded `ProtectElectricalHandoff` commit in `web/src/runtime.rs:4207-4217`; the explicit review control and event are `web/src/presentation/pcb_wiring.rs:908-935` and `web/src/presentation/pcb_wiring/remap.rs:139-182`. No source, canonical task data, or build files were changed. No ordinary edit was interposed while protected, and this evidence does not replace the remaining session/Core and reopen/history checks from Issue 12.
+
+## Ordinary edit preserves package protection (2026-10-03)
+
+Using fresh named sessions `pcb-c05-edit-candidate-20261003` on candidate 34782 and `pcb-c05-edit-react-20261003` on pinned React 5175, I imported the paired revision-12 protected archives above. I selected Right PCB and made one ordinary pin-lock edit in each app: lock Right `row/0` to its existing P5 assignment. Dioxus displayed `Wiring pin saved.`; the React control changed to `Unlock Row 1`. I then saved public `.boardstudio` project copies without repeating the package or remap-review actions.
+
+Both accepted archives advance to project revision 13. The Left `protectedHandoff` record is exactly unchanged from revision 12, including fingerprint `78b4c271ad9dccfe2de964ce4496c5e53eed2e2eee47a1311e0d3f7d6ce9e026`, baseline revision, and all 18 protected assignments. Left assignments are unchanged. Right gains only `locks["row/0"] = "P5"`; all other Right-board configuration is unchanged. The normalized complete project documents match across candidate and React (excluding overall revision and board-array order); within each project the only change from the protected baseline is revision plus that Right lock. This verifies the concrete ordinary-edit preservation requirement for C05.
+
+| Public archive | Revision | Left protected fingerprint | Right `row/0` lock | SHA-256 |
+| --- | ---: | --- | --- | --- |
+| `candidate-c05-after-right-edit.boardstudio` | 13 | unchanged: `78b4c271…e026` (baseline rev 12) | P5 | `4aeb9a13abbf13da6a7c2fc8bfa635ddebfc0fdbfe77125366cd2099ac9c62f2` |
+| `react-c05-after-right-edit.boardstudio` | 13 | unchanged: `78b4c271…e026` (baseline rev 12) | P5 | `28c533415736b2d6ea5fa1297228b415472848c28985f3f752bc7b730b465b58` |
+
+This leg verifies protection survives an accepted unrelated-board edit. It does not add a reopen, Undo/Redo, or stale-fingerprint claim.

@@ -492,7 +492,7 @@
       },
       {
         "stream": "PCB",
-        "state": "F5.3-C01 lock/conflict history and C02 manual-net review verified from paired accepted exports; protected-remap C05 and remaining net-authoring branches open."
+        "state": "F5.3-C01/C02/C05 verified: paired pin history, connection review and protected handoff preserve/explicit clear. Net authoring and binding/controller joins remain."
       },
       {
         "stream": "Keymap",

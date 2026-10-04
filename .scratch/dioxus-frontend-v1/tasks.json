@@ -3845,7 +3845,7 @@
         {
           "id": "F5.3-C05",
           "requirement": "Protected assignment state clears only through explicit existing remap review.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/pcb_wiring/remap.rs",
@@ -3854,10 +3854,11 @@
           ],
           "evidence": [
             ".scratch/dioxus-pcb-view/issues/12-protected-electrical-remap-review.md",
-            ".scratch/dioxus-pcb-view/evidence/pcb-protected-remap-20261003/results.md"
+            ".scratch/dioxus-pcb-view/evidence/pcb-protected-remap-20261003/results.md",
+            ".scratch/dioxus-pcb-view/evidence/pcb-apply-ui-20261002/receipt.md"
           ],
           "blockers": [],
-          "next_action": "Qualify the existing dedicated Session/Core review operation and paired protected fixture; retain its explicit no-Undo-snapshot semantics.",
+          "next_action": "Retain paired package-created protection, ordinary Right-board edit preservation, explicit Left remap review and focused stale-fingerprint rejection; other F5.3 criteria and joins remain open.",
           "finish_condition": "Evidence proves ordinary edits preserve protection and only exact revision/fingerprint-guarded review clears selected board protection.",
           "owned_files": [
             "web/src/presentation/pcb_wiring.rs",
@@ -7781,16 +7782,17 @@
         {
           "id": "F8.1-C02",
           "requirement": "Show readiness labels and reasons, Review wiring/Review case links, and ready/disabled states.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/export_workspace.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-frontend-v1/evidence/export-workspace-34763-20261003/RECEIPT.md"
+            ".scratch/dioxus-frontend-v1/evidence/export-workspace-34763-20261003/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/export-workspace-34763-20261003/F8.1-C02-review-destinations-20261003.md"
           ],
           "blockers": [],
-          "next_action": "Qualify disabled-reason destinations and the remaining Review link destinations on fixture states.",
+          "next_action": "Retain paired Case STEP disabled reason and Review wiring/Review case destinations; visual compact/theme coverage remains C04.",
           "finish_condition": "Ready and disabled output rows show correct reasons and both Review links route to the corresponding current findings.",
           "owned_files": [
             "web/src/presentation/export_workspace.rs"
