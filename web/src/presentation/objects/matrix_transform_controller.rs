@@ -17,6 +17,7 @@ use boardstudio_core::model::{
 };
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
+use wasm_bindgen_futures::spawn_local;
 
 #[derive(Clone)]
 struct PendingTransformEdit {
