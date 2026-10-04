@@ -1391,6 +1391,10 @@ fn source_is_current(
 fn is_layer(scene: &CadScene, id: &str) -> bool {
     id == "pcb"
         || scene.result.bodies.iter().any(|body| body.id == id)
+        || scene.mechanical.as_ref().is_some_and(|assembly| {
+            assembly.stack.iter().any(|layer| layer.id == id)
+                || (id == "gaskets" && !assembly.gasket_supports.is_empty())
+        })
         || id
             .strip_prefix("gasket:")
             .and_then(|id| id.rsplit_once(':'))

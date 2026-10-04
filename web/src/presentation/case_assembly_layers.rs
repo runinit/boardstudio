@@ -147,6 +147,9 @@ pub(crate) fn physical_component_layers(
 pub(crate) fn CaseAssemblyLayers(
     assembly: Vec<CaseAssemblyLayer>,
     components: Vec<CaseComponentLayer>,
+    selectable_layers: Vec<String>,
+    selected_layer: String,
+    on_select_layer: EventHandler<String>,
     display: CaseDisplay,
     on_display_change: EventHandler<CaseDisplay>,
 ) -> Element {
@@ -193,7 +196,20 @@ pub(crate) fn CaseAssemblyLayers(
                     div { class: "m1-case-assembly-layer-group", role: "group", "aria-label": "Assembly",
                         div { class: "m1-case-assembly-layer-heading", "Assembly" }
                         for layer in assembly {
-                            { let toggle = toggle.clone(); rsx! { CaseLayerButton { layer, display: display.clone(), on_toggle: toggle } } }
+                            {
+                                let toggle = toggle.clone();
+                                let selectable_layers = selectable_layers.clone();
+                                let on_select_layer = on_select_layer;
+                                let selected_layer = selected_layer.clone();
+                                rsx! { CaseLayerButton {
+                                    layer,
+                                    selectable_layers,
+                                    selected_layer,
+                                    on_select_layer,
+                                    display: display.clone(),
+                                    on_toggle: toggle,
+                                } }
+                            }
                         }
                     }
                 }
@@ -213,6 +229,9 @@ pub(crate) fn CaseAssemblyLayers(
 #[component]
 fn CaseLayerButton(
     layer: CaseAssemblyLayer,
+    selectable_layers: Vec<String>,
+    selected_layer: String,
+    on_select_layer: EventHandler<String>,
     display: CaseDisplay,
     on_toggle: EventHandler<String>,
 ) -> Element {
@@ -224,20 +243,66 @@ fn CaseLayerButton(
         LayerAvailability::Unavailable(reason) => Some(reason.as_str()),
     };
     let id = layer.id.clone();
+    let selection_id = case_display_selection_id(&layer.id, &selectable_layers);
+    let selectable = selection_id.is_some();
+    let selected = selection_id.as_deref() == Some(selected_layer.as_str());
+    let selected_id = selection_id.clone();
+    let selection_label = layer.label.clone();
+    let selection_aria_label = if selectable {
+        format!("Select {selection_label} for appearance")
+    } else {
+        selection_label.clone()
+    };
+    let selection_title = if selectable {
+        selection_aria_label.clone()
+    } else {
+        unavailable.unwrap_or(&selection_label).to_owned()
+    };
     rsx! {
-        button {
-            class: "m1-case-assembly-layer-row",
-            "aria-pressed": "{visible}",
-            "aria-label": if visible { "Hide {layer.label}" } else { "Show {layer.label}" },
-            disabled: unavailable.is_some(),
-            title: unavailable.unwrap_or(&layer.label),
-            onclick: move |_| on_toggle.call(id.clone()),
-            span { class: "m1-case-assembly-layer-swatch", "data-layer": "{layer.label}" }
-            span { class: "m1-case-assembly-layer-label", "{layer.label}" }
-            if let Some(state) = unavailable { small { "{state}" } }
-            LayerEye { visible }
+        div {
+            class: "m1-case-layer-controls",
+            style: "display: grid; grid-template-columns: minmax(0, 1fr) 32px; align-items: center; gap: 4px",
+            button {
+                class: "m1-case-assembly-layer-row",
+                "aria-pressed": "{selected}",
+                "aria-label": "{selection_aria_label}",
+                disabled: !selectable || unavailable.is_some(),
+                title: "{selection_title}",
+                style: "grid-template-columns: 18px minmax(0, 1fr) auto; width: 100%",
+                onclick: move |_| {
+                    if let Some(id) = selected_id.clone() {
+                        on_select_layer.call(id);
+                    }
+                },
+                span { class: "m1-case-assembly-layer-swatch", "data-layer": "{layer.label}" }
+                span { class: "m1-case-assembly-layer-label", "{layer.label}" }
+                if let Some(state) = unavailable { small { "{state}" } }
+            }
+            button {
+                r#type: "button",
+                class: "m1-case-layer-visibility",
+                "aria-pressed": "{visible}",
+                "aria-label": if visible { "Hide {layer.label}" } else { "Show {layer.label}" },
+                disabled: unavailable.is_some(),
+                title: unavailable.unwrap_or(&layer.label),
+                style: "display: grid; place-items: center; width: 32px; min-width: 32px; min-height: 32px; padding: 4px; border: 0; border-radius: 5px; background: transparent; color: inherit",
+                onclick: move |_| on_toggle.call(id.clone()),
+                LayerEye { visible }
+            }
         }
     }
+}
+
+fn case_display_selection_id(id: &str, selectable_layers: &[String]) -> Option<String> {
+    let id = match id {
+        "PCB" => "pcb",
+        "Gaskets" => "gaskets",
+        id => id,
+    };
+    selectable_layers
+        .iter()
+        .any(|selectable| selectable == id)
+        .then(|| id.to_owned())
 }
 
 #[component]
@@ -329,6 +394,7 @@ mod tests {
 
     fn layer_menu_composition() -> Element {
         let mut display = use_signal(CaseDisplay::default);
+        let mut selected_layer = use_signal(String::new);
         let assembly = assembly_layers_with_stack(
             [("plate".into(), "Plate body".into())],
             ["battery".into(), "plate".into()],
@@ -351,9 +417,13 @@ mod tests {
             CaseAssemblyLayers {
                 assembly,
                 components,
+                selectable_layers: vec!["pcb".into(), "plate".into()],
+                selected_layer: selected_layer(),
+                on_select_layer: move |id| selected_layer.set(id),
                 display: display(),
                 on_display_change: move |next| display.set(next),
             }
+            output { "aria-label": "Selected layer", "{selected_layer()}" }
         }
     }
 
@@ -452,6 +522,20 @@ mod tests {
         assert_eq!(plate.availability, LayerAvailability::Available);
     }
 
+    #[test]
+    fn display_selection_normalizes_pcb_and_only_exposes_supported_layers() {
+        let selectable = vec!["pcb".to_owned(), "plate".to_owned()];
+        assert_eq!(
+            case_display_selection_id("PCB", &selectable),
+            Some("pcb".into())
+        );
+        assert_eq!(
+            case_display_selection_id("plate", &selectable),
+            Some("plate".into())
+        );
+        assert_eq!(case_display_selection_id("Copper", &selectable), None);
+    }
+
     #[wasm_bindgen_test]
     async fn layer_menu_toggles_exact_rows_and_unavailable_rows_are_not_checked() {
         let document = web_sys::window().unwrap().document().unwrap();
@@ -486,6 +570,28 @@ mod tests {
         assert!(!list.has_attribute("hidden"));
         assert_eq!(computed_display(&list), "grid");
         assert!(list.get_bounding_client_rect().height() > 0.0);
+        let select_plate =
+            element("#m1-case-assembly-layers-list [aria-label='Select Plate for appearance']");
+        select_plate.click();
+        rendered().await;
+        assert_eq!(
+            element("#case-assembly-layer-test-root output[aria-label='Selected layer']")
+                .text_content()
+                .as_deref(),
+            Some("plate")
+        );
+        assert_eq!(
+            element("#m1-case-assembly-layers-list [aria-label='Select Plate for appearance']")
+                .get_attribute("aria-pressed")
+                .as_deref(),
+            Some("true")
+        );
+        assert_eq!(
+            element("#m1-case-assembly-layers-list [aria-label='Hide Plate']")
+                .get_attribute("aria-pressed")
+                .as_deref(),
+            Some("true")
+        );
         let hidden_component =
             element("#m1-case-assembly-layers-list [aria-label='Hide SW1 · switch.step']");
         hidden_component.click();

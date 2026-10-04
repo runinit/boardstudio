@@ -286,6 +286,23 @@ pub(crate) fn CaseSharedViewer(
     let runtime = use_context::<Rc<crate::runtime::Runtime>>();
     let _ = use_context::<Signal<u64>>()();
     let theme = resolved_theme;
+    let mut selectable_layers = vec!["pcb".to_owned()];
+    if let Some(scene) = scene.as_ref() {
+        if let Some(mechanical) = scene.mechanical.as_ref() {
+            selectable_layers.extend(mechanical.stack.iter().map(|layer| layer.id.clone()));
+            if !mechanical.gasket_supports.is_empty() {
+                selectable_layers.push("gaskets".to_owned());
+            }
+        }
+        selectable_layers.extend(
+            scene
+                .result
+                .bodies
+                .iter()
+                .filter(|body| body.id.starts_with("gasket:"))
+                .map(|body| body.id.clone()),
+        );
+    }
     let owner = match use_hook(ViewerOwner::new) {
         Ok(owner) => owner,
         Err(error) => {
@@ -455,6 +472,7 @@ pub(crate) fn CaseSharedViewer(
             projection,
             assembly_layers,
             component_layers,
+            selectable_layers,
             canvas_context,
             selected_layer,
             selected_reference,
@@ -1117,6 +1135,7 @@ fn SharedViewer(
     projection: Rc<RendererSceneProjection>,
     assembly_layers: Vec<super::case_assembly_layers::CaseAssemblyLayer>,
     component_layers: Vec<super::case_assembly_layers::CaseComponentLayer>,
+    selectable_layers: Vec<String>,
     canvas_context: ViewerCanvasContext,
     selected_layer: String,
     selected_reference: Option<String>,
@@ -2144,6 +2163,7 @@ fn SharedViewer(
     let unlink_projection = projection.clone();
     let unlink_runtime = runtime.clone();
     let show_assembly_controls = projection.layers.iter().any(|(id, _)| id != "pcb");
+    let select_assembly_layer = select_layer.clone();
 
     rsx! {
         div { class: "m1-case-view m1-shared-viewer",
@@ -2419,6 +2439,9 @@ fn SharedViewer(
                 CaseAssemblyLayers {
                     assembly: assembly_layers,
                     components: component_layers,
+                    selectable_layers: selectable_layers.clone(),
+                    selected_layer: selected_layer.clone(),
+                    on_select_layer: move |id| select_assembly_layer(id),
                     display: display.clone(),
                     on_display_change: assembly_change_display,
                 }
