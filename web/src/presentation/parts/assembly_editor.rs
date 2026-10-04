@@ -987,6 +987,13 @@ fn AssemblyMemberFields(
         .as_deref()
         .and_then(|id| definitions.iter().find(|definition| definition.id == id))
         .cloned();
+    let definition_options = definitions
+        .iter()
+        .map(|definition| ModelOption {
+            id: definition.id.clone(),
+            name: definition.name.clone(),
+        })
+        .collect::<Vec<_>>();
     let options = model_options(&snapshot.document.assets, &assets());
     let is_custom = matches!(
         &member.model_mode,
@@ -1252,10 +1259,7 @@ fn AssemblyMemberFields(
                     value: member.definition_id.as_deref().unwrap_or(""),
                     disabled,
                     onchange: move |event| update_member(value, assets, definition_draft.clone(), definition_change.clone(), definition_id.clone(), MemberPatch::Definition(event.value())),
-                    option { value: "", "Visual model only" }
-                    for definition in &definitions {
-                        option { value: "{definition.id}", "{definition.name}" }
-                    }
+                    {component_options(&definition_options, member.definition_id.as_deref())}
                 }
             }
             if definition.as_ref().is_some_and(|definition| definition.generator.is_some())
@@ -1374,12 +1378,7 @@ fn AssemblyModelFields(
                     value: "{model.asset_id}",
                     disabled,
             onchange: move |event| update_member(value, assets, asset_draft.clone(), asset_change.clone(), asset_id.clone(), MemberPatch::ModelAsset(index, event.value())),
-                    for option in &asset_options {
-                        option { value: "{option.id}", "{option.name}" }
-                    }
-                    if !asset_options.iter().any(|option| option.id == model.asset_id) {
-                        option { value: "{model.asset_id}", "{model.asset_id}" }
-                    }
+                    {model_asset_options(&asset_options, &model.asset_id)}
                 }
             }
             ModelVectorFields { model: model.clone(), member_id: member_id.clone(), index, field: ModelVector::Offset, draft: offset_draft, value, assets, disabled, on_change: offset_change }
@@ -1602,6 +1601,40 @@ fn model_vector(model: &PartModel, field: ModelVector) -> Vec3 {
 struct ModelOption {
     id: String,
     name: String,
+}
+
+fn component_options(options: &[ModelOption], selected_id: Option<&str>) -> Element {
+    let has_selected = selected_id.is_some_and(|id| options.iter().any(|option| option.id == id));
+    rsx! {
+        option { value: "", selected: selected_id.is_none(), "Visual model only" }
+        for (index, option) in options.iter().enumerate() {
+            option {
+                key: "{index}-{option.id}",
+                value: "{option.id}",
+                selected: selected_id == Some(option.id.as_str()),
+                "{option.name}"
+            }
+        }
+        if let Some(selected_id) = selected_id.filter(|_| !has_selected) {
+            option { value: "{selected_id}", selected: true, "Saved component unavailable" }
+        }
+    }
+}
+
+fn model_asset_options(options: &[ModelOption], selected_id: &str) -> Element {
+    rsx! {
+        for (index, option) in options.iter().enumerate() {
+            option {
+                key: "{index}-{option.id}",
+                value: "{option.id}",
+                selected: option.id == selected_id,
+                "{option.name}"
+            }
+        }
+        if !options.iter().any(|option| option.id == selected_id) {
+            option { value: "{selected_id}", selected: true, "Saved model asset unavailable" }
+        }
+    }
 }
 
 fn model_options(document_assets: &[Asset], draft_assets: &[Asset]) -> Vec<ModelOption> {
@@ -1909,4 +1942,157 @@ fn member_id(assembly: &AssemblyDefinition) -> Option<String> {
     (2..=1024)
         .map(|suffix| format!("{candidate}-{suffix}"))
         .find(|id| !used(id))
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod assembly_selector_tests {
+    use super::*;
+    use std::{cell::RefCell, rc::Rc};
+    use wasm_bindgen::JsValue;
+    use wasm_bindgen_test::*;
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    #[derive(Clone)]
+    struct Probe {
+        assembly: AssemblyDefinition,
+        component_options: Vec<ModelOption>,
+        asset_options: Vec<ModelOption>,
+        component_signal: Rc<RefCell<Option<Signal<Vec<ModelOption>>>>>,
+        asset_signal: Rc<RefCell<Option<Signal<Vec<ModelOption>>>>>,
+    }
+
+    #[component]
+    fn persisted_assembly_fixture() -> Element {
+        let probe = use_context::<Probe>();
+        let component_options_signal = use_signal(Vec::<ModelOption>::new);
+        let asset_options_signal = use_signal(Vec::<ModelOption>::new);
+        *probe.component_signal.borrow_mut() = Some(component_options_signal);
+        *probe.asset_signal.borrow_mut() = Some(asset_options_signal);
+        let assembly = probe.assembly.clone();
+        let member = assembly.members.first().expect("persisted member").clone();
+        rsx! {
+            select {
+                id: "persisted-component",
+                value: member.definition_id.as_deref().unwrap_or(""),
+                {component_options(&component_options_signal(), member.definition_id.as_deref())}
+            }
+            for (index, model) in member.models.iter().enumerate() {
+                select {
+                    id: "persisted-model-{index}",
+                    value: "{model.asset_id}",
+                    {model_asset_options(&asset_options_signal(), &model.asset_id)}
+                }
+            }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn persisted_member_selection_survives_dynamic_options_mount() {
+        let assembly: AssemblyDefinition = serde_json::from_value(serde_json::json!({
+            "id": "assembly-f46",
+            "name": "F46 saved assembly",
+            "members": [{
+                "id": "switch",
+                "definitionId": "ergogen:ceoloide/switch_mx",
+                "modelMode": "custom",
+                "parameters": { "hotswap": true },
+                "pose": { "at": { "x": 4.0, "y": 0.0 }, "rotation": 0.0 },
+                "side": "back",
+                "models": [
+                    {
+                        "assetId": "ergogen:model:kiswitch/SW_Hotswap_Kailh_MX.stp",
+                        "offset": { "x": 0.0, "y": 0.0, "z": -1.8709399700164795 },
+                        "rotation": { "x": 180.0, "y": 0.0, "z": 0.0 },
+                        "scale": { "x": 1.0, "y": 1.0, "z": 1.0 }
+                    },
+                    {
+                        "assetId": "ergogen:model:kiswitch/SW_Cherry_MX_PCB.stp",
+                        "offset": { "x": 0.007089999970048666, "y": 0.007089999970048666, "z": -1.3574800491333008 },
+                        "rotation": { "x": 180.0, "y": 0.0, "z": 0.0 },
+                        "scale": { "x": 1.0, "y": 1.0, "z": 1.0 }
+                    }
+                ]
+            }]
+        }))
+        .expect("saved assembly archive shape");
+        let member = &assembly.members[0];
+        assert_eq!(
+            member.definition_id.as_deref(),
+            Some("ergogen:ceoloide/switch_mx")
+        );
+        assert_eq!(
+            member.model_mode,
+            Some(boardstudio_core::model::AssemblyModelMode::Custom)
+        );
+        assert_eq!(member.side, Side::Back);
+        assert_eq!(member.pose.at.x, 4.0);
+
+        let probe = Probe {
+            assembly,
+            component_options: vec![
+                ModelOption {
+                    id: "assembly-preset-mx-hotswap-south-left-keys-0/definition/switch".into(),
+                    name: "switch mx".into(),
+                },
+                ModelOption {
+                    id: "ergogen:ceoloide/switch_mx".into(),
+                    name: "switch mx".into(),
+                },
+            ],
+            asset_options: vec![
+                ModelOption {
+                    id: "ergogen:model:kiswitch/SW_Hotswap_Kailh_MX.stp".into(),
+                    name: "SW_Hotswap_Kailh_MX.stp".into(),
+                },
+                ModelOption {
+                    id: "ergogen:model:kiswitch/SW_Cherry_MX_PCB.stp".into(),
+                    name: "SW_Cherry_MX_PCB.stp".into(),
+                },
+            ],
+            component_signal: Rc::new(RefCell::new(None)),
+            asset_signal: Rc::new(RefCell::new(None)),
+        };
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("parts-assembly-persisted-select-test");
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(persisted_assembly_fixture);
+        dom.provide_root_context(probe.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(40).await;
+
+        let mut component_signal = probe.component_signal.borrow().as_ref().copied().unwrap();
+        component_signal.set(probe.component_options.clone());
+        let mut asset_signal = probe.asset_signal.borrow().as_ref().copied().unwrap();
+        asset_signal.set(probe.asset_options.clone());
+        gloo_timers::future::TimeoutFuture::new(40).await;
+
+        let selected_value = |selector: &str| {
+            let select = root
+                .query_selector(selector)
+                .unwrap()
+                .expect("persisted select");
+            js_sys::Reflect::get(select.as_ref(), &JsValue::from_str("value"))
+                .unwrap()
+                .as_string()
+                .unwrap()
+        };
+        assert_eq!(
+            selected_value("#persisted-component"),
+            "ergogen:ceoloide/switch_mx"
+        );
+        assert_eq!(
+            selected_value("#persisted-model-0"),
+            "ergogen:model:kiswitch/SW_Hotswap_Kailh_MX.stp"
+        );
+        assert_eq!(
+            selected_value("#persisted-model-1"),
+            "ergogen:model:kiswitch/SW_Cherry_MX_PCB.stp"
+        );
+        root.remove();
+    }
 }

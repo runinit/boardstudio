@@ -1021,10 +1021,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                                             });
                                         }
                                     },
-                                    option { value: "", "Unresolved" }
-                                    for pin in pins::pin_choices(row, plan) {
-                                        option { value: "{pin}", "{pin}" }
-                                    }
+                                    {pin_assignment_options(row, pins::pin_choices(row, plan))}
                                 }
                             }
                             button {
@@ -1091,10 +1088,104 @@ fn pin_lock_action(locked: bool) -> &'static str {
     if locked { "Unlock" } else { "Lock" }
 }
 
+fn pin_assignment_options(row: &pins::PcbWiringPinAssignment, choices: Vec<String>) -> Element {
+    rsx! {
+        option {
+            value: "",
+            selected: row.value.is_none(),
+            "Unresolved"
+        }
+        for pin in choices {
+            option {
+                value: "{pin}",
+                selected: row.value.as_deref() == Some(pin.as_str()),
+                "{pin}"
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use boardstudio_application::{SessionEpoch, SnapshotToken};
+    #[cfg(target_arch = "wasm32")]
+    use wasm_bindgen::JsValue;
+    #[cfg(target_arch = "wasm32")]
+    use wasm_bindgen_test::*;
+    #[cfg(target_arch = "wasm32")]
+    use web_sys::Element as DomElement;
+
+    #[cfg(target_arch = "wasm32")]
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    #[cfg(target_arch = "wasm32")]
+    fn pin_option_fixture() -> Element {
+        let retained = pins::PcbWiringPinAssignment {
+            id: "row/0".into(),
+            label: "Row 1".into(),
+            detail: None,
+            value: Some("P5".into()),
+            locked: false,
+        };
+        let unresolved = pins::PcbWiringPinAssignment {
+            id: "left/SW25/encoder-a".into(),
+            label: "left/SW25/encoder-a".into(),
+            detail: None,
+            value: None,
+            locked: false,
+        };
+        rsx! {
+            select { id: "retained-pin", value: "P5",
+                {pin_assignment_options(&retained, vec!["P5".into(), "P6".into()])}
+            }
+            select { id: "unresolved-pin", value: "",
+                {pin_assignment_options(&unresolved, vec!["P1".into()])}
+            }
+        }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn mount_pin_option_fixture() -> web_sys::Element {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("pcb-wiring-pin-option-test-root");
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(pin_option_fixture),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        root
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn selected_option(root: &web_sys::Element, selector: &str) -> Result<DomElement, JsValue> {
+        root.query_selector(&format!("{selector} option:checked"))?
+            .ok_or_else(|| JsValue::from_str("expected selected pin option"))
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    #[wasm_bindgen_test]
+    async fn wiring_pin_options_select_saved_values_and_only_unresolved_for_empty_rows() {
+        let root = mount_pin_option_fixture();
+        gloo_timers::future::TimeoutFuture::new(40).await;
+
+        assert_eq!(
+            selected_option(&root, "#retained-pin")
+                .unwrap()
+                .text_content()
+                .as_deref(),
+            Some("P5")
+        );
+        assert_eq!(
+            selected_option(&root, "#unresolved-pin")
+                .unwrap()
+                .text_content()
+                .as_deref(),
+            Some("Unresolved")
+        );
+        root.remove();
+    }
 
     #[test]
     fn executor_restart_invalidates_same_accepted_wiring_identity() {
