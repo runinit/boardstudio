@@ -290,6 +290,67 @@ def _shell_quote(value):
     return "'" + value.replace("'", "'\\''") + "'"
 
 
+WASM_CHECK_COMMAND = [
+    "cargo", "check", "--manifest-path", "web/Cargo.toml", "--locked",
+    "--target", "wasm32-unknown-unknown", "--no-default-features",
+    "--features", "page", "--bin", "boardstudio-web",
+]
+
+
+def _load_wasm_lint():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("check_wasm_tests", Path(__file__).with_name("check-wasm-tests.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _committed_files(root, paths):
+    args = ["git", "diff", "--name-only", "-z", "HEAD"] if paths else ["git", "diff", "--cached", "--name-only", "-z"]
+    if paths:
+        args.extend(["--", *paths])
+    result = subprocess.run(args, cwd=root, capture_output=True, text=True, check=True)
+    return [name for name in result.stdout.split("\0") if name]
+
+
+def _tail(text, lines=60):
+    return "\n".join(text.strip().splitlines()[-lines:])
+
+
+def _check_wasm_commit(root, paths):
+    """Run the wasm compile check and native-test reachability lint when the commit needs them.
+
+    Native `cargo test` never compiles wasm32-only modules, so a commit touching them
+    must prove they compile for wasm32 and that their tests are reachable.
+    """
+    rust = [name for name in _committed_files(root, paths)
+            if name.startswith("web/src/") and name.endswith(".rs")]
+    if not rust:
+        return
+    lint = _load_wasm_lint()
+    wasm_only = set(lint.wasm_only_files(root))
+    needs_wasm = [name for name in rust if name.startswith("web/src/presentation/") or name in wasm_only]
+    if needs_wasm:
+        print(f"migration-deliver: {len(needs_wasm)} wasm-only Rust file(s) in this commit "
+              f"(e.g. {needs_wasm[0]}); running wasm32 cargo check before committing", file=sys.stderr)
+        result = subprocess.run(WASM_CHECK_COMMAND, cwd=root, text=True, capture_output=True)
+        if result.returncode:
+            raise GuardError(
+                "wasm32 page check failed; native cargo test does not compile this code. "
+                f"Fix and retry. Compiler output tail:\n{_tail(result.stderr or result.stdout)}"
+            )
+    print("migration-deliver: running scripts/check-wasm-tests.py for Rust files in this commit", file=sys.stderr)
+    result = subprocess.run(
+        [sys.executable, str(Path(__file__).with_name("check-wasm-tests.py")), "--root", str(root)],
+        cwd=root, text=True, capture_output=True,
+    )
+    if result.returncode:
+        raise GuardError(
+            "check-wasm-tests.py found plain #[test]s that native cargo test never runs:\n"
+            + _tail(result.stdout + result.stderr)
+        )
+
+
 def _commit(root, intent, message, paths):
     root, entry = validate_checkout(root, required=True)
     if entry["role"] == "coordinator" and intent != "integration":
@@ -300,6 +361,7 @@ def _commit(root, intent, message, paths):
     # this commit takes its own shared lease. The check is repeated below after
     # locking, so a build that wins the gap still blocks the commit.
     _check_commit(root, intent)
+    _check_wasm_commit(root, paths)
     lock_path = _freeze_lock_path(root)
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     commit_lock = lock_path.open("a+")
@@ -395,6 +457,10 @@ def main(argv=None):
     candidate.add_argument("build_id")
     candidate.add_argument("--root-url", required=True)
     candidate.add_argument("--subpath-url", required=True)
+    candidate.add_argument(
+        "--extra-candidate", metavar="REASON",
+        help="required reason to publish a third or later candidate on the same UTC day",
+    )
     candidate.add_argument("--proof", help="output proof path (defaults under candidate evidence)")
     focused_test = commands.add_parser(
         "focused-test",
@@ -422,6 +488,7 @@ def main(argv=None):
             spec.loader.exec_module(candidate_module)
             changed = candidate_module.publish(
                 root, args.build_id, args.root_url, args.subpath_url, args.proof,
+                extra_reason=args.extra_candidate,
             )
             print("Candidate proof and current run updated" if changed else "Candidate already current")
             return 0

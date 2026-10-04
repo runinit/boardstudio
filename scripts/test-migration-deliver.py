@@ -91,6 +91,62 @@ class MigrationDeliverTests(unittest.TestCase):
         self.assertEqual(result.returncode, 7)
         self.assertIn("test result: FAILED", result.stdout)
 
+    def wasm_fixture(self, cargo_exit, test_attr="#[wasm_bindgen_test]"):
+        src = self.root / "web/src"
+        (src / "presentation").mkdir(parents=True)
+        (src / "lib.rs").write_text("")
+        (src / "main.rs").write_text('#[cfg(target_arch = "wasm32")]\nmod presentation;\n')
+        (src / "presentation.rs").write_text("mod view;\n")
+        (src / "presentation/view.rs").write_text(f"{test_attr}\nfn t() {{}}\n")
+        run_git(self.root, "add", "web")
+        bin_dir = Path(self.temp.name) / "wasm-bin"
+        bin_dir.mkdir(exist_ok=True)
+        self.cargo_log = Path(self.temp.name) / "cargo.log"
+        self.cargo_log.write_text("")
+        cargo = bin_dir / "cargo"
+        cargo.write_text(
+            "#!/bin/sh\n"
+            f"echo \"$@\" >> '{self.cargo_log}'\n"
+            "echo 'error[E0432]: unresolved import foo' >&2\n"
+            f"exit {cargo_exit}\n"
+        )
+        cargo.chmod(0o755)
+        env = os.environ.copy()
+        env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+        return env
+
+    def commit_wrapped(self, env):
+        return run_guard(self.root, "commit", "--intent", "integration", "-m", "wasm change", env=env)
+
+    def test_commit_with_wasm_only_rust_is_refused_when_wasm_check_fails(self):
+        env = self.wasm_fixture(cargo_exit=101)
+        result = self.commit_wrapped(env)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("wasm32 page check failed", result.stderr)
+        self.assertIn("unresolved import foo", result.stderr)
+        self.assertIn("--target wasm32-unknown-unknown", self.cargo_log.read_text())
+        self.assertEqual(run_git(self.root, "log", "--format=%s").stdout.count("wasm change"), 0)
+
+    def test_commit_with_wasm_only_rust_passes_when_wasm_check_and_lint_pass(self):
+        env = self.wasm_fixture(cargo_exit=0)
+        result = self.commit_wrapped(env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("wasm change", run_git(self.root, "log", "-1", "--format=%s").stdout)
+
+    def test_commit_refuses_plain_test_in_wasm_only_file_even_if_it_compiles(self):
+        env = self.wasm_fixture(cargo_exit=0, test_attr="#[test]")
+        result = self.commit_wrapped(env)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("web/src/presentation/view.rs:1", result.stderr)
+
+    def test_docs_only_commit_does_not_run_cargo_or_lint(self):
+        env = self.wasm_fixture(cargo_exit=101)
+        run_git(self.root, "reset", "-q")
+        self.stage_change(self.root)
+        result = self.commit_wrapped(env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.cargo_log.read_text(), "")
+
     def test_registered_wrong_branch_fails_and_unregistered_wrapper_rejects(self):
         self.assertEqual(run_guard(self.root, "check").returncode, 0)
         run_git(self.root, "checkout", "-b", "unexpected")

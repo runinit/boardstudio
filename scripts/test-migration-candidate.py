@@ -1,5 +1,6 @@
 """Focused tests for publish-candidate proof derivation and atomicity."""
 
+from datetime import datetime, timezone
 import hashlib
 import importlib.util
 import json
@@ -115,12 +116,12 @@ class PublishCandidateTests(unittest.TestCase):
     def write_provenance(self):
         self.provenance_path.write_text(json.dumps(self.provenance, indent=2) + "\n")
 
-    def publish(self):
+    def publish(self, **kwargs):
         with patch.object(progress, "ROOT", self.root), \
                 patch.object(candidate, "_load_progress", return_value=progress):
             return candidate.publish(
                 self.root, self.build_id, self.root_url, self.subpath_url,
-                inventory=self.inventory, progress_module=progress,
+                inventory=self.inventory, progress_module=progress, **kwargs,
             )
 
     def mock_routes(self):
@@ -265,6 +266,40 @@ class PublishCandidateTests(unittest.TestCase):
                 self.publish()
         self.assertEqual(proof_path.read_text(), "different finalized proof\n")
         self.assertEqual(self.run_path.read_bytes(), run_before)
+
+    def seed_ledger(self, *entries):
+        run = json.loads(self.run_path.read_text())
+        run["current_progress"]["candidate_publications"] = [
+            {"build_id": name, "published_at": stamp} for name, stamp in entries]
+        self.run_path.write_text(json.dumps(run))
+
+    def test_third_candidate_same_utc_day_needs_extra_reason_and_records_it(self):
+        self.seed_ledger(("c1", "2026-10-03T01:00:00+00:00"), ("c2", "2026-10-03T23:00:00+00:00"))
+        now = datetime(2026, 10, 3, 23, 30, tzinfo=timezone.utc)
+        before = self.run_path.read_bytes()
+        with self.mock_routes():
+            with self.assertRaisesRegex(ValueError, "--extra-candidate"):
+                self.publish(now=now)
+        self.assertEqual(self.run_path.read_bytes(), before)
+        self.assertFalse((self.root / self.proof_relative).exists())
+        with self.mock_routes():
+            self.publish(now=now, extra_reason="reviewer-blocking defect")
+        ledger = json.loads(self.run_path.read_text())["current_progress"]["candidate_publications"]
+        self.assertEqual(ledger[-1]["build_id"], self.build_id)
+        self.assertEqual(ledger[-1]["extra_candidate_reason"], "reviewer-blocking defect")
+
+    def test_candidates_from_other_utc_days_do_not_count(self):
+        self.seed_ledger(("c1", "2026-10-02T23:59:00+00:00"), ("c2", "2026-10-02T23:59:30+00:00"),
+                         ("c3", "2026-10-02T23:59:59+00:00"))
+        with self.mock_routes():
+            self.publish(now=datetime(2026, 10, 3, 0, 0, 1, tzinfo=timezone.utc))
+        ledger = json.loads(self.run_path.read_text())["current_progress"]["candidate_publications"]
+        self.assertNotIn("extra_candidate_reason", ledger[-1])
+
+    def test_second_candidate_same_day_is_allowed(self):
+        self.seed_ledger(("c1", "2026-10-03T01:00:00+00:00"))
+        with self.mock_routes():
+            self.publish(now=datetime(2026, 10, 3, 5, tzinfo=timezone.utc))
 
 
 if __name__ == "__main__":

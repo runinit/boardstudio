@@ -1,6 +1,6 @@
 """Derive and atomically publish a proof for a completed migration build."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 import hashlib
 import importlib.util
 import json
@@ -177,12 +177,45 @@ def _atomic_bytes(path, content):
             temporary.unlink(missing_ok=True)
 
 
+DAILY_CANDIDATE_LIMIT = 2
+LEDGER_KEY = "candidate_publications"
+
+
+def _utc_day(value):
+    try:
+        parsed = datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc).date()
+
+
+def todays_candidates(run, build_id, now):
+    """Distinct other builds published on now's UTC calendar day, from the run ledger."""
+    ledger = run["current_progress"].get(LEDGER_KEY, [])
+    today = now.astimezone(timezone.utc).date()
+    return sorted({row.get("build_id") for row in ledger
+                   if isinstance(row, dict) and _utc_day(row.get("published_at")) == today}
+                  - {build_id})
+
+
 def publish(root, build_id, root_url, subpath_url, proof_relative=None, *, inventory=None,
-            progress_module=None):
+            progress_module=None, extra_reason=None, now=None):
     root = Path(root).resolve()
     if not BUILD_ID_RE.fullmatch(build_id):
         raise ValueError("Build id must be alphanumeric with optional hyphens")
     progress = progress_module or _load_progress()
+    now = now or datetime.now(timezone.utc)
+    prior = todays_candidates(json.loads((root / progress.RUN).read_text()), build_id, now)
+    if len(prior) >= DAILY_CANDIDATE_LIMIT:
+        if not (extra_reason and extra_reason.strip()):
+            raise ValueError(
+                f"{len(prior)} candidates were already published today (UTC): {', '.join(prior)}. "
+                f"Refusing candidate {build_id}; batch fixes into the existing candidates, or pass "
+                "--extra-candidate REASON to publish another one."
+            )
+        print(f"migration-deliver: extra candidate #{len(prior) + 1} today allowed: {extra_reason.strip()}")
     inventory = inventory or _load_inventory()
     provenance_relative = Path("web/target/builds") / build_id / "provenance.json"
     provenance_path = progress.repository_file(provenance_relative, "provenance")
@@ -230,6 +263,16 @@ def publish(root, build_id, root_url, subpath_url, proof_relative=None, *, inven
         # Reuse the canonical writer and all of its route, record, and
         # qualification logic. Restore both files if validation fails.
         changed = progress.record_candidate(proof_relative.as_posix(), root_url, subpath_url)
+        run = json.loads(run_path.read_text())
+        ledger = run["current_progress"].setdefault(LEDGER_KEY, [])
+        today = now.astimezone(timezone.utc).date()
+        if not any(row.get("build_id") == build_id and _utc_day(row.get("published_at")) == today
+                   for row in ledger):
+            entry = {"build_id": build_id, "published_at": now.astimezone(timezone.utc).isoformat()}
+            if extra_reason and extra_reason.strip():
+                entry["extra_candidate_reason"] = extra_reason.strip()
+            ledger.append(entry)
+            changed = progress.atomic_write_json(progress.RUN, run) or changed
     except BaseException:
         if previous_proof is None:
             proof_target.unlink(missing_ok=True)
