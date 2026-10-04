@@ -267,6 +267,17 @@ pub(super) async fn load_matrix_templates(
         .collect())
 }
 
+/// Every bundled catalogue definition, for key-level assembly and attached-component choices.
+pub(super) async fn load_all_catalogue_definitions(
+    reversible: bool,
+) -> Result<Vec<boardstudio_core::model::PartDefinition>, String> {
+    let entries = catalogue::load_bundled(reversible).await?;
+    Ok(entries
+        .iter()
+        .map(|entry| (*entry.definition).clone())
+        .collect())
+}
+
 /// Resolve any selectable item from the construction-normalized bundled catalogue, then apply
 /// the accepted project definition with the same precedence as the Parts browser.
 pub(super) async fn load_component_definition(

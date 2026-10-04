@@ -144,7 +144,7 @@ pub(in crate::presentation) fn use_workspace_matrix_transform(
             let alive = alive.clone();
             spawn_local(async move {
                 if let Ok(definitions) =
-                    crate::presentation::parts::load_matrix_templates(false).await
+                    crate::presentation::parts::load_all_catalogue_definitions(false).await
                     && alive.get()
                 {
                     switch_catalog.set(definitions);
