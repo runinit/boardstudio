@@ -612,10 +612,11 @@
             "web/src/runtime.rs:4836"
           ],
           "evidence": [
-            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md"
+            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
+            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/f2.2-c02-c03-paired-qualification.md"
           ],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Paired saved Sofle\u2192Corne\u2192reopened Sofle retained a renamed 70-part board. Qualify unavailable/corrupt saved-project recovery and library route; do not repeat the successful reopen branch.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/library.rs",
@@ -637,10 +638,11 @@
           ],
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
-            ".scratch/dioxus-parts-catalogue/evidence/05-import-kicad-footprint-paired-journey-20261003.md"
+            ".scratch/dioxus-parts-catalogue/evidence/05-import-kicad-footprint-paired-journey-20261003.md",
+            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/f2.2-c02-c03-paired-qualification.md"
           ],
           "blockers": [],
-          "next_action": "Reuse valid archive import evidence; qualify malformed project-archive preservation and stale project open/import supersession. Footprint-parser rejection is separate evidence.",
+          "next_action": "Paired malformed ZIP preserved the active renamed 70-part Sofle project; Dioxus showed rejection while React did not. Reuse valid-import proof and qualify only delayed open/import supersession after a newer project selection.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/runtime.rs",
