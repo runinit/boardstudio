@@ -440,9 +440,11 @@
             "web/src/presentation/library.rs:531",
             "web/src/presentation/library.rs:735"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-tranche-1/evidence/project-demo-cards-fresh-copies-34767/RESULTS.md"
+          ],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Paired empty and one-saved-Sofle galleries show 58-key/2-board counts, Current marker and 19 demo previews; normal navigation settled before Loading could be observed. Source renders ListStatus::Loading while pending; qualify that visible branch before full C01 verification.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/library.rs"
