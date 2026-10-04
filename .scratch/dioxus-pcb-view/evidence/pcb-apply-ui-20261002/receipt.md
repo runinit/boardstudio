@@ -102,3 +102,36 @@ Both accepted archives advance to project revision 13. The Left `protectedHandof
 | `react-c05-after-right-edit.boardstudio` | 13 | unchanged: `78b4c271…e026` (baseline rev 12) | P5 | `28c533415736b2d6ea5fa1297228b415472848c28985f3f752bc7b730b465b58` |
 
 This leg verifies protection survives an accepted unrelated-board edit. It does not add a reopen, Undo/Redo, or stale-fingerprint claim.
+
+## Paired net mapping and supported input-mode history (F5.3-C03, 2026-10-03)
+
+Candidate: the published Dioxus app at `http://127.0.0.1:34784/`, named sessions `pcb-c03-candidate-20261003` and `pcb-c03-reopen-candidate-20261003`. Reference: pinned React at `http://127.0.0.1:5175/`, sessions `pcb-c03-react-20261003` and `pcb-c03-reopen-react-20261003`. Both apps imported the same public two-board Sofle fixture, `.scratch/dioxus-frontend-v1/evidence/case-keymap-current/keymap-layered-public/fixture/layered-sofle-export.boardstudio`, SHA-256 `5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df` (revision 9).
+
+On Left PCB in both apps, I created `PCB_C03_AUDIT` and assigned the diode `matrix/left-keys/r0c0/diode` terminal `from` to it. The public archive records that terminal's physical `pad-1` on the new net; `to` stays on `ROW_0`. Relative to the fixture, exactly the expected two named net memberships change: `LINK_MATRIX_LEFT-KEYS_R0C0` loses only the diode's `pad-1`, while retaining the switch's `pad-5`, and `PCB_C03_AUDIT` gains the diode `pad-1`. All 83 other named net pin sets remain identical, including `ROW_0` (7 pins). Candidate and React normalized project states match at each of the five paired checkpoints below after normalizing independently generated net IDs by name.
+
+One Undo restored the diode pin to the original link net and left the new net empty; one Redo restored the mapped state. I then changed Left `left-SW25` Press scan mode from the supported `Direct GPIO` mode to supported `Unassigned`. One Undo restored `Direct GPIO`; one Redo restored `Unassigned`. Both apps' accepted revision-16 archives contain `properties.pressScanMode = "unassigned"`. As expected for this mode change, the associated `LEFT_SW25_ENCODER-PUSH` membership is removed; no other net changes relative to the after-Redo-map checkpoint. The final public archives were imported into fresh sessions: the candidate and React inspectors both reopened with diode `from = PCB_C03_AUDIT`, `to = ROW_0`, and encoder Press scan mode `Unassigned` (with `Matrix key` disabled).
+
+| Public export | Revision | Accepted result | SHA-256 |
+| --- | ---: | --- | --- |
+| `candidate-c03-after-map.boardstudio` | 11 | diode `pad-1` on `PCB_C03_AUDIT`; `to` remains `ROW_0` | `46ce361d8593cae020fc630707519bf69d6063f58f0a3111101047ec82b601d9` |
+| `react-c03-after-map.boardstudio` | 11 | same normalized mapping | `2ce478b013d4b13ea1fdccd213b5acdcd453e930f7b7ec808e3d5c15ac4b6fea` |
+| `candidate-c03-after-undo-map.boardstudio` | 12 | custom net empty; diode restored to original link | `a27a5e1ebb806d5462f73cd84f9ac30dbc9782ddc0aaa2696cdeb210fcc17fbc` |
+| `react-c03-after-undo-map.boardstudio` | 12 | same normalized Undo state | `ac63ac49be459050fd85aeb7f38c793de74cd03515aa29d07b1787466f05b6cf` |
+| `candidate-c03-after-redo-map.boardstudio` | 13 | mapped state restored | `72ec5da3346f8b76c4273b686d3538546abc10309d2962d7b8e49b7742cd38a3` |
+| `react-c03-after-redo-map.boardstudio` | 13 | same normalized Redo state | `c10a58cf4e0bac07897b8357e7ca20459c0879f436ec6922a54ce59bf162979c` |
+| `candidate-c03-after-mode-undo.boardstudio` | 15 | mode Undo restores Direct GPIO; net mapping retained | `33b97dcee63af40a7f3e4e7b3d0a0a6c2988e950862add0c8ec885613da9a753` |
+| `react-c03-after-mode-undo.boardstudio` | 15 | same normalized mode-Undo state | `63dca4b48ec4fb40d60a75935b76f162058a9753b6d10d3f2012b44a925a8aab` |
+| `candidate-c03-after-redo-mode.boardstudio` | 16 | Unassigned; final state reopened in fresh session | `ff5f3db12fefe1727d0fa52cff2b06d23c2123a139189df5e478ac92259c1ac5` |
+| `react-c03-after-redo-mode.boardstudio` | 16 | same normalized final state; reopened in fresh session | `fa855d98104ba470ef2cb03e38d8770ab9f6d221bab14da67d11bba942c1136c` |
+
+This paired public journey covers C03's named-net creation, supported diode terminal-to-pad mapping, supported input-mode edit, unrelated net preservation, one-step Undo/Redo, and save/reopen clauses. It does not test other terminals or input modes. No application source change was indicated by this qualification.
+
+## Resolver pending, recovery and scope-switch qualification (F5.2-C04, 2026-10-03)
+
+Candidate: published Dioxus at `http://127.0.0.1:34784/`, named session `f5-c04-c04-candidate-20261003`. Reference: pinned TypeScript at `http://127.0.0.1:5175/`, session `f5-c04-c04-react-20261003`. Both imported the same revision-9 two-board Sofle archive used above, SHA-256 `5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df`.
+
+On the candidate's Left PCB, I invoked the visible `Resolve automatically` action. An immediate public accessibility snapshot showed `Resolving…` and disabled `Apply wiring`; the next snapshot showed `Resolve automatically` again, enabled Apply, and the populated wiring panel. The resolution recovered without changing project content. I then invoked Resolve once more, captured the same visible Pending state, and selected Right PCB through the ordinary board selector while that request was pending. The panel changed to Right PCB and exposed `right-U1`/Right-board terminal context; returning to Left restored `left-U1` context. No resolver error or accepted-document edit was displayed. In React, Resolve and the same Left→Right→Left public board route completed before the next snapshot; the board controller context changed to `right-U1` and back to `left-U1`, with the matching plan visible. React did not expose a pending frame between these separate UI actions.
+
+After these read-only actions, I saved public portable project copies. Both parsed `project.json` documents are structurally equal to the original revision-9 fixture (the React archive is byte-identical to the fixture; the Dioxus ZIP container differs). The Dioxus after-resolution archive SHA-256 is `d68e6651757b00ce6269ee521bd10acc7cc175d0faafe22813d3abb98614211c`; React is `5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df`. These copies establish that the resolution/scope actions did not mutate the accepted project.
+
+This qualifies a visible candidate Pending→current recovery and paired settled React resolution on the populated fixture. The normal public controls did not produce a failed Core/provider reply, so no public error/recovery claim is made. The board switch was initiated while the candidate visibly showed Pending, and the newly selected board context appeared afterward; because the async reply's completion order is not exposed by the UI, this is not claimed as proof that a late stale reply was rejected. No browser/network interception was used, so no browser-tool fault is attributed to the app/provider. Existing source and mounted-owner lifecycle tests remain the error/stale-admission evidence; this public packet adds no source change.

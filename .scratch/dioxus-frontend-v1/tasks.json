@@ -1123,7 +1123,7 @@
         {
           "id": "F3.2-C01",
           "requirement": "Create custom/preset matrices and mirrored pairs through existing operations; show a non-durable preview before commit.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/objects/matrix_setup.rs",
@@ -1136,7 +1136,7 @@
             ".scratch/dioxus-layout-authoring/evidence/f32d-matrix-settings-20261003/README.md"
           ],
           "blockers": [],
-          "next_action": "Qualify custom setup and mirrored-pair creation/preview/commit on the current integrated candidate; prior preset receipt is narrower and predates current HEAD.",
+          "next_action": "Retain paired 34785 custom 2\u00d73 and mirrored 2\u00d72 pair preview, commit, one Undo, board-scoped identities and saved-project reopen. Preset placement is recorded in the same receipt; remaining Layout clauses stay separate.",
           "finish_condition": "Public UI paired scenario proves custom and preset matrices plus mirrored pairs preview without durable writes, then commit through existing operations.",
           "owned_files": [
             "web/src/presentation/objects/matrix_setup.rs",
@@ -1152,7 +1152,7 @@
         {
           "id": "F3.2-C02",
           "requirement": "Arrow keys adjust pending placement by active snap increment, Enter commits and Escape cancels with no revision/history change.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/objects/matrix_placement_controller.rs",
@@ -1162,7 +1162,7 @@
             ".scratch/dioxus-layout-authoring/evidence/f32-preset-placement-20261003/receipt.md"
           ],
           "blockers": [],
-          "next_action": "Reuse observed Arrow/Escape and pointer-commit behavior; execute Dioxus Enter commit on the same placement fixture, then confirm snap and one history step.",
+          "next_action": "Retain paired active Grid \u00bcu ArrowRight +4.7625mm preview, Enter Matrix 5 commit, second ArrowUp/Escape non-durable cancel, and one Undo to baseline. Older pointer/reload evidence retained.",
           "finish_condition": "Arrow adjustment, Enter commit and Escape cancellation all preserve the stated snap/revision/history semantics in paired public scenarios.",
           "owned_files": [
             "web/src/presentation/objects/matrix_placement_controller.rs",
@@ -1358,16 +1358,18 @@
         {
           "id": "F3.3-C03",
           "requirement": "Pointer capture, pointercancel/lost capture/Escape cancellation, final pointer-up sample and project/board cancellation are covered; one completed drag is one Undo step.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/objects/layout_transform_toolbar.rs",
             "web/src/presentation/objects/layout_align_controller.rs",
             "web/src/presentation.rs"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/layout/RESULTS.md"
+          ],
           "blockers": [],
-          "next_action": "Inspect current mounted handlers and existing receipts for all cancellation owners, final pointer-up sample and one-step Undo; record paired evidence for any uncovered branch.",
+          "next_action": "Retain paired final pointer-up sample, native touch pointercancel with changed preview, lost capture, Escape, board/project replacement, and single completed-drag Undo. Browser capture state after project unmount is inherently unobservable; saved state is baseline.",
           "finish_condition": "Paired public scenarios cover capture, every named cancellation/final-sample path, project/board replacement, and one Undo entry per completed drag.",
           "owned_files": [
             "web/src/presentation/objects/layout_transform_toolbar.rs",
@@ -2447,7 +2449,7 @@
       "acceptance_after": [
         "INT.2"
       ],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
       "shared_edit_owner": "integration coordinator",
@@ -2524,7 +2526,7 @@
         {
           "id": "F4.2-C03",
           "requirement": "Create a custom definition; edit supported courtyard, pad and profile fields; commit through the normal edit/Undo/Redo/save/reopen path while preserving assets and unrelated document data.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/parts_import_footprint.rs:1",
@@ -2532,10 +2534,11 @@
           ],
           "evidence": [
             ".scratch/dioxus-parts-catalogue/evidence/05-import-kicad-footprint-paired-journey-20261003.md",
-            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md"
+            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
+            ".scratch/dioxus-frontend-v1/evidence/frontend-parts-search-feedback-20261003/journey.md"
           ],
           "blockers": [],
-          "next_action": "Qualify custom creation and field edits, then verify redo, asset/document preservation and saved reopen for the full path.",
+          "next_action": "Retain paired custom kind/courtyard/pad and mechanical-fit profile edits, Undo/Redo, portable reopen, and six-asset/unrelated-document preservation.",
           "finish_condition": "Paired evidence covers custom create/edit, supported field families, one normal accepted edit with Undo/Redo, asset and unrelated-data preservation, and save/reopen.",
           "owned_files": [
             "web/src/parts_custom_definition.rs",
@@ -2553,15 +2556,17 @@
         {
           "id": "F4.2-C04",
           "requirement": "Create a project-owned custom footprint definition through the public Parts UI and select its accepted definition.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/parts_custom_definition.rs:1",
             "web/src/presentation/parts.rs:736"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/frontend-parts-search-feedback-20261003/journey.md"
+          ],
           "blockers": [],
-          "next_action": "Capture a paired public custom-definition create and reopen journey.",
+          "next_action": "Retain paired project-owned custom create/select/export/reopen with preserved accepted definition.",
           "finish_condition": "The new custom definition is accepted, selected, saved and present after reopen.",
           "owned_files": [
             "web/src/parts_custom_definition.rs",
@@ -2576,15 +2581,17 @@
         {
           "id": "F4.2-C05",
           "requirement": "Edit supported custom courtyard, pad and profile fields without replacing source-owned geometry or unrelated document fields.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/parts_custom_definition.rs:1",
             "web/src/presentation/parts_import_footprint.rs:1"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/frontend-parts-search-feedback-20261003/journey.md"
+          ],
           "blockers": [],
-          "next_action": "Qualify custom and imported field affordances separately against the reference fixtures.",
+          "next_action": "Retain paired custom editable fields/profile and imported source-pad locks plus preserved geometry; stale async import remains C06.",
           "finish_condition": "Evidence confirms supported fields edit while immutable source geometry and unrelated project data remain unchanged.",
           "owned_files": [
             "web/src/parts_custom_definition.rs",
@@ -2600,15 +2607,17 @@
         {
           "id": "F4.2-C06",
           "requirement": "Reject stale async import results after the project or selected definition changes, leaving the prior document intact.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/parts_import_footprint.rs:1",
             "web/src/runtime.rs:702"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/frontend-parts-search-feedback-20261003/journey.md"
+          ],
           "blockers": [],
-          "next_action": "Exercise a delayed import while changing project and selection in turn.",
+          "next_action": "Retain Dioxus delayed File.text selection/project owner rejection and source owner regression. React selection-change run appended a stale import; record as RF-017 reference defect, not required Dioxus behavior. Provider-stage race remains source-backed.",
           "finish_condition": "Neither stale result updates the changed project nor replaces its current selected definition.",
           "owned_files": [
             "web/src/presentation/parts_import_footprint.rs",
@@ -2624,8 +2633,20 @@
         "source_commit": "07b4c3466b1f388073e8e1f9d619b0703223d770",
         "assessed_at": "2026-10-03T19:37:09Z",
         "coverage": "complete",
-        "note": "F4.2 split so verified rows are limited to exact malformed-import and imported-pad/courtyard outcomes in the retained paired receipt. Custom creation/editing, stale async ownership, and the complete Undo/Redo/persistence path remain implemented but unverified; F4.2 cannot close from the import subset."
-      }
+        "note": "All original acceptance clauses remain mapped. Current paired public receipts qualify supported KiCad import/malformed retry, custom geometry and mechanical-fit authoring with Undo/Redo/reopen, immutable source-pad affordances, and Dioxus selection/project stale-read rejection. The pinned TypeScript reference fails the selection-stale import case; RF-017 records that confirmed behavioral difference. Provider-stage latency was not publicly injected; the Dioxus owner recheck is source-backed. Final consolidated review and INT.2 join govern parent acceptance."
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/f42-acceptance-20261003/DECISION.json"
+      },
+      "status_history": [
+        {
+          "at": "2026-10-04T00:59:35.244309+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "All six functional criteria verified; INT.2 accepted; consolidated Sol 6.1 High review and package audit clear",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/f42-acceptance-20261003/DECISION.json"
+        }
+      ]
     },
     {
       "id": "F4.3",
@@ -3657,7 +3678,7 @@
             ".scratch/dioxus-pcb-view/evidence/pcb-apply-ui-20261002/receipt.md"
           ],
           "blockers": [],
-          "next_action": "Qualify error recovery and stale-result rejection in the affected public route.",
+          "next_action": "Paired public candidate showed Resolving\u2026/Apply disabled then settlement; board switch while pending left both accepted projects unchanged. Provider failure\u2192visible error\u2192retry and true late stale-reply rejection remain unqualified; focused mounted resolver-owner regression is in progress.",
           "finish_condition": "Paired evidence shows loading, failure, recovery and no accepted-document mutation on rejected/stale actions.",
           "owned_files": [
             "web/src/presentation/pcb_wiring.rs",
@@ -3786,17 +3807,18 @@
         {
           "id": "F5.3-C03",
           "requirement": "Create nets and map supported part terminals/pads; edit supported input modes; unrelated connections survive and changes undo.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/pcb_wiring/connections.rs",
             "web/src/presentation/pcb_wiring/part_input_settings.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-pcb-view/evidence/wiring-nextfrontier-20261002/part-inspector-journey/part-inspector-journey.md"
+            ".scratch/dioxus-pcb-view/evidence/wiring-nextfrontier-20261002/part-inspector-journey/part-inspector-journey.md",
+            ".scratch/dioxus-pcb-view/evidence/pcb-apply-ui-20261002/receipt.md"
           ],
           "blockers": [],
-          "next_action": "Retain planning journey as a source gap receipt; use the current owner source and qualify the changed production route against identical serialized project.",
+          "next_action": "Retain paired named-net/diode-pad mapping, Direct GPIO\u2194Unassigned input-mode history, 83 unrelated named nets preserved, and fresh reopen. Parent acceptance joins remain open.",
           "finish_condition": "Public paired actions prove net creation/mapping, supported input mode changes, unrelated pin preservation, Undo/Redo and save/reopen.",
           "owned_files": [
             "web/src/presentation/pcb_wiring.rs",
@@ -5449,7 +5471,7 @@
         {
           "id": "F6C.3-C04",
           "requirement": "Preserve existing selection scopes, per-axis commits, and key envelope sizing.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/objects/keycap_size.rs",
@@ -5460,7 +5482,7 @@
             ".scratch/dioxus-frontend-v1/evidence/keycaps-size-reflow-20261003/paired-linked-resize.md"
           ],
           "blockers": [],
-          "next_action": "Single selected linked-key axis editing passed paired; remaining multi-key selection scopes and envelope target cases require qualification.",
+          "next_action": "Retain paired key, additive, mirrored-half, row, column and matrix Width scope edits on 34785, intended linked envelopes and one Undo; separate Height axis and save/reopen are covered by C01/C06.",
           "finish_condition": "Edits use the current selected key scope, preserve separate axis commits and update the intended key envelopes.",
           "owned_files": [
             "web/src/presentation/objects/keycap_size.rs",
@@ -5487,7 +5509,7 @@
             ".scratch/dioxus-frontend-v1/evidence/keycaps-size-reflow-20261003/paired-linked-resize.md"
           ],
           "blockers": [],
-          "next_action": "No source gap established; paired proof already covers one selected linked half. Add both-halves-selected evidence to complete the existing qualification.",
+          "next_action": "Retain paired both-mirrored-key selected Width 1\u21921.25u, both envelopes 18\u219222.8125mm, symmetric neighbor reflow X\u00b128.23\u2192\u00b130.63625mm and one Undo/Redo. Broader selection scopes remain C04.",
           "finish_condition": "Reflow matches the established policy for neighbors and canonical linked halves, including deduplication when both halves are selected.",
           "owned_files": [
             "web/src/presentation/objects/keycap_size.rs",
@@ -6496,7 +6518,7 @@
         {
           "id": "F7.3-C03",
           "requirement": "Support layer/model visibility, color changes and reset behavior.",
-          "state": "missing",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/shared_viewer.rs",
@@ -6508,7 +6530,7 @@
             ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md"
           ],
           "blockers": [],
-          "next_action": "Implement reachable Case layer/model color and reset controls using the existing shared viewer state; retain proven category and individual-model visibility. Then pair the new controls with TypeScript.",
+          "next_action": "Retain paired Plate selection\u2192Inspector Colour/Reset, visible black change\u2192default #b4bac2 reset and independent Hide/Show. Native picker automation did not qualify arbitrary hue; category/model visibility receipts retained. Control placement parity remains visual work.",
           "finish_condition": "Public actions demonstrate assembly layer, individual model, color edit and reset without document edits.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",
@@ -7982,12 +8004,13 @@
           ],
           "evidence": [
             ".scratch/dioxus-frontend-v1/issues/08-export-coordinator-dispatch.md",
-            ".scratch/dioxus-frontend-v1/evidence/planning/boundary-gaps.md"
+            ".scratch/dioxus-frontend-v1/evidence/planning/boundary-gaps.md",
+            ".scratch/dioxus-frontend-v1/evidence/export-zmk-route-20261003/34770-RECEIPT.md"
           ],
           "blockers": [
             "BND.2-C03"
           ],
-          "next_action": "Qualify stale completion, package failure/no-protection, error surface and same-action retry against actual coordinator boundary.",
+          "next_action": "Paired unresolved encoder-A failure and same-action retry produced valid 15-path ZIPs after restoring P1. Still qualify in-flight stale scope/revision delivery and packaging-failure protection ordering; React retains a dismissible old alert after success while Dioxus clears it.",
           "finish_condition": "Each negative branch leaves no stale artifact/protection, reports through global error UI, and the same action succeeds after recovery.",
           "owned_files": [
             "web/src/runtime.rs",
@@ -9390,8 +9413,8 @@
     "integration_slices": 2,
     "boundary_slices": 2,
     "status": {
-      "accepted": 11,
-      "implementing": 40,
+      "accepted": 12,
+      "implementing": 39,
       "planned": 11
     }
   },

@@ -16,29 +16,29 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T00:10:32.296913+00:00",
+    "updated_at": "2026-10-04T01:03:50.122485+00:00",
     "parent_counts": {
-      "accepted": 11,
-      "implementing": 40,
+      "accepted": 12,
+      "implementing": 39,
       "planned": 11,
       "total": 62
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-parts-search-feedback-20261003",
-      "source_commit": "b2bb813cdb75340a2725ac4488dfde6752104484",
-      "root_url": "http://127.0.0.1:34784/",
-      "subpath_url": "http://127.0.0.1:34784/boardstudio/",
-      "provenance": "web/target/builds/frontend-parts-search-feedback-20261003/provenance.json",
-      "provenance_sha256": "551fa34f49c18c7a6881ec428f2fbe16e0148c6017e6473fce7fac45e54b6a1a",
+      "build_id": "frontend-case-layer-appearance-20261003",
+      "source_commit": "f6aa4cb08600f52c0349449f39e52616daafecfe",
+      "root_url": "http://127.0.0.1:34785/",
+      "subpath_url": "http://127.0.0.1:34785/boardstudio/",
+      "provenance": "web/target/builds/frontend-case-layer-appearance-20261003/provenance.json",
+      "provenance_sha256": "73c26361e2a17360d8eef1300c139d87beaa0d98be00ada6ca7c0704b2411036",
       "fresh_commands": 8,
       "inherited_commands": 22,
       "source_inputs": 1390,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 135.329291,
+      "command_span_seconds": 147.147179,
       "package_qualification": "Combined package provenance, current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-parts-search-feedback-20261003/package-proof.json",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-case-layer-appearance-20261003/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -49,7 +49,7 @@
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
       "source_commit": "733c1da2abede39a617d2eca2e42d9bd437cea41",
-      "state": "Parts search filter/count/aggregate feedback qualified on34784 with consolidated review clear.",
+      "state": "Case layer selection f6aa4cb0 built/published34785; F7.3-C03 paired and F4.2 accepted. Layout F3.2-C01/C02 and all F6C.3 criteria now verified. PCB mounted resolver-owner repair awaits integration.",
       "packets": [
         {
           "stream": "Layout",
@@ -488,11 +488,11 @@
       {
         "stream": "Layout",
         "priority": "Functional gaps alongside other streams; exact visual parity deferred",
-        "state": "F3.3-C05 row/locked/driven Align guards verified in paired public UI; stale request admission backed by current source and adjacent settlement regression. C03 broader pointer history/cancel gates remain open."
+        "state": "F3.3 fully verified; F3.2-C01 custom/preset/mirrored placement and C02 snap-key commit/cancel verified paired on34785. Component placement and commit-edge cases remain."
       },
       {
         "stream": "PCB",
-        "state": "F5.3-C01/C02/C04/C05 verified: pin history, connection review, legacy bindings/controller placement and protected handoff. C03 net/input-mode authoring qualification active."
+        "state": "All five F5.3 criteria verified paired; F5.2-C04 mounted failure/retry/stale-board regression passed and awaits source integration/package. F5.2 public resolver/error and remaining parent joins remain."
       },
       {
         "stream": "Keymap",
@@ -500,22 +500,22 @@
       },
       {
         "stream": "Keycaps",
-        "state": "F6C.3-C01/C02/C03/C05/C06/C07 verified on paired linked-key resize, mixed Wide/Tall, quarter-step history and owner reset. C04 remaining multi-key selection scope qualification; F3.2/F3.5 joins open."
+        "state": "All seven F6C.3 criteria verified paired, including key/additive/mirrored/row/column/matrix scopes, axis commits, linked reflow and history. Parent F3.2/F3.5 joins remain."
       },
       {
         "stream": "Case",
-        "state": "Paired Case viewer Bottom/Isometric/orbit/render/section/visibility checks captured. F7.3-C03 color/reset controls missing from Case Layers and assigned for implementation; zoom remains unverified. Physical-instance changed-flip geometry still open."
+        "state": "F7.3-C03 layer/model visibility and selected Plate Colour/Reset verified paired on 34785. Current Case source compiled/published; C02 reference section-position and C04 zoom plus broader viewer lifecycle remain."
       },
       {
         "stream": "Parts + Project",
-        "state": "Search repair qualified34784. Bounded actual catalogue loading/source-error investigation active; any transport fault injection will be explicitly labeled, no Core provider failure inferred."
+        "state": "F4.2 accepted (all six criteria, INT.2 join, paired evidence and consolidated Sol 6.1 High review). Next Parts/Project functional parents remain open; reference async defects RF-016/RF-017 retained."
       }
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Finish paired PCB conflict review/history/reopen and valid-fixture Case instance checks; qualify only criteria actually covered.",
-      "Continue concrete Layout transform and Parts catalogue journeys; investigate unresolved export lifecycle branches without repeating successful exports.",
-      "Complete remaining TypeScript mixed-keycap reference selection using reliable targeting when available; retain candidate-only evidence."
+      "Integrate focused F5.2-C04 resolver owner/notice change, compile/package one candidate, then qualify affected PCB error/retry/stale-board route.",
+      "Finish F3.2-C03 standalone component placement and C04 invalid/history/reopen; preserve the paired Layout matrix proof.",
+      "Take concrete missing or bounded unassessed criteria in the other five streams; preserve one waiting packet per stream and defer cosmetic parity."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
@@ -1263,33 +1263,50 @@
             ],
             "source_commit": "b2bb813cdb75340a2725ac4488dfde6752104484"
           }
+        },
+        {
+          "candidate_build_id": "frontend-parts-search-feedback-20261003",
+          "source_commit": "b2bb813cdb75340a2725ac4488dfde6752104484",
+          "phase": "qualified",
+          "review": {
+            "profile": "sol-review",
+            "model": "gpt-6.1-sol",
+            "reasoning": "high",
+            "state": "completed",
+            "verdict": "parts_search_repair_pass",
+            "review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/parts-search-review.md",
+            "review_sha256": "1077cf791c3d9a7e36dbb5af355324140333c913aa099ff8d37864555ca4af3a",
+            "source_commit": "b2bb813cdb75340a2725ac4488dfde6752104484"
+          },
+          "journeys": [
+            {
+              "id": "assembly-query-feedback",
+              "scope": "Assembly-only query has matching rows and no no-match status; true no-match has zero rows and exactly one status. Retain verified filtering and selection behavior.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
+              "state": "passed",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
+              "verified": "Key assembly query8/no false message; MX4; no-match0/exactlyone message. Prior selected-assembly retention reused."
+            }
+          ]
         }
       ],
-      "phase": "qualified",
+      "phase": "qualifying",
       "unmet_start_conditions": [],
-      "candidate_build_id": "frontend-parts-search-feedback-20261003",
-      "source_commit": "b2bb813cdb75340a2725ac4488dfde6752104484",
+      "candidate_build_id": "frontend-case-layer-appearance-20261003",
+      "source_commit": "f6aa4cb08600f52c0349449f39e52616daafecfe",
       "journeys": [
         {
           "id": "assembly-query-feedback",
           "scope": "Assembly-only query has matching rows and no no-match status; true no-match has zero rows and exactly one status. Retain verified filtering and selection behavior.",
           "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
-          "state": "passed",
-          "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
-          "verified": "Key assembly query8/no false message; MX4; no-match0/exactlyone message. Prior selected-assembly retention reused."
+          "state": "pending"
         }
       ],
       "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
-      "started_at": "2026-10-03T23:55:09.629840+00:00",
+      "started_at": "2026-10-04T00:43:03.111501+00:00",
       "review": {
         "profile": "sol-review",
-        "model": "gpt-6.1-sol",
-        "reasoning": "high",
-        "state": "completed",
-        "verdict": "parts_search_repair_pass",
-        "review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/parts-search-review.md",
-        "review_sha256": "1077cf791c3d9a7e36dbb5af355324140333c913aa099ff8d37864555ca4af3a",
-        "source_commit": "b2bb813cdb75340a2725ac4488dfde6752104484"
+        "state": "pending"
       }
     },
     "delivery_priority": {

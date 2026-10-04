@@ -401,6 +401,19 @@
           "current_mitigation": "One normalized assembly filter drives rows/count and the existing aggregate predicate alone drives no-match feedback. Focused filter RED/GREEN plus rendered-message browser RED; repaired package replay pending.",
           "post_port_follow_up": "Use one typed catalogue search projection for visible categories, counts, selection retention and aggregate empty states; include a rendered mixed-category regression so helper-only tests cannot miss divergent branches.",
           "status": "bounded repair integrated; larger presentation refactor deferred"
+        },
+        {
+          "date": "2026-10-03",
+          "source": "Case layer selection source f6aa4cb08600f52c0349449f39e52616daafecfe; paired published candidate frontend-case-layer-appearance-20261003",
+          "observation": "Case Layers exposed assembly visibility but did not select a layer, while the existing Colour/Reset controls were scoped to the selected layer in the Case Inspector. Users could see a rendered Plate and its visibility row without reaching the corresponding appearance editor through that row.",
+          "evidence": [
+            "web/src/presentation/case_assembly_layers.rs",
+            "web/src/presentation/shared_viewer.rs",
+            ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md"
+          ],
+          "current_mitigation": "A private supported-layer selection route now calls the existing guarded Case viewer signal; row selection opens the Inspector appearance controls while Hide/Show remains independent. Paired Plate colour/reset and visibility passed on 34785.",
+          "post_port_follow_up": "Review the workbench object/selection composition so scene selection, layer rows and contextual Inspector consume one scoped selection owner without each consumer wiring a separate navigation path.",
+          "status": "functional reachability repaired and paired; broader shared composition refactor deferred"
         }
       ],
       "continuation_notes": [

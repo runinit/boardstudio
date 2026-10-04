@@ -1,0 +1,13 @@
+{
+  "parent": "F4.2",
+  "at": "2026-10-04T00:59:35.130038+00:00",
+  "candidate_source": "f6aa4cb08600f52c0349449f39e52616daafecfe",
+  "candidate_url": "http://127.0.0.1:34785/boardstudio/",
+  "review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/sol-candidate-f42-case-review.md",
+  "review_sha256": "8233c8e214439a5cf76dc7ae4338835a9f3925944c6ec47eb8ed0ec71a36fd0b",
+  "audit": ".scratch/dioxus-frontend-v1/evidence/f42-acceptance-20261003/AUDIT.json",
+  "audit_sha256": "c01b29df42a4fef00e53a906912daed439d6cdaccebd881f6050c69a0942dc5e",
+  "criteria_accounting": ".scratch/dioxus-frontend-v1/tasks.json",
+  "scope": "All six F4.2 functional criteria from retained import and current custom/profile/stale-owner journeys. INT.2 join accepted. Reference async defects RF-016/RF-017 documented; no Dioxus parity bug copied. Does not accept other parents or release gates.",
+  "decision": "Accepted by coordinator from complete criterion accounting, paired functional evidence, current package provenance and one consolidated Sol 6.1 High Standards/Spec review."
+}
