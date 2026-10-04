@@ -550,7 +550,7 @@ impl MechanicalSettingsController {
                         )?;
                         let mut profile = (ports.load_switch_profile)(
                             definition_id.clone(),
-                            *source,
+                            source.clone(),
                             None,
                             configuration.plate_to_pcb,
                         )
