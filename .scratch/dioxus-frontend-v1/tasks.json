@@ -5790,7 +5790,7 @@
             ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md"
           ],
           "blockers": [],
-          "next_action": "Reuse accepted resolver/bridge review and valid STEP delivery. Stale revision rejection during an active export and final BND.1/F8.2 joins remain.",
+          "next_action": "BND.1 accepted; reuse current34782 successful STEP bytes and accepted resolver/bridge evidence. Active public export settled before a pending window could be observed, so no stale-revision public race claimed. Complete exact remaining stale-result evidence and F8.2 final join without repeating successful STEP exports.",
           "finish_condition": "The existing resolver and accepted snapshot feed the private CAD bridge; stale revisions are rejected and valid STEP is delivered.",
           "owned_files": [
             "web/src/presentation/keycaps_fit.rs",

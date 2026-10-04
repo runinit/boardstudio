@@ -488,11 +488,11 @@
       {
         "stream": "Layout",
         "priority": "Functional gaps alongside other streams; exact visual parity deferred",
-        "state": "C01 transforms and C04 snap/nudge verified; remaining C03 cancellation/final sample and C05 guard scenarios explicit."
+        "state": "Transforms/snap/nudge verified; row-crossing splay guard matches reference. Driven/locked guard bounded check active, stale race evidence remains source/tests."
       },
       {
         "stream": "PCB",
-        "state": "F5.3-C02 manual-conflict review/Undo/reopen verified with normalized paired exports; remaining lock edit history and protected-remap state remain C01/C05."
+        "state": "Manual conflict review criterion verified; focused lock-edit Undo/Redo and lock/unlock check active."
       },
       {
         "stream": "Keymap",
@@ -508,7 +508,7 @@
       },
       {
         "stream": "Parts + Project",
-        "state": "Search list/count/status repair passes34784 public replay; final candidate review pending. F4.1 broader loading/source-error and legacy/custom override selection remain open."
+        "state": "Search repair qualified34784. Bounded actual catalogue loading/source-error investigation active; any transport fault injection will be explicitly labeled, no Core provider failure inferred."
       }
     ],
     "pending_join_packets": [],
