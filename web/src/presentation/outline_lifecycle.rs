@@ -3404,6 +3404,7 @@ pub(super) fn OutlineDraftCanvasOverlay(
     rsx! {
         g { class: "m1-outline-draft-controls", "aria-label": match tool { OutlineDrawTool::Polygon(Operation::Add) => "Draw addition", OutlineDrawTool::Polygon(Operation::Subtract) => "Draw cutout", OutlineDrawTool::Connect => "Connect points" },
             rect {
+                transform: "scale(1,-1)",
                 x: "{view_x}", y: "{view_y}", width: "{width}", height: "{height}",
                 fill: "transparent", tabindex: "0", role: "application",
                 "aria-label": "Outline drawing canvas. Click to add points. Enter finishes; Escape cancels.",
