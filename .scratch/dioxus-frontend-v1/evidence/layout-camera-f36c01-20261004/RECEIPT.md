@@ -80,3 +80,37 @@ Dioxus returned to
 `-13.116602794411165 -3.8403955422488423 171.7340735196274 118.67416666666666`.
 Neither app retained the placement tool after returning. This paired journey
 found no F3.6-C02 functional mismatch.
+
+## F3.6-C02 qualified-candidate retest
+
+On 2026-10-04, candidate `frontend-functional-refresh-20261004` at 34810
+(source `df22f1cc`; the earlier `6d3e89fc` attribution was stale) and pinned TS
+5175 imported the same layered Sofle archive (SHA-256
+`5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df`). In each
+2D Layout, Add object → `battery connector jst ph 2` → Place component armed
+the visible “Click or Enter to place · Esc cancels” prompt. Switching to Layout
+3D removed the placement prompt; returning to 2D left it canceled. Both
+retained the selected Left PCB and restored their exact own pre-switch camera:
+candidate `-15.819999999999993 -30.775111034482762 173.114 172.8752220689655`
+before and after; TS
+`13.728768965517247 -4.562600383141763 120.21805555555557 119.72060153256704`
+before and after. Placed-part count remained 70 in both. No F3.6-C02
+functional mismatch was found in this bounded route; cross-app camera equality
+and other active gesture kinds are outside this delta.
+
+### Pending splay-origin pick cancellation regression (2026-10-04)
+
+The paired battery-connector journey above exercises the placement-tool owner,
+but did not cover the separate Inspector-owned `pending_splay_origin_pick`.
+Source tracing found that this pending pick and its hint survived a Layout
+2D→3D switch. Added `presentation::layout_splay_pick_view_change_tests::
+entering_layout_3d_cancels_pending_splay_origin_pick`; its RED run failed with
+`Some("origin")` where `None` was expected. The fix clears only that pending
+pick from the existing Layout cancellation callback on entry to 3D. The GREEN
+headless Chrome rerun passed (`1 passed, 232 filtered`) using the same focused
+`wasm-pack test --headless --chrome --mode no-install web --no-default-features
+--features page --bin boardstudio-web --
+entering_layout_3d_cancels_pending_splay_origin_pick` command. The test also
+confirms the 3D→2D direction does not rewrite pending state. Canvas Escape,
+normal Pick origin, selection, camera and history paths are unchanged by the
+narrow source edit; no post-fix candidate rebuild or browser journey was run.

@@ -2714,7 +2714,7 @@ fn layout_view_mode_handler(
     mut set_assembly_3d: impl FnMut(bool) + 'static,
     placements: LayoutPlacementCancellation,
     before_placement_cancel: impl Fn() + 'static,
-    after_placement_cancel: impl Fn() + 'static,
+    mut after_placement_cancel: impl FnMut() + 'static,
 ) -> EventHandler<bool> {
     EventHandler::new(move |assembly_3d| {
         if !is_owner_current() {
@@ -2752,6 +2752,33 @@ fn layout_view_mode_handler(
         }
         set_assembly_3d(assembly_3d);
     })
+}
+
+fn pending_splay_origin_pick_after_view_change<T>(
+    from_3d: bool,
+    to_3d: bool,
+    pending: Option<T>,
+) -> Option<T> {
+    if !from_3d && to_3d { None } else { pending }
+}
+
+#[cfg(test)]
+mod layout_splay_pick_view_change_tests {
+    use super::pending_splay_origin_pick_after_view_change;
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn entering_layout_3d_cancels_pending_splay_origin_pick() {
+        assert_eq!(
+            pending_splay_origin_pick_after_view_change(false, true, Some("origin")),
+            None
+        );
+        assert_eq!(
+            pending_splay_origin_pick_after_view_change(true, false, Some("origin")),
+            Some("origin"),
+            "leaving 3D does not rewrite the pending pick state"
+        );
+    }
 }
 
 /// Keymap and Keycaps only change views; their shared 3D viewer has no Layout
@@ -7781,7 +7808,14 @@ fn Editor() -> Element {
             let mirrored_pair = mirrored_pair.clone();
             let matrix_setup = matrix_setup.clone();
             let matrix_placement = matrix_placement.clone();
+            let mut pending_splay_origin_pick = pending_splay_origin_pick;
+            let layout_assembly_3d = layout_assembly_3d;
             move || {
+                pending_splay_origin_pick.set(pending_splay_origin_pick_after_view_change(
+                    layout_assembly_3d(),
+                    true,
+                    pending_splay_origin_pick(),
+                ));
                 if let Some(active) = mirrored_pair.placement.as_ref() {
                     mirrored_pair.on_cancel.call(active.owner.clone());
                 } else if let Some(form) = mirrored_pair.form.as_ref() {
