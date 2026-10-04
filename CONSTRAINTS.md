@@ -41,6 +41,9 @@ production cutover and React removal retain their separate authorization/gates.
    the existing spec/ticket. Start when the capabilities actually consumed are proven.
    Preserve parent criteria and original dependency rationale. Create a new ticket only
    for distinct runnable work. A no-gap audit returns source pointers by message.
+   For an interactive slice, its finish condition names the originating control,
+   destination workspace/editor, observable edit result and scope change behavior;
+   rendering or selecting an object alone does not complete that journey.
 3. Implement mounted behavior with explicit file ownership. Authors normally use their
    assigned isolates; the coordinator may grant disjoint edit-only leases in its checkout
    for a single batch, retaining sole commit/build ownership. Inspect overlapping edits.
@@ -54,6 +57,9 @@ production cutover and React removal retain their separate authorization/gates.
    providers and warm caches. Publish through the delivery command's provenance-derived
    proof and existing asset validation. Coordinator assigns heavy slots; at most two heavy jobs,
    including one package, run at once.
+   After integration and before the expensive package, exercise one focused live route
+   for each newly connected cross-workbench action; defer the broader paired journey
+   and lifecycle qualification to the packaged candidate.
 6. When a coherent functional batch is integrated and its candidate compile/package
    passes, qualify its affected working journeys and use one consolidated
    Sol 6.1 High candidate review. Other streams continue. Reuse unchanged paired evidence;
@@ -66,6 +72,8 @@ production cutover and React removal retain their separate authorization/gates.
 
 During source integration, ordinary reversible UI needs no new per-packet application
 suite/browser/review. A reproduced bug gets its focused regression and affected checks.
+Run focused Rust tests through `scripts/migration-deliver.py focused-test -- ...` so
+a successful command with zero executed tests cannot count as verification.
 Focused tooling checks validate these delivery controls. Broaden only for a failure or
 identified unresolved risk. Source, compiler and package success never imply acceptance.
 

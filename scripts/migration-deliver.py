@@ -11,9 +11,11 @@ import fcntl
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import uuid
 
@@ -320,6 +322,59 @@ def _commit(root, intent, message, paths):
             commit_lock.close()
 
 
+_TEST_SUMMARY = re.compile(
+    r"test result: .*?\b(?P<passed>\d+) passed;\s*"
+    r"(?P<failed>\d+) failed;\s*(?P<ignored>\d+) ignored;"
+)
+
+
+def _focused_test(root, command):
+    if command and command[0] == "--":
+        command = command[1:]
+    if not command:
+        raise GuardError("focused-test requires a command after -- (cargo test ... or wasm-pack test ...)")
+    executable = Path(command[0]).name
+    is_cargo_test = executable == "cargo" and len(command) > 1 and command[1] == "test"
+    is_wasm_pack_test = executable == "wasm-pack" and len(command) > 1 and command[1] == "test"
+    if not (is_cargo_test or is_wasm_pack_test):
+        raise GuardError("focused-test only accepts cargo test ... or wasm-pack test ... commands")
+
+    # Keep test output live while retaining only a bounded tail for parsing.
+    tails = {"stdout": bytearray(), "stderr": bytearray()}
+    tail_limit = 1024 * 1024
+
+    def forward(stream, target, tail):
+        while chunk := stream.read(8192):
+            target.buffer.write(chunk)
+            target.flush()
+            tail.extend(chunk)
+            if len(tail) > tail_limit:
+                del tail[:len(tail) - tail_limit]
+
+    process = subprocess.Popen(command, cwd=root, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    forwarders = [
+        threading.Thread(target=forward, args=(process.stdout, sys.stdout, tails["stdout"])),
+        threading.Thread(target=forward, args=(process.stderr, sys.stderr, tails["stderr"])),
+    ]
+    for thread in forwarders:
+        thread.start()
+    returncode = process.wait()
+    for thread in forwarders:
+        thread.join()
+    if returncode:
+        return returncode
+
+    output_tail = (tails["stdout"] + b"\n" + tails["stderr"]).decode(errors="replace")
+    summaries = list(_TEST_SUMMARY.finditer(output_tail))
+    passed = sum(int(match.group("passed")) for match in summaries)
+    if passed == 0:
+        raise GuardError(
+            "focused test command succeeded but reported zero executed tests; "
+            "expected a Rust test result summary with at least one passed test"
+        )
+    return 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -341,12 +396,19 @@ def main(argv=None):
     candidate.add_argument("--root-url", required=True)
     candidate.add_argument("--subpath-url", required=True)
     candidate.add_argument("--proof", help="output proof path (defaults under candidate evidence)")
+    focused_test = commands.add_parser(
+        "focused-test",
+        help="run cargo/wasm-pack tests and fail if no Rust tests executed",
+    )
+    focused_test.add_argument("test_command", nargs=argparse.REMAINDER, help="command to run after --")
     commands.add_parser("hook", help="internal entry point used by the installed pre-commit hook")
     args = parser.parse_args(argv)
     try:
         root = canonical_root(Path.cwd())
         if args.command == "hook":
             return _git_hook(root)
+        if args.command == "focused-test":
+            return _focused_test(root, args.test_command)
         if args.command == "publish-candidate":
             _, entry = validate_checkout(root, required=True)
             if entry["role"] != "coordinator":

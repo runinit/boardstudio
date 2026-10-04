@@ -79,6 +79,57 @@ def clean_journeys(journeys, pending=False):
     return cleaned
 
 
+def changed_paths(root, source_commit, candidate_commit):
+    """Return changed repository paths only when Git proves the source relationship."""
+    if not re.fullmatch(r'[0-9a-f]{40}', str(source_commit)):
+        return None
+    try:
+        git(root, 'merge-base', '--is-ancestor', source_commit, candidate_commit)
+        output = git(root, 'diff', '--no-renames', '--name-only', '-z', source_commit, candidate_commit)
+    except ValueError:
+        return None
+    return {path for path in output.split('\0') if path}
+
+
+def reusable_journeys(scope_journeys, previous, previous_source, candidate_source, root):
+    """Carry passed behavior only when its explicit source footprint stayed unchanged."""
+    paths = changed_paths(root, previous_source, candidate_source)
+    prior_by_id = {item.get('id'): item for item in previous if isinstance(item, dict)} \
+        if isinstance(previous, list) else {}
+    result = []
+    for journey in clean_journeys(scope_journeys):
+        prior = prior_by_id.get(journey.get('id'))
+        footprint = journey.get('source_paths')
+        complete_footprint = journey.get('source_paths_complete') is True
+        if (paths is None or not isinstance(footprint, list) or not footprint
+                or not complete_footprint
+                or any(not isinstance(path, str) or not path or path.startswith('/')
+                       or '..' in Path(path).parts or '\\' in path for path in footprint)
+                or any(not (Path(root) / path).is_file() for path in footprint
+                       if isinstance(path, str) and path)
+                or paths.intersection(footprint) or not isinstance(prior, dict)
+                or prior.get('state') != 'passed'
+                or prior.get('scope') != journey.get('scope')
+                or prior.get('spec') != journey.get('spec')
+                or prior.get('source_paths') != footprint
+                or prior.get('source_paths_complete') is not True):
+            result.append(dict(journey, state='pending'))
+            continue
+        evidence = prior.get('evidence')
+        if not isinstance(evidence, str) or not evidence:
+            result.append(dict(journey, state='pending'))
+            continue
+        evidence_path = Path(evidence)
+        if evidence_path.is_absolute() or '..' in evidence_path.parts or not (Path(root) / evidence_path).is_file():
+            result.append(dict(journey, state='pending'))
+            continue
+        # The old receipt remains an explicit pointer; the verdict is marked as
+        # reused so candidate-scoped and durable evidence remain distinguishable.
+        result.append(dict(journey, **{key: prior[key] for key in JOURNEY_RESULT_FIELDS if key in prior},
+                           reuse='unchanged_scoped_source'))
+    return result
+
+
 def refresh(progress, proof, provenance, root):
     """Called only after package/provenance/live assets have been verified."""
     state = progress.get('qualification')
@@ -151,15 +202,24 @@ def refresh(progress, proof, provenance, root):
             key: state[key] for key in ('candidate_build_id', 'source_commit', 'phase', 'review', 'journeys')
             if key in state
         }]
+        prior_source = state.get('source_commit', '')
         next_state.update(candidate_build_id=proof['build_id'], source_commit=proof['source_commit'],
-                          journeys=clean_journeys(scope.get('journeys', []), pending=True))
+                          journeys=reusable_journeys(scope.get('journeys', []), state.get('journeys', []),
+                                                     prior_source, proof['source_commit'], root))
         next_state.pop('review', None)
         next_state.pop('started_at', None)
     if not unmet:
-        next_state.update(candidate_build_id=proof['build_id'], source_commit=proof['source_commit'],
-                          started_at=datetime.now(timezone.utc).isoformat(),
-                          review={'profile':'sol-review', 'state':'pending'},
-                          journeys=clean_journeys(scope.get('journeys', []), pending=True))
+        if candidate_changed:
+            next_state.update(candidate_build_id=proof['build_id'], source_commit=proof['source_commit'],
+                              started_at=datetime.now(timezone.utc).isoformat())
+            review = next_state.get('review')
+            if not (isinstance(review, dict) and review.get('state') == 'completed'):
+                next_state['review'] = {'profile':'sol-review', 'state':'pending'}
+        else:
+            next_state.update(candidate_build_id=proof['build_id'], source_commit=proof['source_commit'],
+                              started_at=datetime.now(timezone.utc).isoformat(),
+                              review={'profile':'sol-review', 'state':'pending'},
+                              journeys=clean_journeys(scope.get('journeys', []), pending=True))
     if next_state == state:
         return False
     progress['qualification'] = next_state

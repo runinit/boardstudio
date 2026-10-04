@@ -49,6 +49,48 @@ class MigrationDeliverTests(unittest.TestCase):
         (root / "tracked.txt").write_text(content)
         run_git(root, "add", "tracked.txt")
 
+    def run_fake_focused_test(self, output, exit_code=0):
+        bin_dir = Path(self.temp.name) / "fake-bin"
+        bin_dir.mkdir(exist_ok=True)
+        cargo = bin_dir / "cargo"
+        cargo.write_text(
+            "#!/bin/sh\n"
+            f"printf '%s\\n' '{output}'\n"
+            f"exit {exit_code}\n"
+        )
+        cargo.chmod(0o755)
+        env = os.environ.copy()
+        env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+        return run_guard(self.root, "focused-test", "--", "cargo", "test", "some_filter", env=env)
+
+    def test_focused_test_rejects_zero_executed_tests(self):
+        result = self.run_fake_focused_test(
+            "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 42 filtered out"
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("zero executed tests", result.stderr)
+
+    def test_focused_test_rejects_all_ignored_tests(self):
+        result = self.run_fake_focused_test(
+            "test result: ok. 0 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out"
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("at least one passed test", result.stderr)
+
+    def test_focused_test_accepts_positive_executed_test_count(self):
+        result = self.run_fake_focused_test(
+            "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 40 filtered out"
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_focused_test_preserves_command_failure(self):
+        result = self.run_fake_focused_test(
+            "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 41 filtered out",
+            exit_code=7,
+        )
+        self.assertEqual(result.returncode, 7)
+        self.assertIn("test result: FAILED", result.stdout)
+
     def test_registered_wrong_branch_fails_and_unregistered_wrapper_rejects(self):
         self.assertEqual(run_guard(self.root, "check").returncode, 0)
         run_git(self.root, "checkout", "-b", "unexpected")

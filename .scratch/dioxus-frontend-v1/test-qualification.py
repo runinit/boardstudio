@@ -130,6 +130,122 @@ class QualificationTests(unittest.TestCase):
         self.assertEqual(active['journeys'], [{'id':'encoder-edit', 'state':'pending'}])
         self.assertEqual(active['history'][-1]['journeys'][0]['verified'], 'old result')
 
+    def test_new_candidate_reuses_passed_journey_only_when_scoped_paths_are_unchanged(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            evidence = root / 'receipt.md'
+            evidence.write_text('paired evidence')
+            source = root / 'web/src/keymap.rs'
+            source.parent.mkdir(parents=True)
+            source.write_text('source')
+            scope = {'id':'keymap-functional', 'source_commit':'c'*40, 'streams':['Keymap'],
+                     'journeys':[{'id':'encoder-edit', 'scope':'Edit and persist encoder',
+                                  'spec':'issues/keymap.md', 'source_paths':['web/src/keymap.rs'],
+                                  'source_paths_complete':True}]}
+            state = self.progress['qualification']
+            state.update(candidate_build_id='candidate-1', source_commit='c'*40,
+                         phase='qualified', active_scope=scope,
+                         journeys=[{'id':'encoder-edit', 'scope':'Edit and persist encoder',
+                                    'spec':'issues/keymap.md', 'source_paths':['web/src/keymap.rs'],
+                                    'source_paths_complete':True, 'state':'passed',
+                                    'evidence':'receipt.md', 'verified':'paired pass'}],
+                         review={'state':'completed', 'receipt':'review.md'})
+            self.progress['qualification'] = state
+            self.proof = {'build_id':'candidate-2', 'source_commit':'d'*40}
+            self.provenance['commands'] = [{'argv':q.PAGE_CHECK, 'exit':0}]
+            def git(root_arg, *args):
+                if args[:3] == ('diff', '--no-renames', '--name-only'):
+                    return ''
+                return ''
+            with patch.object(q, 'git', side_effect=git):
+                self.assertTrue(q.refresh(self.progress, self.proof, self.provenance, root))
+            active = self.progress['qualification']
+            self.assertEqual(active['journeys'][0]['state'], 'passed')
+            self.assertEqual(active['journeys'][0]['reuse'], 'unchanged_scoped_source')
+            self.assertEqual(active['review']['state'], 'pending')
+            self.assertFalse(q.refresh(self.progress, self.proof, self.provenance, root))
+
+    def test_changed_scoped_path_resets_journey_and_changed_source_resets_review(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root/'receipt.md').write_text('paired evidence')
+            source = root / 'web/src/keymap.rs'
+            source.parent.mkdir(parents=True)
+            source.write_text('source')
+            scope = {'id':'keymap-functional', 'source_commit':'c'*40, 'streams':['Keymap'],
+                     'journeys':[{'id':'encoder-edit', 'scope':'Edit and persist encoder',
+                                  'spec':'issues/keymap.md', 'source_paths':['web/src/keymap.rs'],
+                                  'source_paths_complete':True}]}
+            state = self.progress['qualification']
+            state.update(candidate_build_id='candidate-1', source_commit='c'*40,
+                         phase='qualified', active_scope=scope,
+                         journeys=[{'id':'encoder-edit', 'scope':'Edit and persist encoder',
+                                    'spec':'issues/keymap.md', 'source_paths':['web/src/keymap.rs'],
+                                    'source_paths_complete':True, 'state':'passed', 'evidence':'receipt.md'}],
+                         review={'state':'completed', 'receipt':'review.md'})
+            self.proof = {'build_id':'candidate-2', 'source_commit':'d'*40}
+            self.provenance['commands'] = [{'argv':q.PAGE_CHECK, 'exit':0}]
+            def git(root_arg, *args):
+                if args[:3] == ('diff', '--no-renames', '--name-only'):
+                    return 'web/src/keymap.rs\0'
+                return ''
+            with patch.object(q, 'git', side_effect=git):
+                self.assertTrue(q.refresh(self.progress, self.proof, self.provenance, root))
+            active = self.progress['qualification']
+            self.assertEqual(active['journeys'][0], {
+                'id':'encoder-edit', 'scope':'Edit and persist encoder', 'spec':'issues/keymap.md',
+                'source_paths':['web/src/keymap.rs'], 'source_paths_complete':True, 'state':'pending'})
+            self.assertEqual(active['review']['state'], 'pending')
+
+    def test_rename_of_old_scoped_path_invalidates_reuse(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root/'receipt.md').write_text('paired evidence')
+            source = root / 'web/src/new_keymap.rs'
+            source.parent.mkdir(parents=True)
+            source.write_text('renamed source')
+            def git(root_arg, *args):
+                if args[:3] == ('diff', '--no-renames', '--name-only'):
+                    return 'web/src/keymap.rs\0web/src/new_keymap.rs\0'
+                return ''
+            with patch.object(q, 'git', side_effect=git):
+                paths = q.reusable_journeys(
+                    [{'id':'encoder-edit', 'scope':'Edit', 'source_paths':['web/src/keymap.rs'],
+                      'source_paths_complete':True}],
+                    [{'id':'encoder-edit', 'scope':'Edit', 'source_paths':['web/src/keymap.rs'],
+                      'source_paths_complete':True, 'state':'passed', 'evidence':'receipt.md'}],
+                    'c'*40, 'd'*40, root)
+            self.assertEqual(paths[0]['state'], 'pending')
+
+    def test_directory_footprint_is_not_reused(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root/'receipt.md').write_text('paired evidence')
+            (root/'web/src').mkdir(parents=True)
+            def git(root_arg, *args):
+                return ''
+            with patch.object(q, 'git', side_effect=git):
+                journeys = q.reusable_journeys(
+                    [{'id':'encoder-edit', 'scope':'Edit', 'source_paths':['web/src'],
+                      'source_paths_complete':True}],
+                    [{'id':'encoder-edit', 'scope':'Edit', 'source_paths':['web/src'],
+                      'source_paths_complete':True, 'state':'passed', 'evidence':'receipt.md'}],
+                    'c'*40, 'd'*40, root)
+            self.assertEqual(journeys[0]['state'], 'pending')
+
+    def test_identical_source_candidate_still_requires_candidate_review(self):
+        state = self.progress['qualification']
+        state.update(candidate_build_id='candidate-1', source_commit='c'*40,
+                     phase='qualified', active_scope={'id':'keymap-functional',
+                         'source_commit':'c'*40, 'streams':['Keymap'], 'journeys':[{'id':'encoder-edit'}]},
+                     journeys=[{'id':'encoder-edit', 'state':'partial'}],
+                     review={'state':'completed', 'receipt':'review.md'})
+        self.proof = {'build_id':'candidate-2', 'source_commit':'c'*40}
+        self.provenance['commands'] = [{'argv':q.PAGE_CHECK, 'exit':0}]
+        with patch.object(q, 'git', return_value=''):
+            self.assertTrue(q.refresh(self.progress, self.proof, self.provenance, Path('/unused')))
+        self.assertEqual(self.progress['qualification']['review']['state'], 'pending')
+
     def test_functional_scope_requires_nonempty_stream_names_and_journey_ids(self):
         self.progress['qualification']['next_scope']={
             'id':'invalid-scope', 'source_commit':'c'*40, 'streams':[''],

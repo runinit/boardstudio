@@ -6469,7 +6469,7 @@
           ],
           "blockers": [],
           "next_action": "Retain paired ordinary part/empty and generated Case-body/empty picks, hidden-layer 3D finding focus, and the generic non-VIK module scene/pick-to-editor RED/GREEN on 34797\u219234798. The Sol delta review confirms the guarded Parts and PCB placement route; board switch clears selection and project switch clears the editor after settlement. One transient old-editor frame was observed during project replacement, without a stale Save attempt. Mounted-module asset models remain F7.3-C06; VIK-only catalogue/demo authoring stays outside v1.",
-          "finish_condition": "Mapped and empty picks resolve only against current consumer scope; finding focus/highlight works with hidden layers.",
+          "finish_condition": "Mapped and empty picks resolve only against current consumer scope; a mounted-module pick reaches its Parts context and placement editor, board/project replacement clears that route after settlement, and finding focus/highlight works with hidden layers. In-flight stale Save remains a C07 lifecycle check.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",
             "web/src/presentation/case_viewer.rs",

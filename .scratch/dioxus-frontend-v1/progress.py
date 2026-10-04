@@ -725,7 +725,7 @@ def main():
     criteria_summary = criterion_counts(graph)
     if criteria_summary["total"]:
         states = criteria_summary["by_state"]
-        print("Criteria: " + ", ".join(f"{state} {states.get(state, 0)}"
+        print("Durable criteria: " + ", ".join(f"{state} {states.get(state, 0)}"
                                        for state in ("unassessed", "missing", "implemented", "verified"))
               + f"; {criteria_summary['total']} total")
     candidate = progress["served_candidate"]
@@ -733,9 +733,11 @@ def main():
     print(f"Integration: {progress['integration']['state']}")
     phase = progress.get("qualification", {})
     if phase:
-        print(f"Qualification: {phase.get('phase', 'integrating')}")
+        print(f"Candidate qualification: {phase.get('phase', 'integrating')}")
         journeys = phase.get("journeys", [])
-        print(f"Journeys: {sum(journey.get('state') == 'passed' for journey in journeys)}/{len(journeys)} passed")
+        reused = sum(journey.get('reuse') == 'unchanged_scoped_source' for journey in journeys)
+        print(f"Candidate journeys: {sum(journey.get('state') == 'passed' for journey in journeys)}/{len(journeys)} passed"
+              + (f" ({reused} reused from unchanged scoped source)" if reused else ""))
         for condition in phase.get("unmet_start_conditions", []):
             print("  Pending: " + condition)
     provenance_path = ROOT / candidate['provenance']
