@@ -34,8 +34,10 @@ production cutover and React removal retain their separate authorization/gates.
 
 1. Keep six workbench queues: Layout, PCB, Keymap, Keycaps, Case/shared 3D, and
    Parts/Project. Prioritize missing or broken end-to-end functionality across all
-   six queues, rather than Layout visual closure. Each stream has at most one implemented
-   packet waiting for integration or validation; help finish/repair that packet.
+   six queues, rather than Layout visual closure. Each stream has at most one
+   unintegrated packet at a time; once its source is integrated and the combined
+   compile passes, the stream may start its next functional packet while public
+   qualification waits for the batched milestone.
 2. Dispatch from the criterion queue: name a missing criterion, current source,
    owned files, consumed capabilities and finish condition. Use bounded investigation
    for unassessed criteria, qualification for implemented criteria, and closure only

@@ -369,6 +369,7 @@
     "max_total_agents": 30,
     "observed_runtime_slots": 11,
     "max_waiting_packets_per_stream": 1,
+    "waiting_packet_definition": "Unintegrated source packet; integrated and compiled source may await batched qualification while the stream starts its next functional packet",
     "max_heavy_jobs": 2,
     "max_package_builds": 1
   },

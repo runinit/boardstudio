@@ -613,6 +613,11 @@
             "priority": "high",
             "observation": "F4.5-C02 was labelled implemented although its visible KiCad layer-reading, purpose-mapping and apply controls plus Runtime extraction port were absent. A zero-missing queue concealed this actionable feature gap; three other bounded stream probes found source-backed behavior and correctly produced no code.",
             "action": "Integrated the missing Parts action with a private Core artifact facade in 8c4c7db9. Future source probes must confirm the originating user control, destination edit and async admission before calling a criterion implemented; no-gap probes return pointers without extra receipts."
+          },
+          {
+            "priority": "high",
+            "observation": "The old one-waiting-packet limit treated integrated source as blocked until later browser qualification, contradicting the user-selected multi-packet integration cadence.",
+            "action": "CONSTRAINTS.md and agent-policy now limit only unintegrated packets per stream. After a combined compile, authors may take the next functional action while changed journeys wait for one milestone package, browser pass and consolidated review."
           }
         ],
         "existing_guardrail": "CI and package already execute the Dioxus compiler check; no duplicate compiler gate added.",
