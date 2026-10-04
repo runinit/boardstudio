@@ -2014,3 +2014,83 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
   ]
 }
 ```
+
+## RF-016: Rapid reference form edits can display values that were not accepted
+
+**Status:** open for post-port investigation; no Dioxus failure reproduced on the bounded custom-definition journey
+
+**Confidence:** confirmed paired behavioral finding in pinned TypeScript reference; source cause unproven
+
+**Observation:** Consecutive custom-definition field edits without waiting showed 12 mm courtyard and 2.5 mm pad width in TypeScript, raised Stale base revision, and exported the old 10 mm/2 mm values. A clean replay waiting 600 ms for each accepted edit exported and reopened all intended values; the Dioxus bounded journey persisted its representative edits.
+
+**Impact:** A visible draft can diverge from accepted project data and a portable export, risking unnoticed loss of a fast edit burst.
+
+**Current mitigation:** Use accepted project/export state to judge parity; keep stale-revision errors visible and preserve settled edit semantics. Do not reproduce the reference race deliberately in Dioxus.
+
+**Later proposal:** Investigate the reference form edit queue, revision admission and draft-versus-accepted display contract. Prefer one explicit settlement/owner policy for rapid field changes rather than field-specific timing assumptions.
+
+**Validation:** Repeat the rapid burst with full event and revision traces, then verify each displayed settled field matches the exported project with coherent Undo/Redo and no false accepted state.
+
+**Evidence:** `.scratch/dioxus-frontend-v1/evidence/frontend-parts-search-feedback-20261003/journey.md`
+
+**Additional recorded details:**
+
+```json
+{
+  "category": "quality / asynchronous edit settlement",
+  "impact_priority": "high",
+  "discovered": "2026-10-03",
+  "baseline": "TypeScript reference 5a472a9426e6e38993361da402cd4ec730feb369; Dioxus candidate b2bb813cdb75340a2725ac4488dfde6752104484",
+  "workflows": [
+    "F4.2",
+    "F9.2"
+  ],
+  "decision": "Record the reference-side behavior as a defect candidate; do not make it a Dioxus parity requirement or infer its internal cause from timing alone.",
+  "follow_up_owner": "F4.2/F9 post-port refactor",
+  "linked_tasks": [
+    "F4.2",
+    "F9.2"
+  ],
+  "continuations": []
+}
+```
+
+## RF-017: Import completion can outlive the selected definition in the TypeScript reference
+
+**Status:** open for post-port reference investigation; Dioxus file-read selection/project owner checks passed on the bounded fixture
+
+**Confidence:** confirmed paired public behavioral defect in pinned TypeScript reference; internal cause unproven
+
+**Observation:** With File.text delayed seven seconds, switching the selected definition from MX switch to mcu nice nano before read completion left mcu selected in both apps. The TypeScript export nevertheless gained the uploaded KiCad definition (15 rather than 14 definitions); the Dioxus export retained 14. A Dioxus project-switch run likewise left the new Untitled project at zero definitions.
+
+**Impact:** An import can silently mutate the project after the user has moved to another definition, making the accepted result appear unrelated to current context.
+
+**Current mitigation:** Keep Dioxus import owner admission across file-read, selection and project changes; verify the accepted archive rather than relying on the visible selected row. Do not copy the reference stale mutation.
+
+**Later proposal:** Trace the TypeScript import async boundaries and capture project/selected-definition identity at action start. Enforce the owner check before any accepted document mutation after awaits; keep cancellation/error feedback scoped to that owner.
+
+**Validation:** Repeat selected-definition and project switches during file read and provider parse separately; ensure no stale import appears in the exported project and that a valid same-owner import still succeeds.
+
+**Evidence:** `.scratch/dioxus-frontend-v1/evidence/frontend-parts-search-feedback-20261003/journey.md`; `web/src/presentation/parts_import_footprint.rs`
+
+**Additional recorded details:**
+
+```json
+{
+  "category": "architecture / asynchronous owner scope",
+  "impact_priority": "high",
+  "discovered": "2026-10-03",
+  "baseline": "TypeScript reference 5a472a9426e6e38993361da402cd4ec730feb369; Dioxus candidate b2bb813cdb75340a2725ac4488dfde6752104484",
+  "workflows": [
+    "F4.2",
+    "F9.2"
+  ],
+  "decision": "Treat this as a confirmed reference behavior defect and preserve the candidate stale-result rejection; source cause remains to be established.",
+  "follow_up_owner": "F4.2/F9 post-port refactor",
+  "linked_tasks": [
+    "F4.2",
+    "F9.2"
+  ],
+  "continuations": []
+}
+```
