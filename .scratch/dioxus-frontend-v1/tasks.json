@@ -3813,7 +3813,7 @@
         {
           "id": "F5.3-C04",
           "requirement": "Firmware key binding values match React outcomes through the selected-board legacy binding editor; controller-add integration uses the specific F4 placement action when available.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/firmware_position_projection.rs:180",
@@ -3825,10 +3825,12 @@
           "evidence": [
             ".scratch/dioxus-keymap-layers/evidence/F5.2b-implementation-evidence.md",
             ".scratch/dioxus-keymap-layers/evidence/F6K.4b-browser-20261002/RESULTS.md",
-            ".scratch/dioxus-pcb-view/evidence/public-pcb-qualification-20261002/paired-walkthrough.md"
+            ".scratch/dioxus-pcb-view/evidence/public-pcb-qualification-20261002/paired-walkthrough.md",
+            ".scratch/dioxus-pcb-view/evidence/17-controller-chooser-20261003/public-receipt.json",
+            ".scratch/dioxus-pcb-view/evidence/17-controller-chooser-20261003/source-handoff.md"
           ],
           "blockers": [],
-          "next_action": "Reuse the paired F6K.4b firmware-position journey for the legacy key-binding control; assess the F6K.4 electrical-fingerprint work only within its own encoder contract.",
+          "next_action": "Retain paired selected-board binding edit/Undo/Redo/reopen and ordinary Add controller\u2192Parts\u2192Place\u2192PCB edit/Undo/Redo/reopen evidence. Project/board race and broader PCB presentation remain separate parent criteria.",
           "finish_condition": "Current paired evidence proves PCB binding editor placement/values, one accepted edit, Undo/Redo, and save/reopen; the F5.2/F8.2/F6K.4 parent joins remain separately open.",
           "owned_files": [
             "web/src/firmware_position_projection.rs",

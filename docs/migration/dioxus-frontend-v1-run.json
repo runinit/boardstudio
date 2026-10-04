@@ -492,7 +492,7 @@
       },
       {
         "stream": "PCB",
-        "state": "F5.3-C01/C02/C05 verified: paired pin history, connection review and protected handoff preserve/explicit clear. Net authoring and binding/controller joins remain."
+        "state": "F5.3-C01/C02/C04/C05 verified: pin history, connection review, legacy bindings/controller placement and protected handoff. C03 net/input-mode authoring qualification active."
       },
       {
         "stream": "Keymap",
