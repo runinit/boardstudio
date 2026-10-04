@@ -681,6 +681,93 @@ mod tests {
     }
 
     #[test]
+    fn layout_3d_capture_projects_only_the_selected_boards_scene() {
+        // Two boards in one accepted document; the active scope selects "left".
+        let (snapshot, scope) = accepted(false);
+        let mut document = snapshot.document.as_ref().clone();
+        document.boards.push(Board {
+            id: "right".into(),
+            name: "Right".into(),
+            outline_ids: vec![],
+            part_ids: vec!["part-2".into()],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        document.parts.push(Part {
+            id: "part-2".into(),
+            reference: "U2".into(),
+            ..document.parts[0].clone()
+        });
+        let right_contour = Contour {
+            points: vec![
+                Vec2 { x: 100.0, y: 0.0 },
+                Vec2 { x: 140.0, y: 0.0 },
+                Vec2 { x: 140.0, y: 30.0 },
+            ],
+            hole: false,
+        };
+        let mut scene = snapshot.scene.as_ref().clone();
+        scene.board_contours.push(BoardContours {
+            board_id: "right".into(),
+            contours: vec![right_contour.clone()],
+        });
+        let snapshot = AcceptedSnapshot {
+            document: Arc::new(document),
+            scene: Arc::new(scene),
+            ..snapshot
+        };
+
+        let capture = source_capture(&snapshot, &scope);
+        // Only the selected board's outline feeds the 3D scene.
+        assert_eq!(capture.contours, snapshot.scene.board_contours[0].contours);
+        assert!(!capture.contours.contains(&right_contour));
+        let LayoutPreviewRequest::Authored(request) = &capture.request else {
+            panic!("authored board should use PreparePreview");
+        };
+        assert_eq!(
+            request.target,
+            ExportTarget::Board {
+                board_id: "left".into()
+            },
+            "the producer builds exactly the selected board"
+        );
+        assert_eq!(request.contours, capture.contours);
+
+        // Even if the producer returned models for both boards, only the selected
+        // board's part can ever be resolved from the 3D scene.
+        let mut both = preview();
+        let mut right_model = both.models[0].clone();
+        right_model.id = "U2:0".into();
+        right_model.reference = "U2".into();
+        both.models.push(right_model);
+        let accepted_preview = capture.accept_preview(both).unwrap();
+        assert_eq!(
+            accepted_preview.part_for_current_pick(&snapshot, &scope, 3, "U1"),
+            Some("part-1".into())
+        );
+        assert!(
+            accepted_preview
+                .part_for_current_pick(&snapshot, &scope, 3, "U2")
+                .is_none(),
+            "the other board's part is absent from the selected board's scene"
+        );
+
+        // Selecting the other board swaps the whole captured scene.
+        let mut right_scope = scope.clone();
+        right_scope.board_id = "right".into();
+        let right = source_capture(&snapshot, &right_scope);
+        assert_eq!(right.contours, vec![right_contour]);
+        assert!(matches!(
+            &right.request,
+            LayoutPreviewRequest::Authored(request)
+                if request.target == ExportTarget::Board { board_id: "right".into() }
+        ));
+        assert_ne!(right.owner, accepted_preview.owner);
+    }
+
+    #[test]
     fn imported_capture_selects_matching_accepted_asset_and_existing_preview_operation() {
         let (snapshot, scope) = accepted(true);
         let capture = source_capture(&snapshot, &scope);

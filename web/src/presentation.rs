@@ -5440,11 +5440,7 @@ fn Editor() -> Element {
             return;
         };
         let current_effective = current.camera.zoom * zoom_ratio;
-        let next_effective = if direction < 0.0 {
-            (current_effective / 1.2).max(0.25)
-        } else {
-            (current_effective * 1.2).min(4.0)
-        };
+        let next_effective = layout_camera::step_zoom(current_effective, direction);
         if (next_effective - current_effective).abs() < f64::EPSILON {
             return;
         }
@@ -7379,12 +7375,9 @@ fn Editor() -> Element {
             ) else {
                 return;
             };
-            let zoom = if active_workspace == "Keymap" {
-                (old.zoom * keymap_scale_ratio * (-wheel.delta_y() * 0.001).exp()).clamp(0.25, 4.0)
-                    / keymap_scale_ratio
-            } else {
-                (old.zoom * (-wheel.delta_y() * 0.001).exp()).clamp(0.15, 8.0)
-            };
+            // keymap_scale_ratio is 1.0 outside Keymap, so Layout and Keymap share the
+            // reference 0.25..4 limits.
+            let zoom = layout_camera::wheel_zoom(old.zoom, keymap_scale_ratio, wheel.delta_y());
             let center = zoom_center_at((min_x, max_x, min_y, max_y), location, zoom);
             runtime.submit(Event::SetCamera {
                 operation_id: runtime.operation(),

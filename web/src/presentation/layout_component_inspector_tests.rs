@@ -516,14 +516,25 @@ fn mounted_component_inspector_host() -> Element {
 }
 
 fn mounted_probe(root_id: &'static str) -> (MountedProbe, web_sys::Element) {
+    mounted_probe_configured(root_id, |_| {})
+}
+
+/// Mount the production Inspector over the standalone fixture with the selected
+/// part unlocked, after `configure` has adjusted the accepted document.
+fn mounted_probe_configured(
+    root_id: &'static str,
+    configure: impl FnOnce(&mut ProjectDoc),
+) -> (MountedProbe, web_sys::Element) {
     let runtime = crate::runtime::Runtime::new().expect("browser runtime fixture initializes");
     let (mut model, context) = fixture();
-    Arc::make_mut(&mut model.accepted.as_mut().unwrap().document)
+    let document = Arc::make_mut(&mut model.accepted.as_mut().unwrap().document);
+    document
         .parts
         .iter_mut()
         .find(|part| part.id == "selected-part")
         .unwrap()
         .locked = Some(false);
+    configure(document);
     model.selected_part_ids = vec!["selected-part".into()];
     let scope = context.scope.clone();
     mounted_probe_with_model(root_id, runtime, model, scope)
@@ -1022,6 +1033,126 @@ async fn matrix_to_key_selection_resets_relations_tab_to_properties() {
             .as_deref(),
         Some("Properties"),
         "a changed Matrix→Key context resets the shared Inspector tab to Properties"
+    );
+    root.remove();
+}
+
+fn position_input(root_id: &str, label: &str) -> web_sys::HtmlInputElement {
+    web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
+        .query_selector(&format!("#{root_id} input[aria-label='{label}']"))
+        .unwrap()
+        .unwrap_or_else(|| panic!("{label} input is rendered"))
+        .dyn_into::<web_sys::HtmlInputElement>()
+        .unwrap()
+}
+
+/// Type `value` into a position field and try every commit boundary the
+/// Inspector listens to (Enter, blur, focusout) without relying on focus, so a
+/// disabled field is exercised through the same handlers.
+fn try_commit_position(input: &web_sys::HtmlInputElement, value: &str) {
+    input.set_value(value);
+    let bubbling = web_sys::EventInit::new();
+    bubbling.set_bubbles(true);
+    input
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
+        .unwrap();
+    let enter = web_sys::KeyboardEventInit::new();
+    enter.set_key("Enter");
+    enter.set_bubbles(true);
+    input
+        .dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
+        )
+        .unwrap();
+    for name in ["blur", "focusout"] {
+        input
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict(name, &bubbling).unwrap())
+            .unwrap();
+    }
+}
+
+#[wasm_bindgen_test]
+async fn mounted_editable_component_position_commits_so_the_unavailable_cases_are_not_vacuous() {
+    let (probe, root) = mounted_probe("layout-component-position-editable-test-root");
+    settle_component_inspector().await;
+    let x = position_input(probe.root_id, "X mm");
+    assert!(!x.disabled(), "an unlocked, undriven component edits X");
+    let _ = probe.runtime.take_layout_component_inspector_test_events();
+    try_commit_position(&x, "42");
+    settle_component_inspector().await;
+    assert!(matches!(
+        probe.runtime.take_layout_component_inspector_test_events().as_slice(),
+        [boardstudio_application::Event::Edit { command, .. }]
+            if matches!(&command.operation, boardstudio_core::model::EditOperation::MoveParts { positions }
+                if positions.len() == 1 && positions[0].at.x == 42.0)
+    ));
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_locked_component_presents_xy_unavailable_and_suppresses_commit() {
+    let (probe, root) =
+        mounted_probe_configured("layout-component-position-locked-test-root", |document| {
+            document
+                .parts
+                .iter_mut()
+                .find(|part| part.id == "selected-part")
+                .unwrap()
+                .locked = Some(true);
+        });
+    settle_component_inspector().await;
+    assert!(probe.projection.borrow().as_ref().unwrap().locked);
+    let _ = probe.runtime.take_layout_component_inspector_test_events();
+    for (label, value) in [("X mm", "50"), ("Y mm", "60")] {
+        let input = position_input(probe.root_id, label);
+        assert!(
+            input.disabled(),
+            "{label} must be unavailable for a locked part"
+        );
+        try_commit_position(&input, value);
+    }
+    settle_component_inspector().await;
+    let events = probe.runtime.take_layout_component_inspector_test_events();
+    assert!(
+        events.is_empty(),
+        "locked position commit emitted {events:?}"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_driven_component_presents_xy_unavailable_and_suppresses_commit() {
+    let (probe, root) =
+        mounted_probe_configured("layout-component-position-driven-test-root", |document| {
+            document.constraints.push(Constraint::Offset {
+                id: "driver".into(),
+                source_part_id: "source-part".into(),
+                target_part_id: "selected-part".into(),
+                offset: Vec2 { x: 2.0, y: 0.0 },
+                rotation: 0.0,
+            });
+        });
+    settle_component_inspector().await;
+    let projection = probe.projection.borrow().clone().unwrap();
+    assert!(!projection.locked, "the part itself is not locked");
+    assert!(projection.active_constraint.is_some(), "the part is driven");
+    let _ = probe.runtime.take_layout_component_inspector_test_events();
+    for (label, value) in [("X mm", "50"), ("Y mm", "60")] {
+        let input = position_input(probe.root_id, label);
+        assert!(
+            input.disabled(),
+            "{label} must be unavailable for a driven part"
+        );
+        try_commit_position(&input, value);
+    }
+    settle_component_inspector().await;
+    let events = probe.runtime.take_layout_component_inspector_test_events();
+    assert!(
+        events.is_empty(),
+        "driven position commit emitted {events:?}"
     );
     root.remove();
 }

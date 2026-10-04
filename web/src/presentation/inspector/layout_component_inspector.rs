@@ -131,6 +131,12 @@ enum ConstraintKind {
     Mirror,
 }
 
+/// X/Y are unavailable when the part is locked or when a saved relationship on
+/// this board drives it (the relationship would overwrite any typed value).
+fn position_unavailable(projection: &LayoutComponentInspectorProjection) -> bool {
+    projection.locked || projection.active_constraint.is_some()
+}
+
 fn position_input_disabled(locked: bool) -> bool {
     locked
 }
@@ -372,7 +378,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
     let commit_position: Rc<dyn Fn(ComponentPositionAxis)> = {
         let latest_capture = latest_capture;
         let position = projection.position;
-        let locked = projection.locked;
+        let locked = position_unavailable(&projection);
         let action = props.on_action;
         let error = error;
         Rc::new(move |axis| {
@@ -532,7 +538,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                 div { class: "m1-layout-component-position",
                     label { "X (mm)" input {
                         r#type: "number", step: "0.1", value: "{x}", aria_label: "X mm",
-                        disabled: position_input_disabled(projection.locked),
+                        disabled: position_input_disabled(position_unavailable(&projection)),
                         oninput: move |event| x.set(event.value()),
                         onblur: { let commit = commit_position.clone(); move |_| commit(ComponentPositionAxis::X) },
                         onkeydown: { let commit = commit_position.clone(); move |event: KeyboardEvent| {
@@ -545,7 +551,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                     } }
                     label { "Y (mm)" input {
                         r#type: "number", step: "0.1", value: "{y}", aria_label: "Y mm",
-                        disabled: position_input_disabled(projection.locked),
+                        disabled: position_input_disabled(position_unavailable(&projection)),
                         oninput: move |event| y.set(event.value()),
                         onblur: { let commit = commit_position.clone(); move |_| commit(ComponentPositionAxis::Y) },
                         onkeydown: { let commit = commit_position.clone(); move |event: KeyboardEvent| {
