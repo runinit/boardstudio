@@ -27,6 +27,12 @@ Use `python3 .scratch/dioxus-frontend-v1/progress.py --help` for commands:
 - `parent ID`, `remaining`, and `ready`: query focused criteria and the implementation,
   qualification, investigation or closure queue. `--json` returns assignment fields;
   functional work is the default ready queue. Visual and release work remain recorded.
+- Build and serve a candidate: run `scripts/build-m1.py` outside the sandbox (wasm-pack's
+  `cargo install wasm-bindgen` needs a writable cache) as a tracked background task, never
+  a `&` job that dies with its shell. Serve it with `scripts/serve-candidate.py BUILD_ID PORT`
+  (detached with `setsid nohup`); it supplies the COOP/COEP headers and root/subpath layout
+  that `publish-candidate` checks. Check `presentation/*` edits with the wasm `page` check
+  before committing; native tests do not compile them.
 - `scripts/migration-deliver.py publish-candidate`: derive the package proof from
   completed provenance, validate sources and served assets, then record the candidate.
   `record-candidate` remains available for existing validated proofs.

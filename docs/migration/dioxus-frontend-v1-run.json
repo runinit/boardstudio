@@ -699,8 +699,9 @@
       "last_completed_checkpoint": {
         "date": "2026-10-04",
         "after_candidates": [
-          "frontend-authored-case-and-layout-20261004 (34812)",
-          "frontend-case-geometry-admission-20261004 (34814)"
+          "34812",
+          "34814",
+          "34815-34819 (key Inspector)"
         ],
         "findings": [
           "Case readiness conflated PCB/material status with geometry; narrow derived admission committed in f551e4e0 (RF-032).",
@@ -708,7 +709,22 @@
           "Full-build provenance accepted dirty source; build-m1.py now rejects it.",
           "Avoidable rework: a backgrounded full build died with its launching shell, and wasm-pack needs an unsandboxed run; launch builds as tracked background tasks outside the sandbox."
         ],
-        "evidence": ".scratch/dioxus-frontend-v1/evidence/case-authored-step-34814-20261004/RECEIPT.md"
+        "evidence": ".scratch/dioxus-frontend-v1/evidence/case-authored-step-34814-20261004/RECEIPT.md",
+        "second_pass": {
+          "trigger": "User /retro: use agents wherever possible to speed up the rewrite",
+          "findings": [
+            "Wasm-only presentation code is invisible to native tests: a missing import and a Case test that ran 0 tests reached commit; wasm page check is now documented as required for presentation/* edits.",
+            "Candidate serving was rebuilt by hand three times; scripts/serve-candidate.py now provides root/subpath plus COOP/COEP.",
+            "Work was serialized through the coordinator; independent review found four defects after the fact. Parallel disjoint-file Sonnet authors and an Opus reviewer now run by default (CONSTRAINTS, agent-policy routes).",
+            "Agent worktree isolation fails without origin/main; parallel authors share one checkout with disjoint files."
+          ],
+          "fixes": [
+            "scripts/serve-candidate.py",
+            "docs/agents/issue-tracker.md build/serve note",
+            "CONSTRAINTS.md delegate-by-default",
+            "agent-policy.json routes"
+          ]
+        }
       }
     },
     "qualification": {

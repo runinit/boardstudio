@@ -156,6 +156,10 @@ as sources; apply the highest-impact process fix in place without opening anothe
 review chain or document. This is a project cadence, not a gate before the next author
 packet. Record the last checkpoint in the run record so the cadence survives handoffs.
 
-Use Luna low/medium/high for bounded implementation, Sol 6.1 High for candidate review,
-and Astra high/xhigh for difficult evidenced bugs. Runtime slots bound the user ceiling
+Delegate by default: dispatch bounded, disjoint-file packets to author agents in parallel
+and keep build, publish, ledger and commit ownership with the coordinator. Use the route
+for the running harness (Codex: Luna low/medium/high authors, Sol 6.1 High review, Astra
+high/xhigh for difficult evidenced bugs; Claude: Sonnet 5.5 authors, Opus 5.5 review and
+coordinator, Opus 5.5 for difficult bugs). The Agent tool's worktree isolation needs an
+`origin/main` ref this repo lacks, so give parallel authors disjoint files in one checkout. Runtime slots bound the user ceiling
 of 30. [Agent routing](.scratch/dioxus-frontend-v1/AGENT-ROUTING.md) holds launch details.
