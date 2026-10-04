@@ -41,7 +41,8 @@ pub(super) use generator_settings::GeneratorPreviewStatus;
 #[cfg(any(target_arch = "wasm32", test))]
 use mechanical_profile_editor::{
     AcceptedProfileOwner, CurrentProfileScope, DetachedProfileSpawner, ManualProfileEditor,
-    ManualProfileEditorPorts, StandardProfileFuture, StandardProfileRequester,
+    ManualProfileEditorPorts, MechanicalExtractionFuture, MechanicalExtractionRequester,
+    StandardProfileFuture, StandardProfileRequester,
 };
 pub(in crate::presentation) use preview::PartsPreviewPanel;
 pub(super) use standard_profile_lifetime::PartsStandardProfileLifetime;

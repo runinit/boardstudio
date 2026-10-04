@@ -51,6 +51,7 @@ pub(super) struct InspectorInput {
     pub(super) matrix_inspector: objects::MatrixInspectorMount,
     pub(super) key_size: objects::KeySizeMount,
     pub(super) matrix_transform_inspector: objects::MatrixTransformInspectorMount,
+    pub(super) on_pick_splay_origin: EventHandler<()>,
     pub(super) inspector_tab: Signal<LayoutInspectorTab>,
     pub(super) matrix_relationship_summary: Option<String>,
     pub(super) matrix_relationship_target: Option<objects::TreeSelectRequest>,
@@ -247,6 +248,7 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
             if input.matrix_transform_inspector.projection.is_some() {
                 objects::MatrixTransformInspector {
                     mount: input.matrix_transform_inspector,
+                    on_pick_splay_origin: input.on_pick_splay_origin,
                 }
             }
             if let Some(projection) = input.outline_inspector {

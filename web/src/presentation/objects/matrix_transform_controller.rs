@@ -51,6 +51,36 @@ pub(in crate::presentation) struct MatrixTransformInspectorMount {
     pub splay_affect: Signal<MatrixSplayAffect>,
 }
 
+impl MatrixTransformInspectorMount {
+    pub(in crate::presentation) fn pick_splay_origin(&self, point: Vec2) -> bool {
+        let Some(projection) = self.projection.as_ref() else {
+            return false;
+        };
+        let MatrixTransformFields::Column { splay_origin, .. } = &projection.fields else {
+            return false;
+        };
+        if !self.editable || self.busy || !point.x.is_finite() || !point.y.is_finite() {
+            return false;
+        }
+        let Some(request_id) = (self.request_sequence)().checked_add(1) else {
+            return false;
+        };
+        let mut request_sequence = self.request_sequence;
+        request_sequence.set(request_id);
+        self.on_edit.call(MatrixTransformRequest {
+            owner: projection.owner.clone(),
+            request_id,
+            snapshot_token: projection.snapshot_token,
+            revision: projection.revision,
+            field: MatrixTransformField::SplayOriginPoint,
+            baseline: MatrixTransformValue::Point(*splay_origin),
+            value: MatrixTransformValue::Point(point),
+            splay_affect: (self.splay_affect)(),
+        });
+        true
+    }
+}
+
 /// Called once at the Editor lifetime. Every request and projection resolves the live accepted
 /// matrix again; no document copy survives as a writable store.
 pub(in crate::presentation) fn use_workspace_matrix_transform(
@@ -527,6 +557,9 @@ fn field_value(
         }
         (MatrixTransformFields::Column { splay_origin, .. }, Field::SplayOriginY) => {
             Some(Value::Number(splay_origin.y))
+        }
+        (MatrixTransformFields::Column { splay_origin, .. }, Field::SplayOriginPoint) => {
+            Some(Value::Point(*splay_origin))
         }
         (MatrixTransformFields::Key { offset, .. }, Field::KeyOffsetX) => {
             Some(Value::Number(offset.x))

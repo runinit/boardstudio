@@ -42,6 +42,7 @@ pub(in crate::presentation) struct PcbSceneProps {
 
 #[component]
 pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
+    let mut focused_finding = use_signal(|| None::<(Scope, SnapshotToken, String)>);
     let snapshot = props.snapshot;
     let scope = props.scope;
     let selected_ids = props.selected_ids;
@@ -68,6 +69,24 @@ pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
         };
     };
     let board_id = board.id.as_str();
+    let focused_id = focused_finding()
+        .filter(|(owner, token, _)| owner == &scope && *token == snapshot.token)
+        .map(|(_, _, id)| id);
+    let focused_module_id = focused_id.as_deref().and_then(|finding_id| {
+        let finding = snapshot
+            .scene
+            .findings
+            .iter()
+            .find(|finding| finding.id == finding_id)?;
+        document
+            .modules
+            .iter()
+            .find(|module| {
+                module.host_board_id == scope.board_id
+                    && finding.target_ids.iter().any(|target| target == &module.id)
+            })
+            .map(|module| module.id.as_str())
+    });
     let contours = snapshot
         .scene
         .board_contours
@@ -78,6 +97,8 @@ pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
         .unwrap_or_default();
     let member_ids: BTreeSet<&str> = board.part_ids.iter().map(String::as_str).collect();
     let scene_transforms = snapshot.scene.transforms.as_slice();
+    let focus_scope = scope.clone();
+    let focus_token = snapshot.token;
 
     rsx! {
         g { class: "m1-pcb-scene", "data-board-id": board_id, "data-scene-status": "ready",
@@ -250,10 +271,24 @@ pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
                     module_id: module.id.clone(),
                     snapshot: snapshot.clone(),
                     on_select: on_module_select,
+                    focused: focused_module_id == Some(module.id.as_str()),
                 }
             }
             super::pcb_module_footprints::PcbFindingMarkers {
                 snapshot: snapshot.clone(), board_id: scope.board_id.clone(),
+                focused_finding_id: focused_id,
+                on_focus: move |id: String| {
+                    let already_focused = focused_finding().as_ref().is_some_and(
+                        |(owner, token, existing)| {
+                            owner == &focus_scope && *token == focus_token && existing == &id
+                        },
+                    );
+                    if id.is_empty() || already_focused {
+                        focused_finding.set(None);
+                    } else {
+                        focused_finding.set(Some((focus_scope.clone(), focus_token, id)));
+                    }
+                },
             }
         }
     }

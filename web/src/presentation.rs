@@ -1089,6 +1089,47 @@ fn layout_owner_is_current(
         .is_some_and(|scope| active_board_scope_matches(&model, scope))
 }
 
+fn apply_pending_splay_origin_pick(
+    runtime: &Runtime,
+    workspace: Signal<&'static str>,
+    adapter: &SelectionAdapter,
+    owner: &LayoutOwnerIdentity,
+    pending: &mut Signal<Option<objects::MatrixTransformInspectorOwner>>,
+    inspector: &objects::MatrixTransformInspectorMount,
+    point: Vec2,
+) -> bool {
+    let Some(picked_owner) = pending.peek().clone() else {
+        return false;
+    };
+    pending.set(None);
+    let selected_is_current = adapter
+        .selected_context
+        .read()
+        .as_ref()
+        .is_some_and(|selected| {
+            selected.scope == picked_owner.scope
+                && selected.context == picked_owner.context
+                && matches!(&selected.context, objects::TreeContext::Column { .. })
+                && selection::context_is_current(
+                    &runtime.model(),
+                    &selected.scope,
+                    &selected.context,
+                )
+        });
+    let inspector_is_current = inspector
+        .projection
+        .as_ref()
+        .is_some_and(|projection| projection.owner == picked_owner);
+    if !layout_owner_is_current(runtime, workspace, adapter, owner)
+        || !selected_is_current
+        || !inspector_is_current
+        || !inspector.pick_splay_origin(point)
+    {
+        runtime.report("Column selection changed. Pick the splay origin again.");
+    }
+    true
+}
+
 fn layout_finding_context(
     model: &ReadModel,
     target: &keycaps_fit::FindingNavigationTarget,
@@ -2956,6 +2997,7 @@ fn Editor() -> Element {
         matrix_splay_affect,
         "Layout",
     );
+    let pending_splay_origin_pick = use_signal(|| None::<objects::MatrixTransformInspectorOwner>);
     let layout_align = objects::use_canvas_align(
         runtime.clone(),
         version,
@@ -6216,6 +6258,7 @@ fn Editor() -> Element {
         let matrix_placement = matrix_placement.clone();
         let canvas_interaction = canvas_interaction.clone();
         let snap_settings = layout_snap_settings;
+        let mut pending_splay_pick = pending_splay_origin_pick;
         move |event: KeyboardEvent| {
             let key = event.data().key().to_string();
             let code = event.data().code().to_string();
@@ -6372,6 +6415,11 @@ fn Editor() -> Element {
                 }
                 return;
             }
+            if key == "Escape" && pending_splay_pick.peek().is_some() {
+                pending_splay_pick.set(None);
+                event.prevent_default();
+                return;
+            }
             if key == " " || code == "Space" {
                 space_down.set(true);
                 event.prevent_default();
@@ -6413,6 +6461,9 @@ fn Editor() -> Element {
         let adapter = adapter.clone();
         let mirrored_pair = mirrored_pair.clone();
         let canvas_interaction = canvas_interaction.clone();
+        let mut pending_splay_pick = pending_splay_origin_pick;
+        let transform_inspector = matrix_transform_inspector.clone();
+        let layout_owner_for_pick = layout_owner.clone();
         move |event: PointerEvent| {
             let Some(pointer) = event.data().try_as_web_event() else {
                 return;
@@ -6446,6 +6497,24 @@ fn Editor() -> Element {
             if canvas_interaction.current().is_some() {
                 pointer.prevent_default();
                 pointer.stop_propagation();
+                return;
+            }
+            if pointer.button() == 0
+                && workspace() == "Layout"
+                && pending_splay_pick.peek().is_some()
+                && let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height)
+            {
+                pointer.prevent_default();
+                pointer.stop_propagation();
+                apply_pending_splay_origin_pick(
+                    &runtime,
+                    workspace,
+                    &adapter,
+                    &layout_owner_for_pick,
+                    &mut pending_splay_pick,
+                    &transform_inspector,
+                    point,
+                );
                 return;
             }
             if !space_down.get()
@@ -7756,7 +7825,24 @@ fn Editor() -> Element {
                 on_component_inspector_action,
                 matrix_inspector,
                 key_size,
-                matrix_transform_inspector,
+                matrix_transform_inspector: matrix_transform_inspector.clone(),
+                on_pick_splay_origin: {
+                    let mount = matrix_transform_inspector.clone();
+                    let mut pending = pending_splay_origin_pick;
+                    EventHandler::new(move |()| {
+                        let Some(projection) = mount.projection.as_ref() else {
+                            return;
+                        };
+                        if matches!(
+                            &projection.owner.context,
+                            objects::TreeContext::Column { .. }
+                        ) && mount.editable
+                            && !mount.busy
+                        {
+                            pending.set(Some(projection.owner.clone()));
+                        }
+                    })
+                },
                 inspector_tab: layout_context_tab,
                 matrix_relationship_summary: matrix_context_relationship_summary(
                     &model,
@@ -8272,6 +8358,7 @@ fn Editor() -> Element {
                                             let target_part_id = cell.member_id.clone();
                                             let runtime = runtime.clone();
                                             let adapter = adapter.clone();
+                                            let svg = svg.clone();
                                             let space_down = space_down.clone();
                                             let scope = render_scope.clone();
                                             let generation = render_generation;
@@ -8279,6 +8366,8 @@ fn Editor() -> Element {
                                             let selection_kind = layout_selection_kind;
                                             let owner = layout_owner.clone();
                                             let tree_cell_anchor = tree_cell_anchor.clone();
+                                            let mut pending_splay_pick = pending_splay_origin_pick;
+                                            let transform_inspector = matrix_transform_inspector.clone();
                                             let canvas_interaction = canvas_interaction.clone();
                                             let mirrored_pair = mirrored_pair.clone();
                                             rsx! { rect { class: if selected { "m1-matrix-key is-selected" } else { "m1-matrix-key" }, x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}", rx: "0.9", transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation})", "data-matrix-id": "{matrix.id}", "data-row": "{cell.row}", "data-column": "{cell.column}",
@@ -8288,6 +8377,14 @@ fn Editor() -> Element {
                                                     if canvas_interaction.current().is_some() { pointer.prevent_default(); pointer.stop_propagation(); return; }
                                                     if pointer.button() != 0 { return; }
                                                     if space_down.get() { return; }
+                                                    if pending_splay_pick.peek().is_some() {
+                                                        if let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height) {
+                                                            pointer.prevent_default();
+                                                            pointer.stop_propagation();
+                                                            apply_pending_splay_origin_pick(&runtime, workspace, &adapter, &owner, &mut pending_splay_pick, &transform_inspector, point);
+                                                            return;
+                                                        }
+                                                    }
                                                     pointer.prevent_default();
                                                     pointer.stop_propagation();
                                                     let current = runtime.model();
@@ -8346,6 +8443,8 @@ fn Editor() -> Element {
                                 let owner = layout_owner.clone();
                                 let tree_cell_anchor = tree_cell_anchor.clone();
                                 let mirrored_pair = mirrored_pair.clone();
+                                let mut pending_splay_pick = pending_splay_origin_pick;
+                                let transform_inspector = matrix_transform_inspector.clone();
                                 rsx! { if layer_visible { g { key: "{part.id}", class: "m1-scene-part", transform: "translate({pose.at.x},{pose.at.y}) rotate({pose.rotation}) {side_transform}", "data-part-id": "{part.id}",
                                     onpointerdown: move |event: PointerEvent| {
                                         let Some(pointer) = event.data().try_as_web_event() else { return; };
@@ -8355,6 +8454,12 @@ fn Editor() -> Element {
                                         if runtime.scope().as_ref() != Some(&render_scope_for_hit) || (adapter.generation)() != generation_for_hit { return; }
                                         if drag.borrow().is_some() || runtime.model().gesture.is_some() { return; }
                                         pointer.prevent_default(); pointer.stop_propagation();
+                                        if pending_splay_pick.peek().is_some() {
+                                            if let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height) {
+                                                apply_pending_splay_origin_pick(&runtime, workspace, &adapter, &owner, &mut pending_splay_pick, &transform_inspector, point);
+                                                return;
+                                            }
+                                        }
                                         if space_down.get() {
                                             if let Some(svg) = svg.borrow().as_ref() { let _ = svg.set_pointer_capture(pointer.pointer_id()); let options = web_sys::FocusOptions::new(); options.set_prevent_scroll(true); let _ = svg.focus_with_options(&options); }
                                             *drag.borrow_mut() = Some(Drag { pointer: i64::from(pointer.pointer_id()), scope: render_scope_for_hit.clone(), generation: generation_for_hit, gesture_generation: None, origin: Vec2::default(), client_x: f64::from(pointer.client_x()), client_y: f64::from(pointer.client_y()), positions: vec![], active: true, pan: true, camera: runtime.model().camera.center });
@@ -8552,6 +8657,11 @@ fn Editor() -> Element {
                                 " in {layout_name}"
                             }
                             " · Click or Enter to place · Esc cancels"
+                        }
+                    }
+                    if active_workspace == "Layout" && pending_splay_origin_pick().is_some() {
+                        div { class: "m1-canvas-placement-hint", role: "status",
+                            "Pick splay origin · Click the canvas · Esc cancels"
                         }
                     }
                 }

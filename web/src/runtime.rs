@@ -13,9 +13,9 @@ use boardstudio_core::{
         ArchiveEntry, ArchiveReply, ArchiveRequest, ArtifactReply, ArtifactRequest, Board,
         CaseAssemblyIR, CaseIR, CompiledFootprint, CoreReply, CoreRequest, ErgogenJobResult,
         FinishExportRequest, HardwareTopology, KeycapSpec, Material, MechanicalAssembly,
-        MechanicalBuiltinProfile, MechanicalConfiguration, MechanicalPartProfile,
-        MechanicalSwitchFamily, Operation, OutlineFeature, OutlineSettings, PcbPreview,
-        PrepareExportRequest, ProjectDoc,
+        MechanicalBuiltinProfile, MechanicalConfiguration, MechanicalExtraction,
+        MechanicalPartProfile, MechanicalPurposeMapping, MechanicalSwitchFamily, Operation,
+        OutlineFeature, OutlineSettings, PcbPreview, PrepareExportRequest, ProjectDoc,
     },
 };
 use boardstudio_web::host::{BrowserStore, CoreWorker};
@@ -734,6 +734,56 @@ impl Runtime {
                 Err("Core returned a KiCad footprint result for another request.".into())
             }
             _ => Err("Core returned an unexpected KiCad footprint import reply.".into()),
+        }
+    }
+
+    /// Read KiCad mechanical geometry for a Parts editor draft. The caller owns the
+    /// selected-definition and scope admission before applying any returned geometry.
+    pub(crate) async fn extract_mechanical_profile(
+        &self,
+        request_id: String,
+        source: String,
+        mappings: Vec<MechanicalPurposeMapping>,
+        max_deviation_mm: f64,
+    ) -> Result<MechanicalExtraction, String> {
+        let executor_epoch = self.session.borrow().core_executor_epoch();
+        let core = self.core.borrow().clone();
+        let request = ArtifactRequest::ExtractMechanical {
+            id: request_id.clone(),
+            source,
+            mappings,
+            max_deviation_mm,
+        };
+        let reply = core
+            .artifact(&request_id, &executor_epoch.0.to_string(), &request)
+            .await
+            .map_err(|error| format!("Could not read KiCad mechanical geometry: {error}"))?;
+        if self.session.borrow().core_executor_epoch() != executor_epoch
+            || !Rc::ptr_eq(&core, &self.core.borrow())
+        {
+            return Err(
+                "The KiCad geometry result became stale when the Core worker changed.".into(),
+            );
+        }
+        match reply {
+            ArtifactReply::ExtractMechanical { id, result } if id == request_id => Ok(result),
+            ArtifactReply::Error { id, error } if id == request_id => {
+                let diagnostics = error
+                    .diagnostics
+                    .iter()
+                    .map(|diagnostic| diagnostic.message.as_str())
+                    .collect::<Vec<_>>();
+                let details = if diagnostics.is_empty() {
+                    String::new()
+                } else {
+                    format!(" {}", diagnostics.join(" "))
+                };
+                Err(format!("{}{}", error.message, details))
+            }
+            ArtifactReply::ExtractMechanical { .. } | ArtifactReply::Error { .. } => {
+                Err("Core returned KiCad geometry for another request.".into())
+            }
+            _ => Err("Core returned an unexpected KiCad geometry reply.".into()),
         }
     }
 

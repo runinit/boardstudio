@@ -13,6 +13,8 @@ parity comes last, with UI improvements allowed along the way because the design
 will change. Control placement, typography and cosmetic matching must not block
 functional integration. Missing actions, incorrect edits and unusable controls
 remain functional work. Retain earlier visual findings as deferred design inputs.
+The TypeScript checkout and running app are read-only behavior references for this
+migration; implement fixes in the Rust/Dioxus worktree.
 On 2026-10-03 the user removed unfinished VIK parts from the first release and
 explicitly removed their dedicated parent and criteria from the active roadmap.
 Hide the VIK demo/catalogue without breaking existing saved projects; generic
@@ -72,6 +74,8 @@ production cutover and React removal retain their separate authorization/gates.
 
 During source integration, ordinary reversible UI needs no new per-packet application
 suite/browser/review. A reproduced bug gets its focused regression and affected checks.
+When disjoint authors share one checkout, defer compilation of an in-progress shared
+source graph until their edits settle; the coordinator runs one combined check.
 Run focused Rust tests through `scripts/migration-deliver.py focused-test -- ...` so
 a successful command with zero executed tests cannot count as verification.
 Focused tooling checks validate delivery controls only when they change. Broaden only

@@ -20,6 +20,7 @@ pub enum MatrixTransformField {
     SplayOriginMode,
     SplayOriginX,
     SplayOriginY,
+    SplayOriginPoint,
     KeyOffsetX,
     KeyOffsetY,
     KeyRotation,
@@ -33,6 +34,7 @@ pub enum MatrixTransformValue {
     Offset(Vec2),
     CellTransform { offset: Vec2, rotation: f64 },
     OriginMode(bool),
+    Point(Vec2),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -216,6 +218,15 @@ pub fn build_operation(
                     y,
                 }),
             },
+        }),
+        (
+            MatrixTransformFields::Column { column, .. },
+            Field::SplayOriginPoint,
+            Value::Point(point),
+        ) => Ok(EditOperation::SetMatrixSplay {
+            matrix_id: matrix.id.clone(),
+            column: *column,
+            change: MatrixSplayChange::Origin { world: Some(point) },
         }),
         (
             MatrixTransformFields::Key {
@@ -416,6 +427,35 @@ mod tests {
         assert_eq!(next.column_staggers, matrix.column_staggers);
         assert_eq!(next.origin, matrix.origin);
         assert!(definitions.is_none());
+    }
+
+    #[test]
+    fn picking_column_splay_origin_is_one_atomic_origin_edit() {
+        let matrix = matrix();
+        let fields = MatrixTransformFields::Column {
+            column: 1,
+            offset: Vec2 { x: 0.0, y: 0.0 },
+            stagger: 0.5,
+            splay_angle: 4.0,
+            splay_origin: Vec2 { x: 10.0, y: 20.0 },
+            custom_origin: true,
+        };
+        let point = Vec2 { x: 33.5, y: -12.0 };
+        assert!(matches!(
+            build_operation(
+                &matrix,
+                &fields,
+                MatrixTransformField::SplayOriginPoint,
+                MatrixTransformValue::Point(point),
+                MatrixSplayAffect::Following,
+            )
+            .unwrap(),
+            EditOperation::SetMatrixSplay {
+                matrix_id,
+                column: 1,
+                change: MatrixSplayChange::Origin { world: Some(origin) },
+            } if matrix_id == "matrix-1" && origin == point
+        ));
     }
 
     #[test]

@@ -6,10 +6,15 @@ use crate::parts_mechanical_profile::{
 };
 use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_core::model::{
-    MechanicalPartProfile, MechanicalSwitchFamily, PartDefinition, Vec2,
+    MechanicalExtraction, MechanicalGeometry, MechanicalPartProfile, MechanicalPurpose,
+    MechanicalPurposeMapping, MechanicalSwitchFamily, PartDefinition, Vec2,
 };
 use dioxus::prelude::*;
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    collections::BTreeMap,
+    rc::Rc,
+};
 
 #[derive(Clone, Copy)]
 enum ContourField {
@@ -26,6 +31,17 @@ pub(super) type StandardProfileRequester = Rc<
         f64,
     ) -> (boardstudio_application::OperationId, StandardProfileFuture),
 >;
+pub(super) type MechanicalExtractionFuture =
+    std::pin::Pin<Box<dyn std::future::Future<Output = Result<MechanicalExtraction, String>>>>;
+pub(super) type MechanicalExtractionRequester = Rc<
+    dyn Fn(
+        String,
+        Vec<MechanicalPurposeMapping>,
+    ) -> (
+        boardstudio_application::OperationId,
+        MechanicalExtractionFuture,
+    ),
+>;
 pub(super) type DetachedProfileSpawner =
     Rc<dyn Fn(std::pin::Pin<Box<dyn std::future::Future<Output = ()>>>)>;
 pub(super) type CurrentProfileScope = Rc<dyn Fn() -> Option<Scope>>;
@@ -34,6 +50,7 @@ pub(super) type AcceptedProfileOwner = Rc<dyn Fn(&ProfileEditOwner) -> bool>;
 #[derive(Clone)]
 pub(super) struct ManualProfileEditorPorts {
     pub(super) request_standard_profile: StandardProfileRequester,
+    pub(super) request_mechanical_extraction: MechanicalExtractionRequester,
     pub(super) spawn_detached: DetachedProfileSpawner,
     pub(super) current_scope: CurrentProfileScope,
     pub(super) accepted_owner_is_current: AcceptedProfileOwner,
@@ -45,6 +62,10 @@ impl PartialEq for ManualProfileEditorPorts {
             &self.request_standard_profile,
             &other.request_standard_profile,
         ) && Rc::ptr_eq(&self.spawn_detached, &other.spawn_detached)
+            && Rc::ptr_eq(
+                &self.request_mechanical_extraction,
+                &other.request_mechanical_extraction,
+            )
             && Rc::ptr_eq(&self.current_scope, &other.current_scope)
             && Rc::ptr_eq(
                 &self.accepted_owner_is_current,
@@ -72,6 +93,27 @@ pub(super) fn ManualProfileEditor(
     let mut draft = use_signal(|| initial_profile(&definition, initial.as_ref()));
     let mut pending_standard = use_signal(|| None::<StandardProfileRequestCapture>);
     let mut standard_error = use_signal(String::new);
+    let mut extraction_pending = use_signal(|| None::<boardstudio_application::OperationId>);
+    let mut extraction_error = use_signal(String::new);
+    let extracted_geometry = use_signal(|| None::<MechanicalGeometry>);
+    let mut purposes = use_signal(|| {
+        initial
+            .as_ref()
+            .and_then(|profile| profile.source_geometry.as_ref())
+            .map(|source| {
+                source
+                    .mappings
+                    .iter()
+                    .filter_map(|mapping| {
+                        mapping
+                            .source_id
+                            .as_ref()
+                            .map(|id| (id.clone(), mapping.purpose))
+                    })
+                    .collect::<BTreeMap<_, _>>()
+            })
+            .unwrap_or_default()
+    });
     let lifetime = use_hook(PartsStandardProfileLifetime::new);
     let current_view = use_hook(|| {
         Rc::new(RefCell::new((
@@ -97,8 +139,10 @@ pub(super) fn ManualProfileEditor(
     let family_selector_label = String::from("Switch fit family");
     let standard_action_label = String::from("Use standard cutout");
     let save_profile_label = String::from("Save fit profile");
+    let standard_current_view = current_view.clone();
+    let standard_ports = ports.clone();
     let load_standard = Rc::new(std::cell::RefCell::new({
-        let request_standard_profile = ports.request_standard_profile.clone();
+        let request_standard_profile = standard_ports.request_standard_profile.clone();
         let owner = owner.clone();
         let definition = definition.clone();
         let lifetime = lifetime.clone();
@@ -121,18 +165,18 @@ pub(super) fn ManualProfileEditor(
             pending_standard.set(Some(request.clone()));
             standard_error.set(String::new());
             let request_future = request_future;
-            let current_view = current_view.clone();
+            let current_view = standard_current_view.clone();
             let selection = selection;
             let workspace = workspace;
             let scope_generation = scope_generation;
             let selection_generation = selection_generation;
-            let current_scope = ports.current_scope.clone();
-            let accepted_owner_is_current = ports.accepted_owner_is_current.clone();
+            let current_scope = standard_ports.current_scope.clone();
+            let accepted_owner_is_current = standard_ports.accepted_owner_is_current.clone();
             let lifetime = lifetime.clone();
             let mut pending_standard = pending_standard;
             let mut standard_error = standard_error;
             let mut draft = draft;
-            (ports.spawn_detached)(Box::pin(async move {
+            (standard_ports.spawn_detached)(Box::pin(async move {
                 let result = request_future.await;
                 let Some(()) = lifetime.run_if_mounted(|| {
                     let (current_owner, current_definition, current_snapshot) =
@@ -181,6 +225,121 @@ pub(super) fn ManualProfileEditor(
     }));
     let selector_load_standard = load_standard.clone();
     let action_load_standard = load_standard.clone();
+    let extraction_generations = Rc::new(Cell::new((scope_generation(), selection_generation())));
+    let request_extraction = Rc::new(std::cell::RefCell::new({
+        let request_mechanical_extraction = ports.request_mechanical_extraction.clone();
+        let owner = owner.clone();
+        let definition = definition.clone();
+        let lifetime = lifetime.clone();
+        let extraction_generations = extraction_generations.clone();
+        move |mappings: Vec<MechanicalPurposeMapping>, apply: bool| {
+            if extraction_pending.read().is_some() {
+                return;
+            }
+            let Some(source) = definition
+                .kicad_source
+                .as_ref()
+                .map(|source| source.source.clone())
+            else {
+                return;
+            };
+            let (operation_id, request_future) = request_mechanical_extraction(source, mappings);
+            extraction_pending.set(Some(operation_id));
+            extraction_error.set(String::new());
+            let capture_owner = owner.clone();
+            let capture_definition = definition.clone();
+            let capture_snapshot = snapshot.clone();
+            let (request_scope_generation, request_selection_generation) =
+                extraction_generations.get();
+            let expected_selection = (owner.scope.clone(), definition.id.clone());
+            let request_future = request_future;
+            let current_view = current_view.clone();
+            let current_scope = ports.current_scope.clone();
+            let accepted_owner_is_current = ports.accepted_owner_is_current.clone();
+            let selection = selection;
+            let selection_generation = selection_generation;
+            let scope_generation = scope_generation;
+            let workspace = workspace;
+            let lifetime = lifetime.clone();
+            let mut extraction_pending = extraction_pending;
+            let mut extraction_error = extraction_error;
+            let mut extracted_geometry = extracted_geometry;
+            let mut purposes = purposes;
+            let mut draft = draft;
+            (ports.spawn_detached)(Box::pin(async move {
+                let result = request_future.await;
+                let _ = lifetime.run_if_mounted(|| {
+                    let (current_owner, current_definition, current_snapshot) =
+                        current_view.borrow().clone();
+                    let still_current = extraction_pending.read().as_ref() == Some(&operation_id)
+                        && current_owner == capture_owner
+                        && current_scope().as_ref() == capture_owner.scope.as_ref()
+                        && current_snapshot.session_epoch == capture_snapshot.session_epoch
+                        && current_snapshot.document.id == capture_snapshot.document.id
+                        && selection().as_ref() == Some(&expected_selection)
+                        && current_definition == capture_definition
+                        && scope_generation() == request_scope_generation
+                        && selection_generation() == request_selection_generation
+                        && workspace() == "Parts"
+                        && accepted_owner_is_current(&capture_owner);
+                    if !still_current {
+                        if extraction_pending.read().as_ref() == Some(&operation_id) {
+                            extraction_pending.set(None);
+                        }
+                        return;
+                    }
+                    extraction_pending.set(None);
+                    match result {
+                        Ok(extraction) => {
+                            extracted_geometry.set(Some(extraction.geometry.clone()));
+                            if apply {
+                                draft.with_mut(|profile| {
+                                    profile.source = format!("KiCad {}", capture_definition.name);
+                                    profile.source_geometry = Some(extraction.source_geometry);
+                                    profile.pcb_holes = Some(extraction.pcb_holes);
+                                    profile.cutouts = extraction.plate_cutouts;
+                                    profile.clearances = Some(extraction.clearance_envelopes);
+                                });
+                            } else if let Some(source) = draft().source_geometry {
+                                purposes.set(
+                                    source
+                                        .mappings
+                                        .into_iter()
+                                        .filter_map(|mapping| {
+                                            mapping.source_id.map(|id| (id, mapping.purpose))
+                                        })
+                                        .collect(),
+                                );
+                            }
+                        }
+                        Err(message) => extraction_error.set(message),
+                    }
+                });
+            }));
+        }
+    }));
+    // Refresh the captured generations immediately before each request.
+    let request_extract = request_extraction.clone();
+    let generation_capture = extraction_generations.clone();
+    let read_geometry = move |_| {
+        generation_capture.set((scope_generation(), selection_generation()));
+        (request_extract.borrow_mut())(Vec::new(), false);
+    };
+    let request_apply = request_extraction.clone();
+    let generation_capture = extraction_generations.clone();
+    let apply_geometry = move |_| {
+        generation_capture.set((scope_generation(), selection_generation()));
+        let mappings = purposes()
+            .into_iter()
+            .map(|(source_id, purpose)| MechanicalPurposeMapping {
+                source_id: Some(source_id),
+                kind: None,
+                layer: None,
+                purpose,
+            })
+            .collect();
+        (request_apply.borrow_mut())(mappings, true);
+    };
     rsx! {
         section { class: "m1-parts-fit-editor", "aria-label": "Mechanical fit profile editor",
             header {
@@ -196,7 +355,7 @@ pub(super) fn ManualProfileEditor(
                     select {
                         "aria-label": "{family_selector_label}",
                         value: profile.switch_family.map(family_key).unwrap_or(""),
-                        disabled: pending_standard.read().is_some(),
+                        disabled: pending_standard.read().is_some() || extraction_pending.read().is_some(),
                         onchange: move |event| {
                             let load_standard = selector_load_standard.clone();
                             dispatch_standard_profile_family(&event.value(), move |family| {
@@ -234,7 +393,7 @@ pub(super) fn ManualProfileEditor(
                     class: "m1-secondary",
                     r#type: "button",
                     "aria-label": "{standard_action_label}",
-                    disabled: pending_standard.read().is_some(),
+                    disabled: pending_standard.read().is_some() || extraction_pending.read().is_some(),
                     onclick: move |_| {
                         if let Some(family) = draft().switch_family {
                             (action_load_standard.borrow_mut())(family);
@@ -249,13 +408,74 @@ pub(super) fn ManualProfileEditor(
             if !standard_error().is_empty() {
                 p { role: "alert", "Standard fit could not be loaded: {standard_error()}" }
             }
+            if definition.kicad_source.is_some() {
+                section { class: "m1-parts-fit-section", "aria-label": "Footprint geometry",
+                    header {
+                        strong { "Footprint geometry" }
+                        button {
+                            class: "m1-secondary",
+                            r#type: "button",
+                            disabled: extraction_pending.read().is_some(),
+                            onclick: read_geometry,
+                            if extraction_pending.read().is_some() { "Reading KiCad layers…" } else { "Read KiCad layers" }
+                        }
+                    }
+                    if let Some(geometry) = extracted_geometry.read().as_ref() {
+                        for primitive in geometry.primitives.iter() {
+                            {
+                                let primitive_id = primitive.id.clone();
+                                let purpose_label = format!(
+                                    "{} · {}",
+                                    primitive.layer.as_deref().unwrap_or(primitive_kind(primitive.kind)),
+                                    primitive_kind(primitive.kind),
+                                );
+                                let selected_id = primitive_id.clone();
+                                rsx! {
+                                    label { class: "m1-parts-fit-field",
+                                        span { "{purpose_label}" }
+                                        select {
+                                            "aria-label": "Purpose for {primitive_id}",
+                                            value: purposes().get(&primitive_id).map(|purpose| purpose_key(*purpose)).unwrap_or(""),
+                                            disabled: extraction_pending.read().is_some(),
+                                            onchange: move |event| {
+                                                purposes.with_mut(|selected| {
+                                                    if let Some(purpose) = parse_purpose(&event.value()) {
+                                                        selected.insert(selected_id.clone(), purpose);
+                                                    } else {
+                                                        selected.remove(&selected_id);
+                                                    }
+                                                });
+                                            },
+                                            option { value: "", "Unused" }
+                                            option { value: "plate-cutout", "Plate cutout" }
+                                            option { value: "electrical-pcb-mounting-hole", "PCB mounting hole" }
+                                            option { value: "clearance-envelope", "Clearance envelope" }
+                                            option { value: "drawing-guide", "Drawing guide" }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        button {
+                            class: "m1-secondary",
+                            r#type: "button",
+                            disabled: extraction_pending.read().is_some() || purposes.read().is_empty(),
+                            onclick: apply_geometry,
+                            if extraction_pending.read().is_some() { "Applying selected geometry…" } else { "Apply selected geometry" }
+                        }
+                    }
+                    if !extraction_error().is_empty() {
+                        p { role: "alert", "KiCad geometry could not be extracted: {extraction_error()}" }
+                    }
+                }
+            }
             {contour_editor(draft, ContourField::Cutouts, "Plate cutouts")}
             {contour_editor(draft, ContourField::Clearances, "Component clearances")}
             button {
                 class: "m1-primary",
                 r#type: "button",
                 "aria-label": "{save_profile_label}",
-                disabled: pending_standard.read().is_some(),
+                disabled: pending_standard.read().is_some() || extraction_pending.read().is_some(),
                 onclick: move |_| { on_save.call(draft()); on_close.call(()); },
                 "Save fit profile"
             }
@@ -268,6 +488,36 @@ fn family_key(family: MechanicalSwitchFamily) -> &'static str {
         MechanicalSwitchFamily::Mx => "mx",
         MechanicalSwitchFamily::ChocV1 => "choc-v1",
         MechanicalSwitchFamily::ChocV2 => "choc-v2",
+    }
+}
+
+fn purpose_key(purpose: MechanicalPurpose) -> &'static str {
+    match purpose {
+        MechanicalPurpose::ElectricalPcbMountingHole => "electrical-pcb-mounting-hole",
+        MechanicalPurpose::PlateCutout => "plate-cutout",
+        MechanicalPurpose::ClearanceEnvelope => "clearance-envelope",
+        MechanicalPurpose::DrawingGuide => "drawing-guide",
+    }
+}
+
+fn parse_purpose(value: &str) -> Option<MechanicalPurpose> {
+    match value {
+        "electrical-pcb-mounting-hole" => Some(MechanicalPurpose::ElectricalPcbMountingHole),
+        "plate-cutout" => Some(MechanicalPurpose::PlateCutout),
+        "clearance-envelope" => Some(MechanicalPurpose::ClearanceEnvelope),
+        "drawing-guide" => Some(MechanicalPurpose::DrawingGuide),
+        _ => None,
+    }
+}
+
+fn primitive_kind(kind: boardstudio_core::model::MechanicalGeometryKind) -> &'static str {
+    match kind {
+        boardstudio_core::model::MechanicalGeometryKind::Line => "Line",
+        boardstudio_core::model::MechanicalGeometryKind::Arc => "Arc",
+        boardstudio_core::model::MechanicalGeometryKind::Circle => "Circle",
+        boardstudio_core::model::MechanicalGeometryKind::Rectangle => "Rectangle",
+        boardstudio_core::model::MechanicalGeometryKind::Polygon => "Polygon",
+        boardstudio_core::model::MechanicalGeometryKind::Drill => "Drill",
     }
 }
 

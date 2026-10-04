@@ -60,6 +60,7 @@ pub(in crate::presentation) struct MatrixTransformProjection {
 #[derive(Props, Clone, PartialEq)]
 pub(in crate::presentation) struct MatrixTransformInspectorProps {
     pub mount: MatrixTransformInspectorMount,
+    pub on_pick_splay_origin: EventHandler<()>,
 }
 
 #[component]
@@ -198,6 +199,13 @@ pub(in crate::presentation) fn MatrixTransformInspector(
                             option { value: "column", "This column" }
                             option { value: "following", "This and following" }
                         }
+                    }
+                    button {
+                        r#type: "button",
+                        class: "m1-secondary",
+                        disabled: !props.mount.editable || props.mount.busy,
+                        onclick: move |_| props.on_pick_splay_origin.call(()),
+                        "Pick origin"
                     }
                     p { class: "m1-empty-note", "Move the origin without moving the keys." }
                 }

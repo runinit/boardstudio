@@ -56,7 +56,9 @@ pub(in crate::presentation) use matrix_setup_controller::use_matrix_setup;
 pub(in crate::presentation) use matrix_transform_controller::{
     MatrixTransformInspectorMount, use_workspace_matrix_transform,
 };
-pub(in crate::presentation) use matrix_transform_inspector::MatrixTransformInspector;
+pub(in crate::presentation) use matrix_transform_inspector::{
+    MatrixTransformInspector, MatrixTransformInspectorOwner,
+};
 pub(in crate::presentation) use mirrored_pair::{
     MirroredPairCanvasOverlay, MirroredPairCreated, MirroredPairMount, MirroredPairMove,
 };

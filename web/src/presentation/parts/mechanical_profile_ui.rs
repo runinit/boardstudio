@@ -4,7 +4,8 @@ use super::PartsPreviewPanel;
 use super::PartsSelectionGeneration;
 use super::{
     AcceptedProfileOwner, CurrentProfileScope, DetachedProfileSpawner, ManualProfileEditor,
-    ManualProfileEditorPorts, StandardProfileFuture, StandardProfileRequester,
+    ManualProfileEditorPorts, MechanicalExtractionFuture, MechanicalExtractionRequester,
+    StandardProfileFuture, StandardProfileRequester,
 };
 use crate::parts_mechanical_profile::{
     PendingProfileEdit, ProfileDefinitionSource, ProfileEditCapture, ProfileEditContext,
@@ -144,6 +145,19 @@ pub(crate) fn PartsMechanicalProfileWorkspace(
                 });
                 (operation_id, future)
             });
+        let extraction_runtime = runtime.clone();
+        let request_mechanical_extraction: MechanicalExtractionRequester =
+            Rc::new(move |source, mappings| {
+                let operation_id = extraction_runtime.operation();
+                let runtime = extraction_runtime.clone();
+                let request_id = operation_id.0.to_string();
+                let future: MechanicalExtractionFuture = Box::pin(async move {
+                    runtime
+                        .extract_mechanical_profile(request_id, source, mappings, 0.005)
+                        .await
+                });
+                (operation_id, future)
+            });
         let spawn_detached: DetachedProfileSpawner = Rc::new(spawn_local);
         let current_runtime_scope = runtime.clone();
         let current_scope: CurrentProfileScope = Rc::new(move || current_runtime_scope.scope());
@@ -157,6 +171,7 @@ pub(crate) fn PartsMechanicalProfileWorkspace(
         });
         let ports = ManualProfileEditorPorts {
             request_standard_profile,
+            request_mechanical_extraction,
             spawn_detached,
             current_scope,
             accepted_owner_is_current,
