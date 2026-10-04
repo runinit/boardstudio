@@ -2,7 +2,7 @@
 use super::case_bodies::CaseBodyEdit;
 use super::shared_viewer::{
     CaseDisplay, CaseSharedViewer, HandleGesturePhase, ScopedDisplayChange, ScopedViewerSignal,
-    ViewerHandle, ViewerHandleTarget, ViewerIdentity, ViewerSignalKind,
+    ViewerFocusRequest, ViewerHandle, ViewerHandleTarget, ViewerIdentity, ViewerSignalKind,
 };
 use super::{InstanceSelection, ResolvedTheme, selection::SelectionAdapter};
 use crate::runtime::{CadScene, Runtime};
@@ -25,6 +25,7 @@ pub(super) struct BodySelection {
 pub(super) struct LayerSelection {
     scope: Scope,
     id: String,
+    focus: Option<(SnapshotToken, u64)>,
 }
 
 #[derive(Clone, Copy)]
@@ -54,7 +55,43 @@ impl CaseSelection {
     }
 
     pub(super) fn select_layer(mut self, scope: Scope, id: String) {
-        self.layer.set(Some(LayerSelection { scope, id }));
+        self.layer.set(Some(LayerSelection {
+            scope,
+            id,
+            focus: None,
+        }));
+    }
+
+    pub(super) fn focus_layer(
+        mut self,
+        scope: Scope,
+        token: SnapshotToken,
+        revision: u64,
+        id: String,
+    ) {
+        self.layer.set(Some(LayerSelection {
+            scope,
+            id,
+            focus: Some((token, revision)),
+        }));
+    }
+
+    fn viewer_focus_request(self, scene: &CadScene) -> Option<ViewerFocusRequest> {
+        let layer = self.layer.read();
+        let id = layer
+            .as_ref()
+            .filter(|selected| {
+                selected.focus == Some((scene.token, scene.snapshot.document.revision))
+                    && selected.scope == scene.scope
+                    && is_layer(scene, &selected.id)
+            })
+            .map(|selected| selected.id.clone())?;
+        Some(ViewerFocusRequest {
+            scope: scene.scope.clone(),
+            snapshot_token: scene.token,
+            revision: scene.snapshot.document.revision,
+            target_ids: vec![id],
+        })
     }
 
     pub(super) fn clear_layer_for_scope(mut self, scope: &Scope) {
@@ -136,6 +173,7 @@ pub(crate) fn CaseViewer(
                 .map(|selected| selected.body_id.clone())
         })
         .unwrap_or_default();
+    let focus_request = selection.viewer_focus_request(&scene);
     let direct_handles = case_viewer_handles(
         &scene,
         mechanical_settings.as_ref(),
@@ -202,6 +240,7 @@ pub(crate) fn CaseViewer(
                     selection.layer.set(Some(LayerSelection {
                         scope: scene.scope.clone(),
                         id: id.clone(),
+                        focus: None,
                     }));
                     // CAD mesh IDs become authored body selections only when the
                     // current captured document proves that exact membership.
@@ -290,6 +329,7 @@ pub(crate) fn CaseViewer(
             handles: direct_handles,
             handle_preview: handle_preview(),
             gesture_message: displayed_gesture_message,
+            focus_request,
         }
     }
 }
@@ -1378,10 +1418,11 @@ fn source_is_current(
         && runtime.scope().as_ref() == Some(&identity.scope)
         && identity.scope == expected.scope
         && identity.snapshot_token == expected.token
-        && model
-            .accepted
-            .as_ref()
-            .is_some_and(|accepted| accepted.token == identity.snapshot_token)
+        && identity.revision == expected.snapshot.document.revision
+        && model.accepted.as_ref().is_some_and(|accepted| {
+            accepted.token == identity.snapshot_token
+                && accepted.document.revision == identity.revision
+        })
         && runtime
             .cad_scene()
             .as_ref()

@@ -291,6 +291,7 @@ pub struct Renderer {
     distance: f32,
     bounds_center: Vec3,
     bounds_radius: f32,
+    focused_ids: Vec<String>,
     revision: u64,
     section_x: Option<f32>,
 }
@@ -372,6 +373,7 @@ impl Renderer {
             distance: 100.0,
             bounds_center: Vec3::new(0.0, 0.0, 0.0),
             bounds_radius: 1.0,
+            focused_ids: Vec::new(),
             revision: 0,
             section_x: None,
         };
@@ -509,6 +511,71 @@ impl Renderer {
         Ok(())
     }
 
+    /// Focus the accepted geometry objects associated with a current finding.
+    /// Focused objects remain visible while their saved display layer is hidden.
+    #[wasm_bindgen(js_name = focusObjects)]
+    pub fn focus_objects(&mut self, value: JsValue) -> Result<bool, JsValue> {
+        let ids: Vec<String> = serde_wasm_bindgen::from_value(value)
+            .map_err(|error| JsValue::from_str(&error.to_string()))?;
+        let ids = ids
+            .into_iter()
+            .filter(|id| !id.is_empty())
+            .collect::<Vec<_>>();
+        if ids.is_empty() {
+            self.focused_ids.clear();
+            self.apply_state();
+            return Ok(true);
+        }
+        let matches = |object: &&RenderObject| {
+            ids.iter()
+                .any(|id| object.id == *id || object.groups.iter().any(|group| group == id))
+        };
+        let focused_ids = self
+            .objects
+            .iter()
+            .filter(matches)
+            .map(|object| object.id.clone())
+            .collect::<Vec<_>>();
+        if focused_ids.is_empty() {
+            return Ok(false);
+        }
+        let mut low = Vec3::new(f32::INFINITY, f32::INFINITY, f32::INFINITY);
+        let mut high = Vec3::new(f32::NEG_INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY);
+        for object in self
+            .objects
+            .iter()
+            .filter(|object| focused_ids.contains(&object.id))
+        {
+            let offset = if self.state.view == "exploded" {
+                object.explode * self.state.explode_amount.unwrap_or(1.)
+            } else {
+                0.
+            };
+            for point in object.triangles.iter().flatten() {
+                let point = (object.pose * point.extend(1.)).truncate() + Vec3::new(0., 0., offset);
+                low.x = low.x.min(point.x);
+                low.y = low.y.min(point.y);
+                low.z = low.z.min(point.z);
+                high.x = high.x.max(point.x);
+                high.y = high.y.max(point.y);
+                high.z = high.z.max(point.z);
+            }
+        }
+        if !low.x.is_finite() {
+            return Ok(false);
+        }
+        self.focused_ids = focused_ids;
+        self.apply_state();
+        let focus_center = (low + high) / 2.;
+        let focus_radius = ((high - low).magnitude() / 2.).max(0.1);
+        self.target = focus_center;
+        let vertical = 17.0_f32.to_radians();
+        let horizontal = (vertical.tan() * self.width as f32 / self.height.max(1) as f32).atan();
+        self.distance = focus_radius / vertical.min(horizontal).sin() * 1.3;
+        self.update_camera();
+        Ok(true)
+    }
+
     #[wasm_bindgen(js_name = render)]
     pub fn render(&self) -> Result<(), JsValue> {
         let target = RenderTarget::screen(&self.context, self.width, self.height);
@@ -567,6 +634,9 @@ impl Renderer {
 
     #[wasm_bindgen(js_name = fit)]
     pub fn fit(&mut self) {
+        // Fit restores the user's display projection before measuring the scene.
+        self.focused_ids.clear();
+        self.apply_state();
         // Hidden case bodies must not keep a small imported PCB off-centre.
         // Derive fit bounds on demand without rebuilding any geometry.
         let mut low = Vec3::new(f32::INFINITY, f32::INFINITY, f32::INFINITY);
@@ -826,6 +896,7 @@ impl Renderer {
     }
 
     fn accept_scene(&mut self, items: BuiltScene) -> Result<bool, JsValue> {
+        self.focused_ids.clear();
         self.section_x = items.section_x;
         let mut previous = std::mem::take(&mut self.objects);
         self.objects = items
@@ -898,19 +969,20 @@ impl Renderer {
             Mat4::from_translation(center) * rotation * Mat4::from_scale(radius),
         );
         for item in self.objects.iter_mut().chain(&mut self.handles) {
-            item.visible = !self.state.hidden.iter().any(|g| {
-                g == "Assembly"
-                    || g == &item.id
-                    || item.groups.contains(g)
-                    || (g == "Gaskets"
-                        && (item.id.starts_with("gasket:")
-                            || item.id.starts_with("gasket-handle:")))
-                    || (item.id.starts_with("gasket-handle:")
-                        && g == &format!(
-                            "{}:lower",
-                            item.id.replacen("gasket-handle:", "gasket:", 1)
-                        ))
-            });
+            item.visible = self.focused_ids.contains(&item.id)
+                || !self.state.hidden.iter().any(|g| {
+                    g == "Assembly"
+                        || g == &item.id
+                        || item.groups.contains(g)
+                        || (g == "Gaskets"
+                            && (item.id.starts_with("gasket:")
+                                || item.id.starts_with("gasket-handle:")))
+                        || (item.id.starts_with("gasket-handle:")
+                            && g == &format!(
+                                "{}:lower",
+                                item.id.replacen("gasket-handle:", "gasket:", 1)
+                            ))
+                });
             let color = self
                 .state
                 .colors
@@ -965,7 +1037,8 @@ impl Renderer {
             item.object.material.section = clip;
             item.edges.material.section = clip;
             item.object.material.depth_only = self.state.mode == "wireframe";
-            let selected = item.id == self.state.selected_layer;
+            let selected =
+                item.id == self.state.selected_layer || self.focused_ids.contains(&item.id);
             item.edges.material.physical.albedo = Srgba::BLACK;
             item.edges.material.physical.emissive = if selected {
                 Srgba::new(255, 186, 58, 255)

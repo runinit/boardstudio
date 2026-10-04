@@ -3548,11 +3548,22 @@ fn Editor() -> Element {
                                 })
                         })
                 }) {
-                    case_selection.select_layer(scope.clone(), layer.id.clone());
+                    case_selection.focus_layer(
+                        scope.clone(),
+                        request.token,
+                        request.revision,
+                        layer.id.clone(),
+                    );
                     workspace.set("Case");
                 } else if let Some(body) = captured_document.case_bodies.iter().find(|body| {
                     body.board_id == scope.board_id && finding.target_ids.contains(&body.id)
                 }) {
+                    case_selection.focus_layer(
+                        scope.clone(),
+                        request.token,
+                        request.revision,
+                        body.id.clone(),
+                    );
                     case_selection.body.set(Some(case_viewer::BodySelection {
                         scope: scope.clone(),
                         body_id: body.id.clone(),
@@ -8151,6 +8162,11 @@ fn Editor() -> Element {
                         layout_viewer::LayoutCanonicalViewer {
                             keycaps_fit: if matches!(active_workspace, "Keymap" | "Keycaps") {
                                 keycaps_fit_state.state.clone()
+                            } else {
+                                None
+                            },
+                            focused_finding: if active_workspace == "Layout" {
+                                focused_keycaps_finding()
                             } else {
                                 None
                             },

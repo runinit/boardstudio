@@ -96,9 +96,18 @@ pub(crate) fn DesignViewToolbar(props: DesignViewToolbarProps) -> Element {
 pub(crate) struct ViewerIdentity {
     pub(crate) scope: Scope,
     pub(crate) snapshot_token: SnapshotToken,
+    pub(crate) revision: u64,
     pub(crate) viewer_instance: u64,
     pub(crate) projection_generation: u64,
     pub(crate) renderer_sequence: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ViewerFocusRequest {
+    pub(crate) scope: Scope,
+    pub(crate) snapshot_token: SnapshotToken,
+    pub(crate) revision: u64,
+    pub(crate) target_ids: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -196,6 +205,7 @@ impl ViewerOwner {
         &self,
         scope: Scope,
         token: SnapshotToken,
+        revision: u64,
         inputs: &ProjectionInputs,
     ) -> Result<ViewerIdentity, String> {
         let changed = self.last_inputs.borrow().as_ref() != Some(inputs);
@@ -218,6 +228,7 @@ impl ViewerOwner {
         let identity = ViewerIdentity {
             scope,
             snapshot_token: token,
+            revision,
             viewer_instance: self.viewer_instance,
             projection_generation: self.projection_generation.get(),
             renderer_sequence: self.renderer_sequence.get(),
@@ -282,6 +293,7 @@ pub(crate) fn CaseSharedViewer(
     #[props(default)] handles: Vec<ViewerHandle>,
     #[props(default)] handle_preview: Option<Vec<ViewerHandle>>,
     #[props(default)] gesture_message: Option<String>,
+    #[props(default)] focus_request: Option<ViewerFocusRequest>,
 ) -> Element {
     let runtime = use_context::<Rc<crate::runtime::Runtime>>();
     let _ = use_context::<Signal<u64>>()();
@@ -317,7 +329,7 @@ pub(crate) fn CaseSharedViewer(
     else {
         return rsx! { p { role: "alert", "3D preview source is unavailable." } };
     };
-    let (source_scope, source_token) = source.scope_token();
+    let (source_scope, source_token, _) = source.identity_parts();
     let matching_preview = preview
         .as_ref()
         .filter(|preview| preview_matches_source(&preview.owner, source_scope, source_token));
@@ -487,6 +499,7 @@ pub(crate) fn CaseSharedViewer(
             handles,
             handle_preview,
             gesture_message,
+            focus_request,
         }
     }
 }
@@ -602,12 +615,24 @@ impl ViewerSource {
         }
     }
 
-    fn scope_token(&self) -> (&Scope, SnapshotToken) {
+    fn identity_parts(&self) -> (&Scope, SnapshotToken, u64) {
         match self {
-            Self::Cad(scene) => (&scene.scope, scene.token),
-            Self::Native(preview) => (&preview.owner.scope, preview.owner.snapshot_token),
-            Self::Layout(preview) => (&preview.owner.scope, preview.owner.snapshot_token),
-            Self::Parts(preview) => (&preview.owner.scope, preview.owner.snapshot_token),
+            Self::Cad(scene) => (&scene.scope, scene.token, scene.snapshot.document.revision),
+            Self::Native(preview) => (
+                &preview.owner.scope,
+                preview.owner.snapshot_token,
+                preview.owner.accepted_revision,
+            ),
+            Self::Layout(preview) => (
+                &preview.owner.scope,
+                preview.owner.snapshot_token,
+                preview.owner.accepted_revision,
+            ),
+            Self::Parts(preview) => (
+                &preview.owner.scope,
+                preview.owner.snapshot_token,
+                preview.owner.accepted_revision,
+            ),
         }
     }
 
@@ -616,13 +641,8 @@ impl ViewerSource {
         owner: &ViewerOwner,
         inputs: &ProjectionInputs,
     ) -> Result<ViewerIdentity, String> {
-        let (scope, token) = match self {
-            Self::Cad(scene) => (&scene.scope, scene.token),
-            Self::Native(preview) => (&preview.owner.scope, preview.owner.snapshot_token),
-            Self::Layout(preview) => (&preview.owner.scope, preview.owner.snapshot_token),
-            Self::Parts(preview) => (&preview.owner.scope, preview.owner.snapshot_token),
-        };
-        owner.advance_source(scope.clone(), token, inputs)
+        let (scope, token, revision) = self.identity_parts();
+        owner.advance_source(scope.clone(), token, revision, inputs)
     }
 
     fn is_current(&self, runtime: &crate::runtime::Runtime) -> bool {
@@ -1150,6 +1170,7 @@ fn SharedViewer(
     handles: Vec<ViewerHandle>,
     handle_preview: Option<Vec<ViewerHandle>>,
     gesture_message: Option<String>,
+    focus_request: Option<ViewerFocusRequest>,
 ) -> Element {
     let runtime = use_context::<Rc<crate::runtime::Runtime>>();
     let mut editing_gaskets = use_signal(|| false);
@@ -1301,6 +1322,48 @@ fn SharedViewer(
             }
         },
     ));
+
+    use_effect(use_reactive((&projection, &focus_request, &mounted()), {
+        let host = host.clone();
+        let owner = owner.clone();
+        let current_source = current_source.clone();
+        let on_signal = on_signal;
+        let mut status = status;
+        move |(projection, request, mounted)| {
+            if !mounted
+                || !owner.active.get()
+                || owner.identity.borrow().as_ref() != Some(&projection.identity)
+                || !(current_source.0)()
+            {
+                return;
+            }
+            let target_ids = request
+                .filter(|request| focus_request_matches(request, &projection.identity))
+                .map_or_else(Vec::new, |request| request.target_ids.clone());
+            let result = host
+                .borrow()
+                .as_ref()
+                .ok_or_else(|| "3D renderer is not mounted".to_owned())
+                .and_then(|host| host.focus_objects(&target_ids));
+            match result {
+                Ok(true) => {}
+                Ok(false) => {
+                    status.set("Finding geometry is not available in this 3D scene.".into())
+                }
+                Err(error) => {
+                    status.set(error.clone());
+                    if owner_is_current(&owner, &projection.identity) && (current_source.0)() {
+                        emit_signal(
+                            &owner,
+                            on_signal,
+                            &projection.identity,
+                            ViewerSignalKind::Failed(error),
+                        );
+                    }
+                }
+            }
+        }
+    }));
 
     use_effect(use_reactive(
         (
@@ -1850,6 +1913,9 @@ fn SharedViewer(
                         && runtime.scope().as_ref() == Some(&projection.identity.scope)
                         && let Some(id) = picked
                     {
+                        if let Some(host) = host.borrow().as_ref() {
+                            let _ = host.focus_objects(&[]);
+                        }
                         emit_signal(&owner, on_signal, &identity, ViewerSignalKind::Picked(id));
                     }
                 }
@@ -2532,6 +2598,13 @@ fn owner_is_current(owner: &ViewerOwner, identity: &ViewerIdentity) -> bool {
     owner.active.get() && owner.identity.borrow().as_ref() == Some(identity)
 }
 
+fn focus_request_matches(request: &ViewerFocusRequest, identity: &ViewerIdentity) -> bool {
+    request.scope == identity.scope
+        && request.snapshot_token == identity.snapshot_token
+        && request.revision == identity.revision
+        && !request.target_ids.is_empty()
+}
+
 fn take_pointer_for_event(
     pointer: &Rc<RefCell<Option<PointerOwner>>>,
     pointer_id: i32,
@@ -2688,10 +2761,36 @@ mod tests {
                 instance_id: Some("case-instance-1".to_owned()),
             },
             snapshot_token: SnapshotToken(8),
+            revision: 9,
             viewer_instance: 2,
             projection_generation: 4,
             renderer_sequence: 6,
         }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn finding_focus_rejects_stale_project_board_token_and_revision() {
+        let identity = identity();
+        let request = ViewerFocusRequest {
+            scope: identity.scope.clone(),
+            snapshot_token: identity.snapshot_token,
+            revision: identity.revision,
+            target_ids: vec!["plate".into()],
+        };
+        assert!(focus_request_matches(&request, &identity));
+
+        let mut stale = request.clone();
+        stale.scope.document_id.push_str("-other");
+        assert!(!focus_request_matches(&stale, &identity));
+        let mut stale = request.clone();
+        stale.scope.board_id.push_str("-other");
+        assert!(!focus_request_matches(&stale, &identity));
+        let mut stale = request.clone();
+        stale.snapshot_token = SnapshotToken(identity.snapshot_token.0 + 1);
+        assert!(!focus_request_matches(&stale, &identity));
+        let mut stale = request;
+        stale.revision += 1;
+        assert!(!focus_request_matches(&stale, &identity));
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]

@@ -3,7 +3,10 @@ use super::{
     case_display::CaseDisplay,
     objects::{self, TreeSelectRequest},
     selection::{self, SelectionAdapter},
-    shared_viewer::{CaseSharedViewer, ScopedDisplayChange, ScopedViewerSignal, ViewerSignalKind},
+    shared_viewer::{
+        CaseSharedViewer, ScopedDisplayChange, ScopedViewerSignal, ViewerFocusRequest,
+        ViewerSignalKind,
+    },
 };
 use crate::runtime::Runtime;
 use boardstudio_application::SelectionMode;
@@ -47,6 +50,8 @@ async fn request_keycaps_preview(
 pub(crate) struct LayoutCanonicalViewerProps {
     #[props(default)]
     pub(crate) keycaps_fit: Option<super::keycaps_fit::KeycapsFitState>,
+    #[props(default)]
+    pub(crate) focused_finding: Option<super::keycaps_finding_marker::FocusedFinding>,
 }
 
 #[component]
@@ -269,6 +274,34 @@ pub(crate) fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Elemen
         };
     };
 
+    let focus_request = props.focused_finding.as_ref().and_then(|focused| {
+        let accepted = runtime.model().accepted?;
+        let current_preview = runtime.layout_preview()?;
+        if focused.scope != preview.owner.scope
+            || focused.scope != current_preview.owner.scope
+            || focused.token != preview.owner.snapshot_token
+            || focused.token != accepted.token
+            || focused.revision != preview.owner.accepted_revision
+            || focused.revision != accepted.document.revision
+            || !preview.lease.matches(&preview.owner)
+            || !current_preview.lease.matches(&current_preview.owner)
+            || !Rc::ptr_eq(&current_preview.lease, &preview.lease)
+        {
+            return None;
+        }
+        let finding = accepted
+            .scene
+            .findings
+            .iter()
+            .find(|finding| finding.id == focused.finding_id)?;
+        (!finding.target_ids.is_empty()).then(|| ViewerFocusRequest {
+            scope: focused.scope.clone(),
+            snapshot_token: focused.token,
+            revision: focused.revision,
+            target_ids: finding.target_ids.clone(),
+        })
+    });
+
     rsx! {
         div { class: "m1-layout-canonical-viewer",
             if let Some(blocker) = props.keycaps_fit.as_ref().and_then(|fit| fit.preview_blocker_message()) {
@@ -301,6 +334,7 @@ pub(crate) fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Elemen
                 on_display_change,
                 mechanical_settings: None,
                 inline_case_controls: false,
+                focus_request,
             }
         }
     }

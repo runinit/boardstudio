@@ -217,6 +217,20 @@ impl RendererPageHost {
         self.host.fit()
     }
 
+    pub(crate) fn focus_objects(&self, ids: &[String]) -> Result<bool, String> {
+        self.ensure_active()?;
+        let values = Array::new();
+        for id in ids {
+            values.push(&JsValue::from_str(id));
+        }
+        let focused = call_method(&self.host.inner.renderer, "focusObjects", &[values.into()])
+            .map_err(js_error)?;
+        schedule_frame(&self.host.inner).map_err(js_error)?;
+        focused
+            .as_bool()
+            .ok_or_else(|| "Renderer returned an invalid focus result".to_owned())
+    }
+
     fn ensure_active(&self) -> Result<(), String> {
         if self.host.inner.disposed.get() || self.host.inner.context_lost.get() {
             Err("Renderer is no longer active".to_owned())
