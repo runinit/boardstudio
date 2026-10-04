@@ -7843,6 +7843,11 @@ fn Editor() -> Element {
                         }
                     })
                 },
+                splay_origin_pick_pending: pending_splay_origin_pick().is_some(),
+                on_cancel_splay_origin_pick: {
+                    let mut pending = pending_splay_origin_pick;
+                    EventHandler::new(move |()| pending.set(None))
+                },
                 inspector_tab: layout_context_tab,
                 matrix_relationship_summary: matrix_context_relationship_summary(
                     &model,

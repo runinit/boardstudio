@@ -559,6 +559,12 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
     "observation": "Mounted leaf editors function, but root context composition still diverges: matrix selection does not synchronize the toolbar kind, perimeter mode retains the general pill, and Inspector grouping/handle sizing differ visibly.",
     "current_mitigation": "Keep concrete follow-ups in existing toolbar/outline criteria; verify paired states before acceptance.",
     "post_port_proposal": "Define one explicit workbench/selection/edit-mode context projection consumed by toolbar, Objects footer and Inspector, with consistent design tokens for visual sizing."
+  },
+  "case_gesture_preview_20261004": {
+    "evidence": "b5e49eca; web/src/case_gesture_preview.rs; web/src/runtime.rs; web/src/presentation/case_viewer.rs; web/src/presentation/shared_viewer.rs",
+    "observation": "A provisional Case drag requires a Runtime-owned disposable CAD scene beside accepted cad_scene and a narrow shared-viewer freshness exception. Each coalesced pointer sample clones a draft document and reuses Core preparation plus the CAD worker; no second Session or public provider was introduced. Resource cost and full gesture behavior are not yet measured.",
+    "current_mitigation": "Scope/token/revision/generation admission and worker-job cancellation keep draft results out of accepted history; a focused owner-state supersession test passes. Public drag/cancel/history qualification follows on the packaged candidate.",
+    "post_port_proposal": "After the port, assess a typed transient scene source and feature-owned preview controller so Case drafts do not add more Runtime/shared-viewer coupling; measure coalesced CAD cost before redesign."
   }
 }
 ```
@@ -2353,6 +2359,84 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
   "follow_up_owner": "Frontend test architecture",
   "linked_tasks": [
     "F7.3"
+  ],
+  "continuations": []
+}
+```
+
+## RF-023: Worker-owned provider failures lack a deterministic public test seam
+
+**Status:** observed; controlled mounted regressions retained and public failure branches still unqualified
+
+**Confidence:** confirmed by bounded PCB and Keycaps browser probes
+
+**Observation:** The PCB resolver and Keycaps CAD provider run behind in-page workers. Browser URL-route abort/mock cannot induce their reply failures after the worker is loaded. Production owner regressions inject failures through private test seams and prove visible error/retry state, while public paired failure/retry remains unqualified. Repeated network interception attempts added no product evidence.
+
+**Impact:** A public error journey can consume repeated setup and browser time without reaching the worker-owned failure state, leaving otherwise implemented recovery criteria open.
+
+**Current mitigation:** Reuse the mounted owner failure/retry regressions and normal public pending/recovery evidence; stop repeating URL-route injection. Keep the unqualified public branch explicit without adding a production fault control solely for testing.
+
+**Later proposal:** Evaluate a test-only worker transport or provider fault hook that exercises the production UI from a public browser without changing release behavior.
+
+**Validation:** With a test-only worker fault, observe the same public PCB and Keycaps failure, retry, current-scope admission and recovery journeys once on a packaged candidate.
+
+**Evidence:** `.scratch/dioxus-pcb-view/evidence/pcb-apply-ui-20261002/receipt.md`; `.scratch/dioxus-keycaps-workflow/evidence/keycaps-cad-batch-cancel-20261003/receipt-34769.md`; `web/src/presentation/pcb_wiring/controller.rs`; `web/src/presentation/layout_viewer.rs`
+
+**Additional recorded details:**
+
+```json
+{
+  "category": "testability / worker boundary",
+  "impact_priority": "medium",
+  "discovered": "2026-10-04",
+  "baseline": "Served candidate frontend-module-assets-20261004 at source 18ff7659",
+  "workflows": [
+    "F5.2",
+    "F6C.5"
+  ],
+  "decision": "No new release API or provider redesign during the frontend port; revisit the test seam in post-port refactoring.",
+  "follow_up_owner": "Frontend worker and test architecture",
+  "linked_tasks": [
+    "F5.2",
+    "F6C.5"
+  ],
+  "continuations": []
+}
+```
+
+## RF-024: PCB finding overlay advertises interaction that its pointer policy disables
+
+**Status:** open v1 affordance correction; unrelated PCB work continues
+
+**Confidence:** confirmed source and bounded packaged-browser observation
+
+**Observation:** Dioxus gives the SVG finding overlay role=button, tabindex and onclick, while the inherited .wb-outline-finding CSS disables pointer events. Keyboard Enter focuses it, but a pointer cannot. The TypeScript overlay is decorative and routes finding activation through its Findings list, so SVG-marker clicking is not a parity requirement.
+
+**Impact:** The Dioxus affordance promises a pointer action that cannot fire and can mislead both users and browser qualification.
+
+**Current mitigation:** Keep F5.4 focus qualification on the actual mounted finding action. Before F5.4 acceptance, make the overlay consistently decorative or provide a real bounded hit target without obscuring PCB selection.
+
+**Later proposal:** Define one shared canvas-overlay interaction policy for visible markers, accessible names, keyboard focus and pointer hit regions.
+
+**Validation:** A focused PCB pointer/keyboard journey confirms the chosen semantics and no regression to module or host selection.
+
+**Evidence:** `.scratch/dioxus-pcb-view/evidence/24-module-source-route-20261003/receipt.md`; `web/src/presentation/pcb_module_footprints.rs`; `web/assets/m1.css`; `app/src/ui/outline-editor.css`
+
+**Additional recorded details:**
+
+```json
+{
+  "category": "interface semantics / canvas interaction",
+  "impact_priority": "low",
+  "discovered": "2026-10-04",
+  "baseline": "Packaged frontend-functional-batch-20261004, source 14434d50",
+  "workflows": [
+    "F5.4"
+  ],
+  "decision": "Record the misleading affordance and correct it in the remaining PCB UI pass; do not repeat an impossible SVG click as a React parity test.",
+  "follow_up_owner": "PCB scene and findings UI",
+  "linked_tasks": [
+    "F5.4"
   ],
   "continuations": []
 }

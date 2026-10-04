@@ -119,6 +119,8 @@ fn PcbMountedModuleInspector(
     let owner_revision = input.snapshot.document.revision;
     let runtime = input.runtime.clone();
     let selected_context = input.selected_context;
+    let save_alive = alive.clone();
+    let remove_alive = alive.clone();
     let save = move |_| {
         if saving() {
             return;
@@ -169,7 +171,7 @@ fn PcbMountedModuleInspector(
         let runtime = runtime.clone();
         let scope = scope.clone();
         let module_id = module_id.clone();
-        let alive = alive.clone();
+        let alive = save_alive.clone();
         let draft_signal = draft;
         let mut feedback = feedback;
         let mut saving = saving;
@@ -277,6 +279,9 @@ fn PcbMountedModuleInspector(
     let runtime = input.runtime.clone();
     let selected_context = input.selected_context;
     let remove = move |_| {
+        if saving() {
+            return;
+        }
         let Some(snapshot) = mounted_owner_current(
             &runtime,
             selected_context,
@@ -288,7 +293,10 @@ fn PcbMountedModuleInspector(
             feedback.set("The selected module or accepted project changed. Reopen its placement before removing it.".into());
             return;
         };
+        saving.set(true);
+        feedback.set("Removing placement…".into());
         let operation_id = runtime.operation();
+        let outcome = runtime.observe_operation(operation_id);
         runtime.submit(Event::Edit {
             operation_id,
             command: EditCommand {
@@ -301,7 +309,22 @@ fn PcbMountedModuleInspector(
                 },
             },
         });
-        feedback.set("Module removal submitted for save.".into());
+        let alive = remove_alive.clone();
+        let mut feedback = feedback;
+        let mut saving = saving;
+        spawn_local(async move {
+            loop {
+                if !alive.get() {
+                    return;
+                }
+                if let Some(outcome) = outcome.borrow().clone() {
+                    feedback.set(remove_operation_feedback(&outcome));
+                    saving.set(false);
+                    return;
+                }
+                gloo_timers::future::TimeoutFuture::new(16).await;
+            }
+        });
     };
     let boards = document.boards.clone();
     let source_mounts = definition.mounts.clone();
@@ -843,7 +866,7 @@ fn PcbMountedModuleInspector(
             }
             div { class: "m1-pcb-module-actions",
                 button { class: "m1-primary-button", r#type: "button", disabled: !editable || saving() || draft().connection.as_ref().is_some_and(|connection| connection.host_connector_part_id.is_empty()), onclick: save, "Save placement" }
-                button { class: "m1-danger-button", r#type: "button", disabled: !editable, onclick: remove, "Remove module" }
+                button { class: "m1-danger-button", r#type: "button", disabled: !editable || saving(), onclick: remove, "Remove module" }
             }
             if !feedback().is_empty() { p { role: "status", "{feedback()}" } }
         }
@@ -969,6 +992,48 @@ fn mounted_selection_current(
             snapshot.document.id == scope.document_id
                 && snapshot.session_epoch == scope.session_epoch
         })
+}
+
+fn remove_operation_feedback(outcome: &boardstudio_application::TerminalOutcome) -> String {
+    use boardstudio_application::TerminalOutcome;
+
+    match outcome {
+        TerminalOutcome::Completed => "Placement removed.".into(),
+        TerminalOutcome::Rejected(message)
+        | TerminalOutcome::PersistenceFailed(message)
+        | TerminalOutcome::BlockedByRecovery(message)
+        | TerminalOutcome::ExecutorFailed(message) => message.clone(),
+        TerminalOutcome::Superseded => {
+            "Placement removal was superseded before it completed.".into()
+        }
+        TerminalOutcome::Cancelled => "Placement removal was cancelled.".into(),
+        TerminalOutcome::Closed => {
+            "Placement removal was interrupted because the editor closed.".into()
+        }
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod remove_feedback_tests {
+    use super::remove_operation_feedback;
+    use boardstudio_application::TerminalOutcome;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    #[wasm_bindgen_test]
+    fn removal_feedback_reports_the_terminal_edit_result() {
+        assert_eq!(
+            remove_operation_feedback(&TerminalOutcome::Completed),
+            "Placement removed."
+        );
+        assert_eq!(
+            remove_operation_feedback(&TerminalOutcome::Rejected("still referenced".into())),
+            "still referenced"
+        );
+        assert_eq!(
+            remove_operation_feedback(&TerminalOutcome::PersistenceFailed("disk full".into())),
+            "disk full"
+        );
+    }
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]

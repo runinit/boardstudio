@@ -792,7 +792,7 @@
         {
           "id": "F2.3-C03",
           "requirement": "Compact breakpoint drawers include scrim/close/Escape/focus return and exclude hidden content from focus.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/panels.rs:35",
@@ -800,9 +800,11 @@
             "web/src/presentation/panels.rs:334",
             "web/src/presentation/panels.rs:488"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/compact-shell-parity-20261003/f23-public-qualification.md"
+          ],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Verified on packaged source 14434d50: Objects and Inspect compact drawers close on trigger-focused Escape, restore focus and remove the scrim; the prior Close-button and hidden-content checks are retained. F2.3-C01/C02/C04 remain separate.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/panels.rs"
@@ -3916,7 +3918,7 @@
             ".scratch/dioxus-pcb-view/evidence/24-module-source-route-20261003/receipt.md"
           ],
           "blockers": [],
-          "next_action": "Source 8c4c7db9 adds scope/token-bound PCB finding focus and reveals its owning module outline/clearances through hidden module layers. At the batched milestone, exercise marker click/keyboard, Escape, board switch and unchanged saved layer visibility; keep the criterion open until that route is paired.",
+          "next_action": "Packaged source 14434d50 reveals the owning hidden module outline on keyboard finding focus; Escape and host-finding focus restore visibility without changing layer settings. Reuse that receipt. Qualify pointer activation through the actual finding-list action, a board switch and a fixture with nonempty clearance geometry. The React SVG marker is decorative (pointer-events:none), so do not retry clicking its polygon as a parity requirement.",
           "finish_condition": "Paired evidence proves independent visibility and focused finding visibility override without altering project data.",
           "owned_files": [
             "web/src/presentation/pcb_scene.rs",
@@ -4381,11 +4383,12 @@
           "classification": "functional",
           "sources": [
             "web/src/presentation/pcb_board_reference.rs",
+            "web/src/presentation/pcb_board_reference/matching.rs",
             "web/src/presentation/board_reference_effect.rs"
           ],
           "evidence": [],
           "blockers": [],
-          "next_action": "Qualify individual/directory attachments, pose/enabled edits, asset identity and save/reopen with same project archive.",
+          "next_action": "A focused RED/GREEN regression now confirms one uniquely matched directory file attaches to every routed path with that basename; combined page compile passes. Qualify individual/directory attachments, pose/enabled edits, asset identity and save/reopen with the same project archive on the batched candidate.",
           "finish_condition": "Paired evidence confirms SHA-256 asset bytes/identity and board reference mappings after reload.",
           "owned_files": [
             "web/src/presentation/pcb_board_reference.rs",
@@ -5843,7 +5846,7 @@
         {
           "id": "F6.6-C02",
           "requirement": "Compare pinned React and Dioxus public workflows on identical saved fixtures for selection, layers/bindings/macros/encoders, and legacy quick bindings.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/keymap.rs",
@@ -5852,10 +5855,12 @@
           ],
           "evidence": [
             ".scratch/dioxus-keymap-layers/evidence/encoder-public-workflow/RESULTS.md",
-            ".scratch/dioxus-keymap-layers/evidence/shared-footer-20261003/RESULTS.md"
+            ".scratch/dioxus-keymap-layers/evidence/shared-footer-20261003/RESULTS.md",
+            ".scratch/dioxus-keymap-layers/evidence/F6.6-C02-quick-binding-join-20261004/RESULTS.md",
+            ".scratch/dioxus-keymap-layers/evidence/binding-editor-reference/README.md"
           ],
           "blockers": [],
-          "next_action": "Reuse retained paired selection/layer/binding/macro/encoder journeys; complete the integrated quick-binding comparison and remaining F6 joins.",
+          "next_action": "Retain paired selection/layer/binding/macro/encoder evidence and the 34799 same-fixture legacy PCB quick binding\u2192typed Main edit, Undo/Redo and reload join. Continue separate F6.6 criteria and F5/F7/F8 parent joins without repeating C02.",
           "finish_condition": "Paired public journeys on equivalent saved fixtures show the listed Keymap and PCB quick-binding behavior.",
           "owned_files": [
             "web/src/presentation/keymap.rs",
@@ -6940,12 +6945,15 @@
           "state": "implemented",
           "classification": "functional",
           "sources": [
+            "web/src/case_gesture_preview.rs",
+            "web/src/runtime.rs",
             "web/src/presentation/case_viewer.rs",
+            "web/src/presentation/shared_viewer.rs",
             "web/src/presentation/mechanical_settings_controller.rs"
           ],
           "evidence": [],
           "blockers": [],
-          "next_action": "Inspect gesture branches against current fit outcomes, then capture valid/invalid/canceled movement and rejected non-commit.",
+          "next_action": "Scoped live-only Case draft geometry now uses the existing Core/CAD preview path. The focused owner-state supersession test passes; Runtime orchestration and actual valid/invalid/canceled drag, rejected non-commit and accepted history need one public candidate journey before verification.",
           "finish_condition": "Invalid movement remains preview-only and does not partially modify accepted document; each transient state is visible.",
           "owned_files": [
             "web/src/presentation/case_viewer.rs"

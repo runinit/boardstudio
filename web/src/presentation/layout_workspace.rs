@@ -52,6 +52,8 @@ pub(super) struct InspectorInput {
     pub(super) key_size: objects::KeySizeMount,
     pub(super) matrix_transform_inspector: objects::MatrixTransformInspectorMount,
     pub(super) on_pick_splay_origin: EventHandler<()>,
+    pub(super) splay_origin_pick_pending: bool,
+    pub(super) on_cancel_splay_origin_pick: EventHandler<()>,
     pub(super) inspector_tab: Signal<LayoutInspectorTab>,
     pub(super) matrix_relationship_summary: Option<String>,
     pub(super) matrix_relationship_target: Option<objects::TreeSelectRequest>,
@@ -153,6 +155,10 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
 pub(super) fn inspector(mut input: InspectorInput) -> Element {
     if let Some(page) = input.findings_page.filter(|page| page.open) {
         return rsx! {
+            PendingSplayOriginPickEscape {
+                pending: input.splay_origin_pick_pending,
+                on_cancel: input.on_cancel_splay_origin_pick,
+            }
             super::layout_findings::LayoutFindingsInspector {
                 open: page.open,
                 document: page.document,
@@ -165,6 +171,10 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
     }
     if input.geometry_scripts_open {
         return rsx! {
+            PendingSplayOriginPickEscape {
+                pending: input.splay_origin_pick_pending,
+                on_cancel: input.on_cancel_splay_origin_pick,
+            }
             super::geometry_scripts::GeometryScriptsEditor {
                 on_back: input.on_close_geometry_scripts,
             }
@@ -178,6 +188,10 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
     let show_matrix_relations =
         matrix_context_tabs && (input.inspector_tab)() == LayoutInspectorTab::Relations;
     rsx! {
+        PendingSplayOriginPickEscape {
+            pending: input.splay_origin_pick_pending,
+            on_cancel: input.on_cancel_splay_origin_pick,
+        }
         if input.outline_inspector.is_none() && input.component_inspector.is_none() {
         if let Some(title) = input.context_title.as_ref() {
             section { class: if board_context_header { "m1-selected-context m1-board-context" } else { "m1-selected-context" }, "aria-label": "Selected context",
@@ -261,5 +275,148 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
                 }
             }
         }
+    }
+}
+
+#[component]
+fn PendingSplayOriginPickEscape(pending: bool, on_cancel: EventHandler<()>) -> Element {
+    #[cfg(target_arch = "wasm32")]
+    {
+        use std::{cell::RefCell, rc::Rc};
+        use wasm_bindgen::{JsCast, closure::Closure};
+
+        type Listener = Rc<
+            RefCell<
+                Option<(
+                    web_sys::Document,
+                    Closure<dyn FnMut(web_sys::KeyboardEvent)>,
+                )>,
+            >,
+        >;
+
+        let listener = use_hook(Listener::default);
+        use_effect(use_reactive((&pending,), {
+            let listener = listener.clone();
+            move |(pending,)| {
+                if let Some((document, callback)) = listener.borrow_mut().take() {
+                    let _ = document.remove_event_listener_with_callback(
+                        "keydown",
+                        callback.as_ref().unchecked_ref(),
+                    );
+                }
+                if !pending {
+                    return;
+                }
+                let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+                    return;
+                };
+                let callback = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
+                    if event.key() != "Escape" || event.default_prevented() {
+                        return;
+                    }
+                    if event
+                        .target()
+                        .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
+                        .is_some_and(|target| {
+                            target
+                                .closest("input, textarea, select, [contenteditable='true']")
+                                .ok()
+                                .flatten()
+                                .is_some()
+                        })
+                    {
+                        return;
+                    }
+                    event.prevent_default();
+                    event.stop_propagation();
+                    on_cancel.call(());
+                }) as Box<dyn FnMut(_)>);
+                let _ = document
+                    .add_event_listener_with_callback("keydown", callback.as_ref().unchecked_ref());
+                *listener.borrow_mut() = Some((document, callback));
+            }
+        }));
+        use_drop({
+            let listener = listener.clone();
+            move || {
+                if let Some((document, callback)) = listener.borrow_mut().take() {
+                    let _ = document.remove_event_listener_with_callback(
+                        "keydown",
+                        callback.as_ref().unchecked_ref(),
+                    );
+                }
+            }
+        });
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = (pending, on_cancel);
+
+    rsx! {}
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod origin_pick_escape_regression_tests {
+    use super::*;
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::*;
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    #[component]
+    fn pending_pick_host() -> Element {
+        let mut pending = use_signal(|| false);
+        rsx! {
+            PendingSplayOriginPickEscape {
+                pending: pending(),
+                on_cancel: EventHandler::new(move |()| pending.set(false)),
+            }
+            button {
+                id: "arm-origin-pick",
+                onclick: move |_| pending.set(true),
+                "Pick origin"
+            }
+            output { id: "pending-origin-pick", "{pending()}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn escape_from_inspector_cancels_pending_origin_pick() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(pending_pick_host);
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(40).await;
+
+        root.query_selector("#arm-origin-pick")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        let options = web_sys::KeyboardEventInit::new();
+        options.set_key("Escape");
+        document
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &options)
+                    .unwrap(),
+            )
+            .unwrap();
+        gloo_timers::future::TimeoutFuture::new(40).await;
+
+        assert_eq!(
+            root.query_selector("#pending-origin-pick")
+                .unwrap()
+                .unwrap()
+                .text_content()
+                .as_deref(),
+            Some("false"),
+            "Escape from the Inspector must clear the pending canvas pick"
+        );
+        root.remove();
     }
 }

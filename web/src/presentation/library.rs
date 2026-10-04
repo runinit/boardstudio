@@ -642,6 +642,7 @@ pub(super) fn Library(
     let no_search_matches = cards.is_empty() && !query.trim().is_empty();
     let import = runtime.clone();
     let menu_import = import.clone();
+    let menu_save_copy = runtime.clone();
     let current_name_for_blur = current_name.clone();
     let rename_action_for_blur = name_action.clone();
     let mut guide_request = project_created;
@@ -683,6 +684,15 @@ pub(super) fn Library(
                         button { class: "m1-library-new", r#type: "button", disabled: pending_new().is_some(), onclick: move |_| start_new_menu_top(),
                             svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M10 3v14M3 10h14" } }
                             "New project"
+                        }
+                        if has_current {
+                            button { class: "m1-project-copy-action", r#type: "button", title: "Save project copy…", onclick: move |_| {
+                                super::close_project_menu();
+                                menu_save_copy.export_project_copy();
+                            },
+                                svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M10 2v11m-4-4 4 4 4-4M3 14v3h14v-3" } }
+                                "Save project copy…"
+                            }
                         }
                         label { class: "m1-project-menu-open",
                             svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M2 6V4h6l2 2h8v3M2 6v11h14l2-8H5l-3 8" } }
@@ -1368,6 +1378,37 @@ mod mounted_tests {
                 .clone()
                 .expect("the mounted Library publishes the action used by its name field")
         })
+    }
+
+    #[wasm_bindgen_test]
+    async fn project_menu_exposes_the_whole_project_copy_action() {
+        remove_test_root("project-copy-mounted-regression");
+        let (session, core) = accepted(ProjectDoc::empty(
+            "project-copy-ui",
+            "Project copy keyboard",
+        ));
+        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        let root = mount_menu(runtime, "project-copy-mounted-regression");
+        settle().await;
+
+        let copy = root
+            .query_selector(".m1-project-copy-action")
+            .unwrap()
+            .expect("the Project menu exposes Save project copy");
+        assert_eq!(copy.text_content().unwrap().trim(), "Save project copy…");
+
+        copy.dyn_into::<web_sys::HtmlElement>().unwrap().click();
+        settle().await;
+        let menu = root
+            .query_selector("details.m1-project-menu")
+            .unwrap()
+            .unwrap();
+        assert!(
+            !menu.has_attribute("open"),
+            "starting a project copy closes the menu"
+        );
+        remove_test_root("project-copy-mounted-regression");
     }
 
     #[wasm_bindgen_test]

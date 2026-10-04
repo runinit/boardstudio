@@ -487,7 +487,9 @@ fn StepEditor(props: StepEditorProps) -> Element {
                     label: "Keycode", aria_label: crate::macro_accessible_names::step_value_control_name(false).to_owned(),
                     accepted: keycode, identity: format!("{}:keycode:{}", identity, keycode_identity), enabled: props.enabled,
                     trim_on_commit: true,
-                    commit_if_unchanged: true,
+                    // React skips an unchanged valid keycode, but blurring an
+                    // unsupported legacy binding normalizes it to a key press.
+                    commit_if_unchanged: step_keycode_requires_normalization(&accepted_step),
                     on_commit: { let context = request_context.clone(); let accepted = accepted_step.clone(); let macro_id = macro_id.clone(); let sequence = sequence.clone(); EventHandler::new(move |keycode: String| {
                         let value = match accepted {
                             MacroStep::Tap { .. } => MacroStep::Tap { binding: boardstudio_core::model::KeyBinding::KeyPress { keycode } },
@@ -600,6 +602,19 @@ fn step_kind(step: &MacroStep) -> &'static str {
     }
 }
 
+fn step_keycode_requires_normalization(step: &MacroStep) -> bool {
+    !matches!(
+        step,
+        MacroStep::Tap {
+            binding: boardstudio_core::model::KeyBinding::KeyPress { .. }
+        } | MacroStep::Press {
+            binding: boardstudio_core::model::KeyBinding::KeyPress { .. }
+        } | MacroStep::Release {
+            binding: boardstudio_core::model::KeyBinding::KeyPress { .. }
+        }
+    )
+}
+
 fn tap_a() -> MacroStep {
     MacroStep::Tap {
         binding: boardstudio_core::model::KeyBinding::KeyPress {
@@ -627,14 +642,21 @@ mod mounted_accessible_name_tests {
     use super::*;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
     use boardstudio_core::model::{KeyBinding, KeymapConfiguration, KeymapLayer, KeymapMacro};
-    use wasm_bindgen::JsValue;
+    use std::cell::RefCell;
+    use wasm_bindgen::{JsCast, JsValue};
     use wasm_bindgen_test::*;
-    use web_sys::Element as DomElement;
+    use web_sys::{Element as DomElement, HtmlInputElement};
 
     wasm_bindgen_test_configure!(run_in_browser);
 
+    #[derive(Clone)]
+    struct Probe {
+        requests: Rc<RefCell<Vec<MacroEditRequest>>>,
+    }
+
     #[component]
     fn fixture() -> Element {
+        let probe = use_context::<Probe>();
         let steps: Rc<[MacroStep]> = Rc::from(vec![
             MacroStep::Tap {
                 binding: KeyBinding::KeyPress {
@@ -682,14 +704,16 @@ mod mounted_accessible_name_tests {
                 request_sequence,
                 enabled: true,
                 feedback: None,
-                on_change: EventHandler::new(|_: MacroEditRequest| {}),
+                on_change: EventHandler::new(move |request| {
+                    probe.requests.borrow_mut().push(request);
+                }),
             }
         }
     }
 
     #[wasm_bindgen_test]
     async fn mounted_macro_editor_uses_display_and_visible_field_names() {
-        let root = mount();
+        let (root, _) = mount();
         settle().await;
 
         assert!(element("select[aria-label='Macro 1 step 1']").is_ok());
@@ -701,16 +725,40 @@ mod mounted_accessible_name_tests {
         root.remove();
     }
 
-    fn mount() -> DomElement {
+    #[wasm_bindgen_test]
+    async fn unchanged_valid_step_keycode_blur_does_not_submit_a_macro_edit() {
+        let (root, requests) = mount();
+        settle().await;
+
+        let input: HtmlInputElement = root
+            .query_selector("input[aria-label='Keycode']")
+            .unwrap()
+            .unwrap()
+            .dyn_into()
+            .unwrap();
+        input.focus().unwrap();
+        input.blur().unwrap();
+        settle().await;
+
+        assert!(requests.borrow().is_empty());
+        root.remove();
+    }
+
+    fn mount() -> (DomElement, Rc<RefCell<Vec<MacroEditRequest>>>) {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         root.set_id("keymap-macro-label-test-root");
         document.body().unwrap().append_child(&root).unwrap();
+        let requests = Rc::new(RefCell::new(Vec::new()));
+        let virtual_dom = VirtualDom::new(fixture);
+        virtual_dom.provide_root_context(Probe {
+            requests: requests.clone(),
+        });
         dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(fixture),
+            virtual_dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        root
+        (root, requests)
     }
 
     async fn settle() {

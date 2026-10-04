@@ -22,3 +22,11 @@ This source inventory supports draft children 14–16. It records available serv
 ## Parent and refactoring boundaries
 
 F4.5's current task-graph start edge remains F4.1 and its full acceptance join remains INT.2. These children refine work without changing the 62-parent graph or declaring F4.5 complete. Case fit/fabrication acceptance remains F7. Preserve RF-001/RF-009 existing takeaways for the shared presentation/Runtime hotspot and parity accounting; this inventory asserts no new RF finding.
+
+## F4.5-C02 — KiCad source mapping and saved profile follow-up — 2026-10-04
+
+Paired public UI journey used candidate `http://127.0.0.1:34800/`, build `frontend-functional-batch-20261004`, source `14434d50` (coordinator-confirmed `/boardstudio` HTML/JS hashes), and read-only TypeScript reference `http://127.0.0.1:5175/`, pinned source `5a472a9426e6e38993361da402cd4ec730feb369`. Owned sessions were `f45-c02-dioxus` and `f45-c02-reference`. Both used a fresh Sofle v2 project and the existing imported fixture `THQWGD001C [4pin] [Reversible].kicad_mod`.
+
+In both Parts editors, `Read KiCad layers` exposed the source primitives and purpose controls. Mapping `geometry-58` (Dwgs.User rectangle) to Plate cutout and `geometry-59` (Dwgs.User rectangle) to Clearance envelope, then using `Apply selected geometry`, populated the same draft with one four-vertex cutout and one four-vertex clearance. The observed coordinates matched across apps: cutout corners ±9.5 mm; clearance corners X −8.9/−3.65 mm and Y ±7 mm. Save closed the editor and exposed `Edit profile`; one Undo returned to `Define profile`, Redo restored `Edit profile`, and reopening the editor retained both contours and their coordinates in each app. This verifies the paired extraction-to-profile-draft and profile edit/Undo/Redo/reopen path on this fixture.
+
+On Dioxus, an exploratory attempt to map the fixture's oval `pad-0-drill` as a PCB mounting hole returned the local message `Mapped PCB mounting drill pad-0-drill must be circular`; clearing that unsupported mapping and retrying the supported rectangle mappings succeeded. No stale-selection race was observable: extraction completed within the immediate UI action sequence, and no public latency injection was available. This receipt makes no stale-selection runtime claim and does not close F4.5 or its INT.2 join.

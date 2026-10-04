@@ -51,6 +51,10 @@ production cutover and React removal retain their separate authorization/gates.
    For an interactive slice, its finish condition names the originating control,
    destination workspace/editor, observable edit result and scope change behavior;
    rendering or selecting an object alone does not complete that journey.
+   When the functional implementation queue is empty, probe one unverified user
+   action per workbench against the pinned reference. Turn a reproduced gap into a
+   missing criterion and repair it directly; do not repeat a broad source audit or
+   create an issue for behavior already mounted.
 3. Implement mounted behavior with explicit file ownership. Authors normally use their
    assigned isolates; the coordinator may grant disjoint edit-only leases in its checkout
    for a single batch, retaining sole commit/build ownership. Inspect overlapping edits.
@@ -71,7 +75,12 @@ production cutover and React removal retain their separate authorization/gates.
    pinned TypeScript reference, reuse unchanged evidence, and use one consolidated
    Sol 6.1 High review. Keep broader lifecycle, visual parity and release qualification
    queued until their owning milestone. Other streams continue during qualification.
-   Earlier Layout-ready qualification remains historical evidence.
+   Use one paired saved fixture/session per workbench milestone to cover several
+   related controls and edits, then point every satisfied criterion to that one
+   receipt. Do not repeat successful setup or unchanged branches for each criterion.
+   An unavailable fault-injection route stays explicitly unqualified; repeated
+   attempts with the same mechanism add no evidence. Earlier Layout-ready
+   qualification remains historical evidence.
 7. Accept a parent only from its actual criterion verdict and final joins. The
    [acceptance requirements](docs/migration/ACCEPTANCE-REQUIREMENTS.md) retain behavior,
    compatibility, accessibility, performance and retirement gates. Report parents,
