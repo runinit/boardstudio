@@ -49,6 +49,13 @@ pub(crate) type LoadSwitchProfilePort = Rc<
     ) -> LocalFuture<Result<MechanicalPartProfile, String>>,
 >;
 
+#[derive(Clone, Copy)]
+enum ProfileTargetKind {
+    Switch,
+    Stabilizer,
+    ImportedGeometry,
+}
+
 /// The page copies only accepted Arc handles and the small configuration projection displayed
 /// by the controls. `editable` must be computed from the current Runtime, workspace,
 /// physical-instance, readiness, preview, gesture, lifecycle and durability admission guards.
@@ -483,13 +490,12 @@ impl MechanicalSettingsController {
                             &request.identity.active_board_id,
                             &configuration,
                             definition_id,
-                            true,
+                            ProfileTargetKind::Switch,
                         )?;
                         let existing_family = profile_family(&configuration).or_else(|| {
                             initial_switch_family(base_document, &configuration.board_id)
                         });
-                        let family_changed =
-                            existing_family.is_some_and(|current| current != *family);
+                        let family_changed = family_assignment_changes(existing_family, *family);
                         let plate_thickness = if family_changed {
                             default_plate_thickness(*family)
                         } else {
@@ -546,7 +552,7 @@ impl MechanicalSettingsController {
                             &request.identity.active_board_id,
                             &configuration,
                             definition_id,
-                            true,
+                            ProfileTargetKind::Stabilizer,
                         )?;
                         let mut profile = (ports.load_switch_profile)(
                             definition_id.clone(),
@@ -572,7 +578,7 @@ impl MechanicalSettingsController {
                             &request.identity.active_board_id,
                             &configuration,
                             definition_id,
-                            false,
+                            ProfileTargetKind::ImportedGeometry,
                         )?;
                         let definition = base_document
                             .definitions
@@ -743,7 +749,7 @@ fn validate_profile_target(
     board_id: &str,
     configuration: &MechanicalConfiguration,
     definition_id: &str,
-    switch_profile: bool,
+    target_kind: ProfileTargetKind,
 ) -> Result<(), String> {
     if configuration.board_id != board_id {
         return Err("The mechanical configuration belongs to another board.".into());
@@ -769,13 +775,14 @@ fn validate_profile_target(
         .iter()
         .find(|definition| definition.id == definition_id);
     let eligible = match (part, definition) {
-        (Some(_), Some(definition)) if switch_profile => {
+        (Some(_), Some(definition)) if matches!(target_kind, ProfileTargetKind::Switch) => {
             definition.kind == PartKind::Switch
                 || definition
                     .generator
                     .as_ref()
                     .is_some_and(|generator| generator.source.ends_with("/switch_choc_v1_v2"))
         }
+        (Some(_), Some(_)) if matches!(target_kind, ProfileTargetKind::Stabilizer) => true,
         (Some(_), Some(definition)) => definition.kicad_source.is_some(),
         _ => false,
     };
@@ -2145,6 +2152,13 @@ fn default_plate_thickness(family: MechanicalSwitchFamily) -> f64 {
     }
 }
 
+fn family_assignment_changes(
+    existing_family: Option<MechanicalSwitchFamily>,
+    selected_family: MechanicalSwitchFamily,
+) -> bool {
+    existing_family != Some(selected_family)
+}
+
 fn mounting_datum(family: MechanicalSwitchFamily) -> f64 {
     if family == MechanicalSwitchFamily::ChocV1 {
         3.5
@@ -2276,6 +2290,7 @@ fn resize_closure_insert(hardware: &mut InternalClosureHardware, id: &str) -> Re
 #[cfg(test)]
 mod battery_patch_tests {
     use super::*;
+    use boardstudio_core::model::{Board, Part, PartDefinition, Pose2, Side};
     use wasm_bindgen_test::wasm_bindgen_test;
 
     fn configuration() -> MechanicalConfiguration {
@@ -2323,7 +2338,7 @@ mod battery_patch_tests {
                 "board",
                 &other_board_configuration,
                 "switch",
-                true,
+                ProfileTargetKind::Switch,
             )
             .unwrap_err()
             .contains("another board")
@@ -2346,10 +2361,91 @@ mod battery_patch_tests {
                 plate_to_pcb: 3.5,
             });
         assert!(
-            validate_profile_target(&document, "board", &duplicate_configuration, "switch", true,)
-                .unwrap_err()
-                .contains("already assigned")
+            validate_profile_target(
+                &document,
+                "board",
+                &duplicate_configuration,
+                "switch",
+                ProfileTargetKind::Switch,
+            )
+            .unwrap_err()
+            .contains("already assigned")
         );
+    }
+
+    fn placed_custom_stabilizer_document() -> ProjectDoc {
+        let mut document = ProjectDoc::empty("doc", "doc");
+        document.boards.push(Board {
+            id: "board".into(),
+            name: "Board".into(),
+            outline_ids: vec![],
+            part_ids: vec!["stabilizer-part".into()],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        document.parts.push(Part {
+            keycap: None,
+            outline: None,
+            id: "stabilizer-part".into(),
+            definition_id: "stab-mx-2u".into(),
+            reference: "STAB1".into(),
+            pose: Pose2 {
+                at: Vec2 { x: 0.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            locked: None,
+            properties: None,
+            generator_parameters: None,
+        });
+        document.definitions.push(PartDefinition {
+            hardware_profile: None,
+            input_profile: None,
+            id: "stab-mx-2u".into(),
+            name: "STAB_MX_2u".into(),
+            kind: PartKind::Custom,
+            keycap: None,
+            envelope_source: None,
+            kicad_source: None,
+            terminals: Default::default(),
+            matrix_terminals: None,
+            envelope_notice: None,
+            courtyard: vec![],
+            pads: vec![],
+            models: None,
+            generator: None,
+            mechanical_profile: None,
+        });
+        document
+    }
+
+    #[wasm_bindgen_test]
+    fn stabilizer_profile_accepts_a_placed_custom_definition() {
+        let document = placed_custom_stabilizer_document();
+        assert!(
+            validate_profile_target(
+                &document,
+                "board",
+                &configuration(),
+                "stab-mx-2u",
+                ProfileTargetKind::Stabilizer,
+            )
+            .is_ok()
+        );
+    }
+
+    #[wasm_bindgen_test]
+    fn first_switch_profile_family_assignment_is_treated_as_a_family_change() {
+        assert!(family_assignment_changes(
+            None,
+            MechanicalSwitchFamily::ChocV1
+        ));
+        assert!(!family_assignment_changes(
+            Some(MechanicalSwitchFamily::ChocV1),
+            MechanicalSwitchFamily::ChocV1,
+        ));
     }
 
     #[wasm_bindgen_test]

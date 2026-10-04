@@ -2833,7 +2833,7 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                                 }
                             },
                             option { value: "", "Choose a placed switch type…" }
-                            for target in props.targets.iter().filter(|target| target.switch_profile) {
+                            for target in props.targets.iter() {
                                 option { value: "{target.definition_id}", "{target.name}" }
                             }
                         }
