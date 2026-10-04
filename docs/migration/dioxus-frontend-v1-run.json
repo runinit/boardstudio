@@ -49,7 +49,7 @@
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
       "source_commit": "e6c6a7016185054e773dc10f46f9ffcca1c4c308",
-      "state": "Published frontend-no-vik-filtered-20261003 at 34791 (source e6c6a701): compiler/package/root/subpath passed. Active roadmap has 61 parents/221 criteria; VIK demo/catalogue/new-part choices removed while an existing 33-part VIK archive reopened. Focused Parts filter regression RED/GREEN and public import/search replay passed. RF-019 deferred; RF-020 records project-definition catalogue leakage. One scoped Sol candidate review is pending.",
+      "state": "Published frontend-no-vik-filtered-20261003 at 34791 (source e6c6a701): compiler/package/root/subpath passed. Active roadmap has 61 parents/221 criteria; VIK demo/catalogue/new-part choices removed while an existing 33-part VIK archive reopened. Focused Parts filter regression RED/GREEN and public import/search replay passed. RF-019 deferred; RF-020 records project-definition catalogue leakage. Scoped consolidated Sol 6.1 High review passed; broader qualification remains open.",
       "packets": [
         {
           "stream": "Layout",
@@ -460,11 +460,11 @@
     },
     "execution_policy": "docs/agents/issue-tracker.md#frontend-delivery-records",
     "candidate_review": {
-      "candidate": "frontend-parts-search-feedback-20261003",
-      "review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/parts-search-review.md",
-      "review_sha256": "1077cf791c3d9a7e36dbb5af355324140333c913aa099ff8d37864555ca4af3a",
-      "state": "Parts query filtering/count/status source, focused regression, package and public replay PASS; broader parent coverage remains open.",
-      "previous_review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/module-attachment-review.md"
+      "candidate": "frontend-no-vik-filtered-20261003",
+      "review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/candidate-34791-review.md",
+      "review_sha256": "e5c56222c6e0644358bbb251d86927f6646d874be6efaa9e698eb01d16311675",
+      "state": "Standards PASS; scoped Spec PASS; no material findings. Remaining parent and qualification gates stay open.",
+      "previous_review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/parts-search-review.md"
     },
     "parent_acceptances": [
       {
@@ -1527,7 +1527,9 @@
       "started_at": "2026-10-04T03:15:41.812862+00:00",
       "review": {
         "profile": "sol-review",
-        "state": "pending"
+        "state": "scoped candidate review passed; broader journeys remain open",
+        "receipt": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/candidate-34791-review.md",
+        "sha256": "e5c56222c6e0644358bbb251d86927f6646d874be6efaa9e698eb01d16311675"
       }
     },
     "delivery_priority": {
