@@ -14,7 +14,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Durability, Event, Lifecycle, Scope};
 use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, ProjectDoc};
 use dioxus::prelude::*;
-use std::{cell::Cell, rc::Rc};
+use std::{cell::Cell, future::Future, pin::Pin, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
 
 use super::{
@@ -768,11 +768,74 @@ pub(in crate::presentation) struct PcbWiringMount {
     pub on_resolve: EventHandler<()>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::presentation) enum WiringResolutionNotice {
+    Pending,
+    Failed(String),
+    Waiting,
+}
+
+impl WiringResolutionNotice {
+    pub(in crate::presentation) fn role(&self) -> &'static str {
+        match self {
+            Self::Pending | Self::Waiting => "status",
+            Self::Failed(_) => "alert",
+        }
+    }
+}
+
+pub(in crate::presentation) fn wiring_resolution_notice(
+    resolution: &PcbWiringResolution,
+    identity: &WiringPlanIdentity,
+) -> WiringResolutionNotice {
+    match resolution {
+        PcbWiringResolution::Pending { identity: owner } if owner == identity => {
+            WiringResolutionNotice::Pending
+        }
+        PcbWiringResolution::Failed {
+            identity: owner,
+            message,
+        } if owner == identity => WiringResolutionNotice::Failed(message.clone()),
+        PcbWiringResolution::Current {
+            identity: owner, ..
+        } if owner == identity => WiringResolutionNotice::Waiting,
+        _ => WiringResolutionNotice::Waiting,
+    }
+}
+
 /// Keep the board-plan query alive at Editor lifetime, regardless of the selected component
 /// or which workspace is currently visible. Call this hook unconditionally in the page parent.
 pub(in crate::presentation) fn use_pcb_wiring_controller(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
+) -> PcbWiringMount {
+    let current: Rc<dyn Fn() -> Option<(WiringPlanIdentity, AcceptedSnapshot, Scope)>> = {
+        let runtime = runtime.clone();
+        Rc::new(move || current_input(&runtime))
+    };
+    let resolve: WiringResolver = Rc::new(move |accepted, scope| {
+        let runtime = runtime.clone();
+        Box::pin(async move { runtime.resolve_electrical_preview(accepted, scope).await })
+    });
+    use_pcb_wiring_resolution_owner(version, current, resolve)
+}
+
+type WiringInput = (WiringPlanIdentity, AcceptedSnapshot, Scope);
+type WiringResolver = Rc<
+    dyn Fn(
+        AcceptedSnapshot,
+        Scope,
+    ) -> Pin<
+        Box<dyn Future<Output = Result<boardstudio_core::electrical::ElectricalPlan, String>>>,
+    >,
+>;
+
+/// The Runtime-facing hook delegates through this private seam so the mounted owner can be
+/// qualified with controlled replies without changing production admission or settlement.
+fn use_pcb_wiring_resolution_owner(
+    version: Signal<u64>,
+    current_input: Rc<dyn Fn() -> Option<WiringInput>>,
+    resolver: WiringResolver,
 ) -> PcbWiringMount {
     let resolution = use_signal(|| PcbWiringResolution::Idle);
     let latest_request = use_hook(|| Rc::new(Cell::new(0_u64)));
@@ -785,16 +848,18 @@ pub(in crate::presentation) fn use_pcb_wiring_controller(
     // Runtime is deliberately not a Dioxus signal. The page's existing version signal wakes
     // this projection after Runtime notifications; identical board identity is deduplicated.
     let _runtime_version = version();
-    let identity = current_input(&runtime).map(|(identity, _, _)| identity);
+    let identity = current_input().map(|(identity, _, _)| identity);
     use_effect(use_reactive((&identity, &_runtime_version), {
-        let runtime = runtime.clone();
+        let current_input = current_input.clone();
+        let resolver = resolver.clone();
         let mut resolution = resolution;
         let latest_request = latest_request.clone();
         let alive = alive.clone();
         move |(identity, _version)| {
             if identity.is_some() {
                 start_resolution(
-                    runtime.clone(),
+                    current_input.clone(),
+                    resolver.clone(),
                     resolution,
                     latest_request.clone(),
                     alive.clone(),
@@ -808,12 +873,14 @@ pub(in crate::presentation) fn use_pcb_wiring_controller(
     }));
 
     let on_resolve = use_callback({
-        let runtime = runtime.clone();
+        let current_input = current_input.clone();
+        let resolver = resolver.clone();
         let latest_request = latest_request.clone();
         let alive = alive.clone();
         move |()| {
             start_resolution(
-                runtime.clone(),
+                current_input.clone(),
+                resolver.clone(),
                 resolution,
                 latest_request.clone(),
                 alive.clone(),
@@ -863,7 +930,8 @@ fn current_input(runtime: &Runtime) -> Option<(WiringPlanIdentity, AcceptedSnaps
 }
 
 fn start_resolution(
-    runtime: Rc<Runtime>,
+    current_input: Rc<dyn Fn() -> Option<WiringInput>>,
+    resolver: WiringResolver,
     mut resolution: Signal<PcbWiringResolution>,
     latest_request: Rc<Cell<u64>>,
     alive: Rc<Cell<bool>>,
@@ -872,7 +940,7 @@ fn start_resolution(
     if !alive.get() {
         return;
     }
-    let Some((identity, accepted, scope)) = current_input(&runtime) else {
+    let Some((identity, accepted, scope)) = current_input() else {
         invalidate_pending(&latest_request);
         resolution.set(PcbWiringResolution::Idle);
         return;
@@ -896,11 +964,11 @@ fn start_resolution(
     });
     spawn_local(async move {
         let mut resolution = resolution;
-        let result = runtime.resolve_electrical_preview(accepted, scope).await;
+        let result = resolver(accepted, scope).await;
         if !alive.get() || latest_request.get() != request_generation {
             return;
         }
-        let Some((current, _, _)) = current_input(&runtime) else {
+        let Some((current, _, _)) = current_input() else {
             resolution.set(PcbWiringResolution::Idle);
             return;
         };
@@ -928,4 +996,246 @@ fn next_request(sequence: &Cell<u64>) -> u64 {
 
 fn invalidate_pending(sequence: &Cell<u64>) {
     let _ = next_request(sequence);
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod mounted_resolution_tests {
+    use super::*;
+    use boardstudio_application::{SessionEpoch, SnapshotToken};
+    use boardstudio_core::electrical::{ElectricalMode, ElectricalPlan, ElectricalPlanRequest};
+    use boardstudio_core::model::{Readiness, SceneDelta};
+    use futures_channel::oneshot;
+    use std::{cell::RefCell, collections::VecDeque, sync::Arc};
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    type Reply = oneshot::Sender<Result<ElectricalPlan, String>>;
+
+    struct Probe {
+        version: Cell<u64>,
+        input: RefCell<Option<WiringInput>>,
+        replies: RefCell<VecDeque<Reply>>,
+        calls: Cell<usize>,
+        latest: RefCell<Option<PcbWiringMount>>,
+    }
+
+    fn board_input(board_id: &str, token: u64) -> WiringInput {
+        let document = ProjectDoc::empty("resolver-test", "Resolver test");
+        let identity = WiringPlanIdentity {
+            scope: Scope {
+                session_epoch: SessionEpoch(1),
+                document_id: document.id.clone(),
+                board_id: board_id.into(),
+                instance_id: None,
+            },
+            token: SnapshotToken(token),
+            revision: document.revision,
+            executor_epoch: 1,
+        };
+        let accepted = AcceptedSnapshot {
+            token: SnapshotToken(token),
+            session_epoch: SessionEpoch(1),
+            document: Arc::new(document.clone()),
+            scene: Arc::new(SceneDelta {
+                module_scenes: vec![],
+                revision: document.revision,
+                transaction_id: "resolver-test".into(),
+                changed_ids: vec![],
+                transforms: vec![],
+                matrix_scenes: vec![],
+                contours: vec![],
+                board_contours: vec![],
+                board_readiness: vec![],
+                board_outline_scenes: vec![],
+                finding_markers: vec![],
+                findings: vec![],
+                readiness: Readiness {
+                    layout: true,
+                    outline: true,
+                    pcb: true,
+                    case_ready: false,
+                },
+            }),
+        };
+        let scope = identity.scope.clone();
+        (identity, accepted, scope)
+    }
+
+    fn test_plan(board_id: &str, revision: u64) -> ElectricalPlan {
+        let mut plan = boardstudio_core::electrical::resolve(ElectricalPlanRequest {
+            document: ProjectDoc::empty("resolver-test", "Resolver test"),
+            instance_id: None,
+            mode: ElectricalMode::Matrix,
+            locks: Default::default(),
+            controller_profile: None,
+            board_id: Some(board_id.into()),
+            controller_part_id: None,
+        });
+        plan.revision = revision;
+        plan
+    }
+
+    fn host() -> Element {
+        let probe = use_context::<Rc<Probe>>();
+        let mut version = use_signal(|| probe.version.get());
+        if *version.peek() != probe.version.get() {
+            version.set(probe.version.get());
+        }
+        let current_probe = probe.clone();
+        let current: Rc<dyn Fn() -> Option<WiringInput>> =
+            Rc::new(move || current_probe.input.borrow().clone());
+        let resolver_probe = probe.clone();
+        let resolver: WiringResolver = Rc::new(move |_, _| {
+            resolver_probe.calls.set(resolver_probe.calls.get() + 1);
+            let (sender, receiver) = oneshot::channel();
+            resolver_probe.replies.borrow_mut().push_back(sender);
+            Box::pin(async move {
+                receiver
+                    .await
+                    .unwrap_or_else(|_| Err("test resolver reply dropped".into()))
+            })
+        });
+        let mount = use_pcb_wiring_resolution_owner(version, current, resolver);
+        *probe.latest.borrow_mut() = Some(mount.clone());
+        let identity = probe
+            .input
+            .borrow()
+            .as_ref()
+            .map(|(identity, _, _)| identity.clone());
+        let notice = identity
+            .as_ref()
+            .map(|identity| wiring_resolution_notice(&mount.resolution, identity));
+        rsx! {
+            div {
+                match notice {
+                    Some(WiringResolutionNotice::Pending) => rsx! { p { role: "status", "Resolving wiring…" } },
+                    Some(WiringResolutionNotice::Failed(message)) => rsx! { p { role: "alert", "{message}" } },
+                    _ => rsx! {},
+                }
+            }
+        }
+    }
+
+    fn flush(dom: &mut VirtualDom) {
+        dom.mark_all_dirty();
+        for _ in 0..5 {
+            dom.render_immediate_to_vec();
+            let mut work = std::pin::pin!(dom.wait_for_work());
+            let _ = work
+                .as_mut()
+                .poll(&mut std::task::Context::from_waker(std::task::Waker::noop()));
+        }
+    }
+
+    async fn tick(dom: &mut VirtualDom) {
+        gloo_timers::future::TimeoutFuture::new(20).await;
+        flush(dom);
+    }
+
+    async fn until_calls(probe: &Probe, dom: &mut VirtualDom, expected: usize) {
+        for _ in 0..20 {
+            if probe.calls.get() >= expected {
+                return;
+            }
+            tick(dom).await;
+        }
+        panic!(
+            "resolver was called {} times, expected {expected}",
+            probe.calls.get()
+        );
+    }
+
+    fn reply(probe: &Probe, result: Result<ElectricalPlan, String>) {
+        reply_at(probe, 0, result);
+    }
+
+    fn reply_at(probe: &Probe, index: usize, result: Result<ElectricalPlan, String>) {
+        probe
+            .replies
+            .borrow_mut()
+            .remove(index)
+            .expect("resolver call should have a pending reply")
+            .send(result)
+            .expect("mounted owner should still be awaiting the reply");
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_resolution_failure_is_visible_retryable_and_ignores_old_board_reply() {
+        let probe = Rc::new(Probe {
+            version: Cell::new(0),
+            input: RefCell::new(Some(board_input("left", 1))),
+            replies: RefCell::default(),
+            calls: Cell::new(0),
+            latest: RefCell::default(),
+        });
+        let mut dom = VirtualDom::new(host);
+        dom.provide_root_context(probe.clone());
+        dom.rebuild_to_vec();
+        flush(&mut dom);
+
+        until_calls(&probe, &mut dom, 1).await;
+        assert_eq!(
+            probe.latest.borrow().as_ref().map(|mount| {
+                wiring_resolution_notice(
+                    &mount.resolution,
+                    &probe.input.borrow().as_ref().unwrap().0,
+                )
+            }),
+            Some(WiringResolutionNotice::Pending)
+        );
+        reply(&probe, Err("injected Core resolution failure".into()));
+        tick(&mut dom).await;
+        assert_eq!(
+            probe.latest.borrow().as_ref().map(|mount| {
+                wiring_resolution_notice(
+                    &mount.resolution,
+                    &probe.input.borrow().as_ref().unwrap().0,
+                )
+            }),
+            Some(WiringResolutionNotice::Failed(
+                "injected Core resolution failure".into()
+            ))
+        );
+        assert_eq!(
+            WiringResolutionNotice::Failed("injected Core resolution failure".into()).role(),
+            "alert"
+        );
+
+        probe
+            .latest
+            .borrow()
+            .as_ref()
+            .expect("mounted owner should publish retry action")
+            .on_resolve
+            .call(());
+        until_calls(&probe, &mut dom, 2).await;
+        reply(&probe, Ok(test_plan("left", 0)));
+        tick(&mut dom).await;
+        assert!(matches!(
+            probe.latest.borrow().as_ref().unwrap().resolution,
+            PcbWiringResolution::Current { .. }
+        ));
+
+        // Start a forced Left request, then let the accepted input advance to Right. The Right
+        // request succeeds first; the delayed old-board reply must not replace that result.
+        probe.latest.borrow().as_ref().unwrap().on_resolve.call(());
+        until_calls(&probe, &mut dom, 3).await;
+        *probe.input.borrow_mut() = Some(board_input("right", 2));
+        probe.version.set(1);
+        tick(&mut dom).await;
+        until_calls(&probe, &mut dom, 4).await;
+        reply_at(&probe, 1, Ok(test_plan("right", 0)));
+        tick(&mut dom).await;
+        assert!(matches!(
+            probe.latest.borrow().as_ref().unwrap().resolution,
+            PcbWiringResolution::Current { ref identity, .. }
+                if identity.scope.board_id == "right"
+        ));
+        reply(&probe, Ok(test_plan("left", 0)));
+        tick(&mut dom).await;
+        assert!(matches!(
+            probe.latest.borrow().as_ref().unwrap().resolution,
+            PcbWiringResolution::Current { ref identity, .. }
+                if identity.scope.board_id == "right"
+        ));
+    }
 }

@@ -28,7 +28,8 @@ pub(in crate::presentation) use apply::{
     BoardWiringApplyActions, BoardWiringApplyFeedback, use_board_wiring_apply,
 };
 pub(in crate::presentation) use controller::{
-    use_firmware_position_edits, use_pcb_part_net_edits, use_pcb_wiring_controller,
+    WiringResolutionNotice, use_firmware_position_edits, use_pcb_part_net_edits,
+    use_pcb_wiring_controller, wiring_resolution_notice,
 };
 pub(in crate::presentation) use mode::{
     BoardWiringModeActions, BoardWiringModeEditRequest, BoardWiringModeFeedback,
@@ -795,17 +796,8 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
         }
         _ => None,
     };
-    let pending = matches!(
-        &props.resolution,
-        PcbWiringResolution::Pending { identity: plan_identity } if plan_identity == identity
-    );
-    let error = match &props.resolution {
-        PcbWiringResolution::Failed {
-            identity: plan_identity,
-            message,
-        } if plan_identity == identity => Some(message.as_str()),
-        _ => None,
-    };
+    let resolution_notice = wiring_resolution_notice(&props.resolution, identity);
+    let pending = matches!(resolution_notice, WiringResolutionNotice::Pending);
     let chosen_controller_id = display
         .configured_controller_id
         .as_deref()
@@ -937,12 +929,13 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                     }
                 }
             }
-            if pending {
-                p { role: "status", "Resolving wiring…" }
-            } else if let Some(error) = error {
-                p { role: "alert", "{error}" }
-            } else if matching_plan.is_none() {
-                p { role: "status", "Waiting for a current wiring plan." }
+            match &resolution_notice {
+                WiringResolutionNotice::Pending => rsx! { p { role: resolution_notice.role(), "Resolving wiring…" } },
+                WiringResolutionNotice::Failed(error) => rsx! { p { role: resolution_notice.role(), "{error}" } },
+                WiringResolutionNotice::Waiting if matching_plan.is_none() => {
+                    rsx! { p { role: "status", "Waiting for a current wiring plan." } }
+                }
+                WiringResolutionNotice::Waiting => rsx! {},
             }
             if matching_plan.is_some() && chosen_controller_id.is_some() {
                 div { class: "m1-pcb-wiring-pin-summary",
