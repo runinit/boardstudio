@@ -1176,16 +1176,18 @@
         {
           "id": "F3.2-C03",
           "requirement": "Add and place supported standalone components; preserve definitions, IDs, assets, cell overrides and board scope.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/objects.rs",
             "web/src/presentation/objects/matrix_setup.rs",
             "web/src/presentation/objects/matrix_setup_controller.rs"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-layout-authoring/evidence/f32-preset-placement-20261003/receipt.md"
+          ],
           "blockers": [],
-          "next_action": "Inspect current mounted standalone-component add/place path and compare preserved identity/definition/assets/overrides/scope to accepted projection; collect one focused public receipt.",
+          "next_action": "Retain paired JST J1 placement on Left PCB, one Undo/Redo, portable saved copies with baseline IDs/definitions/assets and 58 cell snapshots intact, plus new definition/model asset and left-only part association. Reimport remains C04 scope.",
           "finish_condition": "Supported standalone component add/place scenario demonstrates all listed identity and scope fields remain intact.",
           "owned_files": [
             "web/src/presentation/objects.rs",
