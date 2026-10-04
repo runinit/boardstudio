@@ -1542,15 +1542,17 @@
         {
           "id": "F3.4-C02",
           "requirement": "Draw additions, cutouts and supported bridges as drafts with live preview, point undo, finish and cancel; no draft writes durable geometry.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/outline_lifecycle.rs",
             "web/src/presentation/outline_snapping.rs"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-layout-authoring/evidence/f34e-manual-polygon-drafts-source-20261003.md"
+          ],
           "blockers": [],
-          "next_action": "Inspect current draft controller and existing receipts for each draft type, point undo, finish/cancel and durable-state isolation.",
+          "next_action": "Retain paired5175/34789 addition, cutout and Generated bridge preview, point Undo, cancel without accepted feature, and Finish with accepted feature. Integrated hit-area transform and paint-order repair captures clicks over key targets; no remaining C02 functional action.",
           "finish_condition": "Paired public scenarios cover addition, cutout and bridge draft preview/point undo/finish/cancel with no durable writes before finish.",
           "owned_files": [
             "web/src/presentation/outline_lifecycle.rs",

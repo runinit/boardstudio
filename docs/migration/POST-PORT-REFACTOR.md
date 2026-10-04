@@ -2110,7 +2110,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 ## RF-018: Canvas draft input and outline geometry use implicit competing coordinate frames
 
-**Status:** two-part private repair integrated 6619d5f2 and packaged34789; public post-fix draft qualification pending
+**Status:** two-part private repair integrated 6619d5f2, packaged34789 and paired public draft journey passed; coordinate-frame redesign remains post-port
 
 **Confidence:** confirmed public candidate hit-region defect; broader redesign is a proposal
 
@@ -2122,7 +2122,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Later proposal:** Define one explicit world-to-screen coordinate conversion and hit-region contract for interactive SVG overlays. Test pointer hit bounds against the canvas after zoom, pan and resize so geometry and input cannot silently diverge.
 
-**Validation:** On packaged34789, repeat addition, cutout and bridge drafts, including over-key clicks, point undo, finish/cancel and no durable draft writes; later check hit bounds under zoom/pan and viewport changes.
+**Validation:** Current addition/cutout/bridge pointer, point undo, finish/cancel and no accepted draft writes passed on packaged34789. Post-port audit should check hit bounds and pointer priority under zoom, pan and viewport changes.
 
 **Evidence:** `web/src/presentation/outline_lifecycle.rs`; `.scratch/dioxus-layout-authoring/evidence/f34e-manual-polygon-drafts-source-20261003.md`
 
@@ -2137,7 +2137,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
   "workflows": [
     "F3.4"
   ],
-  "decision": "Repair current functional blocker in private presentation code; defer shared coordinate-frame redesign until post-port refactor.",
+  "decision": "Current functional blocker repaired and publicly qualified; keep common coordinate-frame/hit-order contract for post-port refactor rather than widening a migration API.",
   "follow_up_owner": "F3.4/F9 canvas interaction refactor",
   "linked_tasks": [
     "F3.4"

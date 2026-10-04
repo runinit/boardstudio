@@ -1985,7 +1985,7 @@
       "category": "architecture / canvas input coordinate ownership",
       "confidence": "confirmed public candidate hit-region defect; broader redesign is a proposal",
       "impact_priority": "high",
-      "status": "two-part private repair integrated 6619d5f2 and packaged34789; public post-fix draft qualification pending",
+      "status": "two-part private repair integrated 6619d5f2, packaged34789 and paired public draft journey passed; coordinate-frame redesign remains post-port",
       "discovered": "2026-10-03",
       "baseline": "Dioxus candidate 924ba2820a6c0698fd06fb969d7cf4f28ae76ccd; pinned TypeScript 5a472a9426e6e38993361da402cd4ec730feb369",
       "workflows": [
@@ -1999,8 +1999,8 @@
       "impact": "Present controls could not receive pointer input, blocking preview, point undo and finish for three outline draft workflows despite their source handlers existing.",
       "during_port": "Counter-flip the draft input rectangle to place its hit bounds on the visible canvas, then render the active draft overlay after key/part hit targets within the SVG group so it receives pointer events. Preserve world-space draft geometry.",
       "post_port_proposal": "Define one explicit world-to-screen coordinate conversion and hit-region contract for interactive SVG overlays. Test pointer hit bounds against the canvas after zoom, pan and resize so geometry and input cannot silently diverge.",
-      "validation_needed": "On packaged34789, repeat addition, cutout and bridge drafts, including over-key clicks, point undo, finish/cancel and no durable draft writes; later check hit bounds under zoom/pan and viewport changes.",
-      "decision": "Repair current functional blocker in private presentation code; defer shared coordinate-frame redesign until post-port refactor.",
+      "validation_needed": "Current addition/cutout/bridge pointer, point undo, finish/cancel and no accepted draft writes passed on packaged34789. Post-port audit should check hit bounds and pointer priority under zoom, pan and viewport changes.",
+      "decision": "Current functional blocker repaired and publicly qualified; keep common coordinate-frame/hit-order contract for post-port refactor rather than widening a migration API.",
       "follow_up_owner": "F3.4/F9 canvas interaction refactor",
       "linked_tasks": [
         "F3.4"
