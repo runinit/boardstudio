@@ -465,6 +465,15 @@
           "mitigation": "Correct only observed scoped CSS/composition, view paired actual surfaces once, and reuse unchanged action/history evidence. Current footer/shell corrections remain in their waiting packet.",
           "post_port": "Assess a shared style/token contract and contextual shell projection after parity; measure cascade conflicts and cross-feature style changes before extracting. Record Layout module/finding overlay visual differences as unresolved feature coverage, not an invented cause.",
           "status": "Verified visual drift; bounded source repairs in progress; no broad redesign or new RF ID."
+        },
+        {
+          "date": "2026-10-04",
+          "source": "Layout 3D finding-focus candidate 34792/34794, source c2affbdd to 14c8e083",
+          "evidence": ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md; .scratch/dioxus-shared-viewer/evidence/public-case-first/candidate/f73-controls/42-fit-control-reachable-34794.png",
+          "observation": "The Layout workspace toolbar and embedded shared-viewer toolbar independently occupied the same top-left canvas area. The viewer's Fit button existed and passed source checks but was covered at its pointer click point. This is a concrete overlay-slot composition gap, not a renderer or camera defect.",
+          "mitigation": "Position Layout's viewer controls in a scoped bottom-left overlay; retain Case and Parts viewer placement. Public pointer clicks on Fit and View controls passed on 34794.",
+          "post_port": "Give each workbench an explicit overlay-slot contract for workspace commands, view controls, status and layers, then validate pointer reachability at representative viewport sizes before consolidating viewer composition.",
+          "status": "Functional obstruction repaired; broader shared overlay composition remains deferred under RF-001."
         }
       ],
       "case_mechanical_resolution_display_20261003": {

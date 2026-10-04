@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T03:15:41.812878+00:00",
+    "updated_at": "2026-10-04T04:22:03.539596+00:00",
     "parent_counts": {
       "accepted": 14,
       "implementing": 36,
@@ -25,20 +25,20 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-no-vik-filtered-20261003",
-      "source_commit": "e6c6a7016185054e773dc10f46f9ffcca1c4c308",
-      "root_url": "http://127.0.0.1:34791/",
-      "subpath_url": "http://127.0.0.1:34791/boardstudio/",
-      "provenance": "web/target/builds/frontend-no-vik-filtered-20261003/provenance.json",
-      "provenance_sha256": "65481fb9d4edb94eabde02de5a0122075009260a12874c7f2f214d7c57e91c93",
-      "fresh_commands": 8,
-      "inherited_commands": 22,
+      "build_id": "frontend-finding-focus-controls-20261004",
+      "source_commit": "14c8e083bbfc28488c763c474d0323fb3d757456",
+      "root_url": "http://127.0.0.1:34794/",
+      "subpath_url": "http://127.0.0.1:34794/boardstudio/",
+      "provenance": "web/target/builds/frontend-finding-focus-controls-20261004/provenance.json",
+      "provenance_sha256": "340417663aade21ae78ced7c4241a778fa5bd64bb806a1a5de521a15344ba556",
+      "fresh_commands": 9,
+      "inherited_commands": 23,
       "source_inputs": 1390,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 128.320799,
+      "command_span_seconds": 117.862558,
       "package_qualification": "Combined package provenance, current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-no-vik-filtered-20261003/package-proof.json",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-finding-focus-controls-20261004/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -48,8 +48,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "e6c6a7016185054e773dc10f46f9ffcca1c4c308",
-      "state": "Published frontend-no-vik-filtered-20261003 at 34791 (source e6c6a701): compiler/package/root/subpath passed. Active roadmap has 61 parents/221 criteria; VIK demo/catalogue/new-part choices removed while an existing 33-part VIK archive reopened. Focused Parts filter regression RED/GREEN and public import/search replay passed. RF-019 deferred; RF-020 records project-definition catalogue leakage. Scoped consolidated Sol 6.1 High review passed; broader qualification remains open.",
+      "source_commit": "14c8e083bbfc28488c763c474d0323fb3d757456",
+      "state": "Published frontend-finding-focus-controls-20261004 at 34794 (source 14c8e083): compiler/package/root/subpath passed using verified full providers. A fresh Sofle paired journey exposed and repaired unavailable 3D outline-finding geometry; Dioxus focus, hidden-PCB temporary reveal and Fit restoration passed. Layout 3D Fit/View controls are pointer reachable after scoped overlay repair. The one consolidated Sol 6.1 High review is underway. Active roadmap remains 61 parents/221 criteria with VIK-only authoring deferred; broader qualification and parent joins remain open.",
       "packets": [
         {
           "stream": "Layout",
@@ -504,7 +504,7 @@
       },
       {
         "stream": "Case",
-        "state": "F7.3-C02/C03/C04 verified. C05 remains open for 3D finding focus and paired Case-body pick qualification."
+        "state": "F7.3-C02/C03/C04 verified. C05 is implemented: ordinary Sofle 3D outline-finding focus, temporary hidden-PCB reveal and Fit restoration passed on 34794; the paired rendered Case-body branch remains unqualified because the pinned React body vanished with PCB hidden."
       },
       {
         "stream": "Parts + Project",
@@ -513,9 +513,9 @@
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Continue F7.3-C05 with 3D finding focus and paired rendered Case-body pick qualification; retain RF-019 for later scene-producer consolidation.",
-      "Continue F3.4-C04/C05 and F2.1-C01 exact functional criteria without rerunning accepted journeys.",
-      "Consolidate the next source packet into one compiler/package and one Sol 6.1 High review when functionally ready; preserve all parent joins and RF findings."
+      "Retain 34794 F7.3-C05 focus evidence; qualify the rendered Case-body pick only when a current pinned-reference body is visible. Retain RF-019 for later scene-producer consolidation.",
+      "Finish F3.4-C04 fixed/linked refinement preservation join and F2.1-C01 exact public Loading criterion without rerunning accepted journeys.",
+      "Receive the single Sol 6.1 High review of the published 34794 candidate, resolve only material findings, then continue the 98 qualification-ready functional criteria and parent joins."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
@@ -626,7 +626,7 @@
               "scope": "Sofle selection, contextual Objects/Inspector Properties and Relations, matrix/key edits, Undo and reopen",
               "spec": ".scratch/dioxus-layout-authoring/spec.md",
               "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/journey.md",
-              "verified": "Three Properties shortcut routes and key width1→1.25→Undo1→Redo1.25→reload1.25 match reference behavior.",
+              "verified": "Three Properties shortcut routes and key width1\u21921.25\u2192Undo1\u2192Redo1.25\u2192reload1.25 match reference behavior.",
               "remaining": "Inspector arrangement/typography/context footer and Objects-to-toolbar selection-kind synchronization; broader authoring criteria unchanged."
             },
             {
@@ -1491,12 +1491,49 @@
               "state": "pending"
             }
           ]
+        },
+        {
+          "candidate_build_id": "frontend-no-vik-filtered-20261003",
+          "source_commit": "e6c6a7016185054e773dc10f46f9ffcca1c4c308",
+          "phase": "qualifying",
+          "review": {
+            "profile": "sol-review",
+            "state": "scoped candidate review passed; broader journeys remain open",
+            "receipt": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/candidate-34791-review.md",
+            "sha256": "e5c56222c6e0644358bbb251d86927f6646d874be6efaa9e698eb01d16311675"
+          },
+          "journeys": [
+            {
+              "id": "F3.4-C02",
+              "scope": "Paired addition/cutout/bridge draft preview, point Undo, cancel without accepted writes, Finish on 34789 and pinned 5175",
+              "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+              "state": "pending"
+            },
+            {
+              "id": "F5.2-C01",
+              "scope": "Paired multi-board Resolve/Apply plus focused stale board/controller mounted owner checks",
+              "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
+              "state": "pending"
+            },
+            {
+              "id": "F2.1-negative-branches",
+              "scope": "Mounted Loading/error/Retry and damaged-preview fallback supplement paired success; unchanged public finish conditions open",
+              "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
+              "state": "pending"
+            },
+            {
+              "id": "F7.3-C05",
+              "scope": "3D part pick proven; common viewer Case-body/module/finding mapping remains open",
+              "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+              "state": "pending"
+            }
+          ]
         }
       ],
       "phase": "qualifying",
       "unmet_start_conditions": [],
-      "candidate_build_id": "frontend-no-vik-filtered-20261003",
-      "source_commit": "e6c6a7016185054e773dc10f46f9ffcca1c4c308",
+      "candidate_build_id": "frontend-finding-focus-controls-20261004",
+      "source_commit": "14c8e083bbfc28488c763c474d0323fb3d757456",
       "journeys": [
         {
           "id": "F3.4-C02",
@@ -1524,12 +1561,10 @@
         }
       ],
       "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
-      "started_at": "2026-10-04T03:15:41.812862+00:00",
+      "started_at": "2026-10-04T04:19:56.852204+00:00",
       "review": {
         "profile": "sol-review",
-        "state": "scoped candidate review passed; broader journeys remain open",
-        "receipt": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/candidate-34791-review.md",
-        "sha256": "e5c56222c6e0644358bbb251d86927f6646d874be6efaa9e698eb01d16311675"
+        "state": "pending"
       }
     },
     "delivery_priority": {

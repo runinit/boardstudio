@@ -6415,12 +6415,14 @@
         {
           "id": "F7.3-C05",
           "requirement": "Support selection/picking and mapping to available project part, module, case body and finding; support focus/highlight.",
-          "state": "missing",
+          "state": "implemented",
           "classification": "functional",
           "sources": [
             "web/src/presentation/shared_viewer.rs",
             "web/src/presentation/case_viewer.rs",
-            "web/src/presentation/case_workspace.rs"
+            "web/src/presentation/case_workspace.rs",
+            "web/src/presentation/layout_viewer.rs",
+            "renderer/src/wasm.rs"
           ],
           "evidence": [
             ".scratch/dioxus-shared-viewer/evidence/issue02-selection-summary-20261003/public-receipt-34765.md",
@@ -6429,11 +6431,12 @@
             ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md"
           ],
           "blockers": [],
-          "next_action": "Address 3D finding focus (currently SVG-only) and qualify rendered Case-body pick. Dioxus Plate pick works, but pinned React body vanished with PCB hidden, so that paired branch remains unresolved. Retain earlier 3D part/empty and separately labeled 2D finding evidence.",
+          "next_action": "Retain paired Sofle outline-finding navigation and Dioxus 3D focus/temporary hidden-PCB reveal/Fit proof from 34794. Dioxus rendered Case-body pick works, but pinned React body vanished with PCB hidden; qualify that paired branch only when the reference exposes a rendered body. VIK-only module scene work is deferred from v1; retain existing saved-module compatibility evidence without treating earlier 2D overlay picks as 3D proof.",
           "finish_condition": "Mapped and empty picks resolve only against current consumer scope; finding focus/highlight works with hidden layers.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",
-            "web/src/presentation/case_viewer.rs"
+            "web/src/presentation/case_viewer.rs",
+            "web/src/presentation/layout_viewer.rs"
           ],
           "capabilities": [
             "picking",
