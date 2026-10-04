@@ -4173,15 +4173,6 @@ impl Runtime {
             ));
             return;
         };
-        let case_ready = snapshot
-            .scene
-            .board_readiness
-            .iter()
-            .find(|item| item.board_id == scope.board_id)
-            .map_or(
-                snapshot.document.boards.len() <= 1 && snapshot.scene.readiness.case_ready,
-                |item| item.case_ready,
-            );
         if model.active_board_id != scope.board_id
             || snapshot.scene.revision != snapshot.document.revision
             || !snapshot
@@ -4194,7 +4185,11 @@ impl Runtime {
                 .case_bodies
                 .iter()
                 .any(|body| body.board_id == scope.board_id)
-            || !case_ready
+            || !boardstudio_core::authored_case_geometry_ready(
+                &snapshot.document,
+                &snapshot.scene,
+                &scope.board_id,
+            )
         {
             self.apply_report(RuntimeReport::alert(
                 "Resolve authored case findings for the selected board before export.",

@@ -786,15 +786,16 @@ fn preparation_request(
         ));
     }
     let (effective_document, effective_scene) = effective_case_inputs(document, scene, scope)?;
-    let readiness = effective_scene
-        .board_readiness
-        .iter()
-        .find(|item| item.board_id == scope.board_id);
     let configured = effective_document
         .mechanical
         .as_ref()
         .is_some_and(|case| case.board_id == scope.board_id);
-    if readiness.is_none() || (!configured && !readiness.is_some_and(|item| item.case_ready)) {
+    if !boardstudio_core::case_preparation_ready(
+        &effective_document,
+        &effective_scene,
+        &scope.board_id,
+        configured,
+    ) {
         return Err(CadJobError::Blocked(
             "selected board is not ready for case generation".into(),
         ));
@@ -1142,8 +1143,8 @@ mod tests {
             board_readiness: vec![BoardReadiness {
                 board_id: "board".into(),
                 outline: true,
-                pcb: true,
-                case_ready: true,
+                pcb: false,
+                case_ready: false,
             }],
             board_outline_scenes: vec![],
             module_scenes: vec![],
@@ -1152,8 +1153,8 @@ mod tests {
             readiness: Readiness {
                 layout: true,
                 outline: true,
-                pcb: true,
-                case_ready: true,
+                pcb: false,
+                case_ready: false,
             },
         };
         let snapshot = AcceptedSnapshot {

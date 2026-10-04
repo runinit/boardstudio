@@ -211,19 +211,12 @@ fn export_rows(
     let pcb_ready =
         selected_readiness.map_or(board_count <= 1 && scene.readiness.pcb, |item| item.pcb);
     let outline_ready = selected_readiness.map_or(scene.readiness.outline, |item| item.outline);
-    let case_ready = selected_readiness
-        .map_or(board_count <= 1 && scene.readiness.case_ready, |item| {
-            item.case_ready
-        });
     let outline_blocker =
         (!outline_ready).then_some("Review the board outline and layout findings.");
     let wiring_blocker =
         (!wiring_ready).then_some("Review the layout and resolve controller wiring in PCB.");
-    let authored_case_ready = document
-        .case_bodies
-        .iter()
-        .any(|body| body.board_id == board_id)
-        && case_ready;
+    let authored_case_ready =
+        boardstudio_core::authored_case_geometry_ready(document, scene, board_id);
     let mechanical_scope = runtime.scope();
     let mechanical_document = mechanical_scope
         .as_ref()
