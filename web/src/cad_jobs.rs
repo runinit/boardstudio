@@ -1113,7 +1113,7 @@ mod tests {
             kind: CaseKind::Plate,
             thickness: 2.0,
             clearance: 0.0,
-            material_id: None,
+            material_id: Some("pla".into()),
             z: None,
             wall_height: None,
             wall_thickness: None,
@@ -1149,7 +1149,13 @@ mod tests {
             board_outline_scenes: vec![],
             module_scenes: vec![],
             finding_markers: vec![],
-            findings: vec![],
+            findings: vec![Finding {
+                id: "case:plate:material".into(),
+                severity: Severity::Error,
+                scope: boardstudio_core::model::Scope::Case,
+                message: "Case material is missing".into(),
+                target_ids: vec!["plate".into(), "pla".into()],
+            }],
             readiness: Readiness {
                 layout: true,
                 outline: true,

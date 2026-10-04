@@ -19,11 +19,12 @@ pub(crate) fn is_ready(
 mod tests {
     use super::*;
     use boardstudio_core::model::{
-        Board, BoardContours, BoardReadiness, CaseBody, CaseKind, Contour, Readiness, Vec2,
+        Board, BoardContours, BoardReadiness, CaseBody, CaseKind, Contour, Finding, Readiness,
+        Severity, Vec2,
     };
 
     #[test]
-    fn authored_geometry_admits_generation_without_pcb_readiness() {
+    fn authored_geometry_admits_generation_with_unresolved_material_metadata() {
         let scene = SceneDelta {
             revision: 9,
             transaction_id: String::new(),
@@ -52,7 +53,13 @@ mod tests {
             board_outline_scenes: vec![],
             module_scenes: vec![],
             finding_markers: vec![],
-            findings: vec![],
+            findings: vec![Finding {
+                id: "case:plate:material".into(),
+                severity: Severity::Error,
+                scope: boardstudio_core::model::Scope::Case,
+                message: "Case material is missing".into(),
+                target_ids: vec!["plate".into(), "pla".into()],
+            }],
             readiness: Readiness {
                 layout: true,
                 outline: true,
@@ -82,7 +89,7 @@ mod tests {
             kind: CaseKind::Plate,
             thickness: 1.5,
             clearance: 0.0,
-            material_id: None,
+            material_id: Some("pla".into()),
             z: None,
             wall_height: None,
             wall_thickness: None,

@@ -1120,14 +1120,107 @@ fn case_readiness_uses_its_board() {
     assert!(valid_scene.board_readiness[0].case_ready);
     assert!(!valid_scene.board_readiness[1].case_ready);
     assert!(valid_scene.readiness.case_ready);
+    assert!(boardstudio_core::authored_case_geometry_ready(
+        &doc,
+        &valid_scene,
+        "case-board"
+    ));
+    let mut pcb_unready_scene = valid_scene.clone();
+    pcb_unready_scene.board_readiness[0].pcb = false;
+    pcb_unready_scene.board_readiness[0].case_ready = false;
+    assert!(boardstudio_core::authored_case_geometry_ready(
+        &doc,
+        &pcb_unready_scene,
+        "case-board"
+    ));
+    let mut stale_scene = valid_scene.clone();
+    stale_scene.revision += 1;
+    assert!(!boardstudio_core::authored_case_geometry_ready(
+        &doc,
+        &stale_scene,
+        "case-board"
+    ));
+    let mut outline_unready_scene = valid_scene.clone();
+    outline_unready_scene.board_readiness[0].outline = false;
+    assert!(!boardstudio_core::authored_case_geometry_ready(
+        &doc,
+        &outline_unready_scene,
+        "case-board"
+    ));
     let mut invalid = doc;
     invalid.case_bodies[0].thickness = -1.0;
-    let (invalid_scene, _) = scene(engine.handle(CoreRequest::Open {
+    let (invalid_scene, invalid) = scene(engine.handle(CoreRequest::Open {
         id: "invalid".into(),
         document: invalid,
     }));
     assert!(!invalid_scene.board_readiness[0].case_ready);
     assert!(invalid_scene.board_readiness[0].pcb);
+    assert!(!boardstudio_core::authored_case_geometry_ready(
+        &invalid,
+        &invalid_scene,
+        "case-board"
+    ));
+}
+
+#[test]
+fn authored_case_geometry_ignores_missing_material_metadata() {
+    let mut doc = ProjectDoc::empty("authored-case", "Authored Case");
+    doc.outline
+        .push(rect("edge", 0.0, 0.0, 30.0, 20.0, Operation::Add));
+    doc.boards.push(Board {
+        id: "left".into(),
+        name: "Left PCB".into(),
+        outline_ids: vec!["edge".into()],
+        part_ids: vec![],
+        net_ids: vec![],
+        thickness: 1.6,
+        traces: vec![],
+        vias: vec![],
+    });
+    doc.case_bodies.push(CaseBody {
+        features: None,
+        openings: None,
+        id: "plate".into(),
+        name: "Left plate".into(),
+        board_id: "left".into(),
+        kind: CaseKind::Plate,
+        thickness: 3.0,
+        clearance: 0.5,
+        material_id: Some("pla".into()),
+        z: Some(0.0),
+        wall_height: Some(14.0),
+        wall_thickness: Some(2.0),
+        mounts: Some(vec![]),
+        gasket: None,
+    });
+    let mut engine = CoreEngine::new();
+    let (scene, document) = scene(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: doc,
+    }));
+    assert!(!scene.board_readiness[0].case_ready);
+    assert!(
+        scene
+            .findings
+            .iter()
+            .any(|finding| finding.id == "case:plate:material")
+    );
+    assert!(boardstudio_core::authored_case_geometry_ready(
+        &document, &scene, "left"
+    ));
+
+    let reply = engine.handle(CoreRequest::PrepareCase {
+        id: "prepare".into(),
+        ir: CaseAssemblyIR {
+            revision: document.revision,
+            bodies: vec![CaseIR {
+                revision: document.revision,
+                body: document.case_bodies[0].clone(),
+                contours: scene.board_contours[0].contours.clone(),
+            }],
+        },
+    });
+    assert!(matches!(reply, CoreReply::CasePrepared { .. }));
 }
 
 #[test]

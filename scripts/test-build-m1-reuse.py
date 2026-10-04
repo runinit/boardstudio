@@ -426,6 +426,47 @@ class PageOnlyReuseTests(TestCase):
                 self.assertFalse(any(path.startswith("web/src/core_worker/") for path in checked[6]))
                 self.assertFalse(checked[0].exists())
 
+    def test_dirty_build_source_rejects_full_and_reuse_before_output_reservation(self):
+        dirty_source = "web/src/presentation/panels.rs"
+        untracked_source = "web/src/presentation/untracked_editor.rs"
+        dirty_status = f" M {dirty_source}\0?? {untracked_source}\0".encode()
+        for mode in ("full", "reuse"):
+            with self.subTest(mode=mode), TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                _, provenance = self.make_baseline(root)
+                def check_output(command, **kwargs):
+                    if command[:2] == ["git", "status"]:
+                        return dirty_status
+                    raise AssertionError(f"build preflight should stop before {command}")
+
+                patches = [patch.object(BUILD, "REPO", root),
+                           patch.object(BUILD, "WEB", root / "web"),
+                           patch.object(BUILD, "BUILD_ROOT", root / "web/target/builds"),
+                           patch.object(BUILD, "sources", return_value={
+                               name: sha(body) for name, body in SOURCE_BYTES.items()
+                           }),
+                           patch.object(BUILD, "current_tools", return_value=TOOLS),
+                           patch.object(BUILD.subprocess, "check_output", side_effect=check_output),
+                           patch.object(BUILD.subprocess, "run", side_effect=AssertionError("build command started"))]
+                with self._patches(patches):
+                    with self.assertRaises(ValueError) as raised:
+                        if mode == "full":
+                            BUILD.build_full("full-dirty-source")
+                        else:
+                            BUILD.build_reuse("reuse-dirty-source", "full-fixture")
+                    self.assertIn(dirty_source, str(raised.exception))
+                    self.assertIn(untracked_source, str(raised.exception))
+                output = root / "web/target/builds" / ("full-dirty-source" if mode == "full"
+                                                       else "reuse-dirty-source")
+                self.assertFalse(output.exists())
+
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with patch.object(BUILD, "REPO", root), patch.object(
+                BUILD.subprocess, "check_output", return_value=b"?? docs/receipt.md\0"
+            ):
+                BUILD.ensure_clean_build_sources()
+
     def test_ordinary_page_ui_module_body_change_is_provider_reusable(self):
         path = "web/src/presentation/keymap/binding_editor.rs"
         with TemporaryDirectory() as temporary:

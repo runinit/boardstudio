@@ -442,6 +442,7 @@ pub(crate) fn use_mechanical_settings_mount(
         workspace() == "Case"
             && instance_selection.is_current(&model)
             && crate::case_generation_admission::is_ready(
+                &current.accepted.document,
                 &current.accepted.scene,
                 &current.identity.active_board_id,
                 current

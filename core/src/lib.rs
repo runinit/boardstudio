@@ -109,6 +109,9 @@ pub fn authored_case_geometry_ready(
     !scene.findings.iter().any(|finding| {
         finding.severity == Severity::Error
             && finding.scope == Scope::Case
+            // Material references affect BOM metadata, not prepared solid
+            // geometry; Core's case preparer intentionally accepts them.
+            && !finding.id.ends_with(":material")
             && (finding.target_ids.is_empty()
                 || finding.target_ids.iter().any(|target| {
                     target == board_id

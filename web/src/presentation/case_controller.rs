@@ -6,7 +6,7 @@ use super::case_bodies::{
 use crate::runtime::Runtime;
 use boardstudio_application::{Durability, Event, Lifecycle, OperationId, TerminalOutcome};
 use boardstudio_core::model::{
-    CaseBody, CaseKind, EditCommand, EditOperation, EditPhase, Mount, MountKind, Vec2,
+    CaseBody, CaseKind, EditCommand, EditOperation, EditPhase, Mount, MountKind, ProjectDoc, Vec2,
 };
 use dioxus::prelude::*;
 use std::rc::Rc;
@@ -497,14 +497,7 @@ fn new_case_body(
     let id = unique_id(runtime, "case-body", |candidate| {
         existing.contains(candidate)
     });
-    let material_id = document
-        .materials
-        .iter()
-        .find(|material| {
-            material.id.eq_ignore_ascii_case("pla") || material.name.eq_ignore_ascii_case("pla")
-        })
-        .map(|material| material.id.clone())
-        .unwrap_or_else(|| "pla".into());
+    let material_id = default_case_material(document);
     Ok(CaseBody {
         features: None,
         openings: None,
@@ -514,13 +507,23 @@ fn new_case_body(
         kind: CaseKind::Plate,
         thickness: 3.0,
         clearance: 0.5,
-        material_id: Some(material_id),
+        material_id,
         z: Some(0.0),
         wall_height: Some(14.0),
         wall_thickness: Some(2.0),
         mounts: Some(vec![]),
         gasket: None,
     })
+}
+
+fn default_case_material(document: &ProjectDoc) -> Option<String> {
+    document
+        .materials
+        .iter()
+        .find(|material| {
+            material.id.eq_ignore_ascii_case("pla") || material.name.eq_ignore_ascii_case("pla")
+        })
+        .map(|material| material.id.clone())
 }
 
 fn apply_body_edit(
@@ -717,5 +720,27 @@ impl CaseBodyEdit {
             | Edit::RemoveMount { body_id, .. }
             | Edit::SetGasket { body_id, .. } => Some(body_id),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use boardstudio_core::model::Material;
+
+    #[test]
+    fn default_case_body_does_not_reference_an_absent_material() {
+        let mut document = ProjectDoc::empty("fixture", "Fixture");
+        assert_eq!(default_case_material(&document), None);
+
+        document.materials.push(Material {
+            id: "pla-grade-a".into(),
+            name: "PLA".into(),
+            thickness: 1.75,
+        });
+        assert_eq!(
+            default_case_material(&document).as_deref(),
+            Some("pla-grade-a")
+        );
     }
 }

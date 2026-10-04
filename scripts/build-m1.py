@@ -920,6 +920,39 @@ def sources():
             (name.startswith(("web/", "application/", "core/", "contracts/", "renderer/", "cad/", "kicad/src/", "app/src/", "app/public/", "scripts/", "ergogen/")) or name in ROOT_BUILD_INPUTS) and (REPO / name).is_file()}
 
 
+def is_build_source_path(name):
+    """Match maintained paths that are included in candidate source provenance."""
+    return (
+        not name.startswith(GENERATED_SOURCE_PATHS)
+        and not {"node_modules", "__pycache__", "target", "dist"}.intersection(Path(name).parts)
+        and (name.startswith(("web/", "application/", "core/", "contracts/", "renderer/", "cad/",
+                             "kicad/src/", "app/src/", "app/public/", "scripts/", "ergogen/"))
+             or name in ROOT_BUILD_INPUTS)
+    )
+
+
+def ensure_clean_build_sources():
+    """Reject a build when provenance inputs include uncommitted source bytes."""
+    status = subprocess.check_output(
+        ["git", "status", "--porcelain=v1", "-z", "--untracked-files=all", "--no-renames"],
+        cwd=REPO,
+    )
+    dirty_paths = []
+    for entry in status.split(b"\0"):
+        if not entry:
+            continue
+        if len(entry) < 4 or entry[2:3] != b" ":
+            raise ValueError("could not parse git status while checking build source cleanliness")
+        name = os.fsdecode(entry[3:])
+        if is_build_source_path(name):
+            dirty_paths.append(name)
+    if dirty_paths:
+        raise ValueError(
+            "dirty build source paths must be committed before building: "
+            + ", ".join(sorted(set(dirty_paths))[:12])
+        )
+
+
 def valid_build_id(value):
     return bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]*", value))
 
@@ -1276,6 +1309,7 @@ def ignore_rebuilt_assets(directory, names):
 
 
 def build_reuse(build_id, baseline_id, *, refresh_fixtures=False):
+    ensure_clean_build_sources()
     (output, baseline, base_provenance, baseline_provenance_path,
      baseline_provenance_hash, source_before, changed, tools, command_log_hashes,
      syntax_signatures, ownership, helper_compatibility) = validate_reuse(
@@ -1468,6 +1502,7 @@ def build_reuse(build_id, baseline_id, *, refresh_fixtures=False):
 
 
 def build_full(build_id):
+    ensure_clean_build_sources()
     output = BUILD_ROOT / build_id
     output.mkdir(parents=True, exist_ok=False)
     (output / "tmp").mkdir()
