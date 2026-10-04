@@ -1,0 +1,15 @@
+migration-deliver: 4 wasm-relevant Rust file(s) in this commit (e.g. web/src/presentation/case_assembly_layers.rs); running wasm32 cargo check before committing
+migration-deliver: running native web tests before committing
+migration-deliver: running scripts/check-wasm-tests.py for Rust files in this commit
+migration-deliver: running wasm-bindgen tests in headless Chrome for changed wasm test modules
+[codex/rust-v1-ui-parity-20261001 4812d82b] Integrate Parts model layers and consolidate mounted test coverage
+ 16 files changed, 801 insertions(+), 224 deletions(-)
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/astra-consolidation-review-20261004-f5-3-decision.json
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/astra-consolidation-review-20261004.md
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/f22-delete-qualification-plan-20261004.md
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/f6k4-closure-review-20261004-f6k-4-decision.json
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/f6k4-closure-review-20261004.md
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/f73-consumer-qualification-plan-20261004.md
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/library-mounted-repair-20261004.md
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/parts-sample-layers-repair-20261004.md
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/parts-sample-public-20261004.md

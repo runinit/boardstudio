@@ -732,7 +732,7 @@
       "active_scope": {
         "id": "frontend-parts-library-repairs-20261004",
         "label": "Scoped assembly editing, shared-viewer consumption and durable project continuity",
-        "source_commit": "c0c98bf0",
+        "source_commit": "4812d82bace9ab87b74ee4091ebb2c6280b810e5",
         "streams": [
           "Parts + Project",
           "Layout",
@@ -3369,7 +3369,7 @@
       "phase": "integrating",
       "unmet_start_conditions": [],
       "candidate_build_id": "frontend-parts-library-repairs-20261004",
-      "source_commit": "c0c98bf0",
+      "source_commit": "4812d82bace9ab87b74ee4091ebb2c6280b810e5",
       "journeys": [
         {
           "id": "F7.3-parts-individual-model-layers",
@@ -3433,7 +3433,9 @@
         "state": "completed",
         "verdict": "source_clear_execution_pending",
         "review": ".scratch/dioxus-frontend-v1/evidence/astra-consolidation-review-20261004.md",
-        "review_sha256": "514ba7891dc078610f07c23cd46ae1d36f09c6cae38c8f0c8b85cb56b046f34b"
+        "review_sha256": "514ba7891dc078610f07c23cd46ae1d36f09c6cae38c8f0c8b85cb56b046f34b",
+        "execution_gate": "passed",
+        "execution_evidence": ".scratch/dioxus-frontend-v1/evidence/parts-library-gates-20261004/commit-gate.log"
       },
       "remaining_qualification": [
         "Repair and replay current sample individual model visibility; actual sample pick/context-loss remain separate open F7.3 criteria.",

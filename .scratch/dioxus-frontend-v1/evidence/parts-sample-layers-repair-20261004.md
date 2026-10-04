@@ -36,3 +36,7 @@ At the user’s request, removed the helper-only wasm `component_rows_use_active
 ## Final Astra-approved consolidation
 
 The separately added `parts_sample_layer_composition` fixture and `parts_sample_layers_toggle_exact_renderer_ids_in_sample_local_display` test were folded into the existing `layer_menu_composition` and `layer_menu_toggles_exact_rows_and_unavailable_rows_are_not_checked`. Their unique assertions were retained; the module returns to six tests. The separate fixture's earlier compile and cleanup failures above are historical diagnostic evidence. The final strengthened fixture awaits the mandatory combined commit gate.
+
+## Final combined gate
+
+The enforcing `migration-deliver.py commit --intent integration` completed successfully and created `4812d82b`. It ran native web tests, the wasm page compiler check, wasm test reachability and isolated headless Chrome tests for the changed modules. The five library exclusions were absent during execution and remain removed. See `parts-library-gates-20261004/commit-gate.log`. The guard captures successful module output internally; the retained log records successful gate completion, not individual raw test lines. This supersedes the earlier failed diagnostic runs without erasing them. Fresh repaired-candidate browser qualification remains pending.
