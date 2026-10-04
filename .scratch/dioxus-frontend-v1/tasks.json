@@ -1877,7 +1877,7 @@
             ".scratch/dioxus-frontend-v1/evidence/layout-key-inspector-gap-20261004/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Enabled toggle landed (0d37fc1d) and passed on 34815 incl. Undo. Remaining: Key Assembly select and Attached components replace/remove with mirror-target override through the same set-matrix path, then one paired check. Reopen persistence of Enabled is unexercised.",
+          "next_action": "Enabled (34815) and Key Assembly (34816) landed and passed incl. Undo. Remaining: Attached components replace/remove with mirror-target override, option-set parity for tactile entries, ownership card/breadcrumb and Wide/Tall pressed state; then reopen-persistence check.",
           "finish_condition": "Enabled, Key Assembly and Attached components edit the selected key through the public Dioxus Inspector, persist across reopen and Undo/Redo, and match reference option sets.",
           "owned_files": [
             "web/src/presentation/objects/matrix_transform_inspector.rs",

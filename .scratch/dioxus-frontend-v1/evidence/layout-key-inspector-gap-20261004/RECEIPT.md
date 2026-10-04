@@ -21,3 +21,11 @@ was captured, the test used new symbols). Page wasm and native `cargo check` pas
 Public check on Sofle v2 Left PCB, key 4.1: uncheck -> key leaves the canvas, 70 -> 68 parts, Inspector "Empty slot"; re-check -> 70 parts;
 Undo of the re-check -> unchecked/68 parts. Reopen persistence and Redo were not exercised.
 Still missing: Key Assembly select, Attached components (replace/remove, mirror-target override), ownership card/breadcrumb, Wide/Tall pressed state.
+
+## Key Assembly select — candidate 34816 (source 633/`f633eb63` + spawn_local import fix)
+`KeyAssembly` goes through set-matrix (definition + variant, catalog definition attached when absent from the document); choices reuse the
+matrix inspector `switch_choices`. Focused tests 10/10; wasm page check passes (the first wasm check caught a missing `spawn_local` import that native tests cannot see).
+Public check, Sofle v2 Left PCB key 0,3: select lists 6 options (rotary encoder, Choc V1/V2, Gateron KS27/KS33, MX, sofle rotary, current preset switch);
+choose Choc V1/V2 -> no alert, 70 parts; select another key and reselect -> Choc persisted; Undo -> original preset switch restored.
+Known gap vs reference: reference option list also includes THQWGD001C tactile entries (library catalog); Dioxus list is document definitions + the matrix template catalog.
+Reopen persistence and Redo were not exercised.
