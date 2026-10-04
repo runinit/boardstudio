@@ -6475,10 +6475,11 @@
             "web/src/renderer_host_page_extensions.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md"
+            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
+            ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md"
           ],
           "blockers": [],
-          "next_action": "Capture the still-unreceipted render-mode and section-plane actions on a current common-viewer candidate.",
+          "next_action": "Paired Case shade/wireframe/hybrid/hidden-line, assembled/exploded and XY/YZ Section controls respond on the current candidate. The reference Section position change was not captured; finish that bounded leg before full verification.",
           "finish_condition": "Each named mode, assembly state and supported plane/position change is exercised with visible outcome.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs"
@@ -6491,7 +6492,7 @@
         {
           "id": "F7.3-C03",
           "requirement": "Support layer/model visibility, color changes and reset behavior.",
-          "state": "implemented",
+          "state": "missing",
           "classification": "functional",
           "sources": [
             "web/src/presentation/shared_viewer.rs",
@@ -6499,10 +6500,11 @@
             "web/src/presentation/case_display.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-shared-viewer/evidence/issue02-case-pick-next-20261003/34762-native-preview-visibility.md"
+            ".scratch/dioxus-shared-viewer/evidence/issue02-case-pick-next-20261003/34762-native-preview-visibility.md",
+            ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md"
           ],
           "blockers": [],
-          "next_action": "Reuse bounded layer visibility proof; inspect color and reset controls for current consumer coverage.",
+          "next_action": "Implement reachable Case layer/model color and reset controls using the existing shared viewer state; retain proven category and individual-model visibility. Then pair the new controls with TypeScript.",
           "finish_condition": "Public actions demonstrate assembly layer, individual model, color edit and reset without document edits.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",
@@ -6525,10 +6527,11 @@
           ],
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
-            ".scratch/dioxus-shared-viewer/evidence/case-viewport-layout/public/README.md"
+            ".scratch/dioxus-shared-viewer/evidence/case-viewport-layout/public/README.md",
+            ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md"
           ],
           "blockers": [],
-          "next_action": "Reuse Top/Fit/Exploded/Section and reachable view-control evidence; execute Bottom, Isometric, orbit and zoom in the public Case viewer.",
+          "next_action": "Bottom, Isometric and orbit passed paired; Top/Fit retained from prior proof. Resolve zoom with a reliable input path because wheel captures were unchanged in both apps.",
           "finish_condition": "Camera controls produce expected observable viewpoints across actual consumers.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs"

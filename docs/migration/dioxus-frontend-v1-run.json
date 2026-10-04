@@ -504,7 +504,7 @@
       },
       {
         "stream": "Case",
-        "state": "Instance selection verified. Changed-flip Case geometry still unqualified: mechanical-envelope failure correctly labels Previous geometry; canonical source split documented, no stale-render parity inferred."
+        "state": "Paired Case viewer Bottom/Isometric/orbit/render/section/visibility checks captured. F7.3-C03 color/reset controls missing from Case Layers and assigned for implementation; zoom remains unverified. Physical-instance changed-flip geometry still open."
       },
       {
         "stream": "Parts + Project",
