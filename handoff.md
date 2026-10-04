@@ -1,10 +1,10 @@
-# Handoff (Claude coordinator, 2026-10-04)
+# Handoff (Codex coordinator, 2026-10-04)
 
-Generated base (progress.py handoff) first; hand-written notes after. Branch/worktree and counts below come from records.
+Generated records first; current continuation notes below supersede historical notes.
 
 # Handoff (generated from records)
 
-- Branch: codex/rust-v1-ui-parity-20261001 @ 33390d6c
+- Branch: codex/rust-v1-ui-parity-20261001 @ f320e6b8
 - Worktree: /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001
 - Parents: 20/61 accepted, 30 implementing, 11 planned
 - Criteria: unassessed 27, missing 0, implemented 82, verified 113; 222 total
@@ -13,17 +13,16 @@ Generated base (progress.py handoff) first; hand-written notes after. Branch/wor
   - visual: implemented 3, unassessed 5
 
 ## Served candidate
-- Build: frontend-review-fixes-20261004
-- Source commit: df2abad6ad6a3dbdbfdf99189b40242b01c2979c
-- Root: http://127.0.0.1:34820/
-- Subpath: http://127.0.0.1:34820/boardstudio/
+- Build: frontend-layout-grouped-repairs-20261004
+- Source commit: f320e6b8cb782cc9deaa0cb623f187c6af1ed795
+- Root: http://127.0.0.1:34821/
+- Subpath: http://127.0.0.1:34821/boardstudio/
 
 ## Parents
 - Accepted (20): INT.1, INT.2, BND.1, BND.2, F2.1, F2.3, F3.1, F3.2, F3.3, F3.4, F4.2, F5.2, F6K.1, F6K.2, F6K.3, F6C.1, F6C.2, F6C.4, F7.2, F8.2
-- Hold (1): F3.5
+- Hold (0): none
 
 ## Criteria on hold or blocked
-- F3.5-C05 [implemented]: Opus 5.5 review HOLD: attached/assembly edits mishandle assemblies_local on mirrored pairs (canonical edit decouples the key; target assembly edit rewrites the canonical half), catalogue loads non-...
 - F5.6-C05 [implemented]: Valid unflipped Case viewer proof retained. Changed Left/Right flips accepted but current candidate generation hit auto-closure envelope errors and correctly displayed Previous geometry; this does ...
 - F5.7-C04 [implemented]: The shared-viewer projection now forwards the accepted enabled BoardReference pose/elevation; a nonidentity packet regression was RED before and GREEN after. On one imported routed-board archive, p...
 - F5.8-C05 [unassessed]: Record both named viewer integration joins after their current provider capabilities are qualified.
@@ -79,13 +78,13 @@ Generated base (progress.py handoff) first; hand-written notes after. Branch/wor
 - RF-033: 63 plain #[test]s in wasm-only presentation modules never run natively; one pre-existing mounted ...
 
 ## Qualification scope
-- Scope: frontend-case-geometry-admission-20261004 - Authored Case preview and STEP after missing-material admission repair
-- Journeys: F7.6-F8.2-authored-case-step
-- State: integrating
+- Scope: frontend-layout-grouped-repairs-20261004 - Grouped Layout Inspector, mirror-key state and 2D/3D qualification
+- Journeys: F3.5-F3.6-grouped-layout
+- State: qualified_partial
 
 Last retro checkpoint: 2026-10-04T15:56:00Z
 
-## Session notes (hand-written; keep short)
+## Prior session notes (historical)
 - **Primary checkout `dev` is fast-forwarded to `df2abad6`** (local only, no push). Later commits (33390d6c, tooling) exist only on `codex/rust-v1-ui-parity-20261001`; re-run the fetch + `merge --ff-only` from `/home/chris/01_Projects/ts-boardstudio2` when you want dev current (4 untracked files may collide; compare, remove identical ones first).
 - **Latest candidate:** `frontend-review-fixes-20261004` served on 34820 (`python3 scripts/serve-candidate.py <build> <port>`, detached). It has the mirrored-pair fixes and Layout fixes; later test-conversion commits are test-only except `renderer_host*.rs` (no behavior change).
 - **In flight:** one Sonnet agent was wiring `scripts/run-wasm-tests.py` + native/wasm test gates into `migration-deliver.py commit` (files: scripts/run-wasm-tests.py, test-run-wasm-tests.py, wasm-known-failures.json, migration-deliver.py, test-migration-deliver.py). Check `git status`; verify with `python3 scripts/test-migration-deliver.py` and commit the exact files if tests pass.
@@ -93,3 +92,11 @@ Last retro checkpoint: 2026-10-04T15:56:00Z
 - **Known failing/ignored:** RF-033: 4 wasm tests are known failures (3 catalogue tests need BOARDSTUDIO_TEST_LAYOUT_GENERATOR_MODULE_URL; `mounted_component_drafts_survive_unrelated_acceptance_and_blur_uses_latest_owner` fails).
 - **Traps:** run `build-m1.py` outside the sandbox as a tracked background task (wasm-pack needs a writable cache); publish a candidate BEFORE agents edit source (publish checks current source hashes); Agent `isolation: worktree` fails (no origin/main); presentation code is wasm-only so run the wasm `page` check and the headless-Chrome tests; Chrome test runs need the sandbox off; `pkill -f` matches its own shell.
 - **Token rules (see CONSTRAINTS.md):** restart sessions at ~150k context with this file; agent reports <=150 words with detail in a file; no screenshots or `innerText` dumps unless a visual check needs them; pipe build/test output through tail/grep.
+
+
+## Current continuation notes — grouped Layout completion
+- Published full candidate **frontend-layout-grouped-repairs-20261004**, source **f320e6b8**, root **http://127.0.0.1:34821/** and `/boardstudio/`. Detached serve PID 2032771; old 34820 and reference 5175 remain. Root/subpath package proof passes with no source mismatches.
+- Requested gate tooling/AGENTS batch committed in 97926b0e; preserve external 8b9f8335; root-path repair faa10f38; settled Layout and file-selected isolation repair f320e6b8. Python suites: 20 runner and 26 delivery tests pass. Enforced native/page/reachability and 267 listed wasm outcomes across 64 isolated modules completed. **Configured 13 failure exclusions are not passes; 9 external additions remain unreviewed.** RF-033 reachability baseline is now 0; assertion failures remain open.
+- Fresh mirror creation is already `assembliesLocal=true` in both frontends. Do not “fix” that shared behavior. Grouped paired receipt covers Inspector/compact keyboard, numeric drafts, actual 3D orbit/pick and repeated switching. Reproduced mirrored-key disable→Undo selection loss received a real Core/Session RED-first repair; mirrored and ordinary keys now restore selection/Fit/relation. Target Choc/diode history and reload pass without changing canonical components.
+- Independent native reviews are clear for source and scoped replay. See `.scratch/dioxus-frontend-v1/evidence/layout-grouped-20261004/RECEIPT.md` and `layout-grouped-review-20261004.md`. **Still 20/61 accepted**: F3.5/F3.6 remain open for recorded context/lifecycle/fault-observation limits and F7.3 join. Unassessed F8/F9 criteria were untouched.
+- Canonical tool is **`.scratch/dioxus-frontend-v1/progress.py`**; `scripts/progress.py` does not exist. No `.codegraph` exists in this checkout, despite stale AGENTS wording. Do not reset unrelated staged/untracked evidence. No push or branch switch was performed.

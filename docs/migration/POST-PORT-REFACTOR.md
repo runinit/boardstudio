@@ -2688,7 +2688,17 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
   "linked_tasks": [
     "F3.5"
   ],
-  "continuations": []
+  "continuations": [
+    {
+      "date": "2026-10-04",
+      "observation": "Core removes disabled generated keys from parts and board membership, then Session prunes selected IDs before UI subscribers run. A live semantic Key context can therefore coexist with no generated member; filtering only current IDs cannot restore selection after Undo.",
+      "during_port": "Remember the last eligible selection under the full scoped Key context; suspend through missing generated members and clear on context/session change or explicit deselection. Actual ordinary Core/Session RED→GREEN regression and paired mirrored browser reproduction are separate evidence.",
+      "evidence": [
+        ".scratch/dioxus-frontend-v1/evidence/layout-selection-undo-repair-20261004.md",
+        ".scratch/dioxus-frontend-v1/evidence/layout-grouped-review-20261004.md"
+      ]
+    }
+  ]
 }
 ```
 
@@ -2873,7 +2883,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 ## RF-033: 63 plain #[test]s in wasm-only presentation modules never run natively; one pre-existing mounted test fails
 
-**Status:** open; ratchet baseline blocks new ones (scripts/check-wasm-tests-baseline.json); existing 63 not yet converted
+**Status:** reachability conversion and commit gates installed; current ratchet has zero baselined wasm-only plain tests; known assertion failures and external exclusions remain open
 
 **Confidence:** confirmed by scripts/check-wasm-tests.py and a failing headless-Chrome run
 
@@ -2881,7 +2891,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Impact:** Behavior the ledger calls covered may be untested; two defects already reached commits because of this blind spot.
 
-**Current mitigation:** Convert the 63 to wasm_bindgen_test or move pure logic into natively compiled modules, file by file as each is touched; investigate the failing mounted draft test.
+**Current mitigation:** Retain the zero-baseline reachability ratchet and enforced native/page/headless gates. Investigate the known mounted assertion failures and independently review the nine external exclusion additions; do not count excluded failures as passes.
 
 **Evidence:** `scripts/check-wasm-tests.py`; `scripts/check-wasm-tests-baseline.json`; `.scratch/dioxus-frontend-v1/evidence/review-opus-20261004/consolidated-review.md`
 
@@ -2898,6 +2908,17 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
     "F6",
     "F7"
   ],
-  "post_port": "Replace the hand-maintained #[path] mirror with a native-compilable controller layer."
+  "post_port": "Replace the hand-maintained #[path] mirror with a native-compilable controller layer.",
+  "continuations": [
+    {
+      "date": "2026-10-04",
+      "observation": "Commit gating now checks page wasm compilation, nonzero native lib/bin tests, wasm test reachability and completed headless-Chrome test execution. Delivery tests 26/26 and runner tests 15/15 pass after independently reviewed repairs. External commit 8b9f8335 expanded known-failure exclusions from four to thirteen; the nine additions have not been independently reviewed and do not count as passing evidence. A real broad presentation run exposed shared-page interference. The file-selection runner now lists tests and isolates matching modules, rejects incomplete listings, unmatched prefixes, missing terminal outcomes and unexpected substring matches. Expanded regression suites pass 20 runner / 26 delivery tests with independent review; Enforced integration f320e6b8 completed the 267 listed tests in 64 isolated modules under the existing exclusion list; this is not 267 passing assertions. No exclusions were added by this repair. Current check-wasm-tests.py reports no new wasm-only plain #[test]s and zero baselined cases, superseding the original unconverted-63 status.",
+      "evidence": [
+        ".scratch/dioxus-frontend-v1/evidence/test-gates-review-20261004.md",
+        ".scratch/dioxus-frontend-v1/evidence/test-gates-repair-20261004.md",
+        "scripts/wasm-known-failures.json"
+      ]
+    }
+  ]
 }
 ```

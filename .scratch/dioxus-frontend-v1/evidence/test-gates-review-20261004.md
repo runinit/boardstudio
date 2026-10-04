@@ -92,3 +92,45 @@ Exact reviewed SHA-256 hashes:
 External change boundary: the checked-in allowlist now contains 13 entries versus four at the original review baseline. The nine new exclusions suppress additional assertion failures and were not assessed or accepted by this repair review. They must not be counted as passing test evidence or as reviewed changes. The externally introduced `--depth` option was preserved; the repair verdict covers the gate fixes rather than authorization of that extra scope.
 
 Only this report was edited by the reviewer. No source edits, staging, commits, resets, or history changes were performed by this review.
+
+## Runtime gate follow-up: isolate modules selected by files
+
+Verdict: CLEAR for the frozen runner repair identified below. The prior four-finding source review remains clear. This is a tooling source/mock verdict; the coordinator owns the actual enforced wasm run and its result. No application acceptance or allowlist review is implied.
+
+Trigger supplied by the coordinator: the actual commit gate selected the single broad `presentation::` filter for an edit to `presentation.rs`, so all selected presentation tests shared one browser page. That run reported 140 executions, two failures, and an incomplete mechanical contextual test. The existing `--all` path already divided tests by module. This follow-up extends listed-module selection to `--files` so a broad source prefix is resolved into narrower module invocations.
+
+Reviewed against `faa10f38` and checked the exact frozen versions after the author settled:
+
+| File | Reviewed SHA-256 |
+| --- | --- |
+| `scripts/run-wasm-tests.py` | `5bcdd888554876a367ac7adbf4874767cea76cfdd00c42dda9cf871b6752e1a4` |
+| `scripts/test-run-wasm-tests.py` | `326ba282364a3b64669833201034c79a40cfad10cd1c52a39f52f6c7523bb362` |
+| `scripts/test-migration-deliver.py` | `a4baac50548c384f0ea4f423cfd97118ef0d6d746fa61a1b2cd37547c9b948da` |
+
+Correctness checks:
+
+- Requested modules are selected with anchored `startswith` prefixes from a successful test listing. `presentation::` does not select `cad_presentation::`. If the substring-based underlying runner nevertheless executes an unexpected test, its name now creates a fatal problem rather than silently broadening coverage.
+- A successful listing with no matching selected module creates a deterministic zero-test problem before execution; no unmatched raw filter is passed to the runner. Empty listings and nonzero listing exits are rejected, including exits that printed partial names.
+- Each selected filter records all expected descendant test names, including descendants of a parent filter that collapsed nested modules. Every expected name must produce a terminal `ok` or `FAILED` result. Listed-but-uninvoked tests remain missing, and invoked-but-unreported tests remain fatal `INCOMPLETE` outcomes independently of any tolerated assertion failure.
+- A listed module that unexpectedly executes zero tests cannot widen to another module to satisfy its expected coverage. The existing bounded parent widening during initial source selection considers only listed modules.
+- The delivery integration fixtures now answer `--list`, preserving the existing native/library/zero-test gate regressions.
+
+During draft review I independently reproduced two false successes: an unmatched `presentation::` prefix accepted output from `cad_presentation::`, and a collapsed parent filter accepted a completed direct test while omitting its listed nested test. Both are resolved in the frozen hashes. Final independent probes returned:
+
+| Probe | Final result |
+| --- | --- |
+| Only `cad_presentation::tests::a` listed for requested `presentation::` | Failure; zero runner invocations |
+| Direct and nested tests listed under one collapsed parent, only direct result returned | Failure; nested test reported missing |
+| Two matching presentation modules plus a cad presentation module listed | Two separate matching invocations succeed; cad module excluded |
+
+Executed independently after the source settled:
+
+```text
+PYTHONDONTWRITEBYTECODE=1 python3 scripts/test-run-wasm-tests.py
+Ran 20 tests ... OK
+
+PYTHONDONTWRITEBYTECODE=1 python3 scripts/test-migration-deliver.py
+Ran 26 tests ... OK
+```
+
+Hashes were checked again after the probes and match the author's frozen packet. This review edited only this report and ran Python/mock checks; no builds, browser sessions, application source edits, commits, or allowlist edits were performed. The external allowlist additions remain outside the review verdict.

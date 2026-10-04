@@ -1768,10 +1768,12 @@
           "evidence": [
             ".scratch/dioxus-layout-authoring/evidence/f35a-layout-membership-tab-reset-20261003/README.md",
             ".scratch/dioxus-layout-authoring/evidence/board-inspector-frontier-20261003/reference.json",
-            ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md"
+            ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-grouped-20261004/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-grouped-review-20261004.md"
           ],
           "blockers": [],
-          "next_action": "Source 9eda1b5d and paired 34801 action prove Inspector-focused Escape cancels Pick origin; a later live pick and Undo work. Broader empty/single/multiple Inspector contexts and relation state remain for the grouped Layout milestone.",
+          "next_action": "Grouped 34820/5175 proves selected Key/Matrix/component relations and board scope clear. Reproduced Key disable→Undo selection loss is repaired in f320e6b8 and publicly passes on 34821 for mirrored and ordinary keys, including relation/Fit recovery. Complete remaining empty/multiple context combinations; unmatched two-key reference interaction remains unqualified.",
           "finish_condition": "Paired public scenarios show the correct contextual properties and relation state for each selection cardinality and object context.",
           "owned_files": [
             "web/src/presentation/inspector.rs",
@@ -1795,10 +1797,12 @@
             "web/src/presentation/objects/matrix_transform_inspector.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md"
+            ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-grouped-20261004/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-grouped-review-20261004.md"
           ],
           "blockers": [],
-          "next_action": "Source 10203a40 disables standalone locked component X/Y and suppresses commit dispatch; focused WASM test executed 1/1, but no RED-before-edit proof was captured. Package/current public locked fixture remains; driven relationship and matrix numeric unavailable states are still unqualified. Retain earlier numeric edit/Undo evidence and do not repeat generic rotation attempts.",
+          "next_action": "Grouped 34820/5175 Right PCB matrix Origin X commit/Undo and invalid negative Pitch X rejection are recorded. Candidate Escape reverts the draft; reference Escape also clears selection. Retain earlier numeric evidence. Public locked/driven fixture and remaining characterized boundaries stay open.",
           "finish_condition": "Paired public evidence demonstrates characterized draft boundaries, no edit dispatch for invalid input, and unavailable locked/driven values.",
           "owned_files": [
             "web/src/presentation/inspector/layout_component_inspector.rs",
@@ -1849,10 +1853,12 @@
           ],
           "evidence": [
             ".scratch/dioxus-layout-authoring/evidence/f35a-layout-membership-tab-reset-20261003/README.md",
-            ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md"
+            ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-grouped-20261004/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-grouped-review-20261004.md"
           ],
           "blockers": [],
-          "next_action": "Packaged 34805 keyboard Back from explicitly selected Board and Outline contexts focuses Board name/Active outline; stale board switch removes Back. Prior component Properties and compact relation focus evidence retained. Remaining full criterion coverage: other nested Inspector routes and compact drawer keyboard return; do not repeat the three successful Back paths.",
+          "next_action": "Grouped 34820/5175 compact 760×800 Escape closes Inspect and focuses its trigger; Enter reopens prior tab. Objects→matrix→Relations→placement component works by keyboard. Retain previous Board/Outline Back receipts; remaining nested routes stay open.",
           "finish_condition": "Paired public keyboard scenarios prove tabs, nested routes, Escape/back and focus restoration in compact drawers.",
           "owned_files": [
             "web/src/presentation/inspector.rs",
@@ -1875,10 +1881,14 @@
           ],
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/layout-key-inspector-gap-20261004/RECEIPT.md",
-            ".scratch/dioxus-frontend-v1/evidence/review-opus-20261004/consolidated-review.md"
+            ".scratch/dioxus-frontend-v1/evidence/review-opus-20261004/consolidated-review.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-grouped-20261004/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-grouped-review-20261004.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-selection-undo-repair-20261004.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-catalog-retry-repair-20261004.md"
           ],
           "blockers": [],
-          "next_action": "Opus 5.5 review HOLD: attached/assembly edits mishandle assemblies_local on mirrored pairs (canonical edit decouples the key; target assembly edit rewrites the canonical half), catalogue loads non-reversible, and the mirror-target 'Use mirrored components' control is missing. Repair in flight; then re-check on a linked-pair fixture.",
+          "next_action": "Fresh mirrored creation is already local in both frontends. Paired 34820/5175 proves local target assembly edits, canonical attachment removal and reset semantics. Published f320e6b8/34821 repairs selection Undo; target Choc, exact diode replacement/removal, Undo/Redo and saved reload pass with canonical switch/diode unchanged. Catalogue failure/retry has native policy RED→GREEN and clear source review; hook-mounted/public fault observation remains limited. Reconcile remaining full criterion evidence without repeating these successful actions.",
           "finish_condition": "Enabled, Key Assembly and Attached components edit the selected key through the public Dioxus Inspector, persist across reopen and Undo/Redo, and match reference option sets.",
           "owned_files": [
             "web/src/presentation/objects/matrix_transform_inspector.rs",
@@ -2023,10 +2033,12 @@
           ],
           "evidence": [
             ".scratch/dioxus-shared-viewer/evidence/case-viewport-layout/public-final/compact-control-measurements.json",
-            ".scratch/dioxus-shared-viewer/evidence/case-viewport-layout/public-final/compact-no-scroll-intersection.json"
+            ".scratch/dioxus-shared-viewer/evidence/case-viewport-layout/public-final/compact-no-scroll-intersection.json",
+            ".scratch/dioxus-frontend-v1/evidence/layout-grouped-20261004/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-grouped-review-20261004.md"
           ],
           "blockers": [],
-          "next_action": "Inspect current Layout mount and selected-board projection and reuse only viewer evidence that proves this criterion; qualify orbit/zoom/preset/fit/picking on Layout itself.",
+          "next_action": "Grouped 34820/5175 Layout journey proves rendered orbit, candidate Top/Zoom/Fit controls, real 3D picking and selected-board projection. Retain common-viewer ownership source review. Final parent acceptance still joins F7.3; one successful Layout journey does not waive it.",
           "finish_condition": "Paired Layout public scenario verifies canonical board plus all common viewer controls and preserves Case ownership of physical-instance reflection.",
           "owned_files": [
             "web/src/presentation/layout_viewer.rs",
@@ -2047,9 +2059,12 @@
             "web/src/presentation/shared_viewer.rs",
             "web/src/presentation/layout_viewer.rs"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/layout-grouped-20261004/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-grouped-review-20261004.md"
+          ],
           "blockers": [],
-          "next_action": "Inspect current renderer lifecycle handling and existing resource receipts for every listed transition; gather affected lifecycle evidence where absent.",
+          "next_action": "Grouped candidate journey completes three settled 3D→2D cycles retaining picked Key/coordinates/camera and a selected-board change. No bounded error logs. These observations do not prove listener/GPU disposal, context-loss recovery, resize/theme or performance; keep those lifecycle gates open.",
           "finish_condition": "Lifecycle scenarios prove callers settle and listeners/GPU resources release on mount, resize, theme, error, context loss, unmount and repeated view switching.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",
@@ -2070,9 +2085,12 @@
             "web/src/presentation/layout_viewer.rs",
             "web/src/presentation/layout_viewer_source.rs"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/layout-grouped-20261004/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-grouped-review-20261004.md"
+          ],
           "blockers": [],
-          "next_action": "Inspect current ownership seam and migration notes for a missing adapter; document it before any visibility or contract change if one is actually required.",
+          "next_action": "Independent grouped source review confirms private renderer camera/GPU owner remains separate from Runtime/Session scope and 2D camera; no missing public adapter found or visibility widened. Reconcile with F7.3 ownership and acceptance evidence; no parent acceptance claimed.",
           "finish_condition": "Source review confirms live renderer camera/GPU state stays renderer-owned and preset/scope stays session-owned; any missing adapter is documented before contract change.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",

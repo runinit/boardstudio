@@ -1,0 +1,10 @@
+migration-deliver: 2 wasm-relevant Rust file(s) in this commit (e.g. web/src/presentation.rs); running wasm32 cargo check before committing
+migration-deliver: running native web tests before committing
+migration-deliver: running scripts/check-wasm-tests.py for Rust files in this commit
+migration-deliver: running wasm-bindgen tests in headless Chrome for changed wasm test modules
+migration-deliver: headless-Chrome wasm tests failed or could not run (see scripts/run-wasm-tests.py; known failures live in scripts/wasm-known-failures.json):
+run-wasm-tests: executed 140, failed 2 (filters: presentation::)
+  FAILED cad_presentation::mounted_tests::mounted_case_panel_starts_once_pauses_and_resumes_for_current_context
+  FAILED presentation::panels::scroll_tests::compact_case_inspector_keeps_its_bounded_overlay_scroll_owner
+
+run-wasm-tests: incomplete execution; invoked tests did not report a terminal result: presentation::mechanical_settings::contextual_layer_tests::selected_plate_uses_contextual_inspector_and_returns_to_assembly_settings

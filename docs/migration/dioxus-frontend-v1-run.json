@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T17:30:57.126039+00:00",
+    "updated_at": "2026-10-04T20:00:08.578139+00:00",
     "parent_counts": {
       "accepted": 20,
       "implementing": 30,
@@ -25,20 +25,20 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-review-fixes-20261004",
-      "source_commit": "df2abad6ad6a3dbdbfdf99189b40242b01c2979c",
-      "root_url": "http://127.0.0.1:34820/",
-      "subpath_url": "http://127.0.0.1:34820/boardstudio/",
-      "provenance": "web/target/builds/frontend-review-fixes-20261004/provenance.json",
-      "provenance_sha256": "bbc9f9f682fab41b8b7ee951a393e5bb7b360d67bebe65e3ea6df32f8a146054",
+      "build_id": "frontend-layout-grouped-repairs-20261004",
+      "source_commit": "f320e6b8cb782cc9deaa0cb623f187c6af1ed795",
+      "root_url": "http://127.0.0.1:34821/",
+      "subpath_url": "http://127.0.0.1:34821/boardstudio/",
+      "provenance": "web/target/builds/frontend-layout-grouped-repairs-20261004/provenance.json",
+      "provenance_sha256": "d56ebf285c7b4502f5db0ea8868b5ea7756e1ac910f0fd1dac965433f8af274f",
       "fresh_commands": 23,
       "inherited_commands": 0,
-      "source_inputs": 1399,
+      "source_inputs": 1402,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 535.682397,
+      "command_span_seconds": 493.780288,
       "package_qualification": "Combined package provenance, current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-review-fixes-20261004/package-proof.json",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-layout-grouped-repairs-20261004/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -49,7 +49,7 @@
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
       "source_commit": "f551e4e0",
-      "state": "Served candidate and counts come from served_candidate and progress.py show; prose here is not authoritative. Case admission and key Inspector controls qualified on 34814-34819; F8.2 accepted on the Opus 5.5 review; review follow-up fixes (mirrored-pair locality, reversible catalogue, Case tests) are committed but not yet packaged or browser-checked.",
+      "state": "Published full candidate frontend-layout-grouped-repairs-20261004 (f320e6b8) on34821. Native/page/reachability and complete isolated headless gate passed under existing exclusions. Paired grouped Layout journey and repaired mirrored/ordinary Key Undo, attachment history/reload, locality, board clear and 3D return are recorded. Independent source review clear; parent acceptance remains open for stated context/lifecycle/fault limits. Unassessed F8/F9 criteria unchanged.",
       "packets": [
         {
           "stream": "Layout",
@@ -559,7 +559,7 @@
       {
         "stream": "Layout",
         "priority": "Functional gaps alongside other streams; exact visual parity deferred",
-        "state": "F3.6-C02 is verified on candidate 34812: switching 2D→3D cancels pending Pick origin and returns with camera, selection and history unchanged. Functional Layout authoring and other grouped Inspector/driven numeric criteria remain open; visual parity is deferred."
+        "state": "Grouped paired Inspector/mirror/compact/3D receipt completed. f320e6b8/34821 publicly passes repaired mirrored/ordinary Key disable→Undo selection, target assembly/attachment history/reload, canonical locality, board clear and 3D return. F3.5/F3.6 remain open for remaining context/lifecycle coverage, catalogue hook/public fault limit and F7.3 join; visual parity deferred."
       },
       {
         "stream": "PCB",
@@ -730,55 +730,37 @@
     "qualification": {
       "trigger": "functional_scope",
       "active_scope": {
-        "id": "frontend-case-geometry-admission-20261004",
-        "label": "Authored Case preview and STEP after missing-material admission repair",
-        "source_commit": "f551e4e0",
+        "id": "frontend-layout-grouped-repairs-20261004",
+        "label": "Grouped Layout Inspector, mirror-key state and 2D/3D qualification",
+        "source_commit": "f320e6b8cb782cc9deaa0cb623f187c6af1ed795",
         "streams": [
-          "Case"
+          "Layout"
         ],
         "journeys": [
           {
-            "id": "F7.6-F8.2-authored-case-step",
-            "scope": "Fresh Sofle Left authored Plate saved; Case Update preview and Export Case STEP become enabled and STEP downloads for Left. Switching to unconfigured Right board rejects/disables the stale output; returning to Left restores correct scope. Reuse generated mechanical ZIP (34810) and shared provider evidence.",
-            "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+            "id": "F3.5-F3.6-grouped-layout",
+            "scope": "Paired Sofle mirror creation/local edits; key Enabled Undo selection; compact keyboard Inspector; numeric draft validation; 3D pick/orbit and repeated view switching. Catalogue failure recovery uses native owner regression and mounted feedback; no fabricated public fault trigger.",
+            "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
             "source_paths": [
-              "core/src/lib.rs",
-              "web/src/case_generation_admission.rs",
-              "web/src/cad_jobs.rs",
-              "web/src/presentation/export_workspace.rs",
-              "web/src/runtime.rs"
+              "web/src/presentation.rs",
+              "web/src/matrix_transform_lifecycle.rs",
+              "web/src/matrix_transform_operation.rs",
+              "web/src/presentation/objects/matrix_transform_controller.rs"
             ],
             "source_paths_complete": true
           }
         ],
-        "carried_forward": {
-          "F3.6-pending-origin-pick-switch": {
-            "candidate": "frontend-authored-case-and-layout-20261004",
-            "receipt": ".scratch/dioxus-frontend-v1/evidence/layout-camera-f36c01-20261004/RECEIPT.md",
-            "reason": "web/src/presentation.rs footprint unchanged"
-          }
-        },
         "previous_scope": {
-          "id": "frontend-authored-case-and-layout-20261004",
-          "label": "Authored Case STEP and Layout origin-pick cancellation",
-          "source_commit": "f709ab602cd085aca78dbebf530952f74f35625b",
+          "id": "frontend-case-geometry-admission-20261004",
+          "label": "Authored Case preview and STEP after missing-material admission repair",
+          "source_commit": "f551e4e0",
           "streams": [
-            "Layout",
             "Case"
           ],
           "journeys": [
             {
-              "id": "F3.6-pending-origin-pick-switch",
-              "scope": "In Layout 2D, arm Inspector Pick origin; switching to 3D removes its pending hint/action, returning to 2D does not revive it, and board selection/camera remain current. Reuse the prior paired placement/camera round trip.",
-              "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
-              "source_paths": [
-                "web/src/presentation.rs"
-              ],
-              "source_paths_complete": true
-            },
-            {
               "id": "F7.6-F8.2-authored-case-step",
-              "scope": "From a saved Left PCB authored Case body and current outer contour, reach current Case preview without requiring PCB readiness; Export Case STEP delivers the selected Left board/instance. Switching to an unconfigured Right board disables the old output and returning to Left restores correct scope. Reuse generated mechanical ZIP and shared provider lifecycle evidence.",
+              "scope": "Fresh Sofle Left authored Plate saved; Case Update preview and Export Case STEP become enabled and STEP downloads for Left. Switching to unconfigured Right board rejects/disables the stale output; returning to Left restores correct scope. Reuse generated mechanical ZIP (34810) and shared provider evidence.",
               "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
               "source_paths": [
                 "core/src/lib.rs",
@@ -789,9 +771,50 @@
               ],
               "source_paths_complete": true
             }
-          ]
+          ],
+          "carried_forward": {
+            "F3.6-pending-origin-pick-switch": {
+              "candidate": "frontend-authored-case-and-layout-20261004",
+              "receipt": ".scratch/dioxus-frontend-v1/evidence/layout-camera-f36c01-20261004/RECEIPT.md",
+              "reason": "web/src/presentation.rs footprint unchanged"
+            }
+          },
+          "previous_scope": {
+            "id": "frontend-authored-case-and-layout-20261004",
+            "label": "Authored Case STEP and Layout origin-pick cancellation",
+            "source_commit": "f709ab602cd085aca78dbebf530952f74f35625b",
+            "streams": [
+              "Layout",
+              "Case"
+            ],
+            "journeys": [
+              {
+                "id": "F3.6-pending-origin-pick-switch",
+                "scope": "In Layout 2D, arm Inspector Pick origin; switching to 3D removes its pending hint/action, returning to 2D does not revive it, and board selection/camera remain current. Reuse the prior paired placement/camera round trip.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+                "source_paths": [
+                  "web/src/presentation.rs"
+                ],
+                "source_paths_complete": true
+              },
+              {
+                "id": "F7.6-F8.2-authored-case-step",
+                "scope": "From a saved Left PCB authored Case body and current outer contour, reach current Case preview without requiring PCB readiness; Export Case STEP delivers the selected Left board/instance. Switching to an unconfigured Right board disables the old output and returning to Left restores correct scope. Reuse generated mechanical ZIP and shared provider lifecycle evidence.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+                "source_paths": [
+                  "core/src/lib.rs",
+                  "web/src/case_generation_admission.rs",
+                  "web/src/cad_jobs.rs",
+                  "web/src/presentation/export_workspace.rs",
+                  "web/src/runtime.rs"
+                ],
+                "source_paths_complete": true
+              }
+            ]
+          },
+          "state": "passed"
         },
-        "state": "passed"
+        "state": "integrating"
       },
       "history": [
         {
@@ -3222,31 +3245,61 @@
               "state": "pending"
             }
           ]
+        },
+        {
+          "candidate_build_id": "frontend-review-fixes-20261004",
+          "source_commit": "df2abad6ad6a3dbdbfdf99189b40242b01c2979c",
+          "phase": "integrating",
+          "journeys": [
+            {
+              "id": "F7.6-F8.2-authored-case-step",
+              "scope": "Fresh Sofle Left authored Plate saved; Case Update preview and Export Case STEP become enabled and STEP downloads for Left. Switching to unconfigured Right board rejects/disables the stale output; returning to Left restores correct scope. Reuse generated mechanical ZIP (34810) and shared provider evidence.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+              "source_paths": [
+                "core/src/lib.rs",
+                "web/src/case_generation_admission.rs",
+                "web/src/cad_jobs.rs",
+                "web/src/presentation/export_workspace.rs",
+                "web/src/runtime.rs"
+              ],
+              "source_paths_complete": true,
+              "state": "pending"
+            }
+          ]
         }
       ],
-      "phase": "integrating",
-      "unmet_start_conditions": [
-        "Authored Case preview and STEP after missing-material admission repair source scope is not proven integrated into this candidate"
-      ],
-      "candidate_build_id": "frontend-review-fixes-20261004",
-      "source_commit": "df2abad6ad6a3dbdbfdf99189b40242b01c2979c",
+      "phase": "qualified_partial",
+      "unmet_start_conditions": [],
+      "candidate_build_id": "frontend-layout-grouped-repairs-20261004",
+      "source_commit": "f320e6b8cb782cc9deaa0cb623f187c6af1ed795",
       "journeys": [
         {
-          "id": "F7.6-F8.2-authored-case-step",
-          "scope": "Fresh Sofle Left authored Plate saved; Case Update preview and Export Case STEP become enabled and STEP downloads for Left. Switching to unconfigured Right board rejects/disables the stale output; returning to Left restores correct scope. Reuse generated mechanical ZIP (34810) and shared provider evidence.",
-          "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+          "id": "F3.5-F3.6-grouped-layout",
+          "scope": "Paired Sofle mirror creation/local edits; key Enabled Undo selection; compact keyboard Inspector; numeric draft validation; 3D pick/orbit and repeated view switching. Catalogue failure recovery uses native owner regression and mounted feedback; no fabricated public fault trigger.",
+          "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
           "source_paths": [
-            "core/src/lib.rs",
-            "web/src/case_generation_admission.rs",
-            "web/src/cad_jobs.rs",
-            "web/src/presentation/export_workspace.rs",
-            "web/src/runtime.rs"
+            "web/src/presentation.rs",
+            "web/src/matrix_transform_lifecycle.rs",
+            "web/src/matrix_transform_operation.rs",
+            "web/src/presentation/objects/matrix_transform_controller.rs"
           ],
           "source_paths_complete": true,
-          "state": "pending"
+          "state": "partial",
+          "receipt": ".scratch/dioxus-frontend-v1/evidence/layout-grouped-20261004/RECEIPT.md",
+          "result": "Paired grouped public journey complete on 34820/5175; repaired mirrored/ordinary Key Undo, local assembly/attachment history/reload, board scope clear and 3D return pass on f320e6b8/34821. Catalogue unavailable/retry native policy and source review pass; hook/public fault observation remains unqualified. This does not establish full parent/context/lifecycle acceptance."
         }
       ],
-      "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03"
+      "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
+      "started_at": "2026-10-04T19:52:13.380216+00:00",
+      "review": {
+        "profile": "sol-review",
+        "state": "pending"
+      },
+      "remaining_qualification": [
+        "Catalogue unavailable/retry hook-mounted/public fault observation remains limited; no public fault injection was claimed.",
+        "F3.5 remaining empty/multiple contextual routes, nested keyboard routes and locked/driven public fixtures.",
+        "F3.6 remaining lifecycle/resource evidence and F7.3 acceptance join."
+      ]
     },
     "delivery_priority": {
       "authority": "User on 2026-10-03: make the app work; layout parity last; improve UI along the way because the design will change.",
@@ -3327,6 +3380,10 @@
       {
         "build_id": "frontend-review-fixes-20261004",
         "published_at": "2026-10-04T17:30:55.368437+00:00"
+      },
+      {
+        "build_id": "frontend-layout-grouped-repairs-20261004",
+        "published_at": "2026-10-04T19:52:11.581180+00:00"
       }
     ]
   }

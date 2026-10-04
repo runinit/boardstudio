@@ -73,3 +73,25 @@ Ran 26 tests ... OK
 ```
 
 `git diff --check` also passed. This follow-up changed only the runner's root normalization and its focused regression test; existing `--depth` and allowlist updates in the committed gate work were preserved.
+
+## `--files` module-isolation follow-up
+
+New pre-fix regressions were run with:
+
+```text
+python3 scripts/test-run-wasm-tests.py RunWasmTestsTests.test_files_mode_expands_parent_prefix_to_isolated_matching_modules RunWasmTestsTests.test_files_mode_rejects_nonzero_partial_test_listing RunWasmTestsTests.test_files_mode_rejects_listed_tests_omitted_after_known_failure
+```
+
+All three were RED. A `presentation.rs` edit ran the raw `presentation::` filter and returned zero tests rather than isolating the listed presentation modules. A partial test listing with exit 1 was accepted, and an allowlisted terminal failure with a second listed-but-unreported test returned success.
+
+`--files` now expands source prefixes against successful wasm test listings and runs listed module filters independently. It rejects empty or failed listings, refuses unrelated substring matches, checks that every listed test under a selected module reached a terminal result, and records bounded runner output for failure diagnostics. A deep source prefix without listed tests may widen only to exact listed modules under its parent; no raw substring filter is run. The existing `--all` path and its `--depth` option remain intact. The delivery test's fake runner now answers `--list`.
+
+GREEN checks:
+
+```text
+python3 scripts/test-run-wasm-tests.py
+Ran 20 tests ... OK
+
+python3 scripts/test-migration-deliver.py
+Ran 26 tests ... OK
+```
