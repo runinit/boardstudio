@@ -474,11 +474,21 @@ pub fn validate(doc: &ProjectDoc) -> Vec<Finding> {
         {
             findings.push(error(
                 Scope::Case,
-                format!("case:{}:material", body.id),
+                case_material_finding_id(&body.id),
                 "Case material is missing",
                 vec![body.id.clone(), id.clone()],
             ));
         }
     }
     findings
+}
+
+/// Id of the finding raised when a Case body references a missing material.
+pub(crate) fn case_material_finding_id(body_id: &str) -> String {
+    format!("case:{body_id}:material")
+}
+
+/// Whether a finding id was produced by [`case_material_finding_id`].
+pub(crate) fn is_case_material_finding_id(id: &str) -> bool {
+    id.ends_with(":material")
 }

@@ -497,7 +497,7 @@ fn new_case_body(
     let id = unique_id(runtime, "case-body", |candidate| {
         existing.contains(candidate)
     });
-    let material_id = default_case_material(document);
+    let material_id = crate::case_generation_admission::default_case_material(document);
     Ok(CaseBody {
         features: None,
         openings: None,
@@ -514,16 +514,6 @@ fn new_case_body(
         mounts: Some(vec![]),
         gasket: None,
     })
-}
-
-fn default_case_material(document: &ProjectDoc) -> Option<String> {
-    document
-        .materials
-        .iter()
-        .find(|material| {
-            material.id.eq_ignore_ascii_case("pla") || material.name.eq_ignore_ascii_case("pla")
-        })
-        .map(|material| material.id.clone())
 }
 
 fn apply_body_edit(
@@ -720,27 +710,5 @@ impl CaseBodyEdit {
             | Edit::RemoveMount { body_id, .. }
             | Edit::SetGasket { body_id, .. } => Some(body_id),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use boardstudio_core::model::Material;
-
-    #[test]
-    fn default_case_body_does_not_reference_an_absent_material() {
-        let mut document = ProjectDoc::empty("fixture", "Fixture");
-        assert_eq!(default_case_material(&document), None);
-
-        document.materials.push(Material {
-            id: "pla-grade-a".into(),
-            name: "PLA".into(),
-            thickness: 1.75,
-        });
-        assert_eq!(
-            default_case_material(&document).as_deref(),
-            Some("pla-grade-a")
-        );
     }
 }
