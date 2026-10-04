@@ -1877,7 +1877,7 @@
             ".scratch/dioxus-frontend-v1/evidence/layout-key-inspector-gap-20261004/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Add key-cell operations (enabled, definitionId/variant, assemblies replace/remove, assembliesLocal) through the existing set-matrix path with snapshot/revision guards, project them into the key Inspector, then check Enable toggle, Key Assembly change and Undo once on a paired Sofle copy.",
+          "next_action": "Enabled toggle landed (0d37fc1d) and passed on 34815 incl. Undo. Remaining: Key Assembly select and Attached components replace/remove with mirror-target override through the same set-matrix path, then one paired check. Reopen persistence of Enabled is unexercised.",
           "finish_condition": "Enabled, Key Assembly and Attached components edit the selected key through the public Dioxus Inspector, persist across reopen and Undo/Redo, and match reference option sets.",
           "owned_files": [
             "web/src/presentation/objects/matrix_transform_inspector.rs",
