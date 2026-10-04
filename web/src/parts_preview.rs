@@ -87,12 +87,40 @@ pub(crate) struct PartsPreviewSnapshot {
 #[derive(Default)]
 pub(crate) struct PartsPreviewLeaseSlot {
     current: std::cell::RefCell<Option<Rc<PartsPreviewOwnerLease>>>,
+    active_generation: Cell<u64>,
 }
 
 impl PartsPreviewLeaseSlot {
+    pub(crate) fn select_generation(&self, generation: u64) {
+        self.active_generation.set(generation);
+        let obsolete = self
+            .current
+            .borrow()
+            .as_ref()
+            .is_some_and(|lease| lease.identity.source_generation != generation);
+        if obsolete {
+            self.invalidate();
+        }
+    }
+
     pub(crate) fn replace(&self, lease: Rc<PartsPreviewOwnerLease>) {
+        if lease.identity.source_generation != self.active_generation.get() {
+            lease.invalidate();
+            return;
+        }
         if let Some(previous) = self.current.replace(Some(lease)) {
             previous.invalidate();
+        }
+    }
+
+    pub(crate) fn invalidate_generation(&self, generation: u64) {
+        let matches = self
+            .current
+            .borrow()
+            .as_ref()
+            .is_some_and(|lease| lease.identity.source_generation == generation);
+        if matches {
+            self.invalidate();
         }
     }
 
@@ -100,6 +128,62 @@ impl PartsPreviewLeaseSlot {
         if let Some(current) = self.current.borrow_mut().take() {
             current.invalidate();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use boardstudio_application::SessionEpoch;
+
+    fn lease(generation: u64) -> Rc<PartsPreviewOwnerLease> {
+        PartsPreviewOwnerLease::new(PartsPreviewOwnerIdentity {
+            scope: Scope {
+                session_epoch: SessionEpoch(1),
+                document_id: "doc".into(),
+                board_id: "board".into(),
+                instance_id: None,
+            },
+            snapshot_token: SnapshotToken(1),
+            accepted_revision: 1,
+            accepted_document_identity: 1,
+            definition_id: "definition".into(),
+            recipe_identity: "recipe".into(),
+            source_generation: generation,
+            request_token: format!("request-{generation}"),
+        })
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    fn late_old_generation_invalidation_cannot_revoke_new_parts_preview_lease() {
+        let slot = PartsPreviewLeaseSlot::default();
+        slot.select_generation(1);
+        let old = lease(1);
+        slot.replace(old.clone());
+
+        slot.select_generation(2);
+        assert!(!old.is_active(), "selection change retires the old lease");
+        let late_old = lease(1);
+        slot.replace(late_old.clone());
+        assert!(
+            !late_old.is_active(),
+            "a late old task cannot reclaim the slot"
+        );
+
+        let current = lease(2);
+        slot.replace(current.clone());
+        slot.invalidate_generation(1);
+        assert!(
+            current.is_active(),
+            "the old deferred effect must not revoke the new lease"
+        );
+        assert!(
+            slot.current
+                .borrow()
+                .as_ref()
+                .is_some_and(|lease| Rc::ptr_eq(lease, &current))
+        );
     }
 }
 

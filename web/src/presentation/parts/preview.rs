@@ -87,52 +87,6 @@ pub(in crate::presentation) fn PartsPreviewPanel(
     #[props(default = false)] start_in_3d: bool,
 ) -> Element {
     let runtime = use_context::<Rc<crate::runtime::Runtime>>();
-    let runtime_version = use_context::<Signal<u64>>();
-    let _ = runtime_version();
-    let accepted = runtime.model().accepted;
-    let current_scope = runtime.scope();
-    let refreshed_identity = accepted.as_ref().and_then(|accepted| {
-        current_preview_source_identity(
-            scope.as_ref(),
-            snapshot_token,
-            current_scope.as_ref(),
-            accepted.token,
-        )
-    });
-    let (scope, snapshot_token) = refreshed_identity
-        .as_ref()
-        .map(|(scope, token)| (Some(scope.clone()), *token))
-        .unwrap_or((scope, snapshot_token));
-    let definition = definition.map(|definition| {
-        accepted
-            .as_ref()
-            .filter(|_| refreshed_identity.is_some())
-            .and_then(|accepted| {
-                accepted
-                    .document
-                    .definitions
-                    .iter()
-                    .find(|current| current.id == definition.id)
-                    .cloned()
-            })
-            .map(Rc::new)
-            .unwrap_or(definition)
-    });
-    let mut recipe = recipe;
-    if refreshed_identity.is_some() {
-        if let Some(accepted) = accepted.as_ref() {
-            for member in &mut recipe {
-                if let Some(current) = accepted
-                    .document
-                    .definitions
-                    .iter()
-                    .find(|current| current.id == member.definition.id)
-                {
-                    member.definition = current.clone();
-                }
-            }
-        }
-    }
     let selection_generation = use_context::<super::PartsSelectionGeneration>().0;
     let preview_activation = use_context::<super::PartsPreviewActivation>().0;
     let recipe = if recipe.is_empty() && recipe_error.is_none() && !recipe_pending {
@@ -177,39 +131,36 @@ pub(in crate::presentation) fn PartsPreviewPanel(
     let current_owner = next_preview_owner(&last_input, &generation_counter, input.clone());
     let generation = current_owner.generation;
     let lease_slot = use_hook(|| Rc::new(crate::parts_preview::PartsPreviewLeaseSlot::default()));
+    lease_slot.select_generation(generation);
     use_drop({
         let lease_slot = lease_slot.clone();
         move || lease_slot.invalidate()
     });
     let mut show_3d = use_signal(|| start_in_3d);
-    let previous_activation = use_hook(|| Rc::new(RefCell::new(None::<(String, u64)>)));
-    let previous_preview_generation = use_hook(|| Rc::new(Cell::new(None::<u64>)));
+    let previous_activation = use_hook(|| Rc::new(RefCell::new(None::<(String, u64, u64)>)));
     use_effect(use_reactive(
-        (&input.definition_id, &preview_activation()),
+        (&input.definition_id, &preview_activation(), &generation),
         {
             let previous_activation = previous_activation.clone();
             let lease_slot = lease_slot.clone();
-            move |(definition_id, activation_generation)| {
-                let activation = (definition_id, activation_generation);
+            move |(definition_id, activation_generation, generation)| {
+                let activation = (definition_id.clone(), activation_generation, generation);
                 let mut previous = previous_activation.borrow_mut();
-                if previous.as_ref() != Some(&activation) {
-                    *previous = Some(activation);
-                    show_3d.set(false);
-                    lease_slot.invalidate();
+                if let Some((previous_definition, previous_activation, previous_generation)) =
+                    previous.replace(activation)
+                {
+                    if previous_definition != definition_id
+                        || previous_activation != activation_generation
+                    {
+                        show_3d.set(false);
+                    }
+                    if previous_generation != generation {
+                        lease_slot.invalidate_generation(previous_generation);
+                    }
                 }
             }
         },
     ));
-    use_effect(use_reactive((&generation,), {
-        let previous_preview_generation = previous_preview_generation.clone();
-        let lease_slot = lease_slot.clone();
-        move |(generation,)| {
-            let previous = previous_preview_generation.replace(Some(generation));
-            if previous.is_some_and(|previous| previous != generation) {
-                lease_slot.invalidate();
-            }
-        }
-    }));
     let source = use_resource(use_reactive(
         (
             &definition,
@@ -652,20 +603,6 @@ fn next_preview_owner(
         input,
         generation: generation_counter.get(),
     }
-}
-
-fn current_preview_source_identity(
-    requested_scope: Option<&Scope>,
-    requested_token: SnapshotToken,
-    current_scope: Option<&Scope>,
-    current_token: SnapshotToken,
-) -> Option<(Scope, SnapshotToken)> {
-    let requested_scope = requested_scope?;
-    let current_scope = current_scope?;
-    (requested_scope.session_epoch == current_scope.session_epoch
-        && requested_scope.document_id == current_scope.document_id)
-        .then(|| (current_scope.clone(), current_token))
-        .filter(|(_, token)| *token != requested_token)
 }
 
 fn valid_size(size: Vec2) -> Option<Vec2> {
@@ -1280,42 +1217,6 @@ mod tests {
         assert_eq!(scoped_owner.generation, 4);
         assert_eq!(returned_a.generation, 5);
         assert!(!owner_is_current(&scoped_owner, &returned_a));
-    }
-
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    #[cfg_attr(not(target_arch = "wasm32"), test)]
-    fn accepted_source_transition_rebinds_preview_owner_to_current_snapshot() {
-        let requested_scope = Scope {
-            session_epoch: SessionEpoch(4),
-            document_id: "doc-a".into(),
-            board_id: "board-a".into(),
-            instance_id: None,
-        };
-        let current_scope = Scope {
-            board_id: "board-b".into(),
-            ..requested_scope.clone()
-        };
-        let refreshed = current_preview_source_identity(
-            Some(&requested_scope),
-            SnapshotToken(7),
-            Some(&current_scope),
-            SnapshotToken(8),
-        );
-        assert_eq!(refreshed, Some((current_scope, SnapshotToken(8))));
-
-        let unrelated_scope = Scope {
-            document_id: "another-doc".into(),
-            ..requested_scope.clone()
-        };
-        assert!(
-            current_preview_source_identity(
-                Some(&requested_scope),
-                SnapshotToken(7),
-                Some(&unrelated_scope),
-                SnapshotToken(8),
-            )
-            .is_none()
-        );
     }
 
     #[test]

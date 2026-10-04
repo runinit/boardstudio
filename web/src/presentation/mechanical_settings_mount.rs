@@ -562,6 +562,7 @@ pub(crate) fn use_mechanical_settings_mount(
         let on_select_layer = EventHandler::new({
             let runtime = runtime.clone();
             let current_reader = current_reader.clone();
+            let current_resolution = current_resolution.clone();
             let alive = alive.clone();
             let rendered_identity = current.identity.clone();
             move |id: String| {
@@ -577,22 +578,23 @@ pub(crate) fn use_mechanical_settings_mount(
                 if workspace() != "Case" || !instance_selection.is_current(&runtime.model()) {
                     return;
                 }
-                let Some(scene) = runtime.cad_scene().filter(|scene| {
-                    crate::case_generation_lifecycle::same_owner_completed_scene_for_display(
-                        scene.exact,
-                        &scene.scope,
-                        &live.identity.scope,
-                    )
-                }) else {
-                    return;
-                };
-                let exists = scene.mechanical.as_ref().is_some_and(|assembly| {
-                    assembly.stack.iter().any(|layer| layer.id == id)
-                        || (id == "gaskets" && !assembly.gasket_supports.is_empty())
-                        || (assembly.gasket_supports.iter().any(|support| {
-                            id == format!("gasket:{}:lower", support.id)
-                                || id == format!("gasket:{}:upper", support.id)
-                        }) && scene.result.bodies.iter().any(|body| body.id == id))
+                let resolved = current_resolution.as_ref().filter(|projection| {
+                    projection_matches_identity(projection, &rendered_identity)
+                });
+                let scene = runtime.cad_scene().filter(|scene| {
+                    scene.exact
+                        && scene.scope == live.identity.scope
+                        && scene.token == live.identity.snapshot_token
+                        && scene.snapshot.document.revision == live.identity.revision
+                });
+                let exists = resolved.is_some_and(|projection| {
+                    resolved_projection_layer_is_selectable(projection, &rendered_identity, &id)
+                }) || scene.as_ref().is_some_and(|scene| {
+                    scene.mechanical.as_ref().is_some_and(|assembly| {
+                        mechanical_assembly_has_layer(assembly, &id)
+                            && (!id.starts_with("gasket:")
+                                || scene.result.bodies.iter().any(|body| body.id == id))
+                    })
                 });
                 if !id.is_empty() && !exists {
                     return;
@@ -794,6 +796,37 @@ struct MechanicalSettingsResolvedProjection {
     resolution: Rc<MechanicalResolution>,
 }
 
+fn projection_matches_identity(
+    projection: &MechanicalSettingsResolvedProjection,
+    identity: &MechanicalSettingsIdentity,
+) -> bool {
+    projection.identity == *identity
+        && projection.key.scope == identity.scope
+        && projection.key.token == identity.snapshot_token
+        && projection.key.revision == identity.revision
+}
+
+fn mechanical_assembly_has_layer(assembly: &MechanicalAssembly, id: &str) -> bool {
+    assembly.stack.iter().any(|layer| layer.id == id)
+        || (id == "gaskets" && !assembly.gasket_supports.is_empty())
+        || (assembly.gasket_supports.iter().any(|support| {
+            id == format!("gasket:{}:lower", support.id)
+                || id == format!("gasket:{}:upper", support.id)
+        }) && assembly.case.bodies.iter().any(|body| body.body.id == id))
+}
+
+fn resolved_projection_layer_is_selectable(
+    projection: &MechanicalSettingsResolvedProjection,
+    identity: &MechanicalSettingsIdentity,
+    id: &str,
+) -> bool {
+    // The resolved projection is admitted to the mounted settings only for this exact
+    // scope/token/revision. Recheck the full identity because a retained row action can
+    // otherwise outlive the render that supplied its layer id.
+    projection_matches_identity(projection, identity)
+        && mechanical_assembly_has_layer(&projection.resolution.assembly, id)
+}
+
 impl PartialEq for MechanicalSettingsResolvedProjection {
     fn eq(&self, other: &Self) -> bool {
         self.key == other.key
@@ -978,6 +1011,69 @@ mod tests {
         assert_eq!(fallback.len(), 1);
         assert_eq!(fallback[0].thickness, 1.5);
         assert!(fallback[0].is_previous);
+    }
+
+    #[wasm_bindgen_test]
+    fn mounted_current_resolution_layer_is_selectable_before_scene_completion() {
+        use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
+
+        let identity = MechanicalSettingsIdentity {
+            editor_instance_id: 1,
+            scope_generation: 3,
+            presentation_generation: 2,
+            scope: Scope {
+                session_epoch: SessionEpoch(1),
+                document_id: "doc".into(),
+                board_id: "board".into(),
+                instance_id: None,
+            },
+            snapshot_token: SnapshotToken(8),
+            revision: 12,
+            active_board_id: "board".into(),
+            configuration_board_id: "board".into(),
+        };
+        let effective_configuration = serde_json::from_value(serde_json::json!({
+            "boardId": "board",
+            "method": "printed",
+            "mount": "tray",
+            "plateThickness": 1.5,
+            "plateFoamThickness": 0.0,
+            "pcbThickness": 1.6,
+            "bottomFoamThickness": 0.0,
+            "batteryHeight": 0.0,
+            "bottomThickness": 2.0,
+            "plateToPcb": 3.1,
+            "wallThickness": 2.0,
+            "clearance": 0.5,
+            "profiles": []
+        }))
+        .expect("minimal effective configuration");
+        let projection = MechanicalSettingsResolvedProjection {
+            key: SettingsSourceKey {
+                scope: identity.scope.clone(),
+                token: identity.snapshot_token,
+                revision: identity.revision,
+            },
+            identity: identity.clone(),
+            resolution: Rc::new(MechanicalResolution {
+                assembly: assembly_with_plate(2.0),
+                effective_configuration,
+            }),
+        };
+
+        assert!(resolved_projection_layer_is_selectable(
+            &projection,
+            &identity,
+            "plate"
+        ));
+
+        let mut stale_identity = identity.clone();
+        stale_identity.snapshot_token = SnapshotToken(7);
+        assert!(!resolved_projection_layer_is_selectable(
+            &projection,
+            &stale_identity,
+            "plate"
+        ));
     }
 }
 
