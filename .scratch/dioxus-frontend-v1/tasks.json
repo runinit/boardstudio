@@ -517,7 +517,7 @@
             ".scratch/dioxus-frontend-tranche-1/evidence/project-demo-cards-fresh-copies-34767/RESULTS.md"
           ],
           "blockers": [],
-          "next_action": "Paired Sofle demo opened as editable saved copy and gallery browse preserved left-U1 selection/revision; 19 current previews loaded. Qualify damaged-preview fallback using a legitimate broken fixture or focused production-path test before C04 verification.",
+          "next_action": "Paired Sofle demo editable copy and nonmutating browse retained; one focused mounted production-path test now proves zero-width damaged preview fallback leaves accessible Open and a healthy card. Public React/Dioxus damaged-preview pairing is unavailable through supported UI; decide this exact evidence substitution at consolidated F2.1 acceptance review.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/library.rs"

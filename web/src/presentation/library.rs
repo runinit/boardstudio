@@ -1101,6 +1101,73 @@ mod mounted_tests {
     }
 
     #[wasm_bindgen_test]
+    async fn damaged_saved_preview_keeps_open_action_and_healthy_card_available() {
+        let mut damaged = ProjectDoc::empty("damaged-preview", "Damaged preview keyboard");
+        damaged.definitions = vec![
+            serde_json::from_value(serde_json::json!({
+                "id": "switch",
+                "name": "Switch",
+                "kind": "switch",
+                "courtyard": [],
+                "pads": []
+            }))
+            .unwrap(),
+        ];
+        damaged.parts.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "switch-1",
+                "definitionId": "switch",
+                "reference": "SW1",
+                "pose": { "at": { "x": 0.0, "y": 0.0 }, "rotation": 0.0 },
+                "side": "front",
+                "keycap": { "x": 0.0, "y": 18.0 }
+            }))
+            .unwrap(),
+        );
+        let healthy = ProjectDoc::empty("healthy-preview", "Healthy keyboard");
+        PROJECT_LIST_TEST_RESULTS.with(|results| {
+            let mut results = results.borrow_mut();
+            results.clear();
+            results.push_back(Ok(vec![damaged, healthy]));
+        });
+
+        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        let root = mount_menu(runtime, "damaged-preview-fallback-mounted-regression");
+        wait_for_project_cards(&root, 2).await;
+
+        let damaged_card = root
+            .query_selector(
+                ".m1-keyboard-card:not(.m1-demo-keyboard-card) button[aria-label='Open Damaged preview keyboard']",
+            )
+            .unwrap()
+            .expect("damaged preview remains an accessible Open action");
+        assert!(damaged_card.get_attribute("disabled").is_none());
+        assert!(
+            damaged_card
+                .text_content()
+                .unwrap()
+                .contains("Preview unavailable")
+        );
+        assert!(
+            damaged_card
+                .text_content()
+                .unwrap()
+                .contains("Open to check this keyboard")
+        );
+        assert!(
+            root.query_selector(
+                ".m1-keyboard-card:not(.m1-demo-keyboard-card) button[aria-label='Open Healthy keyboard']",
+            )
+            .unwrap()
+            .is_some(),
+            "one damaged preview does not hide a healthy saved card"
+        );
+
+        PROJECT_LIST_TEST_RESULTS.with(|results| results.borrow_mut().clear());
+        remove_test_root("damaged-preview-fallback-mounted-regression");
+    }
+
+    #[wasm_bindgen_test]
     async fn saved_project_list_loading_error_and_retry_recover_in_mounted_library() {
         let (session, core) = accepted(ProjectDoc::empty("list-retry-current", "Current keyboard"));
         let runtime = crate::runtime::project_name_test_support::new_runtime();
