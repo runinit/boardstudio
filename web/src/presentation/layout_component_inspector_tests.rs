@@ -950,3 +950,78 @@ async fn mounted_component_drafts_survive_unrelated_acceptance_and_blur_uses_lat
     );
     root.remove();
 }
+
+#[component]
+fn matrix_context_tab_reset_host() -> Element {
+    let (matrix_context, key_context) = use_hook(|| {
+        let (_, selected_key) = matrix_primary_fixture();
+        let matrix_context = objects::ScopedTreeContext {
+            scope: selected_key.scope.clone(),
+            context: objects::TreeContext::Matrix {
+                matrix_id: "component-matrix".into(),
+            },
+        };
+        (matrix_context, selected_key)
+    });
+    let mut selected_context = use_signal(|| Some(matrix_context.clone()));
+    let mut inspector_tab = use_signal(super::layout_workspace::LayoutInspectorTab::default);
+    super::layout_workspace::use_contextual_inspector_tab_reset(selected_context, inspector_tab);
+    let selected_label = selected_context()
+        .map(|context| format!("{:?}", context.context))
+        .unwrap_or_default();
+    rsx! {
+        button {
+            id: "matrix-context-tabs-select-relations",
+            onclick: move |_| inspector_tab.set(super::layout_workspace::LayoutInspectorTab::Relations),
+            "Select Relations"
+        }
+        button {
+            id: "matrix-context-tabs-select-key",
+            onclick: move |_| selected_context.set(Some(key_context.clone())),
+            "Select Key"
+        }
+        div { role: "tablist", aria_label: "Inspector details",
+            button { role: "tab", aria_selected: "{inspector_tab() == super::layout_workspace::LayoutInspectorTab::Properties}", "Properties" }
+            button { role: "tab", aria_selected: "{inspector_tab() == super::layout_workspace::LayoutInspectorTab::Relations}", "Relations" }
+        }
+        p { id: "matrix-context-tabs-selected", "{selected_label}" }
+    }
+}
+
+#[wasm_bindgen_test]
+async fn matrix_to_key_selection_resets_relations_tab_to_properties() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    root.set_id("matrix-context-tabs-test-root");
+    document.body().unwrap().append_child(&root).unwrap();
+    let dom = VirtualDom::new(matrix_context_tab_reset_host);
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    settle_component_inspector().await;
+    click_component_inspector(root.id().as_str(), "#matrix-context-tabs-select-relations");
+    settle_component_inspector().await;
+    assert_eq!(
+        document
+            .query_selector("#matrix-context-tabs-test-root [role='tab'][aria-selected='true']")
+            .unwrap()
+            .unwrap()
+            .text_content()
+            .as_deref(),
+        Some("Relations"),
+    );
+    click_component_inspector(root.id().as_str(), "#matrix-context-tabs-select-key");
+    settle_component_inspector().await;
+    assert_eq!(
+        document
+            .query_selector("#matrix-context-tabs-test-root [role='tab'][aria-selected='true']")
+            .unwrap()
+            .unwrap()
+            .text_content()
+            .as_deref(),
+        Some("Properties"),
+        "a changed Matrix→Key context resets the shared Inspector tab to Properties"
+    );
+    root.remove();
+}

@@ -2,6 +2,7 @@
 use super::objects;
 use super::workspace_composition::SharedObjectsInput;
 use dioxus::prelude::*;
+use std::{cell::RefCell, rc::Rc};
 
 pub(super) struct ObjectsInput {
     pub(super) shared: SharedObjectsInput,
@@ -71,6 +72,24 @@ pub enum LayoutInspectorTab {
     #[default]
     Properties,
     Relations,
+}
+
+/// Keep the shared tab choice scoped to the currently selected tree context.
+/// Unrelated accepted revisions leave that context equal and retain the user's
+/// tab, while selecting another object returns to its Properties.
+pub(super) fn use_contextual_inspector_tab_reset(
+    selected_context: Signal<Option<objects::ScopedTreeContext>>,
+    inspector_tab: Signal<LayoutInspectorTab>,
+) {
+    let observed_context = selected_context();
+    let previous_context = use_hook(|| Rc::new(RefCell::new(observed_context.clone())));
+    use_effect(use_reactive!(|observed_context| {
+        let mut inspector_tab = inspector_tab;
+        if previous_context.borrow().as_ref() != observed_context.as_ref() {
+            inspector_tab.set(LayoutInspectorTab::Properties);
+        }
+        *previous_context.borrow_mut() = observed_context.clone();
+    }));
 }
 
 pub(super) fn objects(input: ObjectsInput) -> Element {

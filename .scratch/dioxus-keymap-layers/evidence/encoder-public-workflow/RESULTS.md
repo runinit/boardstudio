@@ -39,7 +39,25 @@ A separate fresh profile publicly reimported the prior accepted export archive S
 
 The earlier candidate’s detailed validation/recovery and full Undo/Redo/export/reimport checks are preserved above for source e82c039b. The correction is restricted to initial option selection; it does not change the binding editing, parsing, persistence, history, or archive logic. New-build coverage deliberately repeats the regression, actual edits, Undo/Redo, and nonempty accepted archive import, rather than claiming all earlier scenarios were independently rerun. No browser error was used to infer behavior.
 
-Open coverage for this bounded packet: no board or physical-instance switch was exercised; this imported Sofle has only left/`left half` selected in the tested screen. No module rows exist in the fixture. A keyboard-only navigation sequence, actual assistive technology, F5 physical plan/fingerprint, and F8 firmware output were not exercised. The saved editor displays CW/CCW expanded and Push collapsed after reimport (`fixed-reimport-dom.json`); screenshot `fixed-reimport-all-controls.png` was captured at 1280×1200 with no selected key. The initial default screenshot `fixed-default.png` was captured at 1280×900.
+Open coverage for this bounded packet: the original imported-fixture run did not exercise board or physical-instance switching; its Keymap screen used only Left PCB. The paired public board-selection and per-board binding/history follow-ups are recorded below. No module rows exist in the fixture. A keyboard-only navigation sequence, actual assistive technology, F5 physical plan/fingerprint, and F8 firmware output were not exercised. The saved editor displays CW/CCW expanded and Push collapsed after reimport (`fixed-reimport-dom.json`); screenshot `fixed-reimport-all-controls.png` was captured at 1280×1200 with no selected key. The initial default screenshot `fixed-default.png` was captured at 1280×900.
+
+## F6.6-C04 paired Keymap board switch supplement — 2026-10-04
+
+Pinned TypeScript `http://127.0.0.1:5175/` and candidate `http://127.0.0.1:34803/` were opened in separate named agent-browser sessions (`f66c04-ts-7dd31abc1fc4`, `f66c04-dx-7dd31abc1fc4`). Each fresh browser started the public Sofle v2 demo, which presents matching Left PCB and Right PCB boards. While the Keymap workspace was selected, the public board selector was changed once from Left PCB to Right PCB in each client.
+
+Both clients selected Right PCB and updated the CAD tree and Keymap canvas to the right-hand key identities (`right-keys-SW1` through `right-keys-SW24` and `right-thumbs-SW1` through `right-thumbs-SW5`). The Selected key control likewise listed right-hand keys, retained no selected key, and the active layer remained Base. No Keymap binding, history, or archive state was changed. Paired captures: `f66c04-ts-5175-20261004.png` and `f66c04-candidate-34803-20261004.png`.
+
+This closes the previously unexercised public board-switch leg for the default Sofle v2 fixture only. It does not qualify per-board authored-binding preservation, physical-instance switching, stale reply behavior, or F5/F8 integration.
+
+## F6.6-C04 paired per-board binding, history, and reopen supplement — 2026-10-04
+
+Pinned TypeScript `http://127.0.0.1:5175/` and candidate `http://127.0.0.1:34803/` were opened in separate fresh sessions (`f66c04-bind-ts-2318ea1a1376`, `f66c04-bind-dx-2318ea1a1376`) and each started the public Sofle v2 demo. In Keymap on Left PCB, `left-keys-SW1` was assigned Key press `Q`. After switching to Right PCB, `right-keys-SW1` was assigned Key press `W`. Both UIs accepted the values and displayed the corresponding key labels.
+
+Switching back to Left PCB showed `left-keys-SW1 · Q` in both. Pressing public Undo from Left PCB reverted the latest Right-board edit: after switching Right, `right-keys-SW1` showed the original `A`. Public Redo restored `right-keys-SW1 · W`. Switching back to Left still showed Q, so the global history action applied to its originating board without replacing the other board’s binding.
+
+Each client was reopened through Project → `Open Sofle v2`. After reopening, Right showed `right-keys-SW1 · W`, and switching Left showed `left-keys-SW1 · Q`. Paired post-reopen captures: `f66c04-board-bindings-ts-5175-20261004.png`, `f66c04-board-bindings-candidate-34803-20261004.png`, `f66c04-board-bindings-left-ts-5175-20261004.png`, and `f66c04-board-bindings-left-candidate-34803-20261004.png`.
+
+This qualifies the public per-board binding, global Undo/Redo targeting, and saved-project reopen path on the default Sofle v2 fixture. It does not qualify physical-instance switching, stale/cancelled preview, F5 physical plan/fingerprint, or F8 firmware output.
 
 ## C05 public readiness failure and recovery — 2026-10-03
 

@@ -748,16 +748,18 @@
         {
           "id": "F2.3-C01",
           "requirement": "Desktop panels support pinned/auto-hide/collapsed modes and panel interaction.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/panels.rs:184",
             "web/src/presentation/panels.rs:295",
             "web/src/presentation/panels.rs:404"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/compact-shell-parity-20261003/f23-public-qualification.md"
+          ],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Verified on packaged source f399d8c2 in one paired desktop journey: pinned, auto-hide and collapsed panel modes keep content usable, and panel actions preserve Revision 3, Undo/Redo availability and 100% camera zoom.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/panels.rs",
@@ -770,7 +772,7 @@
         {
           "id": "F2.3-C02",
           "requirement": "Pointer and keyboard resizing are bounded to usable widths; widths/modes persist.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/panels.rs",
@@ -781,7 +783,7 @@
             ".scratch/dioxus-frontend-v1/evidence/compact-shell-parity-20261003/f23-public-qualification.md"
           ],
           "blockers": [],
-          "next_action": "After paired 34802 RED, divider pointer handlers now resolve the captured `.m1-panel-resize` through event.target().closest() instead of absent delegated current_target(); the locked wasm page check and formatting pass. On the next packaged candidate, recheck Objects and Inspect pointer drag/capture once; reuse 34802 keyboard bounds and saved-width/mode reload evidence.",
+          "next_action": "Verified on packaged source f399d8c2: paired desktop Objects/Inspect pointer and Arrow-key resize clamp to the public 200\u2013420/280\u2013480 ranges; pinned/auto-hide widths and modes survive reload. Existing F2.3 receipt holds the 34802 RED and 34803 GREEN.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/panels.rs",
@@ -824,14 +826,16 @@
         {
           "id": "F2.3-C04",
           "requirement": "Panel actions preserve document revision, history and camera.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/panels.rs:184"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/compact-shell-parity-20261003/f23-public-qualification.md"
+          ],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Verified on packaged source f399d8c2 in one paired desktop journey: pinned, auto-hide and collapsed panel modes keep content usable, and panel actions preserve Revision 3, Undo/Redo availability and 100% camera zoom.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/panels.rs"
@@ -5888,7 +5892,7 @@
         {
           "id": "F6.6-C03",
           "requirement": "Compare profile/legend/size/color/fit workflows on identical saved fixtures.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/keycaps_settings.rs",
@@ -5897,10 +5901,11 @@
           ],
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
-            ".scratch/dioxus-frontend-v1/evidence/keycaps-size-reflow-20261003/paired-linked-resize.md"
+            ".scratch/dioxus-frontend-v1/evidence/keycaps-size-reflow-20261003/paired-linked-resize.md",
+            ".scratch/dioxus-frontend-v1/evidence/keycaps-3d-preview-20261003/f6c2-settings-receipt.md"
           ],
           "blockers": [],
-          "next_action": "Reuse paired linked-size, 3D and successful STEP evidence; qualify profile, legend, color and fit edits on the same saved fixture.",
+          "next_action": "Verified from one saved c6 fixture: paired 34803/5175 profile SA\u2192DCS and clearance 0.5\u21920.6 retained matching 27 fit findings and Undo/Redo, with existing same-fixture legend/color and linked-size receipts reused. Broader F6.6 history, workspace/export and release joins remain separate.",
           "finish_condition": "Representative paired profile, legend, size, color and fit workflows use equivalent saved fixtures and preserve accepted state.",
           "owned_files": [
             "web/src/presentation/keycaps_settings.rs",

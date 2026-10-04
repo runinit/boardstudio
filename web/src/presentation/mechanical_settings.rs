@@ -893,6 +893,7 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     identity: props.identity.clone(),
                     profiles: props.profiles.clone(),
                     plate_thickness: values.plate_thickness,
+                    plate_to_pcb: values.plate_to_pcb,
                     editable: props.editable,
                     request_sequence,
                     on_request: props.on_request,
@@ -2644,6 +2645,7 @@ struct ProfileGuidanceProps {
     identity: MechanicalSettingsIdentity,
     profiles: Rc<[MechanicalProfileChoice]>,
     plate_thickness: f64,
+    plate_to_pcb: f64,
     editable: bool,
     request_sequence: Signal<u64>,
     on_request: EventHandler<MechanicalSettingsRequest>,
@@ -2655,7 +2657,8 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
         section { class: "m1-mechanical-group", aria_label: "Switch fit profiles",
             h3 { "Switch fit profiles" }
             if props.profiles.is_empty() {
-                p { class: "m1-mechanical-help", "No switch fit profile is available. Select or add a supported switch family in Parts to resolve the plate gap and supported thickness." }
+                p { class: "m1-mechanical-help", "No explicit switch fit profile is assigned. The supported plate thickness range is unavailable until a fit profile is assigned in Parts." }
+                p { "Plate underside to PCB top: {props.plate_to_pcb:.2} mm · current configured gap." }
             }
             for profile in props.profiles.iter() {
                 div { class: "m1-mechanical-profile", key: "{profile.definition_id}",
@@ -3620,6 +3623,21 @@ mod contextual_layer_tests {
         }
     }
 
+    fn empty_profile_guidance_test_page() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        rsx! {
+            ProfileGuidance {
+                identity: test_identity(),
+                profiles: Rc::from([]),
+                plate_thickness: 2.0,
+                plate_to_pcb: 3.0,
+                editable: true,
+                request_sequence,
+                on_request: move |_| {},
+            }
+        }
+    }
+
     #[component]
     fn BatteryTestPage() -> Element {
         let wired_request_sequence = use_signal(|| 0_u64);
@@ -3833,6 +3851,22 @@ mod contextual_layer_tests {
         assert!(text.contains("Clearance"));
         assert!(!text.contains("Resolved thickness"));
         assert!(!text.contains("Plate thickness"));
+    }
+
+    #[wasm_bindgen_test]
+    async fn unassigned_profile_guidance_shows_saved_plate_to_pcb_gap() {
+        mount_battery_test_page(
+            "case-empty-profile-guidance-test-root",
+            empty_profile_guidance_test_page,
+        );
+        rendered().await;
+        let text = element("#case-empty-profile-guidance-test-root")
+            .text_content()
+            .unwrap_or_default();
+        assert!(
+            text.contains("Plate underside to PCB top: 3.00 mm"),
+            "show the accepted plate gap even when no explicit profile row is assigned"
+        );
     }
 
     #[wasm_bindgen_test]

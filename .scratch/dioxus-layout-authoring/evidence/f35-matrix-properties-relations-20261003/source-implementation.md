@@ -118,3 +118,48 @@ revision 7 restored the rotation to 0. All observed traffic used Worker; no
 MessagePort traffic was recorded. Thus this mounted build did not reproduce the
 saved-transform mismatch noted in the earlier paired follow-up; the earlier
 failure remains unqualified pending reproduction on its original build state.
+
+### Updated Dioxus finding-return check (2026-10-04; source `f399d8c2`)
+
+On `http://127.0.0.1:34803/`, a fresh import of the saved
+`initial-sofle.boardstudio` fixture selected the SVG component target
+`left/U1` (`left-U1` inspector, Properties selected). Layout findings showed
+both outline targets; `Show outline` for Left PCB selected the Generated outline
+and exposed a visible `Back to selection` button. Focusing that control and
+pressing Enter returned to the prior `left-U1` component inspector with
+Properties selected and keyboard focus on the Properties tab. This covers the
+Dioxus C04 finding-return path on the updated package; prior paired React and
+34801 observations remain as recorded above. No component-target branch was
+missing in this fixture. No source, tracker, or run files were changed.
+
+### Paired contextual Inspector selection check (2026-10-04)
+
+React `http://127.0.0.1:5175/` and updated Dioxus candidate
+`http://127.0.0.1:34803/` each imported the same saved
+`initial-sofle.boardstudio` fixture. In the empty part-selection / Left PCB
+context, both showed the Board name field and no Properties/Relations tabs. On
+selecting the `keys` Matrix, both exposed Properties and Relations; Properties
+contained matrix setup/transform controls, and Relations showed Relationships
+and Edit placement relationship. The visible matrix relation control was
+present in both full interactive DOMs.
+
+**First mismatch (stopped here):** with `keys` selected, switching both
+Inspectors to Relations and then selecting tree child `Key 1.1 left-keys-SW1`
+reset React to Key Properties. Dioxus updated the selected-context heading to
+`keys · Key 1.1` but retained Relations and displayed Relationships, hiding the
+key's Properties. This is a tab-scope mismatch when the selected object changes,
+not a missing control. The receipt's earlier component/finding journey remains
+reused; no additional component or finding flow was run. Multiple selection,
+its Inspector state, and single-component Relations in this paired pass remain
+unqualified because the journey stopped at this first divergence; C01 remains
+partial.
+
+The focused regression `matrix_to_key_selection_resets_relations_tab_to_properties`
+was RED before the fix: after Relations then Matrix→Key, selected tab remained
+Relations (expected Properties). The Layout-owned shared tab hook now compares
+full `ScopedTreeContext` and resets to Properties only on context change; same
+context retains the tab across unrelated accepted revisions. GREEN:
+`cargo test --target wasm32-unknown-unknown --bin boardstudio-web matrix_to_key_selection_resets_relations_tab_to_properties`
+with the wasm-bindgen Chrome runner passed (1 passed, 216 filtered). Rustfmt
+check passed for the three touched Layout files. The 34803 package was not
+rebuilt or rechecked; no TS source, package, tracker, or run file was changed.

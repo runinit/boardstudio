@@ -332,6 +332,12 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
       "evidence": "web/src/presentation.rs; web/src/runtime.rs; web/src/presentation/parts/mechanical_profile_editor.rs",
       "observation": "A Layout Inspector Pick origin action still required wiring several root presentation pointer paths, while the Parts KiCad mapping UI needed a coordinator-owned Runtime artifact facade. The private feature modules own the leaf controls, but shared composition and service integration remain a repeat edit hotspot.",
       "status": "bounded feature integration complete; structural redesign remains post-port"
+    },
+    {
+      "source": "Layout Inspector matrix-to-key context repair; integrated commit pending",
+      "evidence": ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md",
+      "observation": "Layout Inspector tab state survived a matrix→key selection transition because the shared Editor-owned tab signal did not observe selection identity. A private context-scoped reset hook repairs the v1 behavior; the cross-context state owner remains in shared composition.",
+      "status": "bounded v1 correction; revisit context-scoped Inspector state ownership after the port"
     }
   ],
   "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted.",

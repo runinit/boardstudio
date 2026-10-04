@@ -3190,6 +3190,10 @@ fn Editor() -> Element {
     let layout_selection_kind = use_signal(objects::LayoutSelectionKind::default);
     let layout_snap_settings = use_signal(objects::LayoutSnapSettings::default);
     let mut layout_context_tab = use_signal(layout_workspace::LayoutInspectorTab::default);
+    layout_workspace::use_contextual_inspector_tab_reset(
+        adapter.selected_context,
+        layout_context_tab,
+    );
     let layout_command_menu = use_signal(|| None::<objects::LayoutCommandMenu>);
     let mut layout_transform_tool = use_signal(|| None::<objects::LayoutTransformTool>);
     let layout_transform_tool_owner =
