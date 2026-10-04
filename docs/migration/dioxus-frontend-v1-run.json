@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T16:13:09.557423+00:00",
+    "updated_at": "2026-10-04T16:22:38.065111+00:00",
     "parent_counts": {
       "accepted": 19,
       "implementing": 31,
@@ -695,6 +695,20 @@
         ],
         "existing_guardrail": "CI and package already execute the Dioxus compiler check; no duplicate compiler gate added.",
         "review_policy": "One consolidated Sol candidate review with bounded repair delta; no per-packet review chain."
+      },
+      "last_completed_checkpoint": {
+        "date": "2026-10-04",
+        "after_candidates": [
+          "frontend-authored-case-and-layout-20261004 (34812)",
+          "frontend-case-geometry-admission-20261004 (34814)"
+        ],
+        "findings": [
+          "Case readiness conflated PCB/material status with geometry; narrow derived admission committed in f551e4e0 (RF-032).",
+          "Synthetic admission tests missed a real demo material error; the public browser journey caught it.",
+          "Full-build provenance accepted dirty source; build-m1.py now rejects it.",
+          "Avoidable rework: a backgrounded full build died with its launching shell, and wasm-pack needs an unsandboxed run; launch builds as tracked background tasks outside the sandbox."
+        ],
+        "evidence": ".scratch/dioxus-frontend-v1/evidence/case-authored-step-34814-20261004/RECEIPT.md"
       }
     },
     "qualification": {

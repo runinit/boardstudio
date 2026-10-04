@@ -1863,6 +1863,32 @@
             "inspector-navigation",
             "compact-drawer"
           ]
+        },
+        {
+          "id": "F3.5-C05",
+          "requirement": "Key Properties tab provides Enabled, Key Assembly and Attached components (replace/remove, mirror-target local override) like the reference Matrix inspector.",
+          "state": "missing",
+          "classification": "functional",
+          "sources": [
+            "web/src/presentation/objects/matrix_transform_inspector.rs",
+            "app/src/ui/MatrixInspector.tsx"
+          ],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/layout-key-inspector-gap-20261004/RECEIPT.md"
+          ],
+          "blockers": [],
+          "next_action": "Add key-cell operations (enabled, definitionId/variant, assemblies replace/remove, assembliesLocal) through the existing set-matrix path with snapshot/revision guards, project them into the key Inspector, then check Enable toggle, Key Assembly change and Undo once on a paired Sofle copy.",
+          "finish_condition": "Enabled, Key Assembly and Attached components edit the selected key through the public Dioxus Inspector, persist across reopen and Undo/Redo, and match reference option sets.",
+          "owned_files": [
+            "web/src/presentation/objects/matrix_transform_inspector.rs",
+            "web/src/presentation/objects/matrix_transform_controller.rs",
+            "web/src/matrix_transform_operation.rs"
+          ],
+          "capabilities": [
+            "key-cell-edit",
+            "key-assembly",
+            "attached-components"
+          ]
         }
       ],
       "criteria_accounting": {
