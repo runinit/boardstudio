@@ -2412,7 +2412,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 ## RF-024: PCB finding overlay advertises interaction that its pointer policy disables
 
-**Status:** v1 decorative-marker correction implemented; next packaged PCB pass pending; shared overlay policy remains post-port
+**Status:** v1 decorative-marker correction publicly qualified on 34805; shared overlay policy deferred post-port
 
 **Confidence:** confirmed source and bounded packaged-browser observation
 
@@ -2449,7 +2449,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
       "source": "PCB decorative marker source correction; integrated commit pending",
       "evidence": ".scratch/dioxus-pcb-view/evidence/24-module-source-route-20261003/receipt.md",
       "observation": "The mounted regression failed on a marker advertising role=button with pointer events disabled, then passed after removing the misleading role, keyboard and click handlers. The actual Findings-list route and module selection remained separate.",
-      "status": "source RED/GREEN complete; public package retest pending"
+      "status": "source RED/GREEN and scoped packaged public journey passed on 34805"
     }
   ]
 }
@@ -2612,7 +2612,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 ## RF-029: Layout keyboard gestures depend on SVG focus rather than workbench scope
 
-**Status:** narrow Space-pan correction in progress; shared gesture ownership deferred
+**Status:** narrow Layout Space-pan correction publicly qualified on 34805; shared keyboard gesture ownership deferred
 
 **Confidence:** confirmed paired public behavior and source path
 
@@ -2645,6 +2645,13 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
   "linked_tasks": [
     "F3.6"
   ],
-  "continuations": []
+  "continuations": [
+    {
+      "source": "frontend-keyboard-focus-20261004, 916a4054",
+      "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-camera-f36c01-20261004/RECEIPT.md",
+      "observation": "On the rebuilt candidate, body-focused Space plus a 90×40 px drag moved the camera; keyup stopped it and a Board-name input did not arm pan. The prior pointer zoom and Fit evidence was reused.",
+      "status": "v1 correction passed focused mounted regression and packaged public check"
+    }
+  ]
 }
 ```

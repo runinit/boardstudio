@@ -957,7 +957,7 @@
         {
           "id": "F2.4-C03",
           "requirement": "Command menus are viewport-safe, focus a useful control, dismiss outside/Escape/close and return focus; supported undo/redo shortcuts avoid text entry.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/objects/layout_toolbar.rs:473",
@@ -966,9 +966,11 @@
             "web/src/presentation/workbench_shortcuts.rs:9",
             "web/src/presentation.rs:601"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/setup-guide-readiness-20261003/receipt.md"
+          ],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Verified on packaged 34804 against TS 5175: Snap menu stays in viewport, focuses Close, dismisses by Escape/Close with trigger focus, and outside click preserves the newly clicked input. Ctrl+Z in Search stays in native text editing without workbench history action; the shared typing guard precedes Undo and both Redo mappings in workbench_shortcuts.rs. TS blank-area outside click losing focus is recorded as reference behavior, not copied.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/objects/layout_toolbar.rs",
@@ -1842,7 +1844,7 @@
             ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md"
           ],
           "blockers": [],
-          "next_action": "Frozen 34804 component Back and matrix→key focus pass. Sol found Board/Outline Back missing a focus target; narrow presentation.rs fallback has focused mounted RED/GREEN. Recheck one Board and one Outline keyboard Back on the next packaged candidate; retain compact component evidence.",
+          "next_action": "Packaged 34805 keyboard Back from explicitly selected Board and Outline contexts focuses Board name/Active outline; stale board switch removes Back. Prior component Properties and compact relation focus evidence retained. Remaining full criterion coverage: other nested Inspector routes and compact drawer keyboard return; do not repeat the three successful Back paths.",
           "finish_condition": "Paired public keyboard scenarios prove tabs, nested routes, Escape/back and focus restoration in compact drawers.",
           "owned_files": [
             "web/src/presentation/inspector.rs",
@@ -1937,7 +1939,7 @@
             ".scratch/dioxus-frontend-v1/evidence/layout-camera-f36c01-20261004/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Paired 34804/5175 pointer zoom and Fit rotated thumb/visible outline matched. Unfocused Space-drag failed on Dioxus but worked after SVG focus; a Layout-scoped window listener has focused RED browser and GREEN mounted regression. Recheck unfocused Space-pan once on next packaged candidate, reusing zoom/Fit evidence.",
+          "next_action": "Packaged 34805 unfocused Space-pan, keyup stop and text-input exclusion pass; paired 34804/5175 pointer zoom and Fit rotated thumb/visible board outline matched. Remaining limits and additional rotated part/keycap envelopes can be checked in a later grouped Layout journey; do not repeat these accepted actions.",
           "finish_condition": "Paired public scenarios establish zoom/pan and reference-matched board/selection fit bounds and limits for all listed geometry.",
           "owned_files": [
             "web/src/presentation/layout_camera.rs",
@@ -2463,7 +2465,7 @@
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md"
           ],
           "blockers": [],
-          "next_action": "Canonical and assembly selection passes. Same-name nice-view/nice-nano IDs are identical in both apps and differing labels are presentation-only. Remaining legacy/custom project-override selection needs representative fixture; do not reopen disproved mapping investigation.",
+          "next_action": "Canonical/key-assembly paths and one saved legacy/custom override row (sofle/display_ssd1306) now pass paired browse/select/detail. Continue only with any distinct unrepresented legacy/custom class; do not reopen nice-view/nice-nano mapping or repeat the proven saved override.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts.rs",
@@ -3951,7 +3953,7 @@
             ".scratch/dioxus-pcb-view/evidence/24-module-source-route-20261003/receipt.md"
           ],
           "blockers": [],
-          "next_action": "Paired finding-list action routes to Layout and retains hidden PCB layers in both apps. The Dioxus SVG marker misleadingly advertised a button while CSS disabled pointer events; narrow decorative-marker correction has focused RED/GREEN and awaits one packaged DOM/selection check. Independent host/module layer visibility and nonempty clearance remain separate.",
+          "next_action": "Packaged 34805 marker semantics are decorative; actual Findings-list pointer/keyboard route works and hidden layer settings persist, matching TS. Host SW2 and module selection remain. Finish independent host/module layer and nonempty clearance geometry coverage later; do not repeat marker click attempts.",
           "finish_condition": "Paired evidence proves independent visibility and focused finding visibility override without altering project data.",
           "owned_files": [
             "web/src/presentation/pcb_scene.rs",

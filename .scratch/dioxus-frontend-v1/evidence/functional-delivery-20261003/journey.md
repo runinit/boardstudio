@@ -47,6 +47,10 @@ The paired browse initially looked like a source/detail mismatch for identically
 
 For C02, both sides filtered `nice view` to two Custom-group rows and `Haptic Feedback` to the same two VIK choices. With `zz-no-such-part-20261003`, both showed `No parts match this search.` and zero VIK modules, but the candidate kept all eight Key assemblies visible/selected (MX Hotswap remained selected), while TypeScript reported `Key Assemblies 0` and showed an empty assembly list. This is a paired query/no-match mismatch. Screenshots: `parts-f4.1-c01-c02/no-match-candidate.png` and `no-match-typescript.png`.
 
+### F4.1-C01 — legacy project override row selection follow-up — 2026-10-04
+
+Using the existing `candidate-custom-edited.boardstudio` archive from `frontend-parts-search-feedback-20261003`, imported the same Sofle project in frozen Dioxus `34805` and pinned TypeScript `5175`. In both Parts Custom groups, selected the second `display ssd1306` row (`aria-selected=true`), corresponding to the archive's saved project definition `sofle/display_ssd1306` with generator source `ceoloide/display_ssd1306`. Dioxus details identify `Current project`, show the saved ID, 4 pads and `11.2 × 3.5 mm` courtyard. TypeScript's selected footprint details show `Custom component · 11.2 × 3.5 mm`; both previews title the same definition and render the same 4 pads. No selected-entry mismatch was observed for this legacy project override. This closes only this representative C01 row/detail case, not the parent or its other catalogue criteria.
+
 The catalogue and module entries were already loaded when the Parts page was inspected, so no loading-state transition was captured. No source/network failure was induced; a source-error state was not publicly reached and remains unqualified. No project mutation was made. Both owned browser sessions were closed.
 
 ### Assembly search repair

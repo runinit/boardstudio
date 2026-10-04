@@ -197,3 +197,23 @@ mounted_back_enter_focuses_board_and_outline_inspectors_and_rejects_stale_scope`
 passed (1 passed, 0 failed). `rustfmt --edition 2024 web/src/presentation.rs`
 and `git diff --check -- web/src/presentation.rs` passed. This source-level
 mounted regression does not qualify a paired public React/Dioxus journey.
+
+### C04 published Board/Outline keyboard return retest (2026-10-04; source `916a40549444e7ac73c144e422f632a129fd2eaa`)
+
+On the published Dioxus candidate `http://127.0.0.1:34805/`, I imported the
+same saved `initial-sofle.boardstudio` fixture. After explicitly selecting the
+Left PCB tree item, Layout findings → Left PCB `Show outline` exposed Back to
+selection; focusing Back and pressing Enter restored Board Inspector with the
+Board name input focused. Starting from an explicitly selected `Outline
+Generated` tree item, the same findings action and keyboard Back restored Board
+outline with the Active outline control focused. Both focus results match the
+first enabled inspector control. Switching the Board selector to Right PCB
+while the left-board return target was live removed Back, confirming the stale
+scope guard. The initial imported Board Inspector was only the default
+presentation: its Board tree item was not selected, and the full Inspector DOM
+showed no Back after Show outline. Capture/visibility requires an existing
+selected context (`selected.map(...)`); explicitly selecting the Board first
+made the return target current and rendered Back. The mounted RED/GREEN test
+and its stale-scope check recorded above are reused. No source, tracker, run, or
+package files changed during this published check; the browser session was
+closed afterward.

@@ -2234,7 +2234,7 @@
       "category": "interface semantics / canvas interaction",
       "confidence": "confirmed source and bounded packaged-browser observation",
       "impact_priority": "low",
-      "status": "v1 decorative-marker correction implemented; next packaged PCB pass pending; shared overlay policy remains post-port",
+      "status": "v1 decorative-marker correction publicly qualified on 34805; shared overlay policy deferred post-port",
       "discovered": "2026-10-04",
       "baseline": "Packaged frontend-functional-batch-20261004, source 14434d50",
       "workflows": [
@@ -2261,7 +2261,7 @@
           "source": "PCB decorative marker source correction; integrated commit pending",
           "evidence": ".scratch/dioxus-pcb-view/evidence/24-module-source-route-20261003/receipt.md",
           "observation": "The mounted regression failed on a marker advertising role=button with pointer events disabled, then passed after removing the misleading role, keyboard and click handlers. The actual Findings-list route and module selection remained separate.",
-          "status": "source RED/GREEN complete; public package retest pending"
+          "status": "source RED/GREEN and scoped packaged public journey passed on 34805"
         }
       ]
     },
@@ -2389,7 +2389,7 @@
       "category": "interaction ownership / keyboard scope",
       "confidence": "confirmed paired public behavior and source path",
       "impact_priority": "medium",
-      "status": "narrow Space-pan correction in progress; shared gesture ownership deferred",
+      "status": "narrow Layout Space-pan correction publicly qualified on 34805; shared keyboard gesture ownership deferred",
       "discovered": "2026-10-04",
       "baseline": "frontend-context-gap-20261004, source 58145c17",
       "workflows": [
@@ -2411,7 +2411,14 @@
       "linked_tasks": [
         "F3.6"
       ],
-      "continuations": []
+      "continuations": [
+        {
+          "source": "frontend-keyboard-focus-20261004, 916a4054",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-camera-f36c01-20261004/RECEIPT.md",
+          "observation": "On the rebuilt candidate, body-focused Space plus a 90×40 px drag moved the camera; keyup stopped it and a Board-name input did not arm pan. The prior pointer zoom and Fit evidence was reused.",
+          "status": "v1 correction passed focused mounted regression and packaged public check"
+        }
+      ]
     }
   ]
 }
