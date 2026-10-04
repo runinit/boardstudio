@@ -10,6 +10,7 @@ use super::{
 };
 use crate::runtime::Runtime;
 use boardstudio_application::SelectionMode;
+use boardstudio_core::model::{Finding, ProjectDoc};
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
 #[cfg(test)]
@@ -294,12 +295,14 @@ pub(crate) fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Elemen
             .findings
             .iter()
             .find(|finding| finding.id == focused.finding_id)?;
-        (!finding.target_ids.is_empty()).then(|| ViewerFocusRequest {
-            scope: focused.scope.clone(),
-            snapshot_token: focused.token,
-            revision: focused.revision,
-            target_ids: finding.target_ids.clone(),
-        })
+        finding_focus_target_ids(finding, &accepted.document, &focused.scope.board_id).map(
+            |target_ids| ViewerFocusRequest {
+                scope: focused.scope.clone(),
+                snapshot_token: focused.token,
+                revision: focused.revision,
+                target_ids,
+            },
+        )
     });
 
     rsx! {
@@ -340,6 +343,35 @@ pub(crate) fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Elemen
     }
 }
 
+fn finding_focus_target_ids(
+    finding: &Finding,
+    document: &ProjectDoc,
+    active_board_id: &str,
+) -> Option<Vec<String>> {
+    let target = super::keycaps_fit::finding_navigation_target(finding, document)?;
+    finding_focus_ids_for_target(&target, &finding.target_ids, active_board_id)
+}
+
+fn finding_focus_ids_for_target(
+    target: &super::keycaps_fit::FindingNavigationTarget,
+    target_ids: &[String],
+    active_board_id: &str,
+) -> Option<Vec<String>> {
+    let target_board_id = super::keycaps_fit::target_board_id(target);
+    if target_board_id != active_board_id {
+        return None;
+    }
+
+    Some(match target {
+        super::keycaps_fit::FindingNavigationTarget::Outline { .. } => {
+            vec!["pcb-selection".to_owned()]
+        }
+        super::keycaps_fit::FindingNavigationTarget::Board { .. } => vec!["pcb".to_owned()],
+        _ if !target_ids.is_empty() => target_ids.to_vec(),
+        _ => return None,
+    })
+}
+
 #[cfg(all(test, target_arch = "wasm32"))]
 mod mounted_keycaps_preview_tests {
     use super::*;
@@ -352,6 +384,39 @@ mod mounted_keycaps_preview_tests {
     use web_sys::{Element as DomElement, HtmlElement};
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    #[wasm_bindgen_test]
+    fn finding_focus_maps_outline_and_preserves_part_ids_for_current_board() {
+        use super::super::keycaps_fit::FindingNavigationTarget;
+
+        let outline = FindingNavigationTarget::Outline {
+            board_id: "board-1".into(),
+        };
+        let part = FindingNavigationTarget::Part {
+            board_id: "board-1".into(),
+            part_id: "part-1".into(),
+        };
+        let board = FindingNavigationTarget::Board {
+            board_id: "board-1".into(),
+        };
+
+        assert_eq!(
+            finding_focus_ids_for_target(&outline, &["outline-corner".into()], "board-1"),
+            Some(vec!["pcb-selection".into()])
+        );
+        assert_eq!(
+            finding_focus_ids_for_target(&part, &["part-1".into()], "board-1"),
+            Some(vec!["part-1".into()])
+        );
+        assert_eq!(
+            finding_focus_ids_for_target(&board, &["board-1".into()], "board-1"),
+            Some(vec!["pcb".into()])
+        );
+        assert_eq!(
+            finding_focus_ids_for_target(&outline, &["outline-corner".into()], "board-2"),
+            None
+        );
+    }
 
     struct PendingPreview {
         input: crate::runtime::KeycapsPreviewInput,
