@@ -8188,22 +8188,6 @@ fn Editor() -> Element {
                                 origins: outline_snap_origins.clone(),
                             }
                         }
-                        if let Some(projection) = outline_inspector.clone().filter(|projection| (projection.drawing_operation)().is_some()) {
-                            outline_lifecycle::OutlineDraftCanvasOverlay {
-                                key: "{outline_overlay_key.as_deref().unwrap_or_default()}-draft",
-                                projection,
-                                runtime: outline_lifecycle::OutlineRuntimeHandle::new(runtime.clone()),
-                                arbiter: canvas_interaction.clone(),
-                                svg: svg.clone(),
-                                view_x,
-                                view_y,
-                                width,
-                                height,
-                                snap_settings: outline_snap_settings.clone(),
-                                pitch: outline_pitch,
-                                origins: outline_snap_origins.clone(),
-                            }
-                        }
                         if let Some(bridge) = selected_bridge {
                             polygon { points: polygon_points(&bridge.points), class: "m1-outline-bridge-selected", "data-outline-bridge": bridge.id.clone() }
                         }
@@ -8489,6 +8473,22 @@ fn Editor() -> Element {
                             active_board_id: model.active_board_id.clone(),
                             finding: focused_keycaps_finding(),
                             markers: Rc::from(snapshot.scene.finding_markers.clone()),
+                        }
+                        if let Some(projection) = outline_inspector.clone().filter(|projection| (projection.drawing_operation)().is_some()) {
+                            outline_lifecycle::OutlineDraftCanvasOverlay {
+                                key: "{outline_overlay_key.as_deref().unwrap_or_default()}-draft",
+                                projection,
+                                runtime: outline_lifecycle::OutlineRuntimeHandle::new(runtime.clone()),
+                                arbiter: canvas_interaction.clone(),
+                                svg: svg.clone(),
+                                view_x,
+                                view_y,
+                                width,
+                                height,
+                                snap_settings: outline_snap_settings.clone(),
+                                pitch: outline_pitch,
+                                origins: outline_snap_origins.clone(),
+                            }
                         }
                     }
                         }
