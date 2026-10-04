@@ -3602,7 +3602,7 @@
             ".scratch/dioxus-pcb-view/evidence/public-pcb-qualification-20261002/paired-walkthrough.md"
           ],
           "blockers": [],
-          "next_action": "Preserve the known 34775 Row1/P101 Apply settlement receipt; qualify any changed route or unresolved multi-board stale-plan case only.",
+          "next_action": "Paired Left changed-Apply and current34786 Right idempotent Resolve/Apply preserve board-scoped state; mounted stale-Left reply cannot replace newer Right. Forced public stale-revision/controller result remains unqualified; reuse source identity guards and focus only those exact branches.",
           "finish_condition": "Paired same-archive journey shows current plan identity and matching resolve/apply outputs on multiple boards; stale revision/board/controller results cannot publish.",
           "owned_files": [
             "web/src/presentation/pcb_wiring.rs",
