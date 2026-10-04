@@ -507,9 +507,11 @@
             "web/src/presentation/library.rs:348",
             "web/src/presentation/library.rs:438"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-tranche-1/evidence/project-demo-cards-fresh-copies-34767/RESULTS.md"
+          ],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Paired Sofle demo opened as editable saved copy and gallery browse preserved left-U1 selection/revision; 19 current previews loaded. Qualify damaged-preview fallback using a legitimate broken fixture or focused production-path test before C04 verification.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/library.rs"
@@ -3624,10 +3626,11 @@
             "web/src/presentation/pcb_wiring/controller.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-pcb-view/evidence/public-pcb-qualification-20261002/paired-walkthrough.md"
+            ".scratch/dioxus-pcb-view/evidence/public-pcb-qualification-20261002/paired-walkthrough.md",
+            ".scratch/dioxus-pcb-view/evidence/pcb-apply-ui-20261002/receipt.md"
           ],
           "blockers": [],
-          "next_action": "Bound remaining public states to evidence: no controller, pending, resolver error, diagnostics and ready plan on the same fixture.",
+          "next_action": "Paired 34786 populated controller/mode/18 assignments/18 used and 3 free pins, peripherals, no-controller diagnostics, disabled actions and public Pending are recorded; mounted error alert is green. A real public resolver failure/alert remains before full C02 verification; readiness is conveyed indirectly by counts, diagnostics and action state, with no separate label.",
           "finish_condition": "Each required display field and truthful lifecycle state is visible and paired against React.",
           "owned_files": [
             "web/src/presentation/pcb_wiring.rs",
@@ -5770,7 +5773,7 @@
             ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md"
           ],
           "blockers": [],
-          "next_action": "Pending board/project switches passed and retained unmount evidence applies. Qualify a document revision change during an active preview; the bounded attempt settled before mutation.",
+          "next_action": "Public 34785 Keycap clearance edit occurred during visible pending CAD generation and latest preview updated; board/project switches and unmount proof retained. Sequence/revision guards are source-backed, but public UI cannot identify which worker result settled, so controlled late-reply suppression remains unproven.",
           "finish_condition": "Changed owner/revision or unmounted consumer suppresses stale publication; a subsequent current request succeeds.",
           "owned_files": [
             "web/src/presentation/layout_viewer.rs",
