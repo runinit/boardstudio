@@ -1715,6 +1715,31 @@
       "review": {
         "profile": "sol-review",
         "state": "pending"
+      },
+      "next_scope": {
+        "id": "frontend-module-assets-20261004",
+        "label": "Mounted-module viewer functional candidate",
+        "source_commit": "3d9dc5d7043ad56aa410c9fe2fc23ce85aa76534",
+        "streams": [
+          "Case"
+        ],
+        "journeys": [
+          {
+            "id": "F7.3-C05-module-route",
+            "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797\u219234798 RED/GREEN unless changed source affects it.",
+            "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md"
+          },
+          {
+            "id": "F7.3-C06-module-assets",
+            "scope": "A supported non-VIK mounted-module model asset travels from Core placement through verified bytes and the shared 3D renderer with stable identity and transform; compare the same fixture with the pinned TypeScript reference and check unavailable/error feedback.",
+            "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md"
+          },
+          {
+            "id": "F7.3-C07-stale-editor",
+            "scope": "Replace the project while a mounted placement editor is visible and prove an old Save cannot mutate the new project; retain separate provider/retry, context-loss and unmount checks under C07.",
+            "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md"
+          }
+        ]
       }
     },
     "delivery_priority": {

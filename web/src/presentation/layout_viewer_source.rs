@@ -435,11 +435,18 @@ impl LayoutPreviewSnapshot {
         renderer_id: &str,
     ) -> Option<String> {
         let module_id = self.module_scenes.iter().find_map(|module| {
-            let body = renderer_id.strip_prefix(&format!("module:{}:", module.id))?;
-            ["pcb:", "volume:", "standoff:"]
-                .iter()
-                .any(|kind| body.starts_with(kind))
-                .then_some(module.id.as_str())
+            if let Some(body) = renderer_id.strip_prefix(&format!("module:{}:", module.id)) {
+                return ["pcb:", "volume:", "standoff:"]
+                    .iter()
+                    .any(|kind| body.starts_with(kind))
+                    .then_some(module.id.as_str());
+            }
+            let model_index = renderer_id
+                .strip_prefix("module-model/")?
+                .strip_prefix(&format!("{}/", module.id))?
+                .parse::<usize>()
+                .ok()?;
+            module.models.get(model_index).map(|_| module.id.as_str())
         })?;
         if !self
             .owner
@@ -935,7 +942,16 @@ mod tests {
                 height: 1.0,
             }],
             footprints: vec![],
-            models: vec![],
+            models: vec![boardstudio_core::model::PartModel {
+                asset_id: "module-asset".into(),
+                offset: boardstudio_core::model::Vec3::default(),
+                rotation: boardstudio_core::model::Vec3::default(),
+                scale: boardstudio_core::model::Vec3 {
+                    x: 1.0,
+                    y: 1.0,
+                    z: 1.0,
+                },
+            }],
             gates: vec![],
         };
         let mut scene = snapshot.scene.as_ref().clone();
@@ -959,6 +975,20 @@ mod tests {
         assert_eq!(
             preview.module_for_current_pick(&snapshot, &scope, 3, "module:placement-generic:pcb:0"),
             Some("placement-generic".into())
+        );
+        assert_eq!(
+            preview.module_for_current_pick(
+                &snapshot,
+                &scope,
+                3,
+                "module-model/placement-generic/0"
+            ),
+            Some("placement-generic".into())
+        );
+        assert!(
+            preview
+                .module_for_current_pick(&snapshot, &scope, 3, "module-model/placement-generic/1")
+                .is_none()
         );
         assert!(
             preview

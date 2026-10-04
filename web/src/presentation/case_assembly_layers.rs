@@ -467,6 +467,7 @@ mod tests {
                     normals: Rc::from([0.0_f32; 9]),
                     colors: None,
                 }),
+                matrix: None,
             }],
             pending: vec!["mesh-id-switch".into()],
             failures: Vec::new(),

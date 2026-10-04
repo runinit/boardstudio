@@ -6529,10 +6529,11 @@
           ],
           "evidence": [
             ".scratch/dioxus-shared-viewer/evidence/source-contract-reviewed-20261002/final-standards-review.md",
-            ".scratch/dioxus-shared-viewer/evidence/case-viewport-layout/public-final/README.md"
+            ".scratch/dioxus-shared-viewer/evidence/case-viewport-layout/public-final/README.md",
+            ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md"
           ],
           "blockers": [],
-          "next_action": "Publicly exercise an in-flight scope supersession, retryable provider/model failure, context loss, unmount/remount and surrounding form availability.",
+          "next_action": "Start with the observed project-replacement transient: while the prior mounted placement editor is visible, attempt its old Save and verify the new project stays unchanged. Then publicly exercise retryable provider/model failure, context loss, unmount/remount and surrounding form availability; reuse unchanged lifecycle evidence.",
           "finish_condition": "Each lifecycle/error transition suppresses stale publication, releases renderer/listener resources and preserves the 2D/form route.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",

@@ -480,6 +480,25 @@ pub(crate) fn CaseSharedViewer(
         ViewerSource::Cad(_) | ViewerSource::Native(_) => ViewerCanvasContext::Case,
         ViewerSource::Parts(_) => ViewerCanvasContext::Parts,
     };
+    let module_model_errors = matching_model_rows
+        .into_iter()
+        .flat_map(|rows| rows.failures.iter())
+        .filter(|failure| failure.reference.starts_with("module-model/"))
+        .map(|failure| format!("{}: {}", failure.reference, failure.reason))
+        .collect::<Vec<_>>();
+    let gesture_message = if module_model_errors.is_empty() {
+        gesture_message
+    } else {
+        Some(match gesture_message {
+            Some(existing) if !existing.is_empty() => {
+                format!(
+                    "{existing} · Mounted-module model: {}",
+                    module_model_errors.join("; ")
+                )
+            }
+            _ => format!("Mounted-module model: {}", module_model_errors.join("; ")),
+        })
+    };
     rsx! {
         SharedViewer {
             projection,
@@ -901,6 +920,14 @@ fn project_layout_preview(
             body["name"].as_str().unwrap_or_default().to_owned(),
         ));
     }
+    let module_model_bodies = layout_module_model_bodies(model_rows, &preview.document);
+    for body in module_model_bodies {
+        let id = body["id"].as_str().unwrap_or_default().to_owned();
+        let name = body["name"].as_str().unwrap_or_default().to_owned();
+        let value = js_sys::JSON::parse(&body.to_string()).map_err(js_error)?;
+        bodies.push(&value);
+        layers.push((id, name));
+    }
     if let Some(keycaps) = keycaps_preview {
         if keycaps.scope != identity.scope
             || keycaps.token != identity.snapshot_token
@@ -961,6 +988,91 @@ fn project_layout_preview(
         input,
         layers,
     })
+}
+
+fn layout_module_model_bodies(
+    rows: Option<&ModelDeliveryRows>,
+    document: &boardstudio_core::model::ProjectDoc,
+) -> Vec<serde_json::Value> {
+    rows.into_iter()
+        .flat_map(|rows| rows.delivered.iter())
+        .filter_map(|model| {
+            let matrix = model.matrix?;
+            let (positions, normals) = transformed_module_mesh(
+                model.mesh.positions.as_ref(),
+                model.mesh.normals.as_ref(),
+                &matrix,
+            );
+            let module_id = model.id.strip_prefix("module-model/")?.rsplit_once('/')?.0;
+            let name = document
+                .modules
+                .iter()
+                .find(|module| module.id == module_id)
+                .and_then(|module| {
+                    document
+                        .module_definitions
+                        .iter()
+                        .find(|definition| definition.id == module.definition_id)
+                })
+                .map(|definition| format!("{} · 3D model", definition.name))
+                .unwrap_or_else(|| "Mounted module · 3D model".to_owned());
+            Some(serde_json::json!({
+                "id": model.id,
+                "name": name,
+                "color": "#8f9b9e",
+                "mesh": {
+                    "positions": positions,
+                    "normals": normals,
+                    "colors": model.mesh.colors.as_ref().map(|colors| colors.as_ref()),
+                },
+            }))
+        })
+        .collect()
+}
+
+/// Apply Core's column-major affine transform exactly once before generic mesh
+/// bodies enter the renderer. This mirrors the existing React AssemblyPreview
+/// transform while keeping Core authoritative for module pose and model offsets.
+fn transformed_module_mesh(
+    source_positions: &[f32],
+    source_normals: &[f32],
+    matrix: &[f64; 16],
+) -> (Vec<f32>, Vec<f32>) {
+    let squared_lengths = [0, 4, 8].map(|index| {
+        (matrix[index].powi(2) + matrix[index + 1].powi(2) + matrix[index + 2].powi(2)) as f32
+    });
+    let mut positions = vec![0.0; source_positions.len()];
+    let mut normals = vec![0.0; source_normals.len()];
+    for index in (0..source_positions.len()).step_by(3) {
+        let x = source_positions[index];
+        let y = source_positions[index + 1];
+        let z = source_positions[index + 2];
+        positions[index] = (matrix[0] as f32) * x
+            + (matrix[4] as f32) * y
+            + (matrix[8] as f32) * z
+            + matrix[12] as f32;
+        positions[index + 1] = (matrix[1] as f32) * x
+            + (matrix[5] as f32) * y
+            + (matrix[9] as f32) * z
+            + matrix[13] as f32;
+        positions[index + 2] = (matrix[2] as f32) * x
+            + (matrix[6] as f32) * y
+            + (matrix[10] as f32) * z
+            + matrix[14] as f32;
+
+        let nx = source_normals[index] / squared_lengths[0].max(f32::MIN_POSITIVE);
+        let ny = source_normals[index + 1] / squared_lengths[1].max(f32::MIN_POSITIVE);
+        let nz = source_normals[index + 2] / squared_lengths[2].max(f32::MIN_POSITIVE);
+        let a = matrix[0] as f32 * nx + matrix[4] as f32 * ny + matrix[8] as f32 * nz;
+        let b = matrix[1] as f32 * nx + matrix[5] as f32 * ny + matrix[9] as f32 * nz;
+        let c = matrix[2] as f32 * nx + matrix[6] as f32 * ny + matrix[10] as f32 * nz;
+        let length = (a * a + b * b + c * c).sqrt();
+        let length = if length > 0.0 { length } else { 1.0 };
+        normals[index] = a / length;
+        normals[index + 1] = b / length;
+        normals[index + 2] = c / length;
+    }
+    (positions, normals)
 }
 
 fn layout_module_bodies(
@@ -1099,6 +1211,9 @@ fn loaded_model_inputs(rows: Option<&ModelDeliveryRows>) -> Array {
     let loaded = Array::new();
     if let Some(rows) = rows {
         for model in &rows.delivered {
+            if model.matrix.is_some() {
+                continue;
+            }
             let value = Object::new();
             let mesh = Object::new();
             let _ = Reflect::set(&value, &"id".into(), &model.id.clone().into());
@@ -2995,6 +3110,7 @@ mod tests {
 
     fn imported_layout_projection(
         reference: boardstudio_core::model::BoardReference,
+        model_rows: Option<ModelDeliveryRows>,
     ) -> RendererSceneProjection {
         use boardstudio_core::model::{
             Asset, Board, BoardContours, PcbPreview, ProjectDoc, Readiness, SceneDelta,
@@ -3070,7 +3186,7 @@ mod tests {
                 diagnostics: vec![],
             })
             .unwrap();
-        project_layout_preview(&preview, viewer, "light", None, None).unwrap()
+        project_layout_preview(&preview, viewer, "light", model_rows.as_ref(), None).unwrap()
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
@@ -3078,18 +3194,21 @@ mod tests {
         use boardstudio_core::model::{BoardReference, Pose2, Vec2};
         use std::collections::BTreeMap;
 
-        let projection = imported_layout_projection(BoardReference {
-            id: "routed-board-1".into(),
-            board_id: "board-1".into(),
-            asset_id: "routed-source".into(),
-            enabled: true,
-            pose: Pose2 {
-                at: Vec2 { x: 17.25, y: -8.5 },
-                rotation: 31.0,
+        let projection = imported_layout_projection(
+            BoardReference {
+                id: "routed-board-1".into(),
+                board_id: "board-1".into(),
+                asset_id: "routed-source".into(),
+                enabled: true,
+                pose: Pose2 {
+                    at: Vec2 { x: 17.25, y: -8.5 },
+                    rotation: 31.0,
+                },
+                elevation: 4.75,
+                model_assets: BTreeMap::new(),
             },
-            elevation: 4.75,
-            model_assets: BTreeMap::new(),
-        });
+            None,
+        );
         let serialized = js_sys::JSON::stringify(&projection.input)
             .unwrap()
             .as_string()
@@ -3106,6 +3225,68 @@ mod tests {
                 "elevation": 4.75
             })
         );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn layout_packet_includes_module_model_mesh_at_core_stable_id_and_transform() {
+        use super::super::model_delivery::{DeliveredModel, ModelDeliveryRows, ValidatedMesh};
+        use boardstudio_core::model::{BoardReference, Pose2, Vec2};
+        use std::collections::BTreeMap;
+
+        let placement_id = "module-model/placement-a/0".to_owned();
+        let matrix = [
+            1.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 12.0, 13.0, 14.0, 1.0,
+        ];
+        let rows = ModelDeliveryRows {
+            delivered: vec![DeliveredModel {
+                id: placement_id.clone(),
+                mesh: Rc::new(ValidatedMesh {
+                    positions: Rc::from([1.0_f32, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]),
+                    normals: Rc::from([1.0_f32, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0]),
+                    colors: None,
+                }),
+                matrix: Some(matrix),
+            }],
+            pending: Vec::new(),
+            failures: Vec::new(),
+        };
+        let projection = imported_layout_projection(
+            BoardReference {
+                id: "routed-board-1".into(),
+                board_id: "board-1".into(),
+                asset_id: "routed-source".into(),
+                enabled: true,
+                pose: Pose2 {
+                    at: Vec2 { x: 0.0, y: 0.0 },
+                    rotation: 0.0,
+                },
+                elevation: 0.0,
+                model_assets: BTreeMap::new(),
+            },
+            Some(rows),
+        );
+        let serialized = js_sys::JSON::stringify(&projection.input)
+            .unwrap()
+            .as_string()
+            .unwrap();
+        let packet: serde_json::Value = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(packet["bodies"][0]["id"], placement_id);
+        assert_eq!(packet["bodies"][0]["mesh"]["positions"][0], 13.0);
+        assert_eq!(packet["bodies"][0]["mesh"]["positions"][1], 13.0);
+        assert_eq!(packet["bodies"][0]["mesh"]["positions"][2], 14.0);
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn layout_module_model_normals_follow_nonuniform_core_scale() {
+        let diagonal = std::f32::consts::FRAC_1_SQRT_2;
+        let matrix = [
+            2.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+        ];
+        let (_, normals) =
+            transformed_module_mesh(&[0.0, 0.0, 0.0], &[diagonal, diagonal, 0.0], &matrix);
+        assert!((normals[0] - 1.0 / 5.0_f32.sqrt()).abs() < 1e-5);
+        assert!((normals[1] - 2.0 / 5.0_f32.sqrt()).abs() < 1e-5);
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]

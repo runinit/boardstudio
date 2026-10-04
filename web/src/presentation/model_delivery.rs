@@ -8,7 +8,9 @@ use super::layout_viewer_source::{LayoutPreviewSnapshot, LayoutSourceLease};
 use crate::case_preview::CasePreviewOwnerLease;
 use crate::parts_preview::PartsPreviewOwnerLease;
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::{Asset, BoardReference, PcbModel, ProjectDoc};
+use boardstudio_core::model::{
+    Asset, BoardReference, ModuleModelPlacement, PcbModel, Pose2, ProjectDoc, Side, Vec2, Vec3,
+};
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, VecDeque},
@@ -623,6 +625,8 @@ impl ModelBatchIdentity {
 pub(crate) struct DeliveredModel {
     pub(crate) id: String,
     pub(crate) mesh: Rc<ValidatedMesh>,
+    /// Core-resolved module placement in the renderer's accepted board frame.
+    pub(crate) matrix: Option<[f64; 16]>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -667,7 +671,11 @@ impl PartialEq for ModelDeliveryRows {
                 .delivered
                 .iter()
                 .zip(&other.delivered)
-                .all(|(left, right)| left.id == right.id && Rc::ptr_eq(&left.mesh, &right.mesh))
+                .all(|(left, right)| {
+                    left.id == right.id
+                        && left.matrix == right.matrix
+                        && Rc::ptr_eq(&left.mesh, &right.mesh)
+                })
     }
 }
 
@@ -685,6 +693,7 @@ pub(crate) fn merge_model_rows(
             Some(Ok(mesh)) => rows.delivered.push(DeliveredModel {
                 id: model.id.clone(),
                 mesh: mesh.clone(),
+                matrix: None,
             }),
             Some(Err(reason)) => rows.failures.push(ModelFailure {
                 reference: model.reference.clone(),
@@ -694,6 +703,36 @@ pub(crate) fn merge_model_rows(
         }
     }
     rows
+}
+
+/// Resolve a mounted-module model's direct asset identity using the same
+/// document-first and packaged-provider semantics as preview path assets.
+pub(crate) fn select_model_asset_id(
+    asset_id: &str,
+    document_assets: &[Asset],
+    packaged_asset: impl FnOnce(&str) -> Option<ResolvedModelAsset>,
+) -> AssetSelection {
+    if let Some(asset) = document_assets.iter().find(|asset| asset.id == asset_id) {
+        return AssetSelection::Archived(ResolvedModelAsset {
+            id: asset.id.clone(),
+            sha256: asset.sha256.clone(),
+            filename: asset.name.clone(),
+            source: ModelAssetSource::Document,
+        });
+    }
+    packaged_asset(asset_id)
+        .map(AssetSelection::Packaged)
+        .unwrap_or_else(|| {
+            if asset_id.starts_with("ergogen:model:") {
+                AssetSelection::MissingBundledProvider {
+                    asset_id: asset_id.to_owned(),
+                }
+            } else {
+                AssetSelection::MissingDocumentAsset {
+                    asset_id: asset_id.to_owned(),
+                }
+            }
+        })
 }
 
 type TaskKey = (String, u64);
@@ -948,6 +987,66 @@ impl ModelDeliveryAdapter {
             }
         }
         Some(merge_model_rows(models, &outcomes))
+    }
+
+    /// Deliver Core-resolved mounted-module placements through the same
+    /// verification, format decoder, SHA cache, and batch liveness checks used
+    /// by ordinary preview models. The returned rows retain Core's stable IDs
+    /// and carry its authoritative affine transform to the renderer adapter.
+    pub(crate) async fn deliver_module_placements(
+        &self,
+        preview_revision: u64,
+        placements: &[ModuleModelPlacement],
+        selections: &BTreeMap<String, AssetSelection>,
+        ports: &ModelDeliveryPorts,
+        batch: &ModelBatchIdentity,
+        is_current: Rc<dyn Fn() -> bool>,
+    ) -> Option<ModelDeliveryRows> {
+        let models = placements
+            .iter()
+            .map(|placement| PcbModel {
+                id: placement.id.clone(),
+                reference: placement.id.clone(),
+                path: placement.asset_id.clone(),
+                pose: Pose2 {
+                    at: Vec2 { x: 0.0, y: 0.0 },
+                    rotation: 0.0,
+                },
+                side: Side::Front,
+                offset: Vec3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                rotation: Vec3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                scale: Vec3 {
+                    x: 1.0,
+                    y: 1.0,
+                    z: 1.0,
+                },
+            })
+            .collect::<Vec<_>>();
+        let mut rows = self
+            .deliver_models(
+                preview_revision,
+                &models,
+                selections,
+                ports,
+                batch,
+                is_current,
+            )
+            .await?;
+        for model in &mut rows.delivered {
+            model.matrix = placements
+                .iter()
+                .find(|placement| placement.id == model.id)
+                .map(|placement| placement.matrix);
+        }
+        Some(rows)
     }
 }
 
@@ -1530,6 +1629,55 @@ mod tests {
         );
         assert!(rows.pending.is_empty());
         assert!(rows.failures.is_empty());
+    }
+
+    #[test]
+    fn mounted_module_placement_uses_direct_asset_id_and_preserves_core_matrix() {
+        let bytes = b"mounted-module-model".to_vec();
+        let digest = sha256_hex(&bytes);
+        let expected_digest = digest.clone();
+        let ports = ModelDeliveryPorts {
+            load_verified_bytes: Rc::new(move |asset| {
+                let bytes = bytes.clone();
+                let expected_digest = expected_digest.clone();
+                Box::pin(async move {
+                    assert_eq!(asset.id, "module-mesh");
+                    assert_eq!(asset.sha256, expected_digest);
+                    Ok(Some(VerifiedModelBytes::verify(bytes, &asset.sha256)?))
+                })
+            }),
+            decode_stl: Rc::new(|_| Box::pin(async { Ok(valid_arrays()) })),
+            decode_wrl: Rc::new(|_| Box::pin(async { Ok(valid_arrays()) })),
+            read_step: Rc::new(|_, _| Box::pin(async { Ok(valid_arrays()) })),
+        };
+        let placement = ModuleModelPlacement {
+            id: "module-model/placement-a/0".into(),
+            asset_id: "module-mesh".into(),
+            matrix: [
+                1.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 12.0, 13.0, 14.0, 1.0,
+            ],
+        };
+        let selected = select_model_asset_id(
+            &placement.asset_id,
+            &[asset("module-mesh", &digest, "radio.stl")],
+            |_| None,
+        );
+        assert!(matches!(selected, AssetSelection::Archived(_)));
+        let rows = block_on(ModelDeliveryAdapter::default().deliver_module_placements(
+            1,
+            std::slice::from_ref(&placement),
+            &BTreeMap::from([(placement.id.clone(), selected)]),
+            &ports,
+            &batch(1),
+            Rc::new(|| true),
+        ))
+        .expect("current module delivery should complete");
+
+        assert_eq!(rows.delivered.len(), 1);
+        assert_eq!(rows.delivered[0].id, placement.id);
+        assert_eq!(rows.delivered[0].matrix, Some(placement.matrix));
+        assert!(rows.failures.is_empty());
+        assert!(rows.pending.is_empty());
     }
 
     fn block_on<F: Future>(future: F) -> F::Output {

@@ -2489,16 +2489,6 @@ impl Runtime {
             preview.owner.accepted_revision,
             batch_generation,
         );
-        let native_paths =
-            crate::presentation::model_delivery::native_model_path_assets(&preview.path_assets);
-        let unique_model_paths = preview
-            .preview
-            .models
-            .iter()
-            .map(|model| model.path.clone())
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect::<Vec<_>>();
         let source_is_current = {
             let weak = Rc::downgrade(self);
             let preview = preview.clone();
@@ -2509,6 +2499,62 @@ impl Runtime {
                 })
             }) as Rc<dyn Fn() -> bool>
         };
+        let module_request_id = format!(
+            "layout-module-models-{}-{}-{}",
+            preview.owner.snapshot_token.0,
+            preview.owner.accepted_revision,
+            preview.owner.source_generation
+        );
+        let core_executor_epoch = self.session.borrow().core_executor_epoch();
+        let core_executor_epoch_text = core_executor_epoch.0.to_string();
+        let core = self.core.borrow().clone();
+        let module_request = CoreRequest::ResolveModules {
+            id: module_request_id.clone(),
+            document: preview.document.as_ref().clone(),
+            board_id: preview.owner.scope.board_id.clone(),
+            preview_top_z: Some(preview.preview.thickness),
+        };
+        let module_reply = core
+            .request(
+                &module_request_id,
+                &core_executor_epoch_text,
+                &module_request,
+            )
+            .await
+            .map_err(|error| format!("Mounted-module model resolution failed: {error}"))?;
+        if !source_is_current()
+            || self.session.borrow().core_executor_epoch() != core_executor_epoch
+            || !Rc::ptr_eq(&core, &self.core.borrow())
+        {
+            return Ok(());
+        }
+        let module_placements = match module_reply {
+            CoreReply::ModulesResolved { id, result }
+                if id == module_request_id
+                    && result.revision == preview.owner.accepted_revision =>
+            {
+                result.model_placements
+            }
+            CoreReply::ModulesResolved { .. } => {
+                return Err(
+                    "Core returned mounted-module models for another request or revision".into(),
+                );
+            }
+            CoreReply::Error { id, message, .. } if id == module_request_id => {
+                return Err(format!("Mounted-module model resolution failed: {message}"));
+            }
+            _ => return Err("Core returned an unexpected mounted-module model reply".into()),
+        };
+        let native_paths =
+            crate::presentation::model_delivery::native_model_path_assets(&preview.path_assets);
+        let unique_model_paths = preview
+            .preview
+            .models
+            .iter()
+            .map(|model| model.path.clone())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
         let mut ergogen_ids_by_path = BTreeMap::new();
         if !unique_model_paths.is_empty() {
             let ids =
@@ -2544,7 +2590,7 @@ impl Runtime {
         .into_iter()
         .collect::<BTreeMap<_, _>>();
         let ports = self.layout_model_delivery_ports(&preview, source_is_current.clone());
-        let results = self
+        let board_results = self
             .case_model_delivery
             .deliver_models(
                 preview.preview.revision,
@@ -2555,7 +2601,52 @@ impl Runtime {
                 source_is_current.clone(),
             )
             .await;
-        if let Some(rows) = results
+        let mut rows = board_results;
+        if !module_placements.is_empty() {
+            let selections = module_placements
+                .iter()
+                .map(|placement| {
+                    let selection = crate::presentation::model_delivery::select_model_asset_id(
+                        &placement.asset_id,
+                        &preview.document.assets,
+                        |asset_id| {
+                            crate::bundled_models::bundled_model(asset_id).map(|model| {
+                                crate::presentation::model_delivery::ResolvedModelAsset {
+                                    id: model.id.to_owned(),
+                                    sha256: model.sha256.to_owned(),
+                                    filename: model.filename.to_owned(),
+                                    source: crate::presentation::model_delivery::ModelAssetSource::Packaged {
+                                        url_path: model.url_path.to_owned(),
+                                    },
+                                }
+                            })
+                        },
+                    );
+                    (placement.id.clone(), selection)
+                })
+                .collect::<BTreeMap<_, _>>();
+            let module_results = self
+                .case_model_delivery
+                .deliver_module_placements(
+                    preview.owner.accepted_revision,
+                    &module_placements,
+                    &selections,
+                    &ports,
+                    &batch,
+                    source_is_current.clone(),
+                )
+                .await;
+            match (&mut rows, module_results) {
+                (Some(rows), Some(modules)) => {
+                    rows.delivered.extend(modules.delivered);
+                    rows.pending.extend(modules.pending);
+                    rows.failures.extend(modules.failures);
+                }
+                (_, None) => return Ok(()),
+                (None, Some(modules)) => rows = Some(modules),
+            }
+        }
+        if let Some(rows) = rows
             && source_is_current()
             && self.layout_source_owner_is_current(&preview.owner)
         {
