@@ -26,6 +26,7 @@ pub enum MatrixTransformField {
     KeyRotation,
     KeyTransformReset,
     KeyEnabled,
+    KeyAssembly,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -37,6 +38,7 @@ pub enum MatrixTransformValue {
     OriginMode(bool),
     Point(Vec2),
     Bool(bool),
+    Text(String),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -63,6 +65,8 @@ pub enum MatrixTransformFields {
         row: u32,
         column: u32,
         enabled: bool,
+        definition_id: String,
+        choices: Vec<(String, String)>,
         offset: Vec2,
         rotation: f64,
     },
@@ -281,6 +285,11 @@ pub fn build_operation(
         )),
         (
             MatrixTransformFields::Key { row, column, .. },
+            Field::KeyAssembly,
+            Value::Text(definition_id),
+        ) => Ok(set_cell_assembly(matrix, *row, *column, definition_id)),
+        (
+            MatrixTransformFields::Key { row, column, .. },
             Field::KeyEnabled,
             Value::Bool(enabled),
         ) => Ok(set_cell_enabled(matrix, *row, *column, enabled)),
@@ -335,6 +344,36 @@ fn set_cell_enabled(matrix: &Matrix, row: u32, column: u32, enabled: bool) -> Ed
             enabled,
             definition_id: None,
             variant: None,
+            offset: None,
+            rotation: None,
+            assemblies: Vec::new(),
+            assemblies_local: None,
+        });
+    }
+    set_matrix(next)
+}
+
+fn set_cell_assembly(
+    matrix: &Matrix,
+    row: u32,
+    column: u32,
+    definition_id: String,
+) -> EditOperation {
+    let mut next = matrix.clone();
+    if let Some(cell) = next
+        .cells
+        .iter_mut()
+        .find(|cell| cell.row == row && cell.column == column)
+    {
+        cell.definition_id = Some(definition_id.clone());
+        cell.variant = Some(definition_id);
+    } else {
+        next.cells.push(MatrixCell {
+            row,
+            column,
+            enabled: true,
+            definition_id: Some(definition_id.clone()),
+            variant: Some(definition_id),
             offset: None,
             rotation: None,
             assemblies: Vec::new(),
@@ -495,6 +534,8 @@ mod tests {
         let matrix = matrix();
         let fields = MatrixTransformFields::Key {
             enabled: true,
+            definition_id: "switch".into(),
+            choices: Vec::new(),
             row: 1,
             column: 2,
             offset: Vec2 { x: 6.0, y: 7.0 },
@@ -530,6 +571,8 @@ mod tests {
         let matrix = matrix();
         let fields = MatrixTransformFields::Key {
             enabled: true,
+            definition_id: "switch".into(),
+            choices: Vec::new(),
             row: 1,
             column: 2,
             offset: Vec2 { x: 6.0, y: 7.0 },
@@ -574,12 +617,43 @@ mod tests {
     }
 
     #[test]
+    fn key_assembly_sets_definition_and_variant_without_losing_cell_state() {
+        let matrix = matrix();
+        let fields = MatrixTransformFields::Key {
+            enabled: true,
+            definition_id: "switch".into(),
+            choices: Vec::new(),
+            row: 1,
+            column: 2,
+            offset: Vec2 { x: 6.0, y: 7.0 },
+            rotation: 9.0,
+        };
+        let EditOperation::SetMatrix { matrix: next, .. } = build_operation(
+            &matrix,
+            &fields,
+            MatrixTransformField::KeyAssembly,
+            MatrixTransformValue::Text("alt-switch".into()),
+            MatrixSplayAffect::Following,
+        )
+        .unwrap() else {
+            panic!("cell edits use SetMatrix");
+        };
+        let cell = &next.cells[0];
+        assert_eq!(cell.definition_id.as_deref(), Some("alt-switch"));
+        assert_eq!(cell.variant.as_deref(), Some("alt-switch"));
+        assert_eq!(cell.offset, matrix.cells[0].offset);
+        assert_eq!(cell.assemblies, matrix.cells[0].assemblies);
+    }
+
+    #[test]
     fn empty_key_cell_edit_adds_a_semantic_cell_without_part_ids() {
         let mut matrix = matrix();
         matrix.cells.clear();
         matrix.part_ids = vec!["existing-primary".into()];
         let fields = MatrixTransformFields::Key {
             enabled: true,
+            definition_id: "switch".into(),
+            choices: Vec::new(),
             row: 0,
             column: 1,
             offset: Vec2 { x: 0.0, y: 0.0 },
@@ -622,6 +696,8 @@ mod tests {
         let untouched = matrix.cells[1].clone();
         let fields = MatrixTransformFields::Key {
             enabled: true,
+            definition_id: "switch".into(),
+            choices: Vec::new(),
             row: 1,
             column: 2,
             offset: Vec2 { x: 6.0, y: 7.0 },
@@ -872,6 +948,8 @@ mod tests {
 
         let key_fields = MatrixTransformFields::Key {
             enabled: true,
+            definition_id: "switch".into(),
+            choices: Vec::new(),
             row: 1,
             column: 2,
             offset: Vec2 { x: 6.0, y: 7.0 },

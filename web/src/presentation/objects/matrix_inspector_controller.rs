@@ -992,7 +992,7 @@ struct MatrixProjectionContext {
     workspace: &'static str,
 }
 
-fn switch_choices(
+pub(super) fn switch_choices(
     document: &ProjectDoc,
     templates: &[PartDefinition],
     current_id: &str,

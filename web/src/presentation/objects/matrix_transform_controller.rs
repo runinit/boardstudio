@@ -12,7 +12,9 @@ use crate::{operation_outcomes::OutcomeSlot, runtime::Runtime};
 use boardstudio_application::{
     Durability, Event, Lifecycle, OperationId, Scope, SnapshotToken, TerminalOutcome,
 };
-use boardstudio_core::model::{EditCommand, EditPhase, MatrixSplayAffect, ProjectDoc, Vec2};
+use boardstudio_core::model::{
+    EditCommand, EditOperation, EditPhase, MatrixSplayAffect, ProjectDoc, Vec2,
+};
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
 
@@ -123,6 +125,32 @@ pub(in crate::presentation) fn use_workspace_matrix_transform(
     let last_request_id = use_signal(|| 0u64);
     let pending = use_signal(|| None::<PendingTransformEdit>);
     let feedback = use_signal(Vec::<MatrixTransformFeedback>::new);
+    let alive = use_hook(|| Rc::new(std::cell::Cell::new(true)));
+    use_drop({
+        let alive = alive.clone();
+        move || alive.set(false)
+    });
+    let switch_catalog = use_signal(Vec::<boardstudio_core::model::PartDefinition>::new);
+    let mut switch_catalog_loaded = use_signal(|| false);
+    use_effect({
+        let alive = alive.clone();
+        move || {
+            if switch_catalog_loaded() {
+                return;
+            }
+            switch_catalog_loaded.set(true);
+            let mut switch_catalog = switch_catalog;
+            let alive = alive.clone();
+            spawn_local(async move {
+                if let Ok(definitions) =
+                    crate::presentation::parts::load_matrix_templates(false).await
+                    && alive.get()
+                {
+                    switch_catalog.set(definitions);
+                }
+            });
+        }
+    });
     let (projection, editable) = project_current(
         &runtime,
         selected.as_ref(),
@@ -132,6 +160,22 @@ pub(in crate::presentation) fn use_workspace_matrix_transform(
         current_workspace,
         owner_workspace,
     );
+    let projection = projection.map(|mut projection| {
+        if let MatrixTransformFields::Key {
+            definition_id,
+            choices,
+            ..
+        } = &mut projection.fields
+            && let Some(document) = runtime.model().accepted.map(|snapshot| snapshot.document)
+        {
+            *choices = super::matrix_inspector_controller::switch_choices(
+                &document,
+                &switch_catalog(),
+                definition_id,
+            );
+        }
+        projection
+    });
     let identity = observed_identity.clone();
 
     use_effect(use_reactive(
@@ -269,6 +313,31 @@ pub(in crate::presentation) fn use_workspace_matrix_transform(
                     );
                     return;
                 }
+            };
+            let operation = match (request.field, operation, &request.value) {
+                (
+                    MatrixTransformField::KeyAssembly,
+                    EditOperation::SetMatrix { matrix, .. },
+                    MatrixTransformValue::Text(id),
+                ) => {
+                    let definitions = (!snapshot
+                        .document
+                        .definitions
+                        .iter()
+                        .any(|definition| &definition.id == id))
+                    .then(|| {
+                        switch_catalog()
+                            .into_iter()
+                            .find(|definition| &definition.id == id)
+                    })
+                    .flatten()
+                    .map(|definition| vec![definition]);
+                    EditOperation::SetMatrix {
+                        matrix,
+                        definitions,
+                    }
+                }
+                (_, operation, _) => operation,
             };
             let operation_id = runtime.operation();
             let outcome = runtime.observe_operation(operation_id);
@@ -436,6 +505,10 @@ fn project_current_for(
                 row: *row,
                 column: *column,
                 enabled: cell.is_none_or(|cell| cell.enabled),
+                definition_id: cell
+                    .and_then(|cell| cell.definition_id.clone())
+                    .unwrap_or_else(|| matrix.definition_id.clone()),
+                choices: Vec::new(),
                 offset: cell
                     .and_then(|cell| cell.offset)
                     .unwrap_or(Vec2 { x: 0.0, y: 0.0 }),
@@ -573,6 +646,9 @@ fn field_value(
         }
         (MatrixTransformFields::Key { enabled, .. }, Field::KeyEnabled) => {
             Some(Value::Bool(*enabled))
+        }
+        (MatrixTransformFields::Key { definition_id, .. }, Field::KeyAssembly) => {
+            Some(Value::Text(definition_id.clone()))
         }
         (
             MatrixTransformFields::Key {

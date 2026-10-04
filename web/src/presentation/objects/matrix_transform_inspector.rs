@@ -250,6 +250,8 @@ pub(in crate::presentation) fn MatrixTransformInspector(
             row,
             column,
             enabled,
+            definition_id,
+            choices,
             offset,
             rotation,
         } => (
@@ -290,6 +292,12 @@ pub(in crate::presentation) fn MatrixTransformInspector(
                     value: MatrixTransformValue::CellTransform { offset: Vec2 { x: 0.0, y: 0.0 }, rotation: 0.0 },
                     request_sequence, editable: props.mount.editable, busy: props.mount.busy,
                     feedback: props.mount.feedback.clone(), splay_affect, on_edit,
+                }
+                KeyAssemblyField {
+                    owner: owner.clone(), snapshot_token, revision, value: definition_id.clone(),
+                    choices: choices.clone(), request_sequence, editable: props.mount.editable,
+                    busy: props.mount.busy, feedback: props.mount.feedback.clone(), on_edit,
+                    splay_affect,
                 }
                 span { class: "m1-matrix-field-context", "Key {row}, {column}" }
             },
@@ -725,6 +733,69 @@ fn EnabledTransformField(props: EnabledTransformFieldProps) -> Element {
                 },
             }
             " Enabled"
+        }
+        if let Some(message) = error.as_deref() { small { role: "alert", class: "m1-matrix-transform-error", "{message}" } }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct KeyAssemblyFieldProps {
+    owner: MatrixTransformInspectorOwner,
+    snapshot_token: SnapshotToken,
+    revision: u64,
+    value: String,
+    choices: Vec<(String, String)>,
+    request_sequence: Signal<u64>,
+    editable: bool,
+    busy: bool,
+    feedback: Vec<MatrixTransformFeedback>,
+    on_edit: EventHandler<MatrixTransformRequest>,
+    splay_affect: Signal<MatrixSplayAffect>,
+}
+
+#[component]
+fn KeyAssemblyField(props: KeyAssemblyFieldProps) -> Element {
+    let mut submitted = use_signal(|| None::<u64>);
+    let error = props
+        .feedback
+        .iter()
+        .rev()
+        .find(|item| {
+            item.owner == props.owner
+                && item.field == MatrixTransformField::KeyAssembly
+                && submitted() == Some(item.request_id)
+                && item.state == MatrixTransformState::Failed
+        })
+        .and_then(|item| item.message.clone());
+    let disabled = !props.editable || props.busy;
+    let mut sequence = props.request_sequence;
+    let owner = props.owner.clone();
+    let current = props.value.clone();
+    let token = props.snapshot_token;
+    let revision = props.revision;
+    let on_edit = props.on_edit;
+    let affect = props.splay_affect;
+    rsx! {
+        label { class: "m1-matrix-key-assembly",
+            "Key Assembly"
+            select {
+                aria_label: "Key Assembly", disabled, value: "{props.value}",
+                onchange: move |event| {
+                    let Some(id) = sequence().checked_add(1) else { return; };
+                    sequence.set(id);
+                    submitted.set(Some(id));
+                    on_edit.call(MatrixTransformRequest {
+                        owner: owner.clone(), request_id: id, snapshot_token: token, revision,
+                        field: MatrixTransformField::KeyAssembly,
+                        baseline: MatrixTransformValue::Text(current.clone()),
+                        value: MatrixTransformValue::Text(event.value()),
+                        splay_affect: affect(),
+                    });
+                },
+                for (id, label) in props.choices.iter() {
+                    option { key: "{id}", value: "{id}", selected: *id == props.value, "{label}" }
+                }
+            }
         }
         if let Some(message) = error.as_deref() { small { role: "alert", class: "m1-matrix-transform-error", "{message}" } }
     }
