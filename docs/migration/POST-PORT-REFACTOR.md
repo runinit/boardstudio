@@ -2107,3 +2107,41 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
   "continuations": []
 }
 ```
+
+## RF-018: Canvas draft input and outline geometry use implicit competing coordinate frames
+
+**Status:** two-part private repair integrated 6619d5f2 and packaged34789; public post-fix draft qualification pending
+
+**Confidence:** confirmed public candidate hit-region defect; broader redesign is a proposal
+
+**Observation:** The transparent draft input rectangle inherited a scale(1,-1) canvas group transform while its x/y bounds were already expressed for the visible screen area. In a public candidate its bounding box started at y=-349.645 while the canvas started at y=42; visible pointer clicks selected keys and did not add draft points. The same overlay serves addition, cutout and connection drafts.
+
+**Impact:** Present controls could not receive pointer input, blocking preview, point undo and finish for three outline draft workflows despite their source handlers existing.
+
+**Current mitigation:** Counter-flip the draft input rectangle to place its hit bounds on the visible canvas, then render the active draft overlay after key/part hit targets within the SVG group so it receives pointer events. Preserve world-space draft geometry.
+
+**Later proposal:** Define one explicit world-to-screen coordinate conversion and hit-region contract for interactive SVG overlays. Test pointer hit bounds against the canvas after zoom, pan and resize so geometry and input cannot silently diverge.
+
+**Validation:** On packaged34789, repeat addition, cutout and bridge drafts, including over-key clicks, point undo, finish/cancel and no durable draft writes; later check hit bounds under zoom/pan and viewport changes.
+
+**Evidence:** `web/src/presentation/outline_lifecycle.rs`; `.scratch/dioxus-layout-authoring/evidence/f34e-manual-polygon-drafts-source-20261003.md`
+
+**Additional recorded details:**
+
+```json
+{
+  "category": "architecture / canvas input coordinate ownership",
+  "impact_priority": "high",
+  "discovered": "2026-10-03",
+  "baseline": "Dioxus candidate 924ba2820a6c0698fd06fb969d7cf4f28ae76ccd; pinned TypeScript 5a472a9426e6e38993361da402cd4ec730feb369",
+  "workflows": [
+    "F3.4"
+  ],
+  "decision": "Repair current functional blocker in private presentation code; defer shared coordinate-frame redesign until post-port refactor.",
+  "follow_up_owner": "F3.4/F9 canvas interaction refactor",
+  "linked_tasks": [
+    "F3.4"
+  ],
+  "continuations": []
+}
+```

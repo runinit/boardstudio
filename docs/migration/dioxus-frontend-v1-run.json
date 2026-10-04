@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T01:54:02.408764+00:00",
+    "updated_at": "2026-10-04T02:10:46.746243+00:00",
     "parent_counts": {
       "accepted": 14,
       "implementing": 37,
@@ -25,20 +25,20 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-lifecycle-owner-20261003",
-      "source_commit": "40a6b34a0bbe1574cb62c596b4444afbf0b8303b",
-      "root_url": "http://127.0.0.1:34787/",
-      "subpath_url": "http://127.0.0.1:34787/boardstudio/",
-      "provenance": "web/target/builds/frontend-lifecycle-owner-20261003/provenance.json",
-      "provenance_sha256": "0de24363067691894c539265ea121b0593180ae8d040f61d39086657aca4d40a",
+      "build_id": "frontend-outline-hitorder-20261003",
+      "source_commit": "6619d5f2be0ce4167939426dd7efd3a13fcbd1e3",
+      "root_url": "http://127.0.0.1:34789/",
+      "subpath_url": "http://127.0.0.1:34789/boardstudio/",
+      "provenance": "web/target/builds/frontend-outline-hitorder-20261003/provenance.json",
+      "provenance_sha256": "0af98a154da398cfdf3e9bebeb0a49b530418571e26f6a7fe7b5acc72525e634",
       "fresh_commands": 8,
       "inherited_commands": 22,
       "source_inputs": 1390,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 157.624699,
+      "command_span_seconds": 157.428894,
       "package_qualification": "Combined package provenance, current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-lifecycle-owner-20261003/package-proof.json",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-outline-hitorder-20261003/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -48,8 +48,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "40a6b34a0bbe1574cb62c596b4444afbf0b8303b",
-      "state": "Published34787 source40a6b34a with compiler/package/root/subpath checks and zero release warnings. F3.2/F3.3 Layout and F4.2 Parts accepted; F3.4-C01 outline versions and F5.2-C01 PCB current-plan ownership verified. A public outline-draft hit-area defect is reproduced and queued for focused repair.",
+      "source_commit": "6619d5f2be0ce4167939426dd7efd3a13fcbd1e3",
+      "state": "Published34789 source6619d5f2 with compiler/package/root/subpath checks and zero release warnings. F3.2/F3.3 Layout and F4.2 Parts accepted; F3.4-C01, F5.2-C01 and F7.3-C05 verified. Outline draft hit-area bounds and SVG paint order repaired; paired post-fix journey remains active.",
       "packets": [
         {
           "stream": "Layout",
@@ -488,7 +488,7 @@
       {
         "stream": "Layout",
         "priority": "Functional gaps alongside other streams; exact visual parity deferred",
-        "state": "F3.2/F3.3 accepted. F3.4-C01 Generated/fixed version lifecycle verified on paired5175/34786. F3.4-C02 draft hit area misses visible canvas; focused repair active. Exact visual parity deferred."
+        "state": "F3.2/F3.3 accepted; F3.4-C01 outline version lifecycle verified. Two-part F3.4-C02 draft input repair is packaged34789 and awaits paired addition/cutout/bridge browser confirmation; exact visual parity deferred."
       },
       {
         "stream": "PCB",
@@ -504,7 +504,7 @@
       },
       {
         "stream": "Case",
-        "state": "F7.3-C02/C03/C04 verified paired; C05 switch/module pick and empty-canvas behavior evidenced, finding focus with hidden layers remains active."
+        "state": "F7.3-C02/C03/C04/C05 verified paired, including section position, appearance/reset, camera, module/case/part pick, and hidden-Footprints finding focus. C01 and remaining scene/provider joins open."
       },
       {
         "stream": "Parts + Project",
@@ -513,9 +513,9 @@
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Repair reproduced F3.4-C02 outline draft canvas hit area, then validate addition/cutout/bridge draft behavior on a focused candidate.",
-      "Finish narrow Case finding-focus and Project damaged-preview packets while retaining PCB/Keycaps genuine-provider failure limits and Keymap PCB-specific export ordering gap.",
-      "Use tasks.json criterion queues for six streams; consolidate next source packet into one compiler/package and one Sol candidate review when functionally ready."
+      "Qualify repaired F3.4-C02 addition/cutout/bridge drafts on packaged34789 against pinned TypeScript, then update criterion and record any remaining exact defect.",
+      "Keep six queues moving from remaining criteria: Case scene/provider, Project public failure limits, PCB/Keycaps genuine-provider failure and Keymap PCB-specific export ordering.",
+      "Consolidate the next functional candidate and one Sol 6.1 High review only when ready; preserve all parent joins and RF findings."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
@@ -608,7 +608,7 @@
               "scope": "Sofle selection, contextual Objects/Inspector Properties and Relations, matrix/key edits, Undo and reopen",
               "spec": ".scratch/dioxus-layout-authoring/spec.md",
               "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/journey.md",
-              "verified": "Three Properties shortcut routes and key width1→1.25→Undo1→Redo1.25→reload1.25 match reference behavior.",
+              "verified": "Three Properties shortcut routes and key width1\u21921.25\u2192Undo1\u2192Redo1.25\u2192reload1.25 match reference behavior.",
               "remaining": "Inspector arrangement/typography/context footer and Objects-to-toolbar selection-kind synchronization; broader authoring criteria unchanged."
             },
             {
@@ -1322,12 +1322,46 @@
               "state": "pending"
             }
           ]
+        },
+        {
+          "candidate_build_id": "frontend-lifecycle-owner-20261003",
+          "source_commit": "40a6b34a0bbe1574cb62c596b4444afbf0b8303b",
+          "phase": "qualifying",
+          "review": {
+            "profile": "sol-review",
+            "state": "pending"
+          },
+          "journeys": [
+            {
+              "id": "assembly-query-feedback",
+              "scope": "Assembly-only query has matching rows and no no-match status; true no-match has zero rows and exactly one status. Retain verified filtering and selection behavior.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
+              "state": "pending"
+            }
+          ]
+        },
+        {
+          "candidate_build_id": "frontend-outline-drafts-owner-20261003",
+          "source_commit": "e6fd3249556f24c49e8ac4afc71075ad5763ccf9",
+          "phase": "qualifying",
+          "review": {
+            "profile": "sol-review",
+            "state": "pending"
+          },
+          "journeys": [
+            {
+              "id": "assembly-query-feedback",
+              "scope": "Assembly-only query has matching rows and no no-match status; true no-match has zero rows and exactly one status. Retain verified filtering and selection behavior.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
+              "state": "pending"
+            }
+          ]
         }
       ],
       "phase": "qualifying",
       "unmet_start_conditions": [],
-      "candidate_build_id": "frontend-lifecycle-owner-20261003",
-      "source_commit": "40a6b34a0bbe1574cb62c596b4444afbf0b8303b",
+      "candidate_build_id": "frontend-outline-hitorder-20261003",
+      "source_commit": "6619d5f2be0ce4167939426dd7efd3a13fcbd1e3",
       "journeys": [
         {
           "id": "assembly-query-feedback",
@@ -1337,7 +1371,7 @@
         }
       ],
       "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
-      "started_at": "2026-10-04T01:54:02.408740+00:00",
+      "started_at": "2026-10-04T02:10:07.778703+00:00",
       "review": {
         "profile": "sol-review",
         "state": "pending"
