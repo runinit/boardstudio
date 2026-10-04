@@ -1687,6 +1687,12 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
       "date": "2026-10-03",
       "observation": "Read-only audit: shared source joins and stale duplicate progress/routing rules increase queue and rework; required acceptance remains distinct from code presence.",
       "mitigation": "Integrate ready batch; Layout-first, one waiting packet/stream; fewer repeated checks, one candidate review, unified current_progress; all history and criteria retained."
+    },
+    {
+      "date": "2026-10-04",
+      "observation": "Dispatching source-only implementation audits for already implemented Layout, PCB and Parts criteria again found no Dioxus code gap. One agent briefly changed the TypeScript reference instead of the Rust target; its exact edits were reverted. The old stream rule also held the next disjoint packet behind a combined compile, serializing independent authors.",
+      "mitigation": "Use the criterion state to dispatch implementation only for missing or reproduced behavior. Group implemented criteria into candidate journeys, keep TypeScript read-only, let disjoint authors advance once their source/interface lands, and compile/package/review once per batch. The single project contract now states these boundaries.",
+      "post_port": "Assess whether ownership and worktree-role validation can reject reference-app edits automatically without blocking deliberate generated-contract updates."
     }
   ],
   "canvas_entry_wave_20261003": {
@@ -1733,6 +1739,14 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
       "observation": "The migration criterion intentionally requires locked component position fields to be unavailable although the pinned TS control remains editable. Dioxus now disables locked X/Y and suppresses their commit dispatch, matching its already-disabled locked outline controls. A focused WASM test executed 1/1; no pre-edit RED run was captured. Driven/matrix cases remain unqualified.",
       "during_port": "Record this as a deliberate Rust UI correctness improvement; do not call it TypeScript visual/behavioral parity or infer all numeric states from one locked projection.",
       "post_port": "Resolve domain lock semantics and test fixture provenance in the post-port specification cleanup."
+    },
+    {
+      "date": "2026-10-04",
+      "workflow": "F4.5-C01",
+      "evidence": ".scratch/dioxus-parts-catalogue/evidence/parts-fit-profile-capability-receipt-20261002.md",
+      "observation": "Paired Parts profile purpose/gap/cutout/clearance edit, Save, Undo/Redo and reopen match. The criterion also says edit evidence/qualification, but neither pinned TS nor current Dioxus exposes a separate evidence or qualification editor; both use KiCad source provenance/readiness. Treat the remaining wording as a specification-provenance ambiguity, not a reproduced port defect.",
+      "during_port": "Retain actual paired edit evidence and keep the clause visible until its intended v1 meaning is resolved; do not add an invented UI solely to satisfy ambiguous prose.",
+      "post_port": "Reconcile capability-map language with user-visible reference controls and profile provenance model."
     }
   ],
   "delivery_retro_20261003": {

@@ -35,19 +35,25 @@ production cutover and React removal retain their separate authorization/gates.
 1. Keep six workbench queues: Layout, PCB, Keymap, Keycaps, Case/shared 3D, and
    Parts/Project. Prioritize missing or broken end-to-end functionality across all
    six queues, rather than Layout visual closure. Each stream has at most one
-   unintegrated packet at a time; once its source is integrated and the combined
-   compile passes, the stream may start its next functional packet while public
-   qualification waits for the batched milestone.
+   unresolved author packet at a time. Once its owned source has landed and its
+   consumed interface is stable, the stream may start its next functional packet;
+   it need not wait for another stream, a combined compile, package, or review.
 2. Dispatch from the criterion queue: name a missing criterion, current source,
    owned files, consumed capabilities and finish condition. Use bounded investigation
    for unassessed criteria, qualification for implemented criteria, and closure only
-   when every criterion and final join is satisfied. Pin the relevant settled TypeScript journey, inspect current Rust code and refine
-   the existing spec/ticket. Start when the capabilities actually consumed are proven.
+   when every criterion and final join is satisfied. Reuse the relevant settled
+   TypeScript source/journey evidence, inspect current Rust code and refine the
+   existing spec/ticket. Open a fresh reference browser journey only when behavior
+   is uncertain or at the integrated candidate boundary. Start when the capabilities
+   actually consumed are proven.
    Before calling a functional criterion implemented, locate its mounted originating
    control, destination edit/service port, and current-scope admission; a source
    pointer to a helper alone does not establish the user action.
    Preserve parent criteria and original dependency rationale. Create a new ticket only
    for distinct runnable work. A no-gap audit returns source pointers by message.
+   Do not dispatch an implementation author against an `implemented` criterion without
+   a reproduced missing user action. Qualify several related implemented criteria in
+   one candidate journey; turn only an observed failure into a repair packet.
    For an interactive slice, its finish condition names the originating control,
    destination workspace/editor, observable edit result and scope change behavior;
    rendering or selecting an object alone does not complete that journey.
@@ -59,10 +65,14 @@ production cutover and React removal retain their separate authorization/gates.
    assigned isolates; the coordinator may grant disjoint edit-only leases in its checkout
    for a single batch, retaining sole commit/build ownership. Inspect overlapping edits.
    Return a commit or owned diff plus existing evidence pointers; no extra handoff form.
-4. Integrate ready work serially. Reuse a relevant settled base across unrelated changes;
-   refresh only overlapping source/consumed interfaces. Publish shared helper signatures
-   early. The author continues the next real gap once its waiting packet is resolved.
-5. Integrate several runnable functional packets before freezing a candidate. Package
+4. Integrate ready disjoint work as it lands. Serialize only overlapping edits and
+   shared-file commits; do not hold an independent stream for another stream's
+   compile or qualification. Reuse a relevant settled base across unrelated changes;
+   refresh only overlapping source/consumed interfaces. Publish shared helper
+   signatures early. The author continues the next real gap once its packet lands.
+5. Integrate several runnable functional packets before freezing a candidate. Run
+   one combined format/compiler check for the batch, not one full check per author
+   packet. Package
    early only for a blocking interaction that cannot be checked from source or focused
    tests. The package helper runs the existing locked Dioxus page compiler check once
    per batch. Repair its diagnostic list in place; reuse verified unchanged providers
@@ -76,7 +86,9 @@ production cutover and React removal retain their separate authorization/gates.
    candidate journeys before the consolidated Sol 6.1 High review: repair a
    reproduced defect in the same batch and review the resulting candidate once.
    A journey with an unavailable public trigger stays explicitly unqualified and
-   does not require repeated setup before review. Keep broader lifecycle, visual parity and release qualification
+   does not require repeated setup before review. If a retained fixture cannot
+   exercise the action, record that limit once and move on while a suitable fixture
+   is prepared. Keep broader lifecycle, visual parity and release qualification
    queued until their owning milestone. Other streams continue during qualification.
    Use one paired saved fixture/session per workbench milestone to cover several
    related controls and edits, then point every satisfied criterion to that one
@@ -97,9 +109,10 @@ production cutover and React removal retain their separate authorization/gates.
    completed journeys, unmet criteria and candidate age separately.
 
 During source integration, ordinary reversible UI needs no new per-packet application
-suite/browser/review. A reproduced bug gets its focused regression and affected checks.
-When disjoint authors share one checkout, defer compilation of an in-progress shared
-source graph until their edits settle; the coordinator runs one combined check.
+suite/browser/review or full compiler run. A reproduced bug gets its focused regression
+and affected checks. When disjoint authors share one checkout, defer compilation of an
+in-progress shared source graph until their edits settle; the coordinator runs one
+combined check.
 Run focused Rust tests through `scripts/migration-deliver.py focused-test -- ...` so
 a successful command with zero executed tests cannot count as verification.
 Focused tooling checks validate delivery controls only when they change. Broaden only

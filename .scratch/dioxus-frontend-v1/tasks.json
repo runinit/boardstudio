@@ -3151,9 +3151,11 @@
             "web/src/presentation/parts/mechanical_profile_ui.rs:21",
             "web/src/presentation/parts/mechanical_profile.rs:1"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-parts-catalogue/evidence/parts-fit-profile-capability-receipt-20261002.md"
+          ],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Paired 34807/5175 imported THQWGD001C selected-profile journey edited gap/cutout/clearance values, saved one accepted edit, Undo/Redo and reopen retention. Neither reference nor candidate exposes a separate evidence/qualification editor; both retain KiCad provenance through source mapping. Confirm whether the remaining clause denotes existing provenance/readiness rather than a v1 user edit before verified verdict; do not invent a TypeScript defect or repeat the successful field journey.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts/mechanical_profile_ui.rs",
@@ -6840,12 +6842,15 @@
         {
           "id": "F7.4-C04",
           "requirement": "Show resolved stack/layer selection, diagnostics/findings navigation, unsupported/missing profile affordances, and explicit disable-stack behavior.",
-          "state": "missing",
+          "state": "implemented",
           "classification": "functional",
           "sources": [
             "web/src/presentation/mechanical_settings.rs",
+            "web/src/presentation/mechanical_settings_mount.rs",
+            "web/src/presentation/mechanical_settings_controller.rs",
             "web/src/presentation/case_workspace.rs",
-            "web/src/presentation/case_display.rs"
+            "web/src/presentation/case_display.rs",
+            "web/src/runtime.rs"
           ],
           "evidence": [
             ".scratch/dioxus-case-workspace/evidence/15-mounting-controls-20261003/public-receipt.md",
@@ -6853,7 +6858,7 @@
             ".scratch/dioxus-case-workspace/evidence/issue-12-show-and-f72-disclosure-34760/public-receipt.md"
           ],
           "blockers": [],
-          "next_action": "34807 now passes five current rows, Plate-specific Inspector and board-switch clearing, and authored Disable restores the saved authored plate. Remaining actual GUI gap: TS MechanicalAssemblyPanel Missing part profiles and Advanced source geometry selectors assign a library switch fit profile or custom KiCad geometry to a placed unknown definition; Dioxus only shows guidance to Parts. Implement those mounted Case controls through existing private SetMechanical/profile ports, then check one assignment and current-scope retention.",
+          "next_action": "Source a9a94f56 mounts Case switch-fit and imported-KiCad assignment through private SetMechanical/profile ports; ab207a0f adds both TS MX stabilizer choices. 34807 already passes five current rows, Plate Inspector, board-switch clearing and authored Disable. The 34808 fixture contains only a recognized MX switch; TS hides missing-profile controls there and Dioxus currently presents a disabled target, so it cannot qualify assignment. Use one placed genuinely unknown-switch fixture to check accepted assignment, Undo/reopen and scope retention; correct any resulting visibility mismatch in the same batch.",
           "finish_condition": "Current stack/diagnostics map to the correct layer; a placed unknown definition can receive a library or imported-KiCad mechanical profile from the Case Inspector, with current-scope admission and one accepted edit; disabling the generated stack preserves authored bodies.",
           "owned_files": [
             "web/src/presentation/mechanical_settings.rs",

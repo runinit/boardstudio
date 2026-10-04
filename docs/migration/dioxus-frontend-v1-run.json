@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T12:51:26.360346+00:00",
+    "updated_at": "2026-10-04T13:28:28.434562+00:00",
     "parent_counts": {
       "accepted": 18,
       "implementing": 32,
@@ -25,20 +25,20 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-current-actions-20261004",
-      "source_commit": "3b5bb1b3651e2bbd35911e15f698995f02c1abed",
-      "root_url": "http://127.0.0.1:34807/",
-      "subpath_url": "http://127.0.0.1:34807/boardstudio/",
-      "provenance": "web/target/builds/frontend-current-actions-20261004/provenance.json",
-      "provenance_sha256": "90a71c8f61aea550160547fa9cbc58114ffe0e9576e41cc68dde80113f8df3e7",
+      "build_id": "frontend-profile-joined-20261004",
+      "source_commit": "a9a94f566f2232ebaf3d9ac0da0dc3067442b6d5",
+      "root_url": "http://127.0.0.1:34808/",
+      "subpath_url": "http://127.0.0.1:34808/boardstudio/",
+      "provenance": "web/target/builds/frontend-profile-joined-20261004/provenance.json",
+      "provenance_sha256": "b8cbb3997fde7de102454297747df5cf2067ddcb45d7dc7dc9456492008d14ef",
       "fresh_commands": 9,
       "inherited_commands": 23,
       "source_inputs": 1393,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 128.817528,
+      "command_span_seconds": 141.24711,
       "package_qualification": "Combined package provenance, current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-current-actions-20261004/package-proof.json",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-profile-joined-20261004/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -48,8 +48,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "f17ae37e",
-      "state": "Candidate 34807/source 3b5bb1b3 passed package, two affected Case/Parts journeys and one consolidated Sol review. F5.2 was accepted from four verified criteria and its INT.2 join. The next unqualified source batch contains PCB export-ordering owner coverage (76e68748) and routed-board stale-error feedback (f17ae37e); it will be packaged with any ready disjoint workbench edits.",
+      "source_commit": "ab207a0f",
+      "state": "Candidate 34807/source 3b5bb1b3 passed package, affected Case/Parts journeys and one consolidated Sol review; F5.2 was accepted. The next unqualified source batch contains PCB export ordering, routed-board stale-error feedback, locked-component editing, and Case switch/stabilizer profile assignment through ab207a0f. A combined package and focused affected journeys are next. No further confirmed missing code criterion is queued; implemented criteria remain open for grouped qualification and joins.",
       "packets": [
         {
           "stream": "Layout",
@@ -573,7 +573,7 @@
       },
       {
         "stream": "Case",
-        "state": "F7.4 exact-current five layer rows, Plate-specific Inspector and board-switch clearing passed on 34807. One selected mechanical draft/Undo/reopen action is in progress; F7.3 viewer owner/consumer joins remain."
+        "state": "F7.4 exact-current layer rows, Plate Inspector, board-switch clearing, and a paired Plate draft/Undo/Redo/reopen action passed. Switch, stabilizer and imported-KiCad profile assignment are implemented; a copied placed-unknown-switch fixture is ready for one candidate assignment/scope journey. F7.3 viewer owner/consumer joins remain."
       },
       {
         "stream": "Parts + Project",
@@ -582,7 +582,7 @@
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Integrate the current export and routed-board source with any ready Case repair; run one combined Dioxus compiler/package check using unchanged provider evidence where valid.",
+      "Package the integrated PCB/Layout/Case source once with the Dioxus compiler and reusable unchanged providers, then check only its affected functional journeys.",
       "At the next functional milestone, cover only the changed PCB/Case action and the grouped F3.5 selection/compact and F7.3 viewer joins needed to unblock Keycaps; reuse prior successful routes.",
       "Keep F8.2/BND.2 as the shared export critical path to F6K.4/F6C.5. Do not spend workbench author slots rechecking already verified Keymap/Keycaps behavior."
     ],
@@ -677,23 +677,20 @@
     "qualification": {
       "trigger": "functional_scope",
       "active_scope": {
-        "id": "frontend-current-actions-20261004",
-        "label": "Current Case layer selection and Parts 3D source refresh",
-        "source_commit": "3b5bb1b3651e2bbd35911e15f698995f02c1abed",
+        "id": "frontend-profile-joined-20261004",
+        "label": "Case missing-fit assignment on combined functional source",
+        "source_commit": "a9a94f566f2232ebaf3d9ac0da0dc3067442b6d5",
         "streams": [
           "Case",
-          "Parts+Project"
+          "PCB",
+          "Layout",
+          "Shared"
         ],
         "journeys": [
           {
-            "id": "F7.4-current-layer-selection",
-            "scope": "On the saved authored-body Case fixture, Configure shows five exact-current resolved stack rows; selecting Plate marks that row active, and a board switch cannot retain wrong-owner selection.",
-            "spec": ".scratch/dioxus-frontend-v1/issues/07-case.md"
-          },
-          {
-            "id": "F4.4-parts-preview-refresh",
-            "scope": "On the saved Sofle Parts fixture, changing mcu nice nano 3D Board side Front to Back and back through Apply keeps the same 3D view ready without a stale-source alert or manual view toggle.",
-            "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md"
+            "id": "F7.4-missing-profile-assignment",
+            "scope": "On one saved placed-unknown-switch Case fixture, assign a supported library fit in the contextual Case controls; current profile row and derived gap update through one accepted edit, Undo/Redo/reopen retain history, and a board switch cannot leak the old assignment. Reuse current Case layer/Parts and export evidence.",
+            "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md"
           }
         ]
       },
@@ -2589,39 +2586,56 @@
               }
             ]
           }
-        }
-      ],
-      "phase": "qualified",
-      "unmet_start_conditions": [],
-      "candidate_build_id": "frontend-current-actions-20261004",
-      "source_commit": "3b5bb1b3651e2bbd35911e15f698995f02c1abed",
-      "journeys": [
-        {
-          "id": "F7.4-current-layer-selection",
-          "scope": "On the saved authored-body Case fixture, Configure shows five exact-current resolved stack rows; selecting Plate marks that row active, and a board switch cannot retain wrong-owner selection.",
-          "spec": ".scratch/dioxus-frontend-v1/issues/07-case.md",
-          "state": "passed",
-          "evidence": ".scratch/dioxus-case-workspace/evidence/public-mechanical-settings/candidate-0cad7577/RESULTS.md"
         },
         {
-          "id": "F4.4-parts-preview-refresh",
-          "scope": "On the saved Sofle Parts fixture, changing mcu nice nano 3D Board side Front to Back and back through Apply keeps the same 3D view ready without a stale-source alert or manual view toggle.",
-          "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
-          "state": "passed",
-          "evidence": ".scratch/dioxus-parts-catalogue/evidence/parts-03-preview-34759/RESULTS.md"
+          "candidate_build_id": "frontend-current-actions-20261004",
+          "source_commit": "3b5bb1b3651e2bbd35911e15f698995f02c1abed",
+          "phase": "qualified",
+          "review": {
+            "profile": "sol-review",
+            "state": "completed",
+            "workflow_verdict": "pass_scoped_repairs",
+            "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-current-actions-3b5bb1b3-review-sol-20261004.md",
+            "review_sha256": "7ba8073c8482badf6d2cc34e77c0ae58bacab7c437f9e608d2c7e38e7dc3f509",
+            "audit": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-current-actions-3b5bb1b3-audit.json",
+            "audit_sha256": "e16e7f257c1fa7d2f18e62b5291ce3c285d60a448ff2fc5020d7618abcbb2204",
+            "remaining": "The two changed Case/Parts journeys pass. F5.2 four criteria and INT.2 join support acceptance; unrelated F7.4/F4.4 parent branches remain open."
+          },
+          "journeys": [
+            {
+              "id": "F7.4-current-layer-selection",
+              "scope": "On the saved authored-body Case fixture, Configure shows five exact-current resolved stack rows; selecting Plate marks that row active, and a board switch cannot retain wrong-owner selection.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/07-case.md",
+              "state": "passed",
+              "evidence": ".scratch/dioxus-case-workspace/evidence/public-mechanical-settings/candidate-0cad7577/RESULTS.md"
+            },
+            {
+              "id": "F4.4-parts-preview-refresh",
+              "scope": "On the saved Sofle Parts fixture, changing mcu nice nano 3D Board side Front to Back and back through Apply keeps the same 3D view ready without a stale-source alert or manual view toggle.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
+              "state": "passed",
+              "evidence": ".scratch/dioxus-parts-catalogue/evidence/parts-03-preview-34759/RESULTS.md"
+            }
+          ]
+        }
+      ],
+      "phase": "qualifying",
+      "unmet_start_conditions": [],
+      "candidate_build_id": "frontend-profile-joined-20261004",
+      "source_commit": "a9a94f566f2232ebaf3d9ac0da0dc3067442b6d5",
+      "journeys": [
+        {
+          "id": "F7.4-missing-profile-assignment",
+          "scope": "On one saved placed-unknown-switch Case fixture, assign a supported library fit in the contextual Case controls; current profile row and derived gap update through one accepted edit, Undo/Redo/reopen retain history, and a board switch cannot leak the old assignment. Reuse current Case layer/Parts and export evidence.",
+          "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+          "state": "pending"
         }
       ],
       "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
-      "started_at": "2026-10-04T12:13:51.995722+00:00",
+      "started_at": "2026-10-04T13:07:18.298031+00:00",
       "review": {
         "profile": "sol-review",
-        "state": "completed",
-        "workflow_verdict": "pass_scoped_repairs",
-        "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-current-actions-3b5bb1b3-review-sol-20261004.md",
-        "review_sha256": "7ba8073c8482badf6d2cc34e77c0ae58bacab7c437f9e608d2c7e38e7dc3f509",
-        "audit": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-current-actions-3b5bb1b3-audit.json",
-        "audit_sha256": "e16e7f257c1fa7d2f18e62b5291ce3c285d60a448ff2fc5020d7618abcbb2204",
-        "remaining": "The two changed Case/Parts journeys pass. F5.2 four criteria and INT.2 join support acceptance; unrelated F7.4/F4.4 parent branches remain open."
+        "state": "pending"
       }
     },
     "delivery_priority": {
