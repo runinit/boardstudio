@@ -7,6 +7,7 @@ use super::{ScopedTreeContext, TreeContext};
 use crate::matrix_transform_lifecycle::{AcceptedIdentity, PendingSettlement, pending_settlement};
 use crate::matrix_transform_operation::{
     MatrixTransformField, MatrixTransformFields, MatrixTransformValue, build_operation,
+    catalogue_retry_due, component_edit_admitted_by_catalogue,
 };
 use crate::{operation_outcomes::OutcomeSlot, runtime::Runtime};
 use boardstudio_application::{
@@ -135,6 +136,7 @@ pub(in crate::presentation) fn use_workspace_matrix_transform(
     // The bundled catalogue is built per document reversibility (as in the Parts browser), so
     // it is requested once per accepted reversibility and tagged with the build it holds.
     let mut catalog_requested = use_signal(|| None::<bool>);
+    let mut catalog_loading = use_signal(|| false);
     let catalog_built_for = use_signal(|| None::<bool>);
     use_effect({
         let alive = alive.clone();
@@ -152,17 +154,20 @@ pub(in crate::presentation) fn use_workspace_matrix_transform(
                 return;
             }
             catalog_requested.set(Some(reversible));
+            catalog_loading.set(true);
             let mut switch_catalog = switch_catalog;
             let mut catalog_built_for = catalog_built_for;
+            let mut catalog_loading = catalog_loading;
             let alive = alive.clone();
             spawn_local(async move {
-                if let Ok(definitions) =
-                    crate::presentation::parts::load_all_catalogue_definitions(reversible).await
-                    && alive.get()
-                    && catalog_requested() == Some(reversible)
-                {
-                    switch_catalog.set(definitions);
-                    catalog_built_for.set(Some(reversible));
+                let result =
+                    crate::presentation::parts::load_all_catalogue_definitions(reversible).await;
+                if alive.get() && catalog_requested() == Some(reversible) {
+                    catalog_loading.set(false);
+                    if let Ok(definitions) = result {
+                        switch_catalog.set(definitions);
+                        catalog_built_for.set(Some(reversible));
+                    }
                 }
             });
         }
@@ -224,6 +229,7 @@ pub(in crate::presentation) fn use_workspace_matrix_transform(
         let mut last_request_id = last_request_id;
         let mut pending = pending;
         let mut feedback = feedback;
+        let mut catalog_requested = catalog_requested;
         move |request: MatrixTransformRequest| {
             let current_generation = context_generation.borrow().value;
             let current_workspace = workspace();
@@ -324,19 +330,47 @@ pub(in crate::presentation) fn use_workspace_matrix_transform(
             else {
                 return;
             };
-            if matches!(
+            let reversible = crate::presentation::parts::reversible_layout(&snapshot.document);
+            let document_definition_ids = snapshot
+                .document
+                .definitions
+                .iter()
+                .map(|definition| definition.id.clone())
+                .collect::<Vec<_>>();
+            let retry_catalogue = matches!(
                 request.field,
                 MatrixTransformField::KeyAssembly | MatrixTransformField::KeyAttached
-            ) && catalog_built_for()
-                != Some(crate::presentation::parts::reversible_layout(
-                    &snapshot.document,
-                ))
-            {
+            ) && catalogue_retry_due(
+                catalog_requested(),
+                catalog_loading(),
+                catalog_built_for(),
+                reversible,
+            );
+            if retry_catalogue {
+                // A completed failure leaves the requested construction tagged so ordinary
+                // renders do not spin. A fresh key action clears it and retries this construction.
+                catalog_requested.set(None);
+            }
+            if !component_edit_admitted_by_catalogue(
+                catalog_built_for(),
+                reversible,
+                request.field,
+                &request.baseline,
+                &request.value,
+                &document_definition_ids,
+            ) {
+                let message = if catalog_loading() {
+                    "The component catalogue is still loading. Try this change again when it finishes."
+                } else if retry_catalogue {
+                    "The component catalogue failed to load. Its retry has started; try this change again when it finishes."
+                } else {
+                    "The component catalogue is not ready yet. Try this change again when it finishes loading."
+                };
                 publish_feedback(
                     &mut feedback,
                     &request,
                     MatrixTransformState::Failed,
-                    Some("The component catalogue is still loading. Retry in a moment.".into()),
+                    Some(message.into()),
                 );
                 return;
             }

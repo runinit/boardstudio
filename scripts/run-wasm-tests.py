@@ -153,30 +153,69 @@ def run_filter(filter_, env, root=ROOT):
 LIST_LINE = re.compile(r"^(\S+): test$", re.M)
 
 
-def all_module_filters(env, root=ROOT, depth=None):
-    """One filter per test module (or per `depth` leading path segments): a single unfiltered run
-    shares one page, so a crash or leaked state in one module masks or breaks the rest."""
+def list_wasm_tests(env, root=ROOT):
     override = os.environ.get(RUNNER_ENV)
     command = (shlex.split(override) if override else list(WASM_PACK)) + ["--list"]
     result = subprocess.run(command, cwd=root, env=env, text=True, capture_output=True)
     names = LIST_LINE.findall(result.stdout + "\n" + result.stderr)
-    if not names:
-        raise RunnerError("could not list wasm tests:\n" + "\n".join((result.stdout + result.stderr).strip().splitlines()[-30:]))
-    def group(name):
-        parts = name.split("::")[:-1]
-        return "".join(f"{part}::" for part in (parts[:depth] if depth else parts))
-    modules = sorted({group(name) for name in names})
+    if result.returncode or not names:
+        detail = f" (runner exit {result.returncode})" if result.returncode else ""
+        raise RunnerError("could not list wasm tests" + detail + ":\n"
+                          + "\n".join((result.stdout + result.stderr).strip().splitlines()[-30:]))
+    return names
+
+
+def test_module_filter(name, depth=None):
+    parts = name.split("::")[:-1]
+    return "".join(f"{part}::" for part in (parts[:depth] if depth else parts)) or name
+
+
+def filters_for_listed_files(files, env, root=ROOT):
+    """Resolve source prefixes to listed test modules without substring overreach."""
+    requested = filters_for_files(files, root)
+    names = list_wasm_tests(env, root)
+    available = sorted({test_module_filter(name) for name in names})
+    selected, unmatched = set(), []
+    for prefix in requested:
+        matches = [module for module in available if not prefix or module.startswith(prefix)]
+        if not matches:
+            parent = parent_filter(prefix)
+            if parent:
+                matches = [module for module in available if module.startswith(parent)]
+        if matches:
+            selected.update(matches)
+        else:
+            unmatched.append(prefix)
+    filters = sorted(module for module in selected
+                     if not any(other != module and module.startswith(other) for other in selected))
+    expected = {
+        module: [name for name in names if name.startswith(module)]
+        for module in filters if module in available
+    }
+    return filters, expected, unmatched
+
+
+def all_module_filters(env, root=ROOT, depth=None):
+    """One filter per test module (or per `depth` leading path segments): a single unfiltered run
+    shares one page, so a crash or leaked state in one module masks or breaks the rest."""
+    names = list_wasm_tests(env, root)
+    modules = sorted({test_module_filter(name, depth) for name in names})
     return [m for m in modules if not any(o != m and m.startswith(o) for o in modules)]
 
 
-def run(filters, known, root=ROOT):
+def run(filters, known, root=ROOT, expected_tests=None, env=None, unmatched_filters=None):
     """Returns (executed, failed_names, passing_known_names, problems)."""
-    env = os.environ.copy() if os.environ.get(RUNNER_ENV) else runner_environment(root)
+    env = env if env is not None else (os.environ.copy() if os.environ.get(RUNNER_ENV) else runner_environment(root))
     outcomes, problems, logs = {}, [], []
-    for filter_ in filters:
+    for filter_ in unmatched_filters or []:
+        problems.append(f"zero tests executed for filter {filter_ or '<all tests>'}; "
+                        "no matching module appeared in the wasm test list")
+    for index, filter_ in enumerate(filters, 1):
         label = filter_ or "<all tests>"
+        print(f"run-wasm-tests: [{index}/{len(filters)}] {label}", file=sys.stderr)
         code, found, output = run_filter(filter_, env, root)
-        if not found and filter_.count("::") > 2 and parent_filter(filter_):
+        if (not found and (not expected_tests or filter_ not in expected_tests)
+                and filter_.count("::") > 2 and parent_filter(filter_)):
             parent = parent_filter(filter_)
             print(f"run-wasm-tests: no tests under {label}; widening to {parent}", file=sys.stderr)
             code, found, output = run_filter(parent, env, root)
@@ -190,9 +229,23 @@ def run(filters, known, root=ROOT):
         if incomplete:
             problems.append("incomplete execution; invoked tests did not report a terminal result: "
                             + ", ".join(incomplete))
+            logs.append(f"--- {label} ---\n" + "\n".join(output.strip().splitlines()[-40:]))
         elif code != 0 and "FAILED" not in found.values():
             problems.append(f"runner exited {code} for filter {label} without a failing test (build or harness error)")
             logs.append(f"--- {label} ---\n" + "\n".join(output.strip().splitlines()[-40:]))
+        failed_here = sorted(name for name, status in found.items() if status == "FAILED")
+        if failed_here:
+            logs.append(f"--- {label} ---\n" + "\n".join(output.strip().splitlines()[-40:]))
+        if expected_tests and filter_ in expected_tests:
+            terminal = {name for name, status in found.items() if status in ("ok", "FAILED")}
+            missing = sorted(set(expected_tests[filter_]) - terminal)
+            unexpected = sorted(set(found) - set(expected_tests[filter_]))
+            if missing:
+                problems.append(f"listed tests were not completed for filter {label}: " + ", ".join(missing))
+                logs.append(f"--- {label} ---\n" + "\n".join(output.strip().splitlines()[-40:]))
+            if unexpected:
+                problems.append(f"unlisted tests matched filter {label}: " + ", ".join(unexpected))
+                logs.append(f"--- {label} ---\n" + "\n".join(output.strip().splitlines()[-40:]))
         outcomes.update(found)
     short = lambda name: name.rsplit("::", 1)[-1]
     failed, passing_known = [], []
@@ -217,12 +270,16 @@ def main(argv=None):
     args = parser.parse_args(argv)
     root = Path(args.root)
     try:
-        filters = filters_for_files(args.files, root) if args.files else None
         known = load_known_failures()
-        if filters is None:
-            env = os.environ.copy() if os.environ.get(RUNNER_ENV) else runner_environment(root)
+        env = os.environ.copy() if os.environ.get(RUNNER_ENV) else runner_environment(root)
+        expected_tests = None
+        if args.files:
+            filters, expected_tests, unmatched_filters = filters_for_listed_files(args.files, env, root)
+        else:
             filters = all_module_filters(env, root, args.depth)
-        executed, failed, passing_known, problems, logs = run(filters, known, root)
+            unmatched_filters = []
+        executed, failed, passing_known, problems, logs = run(
+            filters, known, root, expected_tests, env, unmatched_filters)
     except RunnerError as error:
         print(f"run-wasm-tests: {error}", file=sys.stderr)
         return 2

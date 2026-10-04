@@ -79,6 +79,55 @@ pub enum MatrixTransformFields {
     },
 }
 
+/// Whether an assembly edit may proceed with the accepted document's available definitions.
+/// This policy is shared by the Inspector controller and native owner-level regressions.
+pub(crate) fn component_edit_admitted_by_catalogue(
+    catalog_built_for: Option<bool>,
+    reversible: bool,
+    field: MatrixTransformField,
+    baseline: &MatrixTransformValue,
+    value: &MatrixTransformValue,
+    document_definition_ids: &[String],
+) -> bool {
+    if !matches!(
+        field,
+        MatrixTransformField::KeyAssembly | MatrixTransformField::KeyAttached
+    ) || catalog_built_for == Some(reversible)
+    {
+        return true;
+    }
+    let requires_catalogue = match (field, baseline, value) {
+        (
+            MatrixTransformField::KeyAssembly,
+            MatrixTransformValue::Text(current),
+            MatrixTransformValue::Text(next),
+        ) => current != next && !document_definition_ids.iter().any(|id| id == next),
+        (
+            MatrixTransformField::KeyAttached,
+            MatrixTransformValue::Attached(current),
+            MatrixTransformValue::Attached(next),
+        ) => next.iter().any(|(assembly_id, definition_id)| {
+            current
+                .iter()
+                .find(|(current_id, _)| current_id == assembly_id)
+                .is_none_or(|(_, current_definition)| current_definition != definition_id)
+                && !document_definition_ids.iter().any(|id| id == definition_id)
+        }),
+        _ => false,
+    };
+    !requires_catalogue
+}
+
+/// Whether another user-triggered attempt can start a failed catalogue load for this construction.
+pub(crate) fn catalogue_retry_due(
+    requested: Option<bool>,
+    loading: bool,
+    catalog_built_for: Option<bool>,
+    reversible: bool,
+) -> bool {
+    !loading && catalog_built_for != Some(reversible) && requested == Some(reversible)
+}
+
 pub fn build_operation(
     matrix: &Matrix,
     fields: &MatrixTransformFields,
@@ -521,6 +570,129 @@ fn set_cell_transform(
 mod tests {
     use super::*;
     use boardstudio_core::model::{EditOperation, MatrixAssembly};
+
+    #[test]
+    fn failed_catalogue_does_not_block_removing_a_document_owned_attachment() {
+        let matrix = matrix();
+        let fields = MatrixTransformFields::Key {
+            enabled: true,
+            definition_id: "switch".into(),
+            choices: Vec::new(),
+            assemblies: vec![("led".into(), "led-def".into())],
+            component_choices: Vec::new(),
+            mirror_target: false,
+            assemblies_local: false,
+            row: 1,
+            column: 2,
+            offset: Vec2 { x: 6.0, y: 7.0 },
+            rotation: 9.0,
+        };
+        assert!(component_edit_admitted_by_catalogue(
+            None,
+            false,
+            MatrixTransformField::KeyAttached,
+            &MatrixTransformValue::Attached(vec![("led".into(), "led-def".into())]),
+            &MatrixTransformValue::Attached(Vec::new()),
+            &["led-def".into()],
+        ));
+        let operation = build_operation(
+            &matrix,
+            &fields,
+            MatrixTransformField::KeyAttached,
+            MatrixTransformValue::Attached(Vec::new()),
+            MatrixSplayAffect::Following,
+        )
+        .expect("removal uses the existing accepted edit operation");
+        assert!(matches!(
+            operation,
+            EditOperation::SetMatrix { matrix, .. } if matrix.cells[0].assemblies.is_empty()
+        ));
+    }
+
+    #[test]
+    fn failed_catalogue_can_be_retried_for_the_same_construction() {
+        let reversible = false;
+        let mut requested = None;
+        let mut loading = false;
+        let mut built_for = None;
+        assert!(!catalogue_retry_due(
+            requested, loading, built_for, reversible
+        ));
+
+        // Initial effect request, followed by a failed load.
+        requested = Some(reversible);
+        loading = true;
+        assert!(!catalogue_retry_due(
+            requested, loading, built_for, reversible
+        ));
+        loading = false;
+        assert!(catalogue_retry_due(
+            requested, loading, built_for, reversible
+        ));
+
+        // A user assembly action clears the failed request; the effect starts it again.
+        if catalogue_retry_due(requested, loading, built_for, reversible) {
+            requested = None;
+        }
+        assert_eq!(requested, None);
+        assert!(!catalogue_retry_due(
+            requested, loading, built_for, reversible
+        ));
+        requested = Some(reversible);
+        loading = true;
+        assert!(!catalogue_retry_due(
+            requested, loading, built_for, reversible
+        ));
+
+        // A successful retry tags the construction as ready and prevents another retry.
+        loading = false;
+        built_for = Some(reversible);
+        assert!(!catalogue_retry_due(
+            requested, loading, built_for, reversible
+        ));
+    }
+
+    #[test]
+    fn assembly_edits_requiring_a_catalogue_wait_for_the_matching_construction() {
+        let baseline = MatrixTransformValue::Text("switch".into());
+        let next = MatrixTransformValue::Text("bundled-switch".into());
+        assert!(!component_edit_admitted_by_catalogue(
+            None,
+            false,
+            MatrixTransformField::KeyAssembly,
+            &baseline,
+            &next,
+            &["switch".into()],
+        ));
+        assert!(component_edit_admitted_by_catalogue(
+            Some(false),
+            false,
+            MatrixTransformField::KeyAssembly,
+            &baseline,
+            &next,
+            &["switch".into()],
+        ));
+    }
+
+    #[test]
+    fn document_owned_assembly_changes_and_replacements_do_not_need_catalogue() {
+        assert!(component_edit_admitted_by_catalogue(
+            None,
+            true,
+            MatrixTransformField::KeyAssembly,
+            &MatrixTransformValue::Text("switch".into()),
+            &MatrixTransformValue::Text("alternate-switch".into()),
+            &["switch".into(), "alternate-switch".into()],
+        ));
+        assert!(component_edit_admitted_by_catalogue(
+            None,
+            true,
+            MatrixTransformField::KeyAttached,
+            &MatrixTransformValue::Attached(vec![("led".into(), "led-original".into())]),
+            &MatrixTransformValue::Attached(vec![("led".into(), "led-replacement".into())]),
+            &["led-original".into(), "led-replacement".into()],
+        ));
+    }
 
     fn matrix() -> Matrix {
         Matrix {

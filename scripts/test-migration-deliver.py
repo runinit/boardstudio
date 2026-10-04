@@ -120,6 +120,7 @@ class MigrationDeliverTests(unittest.TestCase):
         runner.write_text(
             "#!/bin/sh\n"
             f"echo \"$@\" >> '{self.wasm_log}'\n"
+            "if [ \"$1\" = --list ]; then echo 'presentation::view::t: test'; exit 0; fi\n"
             "echo 'test presentation::view::t ... ok'\n"
             f"exit {wasm_exit}\n"
         )
@@ -151,6 +152,7 @@ class MigrationDeliverTests(unittest.TestCase):
         runner.write_text(
             "#!/bin/sh\n"
             f"echo \"$@\" >> '{self.wasm_log}'\n"
+            "if [ \"$1\" = --list ]; then echo 'unrelated::test: test'; exit 0; fi\n"
             "echo 'running 0 tests'\n")
         runner.chmod(0o755)
         result = self.commit_wrapped(env)
@@ -202,7 +204,7 @@ class MigrationDeliverTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("test --manifest-path web/Cargo.toml --locked --lib --bin boardstudio-web", self.cargo_log.read_text())
         self.assertNotIn("core/Cargo.toml", self.cargo_log.read_text())
-        self.assertEqual("presentation::", self.wasm_log.read_text().strip())
+        self.assertEqual("--list\npresentation::view::", self.wasm_log.read_text().strip())
 
     def test_changed_native_presentation_helper_does_not_require_wasm_tests(self):
         env = self.native_fixture(

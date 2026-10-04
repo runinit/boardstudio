@@ -319,6 +319,11 @@ pub fn App() -> Element {
     let adapter = use_hook({
         move || SelectionAdapter::new(selected_context, anchor_scope, scope_generation)
     });
+    let selection_retention = use_hook(|| {
+        Rc::new(RefCell::new(
+            crate::matrix_transform_lifecycle::SelectionRetention::default(),
+        ))
+    });
     let observed_scope = use_hook({
         let runtime = runtime.clone();
         move || Rc::new(RefCell::new(runtime.scope()))
@@ -337,6 +342,7 @@ pub fn App() -> Element {
         let active = active.clone();
         let weak_runtime = Rc::downgrade(&runtime);
         let adapter = adapter.clone();
+        let selection_retention = selection_retention.clone();
         let observed_scope = observed_scope.clone();
         let reconciling_scope = reconciling_scope.clone();
         move || {
@@ -410,12 +416,16 @@ pub fn App() -> Element {
                 }
 
                 let eligible = selection::eligible_live_ids(&model);
-                let selected_ids: Vec<_> = model
-                    .selected_part_ids
-                    .iter()
-                    .filter(|id| eligible.iter().any(|allowed| allowed == *id))
-                    .cloned()
-                    .collect();
+                let live = selection::live_board_ids(&model);
+                let selected_context = (adapter.selected_context)().filter(|selected| {
+                    matches!(&selected.context, objects::TreeContext::Key { .. })
+                });
+                let selected_ids = selection_retention.borrow_mut().reconcile(
+                    selected_context.as_ref(),
+                    &model.selected_part_ids,
+                    &eligible,
+                    &live,
+                );
                 if selected_ids != model.selected_part_ids {
                     anchor_scope.set(None);
                     runtime.submit(Event::SelectParts {

@@ -7,6 +7,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import tempfile
 import unittest
 
@@ -38,6 +39,12 @@ class RunWasmTestsTests(unittest.TestCase):
 
     def fake(self, body):
         script = self.dir / "fake-runner"
+        names = re.findall(r"test ([A-Za-z0-9_:]+) \.\.\. (?:ok|FAILED|FAIL)", body)
+        names += re.findall(r"Invoking test: ([A-Za-z0-9_:]+)", body)
+        if "--list" not in body:
+            names = names or ["unrelated::placeholder"]
+            listing = " ".join(f"'{name}: test'" for name in sorted(set(names)))
+            body = f'if [ "$1" = --list ]; then printf "%s\\n" {listing}; exit 0; fi\n{body}'
         script.write_text(f"#!/bin/sh\necho \"$@\" >> '{self.log}'\n{body}\n")
         script.chmod(0o755)
         os.environ[runner.RUNNER_ENV] = str(script)
@@ -105,14 +112,75 @@ class RunWasmTestsTests(unittest.TestCase):
         code, out, _ = self.main("--files", "web/src/presentation/layout_camera.rs")
         self.assertEqual(code, 0, out)
         self.assertIn("executed 1, failed 0", out)
-        self.assertEqual(self.log.read_text().strip(), "presentation::layout_camera::")
+        self.assertEqual(self.log.read_text().splitlines(), ["--list", "presentation::layout_camera::tests::"])
+
+    def test_files_mode_expands_parent_prefix_to_isolated_matching_modules(self):
+        self.fake(
+            'if [ "$1" = --list ]; then printf "%s\\n" '
+            '"cad_presentation::mounted_tests::mounted_case_panel_starts_once: test" '
+            '"presentation::panels::scroll_tests::compact_case_inspector: test" '
+            '"presentation::mechanical_settings::contextual_layer_tests::selected_plate: test"; exit 0; fi\n'
+            'case "$1" in presentation::panels::scroll_tests::) '
+            'echo "test ${1}compact_case_inspector ... ok";; '
+            'presentation::mechanical_settings::contextual_layer_tests::) '
+            'echo "test ${1}selected_plate ... ok";; esac')
+        code, out, err = self.main("--files", "web/src/presentation.rs")
+        self.assertEqual(code, 0, err)
+        self.assertIn("executed 2, failed 0", out)
+        calls = self.log.read_text().splitlines()
+        self.assertEqual(calls, [
+            "--list",
+            "presentation::mechanical_settings::contextual_layer_tests::",
+            "presentation::panels::scroll_tests::",
+        ])
+
+    def test_files_mode_preserves_zero_test_failure_when_listing_has_no_match(self):
+        self.fake(
+            'if [ "$1" = --list ]; then echo "cad_presentation::other::test: test"; exit 0; fi\n'
+            'echo "running 0 tests"')
+        code, _, err = self.main("--files", "web/src/presentation/unused.rs")
+        self.assertEqual(code, 1)
+        self.assertIn("zero tests executed for filter presentation::unused::", err)
+        self.assertEqual(self.log.read_text().splitlines(), ["--list"])
+
+    def test_files_mode_rejects_nonzero_partial_test_listing(self):
+        self.fake(
+            'if [ "$1" = --list ]; then echo "presentation::panels::a: test"; exit 1; fi\n'
+            'echo "test presentation::panels::a ... ok"')
+        code, _, err = self.main("--files", "web/src/presentation.rs")
+        self.assertEqual(code, 2)
+        self.assertIn("could not list wasm tests", err)
+
+    def test_files_mode_rejects_listed_tests_omitted_after_known_failure(self):
+        self.fake(
+            'if [ "$1" = --list ]; then printf "%s\\n" '
+            '"presentation::x::tests::known_broken: test" '
+            '"presentation::x::tests::not_run: test"; exit 0; fi\n'
+            'echo "test ${1}known_broken ... FAILED"; exit 1')
+        code, _, err = self.main("--files", "web/src/presentation/x.rs")
+        self.assertEqual(code, 1)
+        self.assertIn("listed tests were not completed", err)
+        self.assertIn("presentation::x::tests::not_run", err)
+
+    def test_files_mode_rejects_substring_collisions_outside_selected_prefix(self):
+        self.fake(
+            'if [ "$1" = --list ]; then printf "%s\\n" '
+            '"presentation::x::tests::known_broken: test" '
+            '"cad_presentation::x::tests::known_broken: test"; exit 0; fi\n'
+            'echo "test presentation::x::tests::known_broken ... FAILED"\n'
+            'echo "test cad_presentation::x::tests::known_broken ... FAILED"; exit 1')
+        code, _, err = self.main("--files", "web/src/presentation/x.rs")
+        self.assertEqual(code, 1)
+        self.assertIn("unlisted tests matched filter", err)
+        self.assertIn("cad_presentation::x::tests::known_broken", err)
 
     def test_real_failure_fails_the_run_and_is_named(self):
-        self.fake("echo 'test presentation::x::tests::good ... ok'; echo 'test presentation::x::tests::bad ... FAIL'; exit 1")
-        code, out, _ = self.main("--files", "web/src/presentation/x.rs")
+        self.fake("echo 'test presentation::x::tests::good ... ok'; echo 'test presentation::x::tests::bad ... FAIL'; echo 'failure detail: expected marker'; exit 1")
+        code, out, err = self.main("--files", "web/src/presentation/x.rs")
         self.assertEqual(code, 1)
         self.assertIn("executed 2, failed 1", out)
         self.assertIn("FAILED presentation::x::tests::bad", out)
+        self.assertIn("failure detail: expected marker", err)
 
     def test_known_failure_is_tolerated(self):
         self.fake("echo 'test presentation::x::tests::good ... ok'; echo 'test presentation::x::tests::known_broken ... FAIL'; exit 1")
@@ -134,10 +202,10 @@ class RunWasmTestsTests(unittest.TestCase):
         self.assertIn("zero tests executed for filter presentation::x::", err)
 
     def test_zero_executed_widens_to_parent_module_before_failing(self):
-        self.fake('case "$1" in presentation::a::b::c::) ;; presentation::a::b::) echo "test presentation::a::b::sibling::t ... ok";; esac')
+        self.fake('case "$1" in presentation::a::b::c::) ;; presentation::a::b::sibling::|presentation::a::b::) echo "test presentation::a::b::sibling::t ... ok";; esac')
         code, out, err = self.main("--files", "web/src/presentation/a/b/c.rs")
         self.assertEqual(code, 0, err)
-        self.assertEqual(self.log.read_text().split(), ["presentation::a::b::c::", "presentation::a::b::"])
+        self.assertEqual(self.log.read_text().split(), ["--list", "presentation::a::b::sibling::"])
 
     def test_invoked_but_never_reported_test_counts_as_failed(self):
         self.fake("echo '    Invoking test: presentation::x::tests::hangs'; exit 1")
