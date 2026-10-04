@@ -13,6 +13,26 @@ use wasm_bindgen_test::wasm_bindgen_test;
 
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
+#[wasm_bindgen_test]
+fn outline_version_id_avoids_ids_saved_before_runtime_restart() {
+    assert_eq!(
+        unique_outline_version_id(1, ["outline-version-1".to_owned()]),
+        "outline-version-1-2",
+        "the first operation after reopening must not reuse a saved version ID"
+    );
+    assert_eq!(
+        unique_outline_version_id(
+            1,
+            [
+                "outline-version-1".to_owned(),
+                "outline-version-1-2".to_owned(),
+            ],
+        ),
+        "outline-version-1-3",
+        "collisions choose the next deterministic unused suffix"
+    );
+}
+
 #[derive(Clone)]
 struct DimensionProbe {
     committed: Rc<RefCell<Vec<f64>>>,

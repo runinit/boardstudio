@@ -19,6 +19,27 @@ use std::rc::Rc;
 use wasm_bindgen::JsCast;
 use web_sys::SvgElement;
 
+fn unique_outline_version_id(
+    operation_id: u64,
+    existing_ids: impl IntoIterator<Item = String>,
+) -> String {
+    let existing_ids = existing_ids
+        .into_iter()
+        .collect::<std::collections::HashSet<_>>();
+    let base = format!("outline-version-{operation_id}");
+    if !existing_ids.contains(&base) {
+        return base;
+    }
+
+    for suffix in 2usize.. {
+        let candidate = format!("{base}-{suffix}");
+        if !existing_ids.contains(&candidate) {
+            return candidate;
+        }
+    }
+    unreachable!("a finite saved ID set cannot exhaust the suffix sequence")
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum OutlineAction {
     Activate {
@@ -1480,18 +1501,15 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
                 .unwrap_or(0)
                 .saturating_add(1);
             let name = format!("Edited outline {next_number}");
-            let version_id = loop {
-                let candidate = format!("outline-version-{}", operation_id.0);
-                if snapshot
+            let version_id = unique_outline_version_id(
+                operation_id.0,
+                snapshot
                     .document
                     .board_outlines
                     .iter()
                     .flat_map(|state| &state.versions)
-                    .all(|version| version.id != candidate)
-                {
-                    break candidate;
-                }
-            };
+                    .map(|version| version.id.clone()),
+            );
             (
                 EditOperation::CopyOutline {
                     board_id: board_id.clone(),
@@ -1612,7 +1630,15 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
                     .max()
                     .unwrap_or(0)
                     .saturating_add(1);
-                let version_id = format!("outline-version-{}", operation_id.0);
+                let version_id = unique_outline_version_id(
+                    operation_id.0,
+                    snapshot
+                        .document
+                        .board_outlines
+                        .iter()
+                        .flat_map(|state| &state.versions)
+                        .map(|version| version.id.clone()),
+                );
                 (
                     EditOperation::CopyOutline {
                         board_id: board_id.clone(),
@@ -1893,7 +1919,15 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
                     {
                         return;
                     }
-                    let version_id = format!("outline-version-{}", operation_id.0);
+                    let version_id = unique_outline_version_id(
+                        operation_id.0,
+                        snapshot
+                            .document
+                            .board_outlines
+                            .iter()
+                            .flat_map(|state| &state.versions)
+                            .map(|version| version.id.clone()),
+                    );
                     let next_number = state
                         .into_iter()
                         .flat_map(|state| &state.versions)
