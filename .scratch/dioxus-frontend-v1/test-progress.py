@@ -451,6 +451,85 @@ class ProgressTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "explicit correction decision"):
                 progress.set_status(graph, type("Args", (), {"parent": "F3.1", "status": "planned"})())
 
+    def test_review_route_writes_compact_hashed_decision_and_is_idempotent(self):
+        graph = self.criterion_graph()
+        target = graph["tasks"][1]
+        target["criteria_accounting"]["coverage"] = "complete"
+        for criterion in target["criteria"]:
+            criterion["state"] = "verified"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            review_relative = Path("evidence/sol-wave/review.md")
+            review_path = root / review_relative
+            review_path.parent.mkdir(parents=True)
+            review_path.write_text("Consolidated candidate review: pass. Recommend F3.2 acceptance.\n")
+            args = type("Args", (), {"parent": "F3.2", "status": "accepted",
+                                      "reason": "criteria and joins verified",
+                                      "review": review_relative.as_posix(), "decision": None})()
+            with patch.object(progress, "ROOT", root):
+                progress.set_status(graph, args)
+                decision_path = root / "evidence/sol-wave/review-f3-2-decision.json"
+                saved = decision_path.read_bytes()
+                decision = json.loads(saved)
+                self.assertEqual(decision["review_sha256"], sha(review_path.read_bytes()))
+                self.assertEqual(decision["parent"], "F3.2")
+                self.assertNotIn("audit", decision)
+                self.assertEqual(decision["criteria_accounting"]["verified_criteria"],
+                                 ["F3.2-C01", "F3.2-C02"])
+                progress.set_status(graph, args)
+                self.assertEqual(decision_path.read_bytes(), saved)
+        self.assertEqual(target["status"], "accepted")
+        self.assertEqual(target["status_history"][-1]["decision"],
+                         "evidence/sol-wave/review-f3-2-decision.json")
+
+    def test_review_route_rejects_unmet_criteria_or_joins_without_writes(self):
+        graph = self.criterion_graph()
+        target = graph["tasks"][3]
+        target["acceptance_after"] = ["F3.1"]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            review_relative = Path("evidence/sol-wave/review.md")
+            review_path = root / review_relative
+            review_path.parent.mkdir(parents=True)
+            review_path.write_text("Consolidated review.\n")
+            args = type("Args", (), {"parent": "F3.4", "status": "accepted",
+                                      "reason": "reviewed", "review": review_relative.as_posix(),
+                                      "decision": None})()
+            with patch.object(progress, "ROOT", root):
+                target["criteria"][0]["state"] = "implemented"
+                with self.assertRaisesRegex(ValueError, "Unverified acceptance criteria"):
+                    progress.set_status(graph, args)
+                target["criteria"][0]["state"] = "verified"
+                graph["tasks"][0]["status"] = "planned"
+                with self.assertRaisesRegex(ValueError, "Unmet final acceptance join"):
+                    progress.set_status(graph, args)
+                self.assertFalse((review_path.parent / "review-f3-4-decision.json").exists())
+                self.assertEqual(target["status"], "planned")
+                self.assertNotIn("status_history", target)
+
+    def test_review_route_checks_existing_decision_hash_and_rolls_back(self):
+        graph = self.criterion_graph()
+        target = graph["tasks"][3]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            review_relative = Path("evidence/sol-wave/review.md")
+            review_path = root / review_relative
+            review_path.parent.mkdir(parents=True)
+            review_path.write_text("Consolidated review: original.\n")
+            args = type("Args", (), {"parent": "F3.4", "status": "accepted",
+                                      "reason": "reviewed", "review": review_relative.as_posix(),
+                                      "decision": None})()
+            with patch.object(progress, "ROOT", root):
+                decision_relative = progress._review_decision(target, args)
+                decision_path = root / decision_relative
+                original_decision = decision_path.read_text()
+                review_path.write_text("Consolidated review: changed after hashing.\n")
+                with self.assertRaisesRegex(ValueError, "already exists with different content"):
+                    progress.set_status(graph, args)
+            self.assertEqual(target["status"], "planned")
+            self.assertNotIn("status_history", target)
+            self.assertEqual(decision_path.read_text(), original_decision)
+
     def test_criterion_validation_rejects_bad_schema_and_unknown_blockers(self):
         graph = self.criterion_graph()
         graph["tasks"][1]["criteria"][0]["extra"] = True

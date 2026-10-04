@@ -32,8 +32,10 @@ Use `python3 .scratch/dioxus-frontend-v1/progress.py --help` for commands:
   `record-candidate` remains available for existing validated proofs.
 - `sync`: derive counts and the complete readable RF report from their source records.
 - `check`: check record consistency; it runs no application tests.
-- `set-status`: preserve status history; acceptance requires a decision, final joins
-  and pinned consolidated review/audit. Never copy that review per parent.
+- `set-status`: preserve status history; acceptance requires verified canonical criteria
+  and final joins. Use `--review <repo-relative-consolidated-review.md>` to record its
+  hash in a compact decision beside the review; legacy `--decision` records remain
+  supported. Do not create a duplicate per-parent audit for a consolidated review.
 
 Qualification follows the operating contract's functional candidate boundary; exact
 visual Layout parity is deferred by the user's 2026-10-03 direction. Read phase and

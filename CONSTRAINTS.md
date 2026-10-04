@@ -98,6 +98,9 @@ production cutover and React removal retain their separate authorization/gates.
    qualification remains historical evidence.
    A criterion does not need its own browser session: one paired journey may prove
    several visible actions, and unchanged successful branches retain their evidence.
+   Before a browser automation result is called data loss, inspect the accepted
+   saved value and the full option list; duplicate visible labels require exact
+   option values, and a displayed default may be a select-binding defect.
    For an error or stale-result branch that has no public trigger, use one focused,
    deterministic owner-level regression together with evidence that the mounted UI
    presents the resulting state and retry action. State the public-observation limit

@@ -568,6 +568,79 @@ def validate(run, graph):
         raise ValueError("Duplicate RF ID")
 
 
+def _acceptance_evidence(task, tasks):
+    """Check canonical criteria and final joins before preparing an acceptance record."""
+    for join in task["acceptance_after"]:
+        if tasks[join]["status"] != "accepted":
+            raise ValueError(f"Unmet final acceptance join: {join}")
+    if task.get("criteria"):
+        accounting = task.get("criteria_accounting", {})
+        if accounting.get("coverage") != "complete":
+            raise ValueError("Mapped parents need complete criterion accounting before acceptance")
+        unmet = [criterion["id"] for criterion in task["criteria"]
+                 if criterion["state"] != "verified"]
+        if unmet:
+            raise ValueError("Unverified acceptance criteria: " + ", ".join(unmet))
+
+
+def _repo_file(relative, label):
+    path = Path(relative)
+    if path.is_absolute() or ".." in path.parts:
+        raise ValueError(f"Use a repository-relative {label} path")
+    resolved = (ROOT / path).resolve()
+    try:
+        resolved.relative_to(ROOT.resolve())
+    except ValueError as error:
+        raise ValueError(f"{label.capitalize()} path escapes the repository") from error
+    if not resolved.is_file():
+        raise ValueError(f"Missing {label}: {relative}")
+    return path, resolved
+
+
+def _review_decision(task, args):
+    review_relative, review_path = _repo_file(args.review, "review")
+    review_bytes = review_path.read_bytes()
+    if not review_bytes.strip():
+        raise ValueError("Consolidated review is empty")
+    review_hash = hashlib.sha256(review_bytes).hexdigest()
+    accounting = task.get("criteria_accounting", {})
+    decision = {
+        "parent": task["id"],
+        "reason": args.reason,
+        "review": review_relative.as_posix(),
+        "review_sha256": review_hash,
+        "criteria_accounting": {
+            "source_commit": accounting.get("source_commit"),
+            "coverage": accounting.get("coverage"),
+            "verified_criteria": [item["id"] for item in task.get("criteria", [])],
+        },
+        "accepted_joins": list(task["acceptance_after"]),
+    }
+    decision_relative = review_relative.with_name(
+        f"{review_relative.stem}-{task['id'].lower().replace('.', '-')}-decision.json"
+    )
+    decision_path = ROOT / decision_relative
+    encoded = json.dumps(decision, ensure_ascii=False, indent=2) + "\n"
+    if decision_path.exists():
+        if decision_path.read_text() != encoded:
+            raise ValueError(f"Acceptance decision already exists with different content: {decision_relative}")
+    else:
+        # The file is intentionally small and adjacent to the consolidated review.
+        with tempfile.NamedTemporaryFile(
+            "w", encoding="utf-8", dir=decision_path.parent,
+            prefix=f".{decision_path.name}.", suffix=".tmp", delete=False,
+        ) as stream:
+            temporary = Path(stream.name)
+            stream.write(encoded)
+            stream.flush()
+            os.fsync(stream.fileno())
+        try:
+            os.replace(temporary, decision_path)
+        finally:
+            temporary.unlink(missing_ok=True)
+    return decision_relative
+
+
 def set_status(graph, args):
     tasks = {task["id"]: task for task in graph["tasks"]}
     task = tasks[args.parent]
@@ -579,31 +652,27 @@ def set_status(graph, args):
     transition = {"at": datetime.now(timezone.utc).isoformat(),
                   "from": previous, "to": args.status, "reason": args.reason}
     if args.status == "accepted":
-        if not args.decision:
-            raise ValueError("Acceptance requires a finalized decision record")
-        decision_path = Path(args.decision)
-        if decision_path.is_absolute() or ".." in decision_path.parts:
-            raise ValueError("Use a repository-relative decision path")
-        decision = read(decision_path)
-        if decision["parent"] != args.parent:
-            raise ValueError("Decision names a different parent")
-        for join in task["acceptance_after"]:
-            if tasks[join]["status"] != "accepted":
-                raise ValueError(f"Unmet final acceptance join: {join}")
-        if task.get("criteria"):
-            accounting = task.get("criteria_accounting", {})
-            if accounting.get("coverage") != "complete":
-                raise ValueError("Mapped parents need complete criterion accounting before acceptance")
-            unmet = [criterion["id"] for criterion in task["criteria"]
-                     if criterion["state"] != "verified"]
-            if unmet:
-                raise ValueError("Unverified acceptance criteria: " + ", ".join(unmet))
-        for key in ("review", "audit"):
-            evidence = ROOT / decision[key]
-            if hashlib.sha256(evidence.read_bytes()).hexdigest() != decision[key + "_sha256"]:
-                raise ValueError(f"Finalized {key} hash mismatch")
-        if not (ROOT / decision["criteria_accounting"]).is_file():
-            raise ValueError("Missing criterion accounting")
+        _acceptance_evidence(task, tasks)
+        review = getattr(args, "review", None)
+        if review:
+            if args.decision:
+                raise ValueError("Use either --review or --decision, not both")
+            decision_path = _review_decision(task, args)
+        else:
+            if not args.decision:
+                raise ValueError("Acceptance requires --review or a finalized --decision record")
+            decision_path = Path(args.decision)
+            if decision_path.is_absolute() or ".." in decision_path.parts:
+                raise ValueError("Use a repository-relative decision path")
+            decision = read(decision_path)
+            if decision["parent"] != args.parent:
+                raise ValueError("Decision names a different parent")
+            for key in ("review", "audit"):
+                evidence = ROOT / decision[key]
+                if hashlib.sha256(evidence.read_bytes()).hexdigest() != decision[key + "_sha256"]:
+                    raise ValueError(f"Finalized {key} hash mismatch")
+            if not (ROOT / decision["criteria_accounting"]).is_file():
+                raise ValueError("Missing criterion accounting")
         transition["decision"] = str(decision_path)
         # The decision owns the scope, hashes and verdict. Keep only its reference here.
         task["completion_evidence"] = {"decision_record": str(decision_path)}
@@ -637,6 +706,7 @@ def main():
     status.add_argument("status", choices=("planned", "implementing", "accepted"))
     status.add_argument("--reason", required=True)
     status.add_argument("--decision")
+    status.add_argument("--review", help="consolidated review path; creates a compact decision record beside it")
     candidate = commands.add_parser(
         "record-candidate",
         help="Validate an existing package proof against its provenance and served assets",

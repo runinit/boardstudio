@@ -2737,3 +2737,81 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
   ]
 }
 ```
+
+## RF-030: Dynamic select options can display defaults over retained accepted values
+
+**Status:** narrow Parts and PCB Wiring repairs passed focused mounted RED/GREEN and both affected candidate 34810 journeys; shared control refactor deferred
+
+**Confidence:** confirmed paired public behavior and accepted archive inspection
+
+**Observation:** Two mounted Dioxus selectors rely on a parent select value while their choices are rendered dynamically. Reopening a saved assembly displays Visual model only and default model assets although the archive and option list contain the authored member definition and asset IDs. After setting one encoder pin to Unresolved, the PCB Wiring panel displays other saved pins as Unresolved although the accepted archive and plan retain them. React displays the retained values.
+
+**Impact:** A correctly saved project can appear to have lost edits, and a subsequent choice may overwrite the intended retained value. Duplicate visible Parts labels also make automation and human selection ambiguous unless exact option identity is checked.
+
+**Current mitigation:** Bind the exact selected option in each affected mounted control, retain persisted IDs, and check the displayed selection after asynchronous option changes and reopen. Browser qualification reads exact option values and accepted archive state before alleging data loss.
+
+**Later proposal:** Introduce one typed select-choice projection with stable identity, provenance and selected-value validation across contextual workbenches; make missing selected IDs explicit rather than silently displaying the first option.
+
+**Validation:** Focused rendered select regressions and one affected Parts reopen plus PCB unresolved-pin candidate journey; no full workbench replay.
+
+**Evidence:** `web/src/presentation/parts/assembly_editor.rs`; `web/src/presentation/pcb_wiring.rs`; `.scratch/dioxus-frontend-v1/evidence/f46-assembly-authoring-20261003/RECEIPT.md`; `.scratch/dioxus-frontend-v1/evidence/export-zmk-route-20261003/34770-RECEIPT.md`
+
+**Additional recorded details:**
+
+```json
+{
+  "category": "presentation state / option identity",
+  "impact_priority": "high",
+  "discovered": "2026-10-04",
+  "baseline": "frontend-rewrite-batch-79a87350-20261004, source 79a87350",
+  "workflows": [
+    "F4.6",
+    "F5.3"
+  ],
+  "decision": "Repair affected v1 controls locally; defer a shared select framework until the post-port refactor.",
+  "follow_up_owner": "Frontend selection controls / Parts and PCB composition",
+  "linked_tasks": [
+    "F4.6",
+    "F5.3"
+  ],
+  "continuations": []
+}
+```
+
+## RF-031: Mechanical profile targets and family defaults are split across presentation and controller rules
+
+**Status:** two v1 Case assignment repairs in progress; shared policy refactor deferred
+
+**Confidence:** confirmed consolidated source review against pinned TypeScript behavior
+
+**Observation:** The Case stabilizer selector and controller reuse switch-only target eligibility, so placed Custom stabilizer definitions cannot receive the built-in stabilizer profiles. The first assignment from an unknown switch family is also treated as an unchanged family: prior plate thickness survives, while Choc engagement can become invalid and derived gap/foam can remain inconsistent. The pinned TypeScript flow admits placed unassigned definitions and treats first family assignment as a transition with coherent defaults.
+
+**Impact:** A valid placed part can have no assignment action, and a first profile assignment can fail or leave inconsistent mechanical settings even though the supported profile exists.
+
+**Current mitigation:** Separate target eligibility by profile kind and apply the existing coherent family-transition defaults when moving from unknown to a known family; keep current board, duplicate and accepted-edit guards.
+
+**Later proposal:** Centralize typed mechanical-profile eligibility and family-transition defaults in one domain policy consumed by Case and Parts projections, instead of duplicating switch/stabilizer tests and derived-dimension updates in UI controllers.
+
+**Validation:** Focused RED/GREEN for placed Custom stabilizer assignment and unknown-to-Choc first assignment, then one changed-action candidate journey; reuse unrelated Case evidence.
+
+**Evidence:** `web/src/presentation/mechanical_settings.rs`; `web/src/presentation/mechanical_settings_mount.rs`; `web/src/presentation/mechanical_settings_controller.rs`; `.scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-dynamic-selects-df22f1cc-review-sol-20261004.md`
+
+**Additional recorded details:**
+
+```json
+{
+  "category": "mechanical profile ownership / derived defaults",
+  "impact_priority": "high",
+  "discovered": "2026-10-04",
+  "baseline": "frontend-dynamic-selects-20261004, source df22f1cc",
+  "workflows": [
+    "F7.4"
+  ],
+  "decision": "Repair both v1 Case paths in one source packet; defer the shared policy extraction until the post-port refactor.",
+  "follow_up_owner": "Mechanical profile domain and Case/Parts UI",
+  "linked_tasks": [
+    "F7.4"
+  ],
+  "continuations": []
+}
+```

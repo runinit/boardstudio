@@ -254,7 +254,7 @@
       "depends_on": [],
       "priority": "P0",
       "effort": "M",
-      "status": "implementing",
+      "status": "accepted",
       "acceptance": "Characterize React export own-commit adoption and current immutable Session export token. Prove a private orchestration using existing accepted edits that preserves resolve/wiring commit/package/protection commit/delivery order, rejects unrelated changes and never protects failed packaging. If existing Session APIs cannot safely express it, record the exact required contract and keep only dependent export acceptance open before an API change.",
       "boundary_status": "Existing application export token has no adopt transition; this is unresolved adapter/contract feasibility, not already-supported semantics. No weakened stale guards or direct second document authority.",
       "external_gates": [],
@@ -277,6 +277,13 @@
           "from": "planned",
           "to": "implementing",
           "reason": "Existing keycap CAD bridge, Session export-owned token sequencing and mounted panels/drawers are implemented; source reconciliation and final candidate qualification remain active, not unstarted planning."
+        },
+        {
+          "at": "2026-10-04T14:51:11.436198+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "All four boundary criteria and final joins are verified; the consolidated Sol 6.1 High review recommends independent BND.2 acceptance.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-dynamic-selects-df22f1cc-review-sol-20261004-bnd-2-decision.json"
         }
       ],
       "criteria": [
@@ -307,7 +314,7 @@
         {
           "id": "BND.2-C02",
           "requirement": "Prove private orchestration using existing accepted edits preserves resolve/wiring commit/package/protection commit/delivery order.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "application/src/session.rs:875",
@@ -319,10 +326,8 @@
             ".scratch/dioxus-frontend-v1/evidence/export-pcb-handoff-20261003/34769-RECEIPT.md",
             ".scratch/dioxus-frontend-v1/evidence/export-pcb-handoff-20261003/34770-HEADING-GREEN.md"
           ],
-          "blockers": [
-            "F8.3-C03"
-          ],
-          "next_action": "Qualify the branch where wiring is not already applied and confirm accepted history/reopen; keep package ordering source as implemented.",
+          "blockers": [],
+          "next_action": "Paired 34799 and 34809 journeys prove export-owned conditional wiring apply, package, protection, download, Undo/Redo, and accepted reopen; 34770 source audit establishes final token ordering. The TS saved-archive protection mismatch is retained as reference evidence, not a Dioxus blocker. Keep failed-package/stale-mutation qualification under C03.",
           "finish_condition": "Paired run demonstrates conditional apply, package, protect, final token and download in order.",
           "owned_files": [
             "application/src/session.rs",
@@ -337,7 +342,7 @@
         {
           "id": "BND.2-C03",
           "requirement": "Reject unrelated changes and never protect wiring after failed packaging.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "application/src/session.rs:1392",
@@ -349,7 +354,7 @@
             ".scratch/dioxus-frontend-v1/evidence/export-pcb-handoff-20261003/34769-RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Source 76e68748 runs package→captured-owner check→Session ProtectElectricalHandoff→delivery check through the real Runtime path. A focused Session/CoreEngine WASM regression passed 1/1 for failed package (no protection/bytes), same-action retry (bytes/protection), and accepted reopen after package (no protection/delivery). Browser provider fault injection remains unavailable; use mounted export error-row evidence and next candidate source admission before a verified verdict.",
+          "next_action": "The focused Session/CoreEngine WASM regression passed 1/1 for failed package, same-action retry, and stale accepted reopen. The mounted KiCad row, Runtime ExportFailed alert and retry path are recorded in the existing export receipt. The public provider has no fault/delay trigger, so no browser-injected failure is claimed; no repeated fault setup is needed.",
           "finish_condition": "A failed package causes no protection record; unrelated mutation suppresses delivery; same action can retry.",
           "owned_files": [
             "application/src/session.rs",
@@ -388,6 +393,9 @@
         "assessed_at": "2026-10-03T19:35:06Z",
         "coverage": "complete",
         "note": "All current acceptance clauses for this parent were split into independently decidable criteria; broad baseline RED context was excluded as a requirement. Parent remains open unless all required criteria and joins are accepted."
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-dynamic-selects-df22f1cc-review-sol-20261004-bnd-2-decision.json"
       }
     },
     {
@@ -3282,9 +3290,11 @@
             "web/src/presentation/parts/assembly_editor.rs:1",
             "web/src/presentation/parts/assembly_presets.rs:1"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/f46-assembly-authoring-20261003/RECEIPT.md"
+          ],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Source df22f1cc repairs the paired 34808 saved-duplicate reopen defect: matching component/model options now select persisted IDs, with focused mounted WASM RED/GREEN (1/1). Candidate 34810 reopened a duplicate with exact stable switch, Back/X=4, Custom mode and two model IDs in DOM and accepted archive. Retain this result; qualify remaining parameter/default-model branches without repeating the reopen journey.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts/assembly_editor.rs",
@@ -3739,10 +3749,11 @@
           "evidence": [
             ".scratch/dioxus-pcb-view/issues/11-board-wiring-pin-lock-controls.md",
             ".scratch/dioxus-pcb-view/evidence/pcb-pin-lock-controls-20261003/results.md",
-            ".scratch/dioxus-pcb-view/evidence/pcb-apply-ui-20261002/receipt.md"
+            ".scratch/dioxus-pcb-view/evidence/pcb-apply-ui-20261002/receipt.md",
+            ".scratch/dioxus-frontend-v1/evidence/export-zmk-route-20261003/34770-RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Retain paired conflict/review Undo/reopen plus explicit unlock/change-lock/Undo/Redo public archives. Normalized boards and 85 named net pin sets match; Right board preserved. Temporary selector projection differs without accepted-state mismatch; protected remap remains C05.",
+          "next_action": "Earlier paired conflict/review Undo/reopen and exact accepted boards/net pins remain valid. Source df22f1cc repaired the settled selector display regression with focused mounted WASM RED/GREEN (1/1); candidate 34810 retained all saved selectors after encoder-A became Unresolved and after revision-13 reopen, with only the intended lock change. Existing same-revision paired evidence also matches encoder-A row omission in both apps; protected remap remains C05.",
           "finish_condition": "Paired result proves persisted locks, Core conflict diagnostics, preservation of other board/net data and exact undo behavior.",
           "owned_files": [
             "web/src/presentation/pcb_wiring.rs",
@@ -4464,7 +4475,7 @@
           ],
           "evidence": [],
           "blockers": [],
-          "next_action": "Source f17ae37e now retains specific current-owner errors and reports a generic retry-from-current-board message on stale async failure without admitting stale document edits; focused WASM 1/1 passed. Await one combined candidate and only unresolved invalid-file/missing-asset/stale-scope public action; avoid repeating saved-model success.",
+          "next_action": "On paired candidate 34809/TS 5175, malformed .kicad_pcb produced the same mounted alert ('expected single root, got 8'); the Replace KiCad board chooser stayed usable, a valid-file retry cleared the alert, and accepted pose/model selection survived. Source f17ae37e and focused WASM 1/1 cover stale-error routing. Remaining qualification is missing-asset and controlled project/board/revision change during async work; do not repeat invalid-file or saved-model success.",
           "finish_condition": "Each failure is recoverable, reports the relevant scope and cannot mutate a changed project/board.",
           "owned_files": [
             "web/src/presentation/pcb_board_reference.rs",
@@ -6842,7 +6853,7 @@
         {
           "id": "F7.4-C04",
           "requirement": "Show resolved stack/layer selection, diagnostics/findings navigation, unsupported/missing profile affordances, and explicit disable-stack behavior.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/mechanical_settings.rs",
@@ -6855,10 +6866,11 @@
           "evidence": [
             ".scratch/dioxus-case-workspace/evidence/15-mounting-controls-20261003/public-receipt.md",
             ".scratch/dioxus-case-workspace/evidence/12-generated-layer-context-public-20261003/RESULTS.md",
-            ".scratch/dioxus-case-workspace/evidence/issue-12-show-and-f72-disclosure-34760/public-receipt.md"
+            ".scratch/dioxus-case-workspace/evidence/issue-12-show-and-f72-disclosure-34760/public-receipt.md",
+            ".scratch/dioxus-case-workspace/evidence/public-mechanical-settings/candidate-0cad7577/RESULTS.md"
           ],
           "blockers": [],
-          "next_action": "Source a9a94f56 mounts Case switch-fit and imported-KiCad assignment through private SetMechanical/profile ports; ab207a0f adds both TS MX stabilizer choices. 34807 already passes five current rows, Plate Inspector, board-switch clearing and authored Disable. The 34808 fixture contains only a recognized MX switch; TS hides missing-profile controls there and Dioxus currently presents a disabled target, so it cannot qualify assignment. Use one placed genuinely unknown-switch fixture to check accepted assignment, Undo/reopen and scope retention; correct any resulting visibility mismatch in the same batch.",
+          "next_action": "Verified on paired candidate 34809/TS 5175 using the copied placed-unknown-switch archive (SHA256 282fff9f): MX profile assignment saved, profile range and derived gap updated with Plate thickness, Undo/Redo/reload retained the accepted profile, Board 2 cleared Main-board controls, and authored Switch plate remained saved. Existing 34807 evidence covers current layer rows, Plate Inspector, findings and authored Disable. Case generation remained blocked by mechanical findings on the fixture; generation readiness belongs to F7.6, not this criterion.",
           "finish_condition": "Current stack/diagnostics map to the correct layer; a placed unknown definition can receive a library or imported-KiCad mechanical profile from the Case Inspector, with current-scope admission and one accepted edit; disabling the generated stack preserves authored bodies.",
           "owned_files": [
             "web/src/presentation/mechanical_settings.rs",
@@ -7925,10 +7937,11 @@
             ".scratch/dioxus-frontend-v1/evidence/export-workspace-34763-20261003/RECEIPT.md",
             ".scratch/dioxus-frontend-v1/evidence/export-footprints-20261003/RECEIPT.md",
             ".scratch/dioxus-frontend-v1/evidence/export-zmk-route-20261003/34770-RECEIPT.md",
-            ".scratch/dioxus-frontend-v1/evidence/export-pcb-handoff-20261003/34769-RECEIPT.md"
+            ".scratch/dioxus-frontend-v1/evidence/export-pcb-handoff-20261003/34769-RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-dynamic-selects-df22f1cc-review-sol-20261004.md"
           ],
           "blockers": [],
-          "next_action": "Continue through one focused public provider-lifecycle proof as specific branches are integrated; source shows current guards and the named bounded providers already have focused receipts.",
+          "next_action": "Existing paired evidence qualifies outline, footprint, firmware and KiCad outputs. Qualify authored Case STEP and generated mechanical ZIP from a saved ready Case fixture, including selected-instance delivery; reuse the established shared lifecycle evidence. The consolidated review leaves only these output consumers unverified.",
           "finish_condition": "Every mounted output dispatches the correct existing provider from captured accepted scope and rejects changed document/session/revision/board/instance before delivery.",
           "owned_files": [
             "web/src/runtime.rs",
@@ -7944,7 +7957,7 @@
         {
           "id": "F8.2-C02",
           "requirement": "PCB own accepted wiring preparation advances only the export context in the required existing order.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "application/src/session.rs:1540",
@@ -7953,12 +7966,11 @@
           ],
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/planning/boundary-gaps.md",
-            ".scratch/dioxus-frontend-v1/evidence/export-pcb-handoff-20261003/34769-RECEIPT.md"
+            ".scratch/dioxus-frontend-v1/evidence/export-pcb-handoff-20261003/34769-RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-dynamic-selects-df22f1cc-review-sol-20261004.md"
           ],
-          "blockers": [
-            "BND.2-C02"
-          ],
-          "next_action": "Use BND.2 focused qualification for conditional apply and accepted history/reopen.",
+          "blockers": [],
+          "next_action": "BND.2-C02 and the consolidated review verify conditional wiring adoption, accepted history/reopen and final export-token ordering; retain the evidence without another browser journey.",
           "finish_condition": "Only this export owner advances its expected token following accepted wiring commit, then package/protection/delivery uses current token.",
           "owned_files": [
             "application/src/session.rs",
@@ -7971,7 +7983,7 @@
         {
           "id": "F8.2-C03",
           "requirement": "Stale changes prevent delivery; packaging failure prevents protection; failures reach existing global error path and retry by invoking same action.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/runtime.rs:3820",
@@ -7981,12 +7993,13 @@
           "evidence": [
             ".scratch/dioxus-frontend-v1/issues/08-export-coordinator-dispatch.md",
             ".scratch/dioxus-frontend-v1/evidence/planning/boundary-gaps.md",
-            ".scratch/dioxus-frontend-v1/evidence/export-zmk-route-20261003/34770-RECEIPT.md"
+            ".scratch/dioxus-frontend-v1/evidence/export-zmk-route-20261003/34770-RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/export-pcb-handoff-20261003/34769-RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/int2-acceptance-20261003/REVIEW.md",
+            ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-dynamic-selects-df22f1cc-review-sol-20261004.md"
           ],
-          "blockers": [
-            "BND.2-C03"
-          ],
-          "next_action": "Paired unresolved encoder-A failure and same-action retry produced valid 15-path ZIPs after restoring P1. Still qualify in-flight stale scope/revision delivery and packaging-failure protection ordering; React retains a dismissible old alert after success while Dioxus clears it.",
+          "blockers": [],
+          "next_action": "BND.2-C03 owner-level failure/stale/retry coverage, the paired ZMK provider failure/retry and accepted INT.2 shared lifecycle review jointly verify this branch. The public provider has no fault trigger; do not repeat unavailable browser injection.",
           "finish_condition": "Each negative branch leaves no stale artifact/protection, reports through global error UI, and the same action succeeds after recovery.",
           "owned_files": [
             "web/src/runtime.rs",
@@ -9384,8 +9397,8 @@
     "integration_slices": 2,
     "boundary_slices": 2,
     "status": {
-      "accepted": 18,
-      "implementing": 32,
+      "accepted": 19,
+      "implementing": 31,
       "planned": 11
     }
   },
