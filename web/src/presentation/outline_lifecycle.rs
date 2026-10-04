@@ -19,14 +19,15 @@ use std::rc::Rc;
 use wasm_bindgen::JsCast;
 use web_sys::SvgElement;
 
-fn unique_outline_version_id(
+fn unique_outline_entity_id(
+    prefix: &str,
     operation_id: u64,
     existing_ids: impl IntoIterator<Item = String>,
 ) -> String {
     let existing_ids = existing_ids
         .into_iter()
         .collect::<std::collections::HashSet<_>>();
-    let base = format!("outline-version-{operation_id}");
+    let base = format!("{prefix}-{operation_id}");
     if !existing_ids.contains(&base) {
         return base;
     }
@@ -38,6 +39,13 @@ fn unique_outline_version_id(
         }
     }
     unreachable!("a finite saved ID set cannot exhaust the suffix sequence")
+}
+
+fn unique_outline_version_id(
+    operation_id: u64,
+    existing_ids: impl IntoIterator<Item = String>,
+) -> String {
+    unique_outline_entity_id("outline-version", operation_id, existing_ids)
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -1694,7 +1702,11 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
                 return;
             };
             connections.push(OutlineConnection {
-                id: format!("outline-connection-{}", operation_id.0),
+                id: unique_outline_entity_id(
+                    "outline-connection",
+                    operation_id.0,
+                    connections.iter().map(|connection| connection.id.clone()),
+                ),
                 width: settings.bridge_width,
                 points: points
                     .iter()

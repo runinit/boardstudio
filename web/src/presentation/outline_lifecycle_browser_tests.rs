@@ -3,8 +3,10 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, Lifecycle, ReadModel, Scope, SessionEpoch, SnapshotToken,
 };
 use boardstudio_core::model::{
-    Board, BoardContours, BoardOutline, Contour, OutlineFeature, OutlineProvenance,
-    OutlineSnapshot, OutlineVersion, ProjectDoc, Readiness, SceneDelta,
+    Board, BoardContours, BoardOutline, Contour, CoreReply, CoreRequest, EditOperation,
+    OutlineConnection, OutlineControlPoint, OutlineFeature, OutlineProvenance, OutlineSnapshot,
+    OutlineVersion, Part, PartDefinition, PartKind, Pose2, ProjectDoc, Readiness, SceneDelta, Side,
+    Vec2,
 };
 use std::sync::Arc;
 use std::{cell::RefCell, rc::Rc};
@@ -29,6 +31,27 @@ fn outline_version_id_avoids_ids_saved_before_runtime_restart() {
             ],
         ),
         "outline-version-1-3",
+        "collisions choose the next deterministic unused suffix"
+    );
+}
+
+#[wasm_bindgen_test]
+fn outline_connection_id_avoids_ids_saved_before_runtime_restart() {
+    assert_eq!(
+        unique_outline_entity_id("outline-connection", 1, ["outline-connection-1".to_owned()],),
+        "outline-connection-1-2",
+        "a new Generated connection must not reuse an ID saved before Runtime restarted"
+    );
+    assert_eq!(
+        unique_outline_entity_id(
+            "outline-connection",
+            1,
+            [
+                "outline-connection-1".to_owned(),
+                "outline-connection-1-2".to_owned(),
+            ],
+        ),
+        "outline-connection-1-3",
         "collisions choose the next deterministic unused suffix"
     );
 }
@@ -211,6 +234,19 @@ async fn outline_dimension_enter_commits_and_escape_restores_accepted_value() {
 struct InspectorProbe {
     runtime: Rc<crate::runtime::Runtime>,
     scope: Scope,
+    connection_action: Rc<RefCell<Option<(Rc<OutlineActionContext>, EventHandler<OutlineAction>)>>>,
+}
+
+impl InspectorProbe {
+    fn add_connection(&self, points: Vec<Vec2>) {
+        let action = self
+            .connection_action
+            .borrow()
+            .as_ref()
+            .map(|(context, handler)| (context.add_connection(points), handler.clone()))
+            .expect("mounted Inspector publishes its production action owner");
+        action.1.call(action.0);
+    }
 }
 
 fn mounted_outline_inspector_host() -> Element {
@@ -229,6 +265,12 @@ fn mounted_outline_inspector_host() -> Element {
     });
     let (projection, _) =
         use_outline_lifecycle(probe.runtime.clone(), selected, workspace, generation);
+    if let Some(projection) = projection.as_ref() {
+        *probe.connection_action.borrow_mut() = Some((
+            projection.action_context.clone(),
+            projection.on_action.clone(),
+        ));
+    }
     let _ = version();
     rsx! {
         style { {include_str!("../../assets/m1.css")} }
@@ -307,7 +349,11 @@ fn mounted_outline_inspector_with_version(
     };
     let runtime = crate::runtime::Runtime::new().expect("browser Runtime initializes");
     runtime.set_layout_component_inspector_test_state(model, Some(scope.clone()));
-    let probe = InspectorProbe { runtime, scope };
+    let probe = InspectorProbe {
+        runtime,
+        scope,
+        connection_action: Rc::default(),
+    };
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
     root.set_id("outline-inspector-mount");
@@ -322,6 +368,13 @@ fn mounted_outline_inspector_with_version(
 }
 
 fn mounted_polygon_outline_inspector(fixed: bool) -> (InspectorProbe, web_sys::Element) {
+    mounted_polygon_outline_inspector_with_connections(fixed, vec![])
+}
+
+fn mounted_polygon_outline_inspector_with_connections(
+    fixed: bool,
+    connections: Vec<OutlineConnection>,
+) -> (InspectorProbe, web_sys::Element) {
     let scope = Scope {
         session_epoch: SessionEpoch(6),
         document_id: "outline-points-doc".into(),
@@ -336,6 +389,47 @@ fn mounted_polygon_outline_inspector(fixed: bool) -> (InspectorProbe, web_sys::E
     ];
     let mut document = ProjectDoc::empty("outline-points-doc", "Outline points fixture");
     document.revision = 11;
+    let has_envelope_part = !connections.is_empty();
+    if has_envelope_part {
+        document.definitions.push(PartDefinition {
+            hardware_profile: None,
+            input_profile: None,
+            mechanical_profile: None,
+            id: "switch".into(),
+            name: "Switch".into(),
+            kind: PartKind::Switch,
+            keycap: None,
+            envelope_source: None,
+            kicad_source: None,
+            terminals: Default::default(),
+            matrix_terminals: None,
+            envelope_notice: None,
+            generator: None,
+            courtyard: vec![
+                Vec2 { x: -3.0, y: -3.0 },
+                Vec2 { x: 3.0, y: -3.0 },
+                Vec2 { x: 3.0, y: 3.0 },
+                Vec2 { x: -3.0, y: 3.0 },
+            ],
+            pads: vec![],
+            models: None,
+        });
+        document.parts.push(Part {
+            id: "k1".into(),
+            definition_id: "switch".into(),
+            reference: "SW1".into(),
+            pose: Pose2 {
+                at: Vec2::default(),
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            locked: None,
+            keycap: None,
+            outline: None,
+            properties: None,
+            generator_parameters: None,
+        });
+    }
     document.boards.push(Board {
         id: scope.board_id.clone(),
         name: "Board".into(),
@@ -344,7 +438,10 @@ fn mounted_polygon_outline_inspector(fixed: bool) -> (InspectorProbe, web_sys::E
         } else {
             vec!["generated-outline".into()]
         },
-        part_ids: vec![],
+        part_ids: has_envelope_part
+            .then(|| "k1".to_owned())
+            .into_iter()
+            .collect(),
         net_ids: vec![],
         thickness: 1.6,
         traces: vec![],
@@ -378,10 +475,13 @@ fn mounted_polygon_outline_inspector(fixed: bool) -> (InspectorProbe, web_sys::E
         });
     } else {
         document.outline.push(OutlineFeature::PartEnvelope {
-            connections: vec![],
+            connections,
             settings: boardstudio_core::model::OutlineSettings::default(),
             id: "generated-outline".into(),
-            part_ids: vec![],
+            part_ids: has_envelope_part
+                .then(|| "k1".to_owned())
+                .into_iter()
+                .collect(),
             margin: 4.0,
             operation: boardstudio_core::model::Operation::Add,
         });
@@ -434,7 +534,11 @@ fn mounted_polygon_outline_inspector(fixed: bool) -> (InspectorProbe, web_sys::E
     };
     let runtime = crate::runtime::Runtime::new().expect("browser Runtime initializes");
     runtime.set_layout_component_inspector_test_state(model, Some(scope.clone()));
-    let probe = InspectorProbe { runtime, scope };
+    let probe = InspectorProbe {
+        runtime,
+        scope,
+        connection_action: Rc::default(),
+    };
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
     root.set_id("outline-points-inspector-mount");
@@ -446,6 +550,128 @@ fn mounted_polygon_outline_inspector(fixed: bool) -> (InspectorProbe, web_sys::E
         dioxus_web::Config::new().rootnode(root.clone().into()),
     );
     (probe, root)
+}
+
+#[wasm_bindgen_test]
+async fn mounted_generated_connection_after_reopen_preserves_unique_ids_and_valid_geometry() {
+    let existing = OutlineConnection {
+        id: "outline-connection-1".into(),
+        width: 10.0,
+        points: vec![
+            OutlineControlPoint {
+                at: Vec2 { x: 6.0, y: 0.0 },
+                part_id: None,
+            },
+            OutlineControlPoint {
+                at: Vec2 { x: 16.0, y: 0.0 },
+                part_id: None,
+            },
+        ],
+    };
+    let (probe, root) = mounted_polygon_outline_inspector_with_connections(false, vec![existing]);
+    settle_dimension().await;
+    probe.add_connection(vec![Vec2 { x: -6.0, y: 0.0 }, Vec2 { x: -16.0, y: 0.0 }]);
+    settle_dimension().await;
+
+    let events = probe.runtime.take_layout_component_inspector_test_events();
+    let command = match events.as_slice() {
+        [boardstudio_application::Event::Edit { command, .. }] => command.clone(),
+        _ => panic!("adding a Generated connection submits one edit"),
+    };
+    let EditOperation::SetOutline { feature } = &command.operation else {
+        panic!("Generated connection edits the accepted PartEnvelope")
+    };
+    let OutlineFeature::PartEnvelope { connections, .. } = feature else {
+        panic!("the connection edit retains a PartEnvelope")
+    };
+    assert_eq!(
+        connections
+            .iter()
+            .map(|connection| connection.id.as_str())
+            .collect::<Vec<_>>(),
+        ["outline-connection-1", "outline-connection-1-2"]
+    );
+
+    let mut core = boardstudio_core::CoreEngine::new();
+    let baseline = probe.runtime.model().accepted.unwrap();
+    assert!(matches!(
+        core.handle(CoreRequest::Open {
+            id: "open-outline-connection-fixture".into(),
+            document: baseline.document.as_ref().clone(),
+        }),
+        CoreReply::Scene { .. }
+    ));
+    let reply = core.handle(CoreRequest::Edit {
+        id: "add-outline-connection-after-reopen".into(),
+        command,
+    });
+    let CoreReply::Scene {
+        scene, document, ..
+    } = reply
+    else {
+        panic!("unique saved connection IDs must remain a valid accepted Core edit")
+    };
+    assert!(
+        scene
+            .findings
+            .iter()
+            .all(|finding| finding.id != "outline:generated-outline:invalid"),
+        "the accepted generated outline must not gain a duplicate-ID validation finding"
+    );
+    assert!(
+        scene
+            .board_contours
+            .iter()
+            .find(|contours| contours.board_id == probe.scope.board_id)
+            .is_some_and(|contours| !contours.contours.is_empty())
+    );
+
+    let accepted = document
+        .outline
+        .iter()
+        .find(|candidate| candidate.id() == "generated-outline")
+        .unwrap();
+    let OutlineFeature::PartEnvelope {
+        connections: accepted_connections,
+        ..
+    } = accepted
+    else {
+        unreachable!()
+    };
+    let moved_old = move_connection_point(
+        accepted,
+        "outline-connection-1",
+        0,
+        Vec2 { x: 7.0, y: 1.0 },
+        &document.parts,
+    );
+    let moved_new = move_connection_point(
+        accepted,
+        "outline-connection-1-2",
+        0,
+        Vec2 { x: -7.0, y: 1.0 },
+        &document.parts,
+    );
+    let OutlineFeature::PartEnvelope {
+        connections: moved_old_connections,
+        ..
+    } = moved_old
+    else {
+        unreachable!()
+    };
+    let OutlineFeature::PartEnvelope {
+        connections: moved_new_connections,
+        ..
+    } = moved_new
+    else {
+        unreachable!()
+    };
+    assert_eq!(accepted_connections.len(), 2);
+    assert_eq!(moved_old_connections[0].points[0].at.x, 7.0);
+    assert_eq!(moved_old_connections[1].points[0].at.x, -6.0);
+    assert_eq!(moved_new_connections[0].points[0].at.x, 6.0);
+    assert_eq!(moved_new_connections[1].points[0].at.x, -7.0);
+    root.remove();
 }
 
 #[wasm_bindgen_test]
