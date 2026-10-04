@@ -1150,6 +1150,22 @@
           "status": "Source finding corrected before public34765; bounded Save/reopen and settled accepted-history transitions GREEN. Full PCB criteria remain.",
           "evidence": ".scratch/dioxus-pcb-view/evidence/22-mounted-module-placement-inspector-20261003/undo-redo-settled-34765.md",
           "superseded_observation": "Initial report described stale visible Undo draft and assigned repair; settled capture and source provenance do not support that diagnosis. Preserve this correction and the initial uncertainty."
+        },
+        {
+          "date": "2026-10-04",
+          "source": "web/src/parts_preview.rs; web/src/presentation/parts/preview.rs",
+          "evidence": ".scratch/dioxus-parts-catalogue/evidence/parts-03-preview-34759/RESULTS.md",
+          "observation": "A deferred Parts preview effect from an old render invalidated the shared lease after the replacement generation had installed its request. The earlier token-retarget helper passed in isolation but did not cover that lifecycle; candidate 34806 still showed Accepted board preview source became stale after Board side Apply.",
+          "mitigation": "The slot now selects its current generation synchronously, rejects late old-generation installs, and invalidates only a lease from the retired generation. The old token-retarget helper was removed. A focused RED/GREEN lease regression and paired 34807 Back/Front Apply retest pass without a view toggle.",
+          "post_port_follow_up": "Make isolated sample owner/lease transitions a typed lifecycle boundary shared by Parts preview and other workbench consumers, rather than coordinating render and deferred-effect generations by convention.",
+          "status": "Narrow v1 functional repair qualified; larger lifecycle consolidation deferred."
+        },
+        {
+          "date": "2026-10-04",
+          "source": "f17ae37e",
+          "workflow": "F5.7-C03",
+          "observation": "Three routed-board async handlers suppressed their failures whenever captured project/board/editor lineage changed. They correctly rejected stale document writes but left no actionable result. The bounded repair keeps specific same-owner errors and a generic retry-from-current-board message for old-lineage failures; public race qualification remains open.",
+          "post_port": "Consider a typed operation outcome carrying captured and current scope so mutation admission and feedback routing do not depend on separate ad hoc lineage checks."
         }
       ],
       "component_owner_keys_20261003": {
@@ -1647,6 +1663,21 @@
           "mitigation": "Reuse retained criterion receipts and the changed 34771 selector leg; leave F6K.1 canonical status for consolidated review and preserve shared panel visibility/focus routing in RF-001. No duplicate Keymap state owner or ticket introduced.",
           "post_port_follow_up": "Keep one indexed criterion-to-journey map and explicit source/build identity; review shared-shell ownership after parity rather than extracting another Keymap-specific panel owner.",
           "status": "evidence/ownership reconciliation only; no new RF finding or production change"
+        },
+        {
+          "date": "2026-10-04",
+          "workflow": "F3.5-C02",
+          "observation": "Criterion asks locked/driven numeric values to be unavailable, but current TS Coordinate and Dioxus component X/Y controls are both editable in source; the retained Sofle fixture has no locked component. This clause has no representative public evidence and may be a planned improvement rather than demonstrated TS parity. Keep it unverified until a real locked/driven fixture or explicit design decision; do not manufacture a parity defect.",
+          "during_port": "Separate reference behavior from desired future UI behavior in criterion verdicts; use one representative fixture before treating locked-state semantics as a port bug.",
+          "post_port": "Reconcile specification provenance with actual reference controls and domain lock semantics."
+        },
+        {
+          "date": "2026-10-04",
+          "source": "10203a40",
+          "workflow": "F3.5-C02",
+          "observation": "The migration criterion intentionally requires locked component position fields to be unavailable although the pinned TS control remains editable. Dioxus now disables locked X/Y and suppresses their commit dispatch, matching its already-disabled locked outline controls. A focused WASM test executed 1/1; no pre-edit RED run was captured. Driven/matrix cases remain unqualified.",
+          "during_port": "Record this as a deliberate Rust UI correctness improvement; do not call it TypeScript visual/behavioral parity or infer all numeric states from one locked projection.",
+          "post_port": "Resolve domain lock semantics and test fixture provenance in the post-port specification cleanup."
         }
       ],
       "delivery_retro_20261003": {
@@ -1704,6 +1735,12 @@
           ".scratch/dioxus-keycap-cad-bridge/evidence/DECISION.json",
           ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/module-attachment-review.md"
         ]
+      },
+      "inline_provider_test_reuse_20261004": {
+        "observation": "Adding a cfg(test) CadWorker regression inside web/src/cad_worker.rs changed a provider-owned source path. The guarded page-only reuse build correctly rejected it, forcing a full provider/CAD rebuild even though production bytes were unchanged.",
+        "during_port": "Keep the conservative reuse guard and one full build for source 6d3e89fc; its verified provider artifacts are the baseline reused by subsequent Case/Parts page-only candidate 3b5bb1b3. Avoid more inline provider test edits in small page batches.",
+        "post_port_follow_up": "If this recurs, extend the feature-aware test graph to recognize separate provider test modules with exact production-source identity; do not exempt provider files based on a regex for cfg(test).",
+        "evidence": "web/target/builds/frontend-functional-refresh-20261004/provenance.json; web/target/builds/frontend-current-actions-20261004/provenance.json"
       }
     },
     {
@@ -1937,7 +1974,8 @@
       "baseline": "7d09d0a60fbb2cc12e259541614b9483ee618d29",
       "workflows": [
         "F3.6",
-        "F7.3b"
+        "F7.3b",
+        "F7.4"
       ],
       "evidence": [
         "web/src/presentation/shared_viewer.rs",
@@ -1954,7 +1992,8 @@
       "follow_up_owner": "F7.3b shared viewer consumer qualification",
       "linked_tasks": [
         "F7.3b",
-        "F3.6"
+        "F3.6",
+        "F7.4"
       ],
       "continuations": [
         {
@@ -1963,6 +2002,22 @@
           "observation": "Paired Layout3D Layers labels expose packaged identity filenames: React left-J3 uses1.step while Dioxus exposes its content-hash.step. Both hide the same actual visible display mesh. Source identity is now correct, but display naming remains coupled to asset storage.",
           "during_port": "Retain visual naming parity as an open presentation criterion; no renderer/storage identity changes implied by this ledger entry.",
           "post_port": "Assess distinct human-readable model metadata and immutable storage identity in a typed accepted viewer-source descriptor."
+        },
+        {
+          "date": "2026-10-04",
+          "source": "web/src/presentation/mechanical_settings_mount.rs",
+          "evidence": ".scratch/dioxus-case-workspace/evidence/public-mechanical-settings/candidate-0cad7577/RESULTS.md",
+          "observation": "Case mechanical settings drew generated layer rows only from the displayed CadScene, while exact-current MechanicalResolution supplied diagnostics and other settings. A newly configured stack with a valid five-layer resolution therefore showed zero layer rows until the viewport published a scene. A focused projection regression failed before the fix and passed after it; the source repair prefers admitted current-resolution rows and marks displayed-scene fallback as previous. Packaged browser retest remains open.",
+          "during_port": "Use exact-current accepted resolution for settings rows and only same-owner displayed geometry as a marked-previous fallback.",
+          "post_port": "Include settings rows and viewport display state in the planned typed source descriptor so consumers cannot silently choose different scene generations."
+        },
+        {
+          "date": "2026-10-04",
+          "source": "3b5bb1b3651e2bbd35911e15f698995f02c1abed",
+          "evidence": ".scratch/dioxus-case-workspace/evidence/public-mechanical-settings/candidate-0cad7577/RESULTS.md",
+          "observation": "Packaged candidate 34807 admitted five exact-current mechanical layer rows before a new viewport scene. Clicking Plate opened the Plate-specific Inspector; switching to Board 2 removed the old Plate row/Inspector and correctly attributed the stack to Main. This closes the bounded public follow-up to the resolved-versus-scene row defect.",
+          "during_port": "Continue admitting Case settings and selected-layer actions against the same current owner when subsequent mechanical controls are ported.",
+          "post_port": "Retain the typed accepted-viewer-source proposal for the broader refactoring phase."
         }
       ]
     },
@@ -2207,7 +2262,9 @@
       "baseline": "Served candidate frontend-module-assets-20261004 at source 18ff7659",
       "workflows": [
         "F5.2",
-        "F6C.5"
+        "F6C.5",
+        "BND.2",
+        "F8.2"
       ],
       "evidence": [
         ".scratch/dioxus-pcb-view/evidence/pcb-apply-ui-20261002/receipt.md",
@@ -2224,9 +2281,20 @@
       "follow_up_owner": "Frontend worker and test architecture",
       "linked_tasks": [
         "F5.2",
-        "F6C.5"
+        "F6C.5",
+        "BND.2",
+        "F8.2"
       ],
-      "continuations": []
+      "continuations": [
+        {
+          "date": "2026-10-04",
+          "source": "web/src/runtime.rs; web/src/pcb_handoff.rs",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/export-pcb-handoff-20261003/34769-RECEIPT.md",
+          "observation": "PCB handoff uses concrete CoreWorker and BrowserStore ports, and package building calls CoreWorker::archive directly. Its existing current-owner injection cannot produce a package failure. FirmwareExportExecutor has a controlled archive fake but is not used by PCB. A phase-only helper/test would mirror the sequential source without exercising any provider or accepted Session commit, so that proposed patch was removed before integration.",
+          "during_port": "Keep the successful public apply-package-protect-reopen evidence and source guards; leave package-failure and concurrent-mutation outcomes explicitly unqualified instead of adding a redundant phase state machine or repeating impossible browser faults.",
+          "post_port": "If those negative branches become acceptance blockers, design a bounded private provider adapter around PCB handoff archive/artifact/store calls and exercise the production operation through it."
+        }
+      ]
     },
     {
       "id": "RF-024",

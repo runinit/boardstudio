@@ -16,29 +16,29 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T10:53:42.230511+00:00",
+    "updated_at": "2026-10-04T12:51:26.360346+00:00",
     "parent_counts": {
-      "accepted": 17,
-      "implementing": 33,
+      "accepted": 18,
+      "implementing": 32,
       "planned": 11,
       "total": 61
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-keyboard-focus-20261004",
-      "source_commit": "916a40549444e7ac73c144e422f632a129fd2eaa",
-      "root_url": "http://127.0.0.1:34805/",
-      "subpath_url": "http://127.0.0.1:34805/boardstudio/",
-      "provenance": "web/target/builds/frontend-keyboard-focus-20261004/provenance.json",
-      "provenance_sha256": "ff599c745e92629dd6357ac20e04d9d637d5f0a70f164cb26bbabe38c353b2f3",
+      "build_id": "frontend-current-actions-20261004",
+      "source_commit": "3b5bb1b3651e2bbd35911e15f698995f02c1abed",
+      "root_url": "http://127.0.0.1:34807/",
+      "subpath_url": "http://127.0.0.1:34807/boardstudio/",
+      "provenance": "web/target/builds/frontend-current-actions-20261004/provenance.json",
+      "provenance_sha256": "90a71c8f61aea550160547fa9cbc58114ffe0e9576e41cc68dde80113f8df3e7",
       "fresh_commands": 9,
       "inherited_commands": 23,
       "source_inputs": 1393,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 131.797142,
+      "command_span_seconds": 128.817528,
       "package_qualification": "Combined package provenance, current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-keyboard-focus-20261004/package-proof.json",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-current-actions-20261004/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -48,8 +48,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "916a40549444e7ac73c144e422f632a129fd2eaa",
-      "state": "Candidate 34805/source 916a4054 passed compiler/root/subpath/offline package and three focused public journeys: selected Board/Outline Back focus, unfocused Space-pan with keyup/text-entry guards, and decorative PCB finding markers with the real Findings-list action. One consolidated Sol review approved the scoped repairs and source/provenance. F2.3 remains accepted; F2.4 guide/menu criteria C01-C03 have paired proof. Remaining F3.5/F3.6/F5.4 criteria and release gates stay open.",
+      "source_commit": "f17ae37e",
+      "state": "Candidate 34807/source 3b5bb1b3 passed package, two affected Case/Parts journeys and one consolidated Sol review. F5.2 was accepted from four verified criteria and its INT.2 join. The next unqualified source batch contains PCB export-ordering owner coverage (76e68748) and routed-board stale-error feedback (f17ae37e); it will be packaged with any ready disjoint workbench edits.",
       "packets": [
         {
           "stream": "Layout",
@@ -520,10 +520,12 @@
     },
     "execution_policy": "docs/agents/issue-tracker.md#frontend-delivery-records",
     "candidate_review": {
-      "candidate": "frontend-case-panels-20261004",
-      "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-functional-actions-9dd2a412-review-sol-20261004.md",
-      "review_sha256": "71f610e925e18eb96c58262598d0f3e1e20824eee16dc4618d57fa89f57551b5",
-      "state": "One consolidated Sol source/provenance review passed with no new blocker; two affected public journeys are still qualifying."
+      "candidate": "frontend-current-actions-20261004",
+      "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-current-actions-3b5bb1b3-review-sol-20261004.md",
+      "review_sha256": "7ba8073c8482badf6d2cc34e77c0ae58bacab7c437f9e608d2c7e38e7dc3f509",
+      "audit": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-current-actions-3b5bb1b3-audit.json",
+      "audit_sha256": "e16e7f257c1fa7d2f18e62b5291ce3c285d60a448ff2fc5020d7618abcbb2204",
+      "state": "One consolidated Sol review passed the 3b5bb1b3 candidate and recommended F5.2 acceptance. Later export/PCB source is outside this review."
     },
     "parent_acceptances": [
       {
@@ -545,40 +547,44 @@
       {
         "parent": "F2.1",
         "decision_record": ".scratch/dioxus-frontend-v1/evidence/f21-acceptance-20261004/DECISION.json"
+      },
+      {
+        "parent": "F5.2",
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/F5.2-DECISION.json"
       }
     ],
     "active_streams": [
       {
         "stream": "Layout",
         "priority": "Functional gaps alongside other streams; exact visual parity deferred",
-        "state": "F3.5-C04 missing Back after Show outline is assigned a scoped return-path repair. An earlier same-build matrix rotation mismatch did not reproduce under fresh worker-instrumented 34801 replay; 0°→5° accepted and Undo restored 0. Preserve both observations without a speculative source change. Pick origin Escape passed; visual parity deferred."
+        "state": "F3.5 contextual and finding routes have retained partial evidence; one grouped multiple-selection/compact Inspector journey remains. Numeric locked/driven boundary lacks a representative fixture. F3.6 view-switch camera/selection preservation passed paired; visual matching is deferred."
       },
       {
         "stream": "PCB",
-        "state": "F5.6-C01 Project-stage topology/transport/reversible layout, history and reload passed paired 34802/5175 and is verified. F5.5 successful Remove partial; pending/error/cancel remain open."
+        "state": "F5.2 accepted. F5.7 saved routed-board model selection passed; stale async error feedback source is integrated at f17ae37e and awaits the next combined candidate. Invalid-file and controlled stale public branches remain unqualified."
       },
       {
         "stream": "Keymap",
-        "state": "F6K.3 unchanged valid macro-step blur passed paired 34801/5175 without revision change; A→C committed once. F6K.4 verified; wider F6 joins remain."
+        "state": "F6K.4 functional criteria are verified; parent join awaits F8.2. No new functional author packet is queued until its shared export boundary is ready."
       },
       {
         "stream": "Keycaps",
-        "state": "F6C.3 all seven verified. F6C.5 provider failure/retry and stale owner have focused mounted proof, with concrete CadWorker delayed-success and STEP-provider error branches still unqualified."
+        "state": "F6C.3 functional criteria are verified and awaits F3.5. F6C.5 functional criteria are verified and awaits F7.3/F8.2/BND.1 joins. Reuse current preview and STEP evidence."
       },
       {
         "stream": "Case",
-        "state": "F7.5 Handle preview capture source repair passed focused WASM and Sol review. A bounded React setup could not identify a deterministic public canvas handle target, so valid-release/Undo remains unqualified; no repeated guessed drags."
+        "state": "F7.4 exact-current five layer rows, Plate-specific Inspector and board-switch clearing passed on 34807. One selected mechanical draft/Undo/reopen action is in progress; F7.3 viewer owner/consumer joins remain."
       },
       {
         "stream": "Parts + Project",
-        "state": "Project copy/reopen passed paired. F2.3 pointer drag failed on 34802 due Dioxus delegated current_target capture; keyboard bounds and persisted width passed. Narrow pointer-target repair is ready for next batch."
+        "state": "F4.4-C01 and C02 2D/3D sample preview are verified from one paired Parts receipt; provider failure and lifecycle branches remain. Project copy/reopen and F2.3 pane controls retain passing evidence."
       }
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Integrate the narrow panel pointer-target repair and confirmed Layout Inspector Back-return repair as one source batch; compile/package once and qualify only those changed actions. Preserve the nonreproduced matrix observation.",
-      "Keep the six streams progressing on bundled functional user journeys; reuse prior successful fixture setup and evidence, stop at a reproduced gap.",
-      "Leave Case valid-release and worker-owned failure races explicitly unqualified until a deterministic hit target or test seam exists; do not repeat guessed interaction or URL interception."
+      "Integrate the current export and routed-board source with any ready Case repair; run one combined Dioxus compiler/package check using unchanged provider evidence where valid.",
+      "At the next functional milestone, cover only the changed PCB/Case action and the grouped F3.5 selection/compact and F7.3 viewer joins needed to unblock Keycaps; reuse prior successful routes.",
+      "Keep F8.2/BND.2 as the shared export critical path to F6K.4/F6C.5. Do not spend workbench author slots rechecking already verified Keymap/Keycaps behavior."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
@@ -671,28 +677,23 @@
     "qualification": {
       "trigger": "functional_scope",
       "active_scope": {
-        "id": "frontend-keyboard-focus-20261004",
-        "label": "Layout keyboard scope, finding return focus and PCB marker semantics",
-        "source_commit": "916a40549444e7ac73c144e422f632a129fd2eaa",
+        "id": "frontend-current-actions-20261004",
+        "label": "Current Case layer selection and Parts 3D source refresh",
+        "source_commit": "3b5bb1b3651e2bbd35911e15f698995f02c1abed",
         "streams": [
-          "Layout",
-          "PCB"
+          "Case",
+          "Parts+Project"
         ],
         "journeys": [
           {
-            "id": "F3.5-board-outline-return-focus",
-            "scope": "On saved Sofle Layout, use keyboard Back from Board and Outline finding destinations and focus a live Inspector control; stale scope must not move focus. Reuse prior component and TS evidence.",
-            "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md"
+            "id": "F7.4-current-layer-selection",
+            "scope": "On the saved authored-body Case fixture, Configure shows five exact-current resolved stack rows; selecting Plate marks that row active, and a board switch cannot retain wrong-owner selection.",
+            "spec": ".scratch/dioxus-frontend-v1/issues/07-case.md"
           },
           {
-            "id": "F3.6-unfocused-space-pan",
-            "scope": "On saved Sofle Layout, body-focused Space plus canvas drag pans from the initial unfocused state; keyup stops, text input does not arm. Reuse paired 34804/5175 RED and zoom/Fit evidence.",
-            "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md"
-          },
-          {
-            "id": "F5.4-decorative-finding-marker",
-            "scope": "On saved PCB fixture, marker is decorative/no tab stop while actual Findings-list action and host/module selection remain functional; reuse paired TS route and focused regression.",
-            "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md"
+            "id": "F4.4-parts-preview-refresh",
+            "scope": "On the saved Sofle Parts fixture, changing mcu nice nano 3D Board side Front to Back and back through Apply keeps the same 3D view ready without a stale-source alert or manual view toggle.",
+            "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md"
           }
         ]
       },
@@ -2441,46 +2442,186 @@
               }
             ]
           }
+        },
+        {
+          "candidate_build_id": "frontend-keyboard-focus-20261004",
+          "source_commit": "916a40549444e7ac73c144e422f632a129fd2eaa",
+          "phase": "qualified",
+          "review": {
+            "profile": "sol-review",
+            "state": "completed",
+            "workflow_verdict": "pass_scoped_repairs",
+            "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-keyboard-focus-916a4054-review-sol-20261004.md",
+            "review_sha256": "e6ff1525a36877621869e993dcd374e89d3063c064015b9049987d67888d97df",
+            "audit": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-keyboard-focus-916a4054-audit.json",
+            "audit_sha256": "129906db4d9c40592d153c85452f18e7ee316938d991331f71deb01a99af0937",
+            "remaining": "Full F3.5, F3.6 and F5.4 parent criteria remain open; the three changed actions passed. RF-024 and RF-029 v1 corrections are publicly qualified; post-port shared policies remain in the ledger."
+          },
+          "journeys": [
+            {
+              "id": "F3.5-board-outline-return-focus",
+              "scope": "On saved Sofle Layout, use keyboard Back from Board and Outline finding destinations and focus a live Inspector control; stale scope must not move focus. Reuse prior component and TS evidence.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+              "state": "passed",
+              "evidence": ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md"
+            },
+            {
+              "id": "F3.6-unfocused-space-pan",
+              "scope": "On saved Sofle Layout, body-focused Space plus canvas drag pans from the initial unfocused state; keyup stops, text input does not arm. Reuse paired 34804/5175 RED and zoom/Fit evidence.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+              "state": "passed",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-camera-f36c01-20261004/RECEIPT.md"
+            },
+            {
+              "id": "F5.4-decorative-finding-marker",
+              "scope": "On saved PCB fixture, marker is decorative/no tab stop while actual Findings-list action and host/module selection remain functional; reuse paired TS route and focused regression.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
+              "state": "passed",
+              "evidence": ".scratch/dioxus-pcb-view/evidence/24-module-source-route-20261003/receipt.md"
+            }
+          ]
+        },
+        {
+          "candidate_build_id": "frontend-functional-refresh-20261004",
+          "source_commit": "6d3e89fc854d43f0943e5964890f22c773bcaa6f",
+          "phase": "qualifying",
+          "review": {
+            "profile": "sol-review",
+            "state": "pending"
+          },
+          "journeys": [
+            {
+              "id": "F3.5-board-outline-return-focus",
+              "scope": "On saved Sofle Layout, use keyboard Back from Board and Outline finding destinations and focus a live Inspector control; stale scope must not move focus. Reuse prior component and TS evidence.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+              "state": "pending"
+            },
+            {
+              "id": "F3.6-unfocused-space-pan",
+              "scope": "On saved Sofle Layout, body-focused Space plus canvas drag pans from the initial unfocused state; keyup stops, text input does not arm. Reuse paired 34804/5175 RED and zoom/Fit evidence.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+              "state": "pending"
+            },
+            {
+              "id": "F5.4-decorative-finding-marker",
+              "scope": "On saved PCB fixture, marker is decorative/no tab stop while actual Findings-list action and host/module selection remain functional; reuse paired TS route and focused regression.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
+              "state": "pending"
+            }
+          ]
+        },
+        {
+          "trigger": "functional_scope",
+          "active_scope": {
+            "id": "frontend-keyboard-focus-20261004",
+            "label": "Layout keyboard scope, finding return focus and PCB marker semantics",
+            "source_commit": "916a40549444e7ac73c144e422f632a129fd2eaa",
+            "streams": [
+              "Layout",
+              "PCB"
+            ],
+            "journeys": [
+              {
+                "id": "F3.5-board-outline-return-focus",
+                "scope": "On saved Sofle Layout, use keyboard Back from Board and Outline finding destinations and focus a live Inspector control; stale scope must not move focus. Reuse prior component and TS evidence.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md"
+              },
+              {
+                "id": "F3.6-unfocused-space-pan",
+                "scope": "On saved Sofle Layout, body-focused Space plus canvas drag pans from the initial unfocused state; keyup stops, text input does not arm. Reuse paired 34804/5175 RED and zoom/Fit evidence.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md"
+              },
+              {
+                "id": "F5.4-decorative-finding-marker",
+                "scope": "On saved PCB fixture, marker is decorative/no tab stop while actual Findings-list action and host/module selection remain functional; reuse paired TS route and focused regression.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md"
+              }
+            ]
+          },
+          "phase": "qualifying",
+          "unmet_start_conditions": [],
+          "candidate_build_id": "frontend-current-actions-20261004",
+          "source_commit": "3b5bb1b3651e2bbd35911e15f698995f02c1abed",
+          "journeys": [
+            {
+              "id": "F3.5-board-outline-return-focus",
+              "scope": "On saved Sofle Layout, use keyboard Back from Board and Outline finding destinations and focus a live Inspector control; stale scope must not move focus. Reuse prior component and TS evidence.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+              "state": "pending"
+            },
+            {
+              "id": "F3.6-unfocused-space-pan",
+              "scope": "On saved Sofle Layout, body-focused Space plus canvas drag pans from the initial unfocused state; keyup stops, text input does not arm. Reuse paired 34804/5175 RED and zoom/Fit evidence.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+              "state": "pending"
+            },
+            {
+              "id": "F5.4-decorative-finding-marker",
+              "scope": "On saved PCB fixture, marker is decorative/no tab stop while actual Findings-list action and host/module selection remain functional; reuse paired TS route and focused regression.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
+              "state": "pending"
+            }
+          ],
+          "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
+          "started_at": "2026-10-04T12:10:12.054220+00:00",
+          "review": {
+            "profile": "sol-review",
+            "state": "pending"
+          },
+          "next_scope": {
+            "id": "frontend-current-actions-20261004",
+            "label": "Current Case layer selection and Parts 3D source refresh",
+            "source_commit": "3b5bb1b3651e2bbd35911e15f698995f02c1abed",
+            "streams": [
+              "Case",
+              "Parts+Project"
+            ],
+            "journeys": [
+              {
+                "id": "F7.4-current-layer-selection",
+                "scope": "On the saved authored-body Case fixture, Configure shows five exact-current resolved stack rows; selecting Plate marks that row active, and a board switch cannot retain wrong-owner selection.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/07-case.md"
+              },
+              {
+                "id": "F4.4-parts-preview-refresh",
+                "scope": "On the saved Sofle Parts fixture, changing mcu nice nano 3D Board side Front to Back and back through Apply keeps the same 3D view ready without a stale-source alert or manual view toggle.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md"
+              }
+            ]
+          }
         }
       ],
       "phase": "qualified",
       "unmet_start_conditions": [],
-      "candidate_build_id": "frontend-keyboard-focus-20261004",
-      "source_commit": "916a40549444e7ac73c144e422f632a129fd2eaa",
+      "candidate_build_id": "frontend-current-actions-20261004",
+      "source_commit": "3b5bb1b3651e2bbd35911e15f698995f02c1abed",
       "journeys": [
         {
-          "id": "F3.5-board-outline-return-focus",
-          "scope": "On saved Sofle Layout, use keyboard Back from Board and Outline finding destinations and focus a live Inspector control; stale scope must not move focus. Reuse prior component and TS evidence.",
-          "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+          "id": "F7.4-current-layer-selection",
+          "scope": "On the saved authored-body Case fixture, Configure shows five exact-current resolved stack rows; selecting Plate marks that row active, and a board switch cannot retain wrong-owner selection.",
+          "spec": ".scratch/dioxus-frontend-v1/issues/07-case.md",
           "state": "passed",
-          "evidence": ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md"
+          "evidence": ".scratch/dioxus-case-workspace/evidence/public-mechanical-settings/candidate-0cad7577/RESULTS.md"
         },
         {
-          "id": "F3.6-unfocused-space-pan",
-          "scope": "On saved Sofle Layout, body-focused Space plus canvas drag pans from the initial unfocused state; keyup stops, text input does not arm. Reuse paired 34804/5175 RED and zoom/Fit evidence.",
-          "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+          "id": "F4.4-parts-preview-refresh",
+          "scope": "On the saved Sofle Parts fixture, changing mcu nice nano 3D Board side Front to Back and back through Apply keeps the same 3D view ready without a stale-source alert or manual view toggle.",
+          "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
           "state": "passed",
-          "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-camera-f36c01-20261004/RECEIPT.md"
-        },
-        {
-          "id": "F5.4-decorative-finding-marker",
-          "scope": "On saved PCB fixture, marker is decorative/no tab stop while actual Findings-list action and host/module selection remain functional; reuse paired TS route and focused regression.",
-          "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
-          "state": "passed",
-          "evidence": ".scratch/dioxus-pcb-view/evidence/24-module-source-route-20261003/receipt.md"
+          "evidence": ".scratch/dioxus-parts-catalogue/evidence/parts-03-preview-34759/RESULTS.md"
         }
       ],
       "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
-      "started_at": "2026-10-04T10:47:27.913145+00:00",
+      "started_at": "2026-10-04T12:13:51.995722+00:00",
       "review": {
         "profile": "sol-review",
         "state": "completed",
         "workflow_verdict": "pass_scoped_repairs",
-        "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-keyboard-focus-916a4054-review-sol-20261004.md",
-        "review_sha256": "e6ff1525a36877621869e993dcd374e89d3063c064015b9049987d67888d97df",
-        "audit": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-keyboard-focus-916a4054-audit.json",
-        "audit_sha256": "129906db4d9c40592d153c85452f18e7ee316938d991331f71deb01a99af0937",
-        "remaining": "Full F3.5, F3.6 and F5.4 parent criteria remain open; the three changed actions passed. RF-024 and RF-029 v1 corrections are publicly qualified; post-port shared policies remain in the ledger."
+        "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-current-actions-3b5bb1b3-review-sol-20261004.md",
+        "review_sha256": "7ba8073c8482badf6d2cc34e77c0ae58bacab7c437f9e608d2c7e38e7dc3f509",
+        "audit": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-current-actions-3b5bb1b3-audit.json",
+        "audit_sha256": "e16e7f257c1fa7d2f18e62b5291ce3c285d60a448ff2fc5020d7618abcbb2204",
+        "remaining": "The two changed Case/Parts journeys pass. F5.2 four criteria and INT.2 join support acceptance; unrelated F7.4/F4.4 parent branches remain open."
       }
     },
     "delivery_priority": {

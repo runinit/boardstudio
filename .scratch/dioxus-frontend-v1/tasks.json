@@ -349,7 +349,7 @@
             ".scratch/dioxus-frontend-v1/evidence/export-pcb-handoff-20261003/34769-RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Add focused public qualification for package failure/no protection and stale/external mutation; existing source guards are present.",
+          "next_action": "Source 76e68748 runs package→captured-owner check→Session ProtectElectricalHandoff→delivery check through the real Runtime path. A focused Session/CoreEngine WASM regression passed 1/1 for failed package (no protection/bytes), same-action retry (bytes/protection), and accepted reopen after package (no protection/delivery). Browser provider fault injection remains unavailable; use mounted export error-row evidence and next candidate source admission before a verified verdict.",
           "finish_condition": "A failed package causes no protection record; unrelated mutation suppresses delivery; same action can retry.",
           "owned_files": [
             "application/src/session.rs",
@@ -1790,7 +1790,7 @@
             ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md"
           ],
           "blockers": [],
-          "next_action": "The first paired 34801 matrix rotation attempt showed a saved-transform mismatch/no Undo, but a fresh same-build, same-fixture worker-instrumented replay accepted left-keys 0°→5°, exported rotation 5 and Undo restored 0; native mapper→Core replay also passed. No stable source defect is established. Retain both observations; do not repeat generic attempts. Characterize exact unsettled import/edit timing only if the failure recurs, and qualify locked/driven numeric boundaries separately.",
+          "next_action": "Source 10203a40 disables standalone locked component X/Y and suppresses commit dispatch; focused WASM test executed 1/1, but no RED-before-edit proof was captured. Package/current public locked fixture remains; driven relationship and matrix numeric unavailable states are still unqualified. Retain earlier numeric edit/Undo evidence and do not repeat generic rotation attempts.",
           "finish_condition": "Paired public evidence demonstrates characterized draft boundaries, no edit dispatch for invalid input, and unavailable locked/driven values.",
           "owned_files": [
             "web/src/presentation/inspector/layout_component_inspector.rs",
@@ -2956,17 +2956,18 @@
         {
           "id": "F4.4-C01",
           "requirement": "2D preview shows pads/drills/graphics/text/layers and named per-part visibility.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/parts/preview.rs:1",
             "web/src/presentation/parts/preview.rs:360"
           ],
           "evidence": [
-            ".scratch/dioxus-parts-catalogue/evidence/05-import-kicad-footprint-paired-journey-20261003.md"
+            ".scratch/dioxus-parts-catalogue/evidence/05-import-kicad-footprint-paired-journey-20261003.md",
+            ".scratch/dioxus-parts-catalogue/evidence/parts-03-preview-34759/RESULTS.md"
           ],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Paired 34807/5175 Sofle mcu nice nano 2D showed matching 24 pads/drills/pad numbers, 16 graphics, 24 F.SilkS labels and six named layers; per-part hide/show removed/restored all measured geometry without editing the project. Retain existing receipt.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts/preview.rs",
@@ -2981,7 +2982,7 @@
         {
           "id": "F4.4-C02",
           "requirement": "3D preview uses available model assets and expected side/pose/transforms.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/parts/preview.rs:191",
@@ -2989,10 +2990,11 @@
             "web/src/presentation/shared_viewer.rs:658"
           ],
           "evidence": [
-            ".scratch/dioxus-parts-catalogue/evidence/parts-assembly-34762/RESULTS.md"
+            ".scratch/dioxus-parts-catalogue/evidence/parts-assembly-34762/RESULTS.md",
+            ".scratch/dioxus-parts-catalogue/evidence/parts-03-preview-34759/RESULTS.md"
           ],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Paired 34805/5175 selected model/side/pose and current 34807 Back→Apply→Front→Apply both settled to ready 1/1 model without stale alert or manual view toggle. Retain existing receipt; provider/model failure branch remains F4.4-C03.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts/preview.rs",
@@ -3164,7 +3166,7 @@
         {
           "id": "F4.5-C02",
           "requirement": "Extract only supported source-geometry mappings; show extraction/validation errors and preserve unknown/unreviewed facts as unqualified.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/parts/mechanical_profile.rs:156",
@@ -3173,9 +3175,11 @@
             "web/src/presentation/parts/mechanical_profile_ui.rs",
             "web/src/runtime.rs"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-parts-catalogue/evidence/parts-fit-profile-capability-receipt-20261002.md"
+          ],
           "blockers": [],
-          "next_action": "Corrected false source-complete verdict: source 8c4c7db9 now mounts Read KiCad layers, purpose mapping and Apply selected geometry through the existing Core extraction artifact. At the batched milestone, use an imported footprint to check mapped contours/holes, unsupported/validation feedback and retained unreviewed qualifications.",
+          "next_action": "Paired 34807/5175 same imported KiCad definition exposed 83 purpose rows. Oval drill produced the same validation error; supported rectangle rows applied matching cutout/clearance contours; circular NPTH rows accepted PCB-hole purposes; 79 unused rows stayed Unused and the unsaved draft made no qualification claim. Retain receipt. Positive PCB-hole extraction lacks a visible result list, so no per-hole count is claimed.",
           "finish_condition": "An imported KiCad definition exposes supported source primitives and purpose choices, applies only selected extraction fields to the fit-profile draft, reports extraction/validation errors, and preserves unknown/unreviewed facts as unqualified.",
           "owned_files": [
             "web/src/presentation/parts/mechanical_profile.rs",
@@ -3523,7 +3527,7 @@
       "acceptance_after": [
         "INT.2"
       ],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
       "shared_edit_owner": "integration coordinator",
@@ -3661,7 +3665,19 @@
         "assessed_at": "2026-10-03T19:32:35+00:00",
         "coverage": "complete",
         "note": "Split every clause of the existing parent acceptance into independent checks; states reflect source/evidence qualification, not parent acceptance. Historical baseline/prose findings are retained as context and are not newly classified as defects. Candidate review 2026-10-03 corrected partial-evidence overclaims for F5.2-C03: source is implemented; full behavioral qualification remains."
-      }
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/F5.2-DECISION.json"
+      },
+      "status_history": [
+        {
+          "at": "2026-10-04T12:31:38.216260+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "All four electrical resolver/wiring criteria verified; INT.2 accepted; consolidated 3b5bb1b3 review passes",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/F5.2-DECISION.json"
+        }
+      ]
     },
     {
       "id": "F5.3",
@@ -4423,7 +4439,7 @@
           ],
           "evidence": [],
           "blockers": [],
-          "next_action": "A focused RED/GREEN regression now confirms one uniquely matched directory file attaches to every routed path with that basename; combined page compile passes. Qualify individual/directory attachments, pose/enabled edits, asset identity and save/reopen with the same project archive on the batched candidate.",
+          "next_action": "Candidate 34806/source 6d3e89fc shows the individually attached saved model selected after reload, with persisted enabled and XYZ/rotation pose and matching asset ID. The basename matcher has a focused passing regression. Directory upload remains unqualified because browser automation did not emit the file-change event; use a controlled readable-directory upload or another public mechanism, then check save/reopen and asset hash before verifying this full criterion.",
           "finish_condition": "Paired evidence confirms SHA-256 asset bytes/identity and board reference mappings after reload.",
           "owned_files": [
             "web/src/presentation/pcb_board_reference.rs",
@@ -4446,7 +4462,7 @@
           ],
           "evidence": [],
           "blockers": [],
-          "next_action": "Exercise only unresolved import/asset/stale-scope failures and retry behavior in existing public interface.",
+          "next_action": "Source f17ae37e now retains specific current-owner errors and reports a generic retry-from-current-board message on stale async failure without admitting stale document edits; focused WASM 1/1 passed. Await one combined candidate and only unresolved invalid-file/missing-asset/stale-scope public action; avoid repeating saved-model success.",
           "finish_condition": "Each failure is recoverable, reports the relevant scope and cannot mutate a changed project/board.",
           "owned_files": [
             "web/src/presentation/pcb_board_reference.rs",
@@ -5655,7 +5671,7 @@
         {
           "id": "F6C.5-C02",
           "requirement": "Show caps and separate legend inlays, colors, pending/error/retry behavior, and current assembly layer visibility.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/keycaps_scene.rs",
@@ -5665,10 +5681,11 @@
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/keycaps-3d-preview-20261003/RECEIPT.md",
             ".scratch/dioxus-frontend-v1/evidence/keymap-3d-consumer-20261003/paired-receipt.md",
-            ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md"
+            ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md",
+            ".scratch/dioxus-keycaps-workflow/evidence/keycaps-cad-batch-cancel-20261003/receipt-34769.md"
           ],
           "blockers": [],
-          "next_action": "Reuse caps/legends/colors/layer evidence and paired empty-profile error/retry. Genuine provider-failure recovery remains unexercised; no new application defect was reproduced.",
+          "next_action": "Retain paired caps/legend/color/layer and empty-profile recovery journeys, current 34805/5175 3D route, mounted visible failure/retry test and real CadWorker failed/late/current reply characterization. A public genuine-provider failure was not induced or claimed.",
           "finish_condition": "Caps and separate legend bodies use accepted color/specs; pending/error/retry state is truthful and current assembly layer controls act on those bodies.",
           "owned_files": [
             "web/src/presentation/keycaps_scene.rs",
@@ -5684,7 +5701,7 @@
         {
           "id": "F6C.5-C03",
           "requirement": "Publish no late results after revision/board/project switch or unmount.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/layout_viewer.rs",
@@ -5695,7 +5712,7 @@
             ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md"
           ],
           "blockers": [],
-          "next_action": "Public 34785 Keycap clearance edit occurred during visible pending CAD generation and latest preview updated; board/project switches and unmount proof retained. Sequence/revision guards are source-backed, but public UI cannot identify which worker result settled, so controlled late-reply suppression remains unproven.",
+          "next_action": "Retain public pending revision edit and board/project/unmount journeys, mounted old-owner suppression and real CadWorker delayed-old/current reply correlation. Source identity guards remain current. The public UI does not identify which worker result settled; no public forced race is claimed.",
           "finish_condition": "Changed owner/revision or unmounted consumer suppresses stale publication; a subsequent current request succeeds.",
           "owned_files": [
             "web/src/presentation/layout_viewer.rs",
@@ -5735,7 +5752,7 @@
         {
           "id": "F6C.5-C05",
           "requirement": "Port keycap STEP through accepted snapshot, existing resolver, BND.1-proven CAD bridge, revision check and download delivery.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/keycaps_fit.rs",
@@ -5745,10 +5762,11 @@
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/candidate-dd7697ed/REVIEW.md",
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
-            ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md"
+            ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md",
+            ".scratch/dioxus-keycaps-workflow/evidence/keycaps-cad-batch-cancel-20261003/receipt-34769.md"
           ],
           "blockers": [],
-          "next_action": "BND.1 accepted; reuse current34782 successful STEP bytes and accepted resolver/bridge evidence. Active public export settled before a pending window could be observed, so no stale-revision public race claimed. Complete exact remaining stale-result evidence and F8.2 final join without repeating successful STEP exports.",
+          "next_action": "Retain paired valid STEP bytes, BND.1 bridge/resolver, actual download and real CadWorker stale-revision rejection characterization. No public in-flight STEP race is claimed; F8.2 remains the separate final acceptance join.",
           "finish_condition": "The existing resolver and accepted snapshot feed the private CAD bridge; stale revisions are rejected and valid STEP is delivered.",
           "owned_files": [
             "web/src/presentation/keycaps_fit.rs",
@@ -5766,7 +5784,7 @@
         {
           "id": "F6C.5-C06",
           "requirement": "Verify valid STEP bytes and established empty/error/readiness messages.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/cad_worker.rs",
@@ -5774,10 +5792,11 @@
           ],
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/candidate-dd7697ed/REVIEW.md",
-            ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md"
+            ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md",
+            ".scratch/dioxus-keycaps-workflow/evidence/keycaps-cad-batch-cancel-20261003/receipt-34769.md"
           ],
           "blockers": [],
-          "next_action": "Paired empty-profile message and restored-profile retry now pass; reuse prior identical-fixture STEP bytes. Genuine provider-error feedback remains unexercised.",
+          "next_action": "Retain paired empty-profile message/restored retry and valid STEP bytes; the real CadWorker STEP-error characterization plus mounted visible error/retry path cover unavailable provider failure. No genuine packaged-provider failure was observed publicly.",
           "finish_condition": "Downloaded STEP is valid and matches reference bytes; empty, provider error, and readiness states use the established messages.",
           "owned_files": [
             "web/src/cad_worker.rs",
@@ -6821,7 +6840,7 @@
         {
           "id": "F7.4-C04",
           "requirement": "Show resolved stack/layer selection, diagnostics/findings navigation, unsupported/missing profile affordances, and explicit disable-stack behavior.",
-          "state": "implemented",
+          "state": "missing",
           "classification": "functional",
           "sources": [
             "web/src/presentation/mechanical_settings.rs",
@@ -6834,22 +6853,26 @@
             ".scratch/dioxus-case-workspace/evidence/issue-12-show-and-f72-disclosure-34760/public-receipt.md"
           ],
           "blockers": [],
-          "next_action": "Publicly qualify unsupported/missing profile and explicit disable preservation for authored bodies/current scope.",
-          "finish_condition": "Current stack and diagnostics map to correct layer; disable clears only the intended mechanical scope and has no hidden side effects.",
+          "next_action": "34807 now passes five current rows, Plate-specific Inspector and board-switch clearing, and authored Disable restores the saved authored plate. Remaining actual GUI gap: TS MechanicalAssemblyPanel Missing part profiles and Advanced source geometry selectors assign a library switch fit profile or custom KiCad geometry to a placed unknown definition; Dioxus only shows guidance to Parts. Implement those mounted Case controls through existing private SetMechanical/profile ports, then check one assignment and current-scope retention.",
+          "finish_condition": "Current stack/diagnostics map to the correct layer; a placed unknown definition can receive a library or imported-KiCad mechanical profile from the Case Inspector, with current-scope admission and one accepted edit; disabling the generated stack preserves authored bodies.",
           "owned_files": [
             "web/src/presentation/mechanical_settings.rs",
-            "web/src/presentation/case_workspace.rs"
+            "web/src/presentation/case_workspace.rs",
+            "web/src/presentation/mechanical_settings_controller.rs"
           ],
           "capabilities": [
             "resolved-stack",
             "diagnostics",
-            "disable-stack"
+            "disable-stack",
+            "placed part definitions",
+            "mechanical profile assignment",
+            "SetMechanical"
           ]
         },
         {
           "id": "F7.4-C05",
           "requirement": "Use existing SetMechanical/profile resolution/session history services; transient field drafts are scoped, validated, cancelable and committed once.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/mechanical_settings_controller.rs",
@@ -6857,10 +6880,11 @@
           ],
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
-            ".scratch/dioxus-case-workspace/evidence/issue-12-show-and-f72-disclosure-34760/public-receipt.md"
+            ".scratch/dioxus-case-workspace/evidence/issue-12-show-and-f72-disclosure-34760/public-receipt.md",
+            ".scratch/dioxus-case-workspace/evidence/public-mechanical-settings/candidate-0cad7577/RESULTS.md"
           ],
           "blockers": [],
-          "next_action": "Next test one selected-scope draft transition across Escape/commit plus undo/redo/reopen for a mechanical field.",
+          "next_action": "Paired 34807/5175 authored-body Plate thickness draft 2.3+Escape restored 1.5, 1.8+Enter accepted, one Undo/Redo toggled 1.5/1.8, and reopen retained 1.8. Controller source rechecks editor/scope/identity/token/revision on commit; no in-flight public scope race was induced. Retain bounded receipt.",
           "finish_condition": "Draft never crosses editor/scope/revision; commit creates one ordinary accepted history action and cancel restores accepted value.",
           "owned_files": [
             "web/src/presentation/mechanical_settings_controller.rs"
@@ -8211,7 +8235,7 @@
         {
           "id": "F8.4-C01",
           "requirement": "Export-route firmware follows reference readiness (ready wiring, controller, at least one assignment), emits existing ZMK 0.3.0 ZIP and electrical plan.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/runtime.rs",
@@ -8222,7 +8246,7 @@
             ".scratch/dioxus-frontend-v1/evidence/case-keymap-current/keymap-layered-public/current-qualification/RESULTS.md"
           ],
           "blockers": [],
-          "next_action": "Reuse successful ready ZMK export evidence; qualify disabled/not-ready explanations for missing wiring, controller or assignments.",
+          "next_action": "Retain the paired ready 15-path ZMK ZIP and semantic electrical-plan parity, missing-controller and no-assigned-input guidance, and same-accepted-lock partial-wiring rejection on 34805/5175. The pin-selector projection difference is separate from settled Export readiness; in-flight provider failure and stale delivery remain under F8.2.",
           "finish_condition": "Ready Export row produces semantic ZIP parity and includes electrical plan; local Keymap entry remains owner-backed.",
           "owned_files": [
             "web/src/runtime.rs",
@@ -8236,7 +8260,7 @@
         {
           "id": "F8.4-C02",
           "requirement": "Keycaps-local STEP resolves current specs, rejects findings/empty selection/stale CAD revision, returns valid STEP bytes, and returns to Keycaps without moving or duplicating the button into Export.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/runtime.rs:5354",
@@ -8245,10 +8269,11 @@
           ],
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/candidate-dd7697ed/STEP-PUBLIC-RECEIPT.json",
-            ".scratch/dioxus-keycap-cad-bridge/evidence/source-contract.md"
+            ".scratch/dioxus-keycap-cad-bridge/evidence/source-contract.md",
+            ".scratch/dioxus-keycaps-workflow/evidence/keycaps-cad-batch-cancel-20261003/receipt-34769.md"
           ],
           "blockers": [],
-          "next_action": "Reuse exact paired successful STEP proof; qualify findings/empty/stale failures and return route together through F6-owned action.",
+          "next_action": "Retain paired valid STEP bytes, 34805/5175 empty-spec rejection, and 34806/5175 Choc-on-MX Error-finding rejection: both keep the action local and return to Keycaps without download. Real CadWorker and accepted-revision guards reject stale STEP replies. No public in-flight revision race or empty-projection disabled-button state is claimed; wider delivery guards remain under F8.2.",
           "finish_condition": "Local action retains F6 ownership and paired run proves valid bytes, guards, failure states and return to Keycaps.",
           "owned_files": [
             "web/src/runtime.rs",
@@ -8264,7 +8289,7 @@
         {
           "id": "F8.4-C03",
           "requirement": "Both visible entrypoints call F6-owned state/provider operations.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/export_workspace.rs",
@@ -8273,10 +8298,11 @@
           ],
           "evidence": [
             ".scratch/dioxus-frontend-v1/issues/08-export-coordinator-dispatch.md",
-            ".scratch/dioxus-frontend-v1/evidence/export-zmk-route-20261003/34770-RECEIPT.md"
+            ".scratch/dioxus-frontend-v1/evidence/export-zmk-route-20261003/34770-RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/candidate-dd7697ed/STEP-PUBLIC-RECEIPT.json"
           ],
           "blockers": [],
-          "next_action": "Preserve owner boundary and qualify local Keycaps action in affected consumer workflow.",
+          "next_action": "Retain source dispatch through the F6 firmware and Keycaps CAD owners, paired Export-route ZMK ZIP and Keycaps-local STEP bytes, and the paired 34805/5175 empty-profile return to the Keycaps editor. Wider failure/stale guards remain in F8.4-C02 and F8.2.",
           "finish_condition": "Export firmware composes the F6 provider; Keycaps button remains local and uses same accepted state/provider owner.",
           "owned_files": [
             "web/src/presentation/export_workspace.rs",
@@ -9353,8 +9379,8 @@
     "integration_slices": 2,
     "boundary_slices": 2,
     "status": {
-      "accepted": 17,
-      "implementing": 33,
+      "accepted": 18,
+      "implementing": 32,
       "planned": 11
     }
   },

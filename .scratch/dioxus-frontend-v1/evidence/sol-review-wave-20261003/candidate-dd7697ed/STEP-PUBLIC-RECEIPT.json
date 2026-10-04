@@ -60,5 +60,72 @@
   "assessment": {
     "result": "The candidate presents the enabled React-equivalent export control and returns a structurally complete STEP file from the current keycap configuration. The candidate and reference downloads are byte-identical.",
     "limits": "Browser evidence covers the successful export path for this retained fixture. Core error-message, empty-keycap, and in-flight supersede/cancellation branches were not exercised here. The broader F6C.5 shared 3D preview, layer visibility, and preview worker criteria remain open."
+  },
+  "paired_empty_specs_guard_and_return": {
+    "date": "2026-10-04",
+    "candidate": {
+      "url": "http://127.0.0.1:34805/boardstudio/",
+      "build_id": "frontend-keyboard-focus-20261004",
+      "source": "916a40549444e7ac73c144e422f632a129fd2eaa",
+      "provenance_sha256": "ff599c745e92629dd6357ac20e04d9d637d5f0a70f164cb26bbabe38c353b2f3"
+    },
+    "reference": {
+      "url": "http://127.0.0.1:5175/",
+      "source": "5a472a9426e6e38993361da402cd4ec730feb369"
+    },
+    "fixture_sha256": "9027125846d2878176f127ec39b60c9ab605a0eb2a4b9019e10dbba846fe87a6",
+    "journey": "In each isolated session, imported the same C6 fixture, opened Keycaps on Left PCB, set both matrix profiles to No generated keycap, changed left-keys-SW1 Profile override to From matrix, then clicked the visible local Export keycap STEP action once.",
+    "result": {
+      "dioxus": {
+        "message": "Choose a keycap profile in Keymap before export",
+        "selected_workspace_after_guard": "Keycaps",
+        "local_step_button_remains_visible": true
+      },
+      "typescript": {
+        "message": "Error: Choose a keycap profile in Keymap before export",
+        "selected_workspace_after_guard": "Keycaps",
+        "local_step_button_remains_visible": true
+      }
+    },
+    "assessment": "The paired current-candidate journey qualifies the public empty-spec resolver guard and return-to-Keycaps destination. It does not exercise an Error-severity finding, an empty keycap projection/disabled-button state, or a public stale-revision race; retain the existing deterministic worker revision-validation and source guard evidence for those branches. No mismatch or source defect was observed."
+  },
+  "paired_error_finding_guard_and_return": {
+    "date": "2026-10-04",
+    "candidate": {
+      "url": "http://127.0.0.1:34806/boardstudio/",
+      "build_id": "frontend-functional-refresh-20261004",
+      "source": "6d3e89fc854d43f0943e5964890f22c773bcaa6f",
+      "provenance_sha256": "88f8c71087c043eb6c11e1aa8e89e686f2ae0f17835edb2ae7360f3410b1372d",
+      "served_app_asset_sha256": "53f13683673890d2bc8da52ee762e64f9c72390d59dfdb2d9753d9cea5a61d12"
+    },
+    "reference": {
+      "url": "http://127.0.0.1:5175/",
+      "source": "5a472a9426e6e38993361da402cd4ec730feb369"
+    },
+    "fixture_sha256": "9027125846d2878176f127ec39b60c9ab605a0eb2a4b9019e10dbba846fe87a6",
+    "public_edit": "In each isolated session, imported the same C6 fixture, opened Keycaps on Left PCB, and selected Choc for Keycap profile for keys (the matrix profile); the retained thumbs profile was No generated keycap.",
+    "accepted_state": {
+      "keys_matrix_profile": "Choc",
+      "thumbs_matrix_profile": "No generated keycap",
+      "low_choc_error_findings_each": 23,
+      "error_message": "The low Choc profile requires a Choc switch"
+    },
+    "action_and_result": {
+      "action": "Clicked the visible Keycaps-local Export keycap STEP button once in each app.",
+      "dioxus": {
+        "alert_message_each": "The low Choc profile requires a Choc switch",
+        "alert_message_occurrences": 23,
+        "selected_workspace_after_guard": "Keycaps",
+        "step_download": false
+      },
+      "typescript": {
+        "alert_prefix": "Error: ",
+        "alert_message_each": "The low Choc profile requires a Choc switch",
+        "alert_message_occurrences": 23,
+        "selected_workspace_after_guard": "Keycaps",
+        "step_download": false
+      }
+    },
+    "assessment": "The same public edit and 23 Error-severity findings were visible in both apps. The local STEP action blocked delivery, returned the resolver messages, and kept the Keycaps destination selected. No mismatch or source defect was observed. This does not exercise the separate empty-projection/disabled-button guard or a public stale-revision race."
   }
 }
