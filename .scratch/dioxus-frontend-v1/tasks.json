@@ -642,7 +642,7 @@
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/f2.2-c02-c03-paired-qualification.md"
           ],
           "blockers": [],
-          "next_action": "Paired malformed ZIP preserved the active renamed 70-part Sofle project; Dioxus showed rejection while React did not. Reuse valid-import proof and qualify only delayed open/import supersession after a newer project selection.",
+          "next_action": "Valid import and paired malformed-ZIP preservation are retained. Qualify delayed open/import supersession only after a newer project visibly becomes active before the old reply; upload closes the Project menu, and the prior CLI retry took 12.8s against a 6s delay.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/runtime.rs",
