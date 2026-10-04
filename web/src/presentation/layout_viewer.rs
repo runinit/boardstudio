@@ -53,6 +53,8 @@ pub(crate) struct LayoutCanonicalViewerProps {
     pub(crate) keycaps_fit: Option<super::keycaps_fit::KeycapsFitState>,
     #[props(default)]
     pub(crate) focused_finding: Option<super::keycaps_finding_marker::FocusedFinding>,
+    #[props(default)]
+    pub(crate) on_mounted_module_pick: Option<EventHandler<String>>,
 }
 
 #[component]
@@ -175,6 +177,7 @@ pub(crate) fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Elemen
         let runtime = runtime.clone();
         let selection = selection.clone();
         let preview = preview.clone();
+        let on_mounted_module_pick = props.on_mounted_module_pick;
         move |event: ScopedViewerSignal| {
             if !event.is_current() {
                 return;
@@ -209,19 +212,23 @@ pub(crate) fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Elemen
                         preview.owner.source_generation,
                         &reference,
                     ) {
-                        selection::submit_context(
-                            &runtime,
-                            &selection,
-                            TreeSelectRequest {
-                                scope: preview.owner.scope.clone(),
-                                context: objects::TreeContext::MountedModule {
-                                    board_id: preview.owner.scope.board_id.clone(),
-                                    module_id,
+                        if let Some(on_pick) = on_mounted_module_pick {
+                            on_pick.call(module_id);
+                        } else {
+                            selection::submit_context(
+                                &runtime,
+                                &selection,
+                                TreeSelectRequest {
+                                    scope: preview.owner.scope.clone(),
+                                    context: objects::TreeContext::MountedModule {
+                                        board_id: preview.owner.scope.board_id.clone(),
+                                        module_id,
+                                    },
+                                    mode: SelectionMode::Replace,
+                                    outline_action: None,
                                 },
-                                mode: SelectionMode::Replace,
-                                outline_action: None,
-                            },
-                        );
+                            );
+                        }
                         return;
                     }
                     let Some(part_id) = preview.part_for_current_pick(

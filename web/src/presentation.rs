@@ -279,7 +279,7 @@ struct WorkspaceCallbackSlots {
     pcb_empty_hit: EventHandler<PointerEvent>,
     pcb_part_hit: EventHandler<pcb_scene::PcbPartHit>,
     pcb_part_pointer_down: EventHandler<pcb_scene::PcbPartPointerDown>,
-    pcb_module_select: EventHandler<String>,
+    mounted_module_select: EventHandler<String>,
     pcb_wiring_edit_board: EventHandler<()>,
     layout_selection_kind: EventHandler<objects::LayoutSelectionKind>,
     layout_snap_intent: EventHandler<objects::LayoutSnapIntent>,
@@ -2756,7 +2756,7 @@ fn Editor() -> Element {
         pcb_empty_hit: EventHandler::new(|_: PointerEvent| {}),
         pcb_part_hit: EventHandler::new(|_: pcb_scene::PcbPartHit| {}),
         pcb_part_pointer_down: EventHandler::new(|_: pcb_scene::PcbPartPointerDown| {}),
-        pcb_module_select: EventHandler::new(|_: String| {}),
+        mounted_module_select: EventHandler::new(|_: String| {}),
         pcb_wiring_edit_board: EventHandler::new(|_: ()| {}),
         layout_selection_kind: EventHandler::new(|_: objects::LayoutSelectionKind| {}),
         layout_snap_intent: EventHandler::new(|_: objects::LayoutSnapIntent| {}),
@@ -4195,7 +4195,7 @@ fn Editor() -> Element {
             );
         }
     };
-    let on_pcb_module_select = {
+    let on_mounted_module_select = {
         let runtime = runtime.clone();
         let mut adapter = adapter.clone();
         let scope = render_scope.clone();
@@ -4208,7 +4208,7 @@ fn Editor() -> Element {
         let objects_open = objects_open;
         let mut inspect_open = inspect_open;
         move |module_id: String| {
-            if workspace() != "PCB"
+            if !matches!(workspace(), "PCB" | "Layout")
                 || runtime.scope().as_ref() != Some(&scope)
                 || (adapter.generation)() != generation
             {
@@ -6802,8 +6802,8 @@ fn Editor() -> Element {
         .pcb_part_hit
         .replace(Box::new(on_pcb_part_hit));
     workspace_callbacks
-        .pcb_module_select
-        .replace(Box::new(on_pcb_module_select));
+        .mounted_module_select
+        .replace(Box::new(on_mounted_module_select));
     workspace_callbacks
         .pcb_part_pointer_down
         .replace(Box::new(on_pcb_part_pointer_down));
@@ -7484,7 +7484,7 @@ fn Editor() -> Element {
                 on_empty_hit: workspace_callbacks.pcb_empty_hit,
                 on_part_hit: workspace_callbacks.pcb_part_hit,
                 on_part_pointer_down: workspace_callbacks.pcb_part_pointer_down,
-                on_module_select: workspace_callbacks.pcb_module_select,
+                on_module_select: workspace_callbacks.mounted_module_select,
             },
         ))),
         "Keymap" => Some(workspace_composition::WorkspaceCanvasInput::Keymap(
@@ -8162,6 +8162,8 @@ fn Editor() -> Element {
                         && layout_assembly_3d()
                     {
                         layout_viewer::LayoutCanonicalViewer {
+                            on_mounted_module_pick: (active_workspace == "Layout")
+                                .then_some(workspace_callbacks.mounted_module_select),
                             keycaps_fit: if matches!(active_workspace, "Keymap" | "Keycaps") {
                                 keycaps_fit_state.state.clone()
                             } else {
