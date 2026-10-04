@@ -586,6 +586,16 @@ pub(super) fn Library(
         let generations = generations.clone();
         let request_identity = accepted_identity.clone();
         spawn_local(async move {
+            #[cfg(all(test, target_arch = "wasm32"))]
+            let result = match take_project_list_test_result() {
+                Some(result) => {
+                    // Hold the test response so the mounted DOM can observe Loading.
+                    gloo_timers::future::TimeoutFuture::new(120).await;
+                    result
+                }
+                None => runtime.store.list_documents().await,
+            };
+            #[cfg(not(all(test, target_arch = "wasm32")))]
             let result = runtime.store.list_documents().await;
             let latest_identity = runtime
                 .model()
@@ -983,8 +993,17 @@ fn commit_project_name(
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]
+type ProjectListTestResult = Result<Vec<ProjectDoc>, boardstudio_web::host::PersistError>;
+
+#[cfg(all(test, target_arch = "wasm32"))]
 thread_local! {
     static PROJECT_NAME_ACTION_PROBE: std::cell::RefCell<Option<ProjectNameCommitAction>> = const { std::cell::RefCell::new(None) };
+    static PROJECT_LIST_TEST_RESULTS: std::cell::RefCell<std::collections::VecDeque<ProjectListTestResult>> = const { std::cell::RefCell::new(std::collections::VecDeque::new()) };
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+fn take_project_list_test_result() -> Option<ProjectListTestResult> {
+    PROJECT_LIST_TEST_RESULTS.with(|results| results.borrow_mut().pop_front())
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]
@@ -1054,6 +1073,94 @@ mod mounted_tests {
             settle().await;
         }
         panic!("expected {expected} saved keyboard cards to load");
+    }
+
+    async fn wait_for_project_cards(root: &web_sys::Element, expected: u32) {
+        for _ in 0..40 {
+            if root
+                .query_selector_all(".m1-keyboard-card:not(.m1-demo-keyboard-card)")
+                .unwrap()
+                .length()
+                == expected
+            {
+                return;
+            }
+            settle().await;
+        }
+        panic!("expected {expected} saved project cards to load");
+    }
+
+    async fn wait_for_list_error(root: &web_sys::Element) -> web_sys::Element {
+        for _ in 0..40 {
+            if let Some(alert) = root.query_selector("[role='alert']").unwrap() {
+                return alert;
+            }
+            settle().await;
+        }
+        panic!("expected the saved-keyboard list error to render");
+    }
+
+    #[wasm_bindgen_test]
+    async fn saved_project_list_loading_error_and_retry_recover_in_mounted_library() {
+        let (session, core) = accepted(ProjectDoc::empty("list-retry-current", "Current keyboard"));
+        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        PROJECT_LIST_TEST_RESULTS.with(|results| {
+            let mut results = results.borrow_mut();
+            results.clear();
+            results.extend([
+                Err(boardstudio_web::host::PersistError(
+                    "fixture list failure".into(),
+                )),
+                Ok(vec![ProjectDoc::empty(
+                    "list-retry-recovered",
+                    "Recovered keyboard",
+                )]),
+            ]);
+        });
+
+        let root = mount_menu(runtime, "saved-project-list-retry-mounted-regression");
+        settle().await;
+        assert!(
+            root.query_selector("[role='status']")
+                .unwrap()
+                .is_some_and(|status| status
+                    .text_content()
+                    .unwrap()
+                    .contains("Loading saved keyboards")),
+            "initial list request renders its distinct loading status"
+        );
+        let alert = wait_for_list_error(&root).await;
+        assert!(
+            alert
+                .text_content()
+                .unwrap()
+                .contains("could not be loaded")
+        );
+        assert!(
+            alert.text_content().unwrap().contains("Try again"),
+            "failed listing exposes retry"
+        );
+        assert_eq!(
+            root.query_selector_all(".m1-keyboard-card:not(.m1-demo-keyboard-card)")
+                .unwrap()
+                .length(),
+            1,
+            "the current project remains available while listing fails"
+        );
+
+        click(&root, "[role='alert'] button");
+        wait_for_project_cards(&root, 2).await;
+        assert!(root.query_selector("[role='alert']").unwrap().is_none());
+        assert!(root.text_content().unwrap().contains("Recovered keyboard"));
+        assert!(
+            root.query_selector(".m1-keyboard-card [aria-current='true']")
+                .unwrap()
+                .is_some(),
+            "retry keeps the current-project marker"
+        );
+        PROJECT_LIST_TEST_RESULTS.with(|results| results.borrow_mut().clear());
+        remove_test_root("saved-project-list-retry-mounted-regression");
     }
 
     async fn clean_saved_projects(runtime: &Runtime, ids: &[&str]) {

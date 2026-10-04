@@ -489,9 +489,11 @@
             "web/src/presentation/library.rs:556",
             "web/src/presentation/library.rs:751"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-tranche-1/evidence/project-demo-cards-fresh-copies-34767/RESULTS.md"
+          ],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Mounted Library regression proves visible Loading, alert on injected list failure, same-action Retry, recovered saved card and current marker; pinned React has analogous list-rejection test. Neither public UI has a supported deterministic list-failure action, so paired public failure remains unqualified under the unchanged finish condition.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/library.rs"
