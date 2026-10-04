@@ -350,6 +350,33 @@ pub(in crate::presentation) fn use_workspace_matrix_transform(
                         definitions,
                     }
                 }
+                (
+                    MatrixTransformField::KeyAttached,
+                    EditOperation::SetMatrix { matrix, .. },
+                    MatrixTransformValue::Attached(list),
+                ) => {
+                    let catalog = switch_catalog();
+                    let definitions = list
+                        .iter()
+                        .filter(|(_, id)| {
+                            !snapshot
+                                .document
+                                .definitions
+                                .iter()
+                                .any(|definition| &definition.id == id)
+                        })
+                        .filter_map(|(_, id)| {
+                            catalog
+                                .iter()
+                                .find(|definition| &definition.id == id)
+                                .cloned()
+                        })
+                        .collect::<Vec<_>>();
+                    EditOperation::SetMatrix {
+                        matrix,
+                        definitions: (!definitions.is_empty()).then_some(definitions),
+                    }
+                }
                 (_, operation, _) => operation,
             };
             let operation_id = runtime.operation();
