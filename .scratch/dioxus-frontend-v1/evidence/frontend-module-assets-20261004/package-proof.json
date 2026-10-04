@@ -1,0 +1,36 @@
+{
+  "build_id": "frontend-module-assets-20261004",
+  "source_commit": "18ff7659c0170e995f41421a0972bee21d30d1ea",
+  "provenance": "web/target/builds/frontend-module-assets-20261004/provenance.json",
+  "provenance_sha256": "cf803e115764888ce6d78e484cf93e5fd8fd09bacb52d919a81a1d35cd7bd5b4",
+  "source_count": 1390,
+  "source_mismatches": [],
+  "routes": {
+    "root": {
+      "http": 200,
+      "headers": {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp"
+      },
+      "asset_count": 190,
+      "mismatches": []
+    },
+    "subpath": {
+      "http": 200,
+      "headers": {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp"
+      },
+      "asset_count": 190,
+      "mismatches": []
+    }
+  },
+  "fresh_commands": 9,
+  "inherited_commands": 23,
+  "duration_seconds": 121.100542,
+  "release_warnings": {
+    "root": 0,
+    "subpath": 0
+  },
+  "qualification": "Combined package provenance, current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate."
+}

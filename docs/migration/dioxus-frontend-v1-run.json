@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T06:30:44.587018+00:00",
+    "updated_at": "2026-10-04T07:19:45.186761+00:00",
     "parent_counts": {
       "accepted": 16,
       "implementing": 34,
@@ -25,20 +25,20 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-module-route-20261004",
-      "source_commit": "ad0de81fec372cc7ff9d998e325d4d3496f65cbd",
-      "root_url": "http://127.0.0.1:34798/",
-      "subpath_url": "http://127.0.0.1:34798/boardstudio/",
-      "provenance": "web/target/builds/frontend-module-route-20261004/provenance.json",
-      "provenance_sha256": "37551671fb8aa2df42bcc41d0f3f30f0f4d7207669dc1de273e4a98c72d885b8",
+      "build_id": "frontend-module-assets-20261004",
+      "source_commit": "18ff7659c0170e995f41421a0972bee21d30d1ea",
+      "root_url": "http://127.0.0.1:34799/",
+      "subpath_url": "http://127.0.0.1:34799/boardstudio/",
+      "provenance": "web/target/builds/frontend-module-assets-20261004/provenance.json",
+      "provenance_sha256": "cf803e115764888ce6d78e484cf93e5fd8fd09bacb52d919a81a1d35cd7bd5b4",
       "fresh_commands": 9,
       "inherited_commands": 23,
       "source_inputs": 1390,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 118.308825,
+      "command_span_seconds": 121.100542,
       "package_qualification": "Combined package provenance, current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-module-route-20261004/package-proof.json",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-module-assets-20261004/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -48,8 +48,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "ad0de81fec372cc7ff9d998e325d4d3496f65cbd",
-      "state": "Published frontend-module-route-20261004 at 34798 (source ad0de81f) with compiler, package, root/subpath and guarded provider reuse checks. A paired generic mounted-module 3D pick now reaches the Parts definition and PCB placement editor; one consolidated Sol 6.1 High review confirms the route repair. F7.3-C05 verified, F2.1 accepted. F7.3-C06 mounted asset models remain missing. RF-001/RF-019/RF-022 retain composition, producer and test-graph follow-ups.",
+      "source_commit": "18ff7659",
+      "state": "Published frontend-module-assets-20261004 at 34799 (source 18ff7659): combined page compiler, package, root/subpath assets and guarded provider reuse passed. The non-VIK saved-module STEP model now appears as its own Layout 3D layer and toggles independently. F7.3-C06 advances to implemented, pending model pick and error-path qualification at a batched functional milestone. F7.3-C05 and F2.1 remain verified/accepted; RF-019/RF-022 retain producer and test-graph refactors.",
       "packets": [
         {
           "stream": "Layout",
@@ -463,7 +463,7 @@
       "candidate": "frontend-module-route-20261004",
       "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-routed-module-bb4f2216-review-sol-20261004.md",
       "review_sha256": "36405a7bab07830e3094a7a5e429ec87b22843e0b25f9f5b3fde0e4b1240deff",
-      "state": "One consolidated Sol 6.1 High Standards/Spec review and final delta: prior generic-module route P2 repaired at ad0de81f. F7.3-C05 verified from paired module, part, Case-body and finding journeys; C06 mounted asset models missing. F2.1 closure support unchanged.",
+      "state": "Historical consolidated Sol review for source ad0de81f and F7.3-C05. New source 18ff7659 and F7.3-C06 await the next batched functional milestone review; no per-packet review required.",
       "previous_review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/candidate-34791-review.md"
     },
     "parent_acceptances": [
@@ -508,7 +508,7 @@
       },
       {
         "stream": "Case",
-        "state": "F7.3-C02/C03/C04/C05 verified. Paired generated Case-body and empty picks, ordinary 3D finding focus, generic mounted-module body and guarded edit-route RED/GREEN are receipted. C06 mounted model assets remain missing. Project switch briefly showed the prior editor before settling; stale Save was not exercised."
+        "state": "F7.3-C02/C03/C04/C05 verified. Generic module body and edit route are retained; C06 source is implemented and packaged model layer is visible/toggleable on 34799. Model pick/error feedback and C07 stale Save remain unverified for a later batched milestone."
       },
       {
         "stream": "Parts + Project",
@@ -517,7 +517,7 @@
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Implement the confirmed missing F7.3-C06 mounted model-asset path from Core ModuleResolution.model_placements through the accepted shared viewer; keep VIK-only catalogue/demo outside v1.",
+      "Keep F7.3-C06 model pick/unavailable feedback and F7.3-C07 stale Save in the next batched Case qualification; do not reimplement the now-working Core-to-Layout model delivery.",
       "Advance the six workbench queues from progress.py ready/remaining, reusing retained evidence. Qualify PCB/Keycaps provider-failure branches only with a supported reproducible trigger; keep visual parity and release gates separate.",
       "Check the transient project-switch old-editor display with a focused state/interaction journey when the surrounding project-lifecycle criterion is next qualified; preserve current action guards."
     ],
@@ -525,7 +525,7 @@
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
       "implementation": "CONSTRAINTS.md; scripts/migration-deliver.py; scripts/build-m1.py; .scratch/dioxus-frontend-v1/progress.py; .scratch/dioxus-frontend-v1/qualification.py",
       "architectural_observation": ".scratch/dioxus-frontend-v1/refactor-findings.json:RF-009.delivery_retro_20261003",
-      "qualification": "Current candidate34798 reached the Parts module definition and guarded placement editor from a trusted Layout 3D body pick after a public RED on34797. F2.1 accepted: four verified criteria and one consolidated Sol review. Test-only module mirror drift and zero-executed-test false green are captured in RF-022; no duplicate compiler or review gate was added.",
+      "qualification": "Current candidate 34799 adds a non-VIK mounted STEP model to Layout 3D through verified delivery. The model layer is visible and independently toggled; pick and error-path qualification remain queued. The zero-executed-test guard caught an earlier false green, and a focused nonuniform-normal regression failed before and passed after the fix. Browser/review work now batches at functional milestones.",
       "checks": {
         "build_reuse": 33,
         "source_inventory": 3,
@@ -578,6 +578,21 @@
             "priority": "low",
             "observation": "Broad task/status/DOM reads produced truncated output while candidate publication reset current journey result fields.",
             "action": "Use focused parent/ready and scoped DOM queries; explicitly reconcile reused journey results after final publication, preserving candidate history."
+          },
+          {
+            "priority": "high",
+            "observation": "The active implementation queue reached zero confirmed missing functional criteria while 45 parents remain open; implemented labels and repeated per-candidate qualification were consuming capacity without revealing the next GUI gap.",
+            "action": "Run bounded source/UI gap probes on high-impact open workbench criteria, implement only reproduced missing actions, and batch compiler/package/browser/review at coherent functional milestones. Keep six queues and one waiting packet per stream."
+          },
+          {
+            "priority": "medium",
+            "observation": "The prior generic module fixture contained no model asset, so it could not test the F7.3-C06 handoff; the first Rust transform check used only axis-aligned normals and missed nonuniform-scale shading.",
+            "action": "Added a non-VIK saved archive with an embedded STEP model, a public reference/candidate layer check, and a focused nonuniform-normal RED/GREEN regression. F7.3-C06 is implemented, not verified."
+          },
+          {
+            "priority": "medium",
+            "observation": "The active qualification scope still asked for accepted F2.1 and older outline journeys, and the C07 stale Save interval was not exercised by a quick project-switch probe.",
+            "action": "Selected a fresh module-assets scope for the new package, retained conservative evidence reuse, and left C07 pending rather than treating a settled editor disappearance as stale-action proof."
           }
         ],
         "existing_guardrail": "CI and package already execute the Dioxus compiler check; no duplicate compiler gate added.",
@@ -587,33 +602,26 @@
     "qualification": {
       "trigger": "functional_scope",
       "active_scope": {
-        "id": "frontend-outline-hitorder-20261003",
+        "id": "frontend-module-assets-20261004",
+        "label": "Mounted-module viewer functional candidate",
+        "source_commit": "3d9dc5d7043ad56aa410c9fe2fc23ce85aa76534",
         "streams": [
-          "Layout",
-          "PCB",
-          "Parts/Project",
           "Case"
         ],
-        "source_commit": "6619d5f2be0ce4167939426dd7efd3a13fcbd1e3",
         "journeys": [
           {
-            "id": "F3.4-C02",
-            "scope": "Paired addition/cutout/bridge draft preview, point Undo, cancel without accepted writes, Finish on 34789 and pinned 5175",
-            "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md"
+            "id": "F7.3-C05-module-route",
+            "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797\u219234798 RED/GREEN unless changed source affects it.",
+            "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md"
           },
           {
-            "id": "F5.2-C01",
-            "scope": "Paired multi-board Resolve/Apply plus focused stale board/controller mounted owner checks",
-            "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md"
+            "id": "F7.3-C06-module-assets",
+            "scope": "A supported non-VIK mounted-module model asset travels from Core placement through verified bytes and the shared 3D renderer with stable identity and transform; compare the same fixture with the pinned TypeScript reference and check unavailable/error feedback.",
+            "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md"
           },
           {
-            "id": "F2.1-negative-branches",
-            "scope": "Mounted Loading/error/Retry and damaged-preview fallback supplement paired success; unchanged public finish conditions open",
-            "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md"
-          },
-          {
-            "id": "F7.3-C05",
-            "scope": "3D part pick proven; common viewer Case-body/module/finding mapping remains open",
+            "id": "F7.3-C07-stale-editor",
+            "scope": "Replace the project while a mounted placement editor is visible and prove an old Save cannot mutate the new project; retain separate provider/retry, context-loss and unmount checks under C07.",
             "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md"
           }
         ]
@@ -1678,68 +1686,133 @@
               "state": "pending"
             }
           ]
+        },
+        {
+          "trigger": "functional_scope",
+          "active_scope": {
+            "id": "frontend-outline-hitorder-20261003",
+            "streams": [
+              "Layout",
+              "PCB",
+              "Parts/Project",
+              "Case"
+            ],
+            "source_commit": "6619d5f2be0ce4167939426dd7efd3a13fcbd1e3",
+            "journeys": [
+              {
+                "id": "F3.4-C02",
+                "scope": "Paired addition/cutout/bridge draft preview, point Undo, cancel without accepted writes, Finish on 34789 and pinned 5175",
+                "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md"
+              },
+              {
+                "id": "F5.2-C01",
+                "scope": "Paired multi-board Resolve/Apply plus focused stale board/controller mounted owner checks",
+                "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md"
+              },
+              {
+                "id": "F2.1-negative-branches",
+                "scope": "Mounted Loading/error/Retry and damaged-preview fallback supplement paired success; unchanged public finish conditions open",
+                "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md"
+              },
+              {
+                "id": "F7.3-C05",
+                "scope": "3D part pick proven; common viewer Case-body/module/finding mapping remains open",
+                "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md"
+              }
+            ]
+          },
+          "phase": "qualifying",
+          "unmet_start_conditions": [],
+          "candidate_build_id": "frontend-module-route-20261004",
+          "source_commit": "ad0de81fec372cc7ff9d998e325d4d3496f65cbd",
+          "journeys": [
+            {
+              "id": "F3.4-C02",
+              "scope": "Paired addition/cutout/bridge draft preview, point Undo, cancel without accepted writes, Finish on 34789 and pinned 5175",
+              "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+              "state": "pending"
+            },
+            {
+              "id": "F5.2-C01",
+              "scope": "Paired multi-board Resolve/Apply plus focused stale board/controller mounted owner checks",
+              "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
+              "state": "pending"
+            },
+            {
+              "id": "F2.1-negative-branches",
+              "scope": "Mounted Loading/error/Retry and damaged-preview fallback supplement paired success; unchanged public finish conditions open",
+              "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
+              "state": "pending"
+            },
+            {
+              "id": "F7.3-C05",
+              "scope": "3D part pick proven; common viewer Case-body/module/finding mapping remains open",
+              "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+              "state": "pending"
+            }
+          ],
+          "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
+          "started_at": "2026-10-04T06:23:01.318141+00:00",
+          "review": {
+            "profile": "sol-review",
+            "state": "pending"
+          },
+          "next_scope": {
+            "id": "frontend-module-assets-20261004",
+            "label": "Mounted-module viewer functional candidate",
+            "source_commit": "3d9dc5d7043ad56aa410c9fe2fc23ce85aa76534",
+            "streams": [
+              "Case"
+            ],
+            "journeys": [
+              {
+                "id": "F7.3-C05-module-route",
+                "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797\u219234798 RED/GREEN unless changed source affects it.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md"
+              },
+              {
+                "id": "F7.3-C06-module-assets",
+                "scope": "A supported non-VIK mounted-module model asset travels from Core placement through verified bytes and the shared 3D renderer with stable identity and transform; compare the same fixture with the pinned TypeScript reference and check unavailable/error feedback.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md"
+              },
+              {
+                "id": "F7.3-C07-stale-editor",
+                "scope": "Replace the project while a mounted placement editor is visible and prove an old Save cannot mutate the new project; retain separate provider/retry, context-loss and unmount checks under C07.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md"
+              }
+            ]
+          }
         }
       ],
       "phase": "qualifying",
       "unmet_start_conditions": [],
-      "candidate_build_id": "frontend-module-route-20261004",
-      "source_commit": "ad0de81fec372cc7ff9d998e325d4d3496f65cbd",
+      "candidate_build_id": "frontend-module-assets-20261004",
+      "source_commit": "18ff7659c0170e995f41421a0972bee21d30d1ea",
       "journeys": [
         {
-          "id": "F3.4-C02",
-          "scope": "Paired addition/cutout/bridge draft preview, point Undo, cancel without accepted writes, Finish on 34789 and pinned 5175",
-          "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+          "id": "F7.3-C05-module-route",
+          "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797\u219234798 RED/GREEN unless changed source affects it.",
+          "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
           "state": "pending"
         },
         {
-          "id": "F5.2-C01",
-          "scope": "Paired multi-board Resolve/Apply plus focused stale board/controller mounted owner checks",
-          "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
+          "id": "F7.3-C06-module-assets",
+          "scope": "A supported non-VIK mounted-module model asset travels from Core placement through verified bytes and the shared 3D renderer with stable identity and transform; compare the same fixture with the pinned TypeScript reference and check unavailable/error feedback.",
+          "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
           "state": "pending"
         },
         {
-          "id": "F2.1-negative-branches",
-          "scope": "Mounted Loading/error/Retry and damaged-preview fallback supplement paired success; unchanged public finish conditions open",
-          "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
-          "state": "pending"
-        },
-        {
-          "id": "F7.3-C05",
-          "scope": "3D part pick proven; common viewer Case-body/module/finding mapping remains open",
+          "id": "F7.3-C07-stale-editor",
+          "scope": "Replace the project while a mounted placement editor is visible and prove an old Save cannot mutate the new project; retain separate provider/retry, context-loss and unmount checks under C07.",
           "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
           "state": "pending"
         }
       ],
       "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
-      "started_at": "2026-10-04T06:23:01.318141+00:00",
+      "started_at": "2026-10-04T07:12:13.076985+00:00",
       "review": {
         "profile": "sol-review",
         "state": "pending"
-      },
-      "next_scope": {
-        "id": "frontend-module-assets-20261004",
-        "label": "Mounted-module viewer functional candidate",
-        "source_commit": "3d9dc5d7043ad56aa410c9fe2fc23ce85aa76534",
-        "streams": [
-          "Case"
-        ],
-        "journeys": [
-          {
-            "id": "F7.3-C05-module-route",
-            "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797\u219234798 RED/GREEN unless changed source affects it.",
-            "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md"
-          },
-          {
-            "id": "F7.3-C06-module-assets",
-            "scope": "A supported non-VIK mounted-module model asset travels from Core placement through verified bytes and the shared 3D renderer with stable identity and transform; compare the same fixture with the pinned TypeScript reference and check unavailable/error feedback.",
-            "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md"
-          },
-          {
-            "id": "F7.3-C07-stale-editor",
-            "scope": "Replace the project while a mounted placement editor is visible and prove an old Save cannot mutate the new project; retain separate provider/retry, context-loss and unmount checks under C07.",
-            "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md"
-          }
-        ]
       }
     },
     "delivery_priority": {

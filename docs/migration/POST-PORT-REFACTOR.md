@@ -2170,7 +2170,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 ## RF-019: Layout 3D scene projection omits mounted module bodies
 
-**Status:** Generic saved-module 3D behavior is active F7.3 work; typed scene-producer redesign remains a post-port refactor candidate. VIK-specific catalogue and demo work is deferred.
+**Status:** Generic scene body and model asset delivery now implemented in v1; typed accepted-scene producer remains a post-port refactor candidate.
 
 **Confidence:** confirmed source and paired public mismatch; full repair scope pending source mapping
 
@@ -2182,7 +2182,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Later proposal:** Consolidate board, module, case and finding scene inputs into a typed accepted-scene producer with explicit owner identity and one renderer-facing projection. Keep consumer-specific edit actions in their workbenches.
 
-**Validation:** Pair a supported non-VIK saved-module board/standoff scene and trusted selection across board/project changes before verifying F7.3-C05. Defer only the typed scene-producer redesign.
+**Validation:** Batch a non-VIK saved model pick and unavailable/error feedback with F7.3-C06; validate stale route actions under C07. The typed scene-producer redesign remains post-port.
 
 **Evidence:** `web/src/presentation/shared_viewer.rs`; `.scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md`; `app/src/ui/AssemblyViewer.tsx`
 
@@ -2220,6 +2220,11 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
       "at": "2026-10-04",
       "decision": "The generic scene body and model-asset separation is now explicit: current Layout preview projects Core-resolved mounted PCB, volume and support geometry and routes picks to the module editor; Core ModuleResolution.model_placements are still dropped before the shared viewer asset path, so F7.3-C06 remains missing.",
       "evidence": "bb4f2216 and ad0de81f; .scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md"
+    },
+    {
+      "at": "2026-10-04",
+      "decision": "Source 18ff7659 resolves Core model placements again in Layout model delivery, verifies bytes/decodes assets and publishes stable-ID mesh layers. A second Core resolution and renderer-facing JSON projection remain deliberate v1 seams; consolidate with the accepted scene producer after the port. Public 34799 shows an independently toggled non-VIK STEP model layer; pick/error paths remain unverified.",
+      "evidence": "web/src/runtime.rs; web/src/presentation/model_delivery.rs; web/src/presentation/shared_viewer.rs; .scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md"
     }
   ]
 }

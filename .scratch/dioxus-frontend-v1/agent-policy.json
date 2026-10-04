@@ -169,11 +169,6 @@
       "verifier_profile": "luna-medium",
       "reviewer_profile": "sol-review"
     },
-    "F4.7": {
-      "author_profile": "luna-medium",
-      "verifier_profile": "luna-medium",
-      "reviewer_profile": "sol-review"
-    },
     "F5.1": {
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
@@ -377,5 +372,5 @@
     "max_heavy_jobs": 2,
     "max_package_builds": 1
   },
-  "qualification_trigger": "Layout queued implementation integrated, fresh combined compile and verified candidate package; other streams continue"
+  "qualification_trigger": "Coherent multi-stream functional milestone with a compiled, verified package; changed user journeys checked once and one consolidated Sol review while other streams continue"
 }

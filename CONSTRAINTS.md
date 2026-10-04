@@ -51,20 +51,20 @@ production cutover and React removal retain their separate authorization/gates.
 4. Integrate ready work serially. Reuse a relevant settled base across unrelated changes;
    refresh only overlapping source/consumed interfaces. Publish shared helper signatures
    early. The author continues the next real gap once its waiting packet is resolved.
-5. Freeze one combined candidate. The package helper runs the existing locked Dioxus
-   page compiler check before fixtures/builds. Repair one diagnostic list in place,
-   then retry; preserve existing fixes, specs and failed logs. Reuse verified unchanged
-   providers and warm caches. Publish through the delivery command's provenance-derived
-   proof and existing asset validation. Coordinator assigns heavy slots; at most two heavy jobs,
-   including one package, run at once.
-   After integration and before the expensive package, exercise one focused live route
-   for each newly connected cross-workbench action; defer the broader paired journey
-   and lifecycle qualification to the packaged candidate.
-6. When a coherent functional batch is integrated and its candidate compile/package
-   passes, qualify its affected working journeys and use one consolidated
-   Sol 6.1 High candidate review. Other streams continue. Reuse unchanged paired evidence;
-   check changed behavior and affected repairs. Do not wait for visual Layout closure
-   or all six workbenches. Earlier Layout-ready qualification remains historical evidence.
+5. Integrate several runnable functional packets before freezing a candidate. Package
+   early only for a blocking interaction that cannot be checked from source or focused
+   tests. The package helper runs the existing locked Dioxus page compiler check once
+   per batch. Repair its diagnostic list in place; reuse verified unchanged providers
+   and warm caches. Publish through the provenance-derived proof and asset validation.
+   Coordinator assigns heavy slots; at most two heavy jobs, including one package,
+   run at once. A newly connected cross-workbench action needs its destination and
+   edit result named in the packet, with one focused smoke when first packaged.
+6. Qualify and review at coherent functional milestones, not after every packet or
+   intermediate package. At a milestone, check changed user journeys once against the
+   pinned TypeScript reference, reuse unchanged evidence, and use one consolidated
+   Sol 6.1 High review. Keep broader lifecycle, visual parity and release qualification
+   queued until their owning milestone. Other streams continue during qualification.
+   Earlier Layout-ready qualification remains historical evidence.
 7. Accept a parent only from its actual criterion verdict and final joins. The
    [acceptance requirements](docs/migration/ACCEPTANCE-REQUIREMENTS.md) retain behavior,
    compatibility, accessibility, performance and retirement gates. Report parents,
@@ -74,8 +74,9 @@ During source integration, ordinary reversible UI needs no new per-packet applic
 suite/browser/review. A reproduced bug gets its focused regression and affected checks.
 Run focused Rust tests through `scripts/migration-deliver.py focused-test -- ...` so
 a successful command with zero executed tests cannot count as verification.
-Focused tooling checks validate these delivery controls. Broaden only for a failure or
-identified unresolved risk. Source, compiler and package success never imply acceptance.
+Focused tooling checks validate delivery controls only when they change. Broaden only
+for a failure or identified unresolved risk. Source, compiler and package success
+never imply acceptance; keep unqualified criteria open until their milestone.
 
 ## Ownership and enforcement
 

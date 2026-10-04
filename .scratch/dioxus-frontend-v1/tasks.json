@@ -6485,7 +6485,7 @@
         {
           "id": "F7.3-C06",
           "requirement": "Load supported STL/WRL assets through existing renderer decode and STEP/CAD assets through existing import paths, including supported module/mechanical inputs and BND.1 keycap solids/inlays.",
-          "state": "missing",
+          "state": "implemented",
           "classification": "functional",
           "sources": [
             "web/src/presentation/shared_viewer.rs",
@@ -6499,10 +6499,11 @@
           ],
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
-            ".scratch/dioxus-frontend-v1/evidence/keycaps-3d-preview-20261003/RECEIPT.md"
+            ".scratch/dioxus-frontend-v1/evidence/keycaps-3d-preview-20261003/RECEIPT.md",
+            ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md"
           ],
           "blockers": [],
-        "next_action": "With F7.3-C05 generic body/pick verified on ad0de81f, carry Core ModuleResolution.model_placements (computed from ResolvedModule.models by prepare_preview) through an accepted producer and the shared Layout viewer's asset delivery path; current source covers PCB preview models but drops mounted-module asset models that React AssemblyPreview includes. Then reuse retained STL/WRL, keycap inlay and STEP archive/reopen receipts and qualify only missing branches.",
+          "next_action": "Source 18ff7659 carries Core module model placements through verified asset bytes, decode, stable IDs and transforms; packaged candidate 34799 lists the non-VIK STEP model as a separate visible layer. At the next functional milestone, check model pick and unavailable/error feedback with the same saved fixture, then reuse retained STL/WRL, keycap inlay and STEP evidence before a verified verdict. Do not rerun unchanged branches.",
           "finish_condition": "Actual supported asset bytes traverse their existing adapter/decode path with stable IDs and useful unavailable/error feedback.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",
