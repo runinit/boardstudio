@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T01:03:50.122485+00:00",
+    "updated_at": "2026-10-04T01:09:09.318268+00:00",
     "parent_counts": {
       "accepted": 12,
       "implementing": 39,
@@ -25,20 +25,20 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-case-layer-appearance-20261003",
-      "source_commit": "f6aa4cb08600f52c0349449f39e52616daafecfe",
-      "root_url": "http://127.0.0.1:34785/",
-      "subpath_url": "http://127.0.0.1:34785/boardstudio/",
-      "provenance": "web/target/builds/frontend-case-layer-appearance-20261003/provenance.json",
-      "provenance_sha256": "73c26361e2a17360d8eef1300c139d87beaa0d98be00ada6ca7c0704b2411036",
+      "build_id": "frontend-pcb-resolver-owner-20261003",
+      "source_commit": "924ba2820a6c0698fd06fb969d7cf4f28ae76ccd",
+      "root_url": "http://127.0.0.1:34786/",
+      "subpath_url": "http://127.0.0.1:34786/boardstudio/",
+      "provenance": "web/target/builds/frontend-pcb-resolver-owner-20261003/provenance.json",
+      "provenance_sha256": "9cf3a91674bdaf61b743127ff2f20fb18af11678a1639dfb3af4949b20746cd9",
       "fresh_commands": 8,
       "inherited_commands": 22,
       "source_inputs": 1390,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 147.147179,
+      "command_span_seconds": 168.499374,
       "package_qualification": "Combined package provenance, current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-case-layer-appearance-20261003/package-proof.json",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-pcb-resolver-owner-20261003/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -49,7 +49,7 @@
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
       "source_commit": "733c1da2abede39a617d2eca2e42d9bd437cea41",
-      "state": "Case layer selection f6aa4cb0 built/published34785; F7.3-C03 paired and F4.2 accepted. Layout F3.2-C01/C02 and all F6C.3 criteria now verified. PCB mounted resolver-owner repair awaits integration.",
+      "state": "PCB resolver owner/private notice source 924ba282 compiled and published as34786; F5.2-C04 mounted failure/retry/stale-board regression green. F4.2 accepted; F3.2-C01/C02 and all F6C.3 criteria verified. Current workbench packets qualify exact remaining criteria.",
       "packets": [
         {
           "stream": "Layout",
@@ -492,7 +492,7 @@
       },
       {
         "stream": "PCB",
-        "state": "All five F5.3 criteria verified paired; F5.2-C04 mounted failure/retry/stale-board regression passed and awaits source integration/package. F5.2 public resolver/error and remaining parent joins remain."
+        "state": "F5.3 all five criteria verified paired; F5.2-C04 mounted failure/retry/stale-board regression and source published34786. Public provider failure/retry and F5.2-C01/C02 qualification remain."
       },
       {
         "stream": "Keymap",
@@ -513,7 +513,7 @@
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Integrate focused F5.2-C04 resolver owner/notice change, compile/package one candidate, then qualify affected PCB error/retry/stale-board route.",
+      "Qualify F5.2-C02 current PCB Wiring fields on34786, reuse mounted F5.2-C04 test, and retain public provider-error/retry as a precise unresolved branch.",
       "Finish F3.2-C03 standalone component placement and C04 invalid/history/reopen; preserve the paired Layout matrix proof.",
       "Take concrete missing or bounded unassessed criteria in the other five streams; preserve one waiting packet per stream and defer cosmetic parity."
     ],
@@ -1288,12 +1288,29 @@
               "verified": "Key assembly query8/no false message; MX4; no-match0/exactlyone message. Prior selected-assembly retention reused."
             }
           ]
+        },
+        {
+          "candidate_build_id": "frontend-case-layer-appearance-20261003",
+          "source_commit": "f6aa4cb08600f52c0349449f39e52616daafecfe",
+          "phase": "qualifying",
+          "review": {
+            "profile": "sol-review",
+            "state": "pending"
+          },
+          "journeys": [
+            {
+              "id": "assembly-query-feedback",
+              "scope": "Assembly-only query has matching rows and no no-match status; true no-match has zero rows and exactly one status. Retain verified filtering and selection behavior.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
+              "state": "pending"
+            }
+          ]
         }
       ],
       "phase": "qualifying",
       "unmet_start_conditions": [],
-      "candidate_build_id": "frontend-case-layer-appearance-20261003",
-      "source_commit": "f6aa4cb08600f52c0349449f39e52616daafecfe",
+      "candidate_build_id": "frontend-pcb-resolver-owner-20261003",
+      "source_commit": "924ba2820a6c0698fd06fb969d7cf4f28ae76ccd",
       "journeys": [
         {
           "id": "assembly-query-feedback",
@@ -1303,7 +1320,7 @@
         }
       ],
       "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
-      "started_at": "2026-10-04T00:43:03.111501+00:00",
+      "started_at": "2026-10-04T01:09:09.318245+00:00",
       "review": {
         "profile": "sol-review",
         "state": "pending"

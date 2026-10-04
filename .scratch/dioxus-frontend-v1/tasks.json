@@ -3678,7 +3678,7 @@
             ".scratch/dioxus-pcb-view/evidence/pcb-apply-ui-20261002/receipt.md"
           ],
           "blockers": [],
-          "next_action": "Paired public candidate showed Resolving\u2026/Apply disabled then settlement; board switch while pending left both accepted projects unchanged. Provider failure\u2192visible error\u2192retry and true late stale-reply rejection remain unqualified; focused mounted resolver-owner regression is in progress.",
+          "next_action": "Published 34786 includes a green mounted owner regression for Pending, injected failure\u2192alert, same-action retry and delayed old-board reply rejection; public 34784 paired Pending\u2192current and board switch preserved documents. Public provider failure/retry remains unqualified; do not claim full C04 verification from the mounted test.",
           "finish_condition": "Paired evidence shows loading, failure, recovery and no accepted-document mutation on rejected/stale actions.",
           "owned_files": [
             "web/src/presentation/pcb_wiring.rs",

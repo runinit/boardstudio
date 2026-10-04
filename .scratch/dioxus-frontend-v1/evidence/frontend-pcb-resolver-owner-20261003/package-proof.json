@@ -1,0 +1,36 @@
+{
+  "build_id": "frontend-pcb-resolver-owner-20261003",
+  "source_commit": "924ba2820a6c0698fd06fb969d7cf4f28ae76ccd",
+  "provenance": "web/target/builds/frontend-pcb-resolver-owner-20261003/provenance.json",
+  "provenance_sha256": "9cf3a91674bdaf61b743127ff2f20fb18af11678a1639dfb3af4949b20746cd9",
+  "source_count": 1390,
+  "source_mismatches": [],
+  "routes": {
+    "root": {
+      "http": 200,
+      "headers": {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp"
+      },
+      "asset_count": 190,
+      "mismatches": []
+    },
+    "subpath": {
+      "http": 200,
+      "headers": {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp"
+      },
+      "asset_count": 190,
+      "mismatches": []
+    }
+  },
+  "fresh_commands": 8,
+  "inherited_commands": 22,
+  "duration_seconds": 168.499374,
+  "release_warnings": {
+    "root": 0,
+    "subpath": 0
+  },
+  "qualification": "Combined package provenance, current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate."
+}
