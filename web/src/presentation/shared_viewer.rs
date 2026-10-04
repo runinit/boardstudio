@@ -26,6 +26,7 @@ use web_sys::{HtmlCanvasElement, PointerEvent};
 
 pub(crate) use super::case_display::CaseDisplay;
 use super::case_display::preference_ids;
+use super::case_display::{ComponentModelSource, component_models_for_source};
 
 /// Reusable canvas header and view switch for the Keymap and Keycaps consumers.
 /// The page owner supplies guarded actions and the accepted shared view state.
@@ -472,19 +473,34 @@ pub(crate) fn CaseSharedViewer(
         | ViewerSource::Parts(_) => Vec::new(),
     };
     let assembly_layers = assembly_layers_with_stack(generated_layers, configured_stack_ids);
-    let (layout_source_active, layout_models) = match &source {
+    let (component_model_source, layout_models, parts_models) = match &source {
         ViewerSource::Layout(preview) => (
-            true,
+            ComponentModelSource::Layout,
+            preview
+                .lease
+                .matches(&preview.owner)
+                .then_some(preview.preview.models.as_slice()),
+            None,
+        ),
+        ViewerSource::Parts(preview) => (
+            ComponentModelSource::Parts,
+            None,
             preview
                 .lease
                 .matches(&preview.owner)
                 .then_some(preview.preview.models.as_slice()),
         ),
-        ViewerSource::Cad(_) | ViewerSource::Native(_) | ViewerSource::Parts(_) => (false, None),
+        ViewerSource::Cad(_) | ViewerSource::Native(_) => {
+            (ComponentModelSource::Physical, None, None)
+        }
     };
     let physical_models = matching_preview.map(|preview| preview.preview.models.as_slice());
-    let component_models =
-        component_models_for_source(layout_source_active, layout_models, physical_models);
+    let component_models = component_models_for_source(
+        component_model_source,
+        layout_models,
+        physical_models,
+        parts_models,
+    );
     let component_layers = component_models.map_or_else(Vec::new, |models| {
         physical_component_layers(models, matching_model_rows)
     });
@@ -549,18 +565,6 @@ enum ViewerSource {
     Native(Rc<NativePreviewSnapshot>),
     Layout(Rc<LayoutPreviewSnapshot>),
     Parts(Rc<crate::parts_preview::PartsPreviewSnapshot>),
-}
-
-fn component_models_for_source<'a>(
-    layout_source_active: bool,
-    layout_models: Option<&'a [boardstudio_core::model::PcbModel]>,
-    physical_models: Option<&'a [boardstudio_core::model::PcbModel]>,
-) -> Option<&'a [boardstudio_core::model::PcbModel]> {
-    if layout_source_active {
-        layout_models
-    } else {
-        physical_models
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -3842,50 +3846,6 @@ mod tests {
             ViewerCanvasContext::Keycaps
                 .accessible_name()
                 .contains("3D Keycaps board preview")
-        );
-    }
-
-    #[wasm_bindgen_test::wasm_bindgen_test]
-    fn component_rows_use_active_layout_models_without_falling_back_to_case_models() {
-        use boardstudio_core::model::{PcbModel, Pose2, Side, Vec2, Vec3};
-
-        fn model(id: &str, reference: &str) -> PcbModel {
-            PcbModel {
-                id: id.to_owned(),
-                reference: reference.to_owned(),
-                path: format!("models/{reference}.step"),
-                pose: Pose2 {
-                    at: Vec2 { x: 0.0, y: 0.0 },
-                    rotation: 0.0,
-                },
-                side: Side::Front,
-                offset: Vec3::default(),
-                rotation: Vec3::default(),
-                scale: Vec3 {
-                    x: 1.0,
-                    y: 1.0,
-                    z: 1.0,
-                },
-            }
-        }
-
-        let layout_models = [model("layout-switch", "SW1")];
-        let case_models = [model("case-switch", "SW1")];
-
-        assert_eq!(
-            component_models_for_source(true, Some(&layout_models), Some(&case_models))
-                .unwrap()
-                .iter()
-                .map(|model| model.id.as_str())
-                .collect::<Vec<_>>(),
-            ["layout-switch"]
-        );
-        assert!(component_models_for_source(true, None, Some(&case_models)).is_none());
-        assert_eq!(
-            component_models_for_source(false, Some(&layout_models), Some(&case_models)).unwrap()
-                [0]
-            .id,
-            "case-switch"
         );
     }
 }

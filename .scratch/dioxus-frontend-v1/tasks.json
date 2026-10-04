@@ -3761,7 +3761,7 @@
         "F3.2",
         "F6K.4"
       ],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
       "shared_edit_owner": "integration coordinator",
@@ -3942,7 +3942,19 @@
         "assessed_at": "2026-10-03T19:36:29+00:00",
         "coverage": "complete",
         "note": "Reconciled current source at requested HEAD and prior receipts; historical baseline notes are not treated as current defects."
-      }
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/astra-consolidation-review-20261004-f5-3-decision.json"
+      },
+      "status_history": [
+        {
+          "at": "2026-10-04T21:47:29.106753+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Independent Astra consolidation review verifies all five canonical criteria against attributable current evidence and accepted F4.2/F3.2/F6K.4 joins.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/astra-consolidation-review-20261004-f5-3-decision.json"
+        }
+      ]
     },
     {
       "id": "F5.4",
@@ -4964,7 +4976,7 @@
         "F5.2",
         "F8.2"
       ],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
@@ -4986,6 +4998,13 @@
           "from": "planned",
           "to": "implementing",
           "reason": "Reconcile verified mounted source/bounded evidence; preserve all parent acceptance criteria."
+        },
+        {
+          "at": "2026-10-04T21:10:10.106274+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Independent closure review maps all seven canonical criteria to attributable current evidence and verifies F5.2/F8.2 joins; broader release and unqualified compact-download limits retained.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/f6k4-closure-review-20261004-f6k-4-decision.json"
         }
       ],
       "progress_evidence": [
@@ -5201,7 +5220,10 @@
         "source_commit": "287cd2665f0ec1165ab0e3f8fb76ececdc0febc4",
         "assessed_at": "2026-10-03T20:18:15.523405+00:00",
         "coverage": "complete",
-        "note": "Split every independently decidable acceptance clause. Fixture-backed CW/CCW/Push and legacy-editor capability is present; baseline source still lacks the actual accepted F5 plan/fingerprint handoff. F5.2 and F8.2 remain the unchanged acceptance joins. Current F5 plan/fingerprint join implemented at 9f9085852c98f66ef37aa669359ab3f3e49306c5; public candidate qualification follows. Candidate 34777 qualifies the actual F5 handoff, reported push identities and paired ZMK source. Consolidated review approves C01/C04/C06; C05 negative outcomes and C07 remaining compact/recovery branches stay implemented."
+        "note": "Split every independently decidable acceptance clause. Fixture-backed CW/CCW/Push and legacy-editor capability is present; baseline source still lacks the actual accepted F5 plan/fingerprint handoff. F5.2 and F8.2 remain the unchanged acceptance joins. Current F5 plan/fingerprint join implemented at 9f9085852c98f66ef37aa669359ab3f3e49306c5; public candidate qualification follows. Candidate 34777 qualifies the actual F5 handoff, reported push identities and paired ZMK source. Consolidated review approves C01/C04/C06; C05 negative outcomes and C07 remaining compact/recovery branches stay implemented. Closure20261004: independent f6k4-closure-review-20261004.md reconciles the later C05/C07 evidence and exact accepted F5.2/F8.2 joins; all seven canonical functional criteria support acceptance. Earlier statements above remain historical."
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/f6k4-closure-review-20261004-f6k-4-decision.json"
       }
     },
     {
@@ -6527,7 +6549,7 @@
         {
           "id": "F7.3-C03",
           "requirement": "Support layer/model visibility, color changes and reset behavior.",
-          "state": "verified",
+          "state": "missing",
           "classification": "functional",
           "sources": [
             "web/src/presentation/shared_viewer.rs",
@@ -6536,10 +6558,11 @@
           ],
           "evidence": [
             ".scratch/dioxus-shared-viewer/evidence/issue02-case-pick-next-20261003/34762-native-preview-visibility.md",
-            ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md"
+            ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md",
+            ".scratch/dioxus-frontend-v1/evidence/parts-sample-public-20261004.md"
           ],
           "blockers": [],
-          "next_action": "Retain paired Plate selection→Inspector Colour/Reset, visible black change→default #b4bac2 reset and independent Hide/Show. Native picker automation did not qualify arbitrary hue; category/model visibility receipts retained. Control placement parity remains visual work.",
+          "next_action": "Repair reproduced Parts sample per-model visibility: MX switch sample on34821 exposes only aggregate Models while reference5175 exposes independently toggleable P1 · 47.stp and P1 · 43.stp. Retain earlier Case layer/color/reset evidence; native RED first, then page/wasm gate and focused public replay.",
           "finish_condition": "Public actions demonstrate assembly layer, individual model, color edit and reset without document edits.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",
@@ -6738,10 +6761,11 @@
           ],
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
-            ".scratch/dioxus-frontend-v1/evidence/parts-chooser-public-34739-20261002/RESULTS.md"
+            ".scratch/dioxus-frontend-v1/evidence/parts-chooser-public-34739-20261002/RESULTS.md",
+            ".scratch/dioxus-frontend-v1/evidence/parts-sample-public-20261004.md"
           ],
           "blockers": [],
-          "next_action": "Verify isolated Parts sample identity and canvas-failure/2D return together on current source; order/companions remain separately qualified.",
+          "next_action": "Current34821 paired MX sample reaches ready, camera/render controls, aggregate model toggle and 2D return with generator forms retained. Per-model rows need repair; sample scope/pick and renderer failure remain unqualified. Reuse existing isolated owner tests only with successful execution evidence.",
           "finish_condition": "Sample cannot mutate live project; renderer failure retains form and 2D access; retry remains only where existing provider/model retry supports it.",
           "owned_files": [
             "web/src/presentation/parts",
@@ -9459,8 +9483,8 @@
     "integration_slices": 2,
     "boundary_slices": 2,
     "status": {
-      "accepted": 20,
-      "implementing": 30,
+      "accepted": 22,
+      "implementing": 28,
       "planned": 11
     }
   },

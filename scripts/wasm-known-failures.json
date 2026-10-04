@@ -24,26 +24,6 @@
     "reason": "RF-033: fails in headless Chrome without the packaged generator/ergogen test harness (observed failing in module-isolated run)"
   },
   {
-    "test": "current_project_delete_cancel_and_confirm_use_the_observed_replacement_path",
-    "reason": "RF-033: presentation::library::mounted_tests fail headless ('expected 4 saved keyboard cards to load' / copy action menu assertion), also in isolation"
-  },
-  {
-    "test": "current_project_delete_sorts_remaining_records_by_stored_name",
-    "reason": "RF-033: presentation::library::mounted_tests fail headless ('expected 4 saved keyboard cards to load' / copy action menu assertion), also in isolation"
-  },
-  {
-    "test": "failed_current_project_replacement_keeps_the_record_and_dialog_available",
-    "reason": "RF-033: presentation::library::mounted_tests fail headless ('expected 4 saved keyboard cards to load' / copy action menu assertion), also in isolation"
-  },
-  {
-    "test": "project_menu_exposes_the_whole_project_copy_action",
-    "reason": "RF-033: presentation::library::mounted_tests fail headless ('expected 4 saved keyboard cards to load' / copy action menu assertion), also in isolation"
-  },
-  {
-    "test": "project_menu_name_draft_survives_unrelated_accepted_revision_and_commits_latest_document",
-    "reason": "RF-033: presentation::library::mounted_tests fail headless ('expected 4 saved keyboard cards to load' / copy action menu assertion), also in isolation"
-  },
-  {
     "test": "compact_inspector_preserves_the_page_scroll_route",
     "reason": "RF-033: asserts a compact (<=760px) viewport; needs a narrow-window webdriver.json, default headless window is wide"
   },

@@ -1,0 +1,22 @@
+{
+  "parent": "F5.3",
+  "reason": "Independent Astra consolidation review verifies all five canonical criteria against attributable current evidence and accepted F4.2/F3.2/F6K.4 joins.",
+  "review": ".scratch/dioxus-frontend-v1/evidence/astra-consolidation-review-20261004.md",
+  "review_sha256": "514ba7891dc078610f07c23cd46ae1d36f09c6cae38c8f0c8b85cb56b046f34b",
+  "criteria_accounting": {
+    "source_commit": "07b4c3466b1f388073e8e1f9d619b0703223d770",
+    "coverage": "complete",
+    "verified_criteria": [
+      "F5.3-C01",
+      "F5.3-C02",
+      "F5.3-C03",
+      "F5.3-C04",
+      "F5.3-C05"
+    ]
+  },
+  "accepted_joins": [
+    "F4.2",
+    "F3.2",
+    "F6K.4"
+  ]
+}

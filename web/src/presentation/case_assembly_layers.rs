@@ -399,20 +399,28 @@ mod tests {
             [("plate".into(), "Plate body".into())],
             ["battery".into(), "plate".into()],
         );
-        let components = vec![
-            CaseComponentLayer {
-                id: "switch-mesh-1".into(),
-                reference: "SW1".into(),
-                filename: "switch.step".into(),
-                availability: LayerAvailability::Available,
-            },
-            CaseComponentLayer {
-                id: "diode-mesh-1".into(),
-                reference: "D1".into(),
-                filename: "diode.step".into(),
-                availability: LayerAvailability::Unavailable("Missing model".into()),
-            },
+        let models = vec![
+            model("switch-mesh-1", "SW1", "models/switch.step"),
+            model("companion-mesh-1", "SW1", "models/companion.step"),
+            model("diode-mesh-1", "D1", "models/diode.step"),
         ];
+        let delivery = ModelDeliveryRows {
+            delivered: models[..2]
+                .iter()
+                .map(|model| DeliveredModel {
+                    id: model.id.clone(),
+                    mesh: Rc::new(ValidatedMesh {
+                        positions: Rc::from([0.0_f32; 9]),
+                        normals: Rc::from([0.0_f32; 9]),
+                        colors: None,
+                    }),
+                    matrix: None,
+                })
+                .collect(),
+            pending: Vec::new(),
+            failures: Vec::new(),
+        };
+        let components = physical_component_layers(&models, Some(&delivery));
         rsx! {
             CaseAssemblyLayers {
                 assembly,
@@ -424,6 +432,7 @@ mod tests {
                 on_display_change: move |next| display.set(next),
             }
             output { "aria-label": "Selected layer", "{selected_layer()}" }
+            output { "aria-label": "Hidden model ids", {display().hidden.join(",")} }
         }
     }
 
@@ -548,7 +557,7 @@ mod tests {
         document.body().unwrap().append_child(&root).unwrap();
         dioxus_web::launch::launch_virtual_dom(
             VirtualDom::new(layer_menu_composition),
-            dioxus_web::Config::new().rootnode(root.into()),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         rendered().await;
 
@@ -595,6 +604,16 @@ mod tests {
         );
         let hidden_component =
             element("#m1-case-assembly-layers-list [aria-label='Hide SW1 · switch.step']");
+        assert_eq!(
+            hidden_component.get_attribute("aria-pressed").as_deref(),
+            Some("true")
+        );
+        assert_eq!(
+            element("#m1-case-assembly-layers-list [aria-label='Hide SW1 · companion.step']")
+                .get_attribute("aria-pressed")
+                .as_deref(),
+            Some("true")
+        );
         hidden_component.click();
         rendered().await;
         assert_eq!(
@@ -602,6 +621,39 @@ mod tests {
                 .get_attribute("aria-pressed")
                 .as_deref(),
             Some("false")
+        );
+        assert_eq!(
+            element("#m1-case-assembly-layers-list [aria-label='Hide SW1 · companion.step']")
+                .get_attribute("aria-pressed")
+                .as_deref(),
+            Some("true"),
+            "hiding one model must keep its same-reference sibling visible"
+        );
+        assert_eq!(
+            element("#case-assembly-layer-test-root output[aria-label='Hidden model ids']")
+                .text_content()
+                .as_deref(),
+            Some("switch-mesh-1")
+        );
+        element("#m1-case-assembly-layers-list [aria-label='Show SW1 · switch.step']").click();
+        rendered().await;
+        assert_eq!(
+            element("#m1-case-assembly-layers-list [aria-label='Hide SW1 · switch.step']")
+                .get_attribute("aria-pressed")
+                .as_deref(),
+            Some("true")
+        );
+        assert_eq!(
+            element("#case-assembly-layer-test-root output[aria-label='Hidden model ids']")
+                .text_content()
+                .as_deref(),
+            Some("")
+        );
+        assert_eq!(
+            element("#m1-case-assembly-layers-list [aria-label='Hide SW1 · companion.step']")
+                .get_attribute("aria-pressed")
+                .as_deref(),
+            Some("true")
         );
         let unavailable =
             element("#m1-case-assembly-layers-list [aria-label='Show D1 · diode.step']");
@@ -617,7 +669,7 @@ mod tests {
         let event =
             web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event_init)
                 .unwrap();
-        element("#m1-case-assembly-layers-list [aria-label='Show SW1 · switch.step']")
+        element("#m1-case-assembly-layers-list [aria-label='Hide SW1 · switch.step']")
             .dispatch_event(&event)
             .unwrap();
         rendered().await;
@@ -628,5 +680,7 @@ mod tests {
             document.active_element().unwrap().id(),
             "m1-case-assembly-layers-trigger"
         );
+        root.remove();
+        stylesheet.remove();
     }
 }

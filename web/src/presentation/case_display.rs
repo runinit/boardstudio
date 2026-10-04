@@ -1,5 +1,29 @@
 use std::collections::BTreeMap;
 
+use boardstudio_core::model::PcbModel;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ComponentModelSource {
+    Layout,
+    Physical,
+    Parts,
+}
+
+/// Select component-layer models from the active viewer source. Layout never
+/// borrows physical-preview models when its own current projection is empty.
+pub(crate) fn component_models_for_source<'a>(
+    source: ComponentModelSource,
+    layout_models: Option<&'a [PcbModel]>,
+    physical_models: Option<&'a [PcbModel]>,
+    parts_models: Option<&'a [PcbModel]>,
+) -> Option<&'a [PcbModel]> {
+    match source {
+        ComponentModelSource::Layout => layout_models,
+        ComponentModelSource::Physical => physical_models,
+        ComponentModelSource::Parts => parts_models,
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct CaseDisplay {
     pub(crate) hidden: Vec<String>,
@@ -63,6 +87,96 @@ pub(crate) fn is_inspector_visible(display: &CaseDisplay, id: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn model(id: &str) -> PcbModel {
+        use boardstudio_core::model::{Pose2, Side, Vec2, Vec3};
+        PcbModel {
+            id: id.to_owned(),
+            reference: "SW1".to_owned(),
+            path: "models/SW1.step".to_owned(),
+            pose: Pose2 {
+                at: Vec2 { x: 0.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            offset: Vec3::default(),
+            rotation: Vec3::default(),
+            scale: Vec3 {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            },
+        }
+    }
+
+    #[test]
+    fn parts_component_layers_select_only_current_sample_models() {
+        let layout_models = [model("layout-switch")];
+        let sample_models = [
+            model("parts-sample-0-model-0"),
+            model("parts-sample-0-model-1"),
+        ];
+        let physical_models = [model("case-switch")];
+
+        let selected = component_models_for_source(
+            ComponentModelSource::Parts,
+            None,
+            None,
+            Some(&sample_models),
+        );
+
+        assert_eq!(
+            selected
+                .unwrap()
+                .iter()
+                .map(|model| model.id.as_str())
+                .collect::<Vec<_>>(),
+            ["parts-sample-0-model-0", "parts-sample-0-model-1"]
+        );
+        assert!(
+            component_models_for_source(
+                ComponentModelSource::Parts,
+                None,
+                Some(&physical_models),
+                None,
+            )
+            .is_none(),
+            "Parts must not fall back to physical Case models when its sample rows are absent"
+        );
+        assert_eq!(
+            component_models_for_source(
+                ComponentModelSource::Layout,
+                None,
+                Some(&physical_models),
+                Some(&sample_models),
+            ),
+            None,
+            "an active Layout source must not fall back to physical or Parts models"
+        );
+        assert_eq!(
+            component_models_for_source(
+                ComponentModelSource::Layout,
+                Some(&layout_models),
+                Some(&physical_models),
+                Some(&sample_models),
+            )
+            .unwrap()[0]
+                .id,
+            "layout-switch"
+        );
+        assert_eq!(
+            component_models_for_source(
+                ComponentModelSource::Physical,
+                Some(&layout_models),
+                Some(&physical_models),
+                Some(&sample_models),
+            )
+            .unwrap()[0]
+                .id,
+            "case-switch"
+        );
+    }
+
     #[test]
     fn pcb_color_reads_reference_alias_and_changes_or_resets_all_aliases() {
         let mut display = CaseDisplay::default();

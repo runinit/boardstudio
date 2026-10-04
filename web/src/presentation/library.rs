@@ -1072,7 +1072,7 @@ mod mounted_tests {
     async fn wait_for_saved_cards(root: &web_sys::Element, expected: u32) {
         for _ in 0..40 {
             if root
-                .query_selector_all(".m1-keyboard-card")
+                .query_selector_all(".m1-keyboard-card:not(.m1-demo-keyboard-card)")
                 .unwrap()
                 .length()
                 == expected
@@ -1889,6 +1889,7 @@ mod mounted_tests {
             "m1-project-current",
             "m1-library-content m1-library-scroll",
             "m1-project-menu-footer",
+            "m1-project-delete-dialog",
         ] {
             let child = menu_child.expect("expected direct menu child");
             assert_eq!(child.get_attribute("class").as_deref(), Some(expected));
@@ -1930,14 +1931,14 @@ mod mounted_tests {
         type_value(&search, "  sOfLe  ");
         settle().await;
         assert_eq!(
-            root.query_selector_all(".m1-keyboard-card")
+            root.query_selector_all(".m1-keyboard-card:not(.m1-demo-keyboard-card)")
                 .unwrap()
                 .length(),
             1,
             "trimmed case-insensitive search includes the current keyboard"
         );
         assert_eq!(
-            root.query_selector(".m1-keyboard-card .m1-keyboard-title")
+            root.query_selector(".m1-keyboard-card:not(.m1-demo-keyboard-card) .m1-keyboard-title")
                 .unwrap()
                 .unwrap()
                 .text_content()
@@ -1947,13 +1948,13 @@ mod mounted_tests {
         type_value(&search, "alpha");
         settle().await;
         assert_eq!(
-            root.query_selector_all(".m1-keyboard-card")
+            root.query_selector_all(".m1-keyboard-card:not(.m1-demo-keyboard-card)")
                 .unwrap()
                 .length(),
             1
         );
         assert_eq!(
-            root.query_selector(".m1-keyboard-card .m1-keyboard-title")
+            root.query_selector(".m1-keyboard-card:not(.m1-demo-keyboard-card) .m1-keyboard-title")
                 .unwrap()
                 .unwrap()
                 .text_content()
@@ -1963,13 +1964,13 @@ mod mounted_tests {
         type_value(&search, "untitled");
         settle().await;
         assert_eq!(
-            root.query_selector_all(".m1-keyboard-card")
+            root.query_selector_all(".m1-keyboard-card:not(.m1-demo-keyboard-card)")
                 .unwrap()
                 .length(),
             1
         );
         assert_eq!(
-            root.query_selector(".m1-keyboard-card .m1-keyboard-title")
+            root.query_selector(".m1-keyboard-card:not(.m1-demo-keyboard-card) .m1-keyboard-title")
                 .unwrap()
                 .unwrap()
                 .text_content()
@@ -1999,7 +2000,7 @@ mod mounted_tests {
         settle().await;
         assert_eq!(search.value(), "");
         assert_eq!(
-            root.query_selector_all(".m1-keyboard-card")
+            root.query_selector_all(".m1-keyboard-card:not(.m1-demo-keyboard-card)")
                 .unwrap()
                 .length(),
             4

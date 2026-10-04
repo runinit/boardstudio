@@ -1,0 +1,23 @@
+{
+  "parent": "F6K.4",
+  "reason": "Independent closure review maps all seven canonical criteria to attributable current evidence and verifies F5.2/F8.2 joins; broader release and unqualified compact-download limits retained.",
+  "review": ".scratch/dioxus-frontend-v1/evidence/f6k4-closure-review-20261004.md",
+  "review_sha256": "dfb748e6e0e5d54df66b50add82684dc7f407d5fcafaae130c730478afaef3e8",
+  "criteria_accounting": {
+    "source_commit": "287cd2665f0ec1165ab0e3f8fb76ececdc0febc4",
+    "coverage": "complete",
+    "verified_criteria": [
+      "F6K.4-C01",
+      "F6K.4-C02",
+      "F6K.4-C03",
+      "F6K.4-C04",
+      "F6K.4-C05",
+      "F6K.4-C06",
+      "F6K.4-C07"
+    ]
+  },
+  "accepted_joins": [
+    "F5.2",
+    "F8.2"
+  ]
+}
