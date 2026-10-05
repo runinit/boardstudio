@@ -65,6 +65,15 @@ surface and the space needed to recess it in the case.
 A local projection of the top case that supports a closure insert and can bring
 its threaded entrance closer to the bottom screw, separate from a gasket support.
 
+**Footprint generator**:
+A built-in parametric footprint identified by a stable source ID. It produces a
+component's pads, outline graphics, nets and 3D model placements from its
+generator parameters; it is not tied to any external tool's format or name.
+
+**Generator parameters**:
+The values saved for one footprint generator on a part definition or a placed
+part. Values not saved fall back to the generator's defaults.
+
 **Generated support placement**:
 A support position produced by the generator and not subsequently positioned or
 pinned by the user; it remains eligible for automatic placement repair.
