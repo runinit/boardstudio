@@ -9890,19 +9890,17 @@
         {
           "id": "F9.6-C02",
           "requirement": "Exact build/check/review provenance and cutover/rollback dry-run using copied data are reviewed.",
-          "state": "unassessed",
+          "state": "missing",
           "classification": "release",
           "sources": [
             ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md"
           ],
-          "evidence": [],
-          "blockers": [
-            "F9.1",
-            "F9.2",
-            "F9.4",
-            "F9.5"
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-f956-20261005-08/report.json",
+            ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-f956-20261005-08/proxy-requests.jsonl"
           ],
-          "next_action": "Prepare reproducible candidate provenance plus copied-data cutover and rollback dry-run after qualification gates.",
+          "blockers": [],
+          "next_action": "Repair demonstrated same-origin worker handoff: existing React /sw.js remains cache-first controlling after switch; candidate has no legacy worker update URL. Preserve both stores/caches and prove staged cutover plus rollback using copied archives. Candidate import not attempted while old shell remained.",
           "finish_condition": "Reviewed patch names exact provenance and demonstrates recoverable copied-data cutover/rollback.",
           "owned_files": [
             ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md"

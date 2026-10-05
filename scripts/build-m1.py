@@ -56,6 +56,10 @@ PAGE_ONLY_PROOF_PATHS = (
 PAGE_ONLY_MAIN_PATH = "web/src/main.rs"
 REUSE_HELPER_PATH = "scripts/build-m1.py"
 FIXTURE_PREPARATION_PATH = "scripts/prepare-m1-fixtures.mjs"
+OFFLINE_HANDOFF_BASELINE = (
+    "113d76fd43d2c2a25660af4e3ff51032c7082f08",
+    "2597f8a90a464e96b8c5442fb2f85454408e231b80152e47b2c1d344a5e1c5c7",
+)
 # The page-reuse guard changed in the full candidate at bbd4. Reuse remains
 # compatible with that exact full-build helper only when the baseline source
 # identity, source-manifest SHA-256, and Git blob identity all agree.
@@ -64,6 +68,10 @@ COMPATIBLE_FULL_BUILD_HELPERS = {
         "bbd4da1b7cc0609dd4ae6d8ec0332031b0690ea1",
         "f350570e89f57ade0ba87d0a891d84826b318f056fab4da518826d4a750f705f",
     ): "157c6222db575eeec7d30be1e72e45ba49fb7a22",
+    # This helper is byte-identical through 8fffe72c. The handoff change only
+    # adds freshly generated offline assets; inherited provider commands and
+    # inputs are unchanged and still checked below.
+    OFFLINE_HANDOFF_BASELINE: "ab802ca94231b51679345b06aa5a7c6eb1c9a4ca",
 }
 CORE_TEST_ONLY_PATHS = frozenset({"core/tests/electrical_wiring.rs"})
 # These standalone harnesses import this helper; candidate commands never execute
@@ -80,6 +88,7 @@ BUILD_TEST_ONLY_PATHS = frozenset({
     "scripts/test-run-wasm-tests.py",
     "scripts/run-wasm-tests.py",
     "scripts/wasm-test-owners.json",
+    "scripts/web/test-service-worker-handoff.mjs",
 })
 # The guard executes in the build CLI, so its exact source may change without
 # changing packaged providers. Keep this separate from verification-only files.
@@ -89,6 +98,13 @@ BUILD_CONTROL_ONLY_PATHS = frozenset({
     "scripts/migration-browser.py",
     "scripts/migration_snapshot.py",
     "scripts/migration_gate_receipts.py",
+    "scripts/web/stage-rollback.mjs",
+})
+# Executed afresh for both routes after provider reuse. These affect only the
+# new offline shell; their exact committed bytes remain in source provenance.
+FRESH_OFFLINE_PACKAGING_PATHS = frozenset({
+    "scripts/web/embed-worker-wasm.mjs",
+    "scripts/web/service-worker-handoff.js",
 })
 NON_PAGE_RUST_ALIASES = frozenset({"web/src/presentation/objects/layout_align_geometry.rs"})
 REUSED_PROVIDER_PREFIXES = (
@@ -1110,6 +1126,8 @@ def checked_baseline(build_id):
         raise ValueError("baseline command lineage is not the successful full-build sequence")
     if legacy_schema:
         helper_hash = provenance["sources"].get(REUSE_HELPER_PATH)
+        if (provenance["source_commit"], helper_hash) == OFFLINE_HANDOFF_BASELINE:
+            raise ValueError("offline handoff donor must include its page-check command")
         compatible_blob = COMPATIBLE_FULL_BUILD_HELPERS.get((provenance["source_commit"], helper_hash))
         if compatible_blob is None:
             raise ValueError("legacy baseline helper is neither unchanged nor the pinned compatible full-build helper")
@@ -1195,13 +1213,14 @@ def checked_baseline(build_id):
 
 
 def verified_reuse_helper(provenance, current_helper_hash, *, refresh_fixtures=False):
-    """Keep ordinary reuse unchanged; explicit refresh may use the pinned helper."""
+    """Allow only identical helpers or the two exact reviewed full-build pins."""
     source_commit = provenance["source_commit"]
     baseline_helper_hash = provenance["sources"].get(REUSE_HELPER_PATH)
     if not isinstance(baseline_helper_hash, str):
         raise ValueError("baseline source manifest is missing the guarded reuse helper")
-    compatible_blob = COMPATIBLE_FULL_BUILD_HELPERS.get((source_commit, baseline_helper_hash))
-    if compatible_blob is not None and refresh_fixtures:
+    identity = (source_commit, baseline_helper_hash)
+    compatible_blob = COMPATIBLE_FULL_BUILD_HELPERS.get(identity)
+    if compatible_blob is not None and (refresh_fixtures or identity == OFFLINE_HANDOFF_BASELINE):
         try:
             blob = subprocess.check_output(
                 ["git", "rev-parse", f"{source_commit}:{REUSE_HELPER_PATH}"],
@@ -1213,7 +1232,8 @@ def verified_reuse_helper(provenance, current_helper_hash, *, refresh_fixtures=F
             raise ValueError("compatible full-build helper source cannot be verified") from error
         if blob != compatible_blob:
             raise ValueError("compatible full-build helper Git identity differs")
-        compatibility = "pinned-bbd4-full-build-helper"
+        compatibility = ("pinned-113d-offline-packaging-helper" if identity == OFFLINE_HANDOFF_BASELINE
+                         else "pinned-bbd4-full-build-helper")
     elif baseline_helper_hash == current_helper_hash:
         try:
             baseline_bytes = subprocess.check_output(
@@ -1266,7 +1286,7 @@ def validate_reuse(build_id, baseline_id, *, refresh_fixtures=False):
         raise ValueError(f"page module graph is missing source-manifest inputs: {missing[:8]}")
     providers = set().union(*(set(paths) for paths in ownership["provider_rust_inputs"].values()))
     eligible = (PAGE_ONLY_ALLOWLIST | page_rust | test_rust | CORE_TEST_ONLY_PATHS | BUILD_TEST_ONLY_PATHS |
-                BUILD_CONTROL_ONLY_PATHS |
+                BUILD_CONTROL_ONLY_PATHS | FRESH_OFFLINE_PACKAGING_PATHS |
                 {PAGE_ONLY_MAIN_PATH, REUSE_HELPER_PATH}) - providers - NON_PAGE_RUST_ALIASES
     if refresh_fixtures:
         eligible |= {FIXTURE_PREPARATION_PATH}
@@ -1458,7 +1478,7 @@ def build_reuse(build_id, baseline_id, *, refresh_fixtures=False):
             shutil.copytree(output / "layout-generator-assets", assets, dirs_exist_ok=True)
             shutil.copytree(output / "preview-generator-assets", assets, dirs_exist_ok=True)
         manifest = output / f"offline-manifest-{mode}.json"
-        required = sorted({str(path.relative_to(destination)) for path in destination.rglob("*") if path.is_file()} | {"service-worker.js", "boardstudio_offline_worker.js"})
+        required = sorted({str(path.relative_to(destination)) for path in destination.rglob("*") if path.is_file()} | {"service-worker.js", "boardstudio_offline_worker.js", "sw.js"})
         manifest.write_text(json.dumps({"version": f"{build_id}-{mode}", "assets": required}, indent=2)+"\n")
         run(f"offline-worker-{mode}", ["wasm-pack", "build", WEB, "--target", "web", "--out-name", "boardstudio_offline_worker", "--out-dir", output / f"offline-{mode}", "--release", "--locked", "--no-default-features", "--features", "service-worker"], extra_env={"BOARDSTUDIO_OFFLINE_MANIFEST": str(manifest)})
         run(f"embed-offline-{mode}", ["node", REPO / "scripts/web/embed-worker-wasm.mjs", output / f"offline-{mode}", manifest, destination / "service-worker.js"])
@@ -1584,7 +1604,7 @@ def build_full(build_id):
         (assets / "core-worker/entry.js").write_text('import init, { start_core_worker } from "./m1_core_worker.js";\nawait init();\nstart_core_worker();\n')
         (assets / "cad-worker/entry.js").write_text('import init, { start_cad_worker } from "./m1_cad_worker.js";\nawait init();\nstart_cad_worker(new URL("../cad/boardstudio_cadrum_wasm.js", import.meta.url).href);\n')
         manifest = output / f"offline-manifest-{mode}.json"
-        required = sorted({str(path.relative_to(destination)) for path in destination.rglob("*") if path.is_file()} | {"service-worker.js", "boardstudio_offline_worker.js"})
+        required = sorted({str(path.relative_to(destination)) for path in destination.rglob("*") if path.is_file()} | {"service-worker.js", "boardstudio_offline_worker.js", "sw.js"})
         manifest.write_text(json.dumps({"version": f"{build_id}-{mode}", "assets": required}, indent=2)+"\n")
         run(f"offline-worker-{mode}", ["wasm-pack", "build", WEB, "--target", "web", "--out-name", "boardstudio_offline_worker", "--out-dir", output / f"offline-{mode}", "--release", "--locked", "--no-default-features", "--features", "service-worker"], extra_env={"BOARDSTUDIO_OFFLINE_MANIFEST": str(manifest)})
         run(f"embed-offline-{mode}", ["node", REPO / "scripts/web/embed-worker-wasm.mjs", output / f"offline-{mode}", manifest, destination / "service-worker.js"])

@@ -2907,6 +2907,38 @@
       "post_port_proposal": "Replace the hand-maintained #[path] mirror with a native-compilable controller layer.",
       "validation_needed": "For future controller extraction, demonstrate native reachability and preserve mounted DOM assertions. Keep nonzero native execution, page compilation, reachability and exact affected headless terminal outcomes enforced; receipt reuse requires exact source/config/tool identities.",
       "follow_up_owner": "Post-port frontend test architecture; delivery tooling maintains gate enforcement."
+    },
+    {
+      "id": "RF-034",
+      "title": "Frontend artifact switches leave the prior service worker controlling the shell",
+      "category": "release / service-worker handoff",
+      "confidence": "confirmed in same-origin copied-data browser rehearsal",
+      "impact_priority": "high",
+      "status": "Narrow candidate/rollback worker handoff implemented and independently reviewed; packaging regressions pass, actual repaired same-origin rehearsal pending",
+      "discovered": "2026-10-05",
+      "baseline": "candidate f956c0dfe9ec942cb79b9905565e9c404fb96732; reference 5a472a9426e6e38993361da402cd4ec730feb369",
+      "workflows": [
+        "F9.6",
+        "F9.7"
+      ],
+      "evidence": [
+        ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-f956-20261005-08/report.json",
+        ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-f956-20261005-08/proxy-requests.jsonl",
+        ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-repair.md",
+        ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-source-manifest.json",
+        ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
+      ],
+      "observation": "On one isolated same-origin profile, React /sw.js controlled the saved/reloaded copied project. Switching the server to exact candidate bytes and reloading retained the cached React shell. Candidate /sw.js returned 404; /service-worker.js was not requested. No storage/cache clearing or unregister was performed. Candidate import and reverse rollback were not reached.",
+      "impact": "Existing users cannot reach the new frontend through a normal artifact switch; reversing the two worker URLs may similarly need an explicit handoff, which remains to be tested.",
+      "during_port": "Provide the smallest attributable deployment handoff for the previous worker URL, preserve separate browser stores and cached data, then perform the actual copied-archive cutover/rollback rehearsal. Do not treat successful cross-origin archive exchange as a same-origin rollout result.",
+      "post_port_proposal": "Keep deployment worker URL/version ownership and frontend retirement as an explicit release compatibility contract. No general storage migration framework is proposed.",
+      "validation_needed": "Owning packaging regression plus controlled real browser transition from an active classic React worker to the candidate, actual copied-data save/reload/export and reverse transition/readback. Preserve both IndexedDB stores; archive import remains the compatibility boundary.",
+      "decision": "Required evidenced release repair; source author and sole independent reviewer assigned. No production deployment or retirement approval inferred.",
+      "follow_up_owner": "Migration release integration; deployment/offline worker ownership",
+      "linked_tasks": [
+        "F9.6",
+        "F9.7"
+      ]
     }
   ]
 }

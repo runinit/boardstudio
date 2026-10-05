@@ -1,11 +1,11 @@
 # Handoff (generated from records)
 
-- Branch: codex/rust-v1-ui-parity-20261001 @ f956c0df
+- Branch: codex/rust-v1-ui-parity-20261001 @ 8fffe72c
 - Worktree: /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001
 - Parents: 58/60 accepted, 1 implementing, 1 planned
-- Criteria: unassessed 3, missing 0, implemented 0, verified 218; 221 total
+- Criteria: unassessed 2, missing 1, implemented 0, verified 218; 221 total
   - functional: verified 181
-  - release: unassessed 3, verified 29
+  - release: missing 1, unassessed 2, verified 29
   - visual: verified 8
 
 ## Served candidate
@@ -35,11 +35,10 @@ Exact unmet final joins:
 - Hold (0): none
 
 ## Criteria on hold or blocked
-- F9.6-C02 [unassessed]: Prepare reproducible candidate provenance plus copied-data cutover and rollback dry-run after qualification gates.
 - F9.7-C01 [unassessed]: After the concrete F9.6 patch is reviewed, obtain explicit approval for actual cutover, then qualify launch/compatibility/critical journey.
 - F9.7-C02 [unassessed]: Retain React reference and rollback until adoption approval; retire only inventory-covered entrypoints after approved cutover.
 
-## Open RF findings (33)
+## Open RF findings (34)
 - RF-001: Shared presentation and Runtime are integration hotspots
 - RF-002: Internal browser host types are exposed as crate APIs
 - RF-003: CAD engine capabilities and host protocols drift apart
@@ -73,6 +72,7 @@ Exact unmet final joins:
 - RF-031: Mechanical profile targets and family defaults are split across presentation and controller rules
 - RF-032: PCB-coupled Case readiness prevents authored-body preview and STEP delivery
 - RF-033: 63 plain #[test]s in wasm-only presentation modules never run natively; one pre-existing mounted ...
+- RF-034: Frontend artifact switches leave the prior service worker controlling the shell
 
 ## Qualification scope
 - Scope: f86-integrated-project-export-20261005 - Paired six-workbench project-to-export journey
@@ -81,8 +81,10 @@ Exact unmet final joins:
 
 Last retro checkpoint: 2026-10-04T15:56:00Z
 
-Milestone: source f956c0df, immutable frontend-layout-pointer-cache-20261005 at34830. Independent review accepted F9.5 after actual five paired sessions: all30scenarios/100samples each meet33/50/100ms caps; median candidate p95 28.055/43.435/93.305ms. Source gates native248+1ignored, page, reachability, strict3WASM pass; exact receipts reused at guarded commit. No active performance/build job. Unrelated six staged entries preserved exactly.
+Latest milestone: 8fffe72c commits F9.5 performance acceptance, current 63-row inventory and reviewed RF reconciliation. Candidate remains immutable f956c0df at34830. All functional workflows are accepted; Undo/Redo qualification/repairs, mobile and accessibility remain excluded. Unrelated six staged entries in /tmp/case-layout-unrelated-index.json preserved.
 
-58/60 parents accepted; F9.6 implementing/F9.7 planned. C01 inventory reviewed and verified; authoritative tsx-inventory.json now has current63-row scoped responsibility mappings with stale prior fields preserved historically. No new product failure is inferred from old unassessed notes. Source/test deletion and excluded UndoRedo/mobile/a11y/visual checks are not claimed.
+F9.6-C02 now has a real same-origin release failure: run-f956-20261005-08 imported/saved/reloaded copied React project successfully, then artifact switch left old cache-first /sw.js controlling the React shell. Candidate /sw.js404; no /service-worker.js request. No candidate import or rollback attempted. RF-034 and pending_source_batch record the required repair. F9.6-C01/C03 verified; F9.7 remains separately approved adoption, not yet applied.
 
-case_local_export is executing required copied-data same-origin cutover/rollback rehearsal under evidence/f96-adoption-20261005/rehearsal only. React uses boardstudio-v2 store/active key and sw.js; Dioxus uses scoped boardstudio-m1 stores and service-worker.js. Archive transfer is the known compatibility boundary, no automatic IndexedDB migration. Preserve isolated profile/store/worker caches across controlled proxy switches to expose actual stale-shell problems; never preemptively unregister or clear. Source/publications unchanged; no external deploy. If natural worker transition fails, capture one realfailure before any repair. Sole reviewer preset_batch_review cleared performance/C01/entrypoint proposal; C03 final register independently CLEAR and criterion verified; C02 actual rehearsal remains. Default package/Pages patch is still unapplied; final explicit cutover approval remains separate. F95 acceptance/current inventory/RF notes and final measurement artifacts are uncommitted for next milestone. Rehearsal proxy HTTP framing and reference activation are corrected; preserve failed setup attempts as harness-only. Author now uses explicit imported-project readiness and must keep the session alive for selector recovery. No valid upstream switch has occurred yet.
+Source author migration_acceleration_review leases scripts/web/embed-worker-wasm.mjs, new service-worker-handoff.js, stage-rollback.mjs, test-service-worker-handoff.mjs, plus build-m1.py and affected test-build-m1-reuse.py manifest fixtures. Minimal candidate legacy-classic-worker handoff plus copied React rollback overlay; no store/cache clearing or original reference changes. Sole reviewer preset_batch_review confirmed minimum remedy and awaits settled diff. Root owns integration/package/publication.
+
+case_local_export owns rehearsal folder/continuation only. Existing isolated browser session f96-cutover-164703-3448630 remains alive; old proxy34831 owner Python3448630 was SIGKILLed after identity check without browser cleanup, freeing34831. Author verified the original browser controller/store/cache/project remain intact. Continuation will bind the same origin to new package/rollback endpoints, then actual forward→rollback→forward after publication. No new browser transitions before repair. Source candidate34830 and read-only reference5175 stay available.

@@ -1,0 +1,20 @@
+{
+  "base_commit": "8fffe72ca3adc1d5b1bcd7e65f1f7abf1ab08a79",
+  "files": {
+    "scripts/build-m1.py": "7fa8d20757b7fc720cd35ca153416db164701fea01c788678626f19743fa854a",
+    "scripts/test-build-m1-reuse.py": "d193955e6bb5b02449774c23f2ea65905868eef01201f6bf95ca6768c401b5de",
+    "scripts/web/embed-worker-wasm.mjs": "79d891ff442da4d6b3c5a1408edf5b0643a3706ea48b834cbd2a01026fadfccb",
+    "scripts/web/service-worker-handoff.js": "56fde6a4051d51765b715e968cc9b9cd0e8621aebcdc8060fe4d6041aa002e35",
+    "scripts/web/stage-rollback.mjs": "6371680d4e761d42d64e7460da1d4f47e970e082a678444fe45af3f3f4bde1e3",
+    "scripts/web/test-service-worker-handoff.mjs": "7b63db3348c7aa3b66f27e4ca16b82311f842104e568517d4359c3d0a711b951"
+  },
+  "source_inventory_includes_all_six": true,
+  "validation": {
+    "node_handoff_tests": "3/3 passed",
+    "python_reuse_tests": "41/41 passed",
+    "diff_check": "passed",
+    "py_compile": "passed"
+  },
+  "package_built": false,
+  "public_forward_rollback_forward": "pending coordinator rehearsal"
+}

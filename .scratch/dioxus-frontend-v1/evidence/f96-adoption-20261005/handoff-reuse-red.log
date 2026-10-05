@@ -1,0 +1,25 @@
+EE
+======================================================================
+ERROR: test_fresh_offline_packaging_inputs_keep_verified_providers_eligible (__main__.PageOnlyReuseTests.test_fresh_offline_packaging_inputs_keep_verified_providers_eligible)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/scripts/test-build-m1-reuse.py", line 997, in test_fresh_offline_packaging_inputs_keep_verified_providers_eligible
+    result = BUILD.validate_reuse("candidate", "full-fixture")
+  File "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/scripts/build-m1.py", line 1279, in validate_reuse
+    raise ValueError(f"changed inputs are outside page/test-only ownership: {disallowed}")
+ValueError: changed inputs are outside page/test-only ownership: ['scripts/web/embed-worker-wasm.mjs', 'scripts/web/service-worker-handoff.js', 'scripts/web/stage-rollback.mjs', 'scripts/web/test-service-worker-handoff.mjs']
+
+======================================================================
+ERROR: test_handoff_staging_accepts_only_exact_reviewed_full_donor_helper (__main__.PageOnlyReuseTests.test_handoff_staging_accepts_only_exact_reviewed_full_donor_helper)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/scripts/test-build-m1-reuse.py", line 1008, in test_handoff_staging_accepts_only_exact_reviewed_full_donor_helper
+    proof = BUILD.verified_reuse_helper(provenance, sha(b"new handoff packaging helper"))
+  File "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/scripts/build-m1.py", line 1230, in verified_reuse_helper
+    raise ValueError("baseline helper is neither unchanged nor the pinned compatible full-build helper")
+ValueError: baseline helper is neither unchanged nor the pinned compatible full-build helper
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.019s
+
+FAILED (errors=2)

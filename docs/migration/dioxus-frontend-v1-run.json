@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-05T16:46:06.756220+00:00",
+    "updated_at": "2026-10-05T17:05:02.650858+00:00",
     "parent_counts": {
       "accepted": 58,
       "implementing": 1,
@@ -583,7 +583,7 @@
       }
     ],
     "pending_join_packets": [],
-    "next_work": "Finish F9.6 actual same-origin copied-data cutover/rollback rehearsal and reviewed default-entrypoint/inventory/RF packet. Then request concrete production cutover approval and execute F9.7. Undo/Redo, mobile, accessibility and optional work remain excluded.",
+    "next_work": "Finish required same-origin worker handoff repair and copied-data cutover/rollback rehearsal, then obtain concrete adoption approval for F9.7.",
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
       "cadence": {
@@ -5209,6 +5209,53 @@
       "review": {
         "profile": "sol-review",
         "state": "pending"
+      },
+      "pending_source_batch": {
+        "id": "same-origin-worker-handoff-20261005",
+        "state": "independent review CLEAR; source gates complete; committing for required immutable package and public rehearsal",
+        "source_base": "8fffe72c",
+        "published_before_edits": "frontend-layout-pointer-cache-20261005",
+        "authors": [
+          {
+            "agent": "migration_acceleration_review",
+            "files": [
+              "scripts/web/embed-worker-wasm.mjs",
+              "scripts/web/service-worker-handoff.js",
+              "scripts/web/stage-rollback.mjs",
+              "scripts/web/test-service-worker-handoff.mjs",
+              "scripts/build-m1.py",
+              "scripts/test-build-m1-reuse.py"
+            ]
+          }
+        ],
+        "reviewer": "preset_batch_review",
+        "owned_files": [
+          "scripts/web/embed-worker-wasm.mjs",
+          "scripts/web/service-worker-handoff.js",
+          "scripts/web/stage-rollback.mjs",
+          "scripts/web/test-service-worker-handoff.mjs",
+          "scripts/build-m1.py",
+          "scripts/test-build-m1-reuse.py"
+        ],
+        "evidence": ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-f956-20261005-08/report.json",
+        "finish": [
+          "Provide compatible worker handoff at the former frontend worker URL without clearing browser stores or editing the pinned reference",
+          "Meaningful packaging RED/GREEN and one sole independent diff review; required affected gates only",
+          "Commit explicit settled source and publish attributable candidate while old candidate remains served",
+          "Actual same-origin copied-data cutover, save/reload/archive transfer and rollback; reuse unchanged workflow/performance evidence",
+          "Reconcile RF-034 and F9.6; explicit concrete production cutover approval remains separate"
+        ],
+        "frozen_source_hashes": {
+          "scripts/build-m1.py": "7fa8d20757b7fc720cd35ca153416db164701fea01c788678626f19743fa854a",
+          "scripts/test-build-m1-reuse.py": "d193955e6bb5b02449774c23f2ea65905868eef01201f6bf95ca6768c401b5de",
+          "scripts/web/embed-worker-wasm.mjs": "79d891ff442da4d6b3c5a1408edf5b0643a3706ea48b834cbd2a01026fadfccb",
+          "scripts/web/service-worker-handoff.js": "56fde6a4051d51765b715e968cc9b9cd0e8621aebcdc8060fe4d6041aa002e35",
+          "scripts/web/stage-rollback.mjs": "6371680d4e761d42d64e7460da1d4f47e970e082a678444fe45af3f3f4bde1e3",
+          "scripts/web/test-service-worker-handoff.mjs": "7b63db3348c7aa3b66f27e4ca16b82311f842104e568517d4359c3d0a711b951"
+        },
+        "focused_proof": ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-repair.md",
+        "gate_log": ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-integration-gates.log",
+        "review": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
       }
     },
     "delivery_priority": {

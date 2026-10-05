@@ -44,6 +44,13 @@ const wasm = Uint8Array.from(atob("${encoded}"), (character) => character.charCo
 initSync({ module: wasm });
 `;
 await fs.writeFile(outputPath, bootstrap);
+// Existing React installations update their classic `sw.js` registration before
+// the new page can register its module worker. A module-bootstrap alias cannot
+// serve that registration; stage the import-free deployment bridge instead.
+await fs.copyFile(
+  new URL("./service-worker-handoff.js", import.meta.url),
+  path.join(outputDirectory, "sw.js"),
+);
 console.log(
   JSON.stringify({
     version: manifest.version,

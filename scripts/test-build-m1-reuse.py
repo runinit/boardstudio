@@ -361,6 +361,7 @@ class PageOnlyReuseTests(TestCase):
                     out.parent.mkdir(parents=True, exist_ok=True)
                     out.write_text("service worker")
                     (out.parent / "boardstudio_offline_worker.js").write_text("offline js")
+                    (out.parent / "sw.js").write_text("classic handoff")
                 elif argv[0] == "pnpm" and "build:wasm" in argv:
                     out = root / "cad/wasm/pkg"
                     out.mkdir(parents=True, exist_ok=True)
@@ -917,6 +918,7 @@ fn CommandPill() -> Element {
                     (out_dir / "boardstudio_offline_worker.js").write_text("fresh offline worker")
                 elif argv[0] == "node" and Path(argv[1]).name == "embed-worker-wasm.mjs":
                     Path(argv[4]).write_text("fresh embedded worker")
+                    (Path(argv[4]).parent / "sw.js").write_text("classic handoff")
                 elif argv[0] == "cargo":
                     pass
                 else:
@@ -944,6 +946,8 @@ fn CommandPill() -> Element {
                 self.assertEqual(receipt[mode]["prefix"], prefix)
                 self.assertEqual(manifest["version"], f"candidate-{mode}")
                 self.assertIn("assets/boardstudio-web-current.js", manifest["assets"])
+                self.assertIn("sw.js", manifest["assets"])
+                self.assertEqual((site / "sw.js").read_text(), "classic handoff")
                 self.assertEqual((site / "assets/m1.css").read_bytes(), b"css after")
                 self.assertEqual((site / "service-worker.js").read_text(), "fresh embedded worker")
                 self.assertFalse((site / "assets/layout-generators/obsolete.js").exists())
@@ -974,6 +978,45 @@ fn CommandPill() -> Element {
                 current[path] = sha(head[path])
             with self._patches(self.mock_environment(root, {}, current, head)):
                 BUILD.validate_reuse("candidate", "full-fixture")
+
+    def test_fresh_offline_packaging_inputs_keep_verified_providers_eligible(self):
+        paths = (
+            "scripts/web/embed-worker-wasm.mjs",
+            "scripts/web/service-worker-handoff.js",
+            "scripts/web/stage-rollback.mjs",
+            "scripts/web/test-service-worker-handoff.mjs",
+        )
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.make_baseline(root)
+            current = {name: sha(body) for name, body in SOURCE_BYTES.items()}
+            head = dict(HEAD_BYTES)
+            for path in paths:
+                head[path] = b"fresh offline packaging input"
+                current[path] = sha(head[path])
+            with self._patches(self.mock_environment(root, {}, current, head)):
+                result = BUILD.validate_reuse("candidate", "full-fixture")
+                self.assertEqual(set(result[6]), set(paths))
+                self.assertTrue(set(paths).issubset(result[5]))
+
+    def test_handoff_staging_accepts_only_exact_reviewed_full_donor_helper(self):
+        provenance = {
+            "source_commit": "113d76fd43d2c2a25660af4e3ff51032c7082f08",
+            "sources": {BUILD.REUSE_HELPER_PATH: "2597f8a90a464e96b8c5442fb2f85454408e231b80152e47b2c1d344a5e1c5c7"},
+        }
+        blob = "ab802ca94231b51679345b06aa5a7c6eb1c9a4ca"
+        with patch.object(BUILD.subprocess, "check_output", return_value=blob):
+            proof = BUILD.verified_reuse_helper(provenance, sha(b"new handoff packaging helper"))
+            self.assertEqual(proof["compatibility"], "pinned-113d-offline-packaging-helper")
+            self.assertEqual(proof["baseline_git_blob"], blob)
+            altered_commit = {**provenance, "source_commit": "f" * 40}
+            altered_hash = {**provenance, "sources": {BUILD.REUSE_HELPER_PATH: "f" * 64}}
+            for invalid in (altered_commit, altered_hash):
+                with self.assertRaisesRegex(ValueError, "neither unchanged nor the pinned"):
+                    BUILD.verified_reuse_helper(invalid, sha(b"new handoff packaging helper"))
+        with patch.object(BUILD.subprocess, "check_output", return_value="f" * 40):
+            with self.assertRaisesRegex(ValueError, "Git identity differs"):
+                BUILD.verified_reuse_helper(provenance, sha(b"new handoff packaging helper"))
 
     def test_unrelated_script_change_is_not_build_control_only(self):
         path = "scripts/unrelated-build-script.py"
@@ -1047,6 +1090,7 @@ fn CommandPill() -> Element {
                     (out / "boardstudio_offline_worker.js").write_text("fresh offline worker")
                 elif argv[0] == "node" and Path(argv[1]).name == "embed-worker-wasm.mjs":
                     Path(argv[4]).write_text("fresh embedded worker")
+                    (Path(argv[4]).parent / "sw.js").write_text("classic handoff")
                 elif argv[0] == "cargo":
                     pass
                 else:
@@ -1135,6 +1179,7 @@ fn CommandPill() -> Element {
                         (output / "boardstudio_offline_worker.js").write_text("fresh worker")
                     elif argv[0] == "node" and Path(argv[1]).name == "embed-worker-wasm.mjs":
                         Path(argv[4]).write_text("fresh service worker")
+                        (Path(argv[4]).parent / "sw.js").write_text("classic handoff")
                         if "site-root" in argv[4]:
                             if mutation == "asset":
                                 (Path(base["root"]["site"]) / "assets/provider.js").write_text("tampered during build")

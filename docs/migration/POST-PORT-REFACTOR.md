@@ -3173,3 +3173,42 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
   "follow_up_owner": "Post-port frontend test architecture; delivery tooling maintains gate enforcement."
 }
 ```
+
+## RF-034: Frontend artifact switches leave the prior service worker controlling the shell
+
+**Status:** Narrow candidate/rollback worker handoff implemented and independently reviewed; packaging regressions pass, actual repaired same-origin rehearsal pending
+
+**Confidence:** confirmed in same-origin copied-data browser rehearsal
+
+**Observation:** On one isolated same-origin profile, React /sw.js controlled the saved/reloaded copied project. Switching the server to exact candidate bytes and reloading retained the cached React shell. Candidate /sw.js returned 404; /service-worker.js was not requested. No storage/cache clearing or unregister was performed. Candidate import and reverse rollback were not reached.
+
+**Impact:** Existing users cannot reach the new frontend through a normal artifact switch; reversing the two worker URLs may similarly need an explicit handoff, which remains to be tested.
+
+**Current mitigation:** Provide the smallest attributable deployment handoff for the previous worker URL, preserve separate browser stores and cached data, then perform the actual copied-archive cutover/rollback rehearsal. Do not treat successful cross-origin archive exchange as a same-origin rollout result.
+
+**Later proposal:** Keep deployment worker URL/version ownership and frontend retirement as an explicit release compatibility contract. No general storage migration framework is proposed.
+
+**Validation:** Owning packaging regression plus controlled real browser transition from an active classic React worker to the candidate, actual copied-data save/reload/export and reverse transition/readback. Preserve both IndexedDB stores; archive import remains the compatibility boundary.
+
+**Evidence:** `.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-f956-20261005-08/report.json`; `.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-f956-20261005-08/proxy-requests.jsonl`; `.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-repair.md`; `.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-source-manifest.json`; `.scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md`
+
+**Additional recorded details:**
+
+```json
+{
+  "category": "release / service-worker handoff",
+  "impact_priority": "high",
+  "discovered": "2026-10-05",
+  "baseline": "candidate f956c0dfe9ec942cb79b9905565e9c404fb96732; reference 5a472a9426e6e38993361da402cd4ec730feb369",
+  "workflows": [
+    "F9.6",
+    "F9.7"
+  ],
+  "decision": "Required evidenced release repair; source author and sole independent reviewer assigned. No production deployment or retirement approval inferred.",
+  "follow_up_owner": "Migration release integration; deployment/offline worker ownership",
+  "linked_tasks": [
+    "F9.6",
+    "F9.7"
+  ]
+}
+```
