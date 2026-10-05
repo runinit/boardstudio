@@ -1,18 +1,18 @@
 # Handoff (generated from records)
 
-- Branch: codex/rust-v1-ui-parity-20261001 @ af915dfc
+- Branch: codex/rust-v1-ui-parity-20261001 @ 6bb3d520
 - Worktree: /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001
-- Parents: 52/60 accepted, 2 implementing, 6 planned
-- Criteria: unassessed 16, missing 1, implemented 2, verified 202; 221 total
+- Parents: 53/60 accepted, 3 implementing, 4 planned
+- Criteria: unassessed 15, missing 1, implemented 1, verified 204; 221 total
   - functional: unassessed 3, verified 178
-  - release: implemented 2, missing 1, unassessed 11, verified 18
+  - release: implemented 1, missing 1, unassessed 10, verified 20
   - visual: unassessed 2, verified 6
 
 ## Served candidate
-- Build: frontend-case-findings-bounds-20261005
-- Source commit: c1d3f13c642380c6a95ce8ae317fd99e6743c04f
-- Root: http://127.0.0.1:34825/
-- Subpath: http://127.0.0.1:34825/boardstudio/
+- Build: frontend-layout-canvas-escape-20261005
+- Source commit: 6bb3d52024e898f0f4111baac9b84e307224b9e7
+- Root: http://127.0.0.1:34826/
+- Subpath: http://127.0.0.1:34826/boardstudio/
 
 ## Functional readiness
 - Ready functional criteria: 2 investigate, 0 implement, 0 qualify (Layout 0 investigate/0 implement/0 qualify; PCB 0 investigate/0 implement/0 qualify; Keymap 0 investigate/0 implement/0 qualify; Keycaps 0 investigate/0 implement/0 qualify; Case 0 investigate/0 implement/0 qualify; Parts+Project 0 investigate/0 implement/0 qualify; Shared 2 investigate/0 implement/0 qualify)
@@ -35,7 +35,7 @@ Exact unmet final joins:
   F9.5 → F9.2
 
 ## Parents
-- Accepted (52): INT.1, INT.2, BND.1, BND.2, F2.1, F2.2, F2.3, F2.4, F3.1, F3.2, F3.3, F3.4, F3.5, F3.6, F3.8, F4.1, F4.2, F4.3, F4.4, F4.5, F4.6, F5.1, F5.2, F5.3, F5.4, F5.5, F5.6, F5.7, F5.8, F6K.1, F6K.2, F6K.3, F6K.4, F6C.1, F6C.2, F6C.3, F6C.4, F6C.5, F6.6, F7.1, F7.2, F7.3, F7.4, F7.5, F7.6, F7.7, F7.8, F8.1, F8.2, F8.3, F8.4, F8.5
+- Accepted (53): INT.1, INT.2, BND.1, BND.2, F2.1, F2.2, F2.3, F2.4, F3.1, F3.2, F3.3, F3.4, F3.5, F3.6, F3.8, F4.1, F4.2, F4.3, F4.4, F4.5, F4.6, F5.1, F5.2, F5.3, F5.4, F5.5, F5.6, F5.7, F5.8, F6K.1, F6K.2, F6K.3, F6K.4, F6C.1, F6C.2, F6C.3, F6C.4, F6C.5, F6.6, F7.1, F7.2, F7.3, F7.4, F7.5, F7.6, F7.7, F7.8, F8.1, F8.2, F8.3, F8.4, F8.5, F9.1
 - Hold (0): none
 
 ## Criteria on hold or blocked
@@ -88,10 +88,20 @@ Exact unmet final joins:
 - RF-033: 63 plain #[test]s in wasm-only presentation modules never run natively; one pre-existing mounted ...
 
 ## Qualification scope
-- Scope: frontend-case-export-20261005 - Complete desktop Case generation and local export journey
-- Journeys: case-local-step-scope
+- Scope: f86-integrated-project-export-20261005 - Paired six-workbench project-to-export journey
+- Journeys: six-workbench-project-export
 - State: qualifying
 
 Last retro checkpoint: 2026-10-04T15:56:00Z
 
-2026-10-05: af915dfc contains reviewed saved-outline canvas Escape repair and qualification milestone. Root gate terminal0: native247/1ignored, wasm page/reachability, headless12/12 without exclusions. Current34825c1d3 remains live; build next immutable candidate from committed HEAD using FULL donor frontend-case-layout-controls-20261005, then replay changed Escape branch with retained integrated-layout-c1d3 r15 archive. F5.8 accepted, F3.7 pending public Escape GREEN/review. Six unrelated staged entries preserved in /tmp/case-layout-unrelated-index.json. Accessibility/F9.3 excluded; no axe/AT/semantic-only work. Parallel case_local_export owns tsx-inventory.json and f91-inventory-20261005 evidence; sole reviewer preset_batch_review. Root retains integration/commit/browser/build ownership.
+2026-10-05 current checkpoint: HEAD6bb3d520; sourcefixaf915dfc repairs focused canvas Escape editor exit. Published frontend-layout-canvas-escape-20261005 at34826, serverPID3203620, 129.22s package/1409sourceentries0mismatch. Native247/1ignored/page/reachability/headless12 passed and exactreceipts reused atcommit. PCB F5.8 and inventory F9.1 accepted. F3.7 was accepted then explicitly REOPENED on actual fractional saved-document contradiction; correctiondecision retained at evidence/layout-point-precision-20261005/f3-7-correction-decision.json (progress set-status rejects all accepted transitions; coordinator recorded explicit correction/history without changingtool).
+
+PrecisionRED: sameexactc476r15 input candidate-import-only copy byteidentical. Public OutlineEdited1→Editpoints→point2click→standaloneShift onpoint (NOTarrow)→Escape→Save yields candidate r16X-8.238 versus original/reference r15X-8.2375. Only candidate revision+pointX changed. Repeat onalreadyroundedpoint staysr16, so repeated no-op doesn't explain extraF8revision. Actualarchives/comparison/receipt in evidence/layout-point-precision-20261005. Reviewer preset_batch_review confirmed. layout_escape_repair owns ONLY outline_lifecycle.rs + outline_lifecycle_browser_tests.rs, fractional meaningful mountedRED/fix/GREEN authorized; tests nowedited, no rootcompiler. If productionowneroutsidelease needed, askroot exactfile. Do not claim mountedintegernonmutation proves fractionalcase.
+
+F8 sameproject journey recorded in evidence/f86-integrated-20261005: identicalcandidateeditedr15 importedreference; candidatehadpriorpointinteractionr16. Column1X2→3, PartsNPTHJ1placed+explicitX60/Y-40, PCBResolve matching diode-directionerror (noApply), MainSW1 KeypressA, KeycapslegendRUN, authoredplate thenConfiguremechanicalstack. Candidate exact/current; reference authoredmaterialmissing is knownacceptedF8.5difference, generatedmechanical4parts currentr23. ActualExportready rowsonboth, candidateportedarchive r25 vsreference23; no generatedpackage output yet. Bothjoinedarchives downloaded/copied and6assetsidentical, newJ1/bodyidmapping leaves20rawdiffs in archive-comparison.json: realpointprecisionbug, orphanPLA vsmissingmaterialId preserved, emptygeneratorParameters vsmissing, ~1e-14floats, revision+2. Oneextra revisionattributedpoint; case_local_export read-only tracingremaining1 in revision-attribution.md only. Do not inventcause. Snapshot/layout/selectionbranches retained; F8 criteria remainunassessed/holduntilF3fix and currentoutputs/portable-roundtrip/returnnavigation. Existing reuse-map independentlyCLEAR for owner/snapshot/race/URL/theme/keyboard boundaries; no newfaultmatrix. Export afterbrowserreload correctlyrequiresCasecurrentgeneration again.
+
+Browserbinding browser valid, often tabs disappear after unrelated agentcompletion despite markHandoff; use browser.tabs.list/new only, nevergetForUrl again for stalestabs. Actualsaved state survives. CurrentprecisionTab34826lastusedr16roundedproject, reference5175r15 aftersameaction; fullF8states safelydownloaded. Nodevars escapeFS, f86Evidence, precisionEvidence, f86Steps hold evidencepaths/checkpoints; no hiddenstate. Download waiter avoided because hangs; actualnormalSaveclick and newattributed Downloads files are retained. Latest files Sofle v2(10)candidateF8,(11)referenceF8,(12)import-only,(13)candidateEscape,(14)referenceEscape,(15)candidateRepeat. Allcopiedinevidence. Preserve six unrelatedindexentries snapshot /tmp/case-layout-unrelated-index.json. Do notadd-A. Milestonepostpublication/status/inventory/F8/precision evidenceuncommitted; combine nextrequiredsourcecommit afterreview/gates. Accessibility/F9.3/mobile/optionalworkexcluded.
+
+Latest author checkpoint: meaningful fractional mounted RED nowCONFIRMED via existing Runtime take_layout_component_inspector_test_events observer. The InspectorProbe mock records events thenreturns (runtime.rs1859); snapshotdoesnotmutate bydesign, so earlierpointerharnesspasses were invalid fornonmutation. Author nowstores initialclientcoords andskips finalpointer sampleonlyforzero-motionclick; preserve actual pointerupdisplacement evenwithoutintermediatemove and pendingdragsettlement. One targeteddisplacedpointerup assertion approvedfornewrisk. NoRootcompiler; authorGREEN/affectedmodulepending. Publicbug actualpoint2 -8.2375→-8.238; syntheticfixture RED endpointdiffers dueviewport but proves samezero-motioneditcontract, labelhonestly. Rootreviewer preset_batch_review awaitssettledsource; earlierF3correctionendorsed. F8extra1revision stillunattributed afterboundedsourcecheck (revision-attribution.md); bothConfigurepathsoneedit. Afterrepair freshsameinputcomposition shouldcapture peractioncandidateSavecopyrevision andreference main[data-revision], withoutnewtesthooks. ExistingF8partialflow/actions preservedincheckpointJSON andjoinedarchives; no generatedpackage wasdownloaded yet.
+
+Precision source frozen/review CLEAR; lifecycleSHA d88b54f350a4966c2a3197ed742e846982458055d77647c8478181dba6c7a6cd, browserSHA2580227086b0e73d61e8bc8d2c5a66287b070eed19b365ddd5123a37686b130c. Author meaningful event RED is explicitly a retained output transcription; GREEN1/1 and affected13/13. Combined coordinator gate terminal0 native247/1ignored,page,reachability,strictheadless13/13, exactreceipts retained precision/combined-gates.json. Source no-motion pointerup skips resample; displaced pointerup and pendingrealdrag preserved. F3.7 stays open until packaged actualsameinput savedcopy exactr15/X-8.2375. Commit explicit manifest /tmp/layout-point-precision-commit-paths.json includes owned milestone records and pendingF8/F91 evidence; sixunrelated indexentries preserved.

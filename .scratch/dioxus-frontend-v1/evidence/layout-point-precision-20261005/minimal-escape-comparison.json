@@ -1,0 +1,34 @@
+{
+  "candidate-import-only": {
+    "sha256": "c476fcaf16a9150b11221427620047c55d4ad11d293315b7c56d45bd7f8b4cbe",
+    "revision": 15,
+    "point2": {
+      "x": -8.2375,
+      "y": -13.0
+    }
+  },
+  "candidate-after-escape": {
+    "sha256": "b38e2edebecde440cd231fdad2d79044055133a08c54d6614561ccb298c6893a",
+    "revision": 16,
+    "point2": {
+      "x": -8.238,
+      "y": -13.0
+    }
+  },
+  "reference-after-escape": {
+    "sha256": "66b3fca328d1711145961f4d1c8b79fe6567c40fc44c2f735e7ede81e5f0df45",
+    "revision": 15,
+    "point2": {
+      "x": -8.2375,
+      "y": -13
+    }
+  },
+  "candidate-repeat-after-escape": {
+    "sha256": "b38e2edebecde440cd231fdad2d79044055133a08c54d6614561ccb298c6893a",
+    "revision": 16,
+    "point2": {
+      "x": -8.238,
+      "y": -13.0
+    }
+  }
+}

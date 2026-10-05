@@ -3061,6 +3061,7 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
 #[derive(Clone)]
 struct PointDrag {
     pointer_id: i32,
+    start_client: (i32, i32),
     point_index: usize,
     points: Vec<Vec2>,
     pending: Vec<Vec2>,
@@ -3178,11 +3179,11 @@ pub(super) fn OutlinePointCanvasOverlay(
         let runtime = runtime.0.clone();
         let arbiter = arbiter.clone();
         let snap_inputs = snap_inputs.clone();
-        move |commit: bool, final_at: Option<Vec2>, free: bool| {
+        move |commit: bool, final_at: Option<Vec2>, final_displaced: bool, free: bool| {
             let Some(mut active) = drag.borrow_mut().take() else {
                 return;
             };
-            if let Some(at) = final_at {
+            if (active.moved || final_displaced) && let Some(at) = final_at {
                 apply_point_sample(&mut active, at, &snap_inputs, free);
             }
             preview.set(None);
@@ -3329,6 +3330,7 @@ pub(super) fn OutlinePointCanvasOverlay(
                                 let transaction_id = format!("outline-drag-{}", down_runtime.operation().0);
                                 *down_drag.borrow_mut() = Some(PointDrag {
                                     pointer_id: pointer.pointer_id(), point_index: index,
+                                    start_client: (pointer.client_x(), pointer.client_y()),
                                     points: down_points.clone(), pending: down_points.clone(), preview_points: down_canvas_points.clone(), original_world: down_canvas_points[index],
                                     target: down_target.clone(), anchor: point_anchor, action_context: down_context.clone(), transaction_id,
                                     capture, snap: None, preview_submitted: false, moved: false,
@@ -3359,17 +3361,21 @@ pub(super) fn OutlinePointCanvasOverlay(
                             },
                             onpointerup: move |event: PointerEvent| {
                                 let Some(pointer) = event.data().try_as_web_event() else { return; };
+                                let final_displaced = up_drag.borrow().as_ref().is_some_and(|drag| {
+                                    drag.pointer_id == pointer.pointer_id()
+                                        && drag.start_client != (pointer.client_x(), pointer.client_y())
+                                });
                                 if !up_drag.borrow().as_ref().is_some_and(|drag| drag.pointer_id == pointer.pointer_id()) { return; }
                                 pointer.stop_propagation();
                                 let at = super::coordinates(&up_svg, &pointer, view_x, view_y, width, height);
-                                pointerup_commit(true, at, pointer.alt_key());
+                                pointerup_commit(true, at, final_displaced, pointer.alt_key());
                             },
-                            onpointercancel: move |_| cancel_commit(false, None, false),
-                            onlostpointercapture: move |_| lost_capture_commit(false, None, false),
+                            onpointercancel: move |_| cancel_commit(false, None, false, false),
+                            onlostpointercapture: move |_| lost_capture_commit(false, None, false, false),
                             onkeydown: move |event: KeyboardEvent| {
                                 let Some(key) = event.data().try_as_web_event() else { return; };
                                 if key.key() == "Escape" && key_drag.borrow().is_some() {
-                                    key.prevent_default(); key.stop_propagation(); key_commit(false, None, false); return;
+                                    key.prevent_default(); key.stop_propagation(); key_commit(false, None, false, false); return;
                                 }
                                 if key.key() == "Escape" {
                                     key.prevent_default();

@@ -1,0 +1,12 @@
+Focused RED (runner output excerpt; command and failure captured from the headless run)
+
+Command:
+python3 scripts/migration-deliver.py focused-test -- wasm-pack test --headless --chrome --mode no-install web --no-default-features --features page --bin boardstudio-web -- mounted_fixed_outline_point_click_and_escape_preserve_fractional_geometry
+
+Result before the production guard:
+test presentation::outline_lifecycle::browser_tests::mounted_fixed_outline_point_click_and_escape_preserve_fractional_geometry ... FAIL
+
+The mounted production overlay emitted one Runtime-observed commit for pointerdown/up at the same client coordinates:
+Edit { command: EditCommand { base_revision: 11, transaction_id: "outline-drag-1", phase: Commit, target_ids: ["outline-points-board", "fixed-contour"], operation: SetOutline { feature: Polygon { points: [(-13, 13), (-9.525, 13), (13, -13), (13, 13)] } } } }
+
+This is the expected RED: a no-motion click submitted a geometry edit. The mounted fixture's test Runtime records submitted Events and does not apply them to its accepted snapshot; this test therefore asserts the owning event boundary, not persistence. The retained public archive comparison independently demonstrates the persisted -8.2375 -> -8.238 regression.

@@ -46,7 +46,20 @@
               "F9"
             ],
             "planned_dioxus_owner": "coordinator-owned web/src/presentation.rs and web/src/runtime.rs composition"
-          }
+          },
+          "lead_workflow": "INT",
+          "shared_consumers": [
+            "F2",
+            "F3",
+            "F4",
+            "F5",
+            "F6",
+            "F7",
+            "F8",
+            "F9"
+          ],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/ProjectLibrary.tsx",
@@ -60,7 +73,11 @@
             "lead_workflow": "F2",
             "shared_consumers": [],
             "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules"
-          }
+          },
+          "lead_workflow": "F2",
+          "shared_consumers": [],
+          "coverage_disposition": "inventory_only: no Dioxus parity or completion is claimed; behavior remains open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/ProjectStart.tsx",
@@ -74,7 +91,11 @@
             "lead_workflow": "F2",
             "shared_consumers": [],
             "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules"
-          }
+          },
+          "lead_workflow": "F2",
+          "shared_consumers": [],
+          "coverage_disposition": "inventory_only: no Dioxus parity or completion is claimed; behavior remains open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/SetupChoice.tsx",
@@ -88,7 +109,11 @@
             "lead_workflow": "F2",
             "shared_consumers": [],
             "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules"
-          }
+          },
+          "lead_workflow": "F2",
+          "shared_consumers": [],
+          "coverage_disposition": "inventory_only: no Dioxus parity or completion is claimed; behavior remains open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/SetupGuide.tsx",
@@ -102,7 +127,11 @@
             "lead_workflow": "F2",
             "shared_consumers": [],
             "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules"
-          }
+          },
+          "lead_workflow": "F2",
+          "shared_consumers": [],
+          "coverage_disposition": "inventory_only: no Dioxus parity or completion is claimed; behavior remains open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/Workbench.tsx",
@@ -129,7 +158,20 @@
               "F9"
             ],
             "planned_dioxus_owner": "coordinator-owned web/src/presentation.rs and web/src/runtime.rs composition"
-          }
+          },
+          "lead_workflow": "INT",
+          "shared_consumers": [
+            "F2",
+            "F3",
+            "F4",
+            "F5",
+            "F6",
+            "F7",
+            "F8",
+            "F9"
+          ],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/WorkbenchIcons.tsx",
@@ -143,7 +185,11 @@
             "lead_workflow": "F2",
             "shared_consumers": [],
             "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules"
-          }
+          },
+          "lead_workflow": "F2",
+          "shared_consumers": [],
+          "coverage_disposition": "inventory_only: no Dioxus parity or completion is claimed; behavior remains open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/WorkflowNavigation.tsx",
@@ -157,7 +203,11 @@
             "lead_workflow": "F2",
             "shared_consumers": [],
             "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules"
-          }
+          },
+          "lead_workflow": "F2",
+          "shared_consumers": [],
+          "coverage_disposition": "inventory_only: no Dioxus parity or completion is claimed; behavior remains open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/WorkspacePanel.tsx",
@@ -171,14 +221,18 @@
             "lead_workflow": "F2",
             "shared_consumers": [],
             "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules"
-          }
+          },
+          "lead_workflow": "F2",
+          "shared_consumers": [],
+          "coverage_disposition": "inventory_only: no Dioxus parity or completion is claimed; behavior remains open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         }
       ],
       "tests": [
         "app/src/ui/ProjectLibrary.test.tsx"
       ],
       "exit_criteria": [
-        "Paired React/Dioxus screenshots and DOM review at desktop and compact sizes; six-tab order plus separate Export action and active/focus state match; placeholder tabs have no document side effects; no new axe violations and manual keyboard/focus checks pass."
+        "Paired React/Dioxus screenshots and DOM review at desktop sizes; six-tab order plus separate Export action and active/focus state match; placeholder tabs have no document side effects; manual keyboard/focus checks pass."
       ],
       "shared_tsx_dependencies": [],
       "migration_status": "not fully ported; assess per-component parity against the Dioxus candidate during baseline capture",
@@ -205,7 +259,11 @@
             "lead_workflow": "F3",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
-          }
+          },
+          "lead_workflow": "F3",
+          "shared_consumers": [],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/CanvasObjects.tsx",
@@ -223,7 +281,11 @@
             "lead_workflow": "F3",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
-          }
+          },
+          "lead_workflow": "F3",
+          "shared_consumers": [],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/CommandMenu.tsx",
@@ -244,7 +306,18 @@
               "F8"
             ],
             "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules"
-          }
+          },
+          "lead_workflow": "F2",
+          "shared_consumers": [
+            "F3",
+            "F4",
+            "F5",
+            "F6",
+            "F7",
+            "F8"
+          ],
+          "coverage_disposition": "inventory_only: no Dioxus parity or completion is claimed; behavior remains open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/ConstraintEditor.tsx",
@@ -261,7 +334,11 @@
             "lead_workflow": "F3",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
-          }
+          },
+          "lead_workflow": "F3",
+          "shared_consumers": [],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/ExistingHalfSetup.tsx",
@@ -277,7 +354,11 @@
             "lead_workflow": "F3",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
-          }
+          },
+          "lead_workflow": "F3",
+          "shared_consumers": [],
+          "coverage_disposition": "inventory_only: no Dioxus parity or completion is claimed; behavior remains open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/FindingList.tsx",
@@ -300,7 +381,16 @@
               "F8"
             ],
             "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
-          }
+          },
+          "lead_workflow": "F3",
+          "shared_consumers": [
+            "F5",
+            "F6",
+            "F7",
+            "F8"
+          ],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/InspectorControls.tsx",
@@ -321,7 +411,18 @@
               "F8"
             ],
             "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules"
-          }
+          },
+          "lead_workflow": "F2",
+          "shared_consumers": [
+            "F3",
+            "F4",
+            "F5",
+            "F6",
+            "F7",
+            "F8"
+          ],
+          "coverage_disposition": "inventory_only: no Dioxus parity or completion is claimed; behavior remains open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/InspectorSection.tsx",
@@ -342,7 +443,18 @@
               "F8"
             ],
             "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules"
-          }
+          },
+          "lead_workflow": "F2",
+          "shared_consumers": [
+            "F3",
+            "F4",
+            "F5",
+            "F6",
+            "F7",
+            "F8"
+          ],
+          "coverage_disposition": "inventory_only: no Dioxus parity or completion is claimed; behavior remains open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/MatrixInspector.tsx",
@@ -359,7 +471,11 @@
             "lead_workflow": "F3",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
-          }
+          },
+          "lead_workflow": "F3",
+          "shared_consumers": [],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/MatrixInspectorPanel.tsx",
@@ -376,7 +492,11 @@
             "lead_workflow": "F3",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
-          }
+          },
+          "lead_workflow": "F3",
+          "shared_consumers": [],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/MatrixSetupPreview.tsx",
@@ -392,7 +512,11 @@
             "lead_workflow": "F3",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
-          }
+          },
+          "lead_workflow": "F3",
+          "shared_consumers": [],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/MirroredPairSetup.tsx",
@@ -408,7 +532,11 @@
             "lead_workflow": "F3",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
-          }
+          },
+          "lead_workflow": "F3",
+          "shared_consumers": [],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/OutlineControlOverlay.tsx",
@@ -425,7 +553,11 @@
             "lead_workflow": "F3",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
-          }
+          },
+          "lead_workflow": "F3",
+          "shared_consumers": [],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/OutlineDraftPreview.tsx",
@@ -442,7 +574,11 @@
             "lead_workflow": "F3",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
-          }
+          },
+          "lead_workflow": "F3",
+          "shared_consumers": [],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/OutlineFeatureEditor.tsx",
@@ -459,7 +595,11 @@
             "lead_workflow": "F3",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
-          }
+          },
+          "lead_workflow": "F3",
+          "shared_consumers": [],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/OutlineInspector.tsx",
@@ -476,7 +616,11 @@
             "lead_workflow": "F3",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
-          }
+          },
+          "lead_workflow": "F3",
+          "shared_consumers": [],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/OutlineSnapGuides.tsx",
@@ -493,7 +637,11 @@
             "lead_workflow": "F3",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
-          }
+          },
+          "lead_workflow": "F3",
+          "shared_consumers": [],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/OutlineTools.tsx",
@@ -510,7 +658,11 @@
             "lead_workflow": "F3",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
-          }
+          },
+          "lead_workflow": "F3",
+          "shared_consumers": [],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/WorkbenchLayers.tsx",
@@ -526,7 +678,11 @@
             "lead_workflow": "F3",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
-          }
+          },
+          "lead_workflow": "F3",
+          "shared_consumers": [],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/WorkbenchTree.tsx",
@@ -543,7 +699,11 @@
             "lead_workflow": "F3",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
-          }
+          },
+          "lead_workflow": "F3",
+          "shared_consumers": [],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/useOutlineEditor.tsx",
@@ -560,7 +720,11 @@
             "lead_workflow": "F3",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
-          }
+          },
+          "lead_workflow": "F3",
+          "shared_consumers": [],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/useScriptEditor.tsx",
@@ -576,17 +740,20 @@
             "lead_workflow": "F3",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
-          }
+          },
+          "lead_workflow": "F3",
+          "shared_consumers": [],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         }
       ],
       "tests": [
         "app/src/ui/OutlineControlOverlay.test.tsx",
-        "app/src/ui/Workbench.performance.test.tsx",
         "app/src/ui/WorkbenchLayers.test.tsx",
         "app/src/ui/useWorkbenchNavigation.test.tsx"
       ],
       "exit_criteria": [
-        "Matched blank, REVIUNG and Sofle traces for create/select/move/edit/snap/mirror/outline/findings/undo/redo/reload; geometry and visible states match; pointer, keyboard and compact-layout checks pass."
+        "Matched blank, REVIUNG and Sofle traces for create/select/move/edit/snap/mirror/outline/findings/undo/redo/reload; geometry and visible states match; pointer and keyboard checks pass."
       ],
       "shared_tsx_dependencies": [],
       "migration_status": "not fully ported; assess per-component parity against the Dioxus candidate during baseline capture",
@@ -610,7 +777,11 @@
             "lead_workflow": "F4",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules"
-          }
+          },
+          "lead_workflow": "F4",
+          "shared_consumers": [],
+          "coverage_disposition": "inventory_only: no Dioxus parity or completion is claimed; behavior remains open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/Ergogen2DPreview.tsx",
@@ -626,7 +797,11 @@
             "lead_workflow": "F4",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules"
-          }
+          },
+          "lead_workflow": "F4",
+          "shared_consumers": [],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/GeneratorFields.tsx",
@@ -640,7 +815,11 @@
             "lead_workflow": "F4",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules"
-          }
+          },
+          "lead_workflow": "F4",
+          "shared_consumers": [],
+          "coverage_disposition": "inventory_only: no Dioxus parity or completion is claimed; behavior remains open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/InputProfileEditor.tsx",
@@ -657,7 +836,14 @@
               "F6"
             ],
             "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules"
-          }
+          },
+          "lead_workflow": "F4",
+          "shared_consumers": [
+            "F5",
+            "F6"
+          ],
+          "coverage_disposition": "inventory_only: no Dioxus parity or completion is claimed; behavior remains open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/LibraryWorkspace.tsx",
@@ -671,7 +857,11 @@
             "lead_workflow": "F4",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules"
-          }
+          },
+          "lead_workflow": "F4",
+          "shared_consumers": [],
+          "coverage_disposition": "inventory_only: no Dioxus parity or completion is claimed; behavior remains open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/ModuleInspector.tsx",
@@ -688,7 +878,14 @@
               "F7"
             ],
             "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules"
-          }
+          },
+          "lead_workflow": "F4",
+          "shared_consumers": [
+            "F5",
+            "F7"
+          ],
+          "coverage_disposition": "inventory_only: no Dioxus parity or completion is claimed; behavior remains open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/ModulePreview.tsx",
@@ -705,7 +902,14 @@
               "F7"
             ],
             "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules"
-          }
+          },
+          "lead_workflow": "F4",
+          "shared_consumers": [
+            "F5",
+            "F7"
+          ],
+          "coverage_disposition": "inventory_only: no Dioxus parity or completion is claimed; behavior remains open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/ModuleProfileEditor.tsx",
@@ -719,7 +923,11 @@
             "lead_workflow": "F4",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules"
-          }
+          },
+          "lead_workflow": "F4",
+          "shared_consumers": [],
+          "coverage_disposition": "inventory_only: no Dioxus parity or completion is claimed; behavior remains open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/PartMechanicalProfileEditor.tsx",
@@ -733,7 +941,11 @@
             "lead_workflow": "F4",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules"
-          }
+          },
+          "lead_workflow": "F4",
+          "shared_consumers": [],
+          "coverage_disposition": "inventory_only: no Dioxus parity or completion is claimed; behavior remains open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/PartsInspectorPanel.tsx",
@@ -747,7 +959,11 @@
             "lead_workflow": "F4",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules"
-          }
+          },
+          "lead_workflow": "F4",
+          "shared_consumers": [],
+          "coverage_disposition": "inventory_only: no Dioxus parity or completion is claimed; behavior remains open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/PartsLibrary.tsx",
@@ -761,13 +977,18 @@
             "lead_workflow": "F4",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules"
-          }
+          },
+          "lead_workflow": "F4",
+          "shared_consumers": [],
+          "coverage_disposition": "inventory_only: no Dioxus parity or completion is claimed; behavior remains open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         }
       ],
       "tests": [
         "app/src/ui/Ergogen2DPreview.test.tsx",
         "app/src/ui/libraryDisplay.test.tsx",
-        "app/src/ui/partsCatalog.test.tsx"
+        "app/src/ui/partsCatalog.test.tsx",
+        "app/src/ui/Workbench.performance.test.tsx"
       ],
       "exit_criteria": [
         "Search/create/import/preview/place traces match React; same asset identities and roundtrip; attribution plus loading/empty/error states verified."
@@ -800,7 +1021,11 @@
             "lead_workflow": "F5",
             "shared_consumers": [],
             "planned_dioxus_owner": "private PCB/wiring/modules/hardware/reference presentation modules"
-          }
+          },
+          "lead_workflow": "F5",
+          "shared_consumers": [],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/HardwareInstancesPanel.tsx",
@@ -820,7 +1045,13 @@
               "F7"
             ],
             "planned_dioxus_owner": "private PCB/wiring/modules/hardware/reference presentation modules"
-          }
+          },
+          "lead_workflow": "F5",
+          "shared_consumers": [
+            "F7"
+          ],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/HardwareReadiness.tsx",
@@ -841,7 +1072,14 @@
               "F7"
             ],
             "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules"
-          }
+          },
+          "lead_workflow": "F4",
+          "shared_consumers": [
+            "F5",
+            "F7"
+          ],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/ModulePcbOverlay.tsx",
@@ -860,7 +1098,11 @@
             "lead_workflow": "F5",
             "shared_consumers": [],
             "planned_dioxus_owner": "private PCB/wiring/modules/hardware/reference presentation modules"
-          }
+          },
+          "lead_workflow": "F5",
+          "shared_consumers": [],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/WiringPanel.tsx",
@@ -877,7 +1119,11 @@
             "lead_workflow": "F5",
             "shared_consumers": [],
             "planned_dioxus_owner": "private PCB/wiring/modules/hardware/reference presentation modules"
-          }
+          },
+          "lead_workflow": "F5",
+          "shared_consumers": [],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/usePcbWorkspace.tsx",
@@ -896,7 +1142,11 @@
             "lead_workflow": "F5",
             "shared_consumers": [],
             "planned_dioxus_owner": "private PCB/wiring/modules/hardware/reference presentation modules"
-          }
+          },
+          "lead_workflow": "F5",
+          "shared_consumers": [],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         }
       ],
       "tests": [
@@ -945,7 +1195,13 @@
               "F9.6/F9.7 cutover and retirement gates"
             ],
             "reference_retained": true
-          }
+          },
+          "lead_workflow": "F6",
+          "shared_consumers": [
+            "F5"
+          ],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/KeyBindingEditor.tsx",
@@ -972,7 +1228,11 @@
               "F9.6/F9.7 cutover and retirement gates"
             ],
             "reference_retained": true
-          }
+          },
+          "lead_workflow": "F6",
+          "shared_consumers": [],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/KeySizeControls.tsx",
@@ -1002,7 +1262,13 @@
               "F9.6/F9.7 cutover and retirement gates"
             ],
             "reference_retained": true
-          }
+          },
+          "lead_workflow": "F6",
+          "shared_consumers": [
+            "F3"
+          ],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/KeycapPanel.tsx",
@@ -1031,7 +1297,11 @@
               "F9.6/F9.7 cutover and retirement gates"
             ],
             "reference_retained": true
-          }
+          },
+          "lead_workflow": "F6",
+          "shared_consumers": [],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/KeymapLayout.tsx",
@@ -1060,7 +1330,11 @@
               "F9.6/F9.7 cutover and retirement gates"
             ],
             "reference_retained": true
-          }
+          },
+          "lead_workflow": "F6",
+          "shared_consumers": [],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/KeymapPanel.tsx",
@@ -1094,7 +1368,11 @@
               "F9.6/F9.7 cutover and retirement gates"
             ],
             "reference_retained": true
-          }
+          },
+          "lead_workflow": "F6",
+          "shared_consumers": [],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/createKeymapWorkspace.tsx",
@@ -1123,7 +1401,11 @@
               "F9.6/F9.7 cutover and retirement gates"
             ],
             "reference_retained": true
-          }
+          },
+          "lead_workflow": "F6",
+          "shared_consumers": [],
+          "coverage_disposition": "partial_port: only the row acceptance and evidence listed here are attributed; remaining behavior stays open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         }
       ],
       "tests": [],
@@ -1156,7 +1438,15 @@
               "F6"
             ],
             "planned_dioxus_owner": "private common viewer and Case presentation/host modules"
-          }
+          },
+          "lead_workflow": "F7",
+          "shared_consumers": [
+            "F3",
+            "F4",
+            "F6"
+          ],
+          "coverage_disposition": "inventory_only: no Dioxus parity or completion is claimed; behavior remains open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/AssemblyViewer.tsx",
@@ -1174,7 +1464,15 @@
               "F6"
             ],
             "planned_dioxus_owner": "private common viewer and Case presentation/host modules"
-          }
+          },
+          "lead_workflow": "F7",
+          "shared_consumers": [
+            "F3",
+            "F4",
+            "F6"
+          ],
+          "coverage_disposition": "inventory_only: no Dioxus parity or completion is claimed; behavior remains open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/CaseChoice.tsx",
@@ -1188,7 +1486,11 @@
             "lead_workflow": "F7",
             "shared_consumers": [],
             "planned_dioxus_owner": "private common viewer and Case presentation/host modules"
-          }
+          },
+          "lead_workflow": "F7",
+          "shared_consumers": [],
+          "coverage_disposition": "inventory_only: no Dioxus parity or completion is claimed; behavior remains open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/CaseGenerationControls.tsx",
@@ -1202,7 +1504,11 @@
             "lead_workflow": "F7",
             "shared_consumers": [],
             "planned_dioxus_owner": "private common viewer and Case presentation/host modules"
-          }
+          },
+          "lead_workflow": "F7",
+          "shared_consumers": [],
+          "coverage_disposition": "inventory_only: no Dioxus parity or completion is claimed; behavior remains open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/CaseInspectorPanel.tsx",
@@ -1216,7 +1522,11 @@
             "lead_workflow": "F7",
             "shared_consumers": [],
             "planned_dioxus_owner": "private common viewer and Case presentation/host modules"
-          }
+          },
+          "lead_workflow": "F7",
+          "shared_consumers": [],
+          "coverage_disposition": "inventory_only: no Dioxus parity or completion is claimed; behavior remains open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/MechanicalAssemblyPanel.tsx",
@@ -1230,7 +1540,11 @@
             "lead_workflow": "F7",
             "shared_consumers": [],
             "planned_dioxus_owner": "private common viewer and Case presentation/host modules"
-          }
+          },
+          "lead_workflow": "F7",
+          "shared_consumers": [],
+          "coverage_disposition": "inventory_only: no Dioxus parity or completion is claimed; behavior remains open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/ModelPreviewBoundary.tsx",
@@ -1247,7 +1561,14 @@
               "F6"
             ],
             "planned_dioxus_owner": "private common viewer and Case presentation/host modules"
-          }
+          },
+          "lead_workflow": "F7",
+          "shared_consumers": [
+            "F4",
+            "F6"
+          ],
+          "coverage_disposition": "inventory_only: no Dioxus parity or completion is claimed; behavior remains open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         },
         {
           "path": "app/src/ui/useCaseWorkspace.tsx",
@@ -1261,7 +1582,11 @@
             "lead_workflow": "F7",
             "shared_consumers": [],
             "planned_dioxus_owner": "private common viewer and Case presentation/host modules"
-          }
+          },
+          "lead_workflow": "F7",
+          "shared_consumers": [],
+          "coverage_disposition": "inventory_only: no Dioxus parity or completion is claimed; behavior remains open",
+          "test_disposition": "Milestone React tests are listed under this milestone and in verification_tsx; they are retained reference/tests, not an assertion of row-complete coverage unless row-specific evidence says so."
         }
       ],
       "tests": [
@@ -1299,12 +1624,12 @@
       ]
     },
     {
-      "id": "08-crosscutting-theme-accessibility-and-cutover",
+      "id": "08-crosscutting-theme-and-cutover",
       "group": "crosscutting",
       "production_tsx": [],
       "tests": [],
       "exit_criteria": [
-        "All production TSX has Dioxus counterpart and is absent from production; every mode passes theme/responsive/keyboard/screen-reader/axe checks; parity/build and dependency reachability pass; tests/bench retained only as deliberate dev tooling."
+        "Desktop theme, keyboard/focus/Escape, production parity/build and dependency reachability are tracked by their owning workflow receipts; cutover and React retirement remain open until separately approved."
       ],
       "shared_tsx_dependencies": [
         "app/src/ui/Workbench.tsx (shared navigation, panels, responsive frame)",
@@ -1315,7 +1640,8 @@
         "F1",
         "F2",
         "F9"
-      ]
+      ],
+      "scope_disposition": "Accessibility/axe/assistive-technology qualification and mobile/compact qualification are excluded by the 2026-10-05 user scope update; historical artifacts are not passes."
     }
   ],
   "verification_tsx": [
@@ -1323,37 +1649,79 @@
       "path": "app/src/ui/AssemblyScene.mounts.test.tsx",
       "kind": "test",
       "primary_milestone": "06-case-and-3d",
-      "role": "AssemblyScene"
+      "role": "AssemblyScene",
+      "disposition": "retained_react_reference; no Rust test-port claim is made by this inventory; any accepted Dioxus behavior is separately cited in the production row or workflow receipt, and uncovered behavior remains open.",
+      "lead_workflow": "F7",
+      "shared_consumers": [
+        "F8"
+      ],
+      "state": "retained React verification/oracle; no Dioxus test-port completion is claimed",
+      "test_disposition": "retained_react_reference; no Rust test-port claim is made by this inventory; any accepted Dioxus behavior is separately cited in the production row or workflow receipt, and uncovered behavior remains open."
     },
     {
       "path": "app/src/ui/AssemblyScene.test.tsx",
       "kind": "test",
       "primary_milestone": "06-case-and-3d",
-      "role": "AssemblyScene"
+      "role": "AssemblyScene",
+      "disposition": "retained_react_reference; no Rust test-port claim is made by this inventory; any accepted Dioxus behavior is separately cited in the production row or workflow receipt, and uncovered behavior remains open.",
+      "lead_workflow": "F7",
+      "shared_consumers": [
+        "F8"
+      ],
+      "state": "retained React verification/oracle; no Dioxus test-port completion is claimed",
+      "test_disposition": "retained_react_reference; no Rust test-port claim is made by this inventory; any accepted Dioxus behavior is separately cited in the production row or workflow receipt, and uncovered behavior remains open."
     },
     {
       "path": "app/src/ui/Ergogen2DPreview.test.tsx",
       "kind": "test",
       "primary_milestone": "03-parts-library",
-      "role": "Ergogen2DPreview"
+      "role": "Ergogen2DPreview",
+      "disposition": "retained_react_reference; no Rust test-port claim is made by this inventory; any accepted Dioxus behavior is separately cited in the production row or workflow receipt, and uncovered behavior remains open.",
+      "lead_workflow": "F4",
+      "shared_consumers": [
+        "F5"
+      ],
+      "state": "retained React verification/oracle; no Dioxus test-port completion is claimed",
+      "test_disposition": "retained_react_reference; no Rust test-port claim is made by this inventory; any accepted Dioxus behavior is separately cited in the production row or workflow receipt, and uncovered behavior remains open."
     },
     {
       "path": "app/src/ui/MechanicalAssemblyPanel.test.tsx",
       "kind": "test",
       "primary_milestone": "06-case-and-3d",
-      "role": "MechanicalAssembly panel"
+      "role": "MechanicalAssembly panel",
+      "disposition": "retained_react_reference; no Rust test-port claim is made by this inventory; any accepted Dioxus behavior is separately cited in the production row or workflow receipt, and uncovered behavior remains open.",
+      "lead_workflow": "F7",
+      "shared_consumers": [
+        "F8"
+      ],
+      "state": "retained React verification/oracle; no Dioxus test-port completion is claimed",
+      "test_disposition": "retained_react_reference; no Rust test-port claim is made by this inventory; any accepted Dioxus behavior is separately cited in the production row or workflow receipt, and uncovered behavior remains open."
     },
     {
       "path": "app/src/ui/MechanicalAssemblyPending.test.tsx",
       "kind": "test",
       "primary_milestone": "06-case-and-3d",
-      "role": "MechanicalAssemblyPending"
+      "role": "MechanicalAssemblyPending",
+      "disposition": "retained_react_reference; no Rust test-port claim is made by this inventory; any accepted Dioxus behavior is separately cited in the production row or workflow receipt, and uncovered behavior remains open.",
+      "lead_workflow": "F7",
+      "shared_consumers": [
+        "F8"
+      ],
+      "state": "retained React verification/oracle; no Dioxus test-port completion is claimed",
+      "test_disposition": "retained_react_reference; no Rust test-port claim is made by this inventory; any accepted Dioxus behavior is separately cited in the production row or workflow receipt, and uncovered behavior remains open."
     },
     {
       "path": "app/src/ui/ModelPreviewBoundary.test.tsx",
       "kind": "test",
       "primary_milestone": "06-case-and-3d",
-      "role": "ModelPreviewBoundary"
+      "role": "ModelPreviewBoundary",
+      "disposition": "retained_react_reference; no Rust test-port claim is made by this inventory; any accepted Dioxus behavior is separately cited in the production row or workflow receipt, and uncovered behavior remains open.",
+      "lead_workflow": "F7",
+      "shared_consumers": [
+        "F8"
+      ],
+      "state": "retained React verification/oracle; no Dioxus test-port completion is claimed",
+      "test_disposition": "retained_react_reference; no Rust test-port claim is made by this inventory; any accepted Dioxus behavior is separately cited in the production row or workflow receipt, and uncovered behavior remains open."
     },
     {
       "path": "app/src/ui/ModulePcbOverlay.test.tsx",
@@ -1367,7 +1735,15 @@
         ".scratch/dioxus-pcb-view/evidence/24-module-source-route-20261003/receipt.md",
         ".scratch/dioxus-frontend-v1/evidence/pcb-clearance-scope-20261005/RECEIPT.md"
       ],
-      "disposition": "retained_react_oracle: SSR source geometry, flipped layers, independent visibility, holes/standoffs; receipts are bounded evidence, not a Rust test port."
+      "disposition": "retained_react_oracle: SSR source geometry, flipped layers, independent visibility, holes/standoffs; receipts are bounded evidence, not a Rust test port.",
+      "lead_workflow": "F5",
+      "shared_consumers": [
+        "F4",
+        "F6",
+        "F7"
+      ],
+      "state": "retained React verification/oracle; no Dioxus test-port completion is claimed",
+      "test_disposition": "retained_react_oracle: SSR source geometry, flipped layers, independent visibility, holes/standoffs; receipts are bounded evidence, not a Rust test port."
     },
     {
       "path": "app/src/ui/OutlineControlOverlay.test.tsx",
@@ -1379,25 +1755,43 @@
         ".scratch/dioxus-layout-authoring/evidence/f34d-perimeter-paired-20261003/README.md",
         ".scratch/dioxus-frontend-v1/evidence/layout-escape-repair-20261005.md"
       ],
-      "disposition": "retained_react_oracle: bounded paired snap/drag/cancel/nudge/point-removal behavior; no Rust test-port claim."
+      "disposition": "retained_react_oracle: bounded paired snap/drag/cancel/nudge/point-removal behavior; no Rust test-port claim.",
+      "lead_workflow": "F3",
+      "shared_consumers": [
+        "F2",
+        "F4",
+        "F5",
+        "F6",
+        "F7"
+      ],
+      "state": "retained React verification/oracle; no Dioxus test-port completion is claimed",
+      "test_disposition": "retained_react_oracle: bounded paired snap/drag/cancel/nudge/point-removal behavior; no Rust test-port claim."
     },
     {
       "path": "app/src/ui/ProjectLibrary.test.tsx",
       "kind": "test",
       "primary_milestone": "01-shell-project-and-topbar",
-      "role": "ProjectLibrary"
+      "role": "ProjectLibrary",
+      "disposition": "retained_react_reference; no Rust test-port claim is made by this inventory; any accepted Dioxus behavior is separately cited in the production row or workflow receipt, and uncovered behavior remains open.",
+      "lead_workflow": "F2",
+      "shared_consumers": [
+        "F1"
+      ],
+      "state": "retained React verification/oracle; no Dioxus test-port completion is claimed",
+      "test_disposition": "retained_react_reference; no Rust test-port claim is made by this inventory; any accepted Dioxus behavior is separately cited in the production row or workflow receipt, and uncovered behavior remains open."
     },
     {
       "path": "app/src/ui/Workbench.performance.test.tsx",
       "kind": "test",
-      "primary_milestone": "02-layout-tree-inspector-and-tools",
-      "role": "Workbench",
+      "primary_milestone": "03-parts-library",
+      "role": "Parts catalogue cache characterization (Workbench harness)",
       "dioxus_owner": "web/src/presentation/parts.rs; web/src/presentation/parts/catalogue.rs",
-      "evidence": [
-        ".scratch/dioxus-frontend-v1/evidence/layout-grouped-20261004/RECEIPT.md",
-        ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/layout/RESULTS.md"
-      ],
-      "disposition": "retained_react_oracle: test is catalogue caching across document updates, not Layout performance; F3.7-C06 is separate."
+      "evidence": [],
+      "disposition": "retained_react_oracle: catalogue caching across document updates; no Rust test-port or Layout performance claim. No directly applicable Dioxus cache receipt is asserted here.",
+      "lead_workflow": "F4",
+      "shared_consumers": [],
+      "state": "retained React verification/oracle; no Dioxus test-port completion is claimed",
+      "test_disposition": "retained_react_oracle: test is catalogue caching across document updates, not Layout performance; F3.7-C06 is separate."
     },
     {
       "path": "app/src/ui/WorkbenchLayers.test.tsx",
@@ -1408,19 +1802,43 @@
       "evidence": [
         ".scratch/dioxus-frontend-v1/evidence/layout-layers/handoff.md"
       ],
-      "disposition": "retained_react_oracle: F3a geometry/layer characterization."
+      "disposition": "retained_react_oracle: F3a geometry/layer characterization.",
+      "lead_workflow": "F3",
+      "shared_consumers": [
+        "F2",
+        "F4",
+        "F5",
+        "F6",
+        "F7"
+      ],
+      "state": "retained React verification/oracle; no Dioxus test-port completion is claimed",
+      "test_disposition": "retained_react_oracle: F3a geometry/layer characterization."
     },
     {
       "path": "app/src/ui/libraryDisplay.test.tsx",
       "kind": "test",
       "primary_milestone": "03-parts-library",
-      "role": "libraryDisplay"
+      "role": "libraryDisplay",
+      "disposition": "retained_react_reference; no Rust test-port claim is made by this inventory; any accepted Dioxus behavior is separately cited in the production row or workflow receipt, and uncovered behavior remains open.",
+      "lead_workflow": "F4",
+      "shared_consumers": [
+        "F5"
+      ],
+      "state": "retained React verification/oracle; no Dioxus test-port completion is claimed",
+      "test_disposition": "retained_react_reference; no Rust test-port claim is made by this inventory; any accepted Dioxus behavior is separately cited in the production row or workflow receipt, and uncovered behavior remains open."
     },
     {
       "path": "app/src/ui/partsCatalog.test.tsx",
       "kind": "test",
       "primary_milestone": "03-parts-library",
-      "role": "partsCatalog"
+      "role": "partsCatalog",
+      "disposition": "retained_react_reference; no Rust test-port claim is made by this inventory; any accepted Dioxus behavior is separately cited in the production row or workflow receipt, and uncovered behavior remains open.",
+      "lead_workflow": "F4",
+      "shared_consumers": [
+        "F5"
+      ],
+      "state": "retained React verification/oracle; no Dioxus test-port completion is claimed",
+      "test_disposition": "retained_react_reference; no Rust test-port claim is made by this inventory; any accepted Dioxus behavior is separately cited in the production row or workflow receipt, and uncovered behavior remains open."
     },
     {
       "path": "app/src/ui/useWorkbenchNavigation.test.tsx",
@@ -1432,13 +1850,30 @@
         ".scratch/dioxus-frontend-v1/evidence/layout-f31-acceptance-20261003/DECISION.json",
         ".scratch/dioxus-frontend-v1/evidence/layout-camera-f36c01-20261004/RECEIPT.md"
       ],
-      "disposition": "retained_react_oracle: navigation/camera state only, not the integrated F3.7 journey."
+      "disposition": "retained_react_oracle: navigation/camera state only, not the integrated F3.7 journey.",
+      "lead_workflow": "F3",
+      "shared_consumers": [
+        "F2",
+        "F4",
+        "F5",
+        "F6",
+        "F7"
+      ],
+      "state": "retained React verification/oracle; no Dioxus test-port completion is claimed",
+      "test_disposition": "retained_react_oracle: navigation/camera state only, not the integrated F3.7 journey."
     },
     {
       "path": "app/src/useCaseGeneration.live.test.tsx",
       "kind": "test",
       "primary_milestone": "06-case-and-3d",
-      "role": "use CaseGeneration.live"
+      "role": "use CaseGeneration.live",
+      "disposition": "retained_react_reference; no Rust test-port claim is made by this inventory; any accepted Dioxus behavior is separately cited in the production row or workflow receipt, and uncovered behavior remains open.",
+      "lead_workflow": "F7",
+      "shared_consumers": [
+        "F8"
+      ],
+      "state": "retained React verification/oracle; no Dioxus test-port completion is claimed",
+      "test_disposition": "retained_react_reference; no Rust test-port claim is made by this inventory; any accepted Dioxus behavior is separately cited in the production row or workflow receipt, and uncovered behavior remains open."
     }
   ],
   "bench_tsx": [
@@ -1446,7 +1881,14 @@
       "path": "app/src/bench-workbench.tsx",
       "kind": "benchmark_harness",
       "primary_milestone": "02-layout-tree-inspector-and-tools",
-      "role": "Workbench benchmark/demo harness; port only if retained in Rust UI test/demo harness, never production."
+      "role": "Workbench benchmark/demo harness; port only if retained in Rust UI test/demo harness, never production.",
+      "disposition": "retained_development_benchmark; not a migration acceptance test and not a performance result for the Dioxus frontend.",
+      "lead_workflow": "F3",
+      "shared_consumers": [
+        "F4"
+      ],
+      "state": "retained development benchmark; not a migration acceptance test",
+      "test_disposition": "retained_development_benchmark; not a migration acceptance test and not a performance result for the Dioxus frontend."
     }
   ],
   "styles_assets_hooks": {
@@ -1492,8 +1934,7 @@
       "app/.impeccable/mocks/workspace-family.png",
       "app/.impeccable/mocks/decision/unified-design-light-final.png",
       "app/.impeccable/mocks/decision/unified-design-dark.png",
-      "app/.impeccable/review/desktop.png",
-      "app/.impeccable/review/mobile.png"
+      "app/.impeccable/review/desktop.png"
     ],
     "orchestration_entrypoints_to_audit": [
       "app/src/main.tsx",
@@ -1517,7 +1958,7 @@
       "app/src/startup.css": "Startup/loading/error shell and first paint styling; migrate with shell.",
       "app/src/ui/workbench.css": "Base workbench controls/canvas styling; migrate with shell/layout.",
       "app/src/ui/unified-workbench.css": "Unified workbench frame/topbar/panels/responsive behavior; shell milestone.",
-      "app/src/ui/workspace-panels.css": "Panel/drawer layout and compact behavior; shell/layout.",
+      "app/src/ui/workspace-panels.css": "Panel/drawer layout and desktop behavior; the source contains compact styles, but compact/mobile qualification is excluded by the 2026-10-05 scope update.",
       "app/src/ui/workflow.css": "Workspace navigation/workflow return controls; shell.",
       "app/src/ui/inspector.css": "Shared inspector controls and panel details; layout and all workspaces.",
       "app/src/ui/canvas-layers.css": "Canvas/layer visibility controls; layout and PCB.",
@@ -1544,7 +1985,389 @@
       "app/src/ui/useWorkbenchSelection.ts": "Selection presentation state; port while preserving Rust session semantics.",
       "app/src/ui/useWorkbenchTheme.ts": "Theme preference and color scheme; migrate and apply to every Dioxus workspace.",
       "app/src/ui/useWorkbenchTree.ts": "Tree presentation model; port and preserve grouping/selection."
-    }
+    },
+    "visual_reference_excluded": [
+      "app/.impeccable/review/mobile.png"
+    ],
+    "stylesheet_dispositions": [
+      {
+        "path": "app/src/startup.css",
+        "lead_workflow": "F1",
+        "shared_consumers": [
+          "F2",
+          "F3",
+          "F4",
+          "F5",
+          "F6",
+          "F7",
+          "F8"
+        ],
+        "state": "source_inventory_only; visual responsibility is owned by the named workflow(s), with no stylesheet-wide completion claim",
+        "test_disposition": "No standalone CSS test is claimed; use only paired public workflow evidence explicitly listed in the relevant production-row receipts."
+      },
+      {
+        "path": "app/src/ui/assembly-preview.css",
+        "lead_workflow": "F7",
+        "shared_consumers": [
+          "F8"
+        ],
+        "state": "source_inventory_only; visual responsibility is owned by the named workflow(s), with no stylesheet-wide completion claim",
+        "test_disposition": "No standalone CSS test is claimed; use only paired public workflow evidence explicitly listed in the relevant production-row receipts."
+      },
+      {
+        "path": "app/src/ui/canvas-layers.css",
+        "lead_workflow": "F3",
+        "shared_consumers": [
+          "F5"
+        ],
+        "state": "source_inventory_only; visual responsibility is owned by the named workflow(s), with no stylesheet-wide completion claim",
+        "test_disposition": "No standalone CSS test is claimed; use only paired public workflow evidence explicitly listed in the relevant production-row receipts."
+      },
+      {
+        "path": "app/src/ui/firmware-keymap-panel.css",
+        "lead_workflow": "F6",
+        "shared_consumers": [
+          "F5"
+        ],
+        "state": "source_inventory_only; visual responsibility is owned by the named workflow(s), with no stylesheet-wide completion claim",
+        "test_disposition": "No standalone CSS test is claimed; use only paired public workflow evidence explicitly listed in the relevant production-row receipts."
+      },
+      {
+        "path": "app/src/ui/inspector.css",
+        "lead_workflow": "F3",
+        "shared_consumers": [
+          "F4",
+          "F5",
+          "F6",
+          "F7"
+        ],
+        "state": "source_inventory_only; visual responsibility is owned by the named workflow(s), with no stylesheet-wide completion claim",
+        "test_disposition": "No standalone CSS test is claimed; use only paired public workflow evidence explicitly listed in the relevant production-row receipts."
+      },
+      {
+        "path": "app/src/ui/keymap.css",
+        "lead_workflow": "F6",
+        "shared_consumers": [],
+        "state": "source_inventory_only; visual responsibility is owned by the named workflow(s), with no stylesheet-wide completion claim",
+        "test_disposition": "No standalone CSS test is claimed; use only paired public workflow evidence explicitly listed in the relevant production-row receipts."
+      },
+      {
+        "path": "app/src/ui/library-workspace.css",
+        "lead_workflow": "F4",
+        "shared_consumers": [
+          "F5"
+        ],
+        "state": "source_inventory_only; visual responsibility is owned by the named workflow(s), with no stylesheet-wide completion claim",
+        "test_disposition": "No standalone CSS test is claimed; use only paired public workflow evidence explicitly listed in the relevant production-row receipts."
+      },
+      {
+        "path": "app/src/ui/mechanical-assembly.css",
+        "lead_workflow": "F7",
+        "shared_consumers": [
+          "F8"
+        ],
+        "state": "source_inventory_only; visual responsibility is owned by the named workflow(s), with no stylesheet-wide completion claim",
+        "test_disposition": "No standalone CSS test is claimed; use only paired public workflow evidence explicitly listed in the relevant production-row receipts."
+      },
+      {
+        "path": "app/src/ui/mirrored-layouts.css",
+        "lead_workflow": "F3",
+        "shared_consumers": [],
+        "state": "source_inventory_only; visual responsibility is owned by the named workflow(s), with no stylesheet-wide completion claim",
+        "test_disposition": "No standalone CSS test is claimed; use only paired public workflow evidence explicitly listed in the relevant production-row receipts."
+      },
+      {
+        "path": "app/src/ui/module-workspace.css",
+        "lead_workflow": "F4",
+        "shared_consumers": [
+          "F5"
+        ],
+        "state": "source_inventory_only; visual responsibility is owned by the named workflow(s), with no stylesheet-wide completion claim",
+        "test_disposition": "No standalone CSS test is claimed; use only paired public workflow evidence explicitly listed in the relevant production-row receipts."
+      },
+      {
+        "path": "app/src/ui/outline-editor.css",
+        "lead_workflow": "F3",
+        "shared_consumers": [],
+        "state": "source_inventory_only; visual responsibility is owned by the named workflow(s), with no stylesheet-wide completion claim",
+        "test_disposition": "No standalone CSS test is claimed; use only paired public workflow evidence explicitly listed in the relevant production-row receipts."
+      },
+      {
+        "path": "app/src/ui/project-library.css",
+        "lead_workflow": "F2",
+        "shared_consumers": [
+          "F1"
+        ],
+        "state": "source_inventory_only; visual responsibility is owned by the named workflow(s), with no stylesheet-wide completion claim",
+        "test_disposition": "No standalone CSS test is claimed; use only paired public workflow evidence explicitly listed in the relevant production-row receipts."
+      },
+      {
+        "path": "app/src/ui/setup-guide.css",
+        "lead_workflow": "F2",
+        "shared_consumers": [
+          "F1"
+        ],
+        "state": "source_inventory_only; visual responsibility is owned by the named workflow(s), with no stylesheet-wide completion claim",
+        "test_disposition": "No standalone CSS test is claimed; use only paired public workflow evidence explicitly listed in the relevant production-row receipts."
+      },
+      {
+        "path": "app/src/ui/unified-workbench.css",
+        "lead_workflow": "F1",
+        "shared_consumers": [
+          "F2",
+          "F3",
+          "F4",
+          "F5",
+          "F6",
+          "F7",
+          "F8"
+        ],
+        "state": "source_inventory_only; visual responsibility is owned by the named workflow(s), with no stylesheet-wide completion claim",
+        "test_disposition": "No standalone CSS test is claimed; use only paired public workflow evidence explicitly listed in the relevant production-row receipts."
+      },
+      {
+        "path": "app/src/ui/wiring-panel.css",
+        "lead_workflow": "F5",
+        "shared_consumers": [
+          "F4",
+          "F6"
+        ],
+        "state": "source_inventory_only; visual responsibility is owned by the named workflow(s), with no stylesheet-wide completion claim",
+        "test_disposition": "No standalone CSS test is claimed; use only paired public workflow evidence explicitly listed in the relevant production-row receipts."
+      },
+      {
+        "path": "app/src/ui/workbench.css",
+        "lead_workflow": "F1",
+        "shared_consumers": [
+          "F2",
+          "F3",
+          "F4",
+          "F5",
+          "F6",
+          "F7",
+          "F8"
+        ],
+        "state": "source_inventory_only; visual responsibility is owned by the named workflow(s), with no stylesheet-wide completion claim",
+        "test_disposition": "No standalone CSS test is claimed; use only paired public workflow evidence explicitly listed in the relevant production-row receipts."
+      },
+      {
+        "path": "app/src/ui/workflow.css",
+        "lead_workflow": "F2",
+        "shared_consumers": [
+          "F1",
+          "F3",
+          "F4",
+          "F5",
+          "F6",
+          "F7",
+          "F8"
+        ],
+        "state": "source_inventory_only; visual responsibility is owned by the named workflow(s), with no stylesheet-wide completion claim",
+        "test_disposition": "No standalone CSS test is claimed; use only paired public workflow evidence explicitly listed in the relevant production-row receipts."
+      },
+      {
+        "path": "app/src/ui/workspace-panels.css",
+        "lead_workflow": "F2",
+        "shared_consumers": [
+          "F1",
+          "F3",
+          "F4",
+          "F5",
+          "F6",
+          "F7",
+          "F8"
+        ],
+        "state": "source_inventory_only; visual responsibility is owned by the named workflow(s), with no stylesheet-wide completion claim",
+        "test_disposition": "No standalone CSS test is claimed; use only paired public workflow evidence explicitly listed in the relevant production-row receipts."
+      }
+    ],
+    "hook_dispositions": [
+      {
+        "path": "app/src/ui/useCaseWorkspace.tsx",
+        "lead_workflow": "F7",
+        "shared_consumers": [
+          "F8"
+        ],
+        "state": "Case panel draft/control orchestration; port UI behavior and route service calls through Rust session/host APIs.",
+        "test_disposition": "No hook test is claimed unless an exact React test appears in verification_tsx; otherwise behavior remains covered only by the owner workflow evidence or open."
+      },
+      {
+        "path": "app/src/ui/useOutlineEditor.tsx",
+        "lead_workflow": "F3",
+        "shared_consumers": [],
+        "state": "Outline editor presentation/controller; port controls and scoped draft state.",
+        "test_disposition": "No hook test is claimed unless an exact React test appears in verification_tsx; otherwise behavior remains covered only by the owner workflow evidence or open."
+      },
+      {
+        "path": "app/src/ui/usePartsEditing.ts",
+        "lead_workflow": "F4",
+        "shared_consumers": [],
+        "state": "Parts form editing; port presentation state and use existing parts services.",
+        "test_disposition": "No hook test is claimed unless an exact React test appears in verification_tsx; otherwise behavior remains covered only by the owner workflow evidence or open."
+      },
+      {
+        "path": "app/src/ui/usePcbWorkspace.tsx",
+        "lead_workflow": "F5",
+        "shared_consumers": [
+          "F4",
+          "F6"
+        ],
+        "state": "PCB panel orchestration; port UI state, reuse Rust electrical/module services.",
+        "test_disposition": "No hook test is claimed unless an exact React test appears in verification_tsx; otherwise behavior remains covered only by the owner workflow evidence or open."
+      },
+      {
+        "path": "app/src/ui/useScriptEditor.tsx",
+        "lead_workflow": "F3",
+        "shared_consumers": [],
+        "state": "Geometry script editor presentation; decide v1 supported edit UX and route execution to existing services.",
+        "test_disposition": "No hook test is claimed unless an exact React test appears in verification_tsx; otherwise behavior remains covered only by the owner workflow evidence or open."
+      },
+      {
+        "path": "app/src/ui/useSetupGuide.ts",
+        "lead_workflow": "F2",
+        "shared_consumers": [
+          "F1"
+        ],
+        "state": "Setup guide state and navigation; port as Dioxus presentation state.",
+        "test_disposition": "No hook test is claimed unless an exact React test appears in verification_tsx; otherwise behavior remains covered only by the owner workflow evidence or open."
+      },
+      {
+        "path": "app/src/ui/useWorkbenchNavigation.ts",
+        "lead_workflow": "F2",
+        "shared_consumers": [
+          "F1",
+          "F3",
+          "F4",
+          "F5",
+          "F6",
+          "F7",
+          "F8"
+        ],
+        "state": "Workspace selection/history and navigation state; port as Dioxus state, coordinate scope changes with Rust session.",
+        "test_disposition": "No hook test is claimed unless an exact React test appears in verification_tsx; otherwise behavior remains covered only by the owner workflow evidence or open."
+      },
+      {
+        "path": "app/src/ui/useWorkbenchSelection.ts",
+        "lead_workflow": "F2",
+        "shared_consumers": [
+          "F3",
+          "F4",
+          "F5",
+          "F6",
+          "F7"
+        ],
+        "state": "Selection presentation state; port while preserving Rust session semantics.",
+        "test_disposition": "No hook test is claimed unless an exact React test appears in verification_tsx; otherwise behavior remains covered only by the owner workflow evidence or open."
+      },
+      {
+        "path": "app/src/ui/useWorkbenchTheme.ts",
+        "lead_workflow": "F1",
+        "shared_consumers": [
+          "F2",
+          "F3",
+          "F4",
+          "F5",
+          "F6",
+          "F7",
+          "F8"
+        ],
+        "state": "Theme preference and color scheme; migrate and apply to every Dioxus workspace.",
+        "test_disposition": "No hook test is claimed unless an exact React test appears in verification_tsx; otherwise behavior remains covered only by the owner workflow evidence or open."
+      },
+      {
+        "path": "app/src/ui/useWorkbenchTree.ts",
+        "lead_workflow": "F3",
+        "shared_consumers": [
+          "F5",
+          "F7"
+        ],
+        "state": "Tree presentation model; port and preserve grouping/selection.",
+        "test_disposition": "No hook test is claimed unless an exact React test appears in verification_tsx; otherwise behavior remains covered only by the owner workflow evidence or open."
+      }
+    ],
+    "visual_asset_dispositions": [
+      {
+        "path": "app/src/assets/fonts/source-code-pro-upright.woff2",
+        "lead_workflow": "F1",
+        "shared_consumers": [
+          "F2",
+          "F3",
+          "F4",
+          "F5",
+          "F6",
+          "F7",
+          "F8"
+        ],
+        "state": "source font asset inventoried; visual use is shared, no independent asset migration completion claim",
+        "test_disposition": "No standalone font test; only owner-workflow paired visual evidence is applicable."
+      },
+      {
+        "path": "app/src/assets/fonts/source-sans-3-upright.woff2",
+        "lead_workflow": "F1",
+        "shared_consumers": [
+          "F2",
+          "F3",
+          "F4",
+          "F5",
+          "F6",
+          "F7",
+          "F8"
+        ],
+        "state": "source font asset inventoried; visual use is shared, no independent asset migration completion claim",
+        "test_disposition": "No standalone font test; only owner-workflow paired visual evidence is applicable."
+      }
+    ],
+    "orchestration_entrypoint_dispositions": [
+      {
+        "path": "app/src/useCaseGeneration.ts",
+        "lead_workflow": "F7",
+        "shared_consumers": [
+          "F8"
+        ],
+        "state": "Case generation orchestration shared with export readiness.; source entrypoint inventoried, no whole-file Dioxus port is claimed here.",
+        "test_disposition": "No standalone Dioxus test mapping is claimed for this orchestration file; behavior tests remain assigned to the consuming workflow rows and uncovered behavior stays open."
+      },
+      {
+        "path": "app/src/useProjectSession.ts",
+        "lead_workflow": "F2",
+        "shared_consumers": [
+          "F1",
+          "F3",
+          "F4",
+          "F5",
+          "F6",
+          "F7",
+          "F8"
+        ],
+        "state": "Project/session lifecycle consumed by all workspace workflows.; source entrypoint inventoried, no whole-file Dioxus port is claimed here.",
+        "test_disposition": "No standalone Dioxus test mapping is claimed for this orchestration file; behavior tests remain assigned to the consuming workflow rows and uncovered behavior stays open."
+      },
+      {
+        "path": "app/src/createProjectActions.ts",
+        "lead_workflow": "F2",
+        "shared_consumers": [],
+        "state": "Project creation action composition.; source entrypoint inventoried, no whole-file Dioxus port is claimed here.",
+        "test_disposition": "No standalone Dioxus test mapping is claimed for this orchestration file; behavior tests remain assigned to the consuming workflow rows and uncovered behavior stays open."
+      },
+      {
+        "path": "app/src/createProjectExporter.ts",
+        "lead_workflow": "F8",
+        "shared_consumers": [
+          "F2"
+        ],
+        "state": "Project/archive export composition used by project workflows.; source entrypoint inventoried, no whole-file Dioxus port is claimed here.",
+        "test_disposition": "No standalone Dioxus test mapping is claimed for this orchestration file; behavior tests remain assigned to the consuming workflow rows and uncovered behavior stays open."
+      },
+      {
+        "path": "app/src/useElectricalPlanning.ts",
+        "lead_workflow": "F5",
+        "shared_consumers": [
+          "F6"
+        ],
+        "state": "Electrical planning orchestration shared with keymap/firmware behavior.; source entrypoint inventoried, no whole-file Dioxus port is claimed here.",
+        "test_disposition": "No standalone Dioxus test mapping is claimed for this orchestration file; behavior tests remain assigned to the consuming workflow rows and uncovered behavior stays open."
+      }
+    ]
   },
   "non_scope_note": "This is a frontend implementation inventory. Existing Rust document engine, editor session, host storage, renderer, CAD, generator and export services are dependencies to reuse; their implementation is not ported by this frontend roadmap.",
   "coverage_note": "Workbench is split across F1/F2/F3/F5/F6/F7/F8; assignment counts do not imply equal work or completion. Export and crosscutting behavior are embedded in shared components and adjacent TS UI controllers. Workflow planning assignments are explicit; planned owners are not implemented counterparts. See ../coverage.json and ../tasks.json.",
@@ -1567,5 +2390,11 @@
     "scope": "Seven F6-owned production TSX rows only. Exact implemented Rust owners and canonical accepted functional evidence; shared main/Workbench/viewer rows retain partial ownership and no whole-file completion claim.",
     "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
     "visual_release_state": "pending F6.6 desktop qualification; mobile excluded by user; React retained until separately approved cutover"
+  },
+  "scope_update_2026_10_05": {
+    "accessibility_axe_assistive_technology": "excluded_by_user_instruction; historical artifacts are retained as history and do not count as passes",
+    "mobile_compact_qualification": "excluded_by_user_instruction; mobile reference image retained separately as historical only",
+    "ordinary_keyboard_focus_escape": "remains in scope as functional behavior",
+    "removed_optional_milestone": "F9.3 removed; no inventory item or acceptance claim is assigned to it"
   }
 }

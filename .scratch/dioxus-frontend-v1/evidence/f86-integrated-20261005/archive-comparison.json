@@ -1,0 +1,259 @@
+{
+  "input": {
+    "path": ".scratch/dioxus-frontend-v1/evidence/integrated-layout-c1d3-20261005/candidate-edited.boardstudio",
+    "sha256": "c476fcaf16a9150b11221427620047c55d4ad11d293315b7c56d45bd7f8b4cbe"
+  },
+  "outputs": [
+    {
+      "app": "candidate",
+      "download": "Sofle v2 (10).boardstudio",
+      "path": ".scratch/dioxus-frontend-v1/evidence/f86-integrated-20261005/candidate-joined.boardstudio",
+      "sha256": "fda9827fc394ea046c4d9c7107e03a5f114afb69993361e124706a469e1f8bd3",
+      "bytes": 1587482,
+      "revision": 25,
+      "parts": 147,
+      "entries": [
+        "project.json",
+        "archive.json",
+        "assets/77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f",
+        "assets/42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3",
+        "assets/54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e",
+        "assets/31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b",
+        "assets/ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4",
+        "assets/abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722"
+      ],
+      "placed_j1": [
+        {
+          "id": "ui-5f5a82c9-2f95-45db-ba99-3c7508021cf4",
+          "definitionId": "ergogen:ceoloide/mounting_hole_npth",
+          "reference": "J1",
+          "pose": {
+            "at": {
+              "x": 60.0,
+              "y": -40.0
+            },
+            "rotation": 0.0
+          },
+          "side": "front",
+          "generatorParameters": {}
+        }
+      ],
+      "authored_bodies": [
+        {
+          "id": "case-body-42",
+          "name": "Left PCB plate",
+          "boardId": "left",
+          "kind": "plate",
+          "thickness": 3.0,
+          "clearance": 0.5,
+          "z": 0.0,
+          "wallHeight": 14.0,
+          "wallThickness": 2.0,
+          "mounts": []
+        }
+      ],
+      "base_binding": {
+        "kind": "key-press",
+        "keycode": "A"
+      }
+    },
+    {
+      "app": "reference",
+      "download": "Sofle v2 (11).boardstudio",
+      "path": ".scratch/dioxus-frontend-v1/evidence/f86-integrated-20261005/reference-joined.boardstudio",
+      "sha256": "c602934c2ff27835855b6824103c8e7debe494d2d269b2f2501ed5c64dced075",
+      "bytes": 1587400,
+      "revision": 23,
+      "parts": 147,
+      "entries": [
+        "project.json",
+        "archive.json",
+        "assets/77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f",
+        "assets/42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3",
+        "assets/54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e",
+        "assets/31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b",
+        "assets/ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4",
+        "assets/abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722"
+      ],
+      "placed_j1": [
+        {
+          "id": "ui-bdcd7236-eba9-4bd5-ae58-aa612918bcc3",
+          "definitionId": "ergogen:ceoloide/mounting_hole_npth",
+          "reference": "J1",
+          "pose": {
+            "at": {
+              "x": 60,
+              "y": -40
+            },
+            "rotation": 0
+          },
+          "side": "front"
+        }
+      ],
+      "authored_bodies": [
+        {
+          "id": "ui-3008d6d9-da33-44b7-b6f1-7d2181c87f4d",
+          "name": "Left PCB plate",
+          "boardId": "left",
+          "kind": "plate",
+          "thickness": 3,
+          "clearance": 0.5,
+          "materialId": "pla",
+          "z": 0,
+          "wallHeight": 14,
+          "wallThickness": 2,
+          "mounts": []
+        }
+      ],
+      "base_binding": {
+        "kind": "key-press",
+        "keycode": "A"
+      }
+    }
+  ],
+  "association_preserving_new_id_mapping": {
+    "ui-5f5a82c9-2f95-45db-ba99-3c7508021cf4": "ui-bdcd7236-eba9-4bd5-ae58-aa612918bcc3",
+    "case-body-42": "ui-3008d6d9-da33-44b7-b6f1-7d2181c87f4d"
+  },
+  "all_asset_payloads_equal": true,
+  "asset_count": 6,
+  "raw_document_differences_after_only_id_mapping": [
+    {
+      "path": "/boardOutlines/0/versions/0/geometry/features/0/points/1/x",
+      "candidate": -8.238,
+      "reference": -8.2375,
+      "delta": -0.0004999999999988347,
+      "within_existing_numeric_comparison_tolerance": false
+    },
+    {
+      "path": "/caseBodies/0/materialId",
+      "candidate": "MISSING",
+      "reference": "pla"
+    },
+    {
+      "path": "/hardware/instances/0/mechanical/closureMounts/0/at/y",
+      "candidate": -112.01301492537313,
+      "reference": -112.01301492537311,
+      "delta": -1.4210854715202004e-14,
+      "within_existing_numeric_comparison_tolerance": true
+    },
+    {
+      "path": "/hardware/instances/0/mechanical/closureMounts/1/at/x",
+      "candidate": -9.627062500000001,
+      "reference": -9.6270625,
+      "delta": -1.7763568394002505e-15,
+      "within_existing_numeric_comparison_tolerance": true
+    },
+    {
+      "path": "/hardware/instances/0/mechanical/closureMounts/2/at/x",
+      "candidate": 103.41131250000001,
+      "reference": 103.4113125,
+      "delta": 1.4210854715202004e-14,
+      "within_existing_numeric_comparison_tolerance": true
+    },
+    {
+      "path": "/hardware/instances/0/mechanical/closureMounts/3/at/x",
+      "candidate": 23.504875000000006,
+      "reference": 23.50487500000001,
+      "delta": -3.552713678800501e-15,
+      "within_existing_numeric_comparison_tolerance": true
+    },
+    {
+      "path": "/hardware/sharedConstruction/closureMounts/0/at/y",
+      "candidate": -112.01301492537313,
+      "reference": -112.01301492537311,
+      "delta": -1.4210854715202004e-14,
+      "within_existing_numeric_comparison_tolerance": true
+    },
+    {
+      "path": "/hardware/sharedConstruction/closureMounts/1/at/x",
+      "candidate": -9.627062500000001,
+      "reference": -9.6270625,
+      "delta": -1.7763568394002505e-15,
+      "within_existing_numeric_comparison_tolerance": true
+    },
+    {
+      "path": "/hardware/sharedConstruction/closureMounts/2/at/x",
+      "candidate": 103.41131250000001,
+      "reference": 103.4113125,
+      "delta": 1.4210854715202004e-14,
+      "within_existing_numeric_comparison_tolerance": true
+    },
+    {
+      "path": "/hardware/sharedConstruction/closureMounts/3/at/x",
+      "candidate": 23.504875000000006,
+      "reference": 23.50487500000001,
+      "delta": -3.552713678800501e-15,
+      "within_existing_numeric_comparison_tolerance": true
+    },
+    {
+      "path": "/parts/10/pose/at/x",
+      "candidate": 104.22999999999999,
+      "reference": 104.23,
+      "delta": -1.4210854715202004e-14,
+      "within_existing_numeric_comparison_tolerance": true
+    },
+    {
+      "path": "/parts/22/pose/at/x",
+      "candidate": 104.22999999999999,
+      "reference": 104.23,
+      "delta": -1.4210854715202004e-14,
+      "within_existing_numeric_comparison_tolerance": true
+    },
+    {
+      "path": "/parts/34/pose/at/x",
+      "candidate": 104.22999999999999,
+      "reference": 104.23,
+      "delta": -1.4210854715202004e-14,
+      "within_existing_numeric_comparison_tolerance": true
+    },
+    {
+      "path": "/parts/46/pose/at/x",
+      "candidate": 104.22999999999999,
+      "reference": 104.23,
+      "delta": -1.4210854715202004e-14,
+      "within_existing_numeric_comparison_tolerance": true
+    },
+    {
+      "path": "/parts/142/generatorParameters",
+      "candidate": {},
+      "reference": "MISSING"
+    },
+    {
+      "path": "/parts/143/pose/at/y",
+      "candidate": -112.01301492537313,
+      "reference": -112.01301492537311,
+      "delta": -1.4210854715202004e-14,
+      "within_existing_numeric_comparison_tolerance": true
+    },
+    {
+      "path": "/parts/144/pose/at/x",
+      "candidate": -9.627062500000001,
+      "reference": -9.6270625,
+      "delta": -1.7763568394002505e-15,
+      "within_existing_numeric_comparison_tolerance": true
+    },
+    {
+      "path": "/parts/145/pose/at/x",
+      "candidate": 103.41131250000001,
+      "reference": 103.4113125,
+      "delta": 1.4210854715202004e-14,
+      "within_existing_numeric_comparison_tolerance": true
+    },
+    {
+      "path": "/parts/146/pose/at/x",
+      "candidate": 23.504875000000006,
+      "reference": 23.50487500000001,
+      "delta": -3.552713678800501e-15,
+      "within_existing_numeric_comparison_tolerance": true
+    },
+    {
+      "path": "/revision",
+      "candidate": 25,
+      "reference": 23,
+      "delta": 2,
+      "within_existing_numeric_comparison_tolerance": false
+    }
+  ],
+  "verdict": "Not qualified: genuine fractional point drift independently reproduced; other retained/default differences under review. No differing field discarded."
+}

@@ -17,7 +17,7 @@ Qualify every completed workflow continuously against the same React fixtures an
 
 1. As a designer, I want every existing workspace action accounted for, so that migrating does not remove a control I rely on.
 2. As a designer, I want the same fonts, colors, geometry, spacing and focus behavior in both themes, so that the application remains familiar.
-3. As a designer, I want full workflows at compact widths, short heights and supported zoom, so that controls stay reachable.
+3. As a designer, I want full workflows at desktop short heights and supported zoom, so that controls stay reachable. Mobile/compact qualification is deferred by user instruction.
 4. As a keyboard user, I want menus, trees, inspectors and canvases to preserve their shortcuts and focus return, so that I can edit without a pointer.
 6. As a designer, I want my existing archive and its assets to round-trip between the frontends, so that my work remains portable.
 7. As a designer, I want saved projects and supported cached workflows to reopen offline, so that local work is dependable.
@@ -45,7 +45,7 @@ Qualify every completed workflow continuously against the same React fixtures an
 
 Use the highest existing public seams: actual Dioxus UI, archive/file round trips, accepted application/provider contracts and real browser worker/storage behavior. Avoid private test hooks or assertions that simply mirror implementation. Keep one scenario/evidence manifest naming source, fixture, scope, route, browser, viewport/DPR, actions, expected outcome, actual result and limitations.
 
-Pair React/Dioxus dark/light desktop and compact captures for each completed workspace, with selected, open, loading, empty, invalid and failed states. Use targeted affected checks after changes; reuse unchanged, attributable evidence. Run shared end-to-end journeys after merges. Keep CAD-heavy functional checks serial under the existing memory policy. If a bug appears, retain its failing public reproduction, fix it, then rerun affected checks.
+Pair React/Dioxus dark/light desktop captures for each completed workspace, with selected, open, loading, empty, invalid and failed states. Use targeted affected checks after changes; reuse unchanged, attributable evidence. Run shared end-to-end journeys after merges. Keep CAD-heavy functional checks serial under the existing memory policy. If a bug appears, retain its failing public reproduction, fix it, then rerun affected checks.
 
 Accessibility, axe and actual assistive-technology qualification are removed from this frontend migration by user instruction on 2026-10-05. Ordinary keyboard/focus/Escape checks remain functional requirements. Keep frozen UI/live failures, ineligible CAD comparisons and material/resource attribution gaps separate; identify their applicability to the changed frontend path rather than silently deleting or reopening unrelated backend projects.
 

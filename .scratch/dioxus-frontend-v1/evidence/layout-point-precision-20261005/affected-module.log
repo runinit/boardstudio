@@ -1,0 +1,3 @@
+run-wasm-tests: selection: web/src/presentation/outline_lifecycle_browser_tests.rs -> direct module prefix 'presentation::outline_lifecycle::browser_tests::': presentation::outline_lifecycle::browser_tests::
+run-wasm-tests: [1/1] presentation::outline_lifecycle::browser_tests::
+run-wasm-tests: executed 13, failed 0 (filters: presentation::outline_lifecycle::browser_tests::)

@@ -1,0 +1,58 @@
+{
+  "fixture": ".scratch/dioxus-frontend-v1/evidence/integrated-layout-c1d3-20261005/reference-edited.boardstudio",
+  "fixture_sha256": "414347abef5d8a54b662ff3fff66bb3b489b8eb69cb117b02d985ab476908b68",
+  "source": "5a472a9426e6e38993361da402cd4ec730feb369",
+  "actions": [
+    "Public Open project import",
+    "Select Outline Edited outline 1",
+    "Edit perimeter points",
+    "Click actual canvas Outline point 2",
+    "Press Escape"
+  ],
+  "before": {
+    "focus": {
+      "label": "Outline point 2",
+      "tag": "circle"
+    },
+    "headings": [
+      "Perimeter",
+      "Point 2 of 37",
+      "Findings",
+      "Left PCB · Outline",
+      "Right PCB · Outline",
+      "SW1 · switch mx"
+    ],
+    "pointHandles": 38,
+    "selectedTree": [
+      "OutlineEdited outline 1",
+      "Edited outline 1Active",
+      "Layout"
+    ]
+  },
+  "after": {
+    "focus": {
+      "label": null,
+      "tag": "BODY"
+    },
+    "headings": [
+      "Board outline",
+      "Manual geometry",
+      "Saved geometry",
+      "Findings",
+      "Left PCB · Outline",
+      "Right PCB · Outline",
+      "SW1 · switch mx"
+    ],
+    "pointHandles": 0,
+    "scripts": [
+      "http://127.0.0.1:5175/assets/main-CYxchQWA.js"
+    ],
+    "selectedTree": [
+      "OutlineEdited outline 1",
+      "Edited outline 1Active",
+      "Layout"
+    ],
+    "url": "http://127.0.0.1:5175/",
+    "version": "Edited outline 1"
+  }
+}

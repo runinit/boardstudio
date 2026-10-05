@@ -1,0 +1,19 @@
+# Fractional saved outline point loses precision — paired public RED
+
+Candidate `frontend-layout-canvas-escape-20261005` source6bb3d520 at34826; pinned reference5a472a9 at5175. A final joined project archive comparison exposed a real geometry discrepancy, distinct from the correctly repaired editor-exit behavior.
+
+Minimal public sequence in both apps: import the exact retained candidate-edited.boardstudio from integrated-layout-c1d3-20261005; select Outline Edited outline1; Edit perimeter points; click actual SVG Outline point2; press standalone Shift on the point locator to settle actual keyboard focus (no arrow); press Escape; Project→Save project copy. File download completion is identified by the new attributed Downloads entry and actual ZIP bytes, not a synthetic save.
+
+Candidate import-only copy (`Sofle v2 (12).boardstudio`) is byte-identical to original SHA c476fcaf16a9150b11221427620047c55d4ad11d293315b7c56d45bd7f8b4cbe, revision15, point2 X=-8.2375,Y=-13. The actual number input displays rounded X=-8.238, but display alone is not the failure. Candidate after interaction (`Sofle v2 (13).boardstudio`) has revision16 and accepted X=-8.238. Those two fields are the only full document differences. Reference after the identical sequence (`Sofle v2 (14).boardstudio`) remains revision15 and X=-8.2375. Exact archive hashes and values are in minimal-escape-comparison.json; actual three archives are retained here.
+
+This isolates import from the precision-changing interaction, but does not yet distinguish pointerdown/up, focus/blur, standalone Shift or Escape as the exact commit trigger. The author owns that diagnosis and a meaningful fractional mounted regression. Earlier integer fixture and editor-exit replay do not prove fractional nonmutation. Independent reviewer confirmed the exact document contradiction and endorsed reopening F3.7-C02/parent; correction decision retained rather than rewriting original acceptance history. F8.6 stays open. Existing completed Layout geometry/history/archive/camera branches remain attributable and need not be replayed wholesale.
+
+## Fixture limit found during regression diagnosis
+
+The existing InspectorProbe uses `Runtime::set_layout_component_inspector_test_state`. In this mode production Runtime::submit's cfg(test) branch records events and returns without applying them to the accepted snapshot. Therefore the earlier integer canvas-Escape test's snapshot-equality assertion cannot establish absence of edit submissions; it remains valid for its actual DOM editor-exit/focus assertions. The meaningful fractional regression must assert no submitted edit through the existing event observer (as other outline owner tests do), with real public saved archives providing persistence proof. Early synthetic-pointer runs that compared the unchanged mock snapshot are harness diagnostics, not expected product RED or valid GREEN. No new Runtime seam or private-state injection is necessary.
+
+A second identical interaction on the already-rounded candidate produced revision16 again; no further revision or point change. This rejects repeated unchanged-point interaction as an explanation for the additional unaccounted F8 revision. The final F8 archives remain candidly unequal pending repair and bounded per-action attribution; source inspection did not support blaming Configure/default closure normalization (see f86-integrated-20261005/revision-attribution.md).
+
+## Settled source repair
+
+Owning event-observer RED and minimal no-motion pointer-up repair are recorded in [repair-receipt.md](repair-receipt.md). Independent review CLEAR; focused GREEN1/1 and complete affected module13/13. Coordinator combined gates passed native247 (1ignored), wasm page, reachability and strict headless13/13. Exact receipts are retained in combined-gates.json. Public persisted-geometry GREEN remains pending on the next immutable package.

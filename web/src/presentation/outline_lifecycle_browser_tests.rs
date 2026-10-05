@@ -285,9 +285,19 @@ fn mounted_outline_inspector_host() -> Element {
     let point_canvas_svg = use_hook(|| Rc::new(RefCell::new(None::<web_sys::SvgElement>)));
     let point_canvas_arbiter =
         use_hook(super::super::canvas_interaction::CanvasInteractionArbiter::default);
+    let mounted_point_canvas_svg = point_canvas_svg.clone();
+    let mount_point_canvas = move |event: MountedEvent| {
+        if let Some(svg) = event
+            .data()
+            .try_as_web_event()
+            .and_then(|event| event.dyn_into::<web_sys::SvgElement>().ok())
+        {
+            *mounted_point_canvas_svg.borrow_mut() = Some(svg);
+        }
+    };
     rsx! {
         style { {include_str!("../../assets/m1.css")} }
-        svg { id: "outline-point-canvas-test", view_box: "-20 -20 40 40",
+        svg { id: "outline-point-canvas-test", view_box: "-20 -20 40 40", onmounted: mount_point_canvas,
             if let Some(projection) = projection.clone() {
                 super::super::outline_lifecycle::OutlinePointCanvasOverlay {
                     projection,
@@ -578,6 +588,185 @@ async fn mounted_fixed_outline_canvas_point_escape_returns_to_board_without_edit
     root.remove();
 }
 
+#[wasm_bindgen_test]
+async fn mounted_fixed_outline_point_click_and_escape_preserve_fractional_geometry() {
+    let points = vec![
+        Vec2 { x: -13.0, y: 13.0 },
+        Vec2 { x: -8.2375, y: -13.0 },
+        Vec2 { x: 13.0, y: -13.0 },
+        Vec2 { x: 13.0, y: 13.0 },
+    ];
+    let (probe, root) = mounted_polygon_outline_inspector_with_points(true, points);
+    settle_dimension().await;
+    let document = web_sys::window().unwrap().document().unwrap();
+    let _ = probe.runtime.take_layout_component_inspector_test_events();
+
+    document
+        .query_selector("#outline-points-inspector-mount button.m1-outline-action")
+        .unwrap()
+        .expect("fixed outline exposes Edit perimeter points")
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap()
+        .click();
+    settle_dimension().await;
+
+    let point = document
+        .query_selector("#outline-point-canvas-test circle[aria-label='Outline point 2']")
+        .unwrap()
+        .expect("the production canvas overlay mounts its focusable point 2 circle")
+        .dyn_into::<web_sys::SvgElement>()
+        .unwrap();
+    point.focus().unwrap();
+    let captured = install_test_pointer_capture(&point);
+    let rect = point.get_bounding_client_rect();
+    let client_x = (rect.x() + rect.width() / 2.0).round() as i32;
+    let client_y = (rect.y() + rect.height() / 2.0).round() as i32;
+    dispatch_test_pointer_at(&point, "pointerdown", 1, client_x, client_y);
+    assert_eq!(
+        captured.captured.get(),
+        Some(17),
+        "the mounted production pointerdown handler started a point interaction"
+    );
+    dispatch_test_pointer_at(&point, "pointerup", 0, client_x, client_y);
+    settle_dimension().await;
+    assert_eq!(
+        captured.captured.get(),
+        None,
+        "the mounted production pointerup handler finished the point interaction"
+    );
+    let pointer_events = probe.runtime.take_layout_component_inspector_test_events();
+    assert!(
+        pointer_events.is_empty(),
+        "a pointer interaction without pointer movement must not submit an outline edit; got {pointer_events:?}"
+    );
+
+    dispatch_test_pointer_at(&point, "pointerdown", 1, client_x, client_y);
+    assert_eq!(captured.captured.get(), Some(17));
+    dispatch_test_pointer_at(&point, "pointerup", 0, client_x + 4, client_y);
+    settle_dimension().await;
+    assert_eq!(captured.captured.get(), None);
+    let displacement_events = probe.runtime.take_layout_component_inspector_test_events();
+    assert!(
+        matches!(displacement_events.as_slice(), [boardstudio_application::Event::Edit { command, .. }]
+            if command.phase == boardstudio_core::model::EditPhase::Commit),
+        "a pointer-up displaced from pointer-down still commits the final sample when no pointermove was delivered; got {displacement_events:?}"
+    );
+
+    let shift = web_sys::KeyboardEventInit::new();
+    shift.set_key("Shift");
+    shift.set_bubbles(true);
+    point
+        .dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &shift).unwrap(),
+        )
+        .unwrap();
+    point
+        .dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keyup", &shift).unwrap(),
+        )
+        .unwrap();
+    let escape = web_sys::KeyboardEventInit::new();
+    escape.set_key("Escape");
+    escape.set_bubbles(true);
+    point
+        .dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape).unwrap(),
+        )
+        .unwrap();
+    settle_dimension().await;
+
+    assert!(probe.runtime.take_layout_component_inspector_test_events().is_empty());
+    root.remove();
+}
+
+struct TestPointerCapture {
+    captured: Rc<std::cell::Cell<Option<i32>>>,
+    _set_capture: wasm_bindgen::closure::Closure<dyn FnMut(i32)>,
+    _has_capture: wasm_bindgen::closure::Closure<dyn FnMut(i32) -> bool>,
+    _release_capture: wasm_bindgen::closure::Closure<dyn FnMut(i32)>,
+}
+
+fn install_test_pointer_capture(target: &web_sys::SvgElement) -> TestPointerCapture {
+    use wasm_bindgen::closure::Closure;
+
+    let captured = Rc::new(std::cell::Cell::new(None::<i32>));
+    let set_capture_state = captured.clone();
+    let set_capture = Closure::<dyn FnMut(i32)>::new(move |id| {
+        set_capture_state.set(Some(id));
+    });
+    let has_capture_state = captured.clone();
+    let has_capture = Closure::<dyn FnMut(i32) -> bool>::new(move |id| {
+        has_capture_state.get() == Some(id)
+    });
+    let release_capture_state = captured.clone();
+    let release_capture = Closure::<dyn FnMut(i32)>::new(move |id| {
+        if release_capture_state.get() == Some(id) {
+            release_capture_state.set(None);
+        }
+    });
+    let target_value: &wasm_bindgen::JsValue = target.as_ref();
+    js_sys::Reflect::set(
+        target_value,
+        &"setPointerCapture".into(),
+        set_capture.as_ref(),
+    )
+    .unwrap();
+    js_sys::Reflect::set(
+        target_value,
+        &"hasPointerCapture".into(),
+        has_capture.as_ref(),
+    )
+    .unwrap();
+    js_sys::Reflect::set(
+        target_value,
+        &"releasePointerCapture".into(),
+        release_capture.as_ref(),
+    )
+    .unwrap();
+    TestPointerCapture {
+        captured,
+        _set_capture: set_capture,
+        _has_capture: has_capture,
+        _release_capture: release_capture,
+    }
+}
+
+fn dispatch_test_pointer_at(
+    target: &web_sys::SvgElement,
+    kind: &str,
+    buttons: u16,
+    client_x: i32,
+    client_y: i32,
+) {
+    let pointer_id = 17;
+    let init = js_sys::Object::new();
+    for (name, value) in [
+        ("bubbles", wasm_bindgen::JsValue::TRUE),
+        ("cancelable", wasm_bindgen::JsValue::TRUE),
+        ("pointerId", pointer_id.into()),
+        ("pointerType", "mouse".into()),
+        ("isPrimary", wasm_bindgen::JsValue::TRUE),
+        ("button", 0.into()),
+        ("buttons", buttons.into()),
+        ("clientX", client_x.into()),
+        ("clientY", client_y.into()),
+    ] {
+        js_sys::Reflect::set(init.as_ref(), &name.into(), &value).unwrap();
+    }
+    let pointer_constructor = js_sys::Reflect::get(&js_sys::global(), &"PointerEvent".into())
+        .unwrap()
+        .dyn_into::<js_sys::Function>()
+        .unwrap();
+    let arguments = js_sys::Array::new();
+    arguments.push(&kind.into());
+    arguments.push(init.as_ref());
+    let event = js_sys::Reflect::construct(&pointer_constructor, &arguments)
+        .unwrap()
+        .dyn_into::<web_sys::PointerEvent>()
+        .unwrap();
+    target.dispatch_event(&event).unwrap();
+}
+
 fn mounted_polygon_outline_inspector(fixed: bool) -> (InspectorProbe, web_sys::Element) {
     mounted_polygon_outline_inspector_with_connections(fixed, vec![])
 }
@@ -586,18 +775,33 @@ fn mounted_polygon_outline_inspector_with_connections(
     fixed: bool,
     connections: Vec<OutlineConnection>,
 ) -> (InspectorProbe, web_sys::Element) {
-    let scope = Scope {
-        session_epoch: SessionEpoch(6),
-        document_id: "outline-points-doc".into(),
-        board_id: "outline-points-board".into(),
-        instance_id: None,
-    };
     let points = vec![
         boardstudio_core::model::Vec2 { x: 0.0, y: 0.0 },
         boardstudio_core::model::Vec2 { x: 20.0, y: 0.0 },
         boardstudio_core::model::Vec2 { x: 20.0, y: 20.0 },
         boardstudio_core::model::Vec2 { x: 0.0, y: 20.0 },
     ];
+    mounted_polygon_outline_inspector_with_points_and_connections(fixed, points, connections)
+}
+
+fn mounted_polygon_outline_inspector_with_points(
+    fixed: bool,
+    points: Vec<Vec2>,
+) -> (InspectorProbe, web_sys::Element) {
+    mounted_polygon_outline_inspector_with_points_and_connections(fixed, points, vec![])
+}
+
+fn mounted_polygon_outline_inspector_with_points_and_connections(
+    fixed: bool,
+    points: Vec<Vec2>,
+    connections: Vec<OutlineConnection>,
+) -> (InspectorProbe, web_sys::Element) {
+    let scope = Scope {
+        session_epoch: SessionEpoch(6),
+        document_id: "outline-points-doc".into(),
+        board_id: "outline-points-board".into(),
+        instance_id: None,
+    };
     let mut document = ProjectDoc::empty("outline-points-doc", "Outline points fixture");
     document.revision = 11;
     let has_envelope_part = !connections.is_empty();

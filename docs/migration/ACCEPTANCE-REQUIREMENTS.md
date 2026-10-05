@@ -129,9 +129,9 @@ assertions or lowering a threshold to hide a failure.
   accessibility-only repairs and screen-reader/assistive-technology qualification
   are excluded from this frontend migration by user instruction on 2026-10-05.
   Existing controls and semantics remain; no excluded check is claimed as passed.
-- Responsive behavior must not regress. Compare current desktop and compact
-  layouts, supported zoom/DPR and overflow behavior, including long content and
-  dialogs. Keep required actions reachable at existing supported sizes.
+- Retain responsive application behavior. Validate desktop layouts, supported
+  desktop zoom/DPR and overflow, including long content and dialogs. Mobile/compact
+  checks are deferred by user instruction; they are not release gates.
 - Reuse the existing styles, tokens and interaction conventions. Do not
   introduce a new design system during migration.
 

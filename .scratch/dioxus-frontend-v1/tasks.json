@@ -2247,6 +2247,20 @@
           "new": "implementing",
           "date": "2026-10-03",
           "reason": "F3.8 mountedGeometryscripts226fe787; F3.7 boardInspector15 dispatched on provenentrycapability. Criteria and finalacceptance unchanged; source/status update only."
+        },
+        {
+          "at": "2026-10-05T13:21:15.447649+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Consolidated independent review clears published focused Escape and retained integrated Layout evidence; all Layout joins accepted. Complete inventory ownership/disposition accounting is independently reviewed without blanket port-complete claims.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f3-7-decision.json"
+        },
+        {
+          "at": "2026-10-05T13:35:06.994689+00:00",
+          "from": "accepted",
+          "to": "implementing",
+          "reason": "New paired public downloaded documents contradict prior bounded nonmutation evidence for fractional point coordinates: candidate loses precision and creates revision; reference retains exact original. Editor-exit GREEN still stands.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/f3-7-correction-decision.json"
         }
       ],
       "criteria": [
@@ -2289,10 +2303,13 @@
           ],
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/integrated-layout-c1d3-20261005/RECEIPT.md",
-            ".scratch/dioxus-frontend-v1/evidence/integrated-layout-c1d3-20261005/paired-document-comparison.json"
+            ".scratch/dioxus-frontend-v1/evidence/integrated-layout-c1d3-20261005/paired-document-comparison.json",
+            ".scratch/dioxus-frontend-v1/evidence/layout-canvas-escape-public-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/minimal-escape-comparison.json"
           ],
           "blockers": [],
-          "next_action": "Diagnose focused fixed-outline point key handler, obtain owning mounted RED/GREEN, then qualify only changed cancellation branch on immutable package; retain completed same-journey output/camera/history evidence.",
+          "next_action": "New exact public downloaded-archive regression: import-onlyr15 retains point2X-8.2375; select/edit/focus point2 thenEscape savesr16 X-8.238 without geometry command. Existing editor-exit GREEN remains true; accepted-document nonmutation now contradicted by public precision case. Author owns fractional mounted RED/fix/GREEN; F8 composition acceptance waits required repair.",
           "finish_condition": "Current-candidate paired receipt records agreement for every named output and state boundary across the integrated journey.",
           "owned_files": [
             "web/src/presentation.rs",
@@ -2352,14 +2369,17 @@
         {
           "id": "F3.7-C05",
           "requirement": "Keyboard operation, visible focus and focus restoration checks are recorded.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "release",
           "sources": [
             ".scratch/dioxus-frontend-v1/tasks.json"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/layout-canvas-escape-public-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
+          ],
           "blockers": [],
-          "next_action": "Retain ordinary keyboard/focus evidence and qualify the repaired canvas-point Escape branch; accessibility, axe and assistive-technology qualification are removed by user instruction.",
+          "next_action": "Independent final review CLEAR: immutable6bb3d520 focused canvas Escape agrees with reference, preserves selected outline, closes editor/handles and restores BODY focus. Required owning gates pass; retained full Layout geometry/history/archive/reopen/camera evidence is unchanged. Accessibility qualification excluded by user.",
           "finish_condition": "Required keyboard actions and focus behavior work in the integrated Layout journey.",
           "owned_files": [
             ".scratch/dioxus-frontend-v1/tasks.json"
@@ -2421,6 +2441,10 @@
         "assessed_at": "2026-10-03T19:29:50Z",
         "coverage": "complete",
         "note": "Current clauses retain integrated journey, desktop visual, keyboard/focus, performance/resource recording and inventory requirements. Accessibility/axe/AT qualification removed by explicit user instruction on2026-10-05; prior wording is retained in accessibility_scope_adjustment."
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f3-7-decision.json",
+        "superseded_by_correction": ".scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/f3-7-correction-decision.json"
       }
     },
     {
@@ -9176,7 +9200,7 @@
         "F6.6",
         "F7.8"
       ],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md",
       "shared_edit_owner": "integration coordinator",
@@ -9318,7 +9342,15 @@
         "assessed_at": "2026-10-03T19:35:06Z",
         "coverage": "complete",
         "note": "All current acceptance clauses for this parent were split into independently decidable criteria; broad baseline RED context was excluded as a requirement. Parent remains open unless all required criteria and joins are accepted."
-      }
+      },
+      "status_history": [
+        {
+          "at": "2026-10-05T13:21:15.567502+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "All required provider and workflow joins are accepted; execute one paired six-workbench project-to-export composition and reuse reviewed unchanged output/lifecycle evidence."
+        }
+      ]
     },
     {
       "id": "F9.1",
@@ -9332,7 +9364,7 @@
       "owner": "F9 workflow lead",
       "start_after": [],
       "acceptance_after": [],
-      "status": "planned",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
       "shared_edit_owner": "integration coordinator",
@@ -9353,7 +9385,7 @@
         {
           "id": "F9.1-C01",
           "requirement": "All 79 TSX rows, 18 CSS files, inventoried hooks and assets have one lead workflow, explicit shared consumers, state and test disposition; no omission or premature completion.",
-          "state": "unassessed",
+          "state": "verified",
           "classification": "release",
           "sources": [
             ".scratch/dioxus-frontend-v1/evidence/tsx-inventory.json",
@@ -9361,10 +9393,11 @@
           ],
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/tsx-inventory.json",
-            ".scratch/dioxus-frontend-v1/evidence/reference-inventory.md"
+            ".scratch/dioxus-frontend-v1/evidence/f91-inventory-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
           ],
           "blockers": [],
-          "next_action": "Reconcile inventory against current six-workbench source/evidence owners and explicit test disposition; retain uncovered behavior as open.",
+          "next_action": "Independent inventory accounting CLEAR:79TSX/18CSS/10hooks/2fonts and five already-inventoried orchestration entries have explicit owners/shared consumers/state/test dispositions. Conservative34partial/29inventory-only production statuses retained; accounting is not blanket port completion.",
           "finish_condition": "Every inventory row has current lead/shared owners, truthful state, and coverage/test disposition with no omission.",
           "owned_files": [
             ".scratch/dioxus-frontend-v1/evidence/tsx-inventory.json"
@@ -9380,7 +9413,19 @@
         "assessed_at": "2026-10-03T19:35:06Z",
         "coverage": "complete",
         "note": "All current acceptance clauses for this parent were split into independently decidable criteria; broad baseline RED context was excluded as a requirement. Parent remains open unless all required criteria and joins are accepted."
-      }
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f9-1-decision.json"
+      },
+      "status_history": [
+        {
+          "at": "2026-10-05T13:21:15.453201+00:00",
+          "from": "planned",
+          "to": "accepted",
+          "reason": "Consolidated independent review clears published focused Escape and retained integrated Layout evidence; all Layout joins accepted. Complete inventory ownership/disposition accounting is independently reviewed without blanket port-complete claims.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f9-1-decision.json"
+        }
+      ]
     },
     {
       "id": "F9.2",
@@ -9978,9 +10023,9 @@
     "integration_slices": 2,
     "boundary_slices": 2,
     "status": {
-      "accepted": 52,
-      "implementing": 2,
-      "planned": 6
+      "accepted": 53,
+      "implementing": 3,
+      "planned": 4
     }
   },
   "agent_policy": ".scratch/dioxus-frontend-v1/agent-policy.json",

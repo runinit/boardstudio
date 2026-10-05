@@ -1,0 +1,12 @@
+{
+  "parent": "F3.7",
+  "at": "2026-10-05T13:35:06.994689+00:00",
+  "from": "accepted",
+  "to": "implementing",
+  "criterion": "F3.7-C02",
+  "reason": "New paired public downloaded documents contradict prior bounded nonmutation evidence for fractional point coordinates: candidate loses precision and creates revision; reference retains exact original. Editor-exit GREEN still stands.",
+  "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/minimal-escape-comparison.json",
+  "prior_decision": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f3-7-decision.json",
+  "review": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+  "tool_limit": "progress.py set-status rejects every transition from accepted and instructs an explicit correction decision; coordinator records that decision and preserves original history instead of changing the tool."
+}
