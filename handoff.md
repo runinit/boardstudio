@@ -1,10 +1,10 @@
 # Handoff (generated from records)
 
-- Branch: codex/rust-v1-ui-parity-20261001 @ 4e716156
+- Branch: codex/rust-v1-ui-parity-20261001 @ e2ec1c1e
 - Worktree: /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001
 - Parents: 22/61 accepted, 28 implementing, 11 planned
-- Criteria: unassessed 27, missing 1, implemented 75, verified 119; 222 total
-  - functional: implemented 62, missing 1, unassessed 3, verified 115
+- Criteria: unassessed 27, missing 1, implemented 69, verified 125; 222 total
+  - functional: implemented 56, missing 1, unassessed 3, verified 121
   - release: implemented 10, unassessed 19, verified 4
   - visual: implemented 3, unassessed 5
 
@@ -132,3 +132,32 @@ Current own uncommitted records/receipts describe this milestone; combine at nex
 Native harness repair frozen/reviewed: only Matrix harness fields/handlers/seven-input counts, Parts extraction requester stub, Keycaps props/runtime input stub, and keycaps_fit.rs wasm-only test-module cfg. Native targets26/26 passed (4+18+4), no assertions removed. Independent native-harness-drift-review CLEAR with hashes. Guarded integration must still run affected Keycaps9wasm tests. No application package is needed: served4e716156release graph unchanged.
 
 Parts preview public MX/Choc/MX selection,2D/3D andLayout/Parts unmount retains candidate current name/Revision24Saved; reference name/Saved state unchanged (no public numeric revision). Existing4e716156native/Parts-subtree gate proves lease/stale-token tests without duplicate rerun. Fresh renderer_host_page lifecycle5/5 passed. F4.4-C04 now verified; broader F7.3 and missing mounted Parts renderer-init error feedback remain open. Detailed parts-preview-lifecycle-20261004/RECEIPT.md plus coverage map. No heavy jobs or source authors remain other than current root commit gate. Six unrelated staged evidence files remain untouched.
+
+
+## Native fixture integration complete
+
+HEAD e2ec1c1e: guarded native/page/reachability/Keycaps9WASM gates passed;26native integration tests already passed. Log evidence/native-harness-drift-20261004/commit-gate.log is newly untracked, current run/handoff note uncommitted for next milestone. No heavy jobs running. Published app remains4e716156on34822, release source unchanged by maintenance. recipe_import_qualification is read-only planning the smallest mounted Parts init-failure fixture; viewer_qualification is read-only reconciling F7.3-C01/C06/C09 against actual requirements and prior source-attributable proof (avoid duplicated pick checks whenC05alreadyverified). Both update existing/own reports only. Native author/reviewer finished. Six unrelated staged files preserved.
+
+## PCB desktop qualification and next mounted fixture
+
+F5.1-C01 now verified from current served4e716156 matched input archive: Left/Right70part transforms and host outline points equal reference,23default layer states match. Light/Dark publictheme switches and160pad hide/restore pass; candidate retainsRevision9Saved. Receipt evidence/pcb-host-themes-20261004/RECEIPT.md; input archive/provenance beside it. F5.1-C03 keeps visual scope open, compact/mobile excluded. No parent accepted; records and receipt to join next coherent milestone commit. Preserve six unrelated staged files.
+
+recipe_import_qualification now authors one narrow cfg(test) SharedViewer mount failure seam plus actual Parts preview mounted error/form/2D recovery test in shared_viewer.rs, parts/preview.rs/new test subtree; owns heavy slot1 for focused strict WASM test, no commit/package. viewer_qualification prepares attributable real STL/WRL import fixtures in evidence/f73-asset-formats-20261004 only; no source edits. Root browser tabs may close between turns; current saved paired fixture PCB grouped qualification20261004 remains imported, LeftPCB selected, layer defaults restored, System theme restored. Current renderer source author edits are not packaged; served4e candidate stays frozen.
+
+## STL/WRL and consumer reconciliation
+
+F7.3-C01/C09 verified from five-consumer map and independently checked actual criteria: no extra Parts-pick obligation belongs to common-viewer/privateDTO wiring. C06verified: candidate34822 imports realWRL/STL assets, saves recipe Archived STL WRL qualification20261004 in PCB grouped qualification20261004, reloads/reopens2models, reports3Dready with fullSHA rows, independentlyhide/show, revision10Saved. Reference2/2models observed before reload failedERR_CONNECTION_REFUSED; no live pinnedserver provenance found, do not re-serve guessed app/dist. See evidence/f73-asset-formats-20261004/RECEIPT.md andassets; no portable archive claim. Existing STEP/error recovery andBND.1keycaps proofs reused.
+
+Parts initfixture author still owns2sourcefiles. Review found fixture-fixed-snapshot nonmutation weakness; now also asserts no submittedRuntimeevent. First compile E0433 enum path fixed; next runtime failure was missing3Dbutton beforeVirtualDomrender, diagnosed through exactnocapture test and fixed by boundedwait. Final strict10testmodule rerun underway; do not count aspass until terminalresult. preset_batch_review remains independentreview owner waiting finalhashes. No commit/package yet;6unrelatedstagedfiles preserved.
+
+## Active isolated reference rebuild and renderer fixture
+
+Reference recovery approved from exact pin5a472a9426e6e38993361da402cd4ec730feb369 in /home/chris/.local/share/boardstudio/tmp/reference-5a472a9-20261004, created via git archive. viewer_qualification owns heavy slot2; frozen offline dependencies installed, fresh Core build passed, CAD compiled and wasm-opt active (exec session67323); Renderer/UI not yet built. Do not reuse changed current provider binaries or serve guessed dist. Next return server5175 only after attributable output/provenance and portcheck.
+
+Parts fixture still sourceuncommitted under recipe_import_qualification, heavy slot1. Actual missing prerequisites diagnosed: no core-worker in wasm-bindgen server, then generator assets missing on2Dreturn. Local cfgtest preparedPcbPreview seed now goes after existing acceptedscope/token/capture/lease checks via capture.accept_preview; realPartsSampleViewer/SharedViewer currentness and actualinjectedrendereralert reached. Dedicated fixture becomes authoredgeneratorNone for2DSVG; finalstrictmodule pass still required. Reviewer preset_batch_review has no further sourceissues but awaits finalhashes/results. NoRuntimeAPIchange. Root added PartsLight/Dark3Dready/updated,2Dreturn, unchangedrevision10 evidence to assetreceipt; C07stillopen for broaderlifecycle. Temporary duplicateSTL/WRLassets removed after hashverification, receiptuses trackedvendorpaths; noassetcopiesneedcommitting. Sixunrelatedstagedfiles preserved; no newcommit/package.
+
+## Frozen source ready for guarded integration
+
+Final previewSHA3c57d81238b1ac228e9c01e131b7fa6259869e9432c9c6fb3bdf044f0fb5fb1f; sharedviewerSHA6d1b6bac802e9b9e8885505a9a4c685212ebecec1612b841e2a52e4bb4c6c56e. Settled strictpreviewmodule10of10passed; noauthors/heavyjobsactive. Scopedboard and validminimalKiCadfixtureincluded; nofurtheroptionaledit. C03Partsrendererfailure andF7.3C10verified from combined evidence, parentsunchanged. Rootmandatorycommitgate next.
+
+Reference rebuilt exact5a472a9 under isolatedtmp/reference-5a472a9-20261004/output, server5175PID2306232. Source/provider/outputhashes inreference-recovery-20261004.md. MatchingDOM main-CYxchQWA.js. Retainedrecipe reloads bothassetUUIDs, but referenceWebGL2startupfails0of2; notsuccessfulnewreference3Drender. Candidate34822continues3Dready. Sixunrelatedstagedfiles remain.

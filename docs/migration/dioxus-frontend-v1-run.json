@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-04T23:52:43.507428+00:00",
+    "updated_at": "2026-10-05T00:37:18.322882+00:00",
     "parent_counts": {
       "accepted": 22,
       "implementing": 28,
@@ -48,8 +48,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "4e716156a0692972b1309798cdc883739c7ff73b",
-      "state": "Native harness drift repair is source-reviewed CLEAR; Matrix4/4, Parts18/18, Keycaps4/4 executed and passed. Only fixture/stub fields and a wasm-only test-module guard changed, with all assertions retained. Required native/page/affected-Keycaps wasm gate pending guarded integration. Published application remains4e716156; no package needed for these test-only changes. F4.4-C04 now qualified with public revision24 nonmutation and renderer lifecycle5/5.",
+      "source_commit": "e2ec1c1e511f82fb9aaaa10a0406da7dafa4f76c",
+      "state": "Reviewed Parts renderer-init mounted fixture is frozen and strict previewmodule10of10passed; mandatory integration gates pending. Grouped PCB host/defaults and Parts real STL/WRL/theme/reload evidence reconciled; no parent acceptance. Served4e716156release behavior unchanged. Exact-pin TypeScript reference rebuilt in isolation on5175; persistence works but recovered WebGL2init fails, separately recorded.",
       "packets": [
         {
           "stream": "Layout",
@@ -579,14 +579,14 @@
       },
       {
         "stream": "Parts + Project",
-        "state": "All F4.6 criteria verified; parent awaits F4.4. F4.4-C04 nonmutation/currentness/cleanup now verified. C03 still needs mounted renderer-init error presentation, visual C05 deferred. Existing stale-result checks reused; renderer lifecycle5/5executed. Three native harness repairs passed26tests and independent source review; guarded test-maintenance commit pending."
+        "state": "F4.4-C03/C04 and all F4.6criteria verified. Mounted renderer-init error/form/2D/no-edit test10of10 with independentreview; geometryseed only, existingworker/currentness/contextloss proofs reused. F4.4visual criterion remains open; F4.6parent awaitsF4.4. F7.3C01/C06/C09/C10 verified from consolidated scoped evidence."
       }
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Finish configured Case-local mechanical export repair after native-first/mounted-regression clarification; preserve existing exact snapshot/admission and no duplicate export pipeline.",
-      "Continue same34822 candidate remaining recipe matrix Apply/import/parameter branches, actual shared3Dpick, and routed/module fixture joins; reuse paired evidence already recorded.",
-      "One combined gate/review at next coherent source batch. Keep unassessed F8/F9 open."
+      "Finish configured Case-local mechanical export repair after existing native-first/mounted-regression clarification; preserve exact snapshot/admission and existing export pipeline.",
+      "Complete remaining F7.3 lifecycle/resize/DPR and mounted-editor Save during project replacement qualification, reusing Parts init/contextloss/modelretry/theme evidence. Recovered pinned reference5175 has WebGL2startup failure; diagnose environment before using it for new paired3D success claims.",
+      "Keep mobile/compact deferred and unassessed F8/F9 open. Review one coherent batch before parent acceptance; do not add duplicate Parts picking to shared-viewer wiring criteria."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",

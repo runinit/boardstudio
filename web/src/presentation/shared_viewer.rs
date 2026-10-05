@@ -24,6 +24,38 @@ use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::spawn_local;
 use web_sys::{HtmlCanvasElement, PointerEvent};
 
+#[cfg(test)]
+thread_local! {
+    static NEXT_RENDERER_MOUNT_ERROR: RefCell<Option<String>> = const { RefCell::new(None) };
+}
+
+/// Inject one host initialization error through SharedViewer's real mount-error path.
+/// RendererHost's scripted lifecycle tests separately cover initialization cleanup.
+#[cfg(test)]
+pub(super) struct RendererMountErrorGuard;
+
+#[cfg(test)]
+impl Drop for RendererMountErrorGuard {
+    fn drop(&mut self) {
+        NEXT_RENDERER_MOUNT_ERROR.with(|error| error.borrow_mut().take());
+    }
+}
+
+#[cfg(test)]
+pub(super) fn fail_next_renderer_mount_for_test(
+    message: impl Into<String>,
+) -> RendererMountErrorGuard {
+    NEXT_RENDERER_MOUNT_ERROR.with(|error| {
+        assert!(error.borrow_mut().replace(message.into()).is_none());
+    });
+    RendererMountErrorGuard
+}
+
+#[cfg(test)]
+fn take_renderer_mount_error_for_test() -> Option<String> {
+    NEXT_RENDERER_MOUNT_ERROR.with(|error| error.borrow_mut().take())
+}
+
 pub(crate) use super::case_display::CaseDisplay;
 use super::case_display::preference_ids;
 use super::case_display::{ComponentModelSource, component_models_for_source};
@@ -1806,15 +1838,23 @@ fn SharedViewer(
                                 owner: Rc::downgrade(&report_owner),
                             });
                         });
-                    match RendererPageHost::mount(
-                        element.clone(),
-                        request.input.clone(),
-                        request.identity.renderer_sequence,
-                        status_callback,
-                        mount_guard,
-                    )
-                    .await
-                    {
+                    #[cfg(test)]
+                    let injected_mount_error = take_renderer_mount_error_for_test();
+                    #[cfg(not(test))]
+                    let injected_mount_error: Option<String> = None;
+                    let mount_result = if let Some(error) = injected_mount_error {
+                        Err(error)
+                    } else {
+                        RendererPageHost::mount(
+                            element.clone(),
+                            request.input.clone(),
+                            request.identity.renderer_sequence,
+                            status_callback,
+                            mount_guard,
+                        )
+                        .await
+                    };
+                    match mount_result {
                         Ok((renderer, accepted)) if is_current() => {
                             *host.borrow_mut() = Some(renderer);
                             applied_sequence.set(request.identity.renderer_sequence);

@@ -13,6 +13,36 @@ use std::{
 use wasm_bindgen::JsCast;
 use web_sys::HtmlElement;
 
+#[cfg(test)]
+thread_local! {
+    static NEXT_PARTS_TEST_PREVIEW: RefCell<Option<boardstudio_core::model::PcbPreview>> = const { RefCell::new(None) };
+}
+
+#[cfg(test)]
+struct PartsTestPreviewGuard;
+
+#[cfg(test)]
+impl Drop for PartsTestPreviewGuard {
+    fn drop(&mut self) {
+        NEXT_PARTS_TEST_PREVIEW.with(|preview| preview.borrow_mut().take());
+    }
+}
+
+#[cfg(test)]
+fn seed_parts_preview_for_test(
+    preview: boardstudio_core::model::PcbPreview,
+) -> PartsTestPreviewGuard {
+    NEXT_PARTS_TEST_PREVIEW.with(|next| {
+        assert!(next.borrow_mut().replace(preview).is_none());
+    });
+    PartsTestPreviewGuard
+}
+
+#[cfg(test)]
+fn take_parts_preview_for_test() -> Option<boardstudio_core::model::PcbPreview> {
+    NEXT_PARTS_TEST_PREVIEW.with(|preview| preview.borrow_mut().take())
+}
+
 #[derive(Clone, Debug, PartialEq)]
 struct PreviewInput {
     scope: Option<Scope>,
@@ -253,6 +283,10 @@ pub(in crate::presentation) fn PartsPreviewPanel(
                             &recipe,
                         )?;
                         lease_slot.replace(capture.lease.clone());
+                        #[cfg(test)]
+                        if let Some(preview) = take_parts_preview_for_test() {
+                            return capture.accept_preview(preview, None).map(Rc::new);
+                        }
                         runtime
                             .prepare_parts_library_preview(capture)
                             .await
@@ -1019,11 +1053,14 @@ fn PartsPreviewLayers(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_application::SessionEpoch;
+    use boardstudio_application::{AcceptedSnapshot, Scope, SessionEpoch, SnapshotToken};
+    use boardstudio_core::model::{Board, ProjectDoc, SceneDelta};
+    use std::sync::Arc;
     use wasm_bindgen_test::wasm_bindgen_test;
+    use web_sys::{Element as DomElement, HtmlElement};
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
-    use boardstudio_core::model::{EnvelopeSource, PartGenerator, PartKind};
+    use boardstudio_core::model::{EnvelopeSource, KicadSource, PartGenerator, PartKind};
 
     fn definition() -> PartDefinition {
         PartDefinition {
@@ -1068,6 +1105,244 @@ mod tests {
             rotation: None,
             net_id: None,
         }
+    }
+
+    #[derive(Clone)]
+    struct PartsMountedFixture {
+        snapshot: AcceptedSnapshot,
+        scope: Scope,
+        definition: PartDefinition,
+    }
+
+    #[component]
+    fn parts_renderer_failure_host() -> Element {
+        let fixture = use_context::<PartsMountedFixture>();
+        let mut selection = use_signal(|| None::<(Option<Scope>, String)>);
+        let selected_context = use_signal(|| None);
+        let anchor_scope = use_signal(|| None::<Scope>);
+        let generation = use_signal(|| 1_u64);
+        let adapter = use_hook(|| {
+            super::super::super::selection::SelectionAdapter::new(
+                selected_context,
+                anchor_scope,
+                generation,
+            )
+        });
+        use_context_provider(|| adapter.clone());
+        use_context_provider(|| super::super::PartsSelectionGeneration(generation));
+        let activation = use_signal(|| 0_u64);
+        use_context_provider(|| super::super::PartsPreviewActivation(activation));
+        let workspace = use_signal(|| "Parts");
+        use_context_provider(|| super::super::super::WorkspaceState(workspace));
+        let theme = use_memo(|| "light");
+        use_context_provider(|| super::super::super::ResolvedTheme(theme));
+        let _: Signal<u64> = use_context_provider(|| Signal::new(0_u64));
+
+        rsx! {
+            super::super::mechanical_profile_ui::PartsMechanicalProfileWorkspace {
+                snapshot: fixture.snapshot.clone(),
+                scope: Some(fixture.scope.clone()),
+                selection,
+                definition: fixture.definition.clone(),
+                preview_definition: Some(fixture.definition.clone()),
+                generator_draft: None,
+                recipe: Vec::new(),
+                recipe_error: None,
+                recipe_pending: false,
+                recipe_identity: "parts-renderer-init-test".to_owned(),
+                preview_title: None,
+                source: crate::parts_mechanical_profile::ProfileDefinitionSource::Ergogen,
+            }
+        }
+    }
+
+    fn accepted_parts_fixture() -> (AcceptedSnapshot, Scope) {
+        let mut document = ProjectDoc::empty("parts-renderer-init-project", "Parts test");
+        document.revision = 7;
+        let board_id = "parts-renderer-init-board";
+        document.boards.push(Board {
+            id: board_id.into(),
+            name: "Parts test board".into(),
+            outline_ids: Vec::new(),
+            part_ids: Vec::new(),
+            net_ids: Vec::new(),
+            thickness: 1.6,
+            traces: Vec::new(),
+            vias: Vec::new(),
+        });
+        let session_epoch = SessionEpoch(3);
+        let scope = Scope {
+            session_epoch,
+            document_id: document.id.clone(),
+            board_id: board_id.into(),
+            instance_id: None,
+        };
+        let scene: SceneDelta = serde_json::from_value(serde_json::json!({
+            "revision": 7,
+            "transactionId": "parts-renderer-init-fixture",
+            "changedIds": [],
+            "transforms": [],
+            "matrixScenes": [],
+            "contours": [],
+            "boardContours": [],
+            "boardReadiness": [],
+            "findings": [],
+            "readiness": {
+                "layout": false,
+                "outline": false,
+                "pcb": false,
+                "case": false
+            }
+        }))
+        .unwrap();
+        (
+            AcceptedSnapshot {
+                token: SnapshotToken(11),
+                session_epoch,
+                document: Arc::new(document),
+                scene: Arc::new(scene),
+            },
+            scope,
+        )
+    }
+
+    fn click_button(root: &DomElement, label: &str) {
+        let buttons = root.query_selector_all("button").unwrap();
+        for index in 0..buttons.length() {
+            let Some(button) = buttons.item(index) else {
+                continue;
+            };
+            if button.text_content().unwrap_or_default().trim() == label {
+                button.dyn_into::<HtmlElement>().unwrap().click();
+                return;
+            }
+        }
+        panic!("missing mounted Parts button: {label}");
+    }
+
+    fn has_button(root: &DomElement, label: &str) -> bool {
+        let buttons = root.query_selector_all("button").unwrap();
+        (0..buttons.length()).any(|index| {
+            buttons
+                .item(index)
+                .and_then(|button| button.text_content())
+                .is_some_and(|text| text.trim() == label)
+        })
+    }
+
+    async fn wait_for(root: &DomElement, selector: &str) -> DomElement {
+        for _ in 0..500 {
+            if let Some(element) = root.query_selector(selector).unwrap() {
+                return element;
+            }
+            gloo_timers::future::TimeoutFuture::new(20).await;
+        }
+        let text = root.text_content().unwrap_or_default();
+        let summary = text.chars().take(800).collect::<String>();
+        panic!("timed out waiting for Parts preview element: {selector}; rendered text: {summary}");
+    }
+
+    async fn wait_for_button(root: &DomElement, label: &str) {
+        for _ in 0..100 {
+            if has_button(root, label) {
+                return;
+            }
+            gloo_timers::future::TimeoutFuture::new(20).await;
+        }
+        panic!("timed out waiting for mounted Parts button: {label}");
+    }
+
+    #[wasm_bindgen_test]
+    async fn parts_renderer_initialization_failure_keeps_form_and_returns_to_2d() {
+        let runtime = crate::runtime::Runtime::new().expect("browser runtime fixture initializes");
+        let (snapshot, scope) = accepted_parts_fixture();
+        runtime.set_definition_name_test_state(snapshot.clone(), Some(scope.clone()));
+        let mut definition = definition();
+        definition.generator = None;
+        definition.kicad_source = Some(KicadSource {
+            format_version: 1,
+            source:
+                "(footprint \"Parts test switch\" (version 20240108) (generator \"BoardStudio\"))"
+                    .into(),
+        });
+        let fixture = PartsMountedFixture {
+            snapshot: snapshot.clone(),
+            scope,
+            definition,
+        };
+        let before = runtime
+            .model()
+            .accepted
+            .expect("fixture project is current");
+
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("parts-renderer-init-failure-test");
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = dioxus::prelude::VirtualDom::new(parts_renderer_failure_host);
+        dom.provide_root_context(runtime.clone());
+        dom.provide_root_context(fixture);
+        let _failure = super::super::super::shared_viewer::fail_next_renderer_mount_for_test(
+            "injected renderer initialization failure",
+        );
+        let _preview = super::seed_parts_preview_for_test(boardstudio_core::model::PcbPreview {
+            revision: snapshot.document.revision,
+            thickness: 1.6,
+            contours: Vec::new(),
+            surfaces: Vec::new(),
+            holes: Vec::new(),
+            models: Vec::new(),
+            diagnostics: Vec::new(),
+        });
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+
+        wait_for_button(&root, "3D model").await;
+        click_button(&root, "3D model");
+        let alert = wait_for(&root, ".m1-case-view-status[role=alert]").await;
+        assert!(
+            alert
+                .text_content()
+                .unwrap_or_default()
+                .contains("injected renderer initialization failure"),
+            "renderer mount failure must travel through SharedViewer's actual error status"
+        );
+        assert!(
+            root.text_content()
+                .unwrap_or_default()
+                .contains("Mechanical fit")
+        );
+        assert!(
+            root.text_content()
+                .unwrap_or_default()
+                .contains("Define profile")
+        );
+        assert!(has_button(&root, "2D footprint"));
+        assert!(has_button(&root, "3D model"));
+
+        click_button(&root, "2D footprint");
+        wait_for(&root, "svg[aria-label='switch mx footprint preview']").await;
+        assert!(root.query_selector("canvas").unwrap().is_none());
+        assert!(
+            root.text_content()
+                .unwrap_or_default()
+                .contains("Define profile")
+        );
+        let after = runtime
+            .model()
+            .accepted
+            .expect("fixture project remains current");
+        assert_eq!(after.token, before.token);
+        assert_eq!(after.document.revision, before.document.revision);
+        assert_eq!(after.document.id, before.document.id);
+        assert!(Arc::ptr_eq(&after.document, &before.document));
+        assert!(
+            runtime.take_definition_name_test_event().is_none(),
+            "the mounted renderer failure and 2D return must not submit a project edit"
+        );
+        root.remove();
     }
 
     #[wasm_bindgen_test]

@@ -3067,11 +3067,10 @@
         {
           "id": "F4.4-C03",
           "requirement": "Provider/model conversion failures have an existing retry path for the isolated Parts sample. Renderer initialization/context loss instead reports/stops cleanly and preserves the 2D return; no canvas-retry control is required.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
-            "web/src/model_delivery.rs:573",
-            "web/src/model_delivery.rs:916",
+            "web/src/presentation/model_delivery.rs",
             "web/src/presentation/parts/preview.rs:191",
             "web/src/presentation/parts/preview.rs:307",
             "web/src/runtime.rs:3311",
@@ -3080,10 +3079,14 @@
           ],
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/parts/F4.4-C03-34779.md",
-            ".scratch/dioxus-frontend-v1/evidence/recipe-import-invalid-20261004/RECEIPT.md"
+            ".scratch/dioxus-frontend-v1/evidence/recipe-import-invalid-20261004/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/parts-renderer-init-fixture-plan-20261004.md",
+            ".scratch/dioxus-frontend-v1/evidence/parts-renderer-init-final-20261004.log",
+            ".scratch/dioxus-frontend-v1/evidence/parts-renderer-init-review-20261004.md",
+            ".scratch/dioxus-frontend-v1/evidence/parts-preview-lifecycle-20261004/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Real malformed STEP in isolated assembly sample now exposes conversion failure, usable2Dreturn/retry and recovery after removal; reference3/4 ->3/3observed. Renderer initialization failure and the single-definition sample route remain unqualified. Retain existing WebGL context-loss stop/2Dreturn evidence.",
+          "next_action": "Reuse current mounted renderer-init error/form/2Dreturn/no-edit test (strict previewmodule10of10) with prior real context-loss stop/2Dreturn, hostcleanup5of5, lease/currentness and malformedmodel retry/recovery evidence. Geometry fixture is seeded; no Core-worker or realGPUinitfailure claim. No additional canvasretry control or duplicate Parts pick required.",
           "finish_condition": "Current public evidence demonstrates provider/model failure then retry/recovery for the isolated Parts sample, and confirms renderer initialization/context loss reports/stops with the 2D route available and no canvas retry control.",
           "owned_files": [
             "web/src/runtime.rs",
@@ -3500,7 +3503,7 @@
         {
           "id": "F5.1-C01",
           "requirement": "Selected PCB canvas matches React defaults and visible host-board geometry on paired fixtures.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/pcb_workspace.rs",
@@ -3509,10 +3512,11 @@
           "evidence": [
             ".scratch/dioxus-pcb-view/evidence/pcb02-public-qualification-20261002/paired-walkthrough.md",
             ".scratch/dioxus-pcb-view/evidence/19-new-board-20261003/pcb19-dioxus-board2-34760.png",
-            ".scratch/dioxus-pcb-view/evidence/20-add-object-20261003/public-34761.json"
+            ".scratch/dioxus-pcb-view/evidence/20-add-object-20261003/public-34761.json",
+            ".scratch/dioxus-frontend-v1/evidence/pcb-host-themes-20261004/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Qualify the current integrated canvas against paired representative populated-board fixtures; reuse PCB02 layer journey rather than rerunning its unchanged happy path.",
+          "next_action": "Reuse paired current-source Left/Right PCB geometry and default-layer receipt at parent review; no duplicate browser run.",
           "finish_condition": "Current candidate has same-fixture geometry/source identity evidence and selected-board route coverage.",
           "owned_files": [
             "web/src/presentation/pcb_workspace.rs",
@@ -3560,11 +3564,12 @@
             "web/src/presentation/pcb_workspace.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-pcb-view/evidence/pcb02-public-qualification-20261002/paired-walkthrough.md"
+            ".scratch/dioxus-pcb-view/evidence/pcb02-public-qualification-20261002/paired-walkthrough.md",
+            ".scratch/dioxus-frontend-v1/evidence/pcb-host-themes-20261004/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Record current candidate at desktop and compact widths in Light and Dark; system theme only if it changes the rendered behavior.",
-          "finish_condition": "Paired candidate/reference evidence covers both themes and both viewport classes with no clipped/inaccessible controls.",
+          "next_action": "Desktop Light/Dark theme and pad/copper control behavior now qualified in grouped receipt. Remaining cosmetic/clipping assessment stays deferred to visual milestone. Mobile/compact qualification is removed from active scope by user instruction.",
+          "finish_condition": "Desktop Light/Dark visual assessment has no clipped/inaccessible controls; functional theme/toggle proof is retained. Mobile/compact scope is deferred, not verified.",
           "owned_files": [
             "web/src/presentation/pcb_workspace.rs",
             "web/src/presentation/pcb_scene.rs",
@@ -6512,7 +6517,7 @@
         {
           "id": "F7.3-C01",
           "requirement": "Implement one common viewer and private adapter for Layout, Parts, Keymap, Keycaps and Case; consumers provide scoped scenes and supported interactions without cloning viewer behavior.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/shared_viewer.rs",
@@ -6524,10 +6529,13 @@
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
             ".scratch/dioxus-frontend-v1/evidence/keymap-3d-consumer-20261003/paired-receipt.md",
             ".scratch/dioxus-frontend-v1/evidence/keycaps-3d-preview-20261003/RECEIPT.md",
-            ".scratch/dioxus-frontend-v1/evidence/parts-chooser-public-34739-20261002/RESULTS.md"
+            ".scratch/dioxus-frontend-v1/evidence/parts-chooser-public-34739-20261002/RESULTS.md",
+            ".scratch/dioxus-frontend-v1/evidence/f73-consumer-qualification-plan-20261004.md",
+            ".scratch/dioxus-frontend-v1/evidence/parts-preview-lifecycle-20261004/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/recipe-import-invalid-20261004/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Next inspect each consumer’s current scene producer/selector on one frozen source and reconcile scoped interaction coverage.",
+          "next_action": "Reuse current-source five-consumer map and paired scope/control receipts at parent join. C05 owns picking; no duplicate Parts-pick requirement is introduced for common-viewer/private-DTO wiring. C10 renderer-failure sample safety remains separate.",
           "finish_condition": "All five consumer routes are publicly shown to use the same implementation and accepted scope projection.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",
@@ -6654,7 +6662,7 @@
         {
           "id": "F7.3-C06",
           "requirement": "Load supported STL/WRL assets through existing renderer decode and STEP/CAD assets through existing import paths, including supported module/mechanical inputs and BND.1 keycap solids/inlays.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/shared_viewer.rs",
@@ -6669,10 +6677,13 @@
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
             ".scratch/dioxus-frontend-v1/evidence/keycaps-3d-preview-20261003/RECEIPT.md",
-            ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md"
+            ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md",
+            ".scratch/dioxus-frontend-v1/evidence/f73-asset-formats-20261004/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/f73-consumer-qualification-plan-20261004.md",
+            ".scratch/dioxus-frontend-v1/evidence/recipe-import-invalid-20261004/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Source 18ff7659 carries Core module model placements through verified asset bytes, decode, stable IDs and transforms; packaged candidate 34799 lists the non-VIK STEP model as a separate visible layer. At the next functional milestone, check model pick and unavailable/error feedback with the same saved fixture, then reuse retained STL/WRL, keycap inlay and STEP evidence before a verified verdict. Do not rerun unchanged branches.",
+          "next_action": "Reuse persisted STL/WRL provider/decoder/scene evidence plus moduleSTEP/modelerror-retry and acceptedBND.1keycap/inlays. Recovered exact-pinreference retainedboth assets afterreload but WebGL2initfailed; successful reference2of2render predatesrecovery. Noportablearchive ornewpickingclaim.",
           "finish_condition": "Actual supported asset bytes traverse their existing adapter/decode path with stable IDs and useful unavailable/error feedback.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",
@@ -6701,10 +6712,11 @@
             ".scratch/dioxus-shared-viewer/evidence/source-contract-reviewed-20261002/final-standards-review.md",
             ".scratch/dioxus-shared-viewer/evidence/case-viewport-layout/public-final/README.md",
             ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md",
-            ".scratch/dioxus-frontend-v1/evidence/parts-preview-lifecycle-20261004/RECEIPT.md"
+            ".scratch/dioxus-frontend-v1/evidence/parts-preview-lifecycle-20261004/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/f73-asset-formats-20261004/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Reuse Parts no-mutation/currentness and renderer host5/5cleanup plus real model failure/retry/recovery and prior context-loss receipts. Remaining broader theme/DPR/consumer lifecycle and old mounted-editor Save during project replacement remain unqualified; do not repeat passing Parts branches.",
+          "next_action": "Reuse Parts no-mutation/currentness, real model failure/retry/recovery, renderer host5of5cleanup and new Parts Light/Dark3Dupdate/form continuity. Broader resize/DPR/consumer lifecycle and mounted-editor Save during project replacement remain unqualified; avoid repeating passing Parts branches.",
           "finish_condition": "Each lifecycle/error transition suppresses stale publication, releases renderer/listener resources and preserves the 2D/form route.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",
@@ -6744,7 +6756,7 @@
         {
           "id": "F7.3-C09",
           "requirement": "Wire F3/F4/F6 consumer workflow wiring to the single viewer; keep renderer-private DTOs private and avoid assumed public API widening.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/shared_viewer.rs",
@@ -6756,10 +6768,13 @@
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
             ".scratch/dioxus-frontend-v1/evidence/keymap-3d-consumer-20261003/paired-receipt.md",
-            ".scratch/dioxus-frontend-v1/evidence/keycaps-3d-preview-20261003/RECEIPT.md"
+            ".scratch/dioxus-frontend-v1/evidence/keycaps-3d-preview-20261003/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/f73-consumer-qualification-plan-20261004.md",
+            ".scratch/dioxus-frontend-v1/evidence/parts-preview-lifecycle-20261004/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/recipe-import-invalid-20261004/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Inspect remaining consumer deltas and reconcile against owning F3/F4/F6 criteria rather than recopying shared controls.",
+          "next_action": "Reuse current-source five-consumer map and paired scope/control receipts at parent join. C05 owns picking; no duplicate Parts-pick requirement is introduced for common-viewer/private-DTO wiring. C10 renderer-failure sample safety remains separate.",
           "finish_condition": "All consumers use private shared DTOs and accepted workflow sources; no duplicated viewer or unapproved API widening.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs"
@@ -6772,7 +6787,7 @@
         {
           "id": "F7.3-C10",
           "requirement": "Parts uses isolated sample project/companions; renderer initialization/context loss stops cleanly, preserves form and existing 2D return without a new canvas retry.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/parts",
@@ -6783,10 +6798,13 @@
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
             ".scratch/dioxus-frontend-v1/evidence/parts-chooser-public-34739-20261002/RESULTS.md",
             ".scratch/dioxus-frontend-v1/evidence/parts-sample-public-20261004.md",
-            ".scratch/dioxus-frontend-v1/evidence/parts-preview-lifecycle-20261004/RECEIPT.md"
+            ".scratch/dioxus-frontend-v1/evidence/parts-preview-lifecycle-20261004/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/parts-renderer-init-fixture-plan-20261004.md",
+            ".scratch/dioxus-frontend-v1/evidence/parts-renderer-init-final-20261004.log",
+            ".scratch/dioxus-frontend-v1/evidence/parts-renderer-init-review-20261004.md"
           ],
           "blockers": [],
-          "next_action": "Reuse paired sample controls/per-model rows and newly verified F4.4-C04 nonmutation/currentness/renderer cleanup. Remaining Parts mounted renderer-initialization error presentation and any actual sample-pick/scope branch remain open; no repeated unavailable public fault injection. Mobile deferred.",
+          "next_action": "Reuse current mounted renderer-init error/form/2Dreturn/no-edit test (strict previewmodule10of10) with prior real context-loss stop/2Dreturn, hostcleanup5of5, lease/currentness and malformedmodel retry/recovery evidence. Geometry fixture is seeded; no Core-worker or realGPUinitfailure claim. No additional canvasretry control or duplicate Parts pick required.",
           "finish_condition": "Sample cannot mutate live project; renderer failure retains form and 2D access; retry remains only where existing provider/model retry supports it.",
           "owned_files": [
             "web/src/presentation/parts",
