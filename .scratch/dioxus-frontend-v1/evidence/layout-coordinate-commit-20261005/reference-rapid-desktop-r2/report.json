@@ -1,0 +1,33 @@
+{
+  "url": "http://127.0.0.1:5175/",
+  "fixture": ".scratch/dioxus-frontend-v1/evidence/f86-integrated-20261005/fixed-candidate/probe-01-placement.boardstudio",
+  "checks": {},
+  "status": "incomplete",
+  "selection": {
+    "active": "<g class=\"wb-scene-part  is-selected \" role=\"button\" tabindex=\"0\" aria-label=\"J1, mounting hole npth, X 66.675 Y -47.625\" aria-pressed=\"true\" aria-description=\"Arrow keys move 0.1 mm; Shift+Arrow moves 1 mm. Delete removes the selection.\" transform=\"translate(66.675 -47.625) rotate(0)\"><polygon poin",
+    "fields": [
+      {
+        "label": null,
+        "value": "66.67"
+      },
+      {
+        "label": null,
+        "value": "-47.63"
+      },
+      {
+        "label": "Offset X (mm)",
+        "value": "0"
+      },
+      {
+        "label": "Offset Y (mm)",
+        "value": "0"
+      },
+      {
+        "label": "Rotation (degrees)",
+        "value": "0"
+      }
+    ],
+    "j1": []
+  },
+  "error": "{\"success\":false,\"data\":null,\"error\":\"Wait timed out after 25000ms\"}\n"
+}

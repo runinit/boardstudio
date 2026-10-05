@@ -1,0 +1,270 @@
+[
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-056fafd3275e",
+      "open",
+      "http://127.0.0.1:39557/",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":true,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":false,\"saveStatus\":\"not_attempted\"},\"targetId\":\"48DAA2FC9BF71D6C5AE4ABC0413EBFCE\",\"title\":\"BoardStudio\",\"url\":\"http://127.0.0.1:39557/\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:19:36.006719+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-056fafd3275e",
+      "wait",
+      "--fn",
+      "document.querySelector('.m1-library-landing') || document.querySelector('.m1-canvas')",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"result\":{}},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:19:36.075014+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-056fafd3275e",
+      "eval",
+      "(async()=>JSON.stringify(await (({canvas:!!document.querySelector('.m1-canvas'),landing:!!document.querySelector('.m1-library-landing')}))))()",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"origin\":\"http://127.0.0.1:39557/\",\"result\":\"{\\\"canvas\\\":false,\\\"landing\\\":true}\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:19:36.086241+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-056fafd3275e",
+      "wait",
+      ".m1-library-landing .m1-library button",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"selector\":\".m1-library-landing .m1-library button\",\"waited\":\"selector\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:19:36.090714+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-056fafd3275e",
+      "click",
+      ".m1-library-landing .m1-library button:first-child",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"clicked\":\".m1-library-landing .m1-library button:first-child\",\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"}},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:19:36.105927+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-056fafd3275e",
+      "wait",
+      ".m1-canvas",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"selector\":\".m1-canvas\",\"waited\":\"selector\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:19:36.314308+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-056fafd3275e",
+      "wait",
+      "--fn",
+      "navigator.serviceWorker.controller && document.querySelector('.m1-canvas')",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"result\":{\"listening\":8}},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:19:36.940501+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-056fafd3275e",
+      "wait",
+      "--fn",
+      "navigator.serviceWorker.controller.scriptURL.startsWith(location.origin + \"/\" + 'service-worker.js')",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"result\":true},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:19:36.944024+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-056fafd3275e",
+      "eval",
+      "(async()=>JSON.stringify(await (({url:location.href,online:navigator.onLine,worker:navigator.serviceWorker.controller.scriptURL,workspace:document.querySelector('[role=tab][aria-selected=true]')?.textContent.trim(),title:document.title,canvas:!!document.querySelector('.m1-canvas')}))))()",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"origin\":\"http://127.0.0.1:39557/\",\"result\":\"{\\\"url\\\":\\\"http://127.0.0.1:39557/\\\",\\\"online\\\":true,\\\"worker\\\":\\\"http://127.0.0.1:39557/service-worker.js\\\",\\\"workspace\\\":\\\"Layout\\\",\\\"title\\\":\\\"BoardStudio\\\",\\\"canvas\\\":true}\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:19:36.947274+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-056fafd3275e",
+      "eval",
+      "(async()=>JSON.stringify(await ((async()=>{const c=await caches.open(\"boardstudio-m1-offline-path-2f-frontend-layout-untouched-coordinate-20261005-root\");const url=new URL(\"assets/layout-generators/src/index.js\",location.origin).href;return {cache:\"boardstudio-m1-offline-path-2f-frontend-layout-untouched-coordinate-20261005-root\",url,deleted:await c.delete(url)}})())))()",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"origin\":\"http://127.0.0.1:39557/\",\"result\":\"{\\\"cache\\\":\\\"boardstudio-m1-offline-path-2f-frontend-layout-untouched-coordinate-20261005-root\\\",\\\"url\\\":\\\"http://127.0.0.1:39557/assets/layout-generators/src/index.js\\\",\\\"deleted\\\":true}\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:19:36.951797+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-056fafd3275e",
+      "reload",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"url\":\"http://127.0.0.1:39557/\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:19:36.996773+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-056fafd3275e",
+      "wait",
+      ".m1-canvas",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"selector\":\".m1-canvas\",\"waited\":\"selector\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:19:37.119479+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-056fafd3275e",
+      "click",
+      "#m1-tab-Parts",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"clicked\":\"#m1-tab-Parts\",\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"}},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:19:37.149338+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-056fafd3275e",
+      "wait",
+      ".m1-parts-load-error[role=alert]",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"selector\":\".m1-parts-load-error[role=alert]\",\"waited\":\"selector\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:19:37.152297+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-056fafd3275e",
+      "eval",
+      "(async()=>JSON.stringify(await (({workspace:document.querySelector('[role=tab][aria-selected=true]')?.textContent.trim(),alert:document.querySelector('.m1-parts-load-error[role=alert]')?.textContent.trim()}))))()",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"origin\":\"http://127.0.0.1:39557/\",\"result\":\"{\\\"workspace\\\":\\\"Parts\\\",\\\"alert\\\":\\\"Component catalogue could not be loaded: JsValue(TypeError: Failed to fetch dynamically imported module: http://127.0.0.1:39557/assets/layout-generators/src/index.js\\\\nTypeError: Failed to fetch dynamically imported module: http://127.0.0.1:39557/assets/layout-generators/src/index.js)\\\"}\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:19:37.154619+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-056fafd3275e",
+      "reload",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"url\":\"http://127.0.0.1:39557/\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:19:37.204062+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-056fafd3275e",
+      "wait",
+      ".m1-canvas",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"selector\":\".m1-canvas\",\"waited\":\"selector\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:19:37.329722+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-056fafd3275e",
+      "click",
+      "#m1-tab-Parts",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"clicked\":\"#m1-tab-Parts\",\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"}},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:19:37.405198+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-056fafd3275e",
+      "wait",
+      "--fn",
+      "document.querySelector('.m1-parts-catalogue-choice') || document.querySelector('.m1-parts-load-error[role=alert]')",
+      "--json"
+    ],
+    "exit": 1,
+    "stderr": "",
+    "stdout": "{\"success\":false,\"data\":null,\"error\":\"Wait timed out after 25000ms\"}\n",
+    "time_utc": "2026-10-05T15:20:02.486962+00:00"
+  }
+]

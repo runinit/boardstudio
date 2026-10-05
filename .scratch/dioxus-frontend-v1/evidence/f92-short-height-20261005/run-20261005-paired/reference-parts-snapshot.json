@@ -1,0 +1,695 @@
+{
+  "lifecycle": {
+    "effectiveLaunch": {
+      "browserLaunched": true,
+      "engine": "chrome",
+      "launchHash": 11677035664275010974
+    },
+    "launched": false,
+    "relaunchedBrowser": false,
+    "restartedBackground": false,
+    "restoreStatus": "not_configured",
+    "reused": true,
+    "saveStatus": "not_attempted"
+  },
+  "origin": "http://127.0.0.1:5175/",
+  "refs": {
+    "e10": {
+      "name": "Zoom out",
+      "role": "button"
+    },
+    "e11": {
+      "name": "Zoom in",
+      "role": "button"
+    },
+    "e12": {
+      "name": "Layout findings: 3",
+      "role": "button"
+    },
+    "e13": {
+      "name": "Mechanical findings: 0",
+      "role": "button"
+    },
+    "e14": {
+      "name": "Project",
+      "role": "button"
+    },
+    "e15": {
+      "name": "Layout",
+      "role": "tab"
+    },
+    "e16": {
+      "name": "PCB",
+      "role": "tab"
+    },
+    "e168": {
+      "name": "Parts library",
+      "role": "heading"
+    },
+    "e169": {
+      "name": "",
+      "role": "LabelText"
+    },
+    "e17": {
+      "name": "Keymap",
+      "role": "tab"
+    },
+    "e170": {
+      "name": "New custom component",
+      "role": "button"
+    },
+    "e171": {
+      "name": "Search footprints",
+      "role": "searchbox"
+    },
+    "e172": {
+      "name": "Import KiCad footprint Import file",
+      "role": "button"
+    },
+    "e173": {
+      "name": "Back to Layout",
+      "role": "button"
+    },
+    "e174": {
+      "name": "Saved assemblies",
+      "role": "region"
+    },
+    "e175": {
+      "name": "MX switch",
+      "role": "heading"
+    },
+    "e176": {
+      "name": "Selected footprint settings",
+      "role": "region"
+    },
+    "e177": {
+      "name": "Key assemblies",
+      "role": "listbox"
+    },
+    "e178": {
+      "name": "Footprint library",
+      "role": "listbox"
+    },
+    "e179": {
+      "name": "VIK modules",
+      "role": "listbox"
+    },
+    "e18": {
+      "name": "Keycaps",
+      "role": "tab"
+    },
+    "e180": {
+      "name": "Mechanical fit profile",
+      "role": "region"
+    },
+    "e181": {
+      "name": "MX switch",
+      "role": "heading"
+    },
+    "e182": {
+      "name": "Assemblies",
+      "role": "heading"
+    },
+    "e183": {
+      "name": "New assembly",
+      "role": "button"
+    },
+    "e184": {
+      "name": "Place component",
+      "role": "button"
+    },
+    "e185": {
+      "name": "MX Solder",
+      "role": "option"
+    },
+    "e186": {
+      "name": "MX Hotswap",
+      "role": "option"
+    },
+    "e187": {
+      "name": "Choc V1 Solder",
+      "role": "option"
+    },
+    "e188": {
+      "name": "Choc V1 Hotswap",
+      "role": "option"
+    },
+    "e189": {
+      "name": "MX RGB",
+      "role": "option"
+    },
+    "e19": {
+      "name": "Case",
+      "role": "tab"
+    },
+    "e190": {
+      "name": "Choc V1 RGB",
+      "role": "option"
+    },
+    "e191": {
+      "name": "MX Hotswap RGB",
+      "role": "option"
+    },
+    "e192": {
+      "name": "Choc V1 Hotswap RGB",
+      "role": "option"
+    },
+    "e193": {
+      "name": "Switches",
+      "role": "region"
+    },
+    "e194": {
+      "name": "Controllers",
+      "role": "region"
+    },
+    "e195": {
+      "name": "Connectors & sockets",
+      "role": "region"
+    },
+    "e196": {
+      "name": "Encoders",
+      "role": "region"
+    },
+    "e197": {
+      "name": "Passives & LEDs",
+      "role": "region"
+    },
+    "e198": {
+      "name": "Utilities",
+      "role": "region"
+    },
+    "e199": {
+      "name": "Custom",
+      "role": "region"
+    },
+    "e2": {
+      "name": "",
+      "role": "generic"
+    },
+    "e20": {
+      "name": "Parts",
+      "role": "tab"
+    },
+    "e200": {
+      "name": "Mechanical fit",
+      "role": "heading"
+    },
+    "e201": {
+      "name": "Define profile",
+      "role": "button"
+    },
+    "e202": {
+      "name": "2D footprint",
+      "role": "button"
+    },
+    "e203": {
+      "name": "3D model",
+      "role": "button"
+    },
+    "e204": {
+      "name": "Canvas layers",
+      "role": "region"
+    },
+    "e205": {
+      "name": "Apply generator settings",
+      "role": "button"
+    },
+    "e206": {
+      "name": "Switches",
+      "role": "heading"
+    },
+    "e207": {
+      "name": "Choc V1 / V2 switch",
+      "role": "button"
+    },
+    "e208": {
+      "name": "Gateron KS27 / KS33 switch",
+      "role": "button"
+    },
+    "e209": {
+      "name": "MX switch",
+      "role": "button"
+    },
+    "e210": {
+      "name": "Controllers",
+      "role": "heading"
+    },
+    "e211": {
+      "name": "mcu nice nano",
+      "role": "button"
+    },
+    "e212": {
+      "name": "mcu supermini nrf52840",
+      "role": "button"
+    },
+    "e213": {
+      "name": "mcu nice nano",
+      "role": "button"
+    },
+    "e214": {
+      "name": "Connectors & sockets",
+      "role": "heading"
+    },
+    "e215": {
+      "name": "battery connector jst ph 2",
+      "role": "button"
+    },
+    "e216": {
+      "name": "battery connector molex pico ezmate 1x02",
+      "role": "button"
+    },
+    "e217": {
+      "name": "trrs pj320a",
+      "role": "button"
+    },
+    "e218": {
+      "name": "conn molex pico ezmate 1x02",
+      "role": "button"
+    },
+    "e219": {
+      "name": "conn molex pico ezmate 1x05",
+      "role": "button"
+    },
+    "e22": {
+      "name": "Resize objects",
+      "role": "separator"
+    },
+    "e220": {
+      "name": "trrs pj320a",
+      "role": "button"
+    },
+    "e221": {
+      "name": "Encoders",
+      "role": "heading"
+    },
+    "e222": {
+      "name": "rotary encoder ec11 ec12",
+      "role": "button"
+    },
+    "e223": {
+      "name": "THQWGD001 \u00b7 rotation only \u00b7 reversible",
+      "role": "button"
+    },
+    "e224": {
+      "name": "THQWGD001C \u00b7 2-pin tactile \u00b7 reversible",
+      "role": "button"
+    },
+    "e225": {
+      "name": "THQWGD001C \u00b7 4-pin tactile \u00b7 reversible",
+      "role": "button"
+    },
+    "e226": {
+      "name": "rotary encoder ec11 ec12",
+      "role": "button"
+    },
+    "e227": {
+      "name": "Passives & LEDs",
+      "role": "heading"
+    },
+    "e228": {
+      "name": "Matrix diode (SOD-123 / THT)",
+      "role": "button"
+    },
+    "e229": {
+      "name": "SK6812 MINI-E",
+      "role": "button"
+    },
+    "e230": {
+      "name": "power switch smd side",
+      "role": "button"
+    },
+    "e231": {
+      "name": "reset switch smd side",
+      "role": "button"
+    },
+    "e232": {
+      "name": "smd 0805",
+      "role": "button"
+    },
+    "e233": {
+      "name": "Utilities",
+      "role": "heading"
+    },
+    "e234": {
+      "name": "utility ergogen logo",
+      "role": "button"
+    },
+    "e235": {
+      "name": "utility filled zone",
+      "role": "button"
+    },
+    "e236": {
+      "name": "utility keepout zone",
+      "role": "button"
+    },
+    "e237": {
+      "name": "utility point debugger",
+      "role": "button"
+    },
+    "e238": {
+      "name": "utility router",
+      "role": "button"
+    },
+    "e239": {
+      "name": "utility text",
+      "role": "button"
+    },
+    "e240": {
+      "name": "icon bat",
+      "role": "button"
+    },
+    "e241": {
+      "name": "point debugger",
+      "role": "button"
+    },
+    "e242": {
+      "name": "text",
+      "role": "button"
+    },
+    "e243": {
+      "name": "Custom",
+      "role": "heading"
+    },
+    "e244": {
+      "name": "display nice view",
+      "role": "button"
+    },
+    "e245": {
+      "name": "display ssd1306",
+      "role": "button"
+    },
+    "e246": {
+      "name": "mounting hole npth",
+      "role": "button"
+    },
+    "e247": {
+      "name": "mounting hole plated",
+      "role": "button"
+    },
+    "e248": {
+      "name": "reset switch tht top",
+      "role": "button"
+    },
+    "e249": {
+      "name": "mounting hole",
+      "role": "button"
+    },
+    "e25": {
+      "name": "Resize inspector",
+      "role": "separator"
+    },
+    "e250": {
+      "name": "nice view",
+      "role": "button"
+    },
+    "e251": {
+      "name": "pads",
+      "role": "button"
+    },
+    "e252": {
+      "name": "switch power",
+      "role": "button"
+    },
+    "e253": {
+      "name": "switch reset",
+      "role": "button"
+    },
+    "e254": {
+      "name": "trackpoint mount",
+      "role": "button"
+    },
+    "e255": {
+      "name": "MX PCB stabilizer \u00b7 2u",
+      "role": "button"
+    },
+    "e256": {
+      "name": "MX PCB stabilizer \u00b7 6.25u",
+      "role": "button"
+    },
+    "e257": {
+      "name": "THQWGD001 mounting cuts \u00b7 routed slots",
+      "role": "button"
+    },
+    "e258": {
+      "name": "THQWGD001 mounting cuts \u00b7 drilled slots",
+      "role": "button"
+    },
+    "e259": {
+      "name": "THQWGD001C mounting cuts \u00b7 routed slots",
+      "role": "button"
+    },
+    "e260": {
+      "name": "THQWGD001C mounting cuts \u00b7 drilled slots",
+      "role": "button"
+    },
+    "e261": {
+      "name": "display ssd1306",
+      "role": "button"
+    },
+    "e262": {
+      "name": "reset switch tht top",
+      "role": "button"
+    },
+    "e263": {
+      "name": "mounting hole npth",
+      "role": "button"
+    },
+    "e264": {
+      "name": "Layers",
+      "role": "button"
+    },
+    "e265": {
+      "name": "",
+      "role": "LabelText"
+    },
+    "e266": {
+      "name": "",
+      "role": "LabelText"
+    },
+    "e267": {
+      "name": "",
+      "role": "LabelText"
+    },
+    "e268": {
+      "name": "",
+      "role": "LabelText"
+    },
+    "e269": {
+      "name": "side",
+      "role": "combobox"
+    },
+    "e27": {
+      "name": "Objects options",
+      "role": "button"
+    },
+    "e270": {
+      "name": "reversible",
+      "role": "checkbox"
+    },
+    "e271": {
+      "name": "hotswap",
+      "role": "checkbox"
+    },
+    "e272": {
+      "name": "solder",
+      "role": "checkbox"
+    },
+    "e273": {
+      "name": "include_keycap",
+      "role": "checkbox"
+    },
+    "e274": {
+      "name": "Keycap Width",
+      "role": "spinbutton"
+    },
+    "e275": {
+      "name": "Keycap Height",
+      "role": "spinbutton"
+    },
+    "e276": {
+      "name": "Front",
+      "role": "option"
+    },
+    "e277": {
+      "name": "Back",
+      "role": "option"
+    },
+    "e3": {
+      "name": "Export",
+      "role": "button"
+    },
+    "e37": {
+      "name": "Inspector options",
+      "role": "button"
+    },
+    "e4": {
+      "name": "Parts canvas",
+      "role": "region"
+    },
+    "e5": {
+      "name": "Undo",
+      "role": "button"
+    },
+    "e6": {
+      "name": "Redo",
+      "role": "button"
+    },
+    "e7": {
+      "name": "Grid \u00bcu",
+      "role": "button"
+    },
+    "e8": {
+      "name": "Fit board",
+      "role": "button"
+    },
+    "e9": {
+      "name": "Fit selection",
+      "role": "button"
+    }
+  },
+  "removedRefs": [
+    "@e21",
+    "@e23",
+    "@e24",
+    "@e26",
+    "@e28",
+    "@e29",
+    "@e30",
+    "@e31",
+    "@e32",
+    "@e33",
+    "@e34",
+    "@e35",
+    "@e36",
+    "@e38",
+    "@e39",
+    "@e40",
+    "@e41",
+    "@e42",
+    "@e43",
+    "@e44",
+    "@e45",
+    "@e46",
+    "@e47",
+    "@e48",
+    "@e49",
+    "@e50",
+    "@e51",
+    "@e52",
+    "@e53",
+    "@e54",
+    "@e55",
+    "@e56",
+    "@e57",
+    "@e58",
+    "@e59",
+    "@e60",
+    "@e61",
+    "@e62",
+    "@e63",
+    "@e64",
+    "@e65",
+    "@e66",
+    "@e67",
+    "@e68",
+    "@e69",
+    "@e70",
+    "@e71",
+    "@e72",
+    "@e73",
+    "@e74",
+    "@e75",
+    "@e76",
+    "@e77",
+    "@e78",
+    "@e79",
+    "@e80",
+    "@e81",
+    "@e82",
+    "@e83",
+    "@e84",
+    "@e85",
+    "@e86",
+    "@e87",
+    "@e88",
+    "@e89",
+    "@e90",
+    "@e91",
+    "@e92",
+    "@e93",
+    "@e94",
+    "@e95",
+    "@e96",
+    "@e97",
+    "@e98",
+    "@e99",
+    "@e100",
+    "@e101",
+    "@e102",
+    "@e103",
+    "@e104",
+    "@e105",
+    "@e106",
+    "@e107",
+    "@e108",
+    "@e109",
+    "@e110",
+    "@e111",
+    "@e112",
+    "@e113",
+    "@e114",
+    "@e115",
+    "@e116",
+    "@e117",
+    "@e118",
+    "@e119",
+    "@e120",
+    "@e121",
+    "@e122",
+    "@e123",
+    "@e124",
+    "@e125",
+    "@e126",
+    "@e127",
+    "@e128",
+    "@e129",
+    "@e130",
+    "@e131",
+    "@e132",
+    "@e133",
+    "@e134",
+    "@e135",
+    "@e136",
+    "@e137",
+    "@e138",
+    "@e139",
+    "@e140",
+    "@e141",
+    "@e142",
+    "@e143",
+    "@e144",
+    "@e145",
+    "@e146",
+    "@e147",
+    "@e148",
+    "@e149",
+    "@e150",
+    "@e151",
+    "@e152",
+    "@e153",
+    "@e154",
+    "@e155",
+    "@e156",
+    "@e157",
+    "@e158",
+    "@e159",
+    "@e160",
+    "@e161",
+    "@e162",
+    "@e163",
+    "@e164",
+    "@e165",
+    "@e166"
+  ],
+  "snapshot": "- generic \"Sofle v2Saved locallyChanges are saved in this browser. Use Save project copy for a portable backup.\" [ref=e2] clickable [onclick]\n  - button \"Project\" [expanded=false, ref=e14]\n  - tab \"Layout\" [ref=e15]\n  - tab \"PCB\" [ref=e16]\n  - tab \"Keymap\" [ref=e17]\n  - tab \"Keycaps\" [ref=e18]\n  - tab \"Case\" [ref=e19]\n  - tab \"Parts\" [selected, ref=e20]\n  - button \"Export\" [ref=e3]\n  - button \"Objects options\" [expanded=false, ref=e27]\n  - separator \"Resize objects\" [ref=e22] focusable [tabindex]: 235\n  - heading \"Parts library\" [level=2, ref=e168]\n  - searchbox \"Search footprints\" [ref=e171]\n  - listbox \"Key assemblies\" [ref=e177]\n    - option \"MX Solder\" [ref=e185]\n    - option \"MX Hotswap\" [ref=e186]\n    - option \"Choc V1 Solder\" [ref=e187]\n    - option \"Choc V1 Hotswap\" [ref=e188]\n    - option \"MX RGB\" [ref=e189]\n    - option \"Choc V1 RGB\" [ref=e190]\n    - option \"MX Hotswap RGB\" [ref=e191]\n    - option \"Choc V1 Hotswap RGB\" [ref=e192]\n  - listbox \"Footprint library\" [ref=e178]\n    - region \"Switches\" [ref=e193]\n      - heading \"Switches\" [level=3, ref=e206]\n      - button \"Choc V1 / V2 switch\" [ref=e207]\n      - button \"Gateron KS27 / KS33 switch\" [ref=e208]\n      - button \"MX switch\" [ref=e209]\n    - region \"Controllers\" [ref=e194]\n      - heading \"Controllers\" [level=3, ref=e210]\n      - button \"mcu nice nano\" [ref=e211]\n      - button \"mcu supermini nrf52840\" [ref=e212]\n      - button \"mcu nice nano\" [ref=e213]\n    - region \"Connectors & sockets\" [ref=e195]\n      - heading \"Connectors & sockets\" [level=3, ref=e214]\n      - button \"battery connector jst ph 2\" [ref=e215]\n      - button \"battery connector molex pico ezmate 1x02\" [ref=e216]\n      - button \"trrs pj320a\" [ref=e217]\n      - button \"conn molex pico ezmate 1x02\" [ref=e218]\n      - button \"conn molex pico ezmate 1x05\" [ref=e219]\n      - button \"trrs pj320a\" [ref=e220]\n    - region \"Encoders\" [ref=e196]\n      - heading \"Encoders\" [level=3, ref=e221]\n      - button \"rotary encoder ec11 ec12\" [ref=e222]\n      - button \"THQWGD001 \u00b7 rotation only \u00b7 reversible\" [ref=e223]\n      - button \"THQWGD001C \u00b7 2-pin tactile \u00b7 reversible\" [ref=e224]\n      - button \"THQWGD001C \u00b7 4-pin tactile \u00b7 reversible\" [ref=e225]\n      - button \"rotary encoder ec11 ec12\" [ref=e226]\n    - region \"Passives & LEDs\" [ref=e197]\n      - heading \"Passives & LEDs\" [level=3, ref=e227]\n      - button \"Matrix diode (SOD-123 / THT)\" [ref=e228]\n      - button \"SK6812 MINI-E\" [ref=e229]\n      - button \"power switch smd side\" [ref=e230]\n      - button \"reset switch smd side\" [ref=e231]\n      - button \"smd 0805\" [ref=e232]\n    - region \"Utilities\" [ref=e198]\n      - heading \"Utilities\" [level=3, ref=e233]\n      - button \"utility ergogen logo\" [ref=e234]\n      - button \"utility filled zone\" [ref=e235]\n      - button \"utility keepout zone\" [ref=e236]\n      - button \"utility point debugger\" [ref=e237]\n      - button \"utility router\" [ref=e238]\n      - button \"utility text\" [ref=e239]\n      - button \"icon bat\" [ref=e240]\n      - button \"point debugger\" [ref=e241]\n      - button \"text\" [ref=e242]\n    - region \"Custom\" [ref=e199]\n      - heading \"Custom\" [level=3, ref=e243]\n      - button \"display nice view\" [ref=e244]\n      - button \"display ssd1306\" [ref=e245]\n      - button \"mounting hole npth\" [ref=e246]\n      - button \"mounting hole plated\" [ref=e247]\n      - button \"reset switch tht top\" [ref=e248]\n      - button \"mounting hole\" [ref=e249]\n      - button \"nice view\" [ref=e250]\n      - button \"pads\" [ref=e251]\n      - button \"switch power\" [ref=e252]\n      - button \"switch reset\" [ref=e253]\n      - button \"trackpoint mount\" [ref=e254]\n      - button \"MX PCB stabilizer \u00b7 2u\" [ref=e255]\n      - button \"MX PCB stabilizer \u00b7 6.25u\" [ref=e256]\n      - button \"THQWGD001 mounting cuts \u00b7 routed slots\" [ref=e257]\n      - button \"THQWGD001 mounting cuts \u00b7 drilled slots\" [ref=e258]\n      - button \"THQWGD001C mounting cuts \u00b7 routed slots\" [ref=e259]\n      - button \"THQWGD001C mounting cuts \u00b7 drilled slots\" [ref=e260]\n      - button \"display ssd1306\" [ref=e261]\n      - button \"reset switch tht top\" [ref=e262]\n      - button \"mounting hole npth\" [ref=e263]\n  - listbox \"VIK modules\" [ref=e179]\n  - LabelText \"Import KiCad footprint\" [ref=e169] clickable [cursor:pointer]\n    - button \"Import KiCad footprint Import file\" [ref=e172]: No file chosen\n  - button \"New custom component\" [ref=e170]\n  - region \"Parts canvas\" [ref=e4]\n    - button \"Back to Layout\" [ref=e173]\n    - region \"Mechanical fit profile\" [ref=e180]\n      - heading \"Mechanical fit\" [level=3, ref=e200]\n      - button \"Define profile\" [ref=e201]\n    - heading \"MX switch\" [level=2, ref=e181]\n    - button \"2D footprint\" [ref=e202]\n    - button \"3D model\" [ref=e203]\n    - region \"Canvas layers\" [ref=e204]\n      - button \"Layers\" [expanded=false, ref=e264]\n  - button \"Inspector options\" [expanded=false, ref=e37]\n  - separator \"Resize inspector\" [ref=e25] focusable [tabindex]: 320\n  - region \"Saved assemblies\" [ref=e174]\n    - heading \"Assemblies\" [level=2, ref=e182]\n    - button \"New assembly\" [ref=e183]\n  - heading \"MX switch\" [level=2, ref=e175]\n  - region \"Selected footprint settings\" [ref=e176]\n    - button \"Place component\" [ref=e184]\n    - combobox \"side\" [expanded=false, ref=e269]: Back\n      - option \"Front\" [ref=e276]\n      - option \"Back\" [selected, ref=e277]\n    - LabelText \"Reversible\" [ref=e265] clickable [cursor:pointer]\n      - checkbox \"reversible\" [checked=false, ref=e270]\n    - LabelText \"Hotswap\" [ref=e266] clickable [cursor:pointer]\n      - checkbox \"hotswap\" [checked=true, ref=e271]\n    - LabelText \"Solder\" [ref=e267] clickable [cursor:pointer]\n      - checkbox \"solder\" [checked=false, ref=e272]\n    - LabelText \"Include keycap\" [ref=e268] clickable [cursor:pointer]\n      - checkbox \"include_keycap\" [checked=true, ref=e273]\n    - spinbutton \"Keycap Width\" [ref=e274]: 18\n    - spinbutton \"Keycap Height\" [ref=e275]: 18\n    - button \"Apply generator settings\" [ref=e205]\n  - button \"Undo\" [ref=e5]\n  - button \"Redo\" [ref=e6]\n  - button \"Grid \u00bcu\" [disabled, ref=e7]\n  - button \"Fit board\" [ref=e8]\n  - button \"Fit selection\" [disabled, ref=e9]\n  - button \"Zoom out\" [ref=e10]\n  - button \"Zoom in\" [ref=e11]\n  - button \"Layout findings: 3\" [ref=e12]\n  - button \"Mechanical findings: 0\" [ref=e13]"
+}

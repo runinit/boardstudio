@@ -1,0 +1,298 @@
+[
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-35062691bd66",
+      "open",
+      "http://127.0.0.1:40391/",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":true,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":false,\"saveStatus\":\"not_attempted\"},\"targetId\":\"56B5CF4F03A5D445D2BBC1AD9A34BEE2\",\"title\":\"dioxus | \u26fa\",\"url\":\"http://127.0.0.1:40391/\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:23:24.899880+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-35062691bd66",
+      "wait",
+      "--fn",
+      "document.querySelector('.m1-library-landing') || document.querySelector('.m1-canvas')",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"result\":{}},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:23:25.031742+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-35062691bd66",
+      "eval",
+      "(async()=>JSON.stringify(await (({canvas:!!document.querySelector('.m1-canvas'),landing:!!document.querySelector('.m1-library-landing')}))))()",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"origin\":\"http://127.0.0.1:40391/\",\"result\":\"{\\\"canvas\\\":false,\\\"landing\\\":true}\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:23:25.108392+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-35062691bd66",
+      "wait",
+      ".m1-library-landing .m1-library button",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"selector\":\".m1-library-landing .m1-library button\",\"waited\":\"selector\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:23:25.120482+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-35062691bd66",
+      "click",
+      ".m1-library-landing .m1-library button:first-child",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"clicked\":\".m1-library-landing .m1-library button:first-child\",\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"}},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:23:25.146889+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-35062691bd66",
+      "wait",
+      ".m1-canvas",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"selector\":\".m1-canvas\",\"waited\":\"selector\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:23:25.364334+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-35062691bd66",
+      "wait",
+      "--fn",
+      "navigator.serviceWorker.controller && document.querySelector('.m1-canvas')",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"result\":{\"listening\":8}},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:23:25.990780+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-35062691bd66",
+      "wait",
+      "--fn",
+      "navigator.serviceWorker.controller.scriptURL.startsWith(location.origin + \"/\" + 'service-worker.js')",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"result\":true},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:23:25.995482+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-35062691bd66",
+      "eval",
+      "(async()=>JSON.stringify(await (({url:location.href,online:navigator.onLine,worker:navigator.serviceWorker.controller.scriptURL,workspace:document.querySelector('[role=tab][aria-selected=true]')?.textContent.trim(),title:document.title,canvas:!!document.querySelector('.m1-canvas')}))))()",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"origin\":\"http://127.0.0.1:40391/\",\"result\":\"{\\\"url\\\":\\\"http://127.0.0.1:40391/\\\",\\\"online\\\":true,\\\"worker\\\":\\\"http://127.0.0.1:40391/service-worker.js\\\",\\\"workspace\\\":\\\"Layout\\\",\\\"title\\\":\\\"BoardStudio\\\",\\\"canvas\\\":true}\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:23:25.998923+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-35062691bd66",
+      "eval",
+      "(async()=>JSON.stringify(await ((async()=>{const c=await caches.open(\"boardstudio-m1-offline-path-2f-frontend-layout-untouched-coordinate-20261005-root\");const url=new URL(\"assets/layout-generators/src/index.js\",location.origin).href;return {cache:\"boardstudio-m1-offline-path-2f-frontend-layout-untouched-coordinate-20261005-root\",url,deleted:await c.delete(url)}})())))()",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"origin\":\"http://127.0.0.1:40391/\",\"result\":\"{\\\"cache\\\":\\\"boardstudio-m1-offline-path-2f-frontend-layout-untouched-coordinate-20261005-root\\\",\\\"url\\\":\\\"http://127.0.0.1:40391/assets/layout-generators/src/index.js\\\",\\\"deleted\\\":true}\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:23:26.005396+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-35062691bd66",
+      "reload",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"url\":\"http://127.0.0.1:40391/\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:23:26.056347+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-35062691bd66",
+      "wait",
+      ".m1-canvas",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"selector\":\".m1-canvas\",\"waited\":\"selector\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:23:26.182108+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-35062691bd66",
+      "click",
+      "#m1-tab-Parts",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"clicked\":\"#m1-tab-Parts\",\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"}},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:23:26.211634+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-35062691bd66",
+      "wait",
+      ".m1-parts-load-error[role=alert]",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"selector\":\".m1-parts-load-error[role=alert]\",\"waited\":\"selector\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:23:26.214952+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-35062691bd66",
+      "eval",
+      "(async()=>JSON.stringify(await (({workspace:document.querySelector('[role=tab][aria-selected=true]')?.textContent.trim(),alert:document.querySelector('.m1-parts-load-error[role=alert]')?.textContent.trim()}))))()",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"origin\":\"http://127.0.0.1:40391/\",\"result\":\"{\\\"workspace\\\":\\\"Parts\\\",\\\"alert\\\":\\\"Component catalogue could not be loaded: JsValue(TypeError: Failed to fetch dynamically imported module: http://127.0.0.1:40391/assets/layout-generators/src/index.js\\\\nTypeError: Failed to fetch dynamically imported module: http://127.0.0.1:40391/assets/layout-generators/src/index.js)\\\"}\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:23:26.217509+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-35062691bd66",
+      "reload",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"url\":\"http://127.0.0.1:40391/\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:23:26.263027+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-35062691bd66",
+      "wait",
+      ".m1-canvas",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"selector\":\".m1-canvas\",\"waited\":\"selector\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:23:26.471318+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-35062691bd66",
+      "click",
+      "#m1-tab-Parts",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"clicked\":\"#m1-tab-Parts\",\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"}},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:23:26.480988+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-35062691bd66",
+      "wait",
+      "--fn",
+      "document.querySelector('.m1-parts-catalogue-choice') || document.querySelector('.m1-parts-load-error[role=alert]')",
+      "--json"
+    ],
+    "exit": 1,
+    "stderr": "",
+    "stdout": "{\"success\":false,\"data\":null,\"error\":\"Wait timed out after 25000ms\"}\n",
+    "time_utc": "2026-10-05T15:23:51.582796+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-35062691bd66",
+      "eval",
+      "(async()=>JSON.stringify(await (({url:location.href,workspace:document.querySelector('[role=tab][aria-selected=true]')?.textContent.trim(),choices:[...document.querySelectorAll('.m1-parts-catalogue-choice')].map(e=>({text:e.textContent.trim(),visible:!!e.getClientRects().length})),options:[...document.querySelectorAll('[role=option]')].map(e=>({text:e.textContent.trim(),visible:!!e.getClientRects().length})),alert:[...document.querySelectorAll('.m1-parts-load-error[role=alert]')].map(e=>e.textContent.trim()),loading:[...document.querySelectorAll('.m1-parts-loading[role=status]')].map(e=>e.textContent.trim()),library:document.querySelector('.m1-parts-library')?.innerText.slice(0,900)||null,preview:document.querySelector('.m1-parts-preview')?.innerText.slice(0,500)||null}))))()",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"origin\":\"http://127.0.0.1:40391/\",\"result\":\"{\\\"url\\\":\\\"http://127.0.0.1:40391/\\\",\\\"workspace\\\":\\\"Parts\\\",\\\"choices\\\":[],\\\"options\\\":[],\\\"alert\\\":[],\\\"loading\\\":[],\\\"library\\\":null,\\\"preview\\\":\\\"MX switch\\\\n2D footprint\\\\n3D model\\\\n\\\\nUnapplied generator preview\\\\n\\\\nNo closed courtyard is available; the outline uses physical graphics and pad extents.\\\\n\\\\n1\\\\n2\\\\nLayers\\\"}\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:23:51.586858+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f94-lazy-35062691bd66",
+      "snapshot",
+      "-i",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"origin\":\"http://127.0.0.1:40391/\",\"refs\":{\"e1\":{\"name\":\"Keyboard editor\",\"role\":\"region\"},\"e10\":{\"name\":\"Undo\",\"role\":\"button\"},\"e11\":{\"name\":\"Redo\",\"role\":\"button\"},\"e12\":{\"name\":\"Layout findings: 2\",\"role\":\"button\"},\"e13\":{\"name\":\"Mechanical fit profile\",\"role\":\"region\"},\"e14\":{\"name\":\"Parts footprint preview\",\"role\":\"region\"},\"e15\":{\"name\":\"Resize objects\",\"role\":\"separator\"},\"e16\":{\"name\":\"Mechanical fit\",\"role\":\"heading\"},\"e17\":{\"name\":\"Define profile\",\"role\":\"button\"},\"e18\":{\"name\":\"MX switch\",\"role\":\"heading\"},\"e19\":{\"name\":\"Footprint preview layers\",\"role\":\"region\"},\"e2\":{\"name\":\"Export\",\"role\":\"button\"},\"e20\":{\"name\":\"Resize inspector\",\"role\":\"separator\"},\"e21\":{\"name\":\"Objects\",\"role\":\"heading\"},\"e22\":{\"name\":\"Objects options\",\"role\":\"button\"},\"e23\":{\"name\":\"Setup steps\",\"role\":\"navigation\"},\"e24\":{\"name\":\"2D footprint\",\"role\":\"button\"},\"e25\":{\"name\":\"3D model\",\"role\":\"button\"},\"e26\":{\"name\":\"Layers\",\"role\":\"button\"},\"e27\":{\"name\":\"Inspect\",\"role\":\"heading\"},\"e28\":{\"name\":\"Inspector options\",\"role\":\"button\"},\"e29\":{\"name\":\"Selected component details\",\"role\":\"region\"},\"e3\":{\"name\":\"Project\",\"role\":\"button\"},\"e30\":{\"name\":\"Setup guide\",\"role\":\"heading\"},\"e31\":{\"name\":\"Back to objects\",\"role\":\"button\"},\"e32\":{\"name\":\"1 Project & hardware\",\"role\":\"button\"},\"e33\":{\"name\":\"2 Layout & assemblies\",\"role\":\"button\"},\"e34\":{\"name\":\"3 Controller & wiring\",\"role\":\"button\"},\"e35\":{\"name\":\"4 Case (optional)\",\"role\":\"button\"},\"e36\":{\"name\":\"5 Review & export\",\"role\":\"button\"},\"e37\":{\"name\":\"Project & hardware\",\"role\":\"heading\"},\"e38\":{\"name\":\"Physical assembly\",\"role\":\"region\"},\"e39\":{\"name\":\"Continue to layout\",\"role\":\"button\"},\"e4\":{\"name\":\"Layout\",\"role\":\"tab\"},\"e40\":{\"name\":\"Saved assemblies\",\"role\":\"region\"},\"e41\":{\"name\":\"Selected component details\",\"role\":\"region\"},\"e42\":{\"name\":\"Generator settings\",\"role\":\"region\"},\"e43\":{\"name\":\"Place component\",\"role\":\"button\"},\"e44\":{\"name\":\"Project name\",\"role\":\"textbox\"},\"e45\":{\"name\":\"Reversible layout\",\"role\":\"checkbox\"},\"e46\":{\"name\":\"Assemblies\",\"role\":\"heading\"},\"e47\":{\"name\":\"New assembly\",\"role\":\"button\"},\"e48\":{\"name\":\"MX switch\",\"role\":\"heading\"},\"e49\":{\"name\":\"Apply generator settings\",\"role\":\"button\"},\"e5\":{\"name\":\"PCB\",\"role\":\"tab\"},\"e50\":{\"name\":\"One keyboard\",\"role\":\"button\"},\"e51\":{\"name\":\"Split keyboard\",\"role\":\"button\"},\"e52\":{\"name\":\"hotswap\",\"role\":\"checkbox\"},\"e53\":{\"name\":\"include_keycap\",\"role\":\"checkbox\"},\"e54\":{\"name\":\"reversible\",\"role\":\"checkbox\"},\"e55\":{\"name\":\"side\",\"role\":\"combobox\"},\"e56\":{\"name\":\"solder\",\"role\":\"checkbox\"},\"e57\":{\"name\":\"Keycap Height\",\"role\":\"spinbutton\"},\"e58\":{\"name\":\"Keycap Width\",\"role\":\"spinbutton\"},\"e59\":{\"name\":\"Front\",\"role\":\"option\"},\"e6\":{\"name\":\"Keymap\",\"role\":\"tab\"},\"e60\":{\"name\":\"Back\",\"role\":\"option\"},\"e7\":{\"name\":\"Keycaps\",\"role\":\"tab\"},\"e8\":{\"name\":\"Case\",\"role\":\"tab\"},\"e9\":{\"name\":\"Parts\",\"role\":\"tab\"}},\"removedRefs\":[],\"snapshot\":\"- button \\\"Project\\\" [expanded=false, ref=e3]\\n- tab \\\"Layout\\\" [ref=e4]\\n- tab \\\"PCB\\\" [ref=e5]\\n- tab \\\"Keymap\\\" [ref=e6]\\n- tab \\\"Keycaps\\\" [ref=e7]\\n- tab \\\"Case\\\" [ref=e8]\\n- tab \\\"Parts\\\" [selected, ref=e9]\\n- button \\\"Export\\\" [ref=e2]\\n- region \\\"Keyboard editor\\\" [ref=e1]\\n  - heading \\\"Objects\\\" [level=2, ref=e21]\\n  - button \\\"Objects options\\\" [expanded=false, ref=e22]\\n  - separator \\\"Resize objects\\\" [ref=e15] focusable [tabindex]: 235\\n  - heading \\\"Setup guide\\\" [level=2, ref=e30]\\n  - button \\\"Back to objects\\\" [ref=e31]\\n  - navigation \\\"Setup steps\\\" [ref=e23]\\n    - button \\\"1 Project & hardware\\\" [ref=e32]\\n    - button \\\"2 Layout & assemblies\\\" [ref=e33]\\n    - button \\\"3 Controller & wiring\\\" [ref=e34]\\n    - button \\\"4 Case (optional)\\\" [ref=e35]\\n    - button \\\"5 Review & export\\\" [ref=e36]\\n  - heading \\\"Project & hardware\\\" [level=3, ref=e37]\\n  - textbox \\\"Project name\\\" [ref=e44]: Untitled keyboard\\n  - region \\\"Physical assembly\\\" [ref=e38]\\n    - button \\\"One keyboard\\\" [ref=e50]\\n    - button \\\"Split keyboard\\\" [ref=e51]\\n    - checkbox \\\"Reversible layout\\\" [checked=false, ref=e45]\\n  - button \\\"Continue to layout\\\" [ref=e39]\\n  - region \\\"Mechanical fit profile\\\" [ref=e13]\\n    - heading \\\"Mechanical fit\\\" [level=3, ref=e16]\\n    - button \\\"Define profile\\\" [ref=e17]\\n  - region \\\"Parts footprint preview\\\" [ref=e14]\\n    - heading \\\"MX switch\\\" [level=2, ref=e18]\\n    - button \\\"2D footprint\\\" [ref=e24]\\n    - button \\\"3D model\\\" [ref=e25]\\n    - region \\\"Footprint preview layers\\\" [ref=e19]\\n      - button \\\"Layers\\\" [expanded=false, ref=e26]\\n  - heading \\\"Inspect\\\" [level=2, ref=e27]\\n  - button \\\"Inspector options\\\" [expanded=false, ref=e28]\\n  - separator \\\"Resize inspector\\\" [ref=e20] focusable [tabindex]: 320\\n  - region \\\"Selected component details\\\" [ref=e29]\\n    - region \\\"Saved assemblies\\\" [ref=e40]\\n      - heading \\\"Assemblies\\\" [level=2, ref=e46]\\n      - button \\\"New assembly\\\" [ref=e47]\\n    - region \\\"Selected component details\\\" [ref=e41]\\n      - heading \\\"MX switch\\\" [level=2, ref=e48]\\n    - region \\\"Generator settings\\\" [ref=e42]\\n      - checkbox \\\"hotswap\\\" [checked=true, ref=e52]\\n      - checkbox \\\"include_keycap\\\" [checked=true, ref=e53]\\n      - checkbox \\\"reversible\\\" [checked=false, ref=e54]\\n      - combobox \\\"side\\\" [expanded=false, ref=e55]: Back\\n        - option \\\"Front\\\" [ref=e59]\\n        - option \\\"Back\\\" [selected, ref=e60]\\n      - checkbox \\\"solder\\\" [checked=false, ref=e56]\\n      - spinbutton \\\"Keycap Height\\\" [ref=e57]: 18\\n      - spinbutton \\\"Keycap Width\\\" [ref=e58]: 18\\n      - button \\\"Apply generator settings\\\" [ref=e49]\\n    - button \\\"Place component\\\" [ref=e43]\\n  - button \\\"Undo\\\" [ref=e10]\\n  - button \\\"Redo\\\" [ref=e11]\\n  - button \\\"Layout findings: 2\\\" [ref=e12]\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T15:23:51.610078+00:00"
+  }
+]

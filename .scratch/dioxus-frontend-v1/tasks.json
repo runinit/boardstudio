@@ -2224,7 +2224,7 @@
         "F2.3",
         "F6C.3"
       ],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
       "shared_edit_owner": "integration coordinator",
@@ -2275,6 +2275,13 @@
           "to": "implementing",
           "reason": "Reopen accepted history/revision qualification after demonstrated duplicate coordinate Undo entry",
           "decision": ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/f3-7-correction-decision.json"
+        },
+        {
+          "at": "2026-10-05T15:32:06.479712+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Independent df6 public recovery CLEAR: untouched/Escape preserve exact input; duplicate Undo repaired; current candidate/reference accepted rapid-edit outputs and history agree. Shared legacy lost-axis behavior explicitly retained as RF-016, not a new engine contract.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/public-review-f3-7-decision.json"
         }
       ],
       "criteria": [
@@ -2308,7 +2315,7 @@
         {
           "id": "F3.7-C02",
           "requirement": "Paired behavior agrees for accepted geometry, history/revision, save behavior, errors/cancellation, camera/view scope and service outputs.",
-          "state": "missing",
+          "state": "verified",
           "classification": "release",
           "sources": [
             "web/src/presentation.rs",
@@ -2319,10 +2326,13 @@
             ".scratch/dioxus-frontend-v1/evidence/integrated-layout-c1d3-20261005/RECEIPT.md",
             ".scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/RECEIPT.md",
             ".scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/public-review.md",
-            ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/RECEIPT.md"
+            ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/public-review.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/untouched-final-public.json",
+            ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/f8-final-owner-freshness.json"
           ],
           "blockers": [],
-          "next_action": "Published rapid coordinate history correction is verified; repair actual untouched-field rounding/history mutation, then review and replay only changed coordinate branch. Completed F8 outputs/roundtrip and Layout evidence retained.",
+          "next_action": "Independent df6 public recovery CLEAR: untouched/Escape exact r17 input, phantom Undo repaired, candidate/reference current rapid accepted r19/r21 agree. Shared lost-axis limitation explicitly retained in RF-016; no intended-X preservation claim or new Session contract.",
           "finish_condition": "Current-candidate paired receipt records agreement for every named output and state boundary across the integrated journey.",
           "owned_files": [
             "web/src/presentation.rs",
@@ -2456,8 +2466,7 @@
         "note": "Current clauses retain integrated journey, desktop visual, keyboard/focus, performance/resource recording and inventory requirements. Accessibility/axe/AT qualification removed by explicit user instruction on2026-10-05; prior wording is retained in accessibility_scope_adjustment."
       },
       "completion_evidence": {
-        "decision_record": ".scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/public-review-f3-7-decision.json",
-        "superseded_by_correction": ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/f3-7-correction-decision.json"
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/public-review-f3-7-decision.json"
       }
     },
     {
@@ -9213,7 +9222,7 @@
         "F6.6",
         "F7.8"
       ],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md",
       "shared_edit_owner": "integration coordinator",
@@ -9234,27 +9243,21 @@
         {
           "id": "F8.6-C01",
           "requirement": "Paired public journeys on same saved project traverse Layout edit, Parts definition use, PCB board/wiring readiness, Keymap/Keycaps edits, Case generation and Export.",
-          "state": "unassessed",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             ".scratch/dioxus-frontend-v1/issues/08-export.md"
           ],
           "evidence": [
-            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/review.md"
+            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/review.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/public-review.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/untouched-final-public.json",
+            ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/f8-final-owner-freshness.json",
+            ".scratch/dioxus-frontend-v1/evidence/f86-integrated-20261005/fixed-candidate/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/f86-integrated-20261005/fixed-candidate/cross-roundtrip-comparison.json"
           ],
-          "blockers": [
-            "F8.3",
-            "F8.4",
-            "F8.5",
-            "F2.2",
-            "F3.7",
-            "F4.5",
-            "F4.6",
-            "F5.8",
-            "F6.6",
-            "F7.8"
-          ],
-          "next_action": "Review retained fresh fixed-candidate six-workbench/output/roundtrip/return evidence and unchanged owner/theme/keyboard proofs; acceptance waits newly demonstrated coordinate history repair and reopened F3.7 prerequisite.",
+          "blockers": [],
+          "next_action": "Independent final review CLEAR: completed paired six-workbench journey, actual outputs/archives/cross-import-reload-save and return navigation joined with unchanged owner/theme/keyboard/lifecycle evidence; changed Layout branch qualified separately. Formal parent acceptance follows F3.7.",
           "finish_condition": "Same saved project completes all six workbench edits and Export in paired public Dioxus/React journeys.",
           "owned_files": [
             "web/src/presentation.rs",
@@ -9268,7 +9271,7 @@
         {
           "id": "F8.6-C02",
           "requirement": "Verify output choices, readiness explanations, filenames/bytes/archive entries, snapshots, own-transaction exceptions, and project round-trip where applicable.",
-          "state": "unassessed",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             ".scratch/dioxus-frontend-v1/issues/08-export.md"
@@ -9276,16 +9279,15 @@
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/export-workspace-34763-20261003/RECEIPT.md",
             ".scratch/dioxus-frontend-v1/evidence/export-footprints-20261003/RECEIPT.md",
-            ".scratch/dioxus-frontend-v1/evidence/export-zmk-route-20261003/34770-RECEIPT.md"
+            ".scratch/dioxus-frontend-v1/evidence/export-zmk-route-20261003/34770-RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/public-review.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/untouched-final-public.json",
+            ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/f8-final-owner-freshness.json",
+            ".scratch/dioxus-frontend-v1/evidence/f86-integrated-20261005/fixed-candidate/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/f86-integrated-20261005/fixed-candidate/cross-roundtrip-comparison.json"
           ],
-          "blockers": [
-            "F8.2",
-            "F8.3",
-            "F8.4",
-            "F8.5",
-            "F2.2"
-          ],
-          "next_action": "Review retained fresh fixed-candidate six-workbench/output/roundtrip/return evidence and unchanged owner/theme/keyboard proofs; acceptance waits newly demonstrated coordinate history repair and reopened F3.7 prerequisite.",
+          "blockers": [],
+          "next_action": "Independent final review CLEAR: completed paired six-workbench journey, actual outputs/archives/cross-import-reload-save and return navigation joined with unchanged owner/theme/keyboard/lifecycle evidence; changed Layout branch qualified separately. Formal parent acceptance follows F3.7.",
           "finish_condition": "Each required output and own-transaction case is paired and archive round-trip preserves supported content.",
           "owned_files": [
             "web/src/runtime.rs",
@@ -9300,7 +9302,7 @@
         {
           "id": "F8.6-C03",
           "requirement": "Verify error/repeat-retry behavior, return navigation, temporary URL cleanup; cover project/board/instance switch during pending operations with no stale artifact/protection.",
-          "state": "unassessed",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/runtime.rs",
@@ -9308,14 +9310,15 @@
           ],
           "evidence": [
             ".scratch/dioxus-frontend-v1/issues/08-export-coordinator-dispatch.md",
-            ".scratch/dioxus-frontend-v1/evidence/planning/boundary-gaps.md"
+            ".scratch/dioxus-frontend-v1/evidence/planning/boundary-gaps.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/public-review.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/untouched-final-public.json",
+            ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/f8-final-owner-freshness.json",
+            ".scratch/dioxus-frontend-v1/evidence/f86-integrated-20261005/fixed-candidate/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/f86-integrated-20261005/fixed-candidate/cross-roundtrip-comparison.json"
           ],
-          "blockers": [
-            "BND.2-C03",
-            "F8.2-C03",
-            "F8.2-C04"
-          ],
-          "next_action": "Review retained fresh fixed-candidate six-workbench/output/roundtrip/return evidence and unchanged owner/theme/keyboard proofs; acceptance waits newly demonstrated coordinate history repair and reopened F3.7 prerequisite.",
+          "blockers": [],
+          "next_action": "Independent final review CLEAR: completed paired six-workbench journey, actual outputs/archives/cross-import-reload-save and return navigation joined with unchanged owner/theme/keyboard/lifecycle evidence; changed Layout branch qualified separately. Formal parent acceptance follows F3.7.",
           "finish_condition": "Errors permit same-action retry, URLs are released, navigation returns correctly, and pending scope changes cause no stale file/protection.",
           "owned_files": [
             "web/src/runtime.rs",
@@ -9329,16 +9332,21 @@
         {
           "id": "F8.6-C04",
           "requirement": "Include desktop themes and keyboard/focus evidence.",
-          "state": "unassessed",
+          "state": "verified",
           "classification": "visual",
           "sources": [
             ".scratch/dioxus-frontend-v1/issues/08-export.md"
           ],
           "evidence": [
-            ".scratch/dioxus-frontend-v1/evidence/export-workspace-34763-20261003/RECEIPT.md"
+            ".scratch/dioxus-frontend-v1/evidence/export-workspace-34763-20261003/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/public-review.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/untouched-final-public.json",
+            ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/f8-final-owner-freshness.json",
+            ".scratch/dioxus-frontend-v1/evidence/f86-integrated-20261005/fixed-candidate/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/f86-integrated-20261005/fixed-candidate/cross-roundtrip-comparison.json"
           ],
           "blockers": [],
-          "next_action": "Review retained fresh fixed-candidate six-workbench/output/roundtrip/return evidence and unchanged owner/theme/keyboard proofs; acceptance waits newly demonstrated coordinate history repair and reopened F3.7 prerequisite.",
+          "next_action": "Independent final review CLEAR: completed paired six-workbench journey, actual outputs/archives/cross-import-reload-save and return navigation joined with unchanged owner/theme/keyboard/lifecycle evidence; changed Layout branch qualified separately. Formal parent acceptance follows F3.7.",
           "finish_condition": "Paired end-to-end evidence covers the stated visual and interaction modes.",
           "owned_files": [
             "web/src/presentation/export_workspace.rs",
@@ -9362,8 +9370,18 @@
           "from": "planned",
           "to": "implementing",
           "reason": "All required provider and workflow joins are accepted; execute one paired six-workbench project-to-export composition and reuse reviewed unchanged output/lifecycle evidence."
+        },
+        {
+          "at": "2026-10-05T15:32:06.592601+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Independent consolidated review clears completed same-project six-workbench journey, actual mechanical/authored/portable outputs, cross-frontend reload/readback and retained scope/error/cleanup/theme/keyboard evidence; required Layout join accepted.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/public-review-f8-6-decision.json"
         }
-      ]
+      ],
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/public-review-f8-6-decision.json"
+      }
     },
     {
       "id": "F9.1",
@@ -9472,7 +9490,7 @@
         "F7.8",
         "F8.6"
       ],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
       "shared_edit_owner": "integration coordinator",
@@ -9499,26 +9517,19 @@
         {
           "id": "F9.2-C01",
           "requirement": "Every completed workflow passes paired public UI, theme, keyboard, desktop short-height/zoom and source-review checks with source/fixture identity.",
-          "state": "unassessed",
+          "state": "verified",
           "classification": "visual",
           "sources": [
             ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md"
           ],
           "evidence": [
-            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/review.md"
+            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/review.md",
+            ".scratch/dioxus-frontend-v1/evidence/f92-short-height-20261005/paired-reachability.md",
+            ".scratch/dioxus-frontend-v1/evidence/f92-short-height-20261005/run-20261005-paired/report.json",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
           ],
-          "blockers": [
-            "F2.2",
-            "F2.4",
-            "F3.7",
-            "F4.5",
-            "F4.6",
-            "F5.8",
-            "F6.6",
-            "F7.8",
-            "F8.6"
-          ],
-          "next_action": "Complete per-workflow and aggregate paired qualification after required workflow joins; reuse only attributable unchanged evidence.",
+          "blockers": [],
+          "next_action": "Complete: paired 1280x500 representative control reachability across all seven routes at df6b04b9/reference5a472a9 plus independently reviewed unchanged theme/keyboard/scene-zoom/workflow evidence. Undo/Redo, mobile and accessibility qualification excluded by user instruction.",
           "finish_condition": "Each completed required workflow has paired public UI/theme/keyboard/short-height/zoom/review evidence with source and fixture identity.",
           "owned_files": [
             ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md"
@@ -9533,7 +9544,19 @@
         "assessed_at": "2026-10-03T19:35:06Z",
         "coverage": "complete",
         "note": "All current acceptance clauses for this parent were split into independently decidable criteria; broad baseline RED context was excluded as a requirement. Parent remains open unless all required criteria and joins are accepted."
-      }
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f9-2-decision.json"
+      },
+      "status_history": [
+        {
+          "at": "2026-10-05T15:41:26.589868+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Independent review CLEAR: all seven paired desktop routes at 1280x500 with source/fixture identity; unchanged theme, ordinary keyboard, scene zoom, workflows and source reviews reused. All joins accepted; no excluded history/mobile/accessibility gate.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f9-2-decision.json"
+        }
+      ]
     },
     {
       "id": "F9.4",
@@ -9551,7 +9574,7 @@
       "acceptance_after": [
         "F8.6"
       ],
-      "status": "planned",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
       "shared_edit_owner": "integration coordinator",
@@ -9572,17 +9595,19 @@
         {
           "id": "F9.4-C01",
           "requirement": "React↔Dioxus round trip retains supported fields/assets, and actual saved writes are verified.",
-          "state": "unassessed",
+          "state": "verified",
           "classification": "release",
           "sources": [
             ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md"
           ],
-          "evidence": [],
-          "blockers": [
-            "F8.6",
-            "F2.2"
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/f94-final-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+            ".scratch/dioxus-frontend-v1/evidence/f94-final-20261005/final-immutable-check.json",
+            ".scratch/dioxus-frontend-v1/evidence/f86-integrated-20261005/fixed-candidate/cross-roundtrip-comparison.json"
           ],
-          "next_action": "Run cross-frontend archive round-trip and actual storage-write checks on final routes.",
+          "blockers": [],
+          "next_action": "Independent review CLEAR: actual public two-way import, Saved locally, reload and Save-copy readback preserve supported fields and six assets; storage owners unchanged.",
           "finish_condition": "Supported fields/assets survive both directions and saved writes are read back unchanged.",
           "owned_files": [
             "web/src/runtime.rs"
@@ -9595,14 +9620,19 @@
         {
           "id": "F9.4-C02",
           "requirement": "Root/subpath scoped offline update journeys pass on final routes.",
-          "state": "unassessed",
+          "state": "verified",
           "classification": "release",
           "sources": [
             ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/f94-final-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+            ".scratch/dioxus-frontend-v1/evidence/f94-final-20261005/final-immutable-check.json",
+            ".scratch/dioxus-frontend-v1/evidence/f94-final-20261005/run-df6b04b9/report.json"
+          ],
           "blockers": [],
-          "next_action": "Qualify final route offline update and scoped root/subpath behavior on joined candidate.",
+          "next_action": "Independent review CLEAR: finalcandidate root/subpath installation, offline reopen and isolated root update preserve correct scoped caches and unrelated sentinel. Whole script incomplete later only at separate lazy-asset assertion; completed protocol proof retained.",
           "finish_condition": "Offline updates work on both root and subpath without cross-scope asset leakage.",
           "owned_files": [
             "web/src/runtime.rs",
@@ -9616,14 +9646,19 @@
         {
           "id": "F9.4-C03",
           "requirement": "Stale opens/replies and missing lazy-asset recovery pass.",
-          "state": "unassessed",
+          "state": "verified",
           "classification": "release",
           "sources": [
             ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/f94-final-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+            ".scratch/dioxus-frontend-v1/evidence/f94-final-20261005/final-immutable-check.json",
+            ".scratch/dioxus-frontend-v1/evidence/f94-final-20261005/run-lazy-diagnostic-20261005/post-timeout-followup.json"
+          ],
           "blockers": [],
-          "next_action": "Exercise stale open/provider reply and missing lazy-asset recovery on final routes.",
+          "next_action": "Independent review CLEAR: source-current durable supersession owners reused; actual lazy module503/visibleerror followed by restored200, reload, public guide dismissal and53visiblecatalogue choices/noerror. Initial script selector timeouts preserved; no invented retry control.",
           "finish_condition": "Stale work cannot replace current project; missing lazy assets recover with correct user feedback.",
           "owned_files": [
             "web/src/runtime.rs"
@@ -9639,7 +9674,19 @@
         "assessed_at": "2026-10-03T19:35:06Z",
         "coverage": "complete",
         "note": "All current acceptance clauses for this parent were split into independently decidable criteria; broad baseline RED context was excluded as a requirement. Parent remains open unless all required criteria and joins are accepted."
-      }
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f9-4-decision.json"
+      },
+      "status_history": [
+        {
+          "at": "2026-10-05T15:34:18.351359+00:00",
+          "from": "planned",
+          "to": "accepted",
+          "reason": "Independent review CLEAR after F8.6: actual cross-frontend durable readback, final root/subpath offline update and cache isolation, unchanged stale-operation owner proofs, and real missing-module error/reload/recovery with53visiblecatalogue choices. Original incomplete harness outcomes retained separately.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f9-4-decision.json"
+        }
+      ]
     },
     {
       "id": "F9.5",
@@ -10036,9 +10083,8 @@
     "integration_slices": 2,
     "boundary_slices": 2,
     "status": {
-      "accepted": 53,
-      "implementing": 3,
-      "planned": 4
+      "accepted": 57,
+      "planned": 3
     }
   },
   "agent_policy": ".scratch/dioxus-frontend-v1/agent-policy.json",
@@ -10280,5 +10326,18 @@
       },
       "F9.2": "All completed workflows pass paired UI/theme/keyboard/axe/review checks"
     }
+  },
+  "undo_redo_scope_adjustment": {
+    "date": "2026-10-05",
+    "authority": "User: undo and redo can be held back and excluded if causing issues; sort out afterwards.",
+    "scope": "Remaining Undo/Redo qualification and repairs deferred from frontend migration and release gates.",
+    "preserve": [
+      "existing controls and tests",
+      "historical acceptance evidence",
+      "ordinary edits and saved-data compatibility",
+      "stale-operation protection and needed revision observations"
+    ],
+    "evidence_policy": "No excluded check is counted as passing. Previously verified history evidence remains historical; no parent or criterion is newly accepted merely from this deferral.",
+    "remaining_work": "Record outstanding history issues for post-migration work; no additional Undo/Redo browser journeys or history-specific repairs."
   }
 }

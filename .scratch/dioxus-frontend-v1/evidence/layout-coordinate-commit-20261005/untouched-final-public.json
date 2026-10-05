@@ -1,0 +1,170 @@
+{
+  "source_commit": "df6b04b9e8903381029a137fdfcef8d797305fb8",
+  "candidate": "http://127.0.0.1:34829/",
+  "reference": "http://127.0.0.1:5175/",
+  "reference_source": "5a472a9426e6e38993361da402cd4ec730feb369",
+  "viewport": {
+    "width": 1280,
+    "height": 800
+  },
+  "input": ".scratch/dioxus-frontend-v1/evidence/f86-integrated-20261005/fixed-candidate/probe-01-placement.boardstudio",
+  "input_sha256": "0215c9153cf4875bfd1f764136782eb2be15d555b3a625d3112eb12af2c602d6",
+  "archives": {
+    "desktop-replay-r5/baseline.boardstudio": {
+      "sha256": "0215c9153cf4875bfd1f764136782eb2be15d555b3a625d3112eb12af2c602d6",
+      "revision": 17,
+      "differences_from_input": [],
+      "assets_equal_input": true
+    },
+    "desktop-replay-r5/untouched.boardstudio": {
+      "sha256": "0215c9153cf4875bfd1f764136782eb2be15d555b3a625d3112eb12af2c602d6",
+      "revision": 17,
+      "differences_from_input": [],
+      "assets_equal_input": true
+    },
+    "desktop-replay-r5/escape.boardstudio": {
+      "sha256": "0215c9153cf4875bfd1f764136782eb2be15d555b3a625d3112eb12af2c602d6",
+      "revision": 17,
+      "differences_from_input": [],
+      "assets_equal_input": true
+    },
+    "candidate-rapid-only/edited.boardstudio": {
+      "sha256": "dc09ea116d6827f8043fabcef0c524333e1048ca709c03141a5cf80c26cee859",
+      "revision": 19,
+      "differences_from_input": [
+        {
+          "path": "/parts/142/pose/at/y",
+          "input": -47.625,
+          "output": -40.0
+        },
+        {
+          "path": "/revision",
+          "input": 17,
+          "output": 19
+        }
+      ],
+      "assets_equal_input": true
+    },
+    "candidate-rapid-only/one-undo.boardstudio": {
+      "sha256": "595a3c9c3889ae08e6dc62f262f1bccc3039b28dbf0a5950eb5dc3a1734cf467",
+      "revision": 20,
+      "differences_from_input": [
+        {
+          "path": "/parts/142/pose/at/x",
+          "input": 66.675,
+          "output": 60.0
+        },
+        {
+          "path": "/revision",
+          "input": 17,
+          "output": 20
+        }
+      ],
+      "assets_equal_input": true
+    },
+    "candidate-rapid-only/two-undos.boardstudio": {
+      "sha256": "876d293e540dca1fd7d452e55a5c4541b588f9ad811a502738450f6186e8a577",
+      "revision": 21,
+      "differences_from_input": [
+        {
+          "path": "/revision",
+          "input": 17,
+          "output": 21
+        }
+      ],
+      "assets_equal_input": true
+    },
+    "reference-rapid-desktop-r3/edited.boardstudio": {
+      "sha256": "b29b943cc7a462ca54ece16d86809c23c41d973d43410e21be388d4804253eec",
+      "revision": 19,
+      "differences_from_input": [
+        {
+          "path": "/parts/10/pose/at/x",
+          "input": 104.22999999999999,
+          "output": 104.23
+        },
+        {
+          "path": "/parts/22/pose/at/x",
+          "input": 104.22999999999999,
+          "output": 104.23
+        },
+        {
+          "path": "/parts/34/pose/at/x",
+          "input": 104.22999999999999,
+          "output": 104.23
+        },
+        {
+          "path": "/parts/46/pose/at/x",
+          "input": 104.22999999999999,
+          "output": 104.23
+        },
+        {
+          "path": "/parts/142/pose/at/y",
+          "input": -47.625,
+          "output": -40
+        },
+        {
+          "path": "/revision",
+          "input": 17,
+          "output": 19
+        }
+      ],
+      "assets_equal_input": true
+    },
+    "reference-rapid-desktop-r3/two-undos.boardstudio": {
+      "sha256": "fd7c658a3d7cd466720966c89b82ba19e718ba6348e485f97d85a7f939f6059f",
+      "revision": 21,
+      "differences_from_input": [
+        {
+          "path": "/parts/10/pose/at/x",
+          "input": 104.22999999999999,
+          "output": 104.23
+        },
+        {
+          "path": "/parts/22/pose/at/x",
+          "input": 104.22999999999999,
+          "output": 104.23
+        },
+        {
+          "path": "/parts/34/pose/at/x",
+          "input": 104.22999999999999,
+          "output": 104.23
+        },
+        {
+          "path": "/parts/46/pose/at/x",
+          "input": 104.22999999999999,
+          "output": 104.23
+        },
+        {
+          "path": "/revision",
+          "input": 17,
+          "output": 21
+        }
+      ],
+      "assets_equal_input": true
+    }
+  },
+  "paired_edited_differences": [
+    {
+      "path": "/parts/10/pose/at/x",
+      "input": 104.23,
+      "output": 104.22999999999999
+    },
+    {
+      "path": "/parts/22/pose/at/x",
+      "input": 104.23,
+      "output": 104.22999999999999
+    },
+    {
+      "path": "/parts/34/pose/at/x",
+      "input": 104.23,
+      "output": 104.22999999999999
+    },
+    {
+      "path": "/parts/46/pose/at/x",
+      "input": 104.23,
+      "output": 104.22999999999999
+    }
+  ],
+  "qualification": "Untouched focus/blur and Escape-cancel preserve complete accepted input and all six assets. Paired rapid edits produce identical r19 Xoriginal/Y-40; one candidate Undo recovers X60/Yoriginal, and two Undo restore input at r21. This is shared asynchronous lost-axis behavior, not a claim both intended coordinate values survived."
+}

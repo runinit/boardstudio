@@ -2,6 +2,8 @@
 
 > Scope update (2026-10-05): accessibility/axe/semantic-only and assistive-technology qualification are removed by user instruction. Ordinary keyboard, focus, Escape and functional controls remain in scope. Historical results are retained without counting excluded checks as passes.
 
+> Scope update (2026-10-05): remaining Undo/Redo qualification and repairs are deferred by user instruction and do not block release. Retain existing controls/tests and historical evidence; track outstanding history work separately. Saved edits, compatibility and stale-operation protection remain required.
+
 **Triage:** ready-for-agent for planning and independent qualification preparation; release depends on all required workflow slices and explicit cutover approval.
 **Planning baseline:** integration c827c4e6, executable f44a3d1b, React reference 5a472a94. F1 and F3a are verified increments; full F2–F8 remain open.
 

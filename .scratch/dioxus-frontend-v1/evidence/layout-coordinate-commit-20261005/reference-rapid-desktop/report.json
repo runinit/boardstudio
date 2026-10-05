@@ -1,0 +1,7 @@
+{
+  "url": "http://127.0.0.1:5175/",
+  "fixture": ".scratch/dioxus-frontend-v1/evidence/f86-integrated-20261005/fixed-candidate/probe-01-placement.boardstudio",
+  "checks": {},
+  "status": "incomplete",
+  "error": "{\"success\":false,\"data\":null,\"error\":\"Element not found: input[aria-label=\\\"X mm\\\"]. Verify the selector, role, or name is correct and the element exists in the DOM.\"}\n"
+}

@@ -1,0 +1,923 @@
+{
+  "lifecycle": {
+    "effectiveLaunch": {
+      "browserLaunched": true,
+      "engine": "chrome",
+      "launchHash": 11677035664275010974
+    },
+    "launched": false,
+    "relaunchedBrowser": false,
+    "restartedBackground": false,
+    "restoreStatus": "not_configured",
+    "reused": true,
+    "saveStatus": "not_attempted"
+  },
+  "origin": "http://127.0.0.1:34829/",
+  "refs": {
+    "e10": {
+      "name": "Parts",
+      "role": "tab"
+    },
+    "e11": {
+      "name": "Undo",
+      "role": "button"
+    },
+    "e12": {
+      "name": "Redo",
+      "role": "button"
+    },
+    "e179": {
+      "name": "Grid \u00bcu",
+      "role": "button"
+    },
+    "e180": {
+      "name": "Layout findings: 3",
+      "role": "button"
+    },
+    "e182": {
+      "name": "Fit board",
+      "role": "button"
+    },
+    "e183": {
+      "name": "Fit selection",
+      "role": "button"
+    },
+    "e184": {
+      "name": "Zoom out",
+      "role": "button"
+    },
+    "e185": {
+      "name": "Zoom in",
+      "role": "button"
+    },
+    "e2": {
+      "name": "Keyboard editor",
+      "role": "region"
+    },
+    "e21": {
+      "name": "Resize objects",
+      "role": "separator"
+    },
+    "e26": {
+      "name": "Resize inspector",
+      "role": "separator"
+    },
+    "e268": {
+      "name": "Board",
+      "role": "combobox"
+    },
+    "e269": {
+      "name": "New board",
+      "role": "button"
+    },
+    "e270": {
+      "name": "Left PCB 77 parts",
+      "role": "treeitem"
+    },
+    "e271": {
+      "name": "Outline Edited outline 1",
+      "role": "treeitem"
+    },
+    "e29": {
+      "name": "Objects",
+      "role": "heading"
+    },
+    "e3": {
+      "name": "Export",
+      "role": "button"
+    },
+    "e30": {
+      "name": "Objects options",
+      "role": "button"
+    },
+    "e31": {
+      "name": "Inspect",
+      "role": "heading"
+    },
+    "e32": {
+      "name": "Inspector options",
+      "role": "button"
+    },
+    "e370": {
+      "name": "Collapse Left PCB",
+      "role": "button"
+    },
+    "e371": {
+      "name": "Left PCB 77 parts",
+      "role": "button"
+    },
+    "e372": {
+      "name": "Expand Outline",
+      "role": "button"
+    },
+    "e373": {
+      "name": "Outline Edited outline 1",
+      "role": "button"
+    },
+    "e4": {
+      "name": "Project",
+      "role": "button"
+    },
+    "e471": {
+      "name": "Left PCB",
+      "role": "option"
+    },
+    "e472": {
+      "name": "Right PCB",
+      "role": "option"
+    },
+    "e5": {
+      "name": "Layout",
+      "role": "tab"
+    },
+    "e566": {
+      "name": "Keymap layout; select a key with click, Enter, or Space, hold Space and drag to pan, or use the mouse wheel to zoom",
+      "role": "group"
+    },
+    "e567": {
+      "name": "2D",
+      "role": "button"
+    },
+    "e568": {
+      "name": "3D assembly",
+      "role": "button"
+    },
+    "e569": {
+      "name": "Footprints",
+      "role": "button"
+    },
+    "e570": {
+      "name": "Edit key left-keys-SW1",
+      "role": "button"
+    },
+    "e571": {
+      "name": "Edit key left-keys-SW2",
+      "role": "button"
+    },
+    "e572": {
+      "name": "Edit key left-keys-SW3",
+      "role": "button"
+    },
+    "e573": {
+      "name": "Edit key left-keys-SW4",
+      "role": "button"
+    },
+    "e574": {
+      "name": "Edit key left-keys-SW5",
+      "role": "button"
+    },
+    "e575": {
+      "name": "Edit key left-keys-SW6",
+      "role": "button"
+    },
+    "e576": {
+      "name": "Edit key left-keys-SW7",
+      "role": "button"
+    },
+    "e577": {
+      "name": "Edit key left-keys-SW8",
+      "role": "button"
+    },
+    "e578": {
+      "name": "Edit key left-keys-SW9",
+      "role": "button"
+    },
+    "e579": {
+      "name": "Edit key left-keys-SW10",
+      "role": "button"
+    },
+    "e580": {
+      "name": "Edit key left-keys-SW11",
+      "role": "button"
+    },
+    "e581": {
+      "name": "Edit key left-keys-SW12",
+      "role": "button"
+    },
+    "e582": {
+      "name": "Edit key left-keys-SW13",
+      "role": "button"
+    },
+    "e583": {
+      "name": "Edit key left-keys-SW14",
+      "role": "button"
+    },
+    "e584": {
+      "name": "Edit key left-keys-SW15",
+      "role": "button"
+    },
+    "e585": {
+      "name": "Edit key left-keys-SW16",
+      "role": "button"
+    },
+    "e586": {
+      "name": "Edit key left-keys-SW17",
+      "role": "button"
+    },
+    "e587": {
+      "name": "Edit key left-keys-SW18",
+      "role": "button"
+    },
+    "e588": {
+      "name": "Edit key left-keys-SW19",
+      "role": "button"
+    },
+    "e589": {
+      "name": "Edit key left-keys-SW20",
+      "role": "button"
+    },
+    "e590": {
+      "name": "Edit key left-keys-SW21",
+      "role": "button"
+    },
+    "e591": {
+      "name": "Edit key left-keys-SW22",
+      "role": "button"
+    },
+    "e592": {
+      "name": "Edit key left-keys-SW23",
+      "role": "button"
+    },
+    "e593": {
+      "name": "Edit key left-keys-SW24",
+      "role": "button"
+    },
+    "e594": {
+      "name": "Edit key left-thumbs-SW1",
+      "role": "button"
+    },
+    "e595": {
+      "name": "Edit key left-thumbs-SW2",
+      "role": "button"
+    },
+    "e596": {
+      "name": "Edit key left-thumbs-SW3",
+      "role": "button"
+    },
+    "e597": {
+      "name": "Edit key left-thumbs-SW4",
+      "role": "button"
+    },
+    "e598": {
+      "name": "Edit key left-thumbs-SW5",
+      "role": "button"
+    },
+    "e599": {
+      "name": "Edit key SW1",
+      "role": "button"
+    },
+    "e6": {
+      "name": "PCB",
+      "role": "tab"
+    },
+    "e600": {
+      "name": "Keymap",
+      "role": "region"
+    },
+    "e601": {
+      "name": "Layout",
+      "role": "treeitem"
+    },
+    "e602": {
+      "name": "Matrix 5 1 keys",
+      "role": "treeitem"
+    },
+    "e603": {
+      "name": "Column 1 1 keys",
+      "role": "treeitem"
+    },
+    "e604": {
+      "name": "MH1 mounting hole npth \u00b7 128.7, -112.0",
+      "role": "treeitem"
+    },
+    "e605": {
+      "name": "MH2 mounting hole npth \u00b7 -9.6, 10.1",
+      "role": "treeitem"
+    },
+    "e606": {
+      "name": "MH3 mounting hole npth \u00b7 103.4, -3.0",
+      "role": "treeitem"
+    },
+    "e607": {
+      "name": "MH4 mounting hole npth \u00b7 23.5, -89.5",
+      "role": "treeitem"
+    },
+    "e608": {
+      "name": "keys Independent",
+      "role": "treeitem"
+    },
+    "e609": {
+      "name": "thumbs Independent",
+      "role": "treeitem"
+    },
+    "e610": {
+      "name": "Export ZMK source",
+      "role": "button"
+    },
+    "e611": {
+      "name": "Collapse Layout",
+      "role": "button"
+    },
+    "e612": {
+      "name": "Layout",
+      "role": "button"
+    },
+    "e613": {
+      "name": "Collapse Matrix 5",
+      "role": "button"
+    },
+    "e614": {
+      "name": "Matrix 5 1 keys",
+      "role": "button"
+    },
+    "e615": {
+      "name": "Expand Column 1",
+      "role": "button"
+    },
+    "e616": {
+      "name": "Column 1 1 keys",
+      "role": "button"
+    },
+    "e617": {
+      "name": "MH1 mounting hole npth \u00b7 128.7, -112.0",
+      "role": "button"
+    },
+    "e618": {
+      "name": "MH2 mounting hole npth \u00b7 -9.6, 10.1",
+      "role": "button"
+    },
+    "e619": {
+      "name": "MH3 mounting hole npth \u00b7 103.4, -3.0",
+      "role": "button"
+    },
+    "e620": {
+      "name": "MH4 mounting hole npth \u00b7 23.5, -89.5",
+      "role": "button"
+    },
+    "e621": {
+      "name": "Expand keys",
+      "role": "button"
+    },
+    "e622": {
+      "name": "keys Independent",
+      "role": "button"
+    },
+    "e623": {
+      "name": "Expand thumbs",
+      "role": "button"
+    },
+    "e624": {
+      "name": "thumbs Independent",
+      "role": "button"
+    },
+    "e625": {
+      "name": "Keymap",
+      "role": "heading"
+    },
+    "e626": {
+      "name": "Keys",
+      "role": "button"
+    },
+    "e627": {
+      "name": "Macros",
+      "role": "button"
+    },
+    "e628": {
+      "name": "Encoders",
+      "role": "button"
+    },
+    "e629": {
+      "name": "0 Main",
+      "role": "button"
+    },
+    "e630": {
+      "name": "1 Function",
+      "role": "button"
+    },
+    "e631": {
+      "name": "Add layer",
+      "role": "button"
+    },
+    "e632": {
+      "name": "Find a key",
+      "role": "searchbox"
+    },
+    "e633": {
+      "name": "Selected key",
+      "role": "combobox"
+    },
+    "e634": {
+      "name": "Layer name",
+      "role": "textbox"
+    },
+    "e635": {
+      "name": "Choose on the layout\u2026",
+      "role": "option"
+    },
+    "e636": {
+      "name": "left-keys-SW1 \u00b7 A",
+      "role": "option"
+    },
+    "e637": {
+      "name": "left-keys-SW2 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e638": {
+      "name": "left-keys-SW3 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e639": {
+      "name": "left-keys-SW4 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e640": {
+      "name": "left-keys-SW5 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e641": {
+      "name": "left-keys-SW6 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e642": {
+      "name": "left-keys-SW7 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e643": {
+      "name": "left-keys-SW8 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e644": {
+      "name": "left-keys-SW9 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e645": {
+      "name": "left-keys-SW10 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e646": {
+      "name": "left-keys-SW11 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e647": {
+      "name": "left-keys-SW12 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e648": {
+      "name": "left-keys-SW13 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e649": {
+      "name": "left-keys-SW14 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e650": {
+      "name": "left-keys-SW15 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e651": {
+      "name": "left-keys-SW16 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e652": {
+      "name": "left-keys-SW17 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e653": {
+      "name": "left-keys-SW18 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e654": {
+      "name": "left-keys-SW19 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e655": {
+      "name": "left-keys-SW20 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e656": {
+      "name": "left-keys-SW21 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e657": {
+      "name": "left-keys-SW22 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e658": {
+      "name": "left-keys-SW23 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e659": {
+      "name": "left-keys-SW24 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e660": {
+      "name": "left-thumbs-SW1 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e661": {
+      "name": "left-thumbs-SW2 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e662": {
+      "name": "left-thumbs-SW3 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e663": {
+      "name": "left-thumbs-SW4 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e664": {
+      "name": "left-thumbs-SW5 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e665": {
+      "name": "SW1 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e7": {
+      "name": "Keymap",
+      "role": "tab"
+    },
+    "e8": {
+      "name": "Keycaps",
+      "role": "tab"
+    },
+    "e9": {
+      "name": "Case",
+      "role": "tab"
+    }
+  },
+  "removedRefs": [
+    "@e181",
+    "@e186",
+    "@e187",
+    "@e188",
+    "@e189",
+    "@e190",
+    "@e191",
+    "@e192",
+    "@e193",
+    "@e194",
+    "@e195",
+    "@e196",
+    "@e197",
+    "@e198",
+    "@e199",
+    "@e200",
+    "@e201",
+    "@e202",
+    "@e203",
+    "@e204",
+    "@e205",
+    "@e206",
+    "@e207",
+    "@e208",
+    "@e209",
+    "@e210",
+    "@e211",
+    "@e212",
+    "@e213",
+    "@e214",
+    "@e215",
+    "@e216",
+    "@e217",
+    "@e218",
+    "@e219",
+    "@e220",
+    "@e221",
+    "@e222",
+    "@e223",
+    "@e224",
+    "@e225",
+    "@e226",
+    "@e227",
+    "@e228",
+    "@e229",
+    "@e230",
+    "@e231",
+    "@e232",
+    "@e233",
+    "@e234",
+    "@e235",
+    "@e236",
+    "@e237",
+    "@e238",
+    "@e239",
+    "@e240",
+    "@e241",
+    "@e242",
+    "@e243",
+    "@e244",
+    "@e245",
+    "@e246",
+    "@e247",
+    "@e248",
+    "@e249",
+    "@e250",
+    "@e251",
+    "@e252",
+    "@e253",
+    "@e254",
+    "@e255",
+    "@e256",
+    "@e257",
+    "@e258",
+    "@e259",
+    "@e260",
+    "@e261",
+    "@e262",
+    "@e263",
+    "@e264",
+    "@e265",
+    "@e266",
+    "@e267",
+    "@e272",
+    "@e273",
+    "@e274",
+    "@e275",
+    "@e276",
+    "@e277",
+    "@e278",
+    "@e279",
+    "@e280",
+    "@e281",
+    "@e282",
+    "@e283",
+    "@e284",
+    "@e285",
+    "@e286",
+    "@e287",
+    "@e288",
+    "@e289",
+    "@e290",
+    "@e291",
+    "@e292",
+    "@e293",
+    "@e294",
+    "@e295",
+    "@e296",
+    "@e297",
+    "@e298",
+    "@e299",
+    "@e300",
+    "@e301",
+    "@e302",
+    "@e303",
+    "@e304",
+    "@e305",
+    "@e306",
+    "@e307",
+    "@e308",
+    "@e309",
+    "@e310",
+    "@e311",
+    "@e312",
+    "@e313",
+    "@e314",
+    "@e315",
+    "@e316",
+    "@e317",
+    "@e318",
+    "@e319",
+    "@e320",
+    "@e321",
+    "@e322",
+    "@e323",
+    "@e324",
+    "@e325",
+    "@e326",
+    "@e327",
+    "@e328",
+    "@e329",
+    "@e330",
+    "@e331",
+    "@e332",
+    "@e333",
+    "@e334",
+    "@e335",
+    "@e336",
+    "@e337",
+    "@e338",
+    "@e339",
+    "@e340",
+    "@e341",
+    "@e342",
+    "@e343",
+    "@e344",
+    "@e345",
+    "@e346",
+    "@e347",
+    "@e348",
+    "@e349",
+    "@e350",
+    "@e351",
+    "@e352",
+    "@e353",
+    "@e354",
+    "@e355",
+    "@e356",
+    "@e357",
+    "@e358",
+    "@e359",
+    "@e360",
+    "@e361",
+    "@e362",
+    "@e363",
+    "@e364",
+    "@e365",
+    "@e366",
+    "@e367",
+    "@e368",
+    "@e369",
+    "@e374",
+    "@e375",
+    "@e376",
+    "@e377",
+    "@e378",
+    "@e379",
+    "@e380",
+    "@e381",
+    "@e382",
+    "@e383",
+    "@e384",
+    "@e385",
+    "@e386",
+    "@e387",
+    "@e388",
+    "@e389",
+    "@e390",
+    "@e391",
+    "@e392",
+    "@e393",
+    "@e394",
+    "@e395",
+    "@e396",
+    "@e397",
+    "@e398",
+    "@e399",
+    "@e400",
+    "@e401",
+    "@e402",
+    "@e403",
+    "@e404",
+    "@e405",
+    "@e406",
+    "@e407",
+    "@e408",
+    "@e409",
+    "@e410",
+    "@e411",
+    "@e412",
+    "@e413",
+    "@e414",
+    "@e415",
+    "@e416",
+    "@e417",
+    "@e418",
+    "@e419",
+    "@e420",
+    "@e421",
+    "@e422",
+    "@e423",
+    "@e424",
+    "@e425",
+    "@e426",
+    "@e427",
+    "@e428",
+    "@e429",
+    "@e430",
+    "@e431",
+    "@e432",
+    "@e433",
+    "@e434",
+    "@e435",
+    "@e436",
+    "@e437",
+    "@e438",
+    "@e439",
+    "@e440",
+    "@e441",
+    "@e442",
+    "@e443",
+    "@e444",
+    "@e445",
+    "@e446",
+    "@e447",
+    "@e448",
+    "@e449",
+    "@e450",
+    "@e451",
+    "@e452",
+    "@e453",
+    "@e454",
+    "@e455",
+    "@e456",
+    "@e457",
+    "@e458",
+    "@e459",
+    "@e460",
+    "@e461",
+    "@e462",
+    "@e463",
+    "@e464",
+    "@e465",
+    "@e466",
+    "@e467",
+    "@e468",
+    "@e469",
+    "@e470",
+    "@e473",
+    "@e474",
+    "@e475",
+    "@e476",
+    "@e477",
+    "@e478",
+    "@e479",
+    "@e480",
+    "@e481",
+    "@e482",
+    "@e483",
+    "@e484",
+    "@e485",
+    "@e486",
+    "@e487",
+    "@e488",
+    "@e489",
+    "@e490",
+    "@e491",
+    "@e492",
+    "@e493",
+    "@e494",
+    "@e495",
+    "@e496",
+    "@e497",
+    "@e498",
+    "@e499",
+    "@e500",
+    "@e501",
+    "@e502",
+    "@e503",
+    "@e504",
+    "@e505",
+    "@e506",
+    "@e507",
+    "@e508",
+    "@e509",
+    "@e510",
+    "@e511",
+    "@e512",
+    "@e513",
+    "@e514",
+    "@e515",
+    "@e516",
+    "@e517",
+    "@e518",
+    "@e519",
+    "@e520",
+    "@e521",
+    "@e522",
+    "@e523",
+    "@e524",
+    "@e525",
+    "@e526",
+    "@e527",
+    "@e528",
+    "@e529",
+    "@e530",
+    "@e531",
+    "@e532",
+    "@e533",
+    "@e534",
+    "@e535",
+    "@e536",
+    "@e537",
+    "@e538",
+    "@e539",
+    "@e540",
+    "@e541",
+    "@e542",
+    "@e543",
+    "@e544",
+    "@e545",
+    "@e546",
+    "@e547",
+    "@e548",
+    "@e549",
+    "@e550",
+    "@e551",
+    "@e552",
+    "@e553",
+    "@e554",
+    "@e555",
+    "@e556",
+    "@e557",
+    "@e558",
+    "@e559",
+    "@e560",
+    "@e561",
+    "@e562",
+    "@e563",
+    "@e564"
+  ],
+  "snapshot": "- button \"Project\" [expanded=false, ref=e4]\n- tab \"Layout\" [ref=e5]\n- tab \"PCB\" [ref=e6]\n- tab \"Keymap\" [selected, ref=e7]\n- tab \"Keycaps\" [ref=e8]\n- tab \"Case\" [ref=e9]\n- tab \"Parts\" [ref=e10]\n- button \"Export\" [ref=e3]\n- region \"Keyboard editor\" [ref=e2]\n  - heading \"Objects\" [level=2, ref=e29]\n  - button \"Objects options\" [expanded=false, ref=e30]\n  - separator \"Resize objects\" [ref=e21] focusable [tabindex]: 235\n  - combobox \"Board\" [expanded=false, ref=e268]: Left PCB\n    - option \"Left PCB\" [selected, ref=e471]\n    - option \"Right PCB\" [ref=e472]\n  - button \"New board\" [ref=e269]\n  - treeitem \"Left PCB 77 parts\" [level=1, expanded=true, ref=e270]\n    - button \"Collapse Left PCB\" [expanded=true, ref=e370]\n    - button \"Left PCB 77 parts\" [ref=e371]\n  - treeitem \"Outline Edited outline 1\" [level=2, expanded=false, ref=e271]\n    - button \"Expand Outline\" [expanded=false, ref=e372]\n    - button \"Outline Edited outline 1\" [ref=e373]\n  - treeitem \"Layout\" [level=2, expanded=true, ref=e601]\n    - button \"Collapse Layout\" [expanded=true, ref=e611]\n    - button \"Layout\" [ref=e612]\n  - treeitem \"Matrix 5 1 keys\" [level=3, expanded=true, ref=e602]\n    - button \"Collapse Matrix 5\" [expanded=true, ref=e613]\n    - button \"Matrix 5 1 keys\" [ref=e614]\n  - treeitem \"Column 1 1 keys\" [level=4, expanded=false, ref=e603]\n    - button \"Expand Column 1\" [expanded=false, ref=e615]\n    - button \"Column 1 1 keys\" [ref=e616]\n  - treeitem \"MH1 mounting hole npth \u00b7 128.7, -112.0\" [level=3, ref=e604]\n    - button \"MH1 mounting hole npth \u00b7 128.7, -112.0\" [ref=e617]\n  - treeitem \"MH2 mounting hole npth \u00b7 -9.6, 10.1\" [level=3, ref=e605]\n    - button \"MH2 mounting hole npth \u00b7 -9.6, 10.1\" [ref=e618]\n  - treeitem \"MH3 mounting hole npth \u00b7 103.4, -3.0\" [level=3, ref=e606]\n    - button \"MH3 mounting hole npth \u00b7 103.4, -3.0\" [ref=e619]\n  - treeitem \"MH4 mounting hole npth \u00b7 23.5, -89.5\" [level=3, ref=e607]\n    - button \"MH4 mounting hole npth \u00b7 23.5, -89.5\" [ref=e620]\n  - treeitem \"keys Independent\" [level=2, expanded=false, ref=e608]\n    - button \"Expand keys\" [expanded=false, ref=e621]\n    - button \"keys Independent\" [ref=e622]\n  - treeitem \"thumbs Independent\" [level=2, expanded=false, ref=e609]\n    - button \"Expand thumbs\" [expanded=false, ref=e623]\n    - button \"thumbs Independent\" [ref=e624]\n  - button \"2D\" [ref=e567]\n  - button \"3D assembly\" [ref=e568]\n  - button \"Footprints\" [ref=e569]\n  - group \"Keymap layout; select a key with click, Enter, or Space, hold Space and drag to pan, or use the mouse wheel to zoom\" [ref=e566] focusable [tabindex]\n    - button \"Edit key left-keys-SW1\" [ref=e570]\n    - button \"Edit key left-keys-SW2\" [ref=e571]\n    - button \"Edit key left-keys-SW3\" [ref=e572]\n    - button \"Edit key left-keys-SW4\" [ref=e573]\n    - button \"Edit key left-keys-SW5\" [ref=e574]\n    - button \"Edit key left-keys-SW6\" [ref=e575]\n    - button \"Edit key left-keys-SW7\" [ref=e576]\n    - button \"Edit key left-keys-SW8\" [ref=e577]\n    - button \"Edit key left-keys-SW9\" [ref=e578]\n    - button \"Edit key left-keys-SW10\" [ref=e579]\n    - button \"Edit key left-keys-SW11\" [ref=e580]\n    - button \"Edit key left-keys-SW12\" [ref=e581]\n    - button \"Edit key left-keys-SW13\" [ref=e582]\n    - button \"Edit key left-keys-SW14\" [ref=e583]\n    - button \"Edit key left-keys-SW15\" [ref=e584]\n    - button \"Edit key left-keys-SW16\" [ref=e585]\n    - button \"Edit key left-keys-SW17\" [ref=e586]\n    - button \"Edit key left-keys-SW18\" [ref=e587]\n    - button \"Edit key left-keys-SW19\" [ref=e588]\n    - button \"Edit key left-keys-SW20\" [ref=e589]\n    - button \"Edit key left-keys-SW21\" [ref=e590]\n    - button \"Edit key left-keys-SW22\" [ref=e591]\n    - button \"Edit key left-keys-SW23\" [ref=e592]\n    - button \"Edit key left-keys-SW24\" [ref=e593]\n    - button \"Edit key left-thumbs-SW1\" [ref=e594]\n    - button \"Edit key left-thumbs-SW2\" [ref=e595]\n    - button \"Edit key left-thumbs-SW3\" [ref=e596]\n    - button \"Edit key left-thumbs-SW4\" [ref=e597]\n    - button \"Edit key left-thumbs-SW5\" [ref=e598]\n    - button \"Edit key SW1\" [ref=e599]\n  - heading \"Inspect\" [level=2, ref=e31]\n  - button \"Inspector options\" [expanded=false, ref=e32]\n  - separator \"Resize inspector\" [ref=e26] focusable [tabindex]: 320\n  - region \"Keymap\" [ref=e600]\n    - heading \"Keymap\" [level=2, ref=e625]\n    - button \"0 Main\" [ref=e629]\n    - button \"1 Function\" [ref=e630]\n    - button \"Add layer\" [ref=e631]\n    - textbox \"Layer name\" [ref=e634]: Main\n    - button \"Keys\" [ref=e626]\n    - button \"Macros\" [ref=e627]\n    - button \"Encoders\" [ref=e628]\n    - searchbox \"Find a key\" [ref=e632]\n    - combobox \"Selected key\" [expanded=false, ref=e633]: Choose on the layout\u2026\n      - option \"Choose on the layout\u2026\" [selected, ref=e635]\n      - option \"left-keys-SW1 \u00b7 A\" [ref=e636]\n      - option \"left-keys-SW2 \u00b7 Unassigned\" [ref=e637]\n      - option \"left-keys-SW3 \u00b7 Unassigned\" [ref=e638]\n      - option \"left-keys-SW4 \u00b7 Unassigned\" [ref=e639]\n      - option \"left-keys-SW5 \u00b7 Unassigned\" [ref=e640]\n      - option \"left-keys-SW6 \u00b7 Unassigned\" [ref=e641]\n      - option \"left-keys-SW7 \u00b7 Unassigned\" [ref=e642]\n      - option \"left-keys-SW8 \u00b7 Unassigned\" [ref=e643]\n      - option \"left-keys-SW9 \u00b7 Unassigned\" [ref=e644]\n      - option \"left-keys-SW10 \u00b7 Unassigned\" [ref=e645]\n      - option \"left-keys-SW11 \u00b7 Unassigned\" [ref=e646]\n      - option \"left-keys-SW12 \u00b7 Unassigned\" [ref=e647]\n      - option \"left-keys-SW13 \u00b7 Unassigned\" [ref=e648]\n      - option \"left-keys-SW14 \u00b7 Unassigned\" [ref=e649]\n      - option \"left-keys-SW15 \u00b7 Unassigned\" [ref=e650]\n      - option \"left-keys-SW16 \u00b7 Unassigned\" [ref=e651]\n      - option \"left-keys-SW17 \u00b7 Unassigned\" [ref=e652]\n      - option \"left-keys-SW18 \u00b7 Unassigned\" [ref=e653]\n      - option \"left-keys-SW19 \u00b7 Unassigned\" [ref=e654]\n      - option \"left-keys-SW20 \u00b7 Unassigned\" [ref=e655]\n      - option \"left-keys-SW21 \u00b7 Unassigned\" [ref=e656]\n      - option \"left-keys-SW22 \u00b7 Unassigned\" [ref=e657]\n      - option \"left-keys-SW23 \u00b7 Unassigned\" [ref=e658]\n      - option \"left-keys-SW24 \u00b7 Unassigned\" [ref=e659]\n      - option \"left-thumbs-SW1 \u00b7 Unassigned\" [ref=e660]\n      - option \"left-thumbs-SW2 \u00b7 Unassigned\" [ref=e661]\n      - option \"left-thumbs-SW3 \u00b7 Unassigned\" [ref=e662]\n      - option \"left-thumbs-SW4 \u00b7 Unassigned\" [ref=e663]\n      - option \"left-thumbs-SW5 \u00b7 Unassigned\" [ref=e664]\n      - option \"SW1 \u00b7 Unassigned\" [ref=e665]\n    - button \"Export ZMK source\" [ref=e610]\n  - button \"Undo\" [ref=e11]\n  - button \"Redo\" [ref=e12]\n  - button \"Grid \u00bcu\" [disabled, ref=e179]\n  - button \"Fit board\" [ref=e182]\n  - button \"Fit selection\" [disabled, ref=e183]\n  - button \"Zoom out\" [ref=e184]\n  - button \"Zoom in\" [ref=e185]\n  - button \"Layout findings: 3\" [ref=e180]"
+}

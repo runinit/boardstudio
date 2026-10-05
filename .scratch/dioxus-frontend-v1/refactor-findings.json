@@ -2062,7 +2062,17 @@
         "F4.2",
         "F9.2"
       ],
-      "continuations": []
+      "continuations": [
+        {
+          "date": "2026-10-05",
+          "source_commit": "df6b04b9e8903381029a137fdfcef8d797305fb8",
+          "workflow": "F3.7",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/untouched-final-public.json",
+          "observation": "On identicalr17 J1 fixture, focused X60Enter thenY-40Enter yieldsr19 X66.675/Y-40 in BOTH candidate and pinnedTS reference. CandidateoneUndo reveals intermediateX60/Y-47.625; twoUndo returnsoriginal at21, matchingreference twoUndo. Source trace builds absoluteMoveParts from lastdurableaccepted while priorPersistpending; queue rebasesrevision withoutrebuildingpositions. The generic absolutecommand contract is respected; useraxisintent can be lost before it reaches that contract.",
+          "scope_disposition": "Independent review CLEAR for current migration paired geometry/history criterion. Retain shared high-impact Layout lost-axis behavior for post-port axis-intent design; generic Session correctly honors explicit absolute MoveParts. No guarantee of lossless rapid-axis protocol is added or claimed. Diagnostic native RED is preserved as an unlanded future contract proposal, not a failing current-engine gate.",
+          "preserved_result": "Untouched andEscape-cancel fullprojectr17+sixassets preserved by publishedDioxus Blurguard; separate trueGREEN."
+        }
+      ]
     },
     {
       "id": "RF-017",

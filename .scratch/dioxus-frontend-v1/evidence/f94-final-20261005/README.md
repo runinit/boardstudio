@@ -1,0 +1,19 @@
+# F9.4 final offline/update/recovery harness
+
+This is a focused, later-run harness for one completed immutable frontend build. It was prepared by source inspection only; no browser, build, or test was started. It does not use the selected Codex in-app browser. When the coordinator releases the QA slot, run with a fresh output directory outside the build and all served site trees:
+
+```sh
+python3 .scratch/dioxus-frontend-v1/evidence/f94-final-20261005/offline-qualification.py \
+  /absolute/path/to/web/target/builds/<final-build-id> 34880 \
+  /absolute/path/to/evidence/f94-final-20261005/run-<id>
+```
+
+Use port `0` for an ephemeral local port. The build directory must have complete `provenance.json`, `offline-manifest-root.json`, `offline-manifest-subpath.json`, and the recorded root/subpath site trees. The script verifies every asset hash from provenance before and after. It builds a unique-version update worker with the candidate root manifest into `output-dir/update-overlay`; it never writes inside the immutable build. Required tools when actually run: `wasm-pack`, Node.js, `agent-browser`, and headless Chrome. The script saves worker build logs, browser commands/raw JSON, server requests, report, cache names, and source/build identities under the output directory. The local server preserves the published candidate's COOP `same-origin` and COEP `require-corp` response headers.
+
+The run uses one unique named agent-browser session so both routes share one isolated CacheStorage. It installs the final candidate at `/` and `/boardstudio/`, confirms both scoped cache namespaces, seeds an unrelated cache sentinel, then switches only the root worker response to a freshly compiled QA version. The production Rust worker performs the update; the assertions require the old root version to be removed and the subpath plus unrelated cache to remain. It then reloads both app shells under Chromium offline mode and verifies their controller scopes and route UI.
+
+The recovery probe targets the real listed `assets/layout-generators/src/index.js` asset. After install/update, it removes just that entry from the isolated root scope cache, selects the actual Parts workspace using `#m1-tab-Parts` (which mounts the catalogue loader), and makes the local QA server return one HTTP 503 for that exact route. The expected public result is the existing component-catalogue alert. It restores the candidate response without modifying the build, reloads the app to clear the failed dynamic-import state, re-enters Parts through the UI, and requires actual catalogue choices plus a recorded HTTP 200. This is a simulated missing-network-response and public UI recovery after reload; it is not an assertion that browser offline emulation caused the failure or that a production Retry button exists. No other route/asset fault matrix is included.
+
+Source basis: `web/src/host/offline.rs` registers `${scope}service-worker.js`; `web/src/service_worker.rs` precaches manifest entries, names caches from exact scope plus version, deletes only old caches under the same scope prefix, claims clients, serves cached entries first, falls back to network for a missing non-document asset, and falls back to cached shell for documents. `web/src/presentation/parts/catalogue.rs` dynamically imports the packaged Ergogen catalogue; `web/src/presentation/parts.rs` exposes the existing visible loading/error/catalogue states when Parts is mounted. Historical implementation precedents are `m1-production/evidence/browser-storage/prepare-root-update-worker.mjs`, `serve-release.mjs`, and the public root/subpath/offline records. The new runner uses the same Rust update-worker build/embed workflow in an output-owned directory and deliberately does not import their old candidate results as current evidence.
+
+A failure/incomplete result is retained as such in `report.json`; it must not be converted into an F9.4 pass. This work excludes mobile and accessibility checks.

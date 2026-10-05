@@ -1,0 +1,39 @@
+[
+  {
+    "args": [
+      "open",
+      "http://127.0.0.1:34829/"
+    ],
+    "exit": 0,
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":true,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":false,\"saveStatus\":\"not_attempted\"},\"targetId\":\"CD405898073EFDEB5CF22A6D1931B014\",\"title\":\"dioxus | \u26fa\",\"url\":\"http://127.0.0.1:34829/\"},\"error\":null}\n",
+    "stderr": ""
+  },
+  {
+    "args": [
+      "set",
+      "viewport",
+      "1280",
+      "800"
+    ],
+    "exit": 0,
+    "stdout": "{\"success\":true,\"data\":{\"deviceScaleFactor\":1.0,\"height\":800,\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"mobile\":false,\"width\":1280},\"error\":null}\n",
+    "stderr": ""
+  },
+  {
+    "args": [
+      "wait",
+      "input[type=\"file\"][accept=\".boardstudio\"]"
+    ],
+    "exit": 1,
+    "stdout": "{\"success\":false,\"data\":null,\"error\":\"Wait timed out after 25000ms\"}\n",
+    "stderr": ""
+  },
+  {
+    "args": [
+      "close"
+    ],
+    "exit": 0,
+    "stdout": "{\"success\":true,\"data\":{\"closed\":true,\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":false,\"engine\":\"chrome\",\"launchHash\":null},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":false,\"saveStatus\":\"not_configured\"},\"restoreStatus\":\"not_configured\",\"saveStatus\":\"not_configured\"},\"error\":null}\n",
+    "stderr": ""
+  }
+]

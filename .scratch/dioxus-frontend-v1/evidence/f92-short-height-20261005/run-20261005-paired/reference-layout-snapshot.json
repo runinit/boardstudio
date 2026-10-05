@@ -1,0 +1,680 @@
+{
+  "lifecycle": {
+    "effectiveLaunch": {
+      "browserLaunched": true,
+      "engine": "chrome",
+      "launchHash": 11677035664275010974
+    },
+    "launched": false,
+    "relaunchedBrowser": false,
+    "restartedBackground": false,
+    "restoreStatus": "not_configured",
+    "reused": true,
+    "saveStatus": "not_attempted"
+  },
+  "origin": "http://127.0.0.1:5175/",
+  "refs": {
+    "e10": {
+      "name": "Zoom out",
+      "role": "button"
+    },
+    "e100": {
+      "name": "left-SW25, rotary encoder ec11 ec12, X 125.53 Y -70.94800000000001",
+      "role": "button"
+    },
+    "e101": {
+      "name": "left-J3, display ssd1306, X 124.62 Y -22.15799999999999",
+      "role": "button"
+    },
+    "e102": {
+      "name": "left-J2, trrs pj320a, X 130.75 Y -49.95",
+      "role": "button"
+    },
+    "e103": {
+      "name": "left-RSW1, reset switch tht top, X 131.45 Y -42.25000000000001",
+      "role": "button"
+    },
+    "e104": {
+      "name": "left-TH1, mounting hole npth, X 129.6 Y -57.8",
+      "role": "button"
+    },
+    "e105": {
+      "name": "left-TH2, mounting hole npth, X 119.6 Y -57.784",
+      "role": "button"
+    },
+    "e106": {
+      "name": "left-TH3, mounting hole npth, X 95.42999999999998 Y -24.048",
+      "role": "button"
+    },
+    "e107": {
+      "name": "left-TH4, mounting hole npth, X 18.92999999999998 Y -30.65799999999999",
+      "role": "button"
+    },
+    "e108": {
+      "name": "left-TH5, mounting hole npth, X 95.42999999999998 Y -61.958000000000006",
+      "role": "button"
+    },
+    "e109": {
+      "name": "left-TH6, mounting hole npth, X 18.92999999999998 Y -68.958",
+      "role": "button"
+    },
+    "e11": {
+      "name": "Zoom in",
+      "role": "button"
+    },
+    "e110": {
+      "name": "left-TH7, mounting hole npth, X 120.93 Y -85.25800000000001",
+      "role": "button"
+    },
+    "e111": {
+      "name": "SW1, switch mx, X 0 Y 0",
+      "role": "button"
+    },
+    "e112": {
+      "name": "SW2, diode tht sod123, X 7.4 Y -1.5",
+      "role": "button"
+    },
+    "e113": {
+      "name": "J1, mounting hole npth, X 60 Y -40",
+      "role": "button"
+    },
+    "e114": {
+      "name": "MH1, mounting hole npth, X 128.74750000000003 Y -112.01301492537311",
+      "role": "button"
+    },
+    "e115": {
+      "name": "MH2, mounting hole npth, X -9.6270625 Y 10.121014925373132",
+      "role": "button"
+    },
+    "e116": {
+      "name": "MH3, mounting hole npth, X 103.4113125 Y -3.0318805970149327",
+      "role": "button"
+    },
+    "e117": {
+      "name": "MH4, mounting hole npth, X 23.50487500000001 Y -89.46519402985075",
+      "role": "button"
+    },
+    "e118": {
+      "name": "Layers",
+      "role": "button"
+    },
+    "e119": {
+      "name": "Collapse Left PCB",
+      "role": "button"
+    },
+    "e12": {
+      "name": "Layout findings: 3",
+      "role": "button"
+    },
+    "e120": {
+      "name": "Left PCB 77 parts",
+      "role": "treeitem"
+    },
+    "e121": {
+      "name": "Expand Outline",
+      "role": "button"
+    },
+    "e122": {
+      "name": "Outline Edited outline 1",
+      "role": "treeitem"
+    },
+    "e123": {
+      "name": "Collapse Layout",
+      "role": "button"
+    },
+    "e124": {
+      "name": "Layout",
+      "role": "treeitem"
+    },
+    "e125": {
+      "name": "Collapse Matrix 5",
+      "role": "button"
+    },
+    "e126": {
+      "name": "Matrix 5 1 keys",
+      "role": "treeitem"
+    },
+    "e127": {
+      "name": "Expand Column 1",
+      "role": "button"
+    },
+    "e128": {
+      "name": "Column 1 1 keys",
+      "role": "treeitem"
+    },
+    "e129": {
+      "name": "MH1 mounting hole npth \u00b7 128.7, -112.0",
+      "role": "treeitem"
+    },
+    "e13": {
+      "name": "Mechanical findings: 0",
+      "role": "button"
+    },
+    "e130": {
+      "name": "MH2 mounting hole npth \u00b7 -9.6, 10.1",
+      "role": "treeitem"
+    },
+    "e131": {
+      "name": "MH3 mounting hole npth \u00b7 103.4, -3.0",
+      "role": "treeitem"
+    },
+    "e132": {
+      "name": "MH4 mounting hole npth \u00b7 23.5, -89.5",
+      "role": "treeitem"
+    },
+    "e133": {
+      "name": "Expand keys",
+      "role": "button"
+    },
+    "e134": {
+      "name": "keys Independent",
+      "role": "treeitem"
+    },
+    "e135": {
+      "name": "Expand thumbs",
+      "role": "button"
+    },
+    "e136": {
+      "name": "thumbs Independent",
+      "role": "treeitem"
+    },
+    "e137": {
+      "name": "Select key, row 1, column 1",
+      "role": "button"
+    },
+    "e138": {
+      "name": "Select key, row 1, column 2",
+      "role": "button"
+    },
+    "e139": {
+      "name": "Select key, row 1, column 3",
+      "role": "button"
+    },
+    "e14": {
+      "name": "Project",
+      "role": "button"
+    },
+    "e140": {
+      "name": "Select key, row 1, column 4",
+      "role": "button"
+    },
+    "e141": {
+      "name": "Select key, row 1, column 5",
+      "role": "button"
+    },
+    "e142": {
+      "name": "Select key, row 1, column 6",
+      "role": "button"
+    },
+    "e143": {
+      "name": "Select key, row 2, column 1",
+      "role": "button"
+    },
+    "e144": {
+      "name": "Select key, row 2, column 2",
+      "role": "button"
+    },
+    "e145": {
+      "name": "Select key, row 2, column 3",
+      "role": "button"
+    },
+    "e146": {
+      "name": "Select key, row 2, column 4",
+      "role": "button"
+    },
+    "e147": {
+      "name": "Select key, row 2, column 5",
+      "role": "button"
+    },
+    "e148": {
+      "name": "Select key, row 2, column 6",
+      "role": "button"
+    },
+    "e149": {
+      "name": "Select key, row 3, column 1",
+      "role": "button"
+    },
+    "e15": {
+      "name": "Layout",
+      "role": "tab"
+    },
+    "e150": {
+      "name": "Select key, row 3, column 2",
+      "role": "button"
+    },
+    "e151": {
+      "name": "Select key, row 3, column 3",
+      "role": "button"
+    },
+    "e152": {
+      "name": "Select key, row 3, column 4",
+      "role": "button"
+    },
+    "e153": {
+      "name": "Select key, row 3, column 5",
+      "role": "button"
+    },
+    "e154": {
+      "name": "Select key, row 3, column 6",
+      "role": "button"
+    },
+    "e155": {
+      "name": "Select key, row 4, column 1",
+      "role": "button"
+    },
+    "e156": {
+      "name": "Select key, row 4, column 2",
+      "role": "button"
+    },
+    "e157": {
+      "name": "Select key, row 4, column 3",
+      "role": "button"
+    },
+    "e158": {
+      "name": "Select key, row 4, column 4",
+      "role": "button"
+    },
+    "e159": {
+      "name": "Select key, row 4, column 5",
+      "role": "button"
+    },
+    "e16": {
+      "name": "PCB",
+      "role": "tab"
+    },
+    "e160": {
+      "name": "Select key, row 4, column 6",
+      "role": "button"
+    },
+    "e161": {
+      "name": "Select key, row 1, column 1",
+      "role": "button"
+    },
+    "e162": {
+      "name": "Select key, row 1, column 2",
+      "role": "button"
+    },
+    "e163": {
+      "name": "Select key, row 1, column 3",
+      "role": "button"
+    },
+    "e164": {
+      "name": "Select key, row 1, column 4",
+      "role": "button"
+    },
+    "e165": {
+      "name": "Select key, row 1, column 5",
+      "role": "button"
+    },
+    "e166": {
+      "name": "Select key, row 1, column 1",
+      "role": "button"
+    },
+    "e17": {
+      "name": "Keymap",
+      "role": "tab"
+    },
+    "e18": {
+      "name": "Keycaps",
+      "role": "tab"
+    },
+    "e19": {
+      "name": "Case",
+      "role": "tab"
+    },
+    "e2": {
+      "name": "",
+      "role": "generic"
+    },
+    "e20": {
+      "name": "Parts",
+      "role": "tab"
+    },
+    "e21": {
+      "name": "Add object",
+      "role": "button"
+    },
+    "e22": {
+      "name": "Resize objects",
+      "role": "separator"
+    },
+    "e23": {
+      "name": "Selected board",
+      "role": "combobox"
+    },
+    "e24": {
+      "name": "New board",
+      "role": "button"
+    },
+    "e25": {
+      "name": "Resize inspector",
+      "role": "separator"
+    },
+    "e26": {
+      "name": "Left PCB",
+      "role": "heading"
+    },
+    "e27": {
+      "name": "Objects options",
+      "role": "button"
+    },
+    "e28": {
+      "name": "Select: Key",
+      "role": "button"
+    },
+    "e29": {
+      "name": "Transform",
+      "role": "button"
+    },
+    "e3": {
+      "name": "Export",
+      "role": "button"
+    },
+    "e30": {
+      "name": "Align",
+      "role": "button"
+    },
+    "e31": {
+      "name": "Snap",
+      "role": "button"
+    },
+    "e32": {
+      "name": "2D",
+      "role": "button"
+    },
+    "e33": {
+      "name": "3D assembly",
+      "role": "button"
+    },
+    "e34": {
+      "name": "Footprints",
+      "role": "button"
+    },
+    "e35": {
+      "name": "Board layout canvas. Use the CAD tree to select objects; use wheel to zoom and Space-drag to pan.",
+      "role": "application"
+    },
+    "e36": {
+      "name": "Canvas layers",
+      "role": "region"
+    },
+    "e37": {
+      "name": "Inspector options",
+      "role": "button"
+    },
+    "e38": {
+      "name": "Board name",
+      "role": "textbox"
+    },
+    "e39": {
+      "name": "Left PCB",
+      "role": "option"
+    },
+    "e4": {
+      "name": "Design canvas",
+      "role": "region"
+    },
+    "e40": {
+      "name": "Right PCB",
+      "role": "option"
+    },
+    "e41": {
+      "name": "left-keys-SW1, switch mx, X 12.179999999999978 Y -78.048",
+      "role": "button"
+    },
+    "e42": {
+      "name": "left-diode-24-keys, diode tht sod123, X 19.579999999999977 Y -79.548",
+      "role": "button"
+    },
+    "e43": {
+      "name": "left-keys-SW2, switch mx, X 28.22999999999999 Y -78.048",
+      "role": "button"
+    },
+    "e44": {
+      "name": "left-diode-23-keys, diode tht sod123, X 35.62999999999999 Y -79.548",
+      "role": "button"
+    },
+    "e45": {
+      "name": "left-keys-SW3, switch mx, X 47.22999999999999 Y -69.148",
+      "role": "button"
+    },
+    "e46": {
+      "name": "left-diode-22-keys, diode tht sod123, X 54.62999999999999 Y -70.648",
+      "role": "button"
+    },
+    "e47": {
+      "name": "left-keys-SW4, switch mx, X 66.22999999999999 Y -66.648",
+      "role": "button"
+    },
+    "e48": {
+      "name": "left-diode-21-keys, diode tht sod123, X 73.63 Y -68.148",
+      "role": "button"
+    },
+    "e49": {
+      "name": "left-keys-SW5, switch mx, X 85.22999999999999 Y -69.148",
+      "role": "button"
+    },
+    "e5": {
+      "name": "Undo",
+      "role": "button"
+    },
+    "e50": {
+      "name": "left-diode-20-keys, diode tht sod123, X 92.63 Y -70.648",
+      "role": "button"
+    },
+    "e51": {
+      "name": "left-keys-SW6, switch mx, X 104.23 Y -71.548",
+      "role": "button"
+    },
+    "e52": {
+      "name": "left-diode-19-keys, diode tht sod123, X 111.63 Y -73.048",
+      "role": "button"
+    },
+    "e53": {
+      "name": "left-keys-SW7, switch mx, X 12.22999999999999 Y -59.047999999999995",
+      "role": "button"
+    },
+    "e54": {
+      "name": "left-diode-18-keys, diode tht sod123, X 19.62999999999999 Y -60.547999999999995",
+      "role": "button"
+    },
+    "e55": {
+      "name": "left-keys-SW8, switch mx, X 28.22999999999999 Y -59.047999999999995",
+      "role": "button"
+    },
+    "e56": {
+      "name": "left-diode-17-keys, diode tht sod123, X 35.62999999999999 Y -60.547999999999995",
+      "role": "button"
+    },
+    "e57": {
+      "name": "left-keys-SW9, switch mx, X 47.22999999999999 Y -50.047999999999995",
+      "role": "button"
+    },
+    "e58": {
+      "name": "left-diode-16-keys, diode tht sod123, X 54.62999999999999 Y -51.547999999999995",
+      "role": "button"
+    },
+    "e59": {
+      "name": "left-keys-SW10, switch mx, X 66.22999999999999 Y -47.648",
+      "role": "button"
+    },
+    "e6": {
+      "name": "Redo",
+      "role": "button"
+    },
+    "e60": {
+      "name": "left-diode-15-keys, diode tht sod123, X 73.63 Y -49.148",
+      "role": "button"
+    },
+    "e61": {
+      "name": "left-keys-SW11, switch mx, X 85.22999999999999 Y -50.047999999999995",
+      "role": "button"
+    },
+    "e62": {
+      "name": "left-diode-14-keys, diode tht sod123, X 92.63 Y -51.547999999999995",
+      "role": "button"
+    },
+    "e63": {
+      "name": "left-keys-SW12, switch mx, X 104.23 Y -52.547999999999995",
+      "role": "button"
+    },
+    "e64": {
+      "name": "left-diode-13-keys, diode tht sod123, X 111.63 Y -54.047999999999995",
+      "role": "button"
+    },
+    "e65": {
+      "name": "left-keys-SW13, switch mx, X 12.22999999999999 Y -39.848000000000006",
+      "role": "button"
+    },
+    "e66": {
+      "name": "left-diode-12-keys, diode tht sod123, X 19.62999999999999 Y -41.348000000000006",
+      "role": "button"
+    },
+    "e67": {
+      "name": "left-keys-SW14, switch mx, X 28.22999999999999 Y -39.848000000000006",
+      "role": "button"
+    },
+    "e68": {
+      "name": "left-diode-11-keys, diode tht sod123, X 35.62999999999999 Y -41.348000000000006",
+      "role": "button"
+    },
+    "e69": {
+      "name": "left-keys-SW15, switch mx, X 47.22999999999999 Y -30.948",
+      "role": "button"
+    },
+    "e7": {
+      "name": "Grid \u00bcu",
+      "role": "button"
+    },
+    "e70": {
+      "name": "left-diode-10-keys, diode tht sod123, X 54.62999999999999 Y -32.448",
+      "role": "button"
+    },
+    "e71": {
+      "name": "left-keys-SW16, switch mx, X 66.22999999999999 Y -28.547999999999995",
+      "role": "button"
+    },
+    "e72": {
+      "name": "left-diode-9-keys, diode tht sod123, X 73.63 Y -30.047999999999995",
+      "role": "button"
+    },
+    "e73": {
+      "name": "left-keys-SW17, switch mx, X 85.22999999999999 Y -31.047999999999995",
+      "role": "button"
+    },
+    "e74": {
+      "name": "left-diode-8-keys, diode tht sod123, X 92.63 Y -32.547999999999995",
+      "role": "button"
+    },
+    "e75": {
+      "name": "left-keys-SW18, switch mx, X 104.23 Y -33.547999999999995",
+      "role": "button"
+    },
+    "e76": {
+      "name": "left-diode-7-keys, diode tht sod123, X 111.63 Y -35.047999999999995",
+      "role": "button"
+    },
+    "e77": {
+      "name": "left-keys-SW19, switch mx, X 12.22999999999999 Y -20.948",
+      "role": "button"
+    },
+    "e78": {
+      "name": "left-diode-6-keys, diode tht sod123, X 19.62999999999999 Y -22.448",
+      "role": "button"
+    },
+    "e79": {
+      "name": "left-keys-SW20, switch mx, X 28.22999999999999 Y -20.948",
+      "role": "button"
+    },
+    "e8": {
+      "name": "Fit board",
+      "role": "button"
+    },
+    "e80": {
+      "name": "left-diode-5-keys, diode tht sod123, X 35.62999999999999 Y -22.448",
+      "role": "button"
+    },
+    "e81": {
+      "name": "left-keys-SW21, switch mx, X 47.22999999999999 Y -11.948000000000008",
+      "role": "button"
+    },
+    "e82": {
+      "name": "left-diode-4-keys, diode tht sod123, X 54.62999999999999 Y -13.448000000000008",
+      "role": "button"
+    },
+    "e83": {
+      "name": "left-keys-SW22, switch mx, X 66.22999999999999 Y -9.457999999999998",
+      "role": "button"
+    },
+    "e84": {
+      "name": "left-diode-3-keys, diode tht sod123, X 73.63 Y -10.957999999999998",
+      "role": "button"
+    },
+    "e85": {
+      "name": "left-keys-SW23, switch mx, X 85.22999999999999 Y -11.948000000000008",
+      "role": "button"
+    },
+    "e86": {
+      "name": "left-diode-2-keys, diode tht sod123, X 92.63 Y -13.448000000000008",
+      "role": "button"
+    },
+    "e87": {
+      "name": "left-keys-SW24, switch mx, X 104.23 Y -14.448",
+      "role": "button"
+    },
+    "e88": {
+      "name": "left-diode-1-keys, diode tht sod123, X 111.63 Y -15.948",
+      "role": "button"
+    },
+    "e89": {
+      "name": "left-thumbs-SW1, switch mx, X 47.22999999999999 Y -88.148",
+      "role": "button"
+    },
+    "e9": {
+      "name": "Fit selection",
+      "role": "button"
+    },
+    "e90": {
+      "name": "left-diode-5-thumbs, diode tht sod123, X 54.62999999999999 Y -89.648",
+      "role": "button"
+    },
+    "e91": {
+      "name": "left-thumbs-SW2, switch mx, X 66.22999999999999 Y -85.648",
+      "role": "button"
+    },
+    "e92": {
+      "name": "left-diode-4-thumbs, diode tht sod123, X 73.63 Y -87.148",
+      "role": "button"
+    },
+    "e93": {
+      "name": "left-thumbs-SW3, switch mx, X 85.22999999999999 Y -88.24799999999999",
+      "role": "button"
+    },
+    "e94": {
+      "name": "left-diode-3-thumbs, diode tht sod123, X 92.63 Y -89.74799999999999",
+      "role": "button"
+    },
+    "e95": {
+      "name": "left-thumbs-SW4, switch mx, X 107.13 Y -92.848",
+      "role": "button"
+    },
+    "e96": {
+      "name": "left-diode-2-thumbs, diode tht sod123, X 113.35563922281416 Y -97.1201676309993",
+      "role": "button"
+    },
+    "e97": {
+      "name": "left-thumbs-SW5, switch mx, X 128.02999999999997 Y -97.858",
+      "role": "button"
+    },
+    "e98": {
+      "name": "left-diode-1-thumbs, diode tht sod123, X 133.02903810567662 Y -92.19941201199516",
+      "role": "button"
+    },
+    "e99": {
+      "name": "left-U1, mcu nice nano, constrained target, X 14.179999999999978 Y -48.048",
+      "role": "button"
+    }
+  },
+  "removedRefs": [],
+  "snapshot": "- generic \"Sofle v2Saved locallyChanges are saved in this browser. Use Save project copy for a portable backup.\" [ref=e2] clickable [onclick]\n  - button \"Project\" [expanded=false, ref=e14]\n  - tab \"Layout\" [selected, ref=e15]\n  - tab \"PCB\" [ref=e16]\n  - tab \"Keymap\" [ref=e17]\n  - tab \"Keycaps\" [ref=e18]\n  - tab \"Case\" [ref=e19]\n  - tab \"Parts\" [ref=e20]\n  - button \"Export\" [ref=e3]\n  - button \"Objects options\" [expanded=false, ref=e27]\n  - button \"Add object\" [expanded=false, ref=e21]\n  - separator \"Resize objects\" [ref=e22] focusable [tabindex]: 235\n  - combobox \"Selected board\" [expanded=false, ref=e23]: Left PCB\n    - option \"Left PCB\" [selected, ref=e39]\n    - option \"Right PCB\" [ref=e40]\n  - button \"New board\" [ref=e24]\n  - button \"Collapse Left PCB\" [expanded=true, ref=e119]\n  - treeitem \"Left PCB 77 parts\" [level=1, expanded=true, ref=e120]\n  - button \"Expand Outline\" [expanded=false, ref=e121]\n  - treeitem \"Outline Edited outline 1\" [level=2, expanded=false, ref=e122]\n  - button \"Collapse Layout\" [expanded=true, ref=e123]\n  - treeitem \"Layout\" [level=2, expanded=true, selected, ref=e124]\n  - button \"Collapse Matrix 5\" [expanded=true, ref=e125]\n  - treeitem \"Matrix 5 1 keys\" [level=3, expanded=true, ref=e126]\n  - button \"Expand Column 1\" [expanded=false, ref=e127]\n  - treeitem \"Column 1 1 keys\" [level=4, expanded=false, ref=e128]\n  - treeitem \"MH1 mounting hole npth \u00b7 128.7, -112.0\" [level=3, ref=e129]\n  - treeitem \"MH2 mounting hole npth \u00b7 -9.6, 10.1\" [level=3, ref=e130]\n  - treeitem \"MH3 mounting hole npth \u00b7 103.4, -3.0\" [level=3, ref=e131]\n  - treeitem \"MH4 mounting hole npth \u00b7 23.5, -89.5\" [level=3, ref=e132]\n  - button \"Expand keys\" [expanded=false, ref=e133]\n  - treeitem \"keys Independent\" [level=2, expanded=false, ref=e134]\n  - button \"Expand thumbs\" [expanded=false, ref=e135]\n  - treeitem \"thumbs Independent\" [level=2, expanded=false, ref=e136]\n  - region \"Design canvas\" [ref=e4]\n    - button \"Select: Key\" [expanded=false, ref=e28]\n    - button \"Transform\" [expanded=false, ref=e29]\n    - button \"Align\" [expanded=false, ref=e30]\n    - button \"Snap\" [expanded=false, ref=e31]\n    - button \"2D\" [ref=e32]\n    - button \"3D assembly\" [ref=e33]\n    - button \"Footprints\" [ref=e34]\n    - application \"Board layout canvas. Use the CAD tree to select objects; use wheel to zoom and Space-drag to pan.\" [ref=e35] clickable [onclick, tabindex]\n      - button \"Select key, row 1, column 1\" [ref=e137]\n      - button \"Select key, row 1, column 2\" [ref=e138]\n      - button \"Select key, row 1, column 3\" [ref=e139]\n      - button \"Select key, row 1, column 4\" [ref=e140]\n      - button \"Select key, row 1, column 5\" [ref=e141]\n      - button \"Select key, row 1, column 6\" [ref=e142]\n      - button \"Select key, row 2, column 1\" [ref=e143]\n      - button \"Select key, row 2, column 2\" [ref=e144]\n      - button \"Select key, row 2, column 3\" [ref=e145]\n      - button \"Select key, row 2, column 4\" [ref=e146]\n      - button \"Select key, row 2, column 5\" [ref=e147]\n      - button \"Select key, row 2, column 6\" [ref=e148]\n      - button \"Select key, row 3, column 1\" [ref=e149]\n      - button \"Select key, row 3, column 2\" [ref=e150]\n      - button \"Select key, row 3, column 3\" [ref=e151]\n      - button \"Select key, row 3, column 4\" [ref=e152]\n      - button \"Select key, row 3, column 5\" [ref=e153]\n      - button \"Select key, row 3, column 6\" [ref=e154]\n      - button \"Select key, row 4, column 1\" [ref=e155]\n      - button \"Select key, row 4, column 2\" [ref=e156]\n      - button \"Select key, row 4, column 3\" [ref=e157]\n      - button \"Select key, row 4, column 4\" [ref=e158]\n      - button \"Select key, row 4, column 5\" [ref=e159]\n      - button \"Select key, row 4, column 6\" [ref=e160]\n      - button \"Select key, row 1, column 1\" [ref=e161]\n      - button \"Select key, row 1, column 2\" [ref=e162]\n      - button \"Select key, row 1, column 3\" [ref=e163]\n      - button \"Select key, row 1, column 4\" [ref=e164]\n      - button \"Select key, row 1, column 5\" [ref=e165]\n      - button \"Select key, row 1, column 1\" [ref=e166]\n      - button \"left-keys-SW1, switch mx, X 12.179999999999978 Y -78.048\" [ref=e41]\n      - button \"left-diode-24-keys, diode tht sod123, X 19.579999999999977 Y -79.548\" [ref=e42]\n      - button \"left-keys-SW2, switch mx, X 28.22999999999999 Y -78.048\" [ref=e43]\n      - button \"left-diode-23-keys, diode tht sod123, X 35.62999999999999 Y -79.548\" [ref=e44]\n      - button \"left-keys-SW3, switch mx, X 47.22999999999999 Y -69.148\" [ref=e45]\n      - button \"left-diode-22-keys, diode tht sod123, X 54.62999999999999 Y -70.648\" [ref=e46]\n      - button \"left-keys-SW4, switch mx, X 66.22999999999999 Y -66.648\" [ref=e47]\n      - button \"left-diode-21-keys, diode tht sod123, X 73.63 Y -68.148\" [ref=e48]\n      - button \"left-keys-SW5, switch mx, X 85.22999999999999 Y -69.148\" [ref=e49]\n      - button \"left-diode-20-keys, diode tht sod123, X 92.63 Y -70.648\" [ref=e50]\n      - button \"left-keys-SW6, switch mx, X 104.23 Y -71.548\" [ref=e51]\n      - button \"left-diode-19-keys, diode tht sod123, X 111.63 Y -73.048\" [ref=e52]\n      - button \"left-keys-SW7, switch mx, X 12.22999999999999 Y -59.047999999999995\" [ref=e53]\n      - button \"left-diode-18-keys, diode tht sod123, X 19.62999999999999 Y -60.547999999999995\" [ref=e54]\n      - button \"left-keys-SW8, switch mx, X 28.22999999999999 Y -59.047999999999995\" [ref=e55]\n      - button \"left-diode-17-keys, diode tht sod123, X 35.62999999999999 Y -60.547999999999995\" [ref=e56]\n      - button \"left-keys-SW9, switch mx, X 47.22999999999999 Y -50.047999999999995\" [ref=e57]\n      - button \"left-diode-16-keys, diode tht sod123, X 54.62999999999999 Y -51.547999999999995\" [ref=e58]\n      - button \"left-keys-SW10, switch mx, X 66.22999999999999 Y -47.648\" [ref=e59]\n      - button \"left-diode-15-keys, diode tht sod123, X 73.63 Y -49.148\" [ref=e60]\n      - button \"left-keys-SW11, switch mx, X 85.22999999999999 Y -50.047999999999995\" [ref=e61]\n      - button \"left-diode-14-keys, diode tht sod123, X 92.63 Y -51.547999999999995\" [ref=e62]\n      - button \"left-keys-SW12, switch mx, X 104.23 Y -52.547999999999995\" [ref=e63]\n      - button \"left-diode-13-keys, diode tht sod123, X 111.63 Y -54.047999999999995\" [ref=e64]\n      - button \"left-keys-SW13, switch mx, X 12.22999999999999 Y -39.848000000000006\" [ref=e65]\n      - button \"left-diode-12-keys, diode tht sod123, X 19.62999999999999 Y -41.348000000000006\" [ref=e66]\n      - button \"left-keys-SW14, switch mx, X 28.22999999999999 Y -39.848000000000006\" [ref=e67]\n      - button \"left-diode-11-keys, diode tht sod123, X 35.62999999999999 Y -41.348000000000006\" [ref=e68]\n      - button \"left-keys-SW15, switch mx, X 47.22999999999999 Y -30.948\" [ref=e69]\n      - button \"left-diode-10-keys, diode tht sod123, X 54.62999999999999 Y -32.448\" [ref=e70]\n      - button \"left-keys-SW16, switch mx, X 66.22999999999999 Y -28.547999999999995\" [ref=e71]\n      - button \"left-diode-9-keys, diode tht sod123, X 73.63 Y -30.047999999999995\" [ref=e72]\n      - button \"left-keys-SW17, switch mx, X 85.22999999999999 Y -31.047999999999995\" [ref=e73]\n      - button \"left-diode-8-keys, diode tht sod123, X 92.63 Y -32.547999999999995\" [ref=e74]\n      - button \"left-keys-SW18, switch mx, X 104.23 Y -33.547999999999995\" [ref=e75]\n      - button \"left-diode-7-keys, diode tht sod123, X 111.63 Y -35.047999999999995\" [ref=e76]\n      - button \"left-keys-SW19, switch mx, X 12.22999999999999 Y -20.948\" [ref=e77]\n      - button \"left-diode-6-keys, diode tht sod123, X 19.62999999999999 Y -22.448\" [ref=e78]\n      - button \"left-keys-SW20, switch mx, X 28.22999999999999 Y -20.948\" [ref=e79]\n      - button \"left-diode-5-keys, diode tht sod123, X 35.62999999999999 Y -22.448\" [ref=e80]\n      - button \"left-keys-SW21, switch mx, X 47.22999999999999 Y -11.948000000000008\" [ref=e81]\n      - button \"left-diode-4-keys, diode tht sod123, X 54.62999999999999 Y -13.448000000000008\" [ref=e82]\n      - button \"left-keys-SW22, switch mx, X 66.22999999999999 Y -9.457999999999998\" [ref=e83]\n      - button \"left-diode-3-keys, diode tht sod123, X 73.63 Y -10.957999999999998\" [ref=e84]\n      - button \"left-keys-SW23, switch mx, X 85.22999999999999 Y -11.948000000000008\" [ref=e85]\n      - button \"left-diode-2-keys, diode tht sod123, X 92.63 Y -13.448000000000008\" [ref=e86]\n      - button \"left-keys-SW24, switch mx, X 104.23 Y -14.448\" [ref=e87]\n      - button \"left-diode-1-keys, diode tht sod123, X 111.63 Y -15.948\" [ref=e88]\n      - button \"left-thumbs-SW1, switch mx, X 47.22999999999999 Y -88.148\" [ref=e89]\n      - button \"left-diode-5-thumbs, diode tht sod123, X 54.62999999999999 Y -89.648\" [ref=e90]\n      - button \"left-thumbs-SW2, switch mx, X 66.22999999999999 Y -85.648\" [ref=e91]\n      - button \"left-diode-4-thumbs, diode tht sod123, X 73.63 Y -87.148\" [ref=e92]\n      - button \"left-thumbs-SW3, switch mx, X 85.22999999999999 Y -88.24799999999999\" [ref=e93]\n      - button \"left-diode-3-thumbs, diode tht sod123, X 92.63 Y -89.74799999999999\" [ref=e94]\n      - button \"left-thumbs-SW4, switch mx, X 107.13 Y -92.848\" [ref=e95]\n      - button \"left-diode-2-thumbs, diode tht sod123, X 113.35563922281416 Y -97.1201676309993\" [ref=e96]\n      - button \"left-thumbs-SW5, switch mx, X 128.02999999999997 Y -97.858\" [ref=e97]\n      - button \"left-diode-1-thumbs, diode tht sod123, X 133.02903810567662 Y -92.19941201199516\" [ref=e98]\n      - button \"left-U1, mcu nice nano, constrained target, X 14.179999999999978 Y -48.048\" [ref=e99]\n      - button \"left-SW25, rotary encoder ec11 ec12, X 125.53 Y -70.94800000000001\" [ref=e100]\n      - button \"left-J3, display ssd1306, X 124.62 Y -22.15799999999999\" [ref=e101]\n      - button \"left-J2, trrs pj320a, X 130.75 Y -49.95\" [ref=e102]\n      - button \"left-RSW1, reset switch tht top, X 131.45 Y -42.25000000000001\" [ref=e103]\n      - button \"left-TH1, mounting hole npth, X 129.6 Y -57.8\" [ref=e104]\n      - button \"left-TH2, mounting hole npth, X 119.6 Y -57.784\" [ref=e105]\n      - button \"left-TH3, mounting hole npth, X 95.42999999999998 Y -24.048\" [ref=e106]\n      - button \"left-TH4, mounting hole npth, X 18.92999999999998 Y -30.65799999999999\" [ref=e107]\n      - button \"left-TH5, mounting hole npth, X 95.42999999999998 Y -61.958000000000006\" [ref=e108]\n      - button \"left-TH6, mounting hole npth, X 18.92999999999998 Y -68.958\" [ref=e109]\n      - button \"left-TH7, mounting hole npth, X 120.93 Y -85.25800000000001\" [ref=e110]\n      - button \"SW1, switch mx, X 0 Y 0\" [ref=e111]\n      - button \"SW2, diode tht sod123, X 7.4 Y -1.5\" [ref=e112]\n      - button \"J1, mounting hole npth, X 60 Y -40\" [ref=e113]\n      - button \"MH1, mounting hole npth, X 128.74750000000003 Y -112.01301492537311\" [ref=e114]\n      - button \"MH2, mounting hole npth, X -9.6270625 Y 10.121014925373132\" [ref=e115]\n      - button \"MH3, mounting hole npth, X 103.4113125 Y -3.0318805970149327\" [ref=e116]\n      - button \"MH4, mounting hole npth, X 23.50487500000001 Y -89.46519402985075\" [ref=e117]\n    - region \"Canvas layers\" [ref=e36]\n      - button \"Layers\" [expanded=false, ref=e118]\n  - button \"Inspector options\" [expanded=false, ref=e37]\n  - separator \"Resize inspector\" [ref=e25] focusable [tabindex]: 320\n  - heading \"Left PCB\" [level=2, ref=e26]\n  - textbox \"Board name\" [ref=e38]: Left PCB\n  - button \"Undo\" [ref=e5]\n  - button \"Redo\" [ref=e6]\n  - button \"Grid \u00bcu\" [ref=e7]\n  - button \"Fit board\" [ref=e8]\n  - button \"Fit selection\" [disabled, ref=e9]\n  - button \"Zoom out\" [ref=e10]\n  - button \"Zoom in\" [ref=e11]\n  - button \"Layout findings: 3\" [ref=e12]\n  - button \"Mechanical findings: 0\" [ref=e13]"
+}

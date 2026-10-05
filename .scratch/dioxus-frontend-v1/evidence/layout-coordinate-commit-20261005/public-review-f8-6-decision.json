@@ -1,0 +1,25 @@
+{
+  "parent": "F8.6",
+  "reason": "Independent consolidated review clears completed same-project six-workbench journey, actual mechanical/authored/portable outputs, cross-frontend reload/readback and retained scope/error/cleanup/theme/keyboard evidence; required Layout join accepted.",
+  "review": ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/public-review.md",
+  "review_sha256": "e37737c39251a195702e7cd0299801603c7be7e23d377658bffddf4cfb48541d",
+  "criteria_accounting": {
+    "source_commit": "07b4c3466b1f388073e8e1f9d619b0703223d770",
+    "coverage": "complete",
+    "verified_criteria": [
+      "F8.6-C01",
+      "F8.6-C02",
+      "F8.6-C03",
+      "F8.6-C04"
+    ]
+  },
+  "accepted_joins": [
+    "F2.2",
+    "F3.7",
+    "F4.5",
+    "F4.6",
+    "F5.8",
+    "F6.6",
+    "F7.8"
+  ]
+}

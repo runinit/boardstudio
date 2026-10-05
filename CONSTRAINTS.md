@@ -43,6 +43,14 @@ repairs. Ordinary keyboard shortcuts, focus, Escape/cancellation and usable cont
 remain functional workflow requirements. Preserve existing UI semantics and historical
 evidence; excluded checks are removed scope, not passing results.
 
+Undo/Redo qualification and repairs are deferred by explicit user instruction on
+2026-10-05. They must not block the remaining frontend migration or release gates.
+Do not schedule additional Undo/Redo journeys, history-specific regressions or
+repairs in this migration. Preserve existing controls, tests and historical evidence;
+record outstanding history issues for later work. Deferral is not a passing result.
+Ordinary edits, saving, project compatibility and stale-operation protection remain
+in scope; revision evidence may still establish those behaviors.
+
 ## Delivery loop
 
 The user authorized an end-to-end delivery restructure on 2026-10-05. Optimize for

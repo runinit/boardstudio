@@ -1,0 +1,739 @@
+{
+  "lifecycle": {
+    "effectiveLaunch": {
+      "browserLaunched": true,
+      "engine": "chrome",
+      "launchHash": 11677035664275010974
+    },
+    "launched": false,
+    "relaunchedBrowser": false,
+    "restartedBackground": false,
+    "restoreStatus": "not_configured",
+    "reused": true,
+    "saveStatus": "not_attempted"
+  },
+  "origin": "http://127.0.0.1:34829/",
+  "refs": {
+    "e10": {
+      "name": "Parts",
+      "role": "tab"
+    },
+    "e11": {
+      "name": "Undo",
+      "role": "button"
+    },
+    "e12": {
+      "name": "Redo",
+      "role": "button"
+    },
+    "e179": {
+      "name": "Grid \u00bcu",
+      "role": "button"
+    },
+    "e180": {
+      "name": "Layout findings: 3",
+      "role": "button"
+    },
+    "e182": {
+      "name": "Fit board",
+      "role": "button"
+    },
+    "e183": {
+      "name": "Fit selection",
+      "role": "button"
+    },
+    "e184": {
+      "name": "Zoom out",
+      "role": "button"
+    },
+    "e185": {
+      "name": "Zoom in",
+      "role": "button"
+    },
+    "e2": {
+      "name": "Keyboard editor",
+      "role": "region"
+    },
+    "e21": {
+      "name": "Resize objects",
+      "role": "separator"
+    },
+    "e26": {
+      "name": "Resize inspector",
+      "role": "separator"
+    },
+    "e268": {
+      "name": "Board",
+      "role": "combobox"
+    },
+    "e269": {
+      "name": "New board",
+      "role": "button"
+    },
+    "e270": {
+      "name": "Left PCB 77 parts",
+      "role": "treeitem"
+    },
+    "e271": {
+      "name": "Outline Edited outline 1",
+      "role": "treeitem"
+    },
+    "e29": {
+      "name": "Objects",
+      "role": "heading"
+    },
+    "e3": {
+      "name": "Export",
+      "role": "button"
+    },
+    "e30": {
+      "name": "Objects options",
+      "role": "button"
+    },
+    "e31": {
+      "name": "Inspect",
+      "role": "heading"
+    },
+    "e32": {
+      "name": "Inspector options",
+      "role": "button"
+    },
+    "e370": {
+      "name": "Collapse Left PCB",
+      "role": "button"
+    },
+    "e371": {
+      "name": "Left PCB 77 parts",
+      "role": "button"
+    },
+    "e372": {
+      "name": "Expand Outline",
+      "role": "button"
+    },
+    "e373": {
+      "name": "Outline Edited outline 1",
+      "role": "button"
+    },
+    "e4": {
+      "name": "Project",
+      "role": "button"
+    },
+    "e471": {
+      "name": "Left PCB",
+      "role": "option"
+    },
+    "e472": {
+      "name": "Right PCB",
+      "role": "option"
+    },
+    "e5": {
+      "name": "Layout",
+      "role": "tab"
+    },
+    "e567": {
+      "name": "2D",
+      "role": "button"
+    },
+    "e568": {
+      "name": "3D assembly",
+      "role": "button"
+    },
+    "e569": {
+      "name": "Footprints",
+      "role": "button"
+    },
+    "e6": {
+      "name": "PCB",
+      "role": "tab"
+    },
+    "e601": {
+      "name": "Layout",
+      "role": "treeitem"
+    },
+    "e602": {
+      "name": "Matrix 5 1 keys",
+      "role": "treeitem"
+    },
+    "e603": {
+      "name": "Column 1 1 keys",
+      "role": "treeitem"
+    },
+    "e604": {
+      "name": "MH1 mounting hole npth \u00b7 128.7, -112.0",
+      "role": "treeitem"
+    },
+    "e605": {
+      "name": "MH2 mounting hole npth \u00b7 -9.6, 10.1",
+      "role": "treeitem"
+    },
+    "e606": {
+      "name": "MH3 mounting hole npth \u00b7 103.4, -3.0",
+      "role": "treeitem"
+    },
+    "e607": {
+      "name": "MH4 mounting hole npth \u00b7 23.5, -89.5",
+      "role": "treeitem"
+    },
+    "e608": {
+      "name": "keys Independent",
+      "role": "treeitem"
+    },
+    "e609": {
+      "name": "thumbs Independent",
+      "role": "treeitem"
+    },
+    "e611": {
+      "name": "Collapse Layout",
+      "role": "button"
+    },
+    "e612": {
+      "name": "Layout",
+      "role": "button"
+    },
+    "e613": {
+      "name": "Collapse Matrix 5",
+      "role": "button"
+    },
+    "e614": {
+      "name": "Matrix 5 1 keys",
+      "role": "button"
+    },
+    "e615": {
+      "name": "Expand Column 1",
+      "role": "button"
+    },
+    "e616": {
+      "name": "Column 1 1 keys",
+      "role": "button"
+    },
+    "e617": {
+      "name": "MH1 mounting hole npth \u00b7 128.7, -112.0",
+      "role": "button"
+    },
+    "e618": {
+      "name": "MH2 mounting hole npth \u00b7 -9.6, 10.1",
+      "role": "button"
+    },
+    "e619": {
+      "name": "MH3 mounting hole npth \u00b7 103.4, -3.0",
+      "role": "button"
+    },
+    "e620": {
+      "name": "MH4 mounting hole npth \u00b7 23.5, -89.5",
+      "role": "button"
+    },
+    "e621": {
+      "name": "Expand keys",
+      "role": "button"
+    },
+    "e622": {
+      "name": "keys Independent",
+      "role": "button"
+    },
+    "e623": {
+      "name": "Expand thumbs",
+      "role": "button"
+    },
+    "e624": {
+      "name": "thumbs Independent",
+      "role": "button"
+    },
+    "e667": {
+      "name": "Keycaps workspace",
+      "role": "region"
+    },
+    "e668": {
+      "name": "Physical keycaps; select a key with click, Enter, or Space, hold Space and drag to pan, or use the mouse wheel to zoom",
+      "role": "group"
+    },
+    "e669": {
+      "name": "Edit key left-keys-SW1",
+      "role": "button"
+    },
+    "e670": {
+      "name": "Edit key left-keys-SW2",
+      "role": "button"
+    },
+    "e671": {
+      "name": "Edit key left-keys-SW3",
+      "role": "button"
+    },
+    "e672": {
+      "name": "Edit key left-keys-SW4",
+      "role": "button"
+    },
+    "e673": {
+      "name": "Edit key left-keys-SW5",
+      "role": "button"
+    },
+    "e674": {
+      "name": "Edit key left-keys-SW6",
+      "role": "button"
+    },
+    "e675": {
+      "name": "Edit key left-keys-SW7",
+      "role": "button"
+    },
+    "e676": {
+      "name": "Edit key left-keys-SW8",
+      "role": "button"
+    },
+    "e677": {
+      "name": "Edit key left-keys-SW9",
+      "role": "button"
+    },
+    "e678": {
+      "name": "Edit key left-keys-SW10",
+      "role": "button"
+    },
+    "e679": {
+      "name": "Edit key left-keys-SW11",
+      "role": "button"
+    },
+    "e680": {
+      "name": "Edit key left-keys-SW12",
+      "role": "button"
+    },
+    "e681": {
+      "name": "Edit key left-keys-SW13",
+      "role": "button"
+    },
+    "e682": {
+      "name": "Edit key left-keys-SW14",
+      "role": "button"
+    },
+    "e683": {
+      "name": "Edit key left-keys-SW15",
+      "role": "button"
+    },
+    "e684": {
+      "name": "Edit key left-keys-SW16",
+      "role": "button"
+    },
+    "e685": {
+      "name": "Edit key left-keys-SW17",
+      "role": "button"
+    },
+    "e686": {
+      "name": "Edit key left-keys-SW18",
+      "role": "button"
+    },
+    "e687": {
+      "name": "Edit key left-keys-SW19",
+      "role": "button"
+    },
+    "e688": {
+      "name": "Edit key left-keys-SW20",
+      "role": "button"
+    },
+    "e689": {
+      "name": "Edit key left-keys-SW21",
+      "role": "button"
+    },
+    "e690": {
+      "name": "Edit key left-keys-SW22",
+      "role": "button"
+    },
+    "e691": {
+      "name": "Edit key left-keys-SW23",
+      "role": "button"
+    },
+    "e692": {
+      "name": "Edit key left-keys-SW24",
+      "role": "button"
+    },
+    "e693": {
+      "name": "Edit key left-thumbs-SW1",
+      "role": "button"
+    },
+    "e694": {
+      "name": "Edit key left-thumbs-SW2",
+      "role": "button"
+    },
+    "e695": {
+      "name": "Edit key left-thumbs-SW3",
+      "role": "button"
+    },
+    "e696": {
+      "name": "Edit key left-thumbs-SW4",
+      "role": "button"
+    },
+    "e697": {
+      "name": "Edit key left-thumbs-SW5",
+      "role": "button"
+    },
+    "e698": {
+      "name": "Edit key SW1",
+      "role": "button"
+    },
+    "e699": {
+      "name": "Keycaps inspector",
+      "role": "region"
+    },
+    "e7": {
+      "name": "Keymap",
+      "role": "tab"
+    },
+    "e700": {
+      "name": "Export keycap STEP",
+      "role": "button"
+    },
+    "e701": {
+      "name": "Keycaps",
+      "role": "heading"
+    },
+    "e702": {
+      "name": "Board colors",
+      "role": "region"
+    },
+    "e703": {
+      "name": "Matrix profiles",
+      "role": "region"
+    },
+    "e704": {
+      "name": "Keycaps key selection",
+      "role": "region"
+    },
+    "e705": {
+      "name": "Keycap clearance",
+      "role": "spinbutton"
+    },
+    "e706": {
+      "name": "Find a key",
+      "role": "searchbox"
+    },
+    "e707": {
+      "name": "Selected key",
+      "role": "combobox"
+    },
+    "e708": {
+      "name": "Keycap profile for keys",
+      "role": "combobox"
+    },
+    "e709": {
+      "name": "Keycap profile for thumbs",
+      "role": "combobox"
+    },
+    "e710": {
+      "name": "Keycap profile for matrix-1",
+      "role": "combobox"
+    },
+    "e711": {
+      "name": "Choose on the layout\u2026",
+      "role": "option"
+    },
+    "e712": {
+      "name": "left-keys-SW1 \u00b7 A",
+      "role": "option"
+    },
+    "e713": {
+      "name": "left-keys-SW2 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e714": {
+      "name": "left-keys-SW3 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e715": {
+      "name": "left-keys-SW4 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e716": {
+      "name": "left-keys-SW5 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e717": {
+      "name": "left-keys-SW6 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e718": {
+      "name": "left-keys-SW7 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e719": {
+      "name": "left-keys-SW8 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e720": {
+      "name": "left-keys-SW9 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e721": {
+      "name": "left-keys-SW10 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e722": {
+      "name": "left-keys-SW11 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e723": {
+      "name": "left-keys-SW12 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e724": {
+      "name": "left-keys-SW13 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e725": {
+      "name": "left-keys-SW14 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e726": {
+      "name": "left-keys-SW15 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e727": {
+      "name": "left-keys-SW16 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e728": {
+      "name": "left-keys-SW17 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e729": {
+      "name": "left-keys-SW18 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e730": {
+      "name": "left-keys-SW19 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e731": {
+      "name": "left-keys-SW20 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e732": {
+      "name": "left-keys-SW21 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e733": {
+      "name": "left-keys-SW22 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e734": {
+      "name": "left-keys-SW23 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e735": {
+      "name": "left-keys-SW24 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e736": {
+      "name": "left-thumbs-SW1 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e737": {
+      "name": "left-thumbs-SW2 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e738": {
+      "name": "left-thumbs-SW3 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e739": {
+      "name": "left-thumbs-SW4 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e740": {
+      "name": "left-thumbs-SW5 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e741": {
+      "name": "SW1 \u00b7 Unassigned",
+      "role": "option"
+    },
+    "e742": {
+      "name": "No generated keycap",
+      "role": "option"
+    },
+    "e743": {
+      "name": "Cherry",
+      "role": "option"
+    },
+    "e744": {
+      "name": "OEM",
+      "role": "option"
+    },
+    "e745": {
+      "name": "DCS",
+      "role": "option"
+    },
+    "e746": {
+      "name": "DSA",
+      "role": "option"
+    },
+    "e747": {
+      "name": "SA",
+      "role": "option"
+    },
+    "e748": {
+      "name": "Hi-Pro",
+      "role": "option"
+    },
+    "e749": {
+      "name": "G20",
+      "role": "option"
+    },
+    "e750": {
+      "name": "Choc",
+      "role": "option"
+    },
+    "e751": {
+      "name": "No generated keycap",
+      "role": "option"
+    },
+    "e752": {
+      "name": "Cherry",
+      "role": "option"
+    },
+    "e753": {
+      "name": "OEM",
+      "role": "option"
+    },
+    "e754": {
+      "name": "DCS",
+      "role": "option"
+    },
+    "e755": {
+      "name": "DSA",
+      "role": "option"
+    },
+    "e756": {
+      "name": "SA",
+      "role": "option"
+    },
+    "e757": {
+      "name": "Hi-Pro",
+      "role": "option"
+    },
+    "e758": {
+      "name": "G20",
+      "role": "option"
+    },
+    "e759": {
+      "name": "Choc",
+      "role": "option"
+    },
+    "e760": {
+      "name": "No generated keycap",
+      "role": "option"
+    },
+    "e761": {
+      "name": "Cherry",
+      "role": "option"
+    },
+    "e762": {
+      "name": "OEM",
+      "role": "option"
+    },
+    "e763": {
+      "name": "DCS",
+      "role": "option"
+    },
+    "e764": {
+      "name": "DSA",
+      "role": "option"
+    },
+    "e765": {
+      "name": "SA",
+      "role": "option"
+    },
+    "e766": {
+      "name": "Hi-Pro",
+      "role": "option"
+    },
+    "e767": {
+      "name": "G20",
+      "role": "option"
+    },
+    "e768": {
+      "name": "Choc",
+      "role": "option"
+    },
+    "e8": {
+      "name": "Keycaps",
+      "role": "tab"
+    },
+    "e9": {
+      "name": "Case",
+      "role": "tab"
+    }
+  },
+  "removedRefs": [
+    "@e566",
+    "@e570",
+    "@e571",
+    "@e572",
+    "@e573",
+    "@e574",
+    "@e575",
+    "@e576",
+    "@e577",
+    "@e578",
+    "@e579",
+    "@e580",
+    "@e581",
+    "@e582",
+    "@e583",
+    "@e584",
+    "@e585",
+    "@e586",
+    "@e587",
+    "@e588",
+    "@e589",
+    "@e590",
+    "@e591",
+    "@e592",
+    "@e593",
+    "@e594",
+    "@e595",
+    "@e596",
+    "@e597",
+    "@e598",
+    "@e599",
+    "@e600",
+    "@e610",
+    "@e625",
+    "@e626",
+    "@e627",
+    "@e628",
+    "@e629",
+    "@e630",
+    "@e631",
+    "@e632",
+    "@e633",
+    "@e634",
+    "@e635",
+    "@e636",
+    "@e637",
+    "@e638",
+    "@e639",
+    "@e640",
+    "@e641",
+    "@e642",
+    "@e643",
+    "@e644",
+    "@e645",
+    "@e646",
+    "@e647",
+    "@e648",
+    "@e649",
+    "@e650",
+    "@e651",
+    "@e652",
+    "@e653",
+    "@e654",
+    "@e655",
+    "@e656",
+    "@e657",
+    "@e658",
+    "@e659",
+    "@e660",
+    "@e661",
+    "@e662",
+    "@e663",
+    "@e664",
+    "@e665"
+  ],
+  "snapshot": "- button \"Project\" [expanded=false, ref=e4]\n- tab \"Layout\" [ref=e5]\n- tab \"PCB\" [ref=e6]\n- tab \"Keymap\" [ref=e7]\n- tab \"Keycaps\" [selected, ref=e8]\n- tab \"Case\" [ref=e9]\n- tab \"Parts\" [ref=e10]\n- button \"Export\" [ref=e3]\n- region \"Keyboard editor\" [ref=e2]\n  - heading \"Objects\" [level=2, ref=e29]\n  - button \"Objects options\" [expanded=false, ref=e30]\n  - separator \"Resize objects\" [ref=e21] focusable [tabindex]: 235\n  - combobox \"Board\" [expanded=false, ref=e268]: Left PCB\n    - option \"Left PCB\" [selected, ref=e471]\n    - option \"Right PCB\" [ref=e472]\n  - button \"New board\" [ref=e269]\n  - treeitem \"Left PCB 77 parts\" [level=1, expanded=true, ref=e270]\n    - button \"Collapse Left PCB\" [expanded=true, ref=e370]\n    - button \"Left PCB 77 parts\" [ref=e371]\n  - treeitem \"Outline Edited outline 1\" [level=2, expanded=false, ref=e271]\n    - button \"Expand Outline\" [expanded=false, ref=e372]\n    - button \"Outline Edited outline 1\" [ref=e373]\n  - treeitem \"Layout\" [level=2, expanded=true, ref=e601]\n    - button \"Collapse Layout\" [expanded=true, ref=e611]\n    - button \"Layout\" [ref=e612]\n  - treeitem \"Matrix 5 1 keys\" [level=3, expanded=true, ref=e602]\n    - button \"Collapse Matrix 5\" [expanded=true, ref=e613]\n    - button \"Matrix 5 1 keys\" [ref=e614]\n  - treeitem \"Column 1 1 keys\" [level=4, expanded=false, ref=e603]\n    - button \"Expand Column 1\" [expanded=false, ref=e615]\n    - button \"Column 1 1 keys\" [ref=e616]\n  - treeitem \"MH1 mounting hole npth \u00b7 128.7, -112.0\" [level=3, ref=e604]\n    - button \"MH1 mounting hole npth \u00b7 128.7, -112.0\" [ref=e617]\n  - treeitem \"MH2 mounting hole npth \u00b7 -9.6, 10.1\" [level=3, ref=e605]\n    - button \"MH2 mounting hole npth \u00b7 -9.6, 10.1\" [ref=e618]\n  - treeitem \"MH3 mounting hole npth \u00b7 103.4, -3.0\" [level=3, ref=e606]\n    - button \"MH3 mounting hole npth \u00b7 103.4, -3.0\" [ref=e619]\n  - treeitem \"MH4 mounting hole npth \u00b7 23.5, -89.5\" [level=3, ref=e607]\n    - button \"MH4 mounting hole npth \u00b7 23.5, -89.5\" [ref=e620]\n  - treeitem \"keys Independent\" [level=2, expanded=false, ref=e608]\n    - button \"Expand keys\" [expanded=false, ref=e621]\n    - button \"keys Independent\" [ref=e622]\n  - treeitem \"thumbs Independent\" [level=2, expanded=false, ref=e609]\n    - button \"Expand thumbs\" [expanded=false, ref=e623]\n    - button \"thumbs Independent\" [ref=e624]\n  - button \"2D\" [ref=e567]\n  - button \"3D assembly\" [ref=e568]\n  - button \"Footprints\" [ref=e569]\n  - region \"Keycaps workspace\" [ref=e667]\n    - group \"Physical keycaps; select a key with click, Enter, or Space, hold Space and drag to pan, or use the mouse wheel to zoom\" [ref=e668] focusable [tabindex]\n      - button \"Edit key left-keys-SW1\" [ref=e669]\n      - button \"Edit key left-keys-SW2\" [ref=e670]\n      - button \"Edit key left-keys-SW3\" [ref=e671]\n      - button \"Edit key left-keys-SW4\" [ref=e672]\n      - button \"Edit key left-keys-SW5\" [ref=e673]\n      - button \"Edit key left-keys-SW6\" [ref=e674]\n      - button \"Edit key left-keys-SW7\" [ref=e675]\n      - button \"Edit key left-keys-SW8\" [ref=e676]\n      - button \"Edit key left-keys-SW9\" [ref=e677]\n      - button \"Edit key left-keys-SW10\" [ref=e678]\n      - button \"Edit key left-keys-SW11\" [ref=e679]\n      - button \"Edit key left-keys-SW12\" [ref=e680]\n      - button \"Edit key left-keys-SW13\" [ref=e681]\n      - button \"Edit key left-keys-SW14\" [ref=e682]\n      - button \"Edit key left-keys-SW15\" [ref=e683]\n      - button \"Edit key left-keys-SW16\" [ref=e684]\n      - button \"Edit key left-keys-SW17\" [ref=e685]\n      - button \"Edit key left-keys-SW18\" [ref=e686]\n      - button \"Edit key left-keys-SW19\" [ref=e687]\n      - button \"Edit key left-keys-SW20\" [ref=e688]\n      - button \"Edit key left-keys-SW21\" [ref=e689]\n      - button \"Edit key left-keys-SW22\" [ref=e690]\n      - button \"Edit key left-keys-SW23\" [ref=e691]\n      - button \"Edit key left-keys-SW24\" [ref=e692]\n      - button \"Edit key left-thumbs-SW1\" [ref=e693]\n      - button \"Edit key left-thumbs-SW2\" [ref=e694]\n      - button \"Edit key left-thumbs-SW3\" [ref=e695]\n      - button \"Edit key left-thumbs-SW4\" [ref=e696]\n      - button \"Edit key left-thumbs-SW5\" [ref=e697]\n      - button \"Edit key SW1\" [ref=e698]\n  - heading \"Inspect\" [level=2, ref=e31]\n  - button \"Inspector options\" [expanded=false, ref=e32]\n  - separator \"Resize inspector\" [ref=e26] focusable [tabindex]: 320\n  - region \"Keycaps inspector\" [ref=e699]\n    - heading \"Keycaps\" [level=2, ref=e701]\n    - region \"Board colors\" [ref=e702]\n      - spinbutton \"Keycap clearance\" [ref=e705]: 0.5\n    - region \"Matrix profiles\" [ref=e703]\n      - combobox \"Keycap profile for keys\" [expanded=false, ref=e708]: No generated keycap\n        - option \"No generated keycap\" [selected, ref=e742]\n        - option \"Cherry\" [ref=e743]\n        - option \"OEM\" [ref=e744]\n        - option \"DCS\" [ref=e745]\n        - option \"DSA\" [ref=e746]\n        - option \"SA\" [ref=e747]\n        - option \"Hi-Pro\" [ref=e748]\n        - option \"G20\" [ref=e749]\n        - option \"Choc\" [ref=e750]\n      - combobox \"Keycap profile for thumbs\" [expanded=false, ref=e709]: No generated keycap\n        - option \"No generated keycap\" [selected, ref=e751]\n        - option \"Cherry\" [ref=e752]\n        - option \"OEM\" [ref=e753]\n        - option \"DCS\" [ref=e754]\n        - option \"DSA\" [ref=e755]\n        - option \"SA\" [ref=e756]\n        - option \"Hi-Pro\" [ref=e757]\n        - option \"G20\" [ref=e758]\n        - option \"Choc\" [ref=e759]\n      - combobox \"Keycap profile for matrix-1\" [expanded=false, ref=e710]: No generated keycap\n        - option \"No generated keycap\" [selected, ref=e760]\n        - option \"Cherry\" [ref=e761]\n        - option \"OEM\" [ref=e762]\n        - option \"DCS\" [ref=e763]\n        - option \"DSA\" [ref=e764]\n        - option \"SA\" [ref=e765]\n        - option \"Hi-Pro\" [ref=e766]\n        - option \"G20\" [ref=e767]\n        - option \"Choc\" [ref=e768]\n    - region \"Keycaps key selection\" [ref=e704]\n      - searchbox \"Find a key\" [ref=e706]\n      - combobox \"Selected key\" [expanded=false, ref=e707]: Choose on the layout\u2026\n        - option \"Choose on the layout\u2026\" [selected, ref=e711]\n        - option \"left-keys-SW1 \u00b7 A\" [ref=e712]\n        - option \"left-keys-SW2 \u00b7 Unassigned\" [ref=e713]\n        - option \"left-keys-SW3 \u00b7 Unassigned\" [ref=e714]\n        - option \"left-keys-SW4 \u00b7 Unassigned\" [ref=e715]\n        - option \"left-keys-SW5 \u00b7 Unassigned\" [ref=e716]\n        - option \"left-keys-SW6 \u00b7 Unassigned\" [ref=e717]\n        - option \"left-keys-SW7 \u00b7 Unassigned\" [ref=e718]\n        - option \"left-keys-SW8 \u00b7 Unassigned\" [ref=e719]\n        - option \"left-keys-SW9 \u00b7 Unassigned\" [ref=e720]\n        - option \"left-keys-SW10 \u00b7 Unassigned\" [ref=e721]\n        - option \"left-keys-SW11 \u00b7 Unassigned\" [ref=e722]\n        - option \"left-keys-SW12 \u00b7 Unassigned\" [ref=e723]\n        - option \"left-keys-SW13 \u00b7 Unassigned\" [ref=e724]\n        - option \"left-keys-SW14 \u00b7 Unassigned\" [ref=e725]\n        - option \"left-keys-SW15 \u00b7 Unassigned\" [ref=e726]\n        - option \"left-keys-SW16 \u00b7 Unassigned\" [ref=e727]\n        - option \"left-keys-SW17 \u00b7 Unassigned\" [ref=e728]\n        - option \"left-keys-SW18 \u00b7 Unassigned\" [ref=e729]\n        - option \"left-keys-SW19 \u00b7 Unassigned\" [ref=e730]\n        - option \"left-keys-SW20 \u00b7 Unassigned\" [ref=e731]\n        - option \"left-keys-SW21 \u00b7 Unassigned\" [ref=e732]\n        - option \"left-keys-SW22 \u00b7 Unassigned\" [ref=e733]\n        - option \"left-keys-SW23 \u00b7 Unassigned\" [ref=e734]\n        - option \"left-keys-SW24 \u00b7 Unassigned\" [ref=e735]\n        - option \"left-thumbs-SW1 \u00b7 Unassigned\" [ref=e736]\n        - option \"left-thumbs-SW2 \u00b7 Unassigned\" [ref=e737]\n        - option \"left-thumbs-SW3 \u00b7 Unassigned\" [ref=e738]\n        - option \"left-thumbs-SW4 \u00b7 Unassigned\" [ref=e739]\n        - option \"left-thumbs-SW5 \u00b7 Unassigned\" [ref=e740]\n        - option \"SW1 \u00b7 Unassigned\" [ref=e741]\n    - button \"Export keycap STEP\" [ref=e700]\n  - button \"Undo\" [ref=e11]\n  - button \"Redo\" [ref=e12]\n  - button \"Grid \u00bcu\" [disabled, ref=e179]\n  - button \"Fit board\" [ref=e182]\n  - button \"Fit selection\" [disabled, ref=e183]\n  - button \"Zoom out\" [ref=e184]\n  - button \"Zoom in\" [ref=e185]\n  - button \"Layout findings: 3\" [ref=e180]"
+}

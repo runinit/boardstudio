@@ -1,0 +1,21 @@
+   Compiling boardstudio-application v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/application)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.54s
+     Running tests/durable_session.rs (target/debug/deps/durable_session-48b1ba33d4dd5ce8)
+
+running 1 test
+
+thread 'queued_position_axis_edits_preserve_prior_axis_and_undo_in_sequence' (3360742) panicked at tests/durable_session.rs:733:5:
+assertion `left == right` failed: the queued Y edit must preserve the prior X in durable and accepted state, and one Undo must reverse only Y
+  left: (Vec2 { x: 66.675, y: -40.0 }, Vec2 { x: 66.675, y: -40.0 }, Vec2 { x: 60.0, y: -47.625 })
+ right: (Vec2 { x: 60.0, y: -40.0 }, Vec2 { x: 60.0, y: -40.0 }, Vec2 { x: 60.0, y: -47.625 })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test queued_position_axis_edits_preserve_prior_axis_and_undo_in_sequence ... FAILED
+
+failures:
+
+failures:
+    queued_position_axis_edits_preserve_prior_axis_and_undo_in_sequence
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 18 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--test durable_session`

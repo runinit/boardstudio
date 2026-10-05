@@ -1,0 +1,9 @@
+{
+  "candidateUrl": "http://127.0.0.1:34829/",
+  "fixture": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-v1/evidence/f86-integrated-20261005/fixed-candidate/probe-01-placement.boardstudio",
+  "fixtureSha256": "0215c9153cf4875bfd1f764136782eb2be15d555b3a625d3112eb12af2c602d6",
+  "session": "coordinate-desktop-1791213268156831741",
+  "checks": {},
+  "status": "incomplete",
+  "error": "{\"success\":false,\"data\":null,\"error\":\"32 elements have role \\\"button\\\", but none match name \\\"Close project menu\\\". Names seen: \\\"Export\\\", \\\"Project\\\", \\\"Undo\\\", \\\"Redo\\\", \\\"Grid \u00bcu\\\", ...\"}\n"
+}

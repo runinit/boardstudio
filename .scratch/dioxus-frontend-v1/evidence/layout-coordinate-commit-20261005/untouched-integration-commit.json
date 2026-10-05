@@ -1,0 +1,11 @@
+{
+  "commit": "df6b04b9e8903381029a137fdfcef8d797305fb8",
+  "exit": 0,
+  "reused_gate_count": 4,
+  "gate_receipts": [
+    "web/target/migration-gates/wasm-page-check/b133c9fd0ef8fcd7dc04238f507547f1f670109d66dd0ddc595d18a2f72c9451.json",
+    "web/target/migration-gates/native-web/f175b0b6551664edd069c71228a80041c707f6f168742038af6ce0e24544bf54.json",
+    "web/target/migration-gates/wasm-test-reachability/3a951cef2dbf7f9c23d42402152dae6f540561d4a4a9facbe95894040dc030e7.json",
+    "web/target/migration-gates/wasm-headless-tests/0c344772074c02b19befc450f6267414f4e7377a11c4e791c0b32f16b39b7ffe.json"
+  ]
+}

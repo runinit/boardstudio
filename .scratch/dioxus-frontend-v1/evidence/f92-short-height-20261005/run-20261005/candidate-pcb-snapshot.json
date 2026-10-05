@@ -1,0 +1,1741 @@
+{
+  "lifecycle": {
+    "effectiveLaunch": {
+      "browserLaunched": true,
+      "engine": "chrome",
+      "launchHash": 11677035664275010974
+    },
+    "launched": false,
+    "relaunchedBrowser": false,
+    "restartedBackground": false,
+    "restoreStatus": "not_configured",
+    "reused": true,
+    "saveStatus": "not_attempted"
+  },
+  "origin": "http://127.0.0.1:34829/",
+  "refs": {
+    "e10": {
+      "name": "Parts",
+      "role": "tab"
+    },
+    "e11": {
+      "name": "Undo",
+      "role": "button"
+    },
+    "e12": {
+      "name": "Redo",
+      "role": "button"
+    },
+    "e179": {
+      "name": "Grid \u00bcu",
+      "role": "button"
+    },
+    "e180": {
+      "name": "Layout findings: 3",
+      "role": "button"
+    },
+    "e181": {
+      "name": "PCB workspace",
+      "role": "region"
+    },
+    "e182": {
+      "name": "Fit board",
+      "role": "button"
+    },
+    "e183": {
+      "name": "Fit selection",
+      "role": "button"
+    },
+    "e184": {
+      "name": "Zoom out",
+      "role": "button"
+    },
+    "e185": {
+      "name": "Zoom in",
+      "role": "button"
+    },
+    "e186": {
+      "name": "PCB layout; select a part with click, Enter, or Space, hold Space and drag to pan, or use the mouse wheel to zoom",
+      "role": "group"
+    },
+    "e187": {
+      "name": "Canvas layers",
+      "role": "region"
+    },
+    "e188": {
+      "name": "left-keys-SW1, switch mx, X 12.18 Y -78.05",
+      "role": "button"
+    },
+    "e189": {
+      "name": "left-diode-24-keys, diode tht sod123, X 19.58 Y -79.55",
+      "role": "button"
+    },
+    "e190": {
+      "name": "left-keys-SW2, switch mx, X 28.23 Y -78.05",
+      "role": "button"
+    },
+    "e191": {
+      "name": "left-diode-23-keys, diode tht sod123, X 35.63 Y -79.55",
+      "role": "button"
+    },
+    "e192": {
+      "name": "left-keys-SW3, switch mx, X 47.23 Y -69.15",
+      "role": "button"
+    },
+    "e193": {
+      "name": "left-diode-22-keys, diode tht sod123, X 54.63 Y -70.65",
+      "role": "button"
+    },
+    "e194": {
+      "name": "left-keys-SW4, switch mx, X 66.23 Y -66.65",
+      "role": "button"
+    },
+    "e195": {
+      "name": "left-diode-21-keys, diode tht sod123, X 73.63 Y -68.15",
+      "role": "button"
+    },
+    "e196": {
+      "name": "left-keys-SW5, switch mx, X 85.23 Y -69.15",
+      "role": "button"
+    },
+    "e197": {
+      "name": "left-diode-20-keys, diode tht sod123, X 92.63 Y -70.65",
+      "role": "button"
+    },
+    "e198": {
+      "name": "left-keys-SW6, switch mx, X 104.23 Y -71.55",
+      "role": "button"
+    },
+    "e199": {
+      "name": "left-diode-19-keys, diode tht sod123, X 111.63 Y -73.05",
+      "role": "button"
+    },
+    "e2": {
+      "name": "Keyboard editor",
+      "role": "region"
+    },
+    "e200": {
+      "name": "left-keys-SW7, switch mx, X 12.23 Y -59.05",
+      "role": "button"
+    },
+    "e201": {
+      "name": "left-diode-18-keys, diode tht sod123, X 19.63 Y -60.55",
+      "role": "button"
+    },
+    "e202": {
+      "name": "left-keys-SW8, switch mx, X 28.23 Y -59.05",
+      "role": "button"
+    },
+    "e203": {
+      "name": "left-diode-17-keys, diode tht sod123, X 35.63 Y -60.55",
+      "role": "button"
+    },
+    "e204": {
+      "name": "left-keys-SW9, switch mx, X 47.23 Y -50.05",
+      "role": "button"
+    },
+    "e205": {
+      "name": "left-diode-16-keys, diode tht sod123, X 54.63 Y -51.55",
+      "role": "button"
+    },
+    "e206": {
+      "name": "left-keys-SW10, switch mx, X 66.23 Y -47.65",
+      "role": "button"
+    },
+    "e207": {
+      "name": "left-diode-15-keys, diode tht sod123, X 73.63 Y -49.15",
+      "role": "button"
+    },
+    "e208": {
+      "name": "left-keys-SW11, switch mx, X 85.23 Y -50.05",
+      "role": "button"
+    },
+    "e209": {
+      "name": "left-diode-14-keys, diode tht sod123, X 92.63 Y -51.55",
+      "role": "button"
+    },
+    "e21": {
+      "name": "Resize objects",
+      "role": "separator"
+    },
+    "e210": {
+      "name": "left-keys-SW12, switch mx, X 104.23 Y -52.55",
+      "role": "button"
+    },
+    "e211": {
+      "name": "left-diode-13-keys, diode tht sod123, X 111.63 Y -54.05",
+      "role": "button"
+    },
+    "e212": {
+      "name": "left-keys-SW13, switch mx, X 12.23 Y -39.85",
+      "role": "button"
+    },
+    "e213": {
+      "name": "left-diode-12-keys, diode tht sod123, X 19.63 Y -41.35",
+      "role": "button"
+    },
+    "e214": {
+      "name": "left-keys-SW14, switch mx, X 28.23 Y -39.85",
+      "role": "button"
+    },
+    "e215": {
+      "name": "left-diode-11-keys, diode tht sod123, X 35.63 Y -41.35",
+      "role": "button"
+    },
+    "e216": {
+      "name": "left-keys-SW15, switch mx, X 47.23 Y -30.95",
+      "role": "button"
+    },
+    "e217": {
+      "name": "left-diode-10-keys, diode tht sod123, X 54.63 Y -32.45",
+      "role": "button"
+    },
+    "e218": {
+      "name": "left-keys-SW16, switch mx, X 66.23 Y -28.55",
+      "role": "button"
+    },
+    "e219": {
+      "name": "left-diode-9-keys, diode tht sod123, X 73.63 Y -30.05",
+      "role": "button"
+    },
+    "e220": {
+      "name": "left-keys-SW17, switch mx, X 85.23 Y -31.05",
+      "role": "button"
+    },
+    "e221": {
+      "name": "left-diode-8-keys, diode tht sod123, X 92.63 Y -32.55",
+      "role": "button"
+    },
+    "e222": {
+      "name": "left-keys-SW18, switch mx, X 104.23 Y -33.55",
+      "role": "button"
+    },
+    "e223": {
+      "name": "left-diode-7-keys, diode tht sod123, X 111.63 Y -35.05",
+      "role": "button"
+    },
+    "e224": {
+      "name": "left-keys-SW19, switch mx, X 12.23 Y -20.95",
+      "role": "button"
+    },
+    "e225": {
+      "name": "left-diode-6-keys, diode tht sod123, X 19.63 Y -22.45",
+      "role": "button"
+    },
+    "e226": {
+      "name": "left-keys-SW20, switch mx, X 28.23 Y -20.95",
+      "role": "button"
+    },
+    "e227": {
+      "name": "left-diode-5-keys, diode tht sod123, X 35.63 Y -22.45",
+      "role": "button"
+    },
+    "e228": {
+      "name": "left-keys-SW21, switch mx, X 47.23 Y -11.95",
+      "role": "button"
+    },
+    "e229": {
+      "name": "left-diode-4-keys, diode tht sod123, X 54.63 Y -13.45",
+      "role": "button"
+    },
+    "e230": {
+      "name": "left-keys-SW22, switch mx, X 66.23 Y -9.46",
+      "role": "button"
+    },
+    "e231": {
+      "name": "left-diode-3-keys, diode tht sod123, X 73.63 Y -10.96",
+      "role": "button"
+    },
+    "e232": {
+      "name": "left-keys-SW23, switch mx, X 85.23 Y -11.95",
+      "role": "button"
+    },
+    "e233": {
+      "name": "left-diode-2-keys, diode tht sod123, X 92.63 Y -13.45",
+      "role": "button"
+    },
+    "e234": {
+      "name": "left-keys-SW24, switch mx, X 104.23 Y -14.45",
+      "role": "button"
+    },
+    "e235": {
+      "name": "left-diode-1-keys, diode tht sod123, X 111.63 Y -15.95",
+      "role": "button"
+    },
+    "e236": {
+      "name": "left-thumbs-SW1, switch mx, X 47.23 Y -88.15",
+      "role": "button"
+    },
+    "e237": {
+      "name": "left-diode-5-thumbs, diode tht sod123, X 54.63 Y -89.65",
+      "role": "button"
+    },
+    "e238": {
+      "name": "left-thumbs-SW2, switch mx, X 66.23 Y -85.65",
+      "role": "button"
+    },
+    "e239": {
+      "name": "left-diode-4-thumbs, diode tht sod123, X 73.63 Y -87.15",
+      "role": "button"
+    },
+    "e240": {
+      "name": "left-thumbs-SW3, switch mx, X 85.23 Y -88.25",
+      "role": "button"
+    },
+    "e241": {
+      "name": "left-diode-3-thumbs, diode tht sod123, X 92.63 Y -89.75",
+      "role": "button"
+    },
+    "e242": {
+      "name": "left-thumbs-SW4, switch mx, X 107.13 Y -92.85",
+      "role": "button"
+    },
+    "e243": {
+      "name": "left-diode-2-thumbs, diode tht sod123, X 113.36 Y -97.12",
+      "role": "button"
+    },
+    "e244": {
+      "name": "left-thumbs-SW5, switch mx, X 128.03 Y -97.86",
+      "role": "button"
+    },
+    "e245": {
+      "name": "left-diode-1-thumbs, diode tht sod123, X 133.03 Y -92.20",
+      "role": "button"
+    },
+    "e246": {
+      "name": "left-U1, mcu nice nano, X 14.18 Y -48.05",
+      "role": "button"
+    },
+    "e247": {
+      "name": "left-SW25, rotary encoder ec11 ec12, X 125.53 Y -70.95",
+      "role": "button"
+    },
+    "e248": {
+      "name": "left-J3, display ssd1306, X 124.62 Y -22.16",
+      "role": "button"
+    },
+    "e249": {
+      "name": "left-J2, trrs pj320a, X 130.75 Y -49.95",
+      "role": "button"
+    },
+    "e250": {
+      "name": "left-RSW1, reset switch tht top, X 131.45 Y -42.25",
+      "role": "button"
+    },
+    "e251": {
+      "name": "left-TH1, mounting hole npth, X 129.60 Y -57.80",
+      "role": "button"
+    },
+    "e252": {
+      "name": "left-TH2, mounting hole npth, X 119.60 Y -57.78",
+      "role": "button"
+    },
+    "e253": {
+      "name": "left-TH3, mounting hole npth, X 95.43 Y -24.05",
+      "role": "button"
+    },
+    "e254": {
+      "name": "left-TH4, mounting hole npth, X 18.93 Y -30.66",
+      "role": "button"
+    },
+    "e255": {
+      "name": "left-TH5, mounting hole npth, X 95.43 Y -61.96",
+      "role": "button"
+    },
+    "e256": {
+      "name": "left-TH6, mounting hole npth, X 18.93 Y -68.96",
+      "role": "button"
+    },
+    "e257": {
+      "name": "left-TH7, mounting hole npth, X 120.93 Y -85.26",
+      "role": "button"
+    },
+    "e258": {
+      "name": "SW1, switch mx, X 0.00 Y 0.00",
+      "role": "button"
+    },
+    "e259": {
+      "name": "SW2, diode tht sod123, X 7.40 Y -1.50",
+      "role": "button"
+    },
+    "e26": {
+      "name": "Resize inspector",
+      "role": "separator"
+    },
+    "e260": {
+      "name": "J1, mounting hole npth, X 60.00 Y -40.00",
+      "role": "button"
+    },
+    "e261": {
+      "name": "MH1, mounting hole npth, X 128.75 Y -112.01",
+      "role": "button"
+    },
+    "e262": {
+      "name": "MH2, mounting hole npth, X -9.63 Y 10.12",
+      "role": "button"
+    },
+    "e263": {
+      "name": "MH3, mounting hole npth, X 103.41 Y -3.03",
+      "role": "button"
+    },
+    "e264": {
+      "name": "MH4, mounting hole npth, X 23.50 Y -89.47",
+      "role": "button"
+    },
+    "e265": {
+      "name": "Layers",
+      "role": "button"
+    },
+    "e266": {
+      "name": "Electrical wiring",
+      "role": "region"
+    },
+    "e267": {
+      "name": "Add object",
+      "role": "button"
+    },
+    "e268": {
+      "name": "Board",
+      "role": "combobox"
+    },
+    "e269": {
+      "name": "New board",
+      "role": "button"
+    },
+    "e270": {
+      "name": "Left PCB 77 parts",
+      "role": "treeitem"
+    },
+    "e271": {
+      "name": "Outline Edited outline 1",
+      "role": "treeitem"
+    },
+    "e272": {
+      "name": "left-keys-SW1 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e273": {
+      "name": "left-diode-24-keys diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e274": {
+      "name": "left-keys-SW2 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e275": {
+      "name": "left-diode-23-keys diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e276": {
+      "name": "left-keys-SW3 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e277": {
+      "name": "left-diode-22-keys diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e278": {
+      "name": "left-keys-SW4 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e279": {
+      "name": "left-diode-21-keys diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e280": {
+      "name": "left-keys-SW5 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e281": {
+      "name": "left-diode-20-keys diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e282": {
+      "name": "left-keys-SW6 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e283": {
+      "name": "left-diode-19-keys diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e284": {
+      "name": "left-keys-SW7 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e285": {
+      "name": "left-diode-18-keys diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e286": {
+      "name": "left-keys-SW8 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e287": {
+      "name": "left-diode-17-keys diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e288": {
+      "name": "left-keys-SW9 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e289": {
+      "name": "left-diode-16-keys diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e29": {
+      "name": "Objects",
+      "role": "heading"
+    },
+    "e290": {
+      "name": "left-keys-SW10 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e291": {
+      "name": "left-diode-15-keys diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e292": {
+      "name": "left-keys-SW11 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e293": {
+      "name": "left-diode-14-keys diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e294": {
+      "name": "left-keys-SW12 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e295": {
+      "name": "left-diode-13-keys diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e296": {
+      "name": "left-keys-SW13 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e297": {
+      "name": "left-diode-12-keys diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e298": {
+      "name": "left-keys-SW14 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e299": {
+      "name": "left-diode-11-keys diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e3": {
+      "name": "Export",
+      "role": "button"
+    },
+    "e30": {
+      "name": "Objects options",
+      "role": "button"
+    },
+    "e300": {
+      "name": "left-keys-SW15 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e301": {
+      "name": "left-diode-10-keys diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e302": {
+      "name": "left-keys-SW16 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e303": {
+      "name": "left-diode-9-keys diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e304": {
+      "name": "left-keys-SW17 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e305": {
+      "name": "left-diode-8-keys diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e306": {
+      "name": "left-keys-SW18 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e307": {
+      "name": "left-diode-7-keys diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e308": {
+      "name": "left-keys-SW19 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e309": {
+      "name": "left-diode-6-keys diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e31": {
+      "name": "Inspect",
+      "role": "heading"
+    },
+    "e310": {
+      "name": "left-keys-SW20 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e311": {
+      "name": "left-diode-5-keys diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e312": {
+      "name": "left-keys-SW21 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e313": {
+      "name": "left-diode-4-keys diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e314": {
+      "name": "left-keys-SW22 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e315": {
+      "name": "left-diode-3-keys diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e316": {
+      "name": "left-keys-SW23 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e317": {
+      "name": "left-diode-2-keys diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e318": {
+      "name": "left-keys-SW24 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e319": {
+      "name": "left-diode-1-keys diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e32": {
+      "name": "Inspector options",
+      "role": "button"
+    },
+    "e320": {
+      "name": "left-thumbs-SW1 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e321": {
+      "name": "left-diode-5-thumbs diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e322": {
+      "name": "left-thumbs-SW2 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e323": {
+      "name": "left-diode-4-thumbs diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e324": {
+      "name": "left-thumbs-SW3 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e325": {
+      "name": "left-diode-3-thumbs diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e326": {
+      "name": "left-thumbs-SW4 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e327": {
+      "name": "left-diode-2-thumbs diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e328": {
+      "name": "left-thumbs-SW5 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e329": {
+      "name": "left-diode-1-thumbs diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e330": {
+      "name": "left-U1 mcu nice nano \u00b7 front",
+      "role": "treeitem"
+    },
+    "e331": {
+      "name": "left-SW25 rotary encoder ec11 ec12 \u00b7 front",
+      "role": "treeitem"
+    },
+    "e332": {
+      "name": "left-J3 display ssd1306 \u00b7 front",
+      "role": "treeitem"
+    },
+    "e333": {
+      "name": "left-J2 trrs pj320a \u00b7 front",
+      "role": "treeitem"
+    },
+    "e334": {
+      "name": "left-RSW1 reset switch tht top \u00b7 front",
+      "role": "treeitem"
+    },
+    "e335": {
+      "name": "left-TH1 mounting hole npth \u00b7 front",
+      "role": "treeitem"
+    },
+    "e336": {
+      "name": "left-TH2 mounting hole npth \u00b7 front",
+      "role": "treeitem"
+    },
+    "e337": {
+      "name": "left-TH3 mounting hole npth \u00b7 front",
+      "role": "treeitem"
+    },
+    "e338": {
+      "name": "left-TH4 mounting hole npth \u00b7 front",
+      "role": "treeitem"
+    },
+    "e339": {
+      "name": "left-TH5 mounting hole npth \u00b7 front",
+      "role": "treeitem"
+    },
+    "e340": {
+      "name": "left-TH6 mounting hole npth \u00b7 front",
+      "role": "treeitem"
+    },
+    "e341": {
+      "name": "left-TH7 mounting hole npth \u00b7 front",
+      "role": "treeitem"
+    },
+    "e342": {
+      "name": "SW1 switch mx \u00b7 front",
+      "role": "treeitem"
+    },
+    "e343": {
+      "name": "SW2 diode tht sod123 \u00b7 back",
+      "role": "treeitem"
+    },
+    "e344": {
+      "name": "J1 mounting hole npth \u00b7 front",
+      "role": "treeitem"
+    },
+    "e345": {
+      "name": "MH1 mounting hole npth \u00b7 front",
+      "role": "treeitem"
+    },
+    "e346": {
+      "name": "MH2 mounting hole npth \u00b7 front",
+      "role": "treeitem"
+    },
+    "e347": {
+      "name": "MH3 mounting hole npth \u00b7 front",
+      "role": "treeitem"
+    },
+    "e348": {
+      "name": "MH4 mounting hole npth \u00b7 front",
+      "role": "treeitem"
+    },
+    "e349": {
+      "name": "Resolve automatically",
+      "role": "button"
+    },
+    "e350": {
+      "name": "Apply wiring",
+      "role": "button"
+    },
+    "e351": {
+      "name": "Assignments",
+      "role": "heading"
+    },
+    "e352": {
+      "name": "Lock Row 1",
+      "role": "button"
+    },
+    "e353": {
+      "name": "Lock Row 2",
+      "role": "button"
+    },
+    "e354": {
+      "name": "Lock Row 3",
+      "role": "button"
+    },
+    "e355": {
+      "name": "Lock Row 4",
+      "role": "button"
+    },
+    "e356": {
+      "name": "Lock Row 5",
+      "role": "button"
+    },
+    "e357": {
+      "name": "Lock Column 1",
+      "role": "button"
+    },
+    "e358": {
+      "name": "Lock Column 2",
+      "role": "button"
+    },
+    "e359": {
+      "name": "Lock Column 3",
+      "role": "button"
+    },
+    "e360": {
+      "name": "Lock Column 4",
+      "role": "button"
+    },
+    "e361": {
+      "name": "Lock Column 5",
+      "role": "button"
+    },
+    "e362": {
+      "name": "Lock Column 6",
+      "role": "button"
+    },
+    "e363": {
+      "name": "Lock i2c/SCL",
+      "role": "button"
+    },
+    "e364": {
+      "name": "Lock i2c/SDA",
+      "role": "button"
+    },
+    "e365": {
+      "name": "Lock left/SW25/encoder-a",
+      "role": "button"
+    },
+    "e366": {
+      "name": "Lock left/SW25/encoder-b",
+      "role": "button"
+    },
+    "e367": {
+      "name": "Lock left/SW25/encoder-push",
+      "role": "button"
+    },
+    "e368": {
+      "name": "Lock J2 \u00b7 split-rx",
+      "role": "button"
+    },
+    "e369": {
+      "name": "Lock J2 \u00b7 split-tx",
+      "role": "button"
+    },
+    "e370": {
+      "name": "Collapse Left PCB",
+      "role": "button"
+    },
+    "e371": {
+      "name": "Left PCB 77 parts",
+      "role": "button"
+    },
+    "e372": {
+      "name": "Expand Outline",
+      "role": "button"
+    },
+    "e373": {
+      "name": "Outline Edited outline 1",
+      "role": "button"
+    },
+    "e374": {
+      "name": "left-keys-SW1 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e375": {
+      "name": "left-diode-24-keys diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e376": {
+      "name": "left-keys-SW2 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e377": {
+      "name": "left-diode-23-keys diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e378": {
+      "name": "left-keys-SW3 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e379": {
+      "name": "left-diode-22-keys diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e380": {
+      "name": "left-keys-SW4 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e381": {
+      "name": "left-diode-21-keys diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e382": {
+      "name": "left-keys-SW5 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e383": {
+      "name": "left-diode-20-keys diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e384": {
+      "name": "left-keys-SW6 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e385": {
+      "name": "left-diode-19-keys diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e386": {
+      "name": "left-keys-SW7 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e387": {
+      "name": "left-diode-18-keys diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e388": {
+      "name": "left-keys-SW8 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e389": {
+      "name": "left-diode-17-keys diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e390": {
+      "name": "left-keys-SW9 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e391": {
+      "name": "left-diode-16-keys diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e392": {
+      "name": "left-keys-SW10 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e393": {
+      "name": "left-diode-15-keys diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e394": {
+      "name": "left-keys-SW11 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e395": {
+      "name": "left-diode-14-keys diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e396": {
+      "name": "left-keys-SW12 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e397": {
+      "name": "left-diode-13-keys diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e398": {
+      "name": "left-keys-SW13 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e399": {
+      "name": "left-diode-12-keys diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e4": {
+      "name": "Project",
+      "role": "button"
+    },
+    "e400": {
+      "name": "left-keys-SW14 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e401": {
+      "name": "left-diode-11-keys diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e402": {
+      "name": "left-keys-SW15 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e403": {
+      "name": "left-diode-10-keys diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e404": {
+      "name": "left-keys-SW16 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e405": {
+      "name": "left-diode-9-keys diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e406": {
+      "name": "left-keys-SW17 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e407": {
+      "name": "left-diode-8-keys diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e408": {
+      "name": "left-keys-SW18 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e409": {
+      "name": "left-diode-7-keys diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e410": {
+      "name": "left-keys-SW19 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e411": {
+      "name": "left-diode-6-keys diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e412": {
+      "name": "left-keys-SW20 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e413": {
+      "name": "left-diode-5-keys diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e414": {
+      "name": "left-keys-SW21 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e415": {
+      "name": "left-diode-4-keys diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e416": {
+      "name": "left-keys-SW22 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e417": {
+      "name": "left-diode-3-keys diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e418": {
+      "name": "left-keys-SW23 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e419": {
+      "name": "left-diode-2-keys diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e420": {
+      "name": "left-keys-SW24 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e421": {
+      "name": "left-diode-1-keys diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e422": {
+      "name": "left-thumbs-SW1 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e423": {
+      "name": "left-diode-5-thumbs diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e424": {
+      "name": "left-thumbs-SW2 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e425": {
+      "name": "left-diode-4-thumbs diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e426": {
+      "name": "left-thumbs-SW3 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e427": {
+      "name": "left-diode-3-thumbs diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e428": {
+      "name": "left-thumbs-SW4 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e429": {
+      "name": "left-diode-2-thumbs diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e430": {
+      "name": "left-thumbs-SW5 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e431": {
+      "name": "left-diode-1-thumbs diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e432": {
+      "name": "left-U1 mcu nice nano \u00b7 front",
+      "role": "button"
+    },
+    "e433": {
+      "name": "left-SW25 rotary encoder ec11 ec12 \u00b7 front",
+      "role": "button"
+    },
+    "e434": {
+      "name": "left-J3 display ssd1306 \u00b7 front",
+      "role": "button"
+    },
+    "e435": {
+      "name": "left-J2 trrs pj320a \u00b7 front",
+      "role": "button"
+    },
+    "e436": {
+      "name": "left-RSW1 reset switch tht top \u00b7 front",
+      "role": "button"
+    },
+    "e437": {
+      "name": "left-TH1 mounting hole npth \u00b7 front",
+      "role": "button"
+    },
+    "e438": {
+      "name": "left-TH2 mounting hole npth \u00b7 front",
+      "role": "button"
+    },
+    "e439": {
+      "name": "left-TH3 mounting hole npth \u00b7 front",
+      "role": "button"
+    },
+    "e440": {
+      "name": "left-TH4 mounting hole npth \u00b7 front",
+      "role": "button"
+    },
+    "e441": {
+      "name": "left-TH5 mounting hole npth \u00b7 front",
+      "role": "button"
+    },
+    "e442": {
+      "name": "left-TH6 mounting hole npth \u00b7 front",
+      "role": "button"
+    },
+    "e443": {
+      "name": "left-TH7 mounting hole npth \u00b7 front",
+      "role": "button"
+    },
+    "e444": {
+      "name": "SW1 switch mx \u00b7 front",
+      "role": "button"
+    },
+    "e445": {
+      "name": "SW2 diode tht sod123 \u00b7 back",
+      "role": "button"
+    },
+    "e446": {
+      "name": "J1 mounting hole npth \u00b7 front",
+      "role": "button"
+    },
+    "e447": {
+      "name": "MH1 mounting hole npth \u00b7 front",
+      "role": "button"
+    },
+    "e448": {
+      "name": "MH2 mounting hole npth \u00b7 front",
+      "role": "button"
+    },
+    "e449": {
+      "name": "MH3 mounting hole npth \u00b7 front",
+      "role": "button"
+    },
+    "e450": {
+      "name": "MH4 mounting hole npth \u00b7 front",
+      "role": "button"
+    },
+    "e451": {
+      "name": "Wiring",
+      "role": "heading"
+    },
+    "e452": {
+      "name": "Wiring mode",
+      "role": "combobox"
+    },
+    "e453": {
+      "name": "Pin for Row 1",
+      "role": "combobox"
+    },
+    "e454": {
+      "name": "Pin for Row 2",
+      "role": "combobox"
+    },
+    "e455": {
+      "name": "Pin for Row 3",
+      "role": "combobox"
+    },
+    "e456": {
+      "name": "Pin for Row 4",
+      "role": "combobox"
+    },
+    "e457": {
+      "name": "Pin for Row 5",
+      "role": "combobox"
+    },
+    "e458": {
+      "name": "Pin for Column 1",
+      "role": "combobox"
+    },
+    "e459": {
+      "name": "Pin for Column 2",
+      "role": "combobox"
+    },
+    "e460": {
+      "name": "Pin for Column 3",
+      "role": "combobox"
+    },
+    "e461": {
+      "name": "Pin for Column 4",
+      "role": "combobox"
+    },
+    "e462": {
+      "name": "Pin for Column 5",
+      "role": "combobox"
+    },
+    "e463": {
+      "name": "Pin for Column 6",
+      "role": "combobox"
+    },
+    "e464": {
+      "name": "Pin for i2c/SCL",
+      "role": "combobox"
+    },
+    "e465": {
+      "name": "Pin for i2c/SDA",
+      "role": "combobox"
+    },
+    "e466": {
+      "name": "Pin for left/SW25/encoder-a",
+      "role": "combobox"
+    },
+    "e467": {
+      "name": "Pin for left/SW25/encoder-b",
+      "role": "combobox"
+    },
+    "e468": {
+      "name": "Pin for left/SW25/encoder-push",
+      "role": "combobox"
+    },
+    "e469": {
+      "name": "Pin for J2 \u00b7 split-rx",
+      "role": "combobox"
+    },
+    "e470": {
+      "name": "Pin for J2 \u00b7 split-tx",
+      "role": "combobox"
+    },
+    "e471": {
+      "name": "Left PCB",
+      "role": "option"
+    },
+    "e472": {
+      "name": "Right PCB",
+      "role": "option"
+    },
+    "e473": {
+      "name": "Matrix",
+      "role": "option"
+    },
+    "e474": {
+      "name": "Direct GPIO",
+      "role": "option"
+    },
+    "e475": {
+      "name": "Unresolved",
+      "role": "option"
+    },
+    "e476": {
+      "name": "P5",
+      "role": "option"
+    },
+    "e477": {
+      "name": "P101",
+      "role": "option"
+    },
+    "e478": {
+      "name": "P102",
+      "role": "option"
+    },
+    "e479": {
+      "name": "P107",
+      "role": "option"
+    },
+    "e480": {
+      "name": "Unresolved",
+      "role": "option"
+    },
+    "e481": {
+      "name": "P6",
+      "role": "option"
+    },
+    "e482": {
+      "name": "P101",
+      "role": "option"
+    },
+    "e483": {
+      "name": "P102",
+      "role": "option"
+    },
+    "e484": {
+      "name": "P107",
+      "role": "option"
+    },
+    "e485": {
+      "name": "Unresolved",
+      "role": "option"
+    },
+    "e486": {
+      "name": "P7",
+      "role": "option"
+    },
+    "e487": {
+      "name": "P101",
+      "role": "option"
+    },
+    "e488": {
+      "name": "P102",
+      "role": "option"
+    },
+    "e489": {
+      "name": "P107",
+      "role": "option"
+    },
+    "e490": {
+      "name": "Unresolved",
+      "role": "option"
+    },
+    "e491": {
+      "name": "P8",
+      "role": "option"
+    },
+    "e492": {
+      "name": "P101",
+      "role": "option"
+    },
+    "e493": {
+      "name": "P102",
+      "role": "option"
+    },
+    "e494": {
+      "name": "P107",
+      "role": "option"
+    },
+    "e495": {
+      "name": "Unresolved",
+      "role": "option"
+    },
+    "e496": {
+      "name": "P9",
+      "role": "option"
+    },
+    "e497": {
+      "name": "P101",
+      "role": "option"
+    },
+    "e498": {
+      "name": "P102",
+      "role": "option"
+    },
+    "e499": {
+      "name": "P107",
+      "role": "option"
+    },
+    "e5": {
+      "name": "Layout",
+      "role": "tab"
+    },
+    "e500": {
+      "name": "Unresolved",
+      "role": "option"
+    },
+    "e501": {
+      "name": "P21",
+      "role": "option"
+    },
+    "e502": {
+      "name": "P101",
+      "role": "option"
+    },
+    "e503": {
+      "name": "P102",
+      "role": "option"
+    },
+    "e504": {
+      "name": "P107",
+      "role": "option"
+    },
+    "e505": {
+      "name": "Unresolved",
+      "role": "option"
+    },
+    "e506": {
+      "name": "P20",
+      "role": "option"
+    },
+    "e507": {
+      "name": "P101",
+      "role": "option"
+    },
+    "e508": {
+      "name": "P102",
+      "role": "option"
+    },
+    "e509": {
+      "name": "P107",
+      "role": "option"
+    },
+    "e510": {
+      "name": "Unresolved",
+      "role": "option"
+    },
+    "e511": {
+      "name": "P19",
+      "role": "option"
+    },
+    "e512": {
+      "name": "P101",
+      "role": "option"
+    },
+    "e513": {
+      "name": "P102",
+      "role": "option"
+    },
+    "e514": {
+      "name": "P107",
+      "role": "option"
+    },
+    "e515": {
+      "name": "Unresolved",
+      "role": "option"
+    },
+    "e516": {
+      "name": "P18",
+      "role": "option"
+    },
+    "e517": {
+      "name": "P101",
+      "role": "option"
+    },
+    "e518": {
+      "name": "P102",
+      "role": "option"
+    },
+    "e519": {
+      "name": "P107",
+      "role": "option"
+    },
+    "e520": {
+      "name": "Unresolved",
+      "role": "option"
+    },
+    "e521": {
+      "name": "P15",
+      "role": "option"
+    },
+    "e522": {
+      "name": "P101",
+      "role": "option"
+    },
+    "e523": {
+      "name": "P102",
+      "role": "option"
+    },
+    "e524": {
+      "name": "P107",
+      "role": "option"
+    },
+    "e525": {
+      "name": "Unresolved",
+      "role": "option"
+    },
+    "e526": {
+      "name": "P14",
+      "role": "option"
+    },
+    "e527": {
+      "name": "P101",
+      "role": "option"
+    },
+    "e528": {
+      "name": "P102",
+      "role": "option"
+    },
+    "e529": {
+      "name": "P107",
+      "role": "option"
+    },
+    "e530": {
+      "name": "Unresolved",
+      "role": "option"
+    },
+    "e531": {
+      "name": "P16",
+      "role": "option"
+    },
+    "e532": {
+      "name": "P101",
+      "role": "option"
+    },
+    "e533": {
+      "name": "P102",
+      "role": "option"
+    },
+    "e534": {
+      "name": "P107",
+      "role": "option"
+    },
+    "e535": {
+      "name": "Unresolved",
+      "role": "option"
+    },
+    "e536": {
+      "name": "P10",
+      "role": "option"
+    },
+    "e537": {
+      "name": "P101",
+      "role": "option"
+    },
+    "e538": {
+      "name": "P102",
+      "role": "option"
+    },
+    "e539": {
+      "name": "P107",
+      "role": "option"
+    },
+    "e540": {
+      "name": "Unresolved",
+      "role": "option"
+    },
+    "e541": {
+      "name": "P1",
+      "role": "option"
+    },
+    "e542": {
+      "name": "P101",
+      "role": "option"
+    },
+    "e543": {
+      "name": "P102",
+      "role": "option"
+    },
+    "e544": {
+      "name": "P107",
+      "role": "option"
+    },
+    "e545": {
+      "name": "Unresolved",
+      "role": "option"
+    },
+    "e546": {
+      "name": "P0",
+      "role": "option"
+    },
+    "e547": {
+      "name": "P101",
+      "role": "option"
+    },
+    "e548": {
+      "name": "P102",
+      "role": "option"
+    },
+    "e549": {
+      "name": "P107",
+      "role": "option"
+    },
+    "e550": {
+      "name": "Unresolved",
+      "role": "option"
+    },
+    "e551": {
+      "name": "P2",
+      "role": "option"
+    },
+    "e552": {
+      "name": "P101",
+      "role": "option"
+    },
+    "e553": {
+      "name": "P102",
+      "role": "option"
+    },
+    "e554": {
+      "name": "P107",
+      "role": "option"
+    },
+    "e555": {
+      "name": "Unresolved",
+      "role": "option"
+    },
+    "e556": {
+      "name": "P3",
+      "role": "option"
+    },
+    "e557": {
+      "name": "P101",
+      "role": "option"
+    },
+    "e558": {
+      "name": "P102",
+      "role": "option"
+    },
+    "e559": {
+      "name": "P107",
+      "role": "option"
+    },
+    "e560": {
+      "name": "Unresolved",
+      "role": "option"
+    },
+    "e561": {
+      "name": "P4",
+      "role": "option"
+    },
+    "e562": {
+      "name": "P101",
+      "role": "option"
+    },
+    "e563": {
+      "name": "P102",
+      "role": "option"
+    },
+    "e564": {
+      "name": "P107",
+      "role": "option"
+    },
+    "e6": {
+      "name": "PCB",
+      "role": "tab"
+    },
+    "e7": {
+      "name": "Keymap",
+      "role": "tab"
+    },
+    "e8": {
+      "name": "Keycaps",
+      "role": "tab"
+    },
+    "e9": {
+      "name": "Case",
+      "role": "tab"
+    }
+  },
+  "removedRefs": [
+    "@e70",
+    "@e71",
+    "@e72",
+    "@e73",
+    "@e74",
+    "@e75",
+    "@e76",
+    "@e77",
+    "@e78",
+    "@e79",
+    "@e80",
+    "@e81",
+    "@e82",
+    "@e83",
+    "@e84",
+    "@e85",
+    "@e86",
+    "@e87",
+    "@e88",
+    "@e89",
+    "@e90",
+    "@e91",
+    "@e92",
+    "@e93",
+    "@e94",
+    "@e95",
+    "@e96",
+    "@e97",
+    "@e98",
+    "@e99",
+    "@e100",
+    "@e101",
+    "@e102",
+    "@e103",
+    "@e104",
+    "@e105",
+    "@e106",
+    "@e107",
+    "@e108",
+    "@e109",
+    "@e110",
+    "@e111",
+    "@e112",
+    "@e113",
+    "@e114",
+    "@e115",
+    "@e116",
+    "@e117",
+    "@e118",
+    "@e119",
+    "@e120",
+    "@e121",
+    "@e122",
+    "@e123",
+    "@e124",
+    "@e125",
+    "@e126",
+    "@e127",
+    "@e128",
+    "@e129",
+    "@e130",
+    "@e131",
+    "@e132",
+    "@e133",
+    "@e134",
+    "@e135",
+    "@e136",
+    "@e137",
+    "@e138",
+    "@e139",
+    "@e140",
+    "@e141",
+    "@e142",
+    "@e143",
+    "@e144",
+    "@e145",
+    "@e146",
+    "@e147",
+    "@e148",
+    "@e149",
+    "@e150",
+    "@e151",
+    "@e152",
+    "@e153",
+    "@e154",
+    "@e155",
+    "@e156",
+    "@e157",
+    "@e158",
+    "@e159",
+    "@e160",
+    "@e161",
+    "@e162",
+    "@e163",
+    "@e164",
+    "@e165",
+    "@e166",
+    "@e167",
+    "@e168",
+    "@e169",
+    "@e170",
+    "@e171",
+    "@e172",
+    "@e173",
+    "@e174",
+    "@e175",
+    "@e176",
+    "@e177"
+  ],
+  "snapshot": "- button \"Project\" [expanded=false, ref=e4]\n- tab \"Layout\" [ref=e5]\n- tab \"PCB\" [selected, ref=e6]\n- tab \"Keymap\" [ref=e7]\n- tab \"Keycaps\" [ref=e8]\n- tab \"Case\" [ref=e9]\n- tab \"Parts\" [ref=e10]\n- button \"Export\" [ref=e3]\n- region \"Keyboard editor\" [ref=e2]\n  - heading \"Objects\" [level=2, ref=e29]\n  - button \"Objects options\" [expanded=false, ref=e30]\n  - separator \"Resize objects\" [ref=e21] focusable [tabindex]: 235\n  - button \"Add object\" [expanded=false, ref=e267]\n  - combobox \"Board\" [expanded=false, ref=e268]: Left PCB\n    - option \"Left PCB\" [selected, ref=e471]\n    - option \"Right PCB\" [ref=e472]\n  - button \"New board\" [ref=e269]\n  - treeitem \"Left PCB 77 parts\" [level=1, expanded=true, ref=e270]\n    - button \"Collapse Left PCB\" [expanded=true, ref=e370]\n    - button \"Left PCB 77 parts\" [ref=e371]\n  - treeitem \"Outline Edited outline 1\" [level=2, expanded=false, ref=e271]\n    - button \"Expand Outline\" [expanded=false, ref=e372]\n    - button \"Outline Edited outline 1\" [ref=e373]\n  - treeitem \"left-keys-SW1 switch mx \u00b7 front\" [level=2, ref=e272]\n    - button \"left-keys-SW1 switch mx \u00b7 front\" [ref=e374]\n  - treeitem \"left-diode-24-keys diode tht sod123 \u00b7 back\" [level=2, ref=e273]\n    - button \"left-diode-24-keys diode tht sod123 \u00b7 back\" [ref=e375]\n  - treeitem \"left-keys-SW2 switch mx \u00b7 front\" [level=2, ref=e274]\n    - button \"left-keys-SW2 switch mx \u00b7 front\" [ref=e376]\n  - treeitem \"left-diode-23-keys diode tht sod123 \u00b7 back\" [level=2, ref=e275]\n    - button \"left-diode-23-keys diode tht sod123 \u00b7 back\" [ref=e377]\n  - treeitem \"left-keys-SW3 switch mx \u00b7 front\" [level=2, ref=e276]\n    - button \"left-keys-SW3 switch mx \u00b7 front\" [ref=e378]\n  - treeitem \"left-diode-22-keys diode tht sod123 \u00b7 back\" [level=2, ref=e277]\n    - button \"left-diode-22-keys diode tht sod123 \u00b7 back\" [ref=e379]\n  - treeitem \"left-keys-SW4 switch mx \u00b7 front\" [level=2, ref=e278]\n    - button \"left-keys-SW4 switch mx \u00b7 front\" [ref=e380]\n  - treeitem \"left-diode-21-keys diode tht sod123 \u00b7 back\" [level=2, ref=e279]\n    - button \"left-diode-21-keys diode tht sod123 \u00b7 back\" [ref=e381]\n  - treeitem \"left-keys-SW5 switch mx \u00b7 front\" [level=2, ref=e280]\n    - button \"left-keys-SW5 switch mx \u00b7 front\" [ref=e382]\n  - treeitem \"left-diode-20-keys diode tht sod123 \u00b7 back\" [level=2, ref=e281]\n    - button \"left-diode-20-keys diode tht sod123 \u00b7 back\" [ref=e383]\n  - treeitem \"left-keys-SW6 switch mx \u00b7 front\" [level=2, ref=e282]\n    - button \"left-keys-SW6 switch mx \u00b7 front\" [ref=e384]\n  - treeitem \"left-diode-19-keys diode tht sod123 \u00b7 back\" [level=2, ref=e283]\n    - button \"left-diode-19-keys diode tht sod123 \u00b7 back\" [ref=e385]\n  - treeitem \"left-keys-SW7 switch mx \u00b7 front\" [level=2, ref=e284]\n    - button \"left-keys-SW7 switch mx \u00b7 front\" [ref=e386]\n  - treeitem \"left-diode-18-keys diode tht sod123 \u00b7 back\" [level=2, ref=e285]\n    - button \"left-diode-18-keys diode tht sod123 \u00b7 back\" [ref=e387]\n  - treeitem \"left-keys-SW8 switch mx \u00b7 front\" [level=2, ref=e286]\n    - button \"left-keys-SW8 switch mx \u00b7 front\" [ref=e388]\n  - treeitem \"left-diode-17-keys diode tht sod123 \u00b7 back\" [level=2, ref=e287]\n    - button \"left-diode-17-keys diode tht sod123 \u00b7 back\" [ref=e389]\n  - treeitem \"left-keys-SW9 switch mx \u00b7 front\" [level=2, ref=e288]\n    - button \"left-keys-SW9 switch mx \u00b7 front\" [ref=e390]\n  - treeitem \"left-diode-16-keys diode tht sod123 \u00b7 back\" [level=2, ref=e289]\n    - button \"left-diode-16-keys diode tht sod123 \u00b7 back\" [ref=e391]\n  - treeitem \"left-keys-SW10 switch mx \u00b7 front\" [level=2, ref=e290]\n    - button \"left-keys-SW10 switch mx \u00b7 front\" [ref=e392]\n  - treeitem \"left-diode-15-keys diode tht sod123 \u00b7 back\" [level=2, ref=e291]\n    - button \"left-diode-15-keys diode tht sod123 \u00b7 back\" [ref=e393]\n  - treeitem \"left-keys-SW11 switch mx \u00b7 front\" [level=2, ref=e292]\n    - button \"left-keys-SW11 switch mx \u00b7 front\" [ref=e394]\n  - treeitem \"left-diode-14-keys diode tht sod123 \u00b7 back\" [level=2, ref=e293]\n    - button \"left-diode-14-keys diode tht sod123 \u00b7 back\" [ref=e395]\n  - treeitem \"left-keys-SW12 switch mx \u00b7 front\" [level=2, ref=e294]\n    - button \"left-keys-SW12 switch mx \u00b7 front\" [ref=e396]\n  - treeitem \"left-diode-13-keys diode tht sod123 \u00b7 back\" [level=2, ref=e295]\n    - button \"left-diode-13-keys diode tht sod123 \u00b7 back\" [ref=e397]\n  - treeitem \"left-keys-SW13 switch mx \u00b7 front\" [level=2, ref=e296]\n    - button \"left-keys-SW13 switch mx \u00b7 front\" [ref=e398]\n  - treeitem \"left-diode-12-keys diode tht sod123 \u00b7 back\" [level=2, ref=e297]\n    - button \"left-diode-12-keys diode tht sod123 \u00b7 back\" [ref=e399]\n  - treeitem \"left-keys-SW14 switch mx \u00b7 front\" [level=2, ref=e298]\n    - button \"left-keys-SW14 switch mx \u00b7 front\" [ref=e400]\n  - treeitem \"left-diode-11-keys diode tht sod123 \u00b7 back\" [level=2, ref=e299]\n    - button \"left-diode-11-keys diode tht sod123 \u00b7 back\" [ref=e401]\n  - treeitem \"left-keys-SW15 switch mx \u00b7 front\" [level=2, ref=e300]\n    - button \"left-keys-SW15 switch mx \u00b7 front\" [ref=e402]\n  - treeitem \"left-diode-10-keys diode tht sod123 \u00b7 back\" [level=2, ref=e301]\n    - button \"left-diode-10-keys diode tht sod123 \u00b7 back\" [ref=e403]\n  - treeitem \"left-keys-SW16 switch mx \u00b7 front\" [level=2, ref=e302]\n    - button \"left-keys-SW16 switch mx \u00b7 front\" [ref=e404]\n  - treeitem \"left-diode-9-keys diode tht sod123 \u00b7 back\" [level=2, ref=e303]\n    - button \"left-diode-9-keys diode tht sod123 \u00b7 back\" [ref=e405]\n  - treeitem \"left-keys-SW17 switch mx \u00b7 front\" [level=2, ref=e304]\n    - button \"left-keys-SW17 switch mx \u00b7 front\" [ref=e406]\n  - treeitem \"left-diode-8-keys diode tht sod123 \u00b7 back\" [level=2, ref=e305]\n    - button \"left-diode-8-keys diode tht sod123 \u00b7 back\" [ref=e407]\n  - treeitem \"left-keys-SW18 switch mx \u00b7 front\" [level=2, ref=e306]\n    - button \"left-keys-SW18 switch mx \u00b7 front\" [ref=e408]\n  - treeitem \"left-diode-7-keys diode tht sod123 \u00b7 back\" [level=2, ref=e307]\n    - button \"left-diode-7-keys diode tht sod123 \u00b7 back\" [ref=e409]\n  - treeitem \"left-keys-SW19 switch mx \u00b7 front\" [level=2, ref=e308]\n    - button \"left-keys-SW19 switch mx \u00b7 front\" [ref=e410]\n  - treeitem \"left-diode-6-keys diode tht sod123 \u00b7 back\" [level=2, ref=e309]\n    - button \"left-diode-6-keys diode tht sod123 \u00b7 back\" [ref=e411]\n  - treeitem \"left-keys-SW20 switch mx \u00b7 front\" [level=2, ref=e310]\n    - button \"left-keys-SW20 switch mx \u00b7 front\" [ref=e412]\n  - treeitem \"left-diode-5-keys diode tht sod123 \u00b7 back\" [level=2, ref=e311]\n    - button \"left-diode-5-keys diode tht sod123 \u00b7 back\" [ref=e413]\n  - treeitem \"left-keys-SW21 switch mx \u00b7 front\" [level=2, ref=e312]\n    - button \"left-keys-SW21 switch mx \u00b7 front\" [ref=e414]\n  - treeitem \"left-diode-4-keys diode tht sod123 \u00b7 back\" [level=2, ref=e313]\n    - button \"left-diode-4-keys diode tht sod123 \u00b7 back\" [ref=e415]\n  - treeitem \"left-keys-SW22 switch mx \u00b7 front\" [level=2, ref=e314]\n    - button \"left-keys-SW22 switch mx \u00b7 front\" [ref=e416]\n  - treeitem \"left-diode-3-keys diode tht sod123 \u00b7 back\" [level=2, ref=e315]\n    - button \"left-diode-3-keys diode tht sod123 \u00b7 back\" [ref=e417]\n  - treeitem \"left-keys-SW23 switch mx \u00b7 front\" [level=2, ref=e316]\n    - button \"left-keys-SW23 switch mx \u00b7 front\" [ref=e418]\n  - treeitem \"left-diode-2-keys diode tht sod123 \u00b7 back\" [level=2, ref=e317]\n    - button \"left-diode-2-keys diode tht sod123 \u00b7 back\" [ref=e419]\n  - treeitem \"left-keys-SW24 switch mx \u00b7 front\" [level=2, ref=e318]\n    - button \"left-keys-SW24 switch mx \u00b7 front\" [ref=e420]\n  - treeitem \"left-diode-1-keys diode tht sod123 \u00b7 back\" [level=2, ref=e319]\n    - button \"left-diode-1-keys diode tht sod123 \u00b7 back\" [ref=e421]\n  - treeitem \"left-thumbs-SW1 switch mx \u00b7 front\" [level=2, ref=e320]\n    - button \"left-thumbs-SW1 switch mx \u00b7 front\" [ref=e422]\n  - treeitem \"left-diode-5-thumbs diode tht sod123 \u00b7 back\" [level=2, ref=e321]\n    - button \"left-diode-5-thumbs diode tht sod123 \u00b7 back\" [ref=e423]\n  - treeitem \"left-thumbs-SW2 switch mx \u00b7 front\" [level=2, ref=e322]\n    - button \"left-thumbs-SW2 switch mx \u00b7 front\" [ref=e424]\n  - treeitem \"left-diode-4-thumbs diode tht sod123 \u00b7 back\" [level=2, ref=e323]\n    - button \"left-diode-4-thumbs diode tht sod123 \u00b7 back\" [ref=e425]\n  - treeitem \"left-thumbs-SW3 switch mx \u00b7 front\" [level=2, ref=e324]\n    - button \"left-thumbs-SW3 switch mx \u00b7 front\" [ref=e426]\n  - treeitem \"left-diode-3-thumbs diode tht sod123 \u00b7 back\" [level=2, ref=e325]\n    - button \"left-diode-3-thumbs diode tht sod123 \u00b7 back\" [ref=e427]\n  - treeitem \"left-thumbs-SW4 switch mx \u00b7 front\" [level=2, ref=e326]\n    - button \"left-thumbs-SW4 switch mx \u00b7 front\" [ref=e428]\n  - treeitem \"left-diode-2-thumbs diode tht sod123 \u00b7 back\" [level=2, ref=e327]\n    - button \"left-diode-2-thumbs diode tht sod123 \u00b7 back\" [ref=e429]\n  - treeitem \"left-thumbs-SW5 switch mx \u00b7 front\" [level=2, ref=e328]\n    - button \"left-thumbs-SW5 switch mx \u00b7 front\" [ref=e430]\n  - treeitem \"left-diode-1-thumbs diode tht sod123 \u00b7 back\" [level=2, ref=e329]\n    - button \"left-diode-1-thumbs diode tht sod123 \u00b7 back\" [ref=e431]\n  - treeitem \"left-U1 mcu nice nano \u00b7 front\" [level=2, ref=e330]\n    - button \"left-U1 mcu nice nano \u00b7 front\" [ref=e432]\n  - treeitem \"left-SW25 rotary encoder ec11 ec12 \u00b7 front\" [level=2, ref=e331]\n    - button \"left-SW25 rotary encoder ec11 ec12 \u00b7 front\" [ref=e433]\n  - treeitem \"left-J3 display ssd1306 \u00b7 front\" [level=2, ref=e332]\n    - button \"left-J3 display ssd1306 \u00b7 front\" [ref=e434]\n  - treeitem \"left-J2 trrs pj320a \u00b7 front\" [level=2, ref=e333]\n    - button \"left-J2 trrs pj320a \u00b7 front\" [ref=e435]\n  - treeitem \"left-RSW1 reset switch tht top \u00b7 front\" [level=2, ref=e334]\n    - button \"left-RSW1 reset switch tht top \u00b7 front\" [ref=e436]\n  - treeitem \"left-TH1 mounting hole npth \u00b7 front\" [level=2, ref=e335]\n    - button \"left-TH1 mounting hole npth \u00b7 front\" [ref=e437]\n  - treeitem \"left-TH2 mounting hole npth \u00b7 front\" [level=2, ref=e336]\n    - button \"left-TH2 mounting hole npth \u00b7 front\" [ref=e438]\n  - treeitem \"left-TH3 mounting hole npth \u00b7 front\" [level=2, ref=e337]\n    - button \"left-TH3 mounting hole npth \u00b7 front\" [ref=e439]\n  - treeitem \"left-TH4 mounting hole npth \u00b7 front\" [level=2, ref=e338]\n    - button \"left-TH4 mounting hole npth \u00b7 front\" [ref=e440]\n  - treeitem \"left-TH5 mounting hole npth \u00b7 front\" [level=2, ref=e339]\n    - button \"left-TH5 mounting hole npth \u00b7 front\" [ref=e441]\n  - treeitem \"left-TH6 mounting hole npth \u00b7 front\" [level=2, ref=e340]\n    - button \"left-TH6 mounting hole npth \u00b7 front\" [ref=e442]\n  - treeitem \"left-TH7 mounting hole npth \u00b7 front\" [level=2, ref=e341]\n    - button \"left-TH7 mounting hole npth \u00b7 front\" [ref=e443]\n  - treeitem \"SW1 switch mx \u00b7 front\" [level=2, ref=e342]\n    - button \"SW1 switch mx \u00b7 front\" [ref=e444]\n  - treeitem \"SW2 diode tht sod123 \u00b7 back\" [level=2, ref=e343]\n    - button \"SW2 diode tht sod123 \u00b7 back\" [ref=e445]\n  - treeitem \"J1 mounting hole npth \u00b7 front\" [level=2, ref=e344]\n    - button \"J1 mounting hole npth \u00b7 front\" [ref=e446]\n  - treeitem \"MH1 mounting hole npth \u00b7 front\" [level=2, ref=e345]\n    - button \"MH1 mounting hole npth \u00b7 front\" [ref=e447]\n  - treeitem \"MH2 mounting hole npth \u00b7 front\" [level=2, ref=e346]\n    - button \"MH2 mounting hole npth \u00b7 front\" [ref=e448]\n  - treeitem \"MH3 mounting hole npth \u00b7 front\" [level=2, ref=e347]\n    - button \"MH3 mounting hole npth \u00b7 front\" [ref=e449]\n  - treeitem \"MH4 mounting hole npth \u00b7 front\" [level=2, ref=e348]\n    - button \"MH4 mounting hole npth \u00b7 front\" [ref=e450]\n  - region \"PCB workspace\" [ref=e181]\n    - group \"PCB layout; select a part with click, Enter, or Space, hold Space and drag to pan, or use the mouse wheel to zoom\" [ref=e186] focusable [tabindex]\n      - button \"left-keys-SW1, switch mx, X 12.18 Y -78.05\" [ref=e188]\n      - button \"left-diode-24-keys, diode tht sod123, X 19.58 Y -79.55\" [ref=e189]\n      - button \"left-keys-SW2, switch mx, X 28.23 Y -78.05\" [ref=e190]\n      - button \"left-diode-23-keys, diode tht sod123, X 35.63 Y -79.55\" [ref=e191]\n      - button \"left-keys-SW3, switch mx, X 47.23 Y -69.15\" [ref=e192]\n      - button \"left-diode-22-keys, diode tht sod123, X 54.63 Y -70.65\" [ref=e193]\n      - button \"left-keys-SW4, switch mx, X 66.23 Y -66.65\" [ref=e194]\n      - button \"left-diode-21-keys, diode tht sod123, X 73.63 Y -68.15\" [ref=e195]\n      - button \"left-keys-SW5, switch mx, X 85.23 Y -69.15\" [ref=e196]\n      - button \"left-diode-20-keys, diode tht sod123, X 92.63 Y -70.65\" [ref=e197]\n      - button \"left-keys-SW6, switch mx, X 104.23 Y -71.55\" [ref=e198]\n      - button \"left-diode-19-keys, diode tht sod123, X 111.63 Y -73.05\" [ref=e199]\n      - button \"left-keys-SW7, switch mx, X 12.23 Y -59.05\" [ref=e200]\n      - button \"left-diode-18-keys, diode tht sod123, X 19.63 Y -60.55\" [ref=e201]\n      - button \"left-keys-SW8, switch mx, X 28.23 Y -59.05\" [ref=e202]\n      - button \"left-diode-17-keys, diode tht sod123, X 35.63 Y -60.55\" [ref=e203]\n      - button \"left-keys-SW9, switch mx, X 47.23 Y -50.05\" [ref=e204]\n      - button \"left-diode-16-keys, diode tht sod123, X 54.63 Y -51.55\" [ref=e205]\n      - button \"left-keys-SW10, switch mx, X 66.23 Y -47.65\" [ref=e206]\n      - button \"left-diode-15-keys, diode tht sod123, X 73.63 Y -49.15\" [ref=e207]\n      - button \"left-keys-SW11, switch mx, X 85.23 Y -50.05\" [ref=e208]\n      - button \"left-diode-14-keys, diode tht sod123, X 92.63 Y -51.55\" [ref=e209]\n      - button \"left-keys-SW12, switch mx, X 104.23 Y -52.55\" [ref=e210]\n      - button \"left-diode-13-keys, diode tht sod123, X 111.63 Y -54.05\" [ref=e211]\n      - button \"left-keys-SW13, switch mx, X 12.23 Y -39.85\" [ref=e212]\n      - button \"left-diode-12-keys, diode tht sod123, X 19.63 Y -41.35\" [ref=e213]\n      - button \"left-keys-SW14, switch mx, X 28.23 Y -39.85\" [ref=e214]\n      - button \"left-diode-11-keys, diode tht sod123, X 35.63 Y -41.35\" [ref=e215]\n      - button \"left-keys-SW15, switch mx, X 47.23 Y -30.95\" [ref=e216]\n      - button \"left-diode-10-keys, diode tht sod123, X 54.63 Y -32.45\" [ref=e217]\n      - button \"left-keys-SW16, switch mx, X 66.23 Y -28.55\" [ref=e218]\n      - button \"left-diode-9-keys, diode tht sod123, X 73.63 Y -30.05\" [ref=e219]\n      - button \"left-keys-SW17, switch mx, X 85.23 Y -31.05\" [ref=e220]\n      - button \"left-diode-8-keys, diode tht sod123, X 92.63 Y -32.55\" [ref=e221]\n      - button \"left-keys-SW18, switch mx, X 104.23 Y -33.55\" [ref=e222]\n      - button \"left-diode-7-keys, diode tht sod123, X 111.63 Y -35.05\" [ref=e223]\n      - button \"left-keys-SW19, switch mx, X 12.23 Y -20.95\" [ref=e224]\n      - button \"left-diode-6-keys, diode tht sod123, X 19.63 Y -22.45\" [ref=e225]\n      - button \"left-keys-SW20, switch mx, X 28.23 Y -20.95\" [ref=e226]\n      - button \"left-diode-5-keys, diode tht sod123, X 35.63 Y -22.45\" [ref=e227]\n      - button \"left-keys-SW21, switch mx, X 47.23 Y -11.95\" [ref=e228]\n      - button \"left-diode-4-keys, diode tht sod123, X 54.63 Y -13.45\" [ref=e229]\n      - button \"left-keys-SW22, switch mx, X 66.23 Y -9.46\" [ref=e230]\n      - button \"left-diode-3-keys, diode tht sod123, X 73.63 Y -10.96\" [ref=e231]\n      - button \"left-keys-SW23, switch mx, X 85.23 Y -11.95\" [ref=e232]\n      - button \"left-diode-2-keys, diode tht sod123, X 92.63 Y -13.45\" [ref=e233]\n      - button \"left-keys-SW24, switch mx, X 104.23 Y -14.45\" [ref=e234]\n      - button \"left-diode-1-keys, diode tht sod123, X 111.63 Y -15.95\" [ref=e235]\n      - button \"left-thumbs-SW1, switch mx, X 47.23 Y -88.15\" [ref=e236]\n      - button \"left-diode-5-thumbs, diode tht sod123, X 54.63 Y -89.65\" [ref=e237]\n      - button \"left-thumbs-SW2, switch mx, X 66.23 Y -85.65\" [ref=e238]\n      - button \"left-diode-4-thumbs, diode tht sod123, X 73.63 Y -87.15\" [ref=e239]\n      - button \"left-thumbs-SW3, switch mx, X 85.23 Y -88.25\" [ref=e240]\n      - button \"left-diode-3-thumbs, diode tht sod123, X 92.63 Y -89.75\" [ref=e241]\n      - button \"left-thumbs-SW4, switch mx, X 107.13 Y -92.85\" [ref=e242]\n      - button \"left-diode-2-thumbs, diode tht sod123, X 113.36 Y -97.12\" [ref=e243]\n      - button \"left-thumbs-SW5, switch mx, X 128.03 Y -97.86\" [ref=e244]\n      - button \"left-diode-1-thumbs, diode tht sod123, X 133.03 Y -92.20\" [ref=e245]\n      - button \"left-U1, mcu nice nano, X 14.18 Y -48.05\" [ref=e246]\n      - button \"left-SW25, rotary encoder ec11 ec12, X 125.53 Y -70.95\" [ref=e247]\n      - button \"left-J3, display ssd1306, X 124.62 Y -22.16\" [ref=e248]\n      - button \"left-J2, trrs pj320a, X 130.75 Y -49.95\" [ref=e249]\n      - button \"left-RSW1, reset switch tht top, X 131.45 Y -42.25\" [ref=e250]\n      - button \"left-TH1, mounting hole npth, X 129.60 Y -57.80\" [ref=e251]\n      - button \"left-TH2, mounting hole npth, X 119.60 Y -57.78\" [ref=e252]\n      - button \"left-TH3, mounting hole npth, X 95.43 Y -24.05\" [ref=e253]\n      - button \"left-TH4, mounting hole npth, X 18.93 Y -30.66\" [ref=e254]\n      - button \"left-TH5, mounting hole npth, X 95.43 Y -61.96\" [ref=e255]\n      - button \"left-TH6, mounting hole npth, X 18.93 Y -68.96\" [ref=e256]\n      - button \"left-TH7, mounting hole npth, X 120.93 Y -85.26\" [ref=e257]\n      - button \"SW1, switch mx, X 0.00 Y 0.00\" [ref=e258]\n      - button \"SW2, diode tht sod123, X 7.40 Y -1.50\" [ref=e259]\n      - button \"J1, mounting hole npth, X 60.00 Y -40.00\" [ref=e260]\n      - button \"MH1, mounting hole npth, X 128.75 Y -112.01\" [ref=e261]\n      - button \"MH2, mounting hole npth, X -9.63 Y 10.12\" [ref=e262]\n      - button \"MH3, mounting hole npth, X 103.41 Y -3.03\" [ref=e263]\n      - button \"MH4, mounting hole npth, X 23.50 Y -89.47\" [ref=e264]\n    - region \"Canvas layers\" [ref=e187]\n      - button \"Layers\" [expanded=false, ref=e265]\n  - heading \"Inspect\" [level=2, ref=e31]\n  - button \"Inspector options\" [expanded=false, ref=e32]\n  - separator \"Resize inspector\" [ref=e26] focusable [tabindex]: 320\n  - region \"Electrical wiring\" [ref=e266]\n    - heading \"Wiring\" [level=2, ref=e451]\n    - combobox \"Wiring mode\" [expanded=false, ref=e452]: Matrix\n      - option \"Matrix\" [selected, ref=e473]\n      - option \"Direct GPIO\" [ref=e474]\n    - button \"Resolve automatically\" [ref=e349]\n    - button \"Apply wiring\" [disabled, ref=e350]\n    - heading \"Assignments\" [level=3, ref=e351]\n    - combobox \"Pin for Row 1\" [expanded=false, ref=e453]: P5\n      - option \"Unresolved\" [ref=e475]\n      - option \"P5\" [selected, ref=e476]\n      - option \"P101\" [ref=e477]\n      - option \"P102\" [ref=e478]\n      - option \"P107\" [ref=e479]\n    - button \"Lock Row 1\" [ref=e352]\n    - combobox \"Pin for Row 2\" [expanded=false, ref=e454]: P6\n      - option \"Unresolved\" [ref=e480]\n      - option \"P6\" [selected, ref=e481]\n      - option \"P101\" [ref=e482]\n      - option \"P102\" [ref=e483]\n      - option \"P107\" [ref=e484]\n    - button \"Lock Row 2\" [ref=e353]\n    - combobox \"Pin for Row 3\" [expanded=false, ref=e455]: P7\n      - option \"Unresolved\" [ref=e485]\n      - option \"P7\" [selected, ref=e486]\n      - option \"P101\" [ref=e487]\n      - option \"P102\" [ref=e488]\n      - option \"P107\" [ref=e489]\n    - button \"Lock Row 3\" [ref=e354]\n    - combobox \"Pin for Row 4\" [expanded=false, ref=e456]: P8\n      - option \"Unresolved\" [ref=e490]\n      - option \"P8\" [selected, ref=e491]\n      - option \"P101\" [ref=e492]\n      - option \"P102\" [ref=e493]\n      - option \"P107\" [ref=e494]\n    - button \"Lock Row 4\" [ref=e355]\n    - combobox \"Pin for Row 5\" [expanded=false, ref=e457]: P9\n      - option \"Unresolved\" [ref=e495]\n      - option \"P9\" [selected, ref=e496]\n      - option \"P101\" [ref=e497]\n      - option \"P102\" [ref=e498]\n      - option \"P107\" [ref=e499]\n    - button \"Lock Row 5\" [ref=e356]\n    - combobox \"Pin for Column 1\" [expanded=false, ref=e458]: P21\n      - option \"Unresolved\" [ref=e500]\n      - option \"P21\" [selected, ref=e501]\n      - option \"P101\" [ref=e502]\n      - option \"P102\" [ref=e503]\n      - option \"P107\" [ref=e504]\n    - button \"Lock Column 1\" [ref=e357]\n    - combobox \"Pin for Column 2\" [expanded=false, ref=e459]: P20\n      - option \"Unresolved\" [ref=e505]\n      - option \"P20\" [selected, ref=e506]\n      - option \"P101\" [ref=e507]\n      - option \"P102\" [ref=e508]\n      - option \"P107\" [ref=e509]\n    - button \"Lock Column 2\" [ref=e358]\n    - combobox \"Pin for Column 3\" [expanded=false, ref=e460]: P19\n      - option \"Unresolved\" [ref=e510]\n      - option \"P19\" [selected, ref=e511]\n      - option \"P101\" [ref=e512]\n      - option \"P102\" [ref=e513]\n      - option \"P107\" [ref=e514]\n    - button \"Lock Column 3\" [ref=e359]\n    - combobox \"Pin for Column 4\" [expanded=false, ref=e461]: P18\n      - option \"Unresolved\" [ref=e515]\n      - option \"P18\" [selected, ref=e516]\n      - option \"P101\" [ref=e517]\n      - option \"P102\" [ref=e518]\n      - option \"P107\" [ref=e519]\n    - button \"Lock Column 4\" [ref=e360]\n    - combobox \"Pin for Column 5\" [expanded=false, ref=e462]: P15\n      - option \"Unresolved\" [ref=e520]\n      - option \"P15\" [selected, ref=e521]\n      - option \"P101\" [ref=e522]\n      - option \"P102\" [ref=e523]\n      - option \"P107\" [ref=e524]\n    - button \"Lock Column 5\" [ref=e361]\n    - combobox \"Pin for Column 6\" [expanded=false, ref=e463]: P14\n      - option \"Unresolved\" [ref=e525]\n      - option \"P14\" [selected, ref=e526]\n      - option \"P101\" [ref=e527]\n      - option \"P102\" [ref=e528]\n      - option \"P107\" [ref=e529]\n    - button \"Lock Column 6\" [ref=e362]\n    - combobox \"Pin for i2c/SCL\" [expanded=false, ref=e464]: P16\n      - option \"Unresolved\" [ref=e530]\n      - option \"P16\" [selected, ref=e531]\n      - option \"P101\" [ref=e532]\n      - option \"P102\" [ref=e533]\n      - option \"P107\" [ref=e534]\n    - button \"Lock i2c/SCL\" [ref=e363]\n    - combobox \"Pin for i2c/SDA\" [expanded=false, ref=e465]: P10\n      - option \"Unresolved\" [ref=e535]\n      - option \"P10\" [selected, ref=e536]\n      - option \"P101\" [ref=e537]\n      - option \"P102\" [ref=e538]\n      - option \"P107\" [ref=e539]\n    - button \"Lock i2c/SDA\" [ref=e364]\n    - combobox \"Pin for left/SW25/encoder-a\" [expanded=false, ref=e466]: P1\n      - option \"Unresolved\" [ref=e540]\n      - option \"P1\" [selected, ref=e541]\n      - option \"P101\" [ref=e542]\n      - option \"P102\" [ref=e543]\n      - option \"P107\" [ref=e544]\n    - button \"Lock left/SW25/encoder-a\" [ref=e365]\n    - combobox \"Pin for left/SW25/encoder-b\" [expanded=false, ref=e467]: P0\n      - option \"Unresolved\" [ref=e545]\n      - option \"P0\" [selected, ref=e546]\n      - option \"P101\" [ref=e547]\n      - option \"P102\" [ref=e548]\n      - option \"P107\" [ref=e549]\n    - button \"Lock left/SW25/encoder-b\" [ref=e366]\n    - combobox \"Pin for left/SW25/encoder-push\" [expanded=false, ref=e468]: P2\n      - option \"Unresolved\" [ref=e550]\n      - option \"P2\" [selected, ref=e551]\n      - option \"P101\" [ref=e552]\n      - option \"P102\" [ref=e553]\n      - option \"P107\" [ref=e554]\n    - button \"Lock left/SW25/encoder-push\" [ref=e367]\n    - combobox \"Pin for J2 \u00b7 split-rx\" [expanded=false, ref=e469]: P3\n      - option \"Unresolved\" [ref=e555]\n      - option \"P3\" [selected, ref=e556]\n      - option \"P101\" [ref=e557]\n      - option \"P102\" [ref=e558]\n      - option \"P107\" [ref=e559]\n    - button \"Lock J2 \u00b7 split-rx\" [ref=e368]\n    - combobox \"Pin for J2 \u00b7 split-tx\" [expanded=false, ref=e470]: P4\n      - option \"Unresolved\" [ref=e560]\n      - option \"P4\" [selected, ref=e561]\n      - option \"P101\" [ref=e562]\n      - option \"P102\" [ref=e563]\n      - option \"P107\" [ref=e564]\n    - button \"Lock J2 \u00b7 split-tx\" [ref=e369]\n  - button \"Undo\" [ref=e11]\n  - button \"Redo\" [ref=e12]\n  - button \"Grid \u00bcu\" [ref=e179]\n  - button \"Fit board\" [ref=e182]\n  - button \"Fit selection\" [disabled, ref=e183]\n  - button \"Zoom out\" [ref=e184]\n  - button \"Zoom in\" [ref=e185]\n  - button \"Layout findings: 3\" [ref=e180]"
+}

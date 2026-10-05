@@ -1,49 +1,40 @@
 # Handoff (generated from records)
 
-- Branch: codex/rust-v1-ui-parity-20261001 @ 462ec6af
+- Branch: codex/rust-v1-ui-parity-20261001 @ df6b04b9
 - Worktree: /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001
-- Parents: 53/60 accepted, 3 implementing, 4 planned
-- Criteria: unassessed 15, missing 1, implemented 1, verified 204; 221 total
-  - functional: unassessed 3, verified 178
-  - release: implemented 1, missing 1, unassessed 10, verified 20
-  - visual: unassessed 2, verified 6
+- Parents: 57/60 accepted, 0 implementing, 3 planned
+- Criteria: unassessed 7, missing 0, implemented 1, verified 213; 221 total
+  - functional: verified 181
+  - release: implemented 1, unassessed 7, verified 24
+  - visual: verified 8
 
 ## Served candidate
-- Build: frontend-layout-coordinate-commit-20261005
-- Source commit: 462ec6afa4a85e58a023f8b7a453a877fe798930
-- Root: http://127.0.0.1:34828/
-- Subpath: http://127.0.0.1:34828/boardstudio/
+- Build: frontend-layout-untouched-coordinate-20261005
+- Source commit: df6b04b9e8903381029a137fdfcef8d797305fb8
+- Root: http://127.0.0.1:34829/
+- Subpath: http://127.0.0.1:34829/boardstudio/
 
 ## Functional readiness
-- Ready functional criteria: 2 investigate, 0 implement, 0 qualify (Layout 0 investigate/0 implement/0 qualify; PCB 0 investigate/0 implement/0 qualify; Keymap 0 investigate/0 implement/0 qualify; Keycaps 0 investigate/0 implement/0 qualify; Case 0 investigate/0 implement/0 qualify; Parts+Project 0 investigate/0 implement/0 qualify; Shared 2 investigate/0 implement/0 qualify)
+- Ready functional criteria: 0 investigate, 0 implement, 0 qualify (Layout 0 investigate/0 implement/0 qualify; PCB 0 investigate/0 implement/0 qualify; Keymap 0 investigate/0 implement/0 qualify; Keycaps 0 investigate/0 implement/0 qualify; Case 0 investigate/0 implement/0 qualify; Parts+Project 0 investigate/0 implement/0 qualify; Shared 0 investigate/0 implement/0 qualify)
 - Functionally verified parents awaiting formal acceptance: 0
-- Parents with unmet final joins: 4
+- Parents with unmet final joins: 0
   Layout: unassessed 0, missing 0, implemented 0, verified 27; ready investigate 0, implement 0, qualify 0
   PCB: unassessed 0, missing 0, implemented 0, verified 26; ready investigate 0, implement 0, qualify 0
   Keymap: unassessed 0, missing 0, implemented 0, verified 7; ready investigate 0, implement 0, qualify 0
   Keycaps: unassessed 0, missing 0, implemented 0, verified 13; ready investigate 0, implement 0, qualify 0
   Case: unassessed 0, missing 0, implemented 0, verified 39; ready investigate 0, implement 0, qualify 0
   Parts+Project: unassessed 0, missing 0, implemented 0, verified 39; ready investigate 0, implement 0, qualify 0
-  Shared: unassessed 3, missing 0, implemented 0, verified 27; ready investigate 2, implement 0, qualify 0
-    Investigate: F8.6-C02, F8.6-C03
+  Shared: unassessed 0, missing 0, implemented 0, verified 30; ready investigate 0, implement 0, qualify 0
 Functional criteria verified; formal acceptance still outstanding:
   none
 Exact unmet final joins:
-  F8.6 → F3.7
-  F9.2 → F3.7, F8.6
-  F9.4 → F8.6
-  F9.5 → F9.2
+  none
 
 ## Parents
-- Accepted (53): INT.1, INT.2, BND.1, BND.2, F2.1, F2.2, F2.3, F2.4, F3.1, F3.2, F3.3, F3.4, F3.5, F3.6, F3.8, F4.1, F4.2, F4.3, F4.4, F4.5, F4.6, F5.1, F5.2, F5.3, F5.4, F5.5, F5.6, F5.7, F5.8, F6K.1, F6K.2, F6K.3, F6K.4, F6C.1, F6C.2, F6C.3, F6C.4, F6C.5, F6.6, F7.1, F7.2, F7.3, F7.4, F7.5, F7.6, F7.7, F7.8, F8.1, F8.2, F8.3, F8.4, F8.5, F9.1
+- Accepted (57): INT.1, INT.2, BND.1, BND.2, F2.1, F2.2, F2.3, F2.4, F3.1, F3.2, F3.3, F3.4, F3.5, F3.6, F3.7, F3.8, F4.1, F4.2, F4.3, F4.4, F4.5, F4.6, F5.1, F5.2, F5.3, F5.4, F5.5, F5.6, F5.7, F5.8, F6K.1, F6K.2, F6K.3, F6K.4, F6C.1, F6C.2, F6C.3, F6C.4, F6C.5, F6.6, F7.1, F7.2, F7.3, F7.4, F7.5, F7.6, F7.7, F7.8, F8.1, F8.2, F8.3, F8.4, F8.5, F8.6, F9.1, F9.2, F9.4
 - Hold (0): none
 
 ## Criteria on hold or blocked
-- F8.6-C01 [unassessed]: Review retained fresh fixed-candidate six-workbench/output/roundtrip/return evidence and unchanged owner/theme/keyboard proofs; acceptance waits newly demonstrated coordinate history repair and reo...
-- F8.6-C02 [unassessed]: Review retained fresh fixed-candidate six-workbench/output/roundtrip/return evidence and unchanged owner/theme/keyboard proofs; acceptance waits newly demonstrated coordinate history repair and reo...
-- F8.6-C03 [unassessed]: Review retained fresh fixed-candidate six-workbench/output/roundtrip/return evidence and unchanged owner/theme/keyboard proofs; acceptance waits newly demonstrated coordinate history repair and reo...
-- F9.2-C01 [unassessed]: Complete per-workflow and aggregate paired qualification after required workflow joins; reuse only attributable unchanged evidence.
-- F9.4-C01 [unassessed]: Run cross-frontend archive round-trip and actual storage-write checks on final routes.
 - F9.5-C01 [unassessed]: Map each existing budget to eligible current evidence; preserve ineligible/failed baselines for applicability review.
 - F9.5-C02 [unassessed]: Qualify applicable interaction/rendering performance on final integrated source.
 - F9.5-C03 [unassessed]: Attribute worker, URL and resource cleanup to final output paths; leave unmeasured/ineligible checks open.
@@ -90,10 +81,10 @@ Exact unmet final joins:
 ## Qualification scope
 - Scope: f86-integrated-project-export-20261005 - Paired six-workbench project-to-export journey
 - Journeys: six-workbench-project-export
-- State: qualifying
+- State: passed
 
 Last retro checkpoint: 2026-10-04T15:56:00Z
 
-Current batch: untouched coordinate Blur at source462ec6af/served34828 is reproduced in both apps. Candidatefocusonly X/Y rounds66.675,-47.625→66.67,-47.62,r17→19; referenceYrounds-47.63. Exactrawarchives/comparison in layout-coordinate-commit-20261005. Sameauthor two-fileguard frozen inspector15ff2d996e91be39b19e6cbdd00d3e51b68bf3cb3f7440cd6c052ce3893b64ec/testsbf6bb1565db10f3b24ef8a5953275feedec6cae4b3465b079156b217d260dd14. MeaningfulmountedRED threeedits; GREEN1/1. SameindependentreviewerCLEAR. Combinedgate session22353, /tmp/layout-untouched-coordinate-gates.log; source stagedBEFOREgate. Explicitcommitmanifest /tmp/layout-untouched-coordinate-paths.json; unrelatedindex snapshot /tmp/case-layout-unrelated-index.json mustremainexact. Next commit/package/frontend-layout-untouched-coordinate-20261005 at34829 and replay sameinputnonmutation/Escapecancel plus rapidXY/twoUndo. Retain completedF8 outputs/crossroundtrip/currentreturn.
+Current milestone: source df6b04b9; immutable frontend-layout-untouched-coordinate-20261005 at34829. F3.7/F8.6/F9.2/F9.4 accepted after independent review; 57/60 parents. User explicitly deferred remaining Undo/Redo qualification/repairs. Controls/tests/historical proof preserved, deferral is not a pass. Shared rapid lost-axis limitation in RF-016 is recorded, no new axis-intent/backend redesign in migration.
 
-Releasequalification: reviewer confirms F9.4-C01 actualcrossimport/reload/save proof sufficient; exactcurrent stale-supersession/storageowners reusable. C02 finalroot/subpathofflineinstall/update/isolation and C03 missinglazyasset visible retry remain. case_local_export owns only evidence/f94-final-20261005/offline-qualification.py+README to prepareisolatedheadlessharness; notrunningyet. F9.2 requires only bounded paired desktopshortheight controlreachability; supportedscenezoom evidence reused, no inventedbrowserzoom requirement. F9.5 existingpointerdriver/fixtures inspected, oldfixturehashesvalid, freshpinnedreferenceassetrecord143files prepared f95-final-20261005/reference-record.json. Performancemustwaitquietafterbuild/browserQA. No budgetchanges/mobile/accessibility/optionalwork.
+Final performance running as tracked session84013; /tmp/f95-final-pointer.log; evidence/f95-final-20261005/paired-df6b04b9-final. Five paired sessions, fixed30/100/200 archives, unchanged33/50/100ms caps. Quiet-host signal captured after all build/browserQA finished. Do not run concurrent heavy/browser tasks. case_local_export owns ancillary-applicability.md only (read-only source/evidence); preset_batch_review remains sole reviewer. After performance, required F9.6 concrete adoption/rollback patch and copied-data rehearsal, then separate explicit cutover approval/F9.7. No source/adoption edits started. Native application diagnostic removed after preserving patch/red log; source clean.
