@@ -7,10 +7,10 @@ import { buildAssembly, readStepModel } from '../src/index.ts';
 import { prepareAssembly } from './native-prepare.mjs';
 
 const manifests = await Promise.all(['manifest.json', 'followup-manifest.json'].map(async name =>
-  JSON.parse(await readFile(new URL(`../bench/fixtures/${name}`, import.meta.url)))));
+  JSON.parse(await readFile(new URL(`./fixtures/${name}`, import.meta.url)))));
 for (const fixture of manifests.flatMap(manifest => manifest.fixtures)) {
   test(`fixed benchmark fixture ${fixture.id} retains its hash and STEP bounds`, async () => {
-    const path = fixture.kind === 'step' ? new URL(`../../${fixture.file}`, import.meta.url) : new URL(`../bench/fixtures/${fixture.file}`, import.meta.url);
+    const path = fixture.kind === 'step' ? new URL(`../../${fixture.file}`, import.meta.url) : new URL(`./fixtures/${fixture.file}`, import.meta.url);
     const bytes = await readFile(path);
     assert.equal(createHash('sha256').update(bytes).digest('hex'), fixture.sha256);
     const prepared = fixture.kind === 'assembly' ? prepareAssembly(JSON.parse(bytes)) : undefined;

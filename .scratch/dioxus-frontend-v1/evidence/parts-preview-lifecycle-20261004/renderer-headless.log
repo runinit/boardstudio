@@ -1,2 +1,0 @@
-run-wasm-tests: [1/1] renderer_host_page::lifecycle_tests::
-run-wasm-tests: executed 5, failed 0 (filters: renderer_host_page::lifecycle_tests::)

@@ -1,1 +1,0 @@
-Confirmed at79783b5f849f78810c6c6fcfa0df4b5cf15804b9. Prior Standards boundary-documentation finding remains; metadata corrections resolve review-status and archival-snapshot contradictions. No source/fixture/manifest/lock/assertion changes. Candidate remains blocked on192vs96.

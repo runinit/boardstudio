@@ -32,7 +32,7 @@
     "manifest/kiswitch.json": "395ca7e4e835e618cfec9faf344041df5672f6afcecd4e89c927c939f02f887c",
     "manifest/koktoh.json": "5ed4f86238ef6c8fafbcffa861f43bed2e9541e6a747c2a228538fbe95378176",
     "manifest/patches.json": "2b909bd24e8818ef1db72b54e46bcdd9fb1f2e019a9c8451dfdfd043c261a0be",
-    "manifest/sources.json": "77fdcb3718d1da96233baae83c3e8f5df76ec677ae4089f8a12f440bfaf849aa",
+    "manifest/sources.json": "541c9ca9ff92a3070407da2c6f58a763d09d2ee661883a6d6984622e42d29e6e",
     "manifest/tsuki.json": "2c44f2af556922580e418d460dbbafab8ce1d4787421989cd4bb5cfdee1e01ce",
     "mcu_nice_nano.js": "c43bb7231d1aaf03db7fef0179b60a000e4b00bfe9f951826eec8853a608ccc2",
     "mcu_supermini_nrf52840.js": "fcfa8931036ef32ae1ff424b9579b4380a7ea5fb5a8401dc9a9ce89bf3755794",

@@ -3,7 +3,7 @@ import type { CadProgress } from './index.ts';
 import { getKernel } from './kernel.ts';
 import { cadBody, cadStage, countCadMetric } from './metrics.ts';
 
-export type BodyPreview = { revision: number; bodies: NonNullable<CaseResult['bodies']> };
+type BodyPreview = { revision: number; bodies: NonNullable<CaseResult['bodies']> };
 
 export function bodyKey(ir: PreparedCaseIR): string {
   const { id: _id, name: _name, ...geometry } = ir.body;

@@ -36,7 +36,7 @@ for (const [filename,min,max] of assemblies) {
   });
 }
 
-const sourceCatalogue=JSON.parse(await readFile(new URL('../../app/src/parts/imported-parts.json',import.meta.url),'utf8'));
+const sourceCatalogue=JSON.parse(await readFile(new URL('../../catalogue/parts/imported-parts.json',import.meta.url),'utf8'));
 const pinFixtures=[
   ['thqwgd001:rotation-reversible','THQWGD001-rotation.stp',['A','B','C']],
   ['thqwgd001:c-2pin-reversible','THQWGD001C-2pin.stp',['A','B','C','1','2']],

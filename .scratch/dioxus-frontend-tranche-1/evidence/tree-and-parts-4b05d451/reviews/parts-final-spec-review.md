@@ -1,9 +1,0 @@
-# Independent Parts final correction Spec review — 0144b6e4
-
-**Source pass: all four original findings and the subsequent P3 matcher remainder are resolved.** Reviewed the final `3db93b44...0144b6e4` correction alongside prior reviewed commits against pinned React. No source edits, builds, compiler checks or browser execution by this reviewer.
-
-The matcher now considers every case-insensitive `/definition/` position for assembly IDs, requires a nonempty suffix after `assembly-`, and excludes exactly JavaScript dot’s four line terminators. UUID matching remains anchored at 36 characters. This covers ordinary/nested/uppercase prefixes, repeated markers, and the line-terminator distinction while retaining the imported-KiCad exemption. The added oracle cases cover the previously reported inputs; their execution is not inferred from source inspection.
-
-Earlier resolved behavior remains intact: typed definitions become plain JavaScript objects before retained normalization, preserving reversible and Gateron solder-only parameters; category and alias search are independent; selected-detail fallback uses original catalogue order and React’s distinct detail-search predicate. Immutable `Rc<PartDefinition>` sharing preserves source attribution, IDs, precedence and selection while avoiding copies of untouched bundled definitions on catalogue/selected-entry clones. Project overrides replace owned handles; accepted document/session ownership remains unchanged.
-
-No public API/schema expansion or parent-mount change. Source clearance does not complete F4.1a: actual typed browser catalogue/normalization, root mount/CSS, loader failure handling, offline root/subpath behavior and inherited public accessibility/history/selection acceptance remain pending. No new structural refactoring takeaway.

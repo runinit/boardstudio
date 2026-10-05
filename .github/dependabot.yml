@@ -5,12 +5,10 @@ updates:
     schedule:
       interval: weekly
     groups:
-      react:
-        patterns: [react, react-dom, '@types/react', '@types/react-dom']
       build-and-test:
-        patterns: [vite, '@vitejs/*', vitest, '@vitest/*']
+        patterns: [vite, typescript, fflate]
   - package-ecosystem: cargo
-    directories: [/core, /renderer, /cad/wasm]
+    directories: [/core, /application, /renderer, /cad/wasm, /web, /contracts/rust]
     schedule:
       interval: weekly
     groups:

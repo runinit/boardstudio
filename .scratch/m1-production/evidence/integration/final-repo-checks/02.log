@@ -1,6 +1,0 @@
-$ node app/scripts/check-rust-boundaries.mjs
-   Compiling boardstudio_core v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/core)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.95s
-Archive diagnostic (4 MiB incompressible asset): ZIP 4196477 bytes; WASM linear-memory high water 14680064 bytes (before 1900544); Node peak RSS 187355136 bytes.
-Matrix diagnostic: 9-cell scene 1554 bytes; 500-cell draft 55945 bytes.
-Native/WASM boundary parity: 17 core requests, 9 archive requests passed. WASM initialization 6.7 ms; raw size 5811737 bytes. Diagnostic memory: {"rss":187355136,"heapTotal":14401536,"heapUsed":11521824,"external":58701784,"arrayBuffers":52309422}

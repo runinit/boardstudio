@@ -1,2 +1,0 @@
-[1442228.66] GET http://127.0.0.1:34659/assets/layout-generators/src/index.js (Script) 200
-[1442228.67] GET http://127.0.0.1:34659/assets/layout-generators/generated/catalogue.mjs (Script) 200

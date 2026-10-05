@@ -1,9 +1,0 @@
-{
-  "pid": 3116145,
-  "state": "terminal",
-  "started_unix": 1791202553.0739868,
-  "source_commit": "c1d3f13c642380c6a95ce8ae317fd99e6743c04f",
-  "build_id": "frontend-case-findings-bounds-20261005",
-  "exit_code": 0,
-  "elapsed_seconds": 136.92687487602234
-}

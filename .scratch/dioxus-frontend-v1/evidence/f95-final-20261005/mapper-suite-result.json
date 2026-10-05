@@ -1,9 +1,0 @@
-{
-  "command": "python3 scripts/test-run-wasm-tests.py",
-  "observed_at": "2026-10-05T16:08:52.845837+00:00",
-  "tests": 37,
-  "passed": 37,
-  "failed": 0,
-  "exit_code": 0,
-  "scope": "Existing owner mapping suite after updating only the exact reviewed presentation source pair; no runner code changed."
-}

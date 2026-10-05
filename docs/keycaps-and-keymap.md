@@ -57,7 +57,7 @@ Letter outlines use bundled DejaVu Sans with `ttf-parser` 0.25.1. The font's lic
 and attribution are shipped alongside the font in `cad/wasm/assets` and in the
 web application's public notices. Unsupported glyphs produce a visible CAD error.
 
-See [Development worktrees](development-worktrees.md) for preserved experiments
+See Development worktrees (historical record in Git at `323967ff`) for preserved experiments
 and unfinished mechanical work relocated before this feature was implemented.
 
 ## Verification

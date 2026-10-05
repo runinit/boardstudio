@@ -1,3 +1,0 @@
-# Panel public red regressions
-
-Frozen candidate source2030c9a3, buildfrontend-cards-panels-2030c9a3-20261002 at127.0.0.1:34647. Public controls plus isolated saved-preference setup; no production instrumentation or fake Session. The grid red observes persisted320/360 widths reverting to220/300 at supported narrow/short desktop sizes. Compact→desktop red observes DOM inert=true despite inert attribute=false; this blocks options controls. Original compact class assertion is diagnostic and must not stand in for visible/accessible behavior. Timer defect remains masked until inert repair. Scripts retain original evidence; acceptance remains open.

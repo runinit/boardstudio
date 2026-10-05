@@ -1,7 +1,0 @@
-Final disposition: pass.
-
-No actionable Spec deviations or scoped scope creep found in the full F3a diff. The final delta (`e7d935a9...f44a3d1b`) extracts one shared private keycap resolver for matrix-cell and placed-part rendering. It now selects the placed member's definition when a member exists and falls back to the matrix definition only for an empty cell, matching the pinned React `CanvasObjects.tsx:31` rule (`part?.keycap ?? definitions.get(part?.definitionId ?? matrix.definitionId)?.keycap`). Pitch minus edge gap remains the final fallback, so part override → definition → pitch precedence is preserved.
-
-The previously reviewed F3a source satisfies the scoped requirements: app-level presentation state; visible-by-default layers except Footprints; one shared Footprints signal for the toolbar and layer control; projected matrix membership classification; standalone switch caps and rotary exclusion; complete cap hit areas; generated graphics, pads, drills, board holes, and back-side mirroring; no durable revision/history/schema changes; and a canvas-overlay popover that leaves camera bounds alone. This matches pinned React `Workbench.tsx`, `CanvasObjects.tsx`, and `WorkbenchLayers.tsx` behavior.
-
-Full F3 and 3D assembly remain open as explicitly directed. Final public browser evidence at `/tmp/layout-browser-f44a3d1b` and `/tmp/layout-additional-f44a3d1b` is reported passing all named cases; no further Spec issue is apparent.

@@ -1,5 +1,0 @@
-{
-  "scripts/migration_gate_receipts.py": "1505a415f791c3df087a3281d640e8a9b70a0207a5a6beda32390a024e3a553e",
-  "scripts/test-migration-gate-receipts.py": "f715904206c36e41bb3f6878790ca201cd9ded0d8821c7091c6569efa78ae12d",
-  "scripts/test-migration-deliver.py": "e93b23b16e98387442db4f0cb39d2052d052b8357497b29868338e544bbdead7"
-}

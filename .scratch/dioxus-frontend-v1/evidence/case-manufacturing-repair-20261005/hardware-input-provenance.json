@@ -1,8 +1,0 @@
-{
-  "source": ".scratch/dioxus-frontend-v1/evidence/case-manufacturing-repair-20261005/candidate-after.boardstudio",
-  "source_sha256": "b3d011575fab8d72c96d99627a9a6f052dbc4a26e15c2213385e7ff0201fe06a",
-  "input": ".scratch/dioxus-frontend-v1/evidence/case-manufacturing-repair-20261005/hardware-input.boardstudio",
-  "sha256": "dac1fbdab090aed7b15a8c3d920ba28a4d71beeac54c1aed8b3622d1bcd83441",
-  "project_id": "f2820507-4675-4cfe-bfff-44846dcee7b1",
-  "mutation": "Only project ID/name changed from retained candidate revision31; all accepted geometry/settings retained."
-}

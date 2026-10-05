@@ -1,9 +1,0 @@
-[package]
-name = "tree-contract-tests"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-boardstudio_core = { path = "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/core" }
-boardstudio_application = { package = "boardstudio-application", path = "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/application" }
-serde_json = "1"

@@ -1,6 +1,0 @@
-[{"label": "left-SW25 clockwise behavior", "value": "key-press", "valueAttribute": null, "selected": ["key-press"], "fields": []}, {"label": "left-SW25 counterclockwise behavior", "value": "key-press", "valueAttribute": null, "selected": ["key-press"], "fields": []}, {"label": "left-SW25 push button behavior", "value": "key-press", "valueAttribute": null, "selected": ["key-press"], "fields": []}]
-Traceback (most recent call last):
-  File "/tmp/frontend-run/encoder-select-diagnosis/initial-select-regression.py", line 7, in <module>
-    assert all(row['value']=='none' and row['selected']==['none'] and not row['fields'] for row in data),'Fresh accepted unassigned encoder must display Unassigned, not Key press'
-           ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-AssertionError: Fresh accepted unassigned encoder must display Unassigned, not Key press

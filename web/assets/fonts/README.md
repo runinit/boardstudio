@@ -1,7 +1,7 @@
 # Bundled workbench fonts
 
 Unmodified Adobe releases, licensed under SIL OFL 1.1. License copies ship in
-`public/licenses/fonts/`. Upright variable fonts cover the UI weights without
+`web/assets/licenses/fonts/`. Upright variable fonts cover the UI weights without
 additional font requests. No font service is contacted at runtime.
 
 ## source-sans-3-upright.woff2

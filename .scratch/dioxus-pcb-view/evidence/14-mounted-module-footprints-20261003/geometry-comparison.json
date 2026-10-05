@@ -1,8 +1,0 @@
-{
-  "footprints_reference": 26,
-  "footprints_candidate": 26,
-  "source_geometry_leaves_reference": 373,
-  "source_geometry_leaves_candidate": 373,
-  "normalization": "Trim attribute whitespace; compare numeric attributes/poses to9 decimal places (maximum rounding tolerance0.5e-9); normalize only class prefix wb-/m1-; ignore title and interactivity attributes deferred to F5.4 owning-navigation. Sorted leaves retain the ancestor transforms.",
-  "differences": []
-}

@@ -8,7 +8,7 @@ use wasm_bindgen_futures::JsFuture;
 
 const IMPORTED_PARTS_JSON: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../app/src/parts/imported-parts.json"
+    "/../catalogue/parts/imported-parts.json"
 ));
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

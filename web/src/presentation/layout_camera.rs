@@ -43,7 +43,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     fn two_d_zoom_limits_match_the_pinned_typescript_workbench() {
-        // app/src/ui/Workbench.tsx: wheel `Math.min(4, Math.max(0.25, ...))`,
+        // Keep wheel zoom within the supported scale range,
         // Zoom out `Math.max(.25, zoom / 1.2)`, Zoom in `Math.min(4, zoom * 1.2)`.
         assert_eq!((MIN_ZOOM, MAX_ZOOM), (0.25, 4.0));
     }

@@ -42,5 +42,5 @@ jobs:
         if: failure()
         with:
           name: browser-failure-node-${{ matrix.node }}
-          path: web/target/migration-gates
+          path: web/target/test-results
           retention-days: 7

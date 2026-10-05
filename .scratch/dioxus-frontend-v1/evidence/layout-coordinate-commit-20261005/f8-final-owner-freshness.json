@@ -1,9 +1,0 @@
-{
-  "retainedF8Source": "4c0a2fc46074121b85c7f0e8fb0d80cd5c3f1021",
-  "currentSource": "df6b04b9e8903381029a137fdfcef8d797305fb8",
-  "changedProductionAndTestPaths": [
-    "web/src/presentation/inspector/layout_component_inspector.rs",
-    "web/src/presentation/layout_component_inspector_tests.rs"
-  ],
-  "reuse": "Completed F8 exporters, Runtime, Session, contracts, renderer, CAD and core owners unchanged. Changed component Inspector branch separately qualified by mounted gates and actual saved archives; retained full F8 journey remains attributable to its original source and fixture."
-}

@@ -8,7 +8,7 @@ import test from 'node:test';
 import { readStepModel } from '../src/index.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const ledger = JSON.parse(readFileSync(resolve(root, 'app/src/modules/asset-ledger.json'), 'utf8'));
+const ledger = JSON.parse(readFileSync(resolve(root, 'catalogue/modules/asset-ledger.json'), 'utf8'));
 const tightMeasurements = JSON.parse(readFileSync(resolve(root, 'cad/test/fixtures/vik-model-tight-bounds.json'), 'utf8')).models;
 const sourceBounds = asset => {
   const b = asset.nativeBoundsMm;

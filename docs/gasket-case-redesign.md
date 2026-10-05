@@ -692,7 +692,7 @@ revision/instance checks, and deferred STEP serialization.
 
 ### Apply the measured findings without overstating them
 
-- [Performance baseline](performance-baseline.md): preserve lazy CAD/renderer
+- Performance baseline (historical record in Git at `323967ff`): preserve lazy CAD/renderer
   loading, coalesced rendering, bulk mesh transfers, explicit/cancellable generation,
   and no geometry preparation/upload for camera, visibility, or section controls.
   Keep the existing five-session 100/200-key interaction gates and 10% regression
@@ -844,4 +844,4 @@ or TODO was changed for this specification. No new fit, latency, export, or
 physical-build success is claimed. The user confirmed shared understanding of this
 specification on 2026-09-28, completing the design interview. This confirmation
 accepted the specification before implementation began. The subsequent Rust/CAD
-phase is tracked in [implementation status](gasket-case-implementation.md).
+phase is tracked in implementation status (historical record in Git at `323967ff`).

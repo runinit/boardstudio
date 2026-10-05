@@ -1,4 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-# Run after public Select SW7 -> search SW7 -> Macros -> Keys on the retained Sofle fixture.
-agent-browser --session "${1:?browser session required}" eval '(() => { const select = document.querySelector("select[aria-label=\"Selected key\"]"); const query = document.querySelector("input[aria-label=\"Find a key\"]"); const expected = "matrix/left-keys/r1c0"; if (query?.value !== "SW7") throw new Error("Wrong regression setup: expected query SW7"); if (![...select.options].some(option => option.value === expected)) throw new Error("Wrong regression setup: SW7 option missing"); if (select.value !== expected) throw new Error(`Selected key mismatch: expected ${expected}, got ${JSON.stringify(select.value)}`); return {value: select.value, query: query.value}; })()'

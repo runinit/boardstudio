@@ -2984,7 +2984,7 @@ mod tests {
     #[test]
     fn imported_stabilizers_use_the_mx_mounting_datum() {
         let catalogue: serde_json::Value =
-            serde_json::from_str(include_str!("../../app/src/parts/imported-parts.json")).unwrap();
+            serde_json::from_str(include_str!("../../catalogue/parts/imported-parts.json")).unwrap();
         let stabilizers: Vec<_> = catalogue["parts"]
             .as_array()
             .unwrap()

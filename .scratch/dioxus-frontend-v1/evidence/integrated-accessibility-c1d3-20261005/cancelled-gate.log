@@ -1,7 +1,0 @@
-migration-deliver: 2 wasm-relevant Rust file(s) in this commit (e.g. web/src/presentation.rs); ensuring wasm32 cargo check
-migration-deliver: passed wasm32 page check; receipt=web/target/migration-gates/wasm-page-check/3347de4e9f8d6890ef778b62d21dba729caf650f0757439d20ed6911bc3f54ce.json started=2026-10-05T12:36:02+00:00 ended=2026-10-05T12:36:09+00:00 duration=7.44s
-migration-deliver: ensuring native web tests passed before committing
-migration-deliver: passed native web tests (failed=0, ignored=1, passed=247); receipt=web/target/migration-gates/native-web/f01db5c3b8f19985ee6de74568c78c42c6611210e155f8c21ed46ca795628cab.json started=2026-10-05T12:36:10+00:00 ended=2026-10-05T12:36:14+00:00 duration=3.69s
-migration-deliver: ensuring scripts/check-wasm-tests.py passes for Rust files in this commit
-migration-deliver: passed wasm test reachability; receipt=web/target/migration-gates/wasm-test-reachability/303a42fb9a836b428945454eacc40a990418082c79d56f70fa6c8e8d4169186e.json started=2026-10-05T12:36:15+00:00 ended=2026-10-05T12:36:17+00:00 duration=1.95s
-migration-deliver: ensuring wasm-bindgen tests pass in headless Chrome for changed modules

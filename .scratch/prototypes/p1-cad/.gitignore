@@ -1,6 +1,0 @@
-/worker-pkg/
-/target/
-/evidence/site/
-/evidence/api-*.md
-/evidence/*.step
-/evidence/**/*.step

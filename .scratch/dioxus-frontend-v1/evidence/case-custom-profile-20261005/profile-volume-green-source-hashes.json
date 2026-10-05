@@ -1,7 +1,0 @@
-{
-  "web/src/presentation/mechanical_settings.rs": "ff2b37f53248c3906df88dd3760e3882946114309753504da8ee7f9df3c8abe8",
-  "web/src/presentation/mechanical_settings_controller.rs": "a8e94aa0d91b255e33c9397bd73ddb02f3691844b283d44db912a15f1c62336e",
-  "web/src/presentation/mechanical_settings_mount.rs": "3e01a68ac5a7637d08febb5fa98feb0bd3e9c2f2052ebd78c57b5dde82248713",
-  "web/src/presentation/pcb_module_inspector.rs": "a34a8e91ddde42db341787d2866fcdcda50ebc2704ce1cc3cb917886d59cadf0",
-  "web/src/renderer_host_page_base.rs": "9db63fbaacb3799e19960705a02ca1edf6bf6a490ed25fa523334169b4a57420"
-}

@@ -1532,7 +1532,28 @@ mod mounted_live_scene_tests {
         gloo_timers::future::TimeoutFuture::new(100).await;
     }
 
+    async fn wait_for_current_resolution_inspector_text(document: &web_sys::Document) -> String {
+        let current_resolution_finding =
+            "Case body 'mechanical-frame-outline' requires at least one outer contour";
+        let mut last_text = String::new();
+        for _ in 0..50 {
+            if let Some(inspector) = document
+                .query_selector("#case11-workspace-evidence-root .m1-mechanical-settings")
+                .unwrap()
+            {
+                last_text = inspector.text_content().unwrap_or_default();
+                if last_text.contains(current_resolution_finding) {
+                    return last_text;
+                }
+            }
+            gloo_timers::future::TimeoutFuture::new(20).await;
+        }
+        panic!("current mechanical resolution did not reach the mounted Inspector: {last_text:?}");
+    }
+
     #[wasm_bindgen_test]
+    // The Objects tree retains and labels the stale same-scope scene. The Inspector
+    // independently prefers an exact current mechanical resolution when it settles.
     async fn production_workspace_keeps_same_scope_layer_context_then_retires_it_on_owner_change() {
         let (runtime, original, scope) = accepted_fixture();
         let root = web_sys::window()
@@ -1574,9 +1595,9 @@ mod mounted_live_scene_tests {
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap()
             .click();
-        settle().await;
 
         let document = web_sys::window().unwrap().document().unwrap();
+        let text = wait_for_current_resolution_inspector_text(&document).await;
         let root_text = document
             .get_element_by_id("case11-workspace-evidence-root")
             .unwrap()
@@ -1595,23 +1616,13 @@ mod mounted_live_scene_tests {
         );
         let row = plate.closest(".m1-tree-row").unwrap().unwrap();
         assert_eq!(row.get_attribute("aria-selected").as_deref(), Some("true"));
-        let inspector = document
-            .query_selector("#case11-workspace-evidence-root .m1-mechanical-settings")
-            .unwrap()
-            .unwrap();
-        let text = inspector.text_content().unwrap_or_default();
-        assert!(text.contains("previous generated geometry"));
+        assert!(
+            !text.contains("previous generated geometry"),
+            "the current resolved Inspector must not mark its layer previous; inspector={text:?}; root={root_text:?}"
+        );
         assert!(text.contains("Resolved thickness 1.50 mm."));
         assert!(text.contains("Plate thickness"));
         assert!(!text.contains("Stale diagnostic from previous geometry"));
-        let stale_show_buttons = document
-            .query_selector_all("#case11-workspace-evidence-root .m1-mechanical-settings button")
-            .unwrap();
-        assert!(
-            !(0..stale_show_buttons.length())
-                .filter_map(|index| stale_show_buttons.item(index))
-                .any(|element| element.text_content().as_deref() == Some("Show"))
-        );
         assert_eq!(
             document
                 .get_element_by_id("case11-shown-finding")
@@ -1621,6 +1632,23 @@ mod mounted_live_scene_tests {
             Some("")
         );
 
+        let (current_assembly, _) = runtime
+            .resolve_mechanical_settings(
+                updated.clone(),
+                scope.clone(),
+                updated.document.as_ref().clone(),
+            )
+            .await
+            .expect("the accepted fixture has a current mechanical resolution");
+        let current_finding = current_assembly
+            .diagnostics
+            .iter()
+            .find(|finding| {
+                finding.message.contains(
+                    "Case body 'mechanical-frame-outline' requires at least one outer contour",
+                )
+            })
+            .expect("the current resolution reports the fixture's missing outline");
         let stale_scene = runtime
             .cad_scene()
             .expect("same-scope completed geometry remains available for display");
@@ -1642,12 +1670,24 @@ mod mounted_live_scene_tests {
             .unwrap()
             .unwrap();
         let text = inspector.text_content().unwrap_or_default();
-        assert!(text.contains("Current diagnostic for accepted geometry"));
+        assert!(text.contains(&current_finding.message));
+        assert!(!text.contains("Current diagnostic for accepted geometry"));
         assert!(!text.contains("Stale diagnostic from previous geometry"));
-        let show = inspector.query_selector_all("button").unwrap();
-        let show_button = (0..show.length())
-            .filter_map(|index| show.item(index))
-            .find(|element| element.text_content().as_deref() == Some("Show"))
+        let rows = inspector.query_selector_all("li").unwrap();
+        let finding_row = (0..rows.length())
+            .filter_map(|index| rows.item(index))
+            .find(|element| {
+                element
+                    .text_content()
+                    .unwrap_or_default()
+                    .contains(&current_finding.message)
+            })
+            .expect("current resolution finding is shown in the Inspector");
+        let show_button = finding_row
+            .dyn_into::<web_sys::Element>()
+            .unwrap()
+            .query_selector("button")
+            .unwrap()
             .expect("current finding has a Show action");
         show_button
             .dyn_into::<web_sys::HtmlElement>()
@@ -1660,7 +1700,7 @@ mod mounted_live_scene_tests {
                 .unwrap()
                 .text_content()
                 .as_deref(),
-            Some("current-case-finding")
+            Some(current_finding.id.as_str())
         );
 
         let replacement = accepted_after_edit(

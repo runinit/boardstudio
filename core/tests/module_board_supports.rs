@@ -511,7 +511,7 @@ fn finish_board_preview(plan: &ExportPlan) -> Value {
 #[test]
 fn pinned_splitter_edge_mounts_keep_standoffs_with_partial_contact_warning() {
     let source = include_str!(
-        "../../app/src/modules/sources/sadekbaroudi-vik/pcb/vik-splitter/vik-splitter.kicad_pcb"
+        "../../catalogue/modules/sources/sadekbaroudi-vik/pcb/vik-splitter/vik-splitter.kicad_pcb"
     );
     let imported: Value = serde_json::from_str(&artifact::request(&json!({
         "id":"import","kind":"import-module-board","definitionId":"vik:splitter","name":"VIK splitter",

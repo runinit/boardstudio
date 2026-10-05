@@ -1,7 +1,7 @@
 # Remaining-plan OCCT screening
 
 Historical raw artifacts and experimental sources now live in the performance
-worktree. See [Development worktrees](development-worktrees.md) for their location.
+worktree. See Development worktrees (historical record in Git at `323967ff`) for their location.
 
 This continues E2/E3/E5/E8/E9 from the original optimization plan. The earlier
 engine comparison did not complete those experiments. All changes here are in
@@ -103,7 +103,7 @@ a normal isolated build succeeded. No timing samples came from the failed build.
 
 ## Remaining scope
 
-The [coverage table](generation-optimization-status.md) keeps E0–E9 open at the
+The coverage table (historical record in Git at `323967ff`) keeps E0–E9 open at the
 appropriate granularity. In particular:
 
 - E4's actual two tabbed-plate regions each have 28 orthogonal outer vertices,

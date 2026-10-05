@@ -1,4 +1,0 @@
-command: cargo clippy --manifest-path Cargo.toml --locked --all-targets -- -D warnings
-   Compiling p3-durability-probe v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/p3-durability-20261001/.scratch/prototypes/p3-durability)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.24s
-exit=0

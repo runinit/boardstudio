@@ -1,3 +1,0 @@
-command: node scripts/embed-worker-wasm.mjs dist/update v2
-{"version":"v2","wasmBytes":5235225,"base64Bytes":6980300,"bootstrapBytes":6980519}
-exit=0

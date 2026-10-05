@@ -141,7 +141,7 @@ fn landmarks(candidates: &mut Vec<Guide>, point: Vec2, excluded: Option<Vec2>) {
 }
 
 /// Screen-distance acquisition/release avoids zoom-dependent magnetic strength.
-/// Kept in step with `app/src/ui/outlineSnapping.ts` at the pinned reference.
+/// Snapping policy for authored outline points.
 pub(super) fn snap_outline_point(
     point: Vec2,
     context: Context,

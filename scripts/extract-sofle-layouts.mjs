@@ -49,4 +49,4 @@ for (const variant of ['v2', 'RGB', 'Choc']) {
   const [outline, ...cutouts] = contours;
   layouts[variant.toLowerCase()] = { path, sha256: createHash('sha256').update(source).digest('hex'), components, outline, sourceCutoutCount: cutouts.length };
 }
-writeFileSync(new URL('../app/src/demos/sofle-layouts.json', import.meta.url), JSON.stringify({ repository: 'https://github.com/josefadamcik/SofleKeyboard', revision, layouts }, null, 2) + '\n');
+writeFileSync(new URL('../tooling/demo-projects/src/sofle-layouts.json', import.meta.url), JSON.stringify({ repository: 'https://github.com/josefadamcik/SofleKeyboard', revision, layouts }, null, 2) + '\n');

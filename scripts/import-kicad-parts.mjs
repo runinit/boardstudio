@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2).filter(arg => arg !== '--check');
-const manifestPath = resolve(args[0] ?? `${root}/app/src/parts/import-manifest.json`);
+const manifestPath = resolve(args[0] ?? `${root}/catalogue/parts/import-manifest.json`);
 const outputPath = resolve(args[1] ?? `${dirname(manifestPath)}/imported-parts.json`);
 const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 if (manifest.formatVersion !== 1 || !Array.isArray(manifest.entries)) throw new Error('Expected a version 1 import manifest');

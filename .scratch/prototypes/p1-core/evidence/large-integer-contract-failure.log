@@ -1,5 +1,0 @@
-Traceback (most recent call last):
-  File "/tmp/boardstudio-p1-core-20261001/.scratch/prototypes/p1-core/evidence/check-large-integer-contract.py", line 7, in <module>
-    assert runtime["outcome"] == "reply", f"Valid native Open must return a provider reply; observed {runtime}"
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-AssertionError: Valid native Open must return a provider reply; observed {'message': "Uncaught Error: 9007199254740993 can't be represented as a JavaScript number", 'outcome': 'worker-error', 'request_posted': True}

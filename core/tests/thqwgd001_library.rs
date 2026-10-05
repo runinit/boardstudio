@@ -3,7 +3,7 @@ use serde_json::{Value, json};
 
 fn catalogue_definition(id: &str) -> Value {
     let catalogue: Value =
-        serde_json::from_str(include_str!("../../app/src/parts/imported-parts.json")).unwrap();
+        serde_json::from_str(include_str!("../../catalogue/parts/imported-parts.json")).unwrap();
     catalogue["parts"]
         .as_array()
         .unwrap()

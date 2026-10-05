@@ -1,9 +1,0 @@
-{
-  "id": "matrix/main-right-keys/r0c0",
-  "reference": "main-right-keys-SW1",
-  "keycap": {
-    "x": 27,
-    "y": 18
-  },
-  "back_id": "matrix/main-right-keys/r0c0/diode"
-}

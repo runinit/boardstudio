@@ -355,7 +355,7 @@ test('an additive support refills the earlier mounting drill through exported ST
 });
 
 test('source module PCB preview retains above and below placement through exported STEP', async () => {
-  const catalogue = JSON.parse(await readFile(new URL('../../app/src/modules/imported-modules.json', import.meta.url), 'utf8'));
+  const catalogue = JSON.parse(await readFile(new URL('../../catalogue/modules/imported-modules.json', import.meta.url), 'utf8'));
   const definition = catalogue.modules.find(entry => entry.row === 'vik-splitter').definition;
   for (const [hostFace, facingFace, minZ, maxZ] of [['front', 'back', 3, 4.6], ['back', 'front', -6.2, -4.6]]) {
     const document = mechanicalDocument();
@@ -473,7 +473,7 @@ test('mesh-only preview preserves revision and reuses geometry for export', asyn
 
 for (const fixture of ['rectangle', 'countersunk', 'downward-boss', 'rotated-concave', 'split', 'mixed-cuts', 'automatic-count', 'sofle-outline']) {
   test(`internal gasket ${fixture} exports connected tray and top regions`, async () => {
-    const input = JSON.parse(await readFile(new URL(`../bench/fixtures/internal-gasket-v1/${['mixed-cuts', 'automatic-count'].includes(fixture) ? 'rectangle' : fixture}.json`, import.meta.url)));
+    const input = JSON.parse(await readFile(new URL(`./fixtures/internal-gasket-v1/${['mixed-cuts', 'automatic-count'].includes(fixture) ? 'rectangle' : fixture}.json`, import.meta.url)));
     if (['mixed-cuts', 'automatic-count'].includes(fixture)) input.document.mechanical.gasketLayout.autoSize = true;
     if (fixture === 'automatic-count') input.document.mechanical.internalGasket.autoCount = true;
     const assembly = resolveMechanical(input.document, input.contours);

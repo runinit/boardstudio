@@ -13,7 +13,7 @@ import FreeCAD
 import Part
 
 root = Path(__file__).resolve().parents[2]
-ledger = json.loads((root / 'app/src/modules/asset-ledger.json').read_text())
+ledger = json.loads((root / 'catalogue/modules/asset-ledger.json').read_text())
 measurements = []
 for model in ledger['models']:
     source = root / model['bundledFile']

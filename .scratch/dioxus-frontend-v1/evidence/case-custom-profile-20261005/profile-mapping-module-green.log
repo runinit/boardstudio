@@ -1,2 +1,0 @@
-run-wasm-tests: [1/1] presentation::mechanical_settings::contextual_layer_tests::
-{'executed': 9, 'failed': [], 'problems': []}

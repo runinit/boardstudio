@@ -11,7 +11,7 @@ fn import(source: String, id: &str) -> Value {
 #[test]
 fn module_import_rejects_duplicate_source_references_before_namespacing_a_circuit() {
     let source = include_str!(
-        "../../app/src/modules/sources/sadekbaroudi-vik/pcb/vik-splitter/vik-splitter.kicad_pcb"
+        "../../catalogue/modules/sources/sadekbaroudi-vik/pcb/vik-splitter/vik-splitter.kicad_pcb"
     )
     .replace(
         "(fp_text reference \"J1002\"",
@@ -34,7 +34,7 @@ fn module_import_rejects_duplicate_source_references_before_namespacing_a_circui
 #[test]
 fn module_import_gives_unannotated_footprints_unique_circuit_identities() {
     let source = include_str!(
-        "../../app/src/modules/sources/sadekbaroudi-vik/pcb/vik-splitter/vik-splitter.kicad_pcb"
+        "../../catalogue/modules/sources/sadekbaroudi-vik/pcb/vik-splitter/vik-splitter.kicad_pcb"
     )
     .to_owned();
     let result = import(source, "fixture:splitter");

@@ -1,9 +1,0 @@
-{"bytes": 838, "elapsed_ms": 1.75, "method": "GET", "mode": "reference", "path": "/", "status": 200, "time_utc": "2026-10-05T16:37:03.593876+00:00", "upstream_port": 5175}
-{"bytes": 170188, "elapsed_ms": 1.81, "method": "GET", "mode": "reference", "path": "/assets/source-sans-3-upright-BsWL4Kly.woff2", "status": 200, "time_utc": "2026-10-05T16:37:03.606581+00:00", "upstream_port": 5175}
-{"bytes": 670, "elapsed_ms": 1.39, "method": "GET", "mode": "reference", "path": "/assets/modulepreload-polyfill-P2Xu9kJm.js", "status": 200, "time_utc": "2026-10-05T16:37:03.607334+00:00", "upstream_port": 5175}
-{"bytes": 24022, "elapsed_ms": 2.45, "method": "GET", "mode": "reference", "path": "/assets/main-CYxchQWA.js", "status": 200, "time_utc": "2026-10-05T16:37:03.607675+00:00", "upstream_port": 5175}
-{"bytes": 8176, "elapsed_ms": 2.05, "method": "GET", "mode": "reference", "path": "/assets/jsx-runtime-BguMC-xa.js", "status": 200, "time_utc": "2026-10-05T16:37:03.607531+00:00", "upstream_port": 5175}
-{"bytes": 36733, "elapsed_ms": 4.4, "method": "GET", "mode": "reference", "path": "/assets/src-COpmSzR1.js", "status": 200, "time_utc": "2026-10-05T16:37:03.609353+00:00", "upstream_port": 5175}
-{"bytes": 1226, "elapsed_ms": 1.58, "method": "GET", "mode": "reference", "path": "/assets/CanvasLayers-CsdRsyON.css", "status": 200, "time_utc": "2026-10-05T16:37:03.609775+00:00", "upstream_port": 5175}
-{"bytes": 26532, "elapsed_ms": 3.0, "method": "GET", "mode": "reference", "path": "/assets/Workbench-CY_zLo-_.css", "status": 200, "time_utc": "2026-10-05T16:37:03.611563+00:00", "upstream_port": 5175}
-{"bytes": 187, "elapsed_ms": 1.09, "method": "GET", "mode": "reference", "path": "/manifest.webmanifest", "status": 200, "time_utc": "2026-10-05T16:37:18.615842+00:00", "upstream_port": 5175}

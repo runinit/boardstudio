@@ -1868,7 +1868,7 @@ fn matrix_edit(
     }
 }
 
-/// Port of `app/src/ui/matrixResize.ts`, limited to the accepted Matrix request object.
+/// Build the accepted matrix resize request.
 fn resize_matrix(matrix: &Matrix, rows: u32, columns: u32) -> Result<Matrix, String> {
     if rows == 0 || columns == 0 {
         return Err("Matrix dimensions must be positive whole numbers.".into());

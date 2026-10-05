@@ -2,7 +2,7 @@ use boardstudio_core::CoreEngine;
 use serde_json::{Value, json};
 
 const HAPTIC_SOURCE: &str = include_str!(
-    "../../app/src/modules/sources/sadekbaroudi-vik/pcb/haptic-drv2605l/haptic-drv2605l.kicad_pcb"
+    "../../catalogue/modules/sources/sadekbaroudi-vik/pcb/haptic-drv2605l/haptic-drv2605l.kicad_pcb"
 );
 
 fn request(engine: &mut CoreEngine, value: Value) -> Value {
@@ -98,7 +98,7 @@ fn repaired_haptic_import_records_the_electrical_profile_needed_for_shared_bus_c
 #[test]
 fn kiwano_import_marks_only_the_real_vik_module_connector_and_preserves_contact_order() {
     let source =
-        include_str!("../../app/src/modules/sources/Ariamelon-Kiwano/PCB/Kiwano.kicad_pcb");
+        include_str!("../../catalogue/modules/sources/Ariamelon-Kiwano/PCB/Kiwano.kicad_pcb");
     let request = json!({
         "id":"kiwano", "kind":"import-module-board", "definitionId":"kiwano",
         "name":"Kiwano", "source":source,

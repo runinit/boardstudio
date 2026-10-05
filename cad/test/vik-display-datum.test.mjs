@@ -7,10 +7,10 @@ import test from 'node:test';
 import { readStepModel } from '../src/index.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const catalogue = JSON.parse(readFileSync(resolve(root, 'app/src/modules/imported-modules.json'), 'utf8'));
+const catalogue = JSON.parse(readFileSync(resolve(root, 'catalogue/modules/imported-modules.json'), 'utf8'));
 const definition = catalogue.modules.find(entry => entry.row === 'vik-display-adapter'
   && entry.definition.variant === 'pcb/1.47inch/pcb')?.definition;
-const ledger = JSON.parse(readFileSync(resolve(root, 'app/src/modules/asset-ledger.json'), 'utf8'));
+const ledger = JSON.parse(readFileSync(resolve(root, 'catalogue/modules/asset-ledger.json'), 'utf8'));
 const asset = ledger.models.find(model => model.path === 'pcb/1.47inch/1.47inch.step');
 
 test('1.47-inch display STEP transform aligns PCB bounds and asymmetric H1/H2 centers', async () => {

@@ -1,6 +1,0 @@
-run-wasm-tests: [1/1] presentation::case_viewer::keycap_consumer_tests::
-{
-  "count": 1,
-  "failed": [],
-  "problems": []
-}

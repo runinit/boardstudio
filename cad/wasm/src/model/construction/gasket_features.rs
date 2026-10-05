@@ -54,7 +54,7 @@ fn resolved_internal_case_is_connected_and_preserves_wall_material() {
         "split",
     ] {
         let path = format!(
-            "{}/../bench/fixtures/internal-gasket-v1/{fixture}.json",
+            "{}/../test/fixtures/internal-gasket-v1/{fixture}.json",
             env!("CARGO_MANIFEST_DIR")
         );
         let source: serde_json::Value =

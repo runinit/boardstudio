@@ -1,2 +1,0 @@
-run-wasm-tests: [1/1] presentation::parts::generator_settings::tests::
-{"executed": 4, "failed": [], "problems": []}

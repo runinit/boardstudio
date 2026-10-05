@@ -1,9 +1,0 @@
-{
-  "status": "invalid starting state; not product failure evidence",
-  "reason": "After tab cleanup interrupted a click, replay reused persisted state without baseline verification. Actual saved copy has two unrelated edits to part58/constraint0 before coordinate probe; J1 raw precision was retained. Re-import and save baseline required before qualifying history.",
-  "archives": [
-    "candidate-fixed-untouched.boardstudio",
-    "candidate-fixed-escape.boardstudio",
-    "candidate-untouched-fix-edited.boardstudio"
-  ]
-}

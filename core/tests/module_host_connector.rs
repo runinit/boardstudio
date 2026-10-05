@@ -5,7 +5,7 @@ use boardstudio_core::model::{
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 
-const LIBRARY: &str = include_str!("../../app/src/modules/imported-modules.json");
+const LIBRARY: &str = include_str!("../../catalogue/modules/imported-modules.json");
 
 fn request(engine: &mut CoreEngine, value: Value) -> Value {
     serde_json::from_str(&engine.request(&value.to_string())).unwrap()

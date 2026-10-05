@@ -1,6 +1,0 @@
-root ['assets/boardstudio-web_bg-dxh8cde36b044fad479.wasm', 'assets/boardstudio-web_bg-dxhe3d47d5d8d1de96.wasm', 'assets/boardstudio-web_bg-dxhee9dab4c244d8136.wasm']
-Traceback (most recent call last):
-  File "/tmp/m1-stale-release-regression.py", line 7, in <module>
-    assert len(files)==1, f'{mode}: release includes obsolete Dioxus page WASM binaries'
-           ^^^^^^^^^^^^^
-AssertionError: root: release includes obsolete Dioxus page WASM binaries

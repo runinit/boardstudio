@@ -55,7 +55,7 @@
       "url": "https://github.com/sadekbaroudi/vik",
       "commit": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
       "license": "vendor/vik/ATTRIBUTION.md",
-      "assetProvenance": "../../app/src/modules/asset-ledger.json"
+      "assetProvenance": "../../catalogue/modules/asset-ledger.json"
     }
   },
   "footprints": {

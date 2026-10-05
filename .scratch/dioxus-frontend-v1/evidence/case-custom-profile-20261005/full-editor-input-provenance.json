@@ -1,8 +1,0 @@
-{
-  "input": ".scratch/dioxus-frontend-v1/evidence/case-custom-profile-20261005/full-editor-input.boardstudio",
-  "sha256": "d487442cc92844e0608215fb1f2c1f68f89c64cf390498cbc553f2cc93b48093",
-  "source": ".scratch/dioxus-frontend-v1/evidence/case-custom-profile-20261005/reference-edited-history.boardstudio",
-  "source_sha256": "5d7bb164d847ba82faf5f3e1221cff5f2a0188f22b8828b609101a67246e6b69",
-  "project_id": "0daab064-df49-4e1b-aba3-95a26c743de2",
-  "mutation": "Only ID/name changed from retained reference accepted r22 profile history oracle."
-}

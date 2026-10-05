@@ -1,8 +1,0 @@
-{
-  "title": "BoardStudio",
-  "url": "http://127.0.0.1:34643/boardstudio/",
-  "online": false,
-  "theme": "dark",
-  "objects": 85,
-  "worker": "http://127.0.0.1:34643/boardstudio/service-worker.js"
-}

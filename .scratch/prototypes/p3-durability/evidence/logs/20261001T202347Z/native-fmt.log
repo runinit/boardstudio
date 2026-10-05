@@ -1,2 +1,0 @@
-command: cargo fmt --manifest-path Cargo.toml -- --check
-exit=0

@@ -251,7 +251,7 @@ The working character is calm, precise, and restrained: small controls, aligned 
 - Light and dark palettes with a persisted System option.
 
 The September 2026 cleanup preserves the unified workbench shell and its visual
-identity. Shell ownership is split by responsibility: [base workbench styles](app/src/ui/workbench.css) own tokens, controls, canvas and geometry; [unified shell styles](app/src/ui/unified-workbench.css) own the page hierarchy and grid; [panel behavior styles](app/src/ui/workspace-panels.css) own dock modes, rails, drawers, and scrims; [inspector styles](app/src/ui/inspector.css) own inspector content rhythm and field roles; and [setup guide styles](app/src/ui/setup-guide.css) own the optional left-panel guide. The [footprint workspace styles](app/src/ui/library-workspace.css) remain scoped to the footprint library.
+identity. Dioxus shell, panel, Inspector and geometry styles live in [the web stylesheet](web/assets/m1.css); workspace components live in [presentation](web/src/presentation/).
 Exploratory review images are local artifacts; current source supplies the
 implemented layout and token values.
 
@@ -306,7 +306,7 @@ sidecar together when the implementation's palette changes.
 
 **The Geometry Role Rule.** Keep canvas, board, key, pad, and selection roles separate from shell surfaces and status roles.
 
-[AssemblyScene](app/src/ui/AssemblyScene.tsx) uses a transparent WebGL background
+[The shared viewer](web/src/presentation/shared_viewer.rs) uses a transparent WebGL background
 over the shared canvas token, with board, key, and part geometry colors on
 its materials. Lighting remains specific to the 3D scene, so shaded materials
 are not flat swatches of those colors.
@@ -347,8 +347,8 @@ on the workbench root.
 Both upright variable WOFF2 fonts are self-hosted, use `font-display: swap`, and
 are included in the generated offline cache. The main UI face is preloaded;
 monospace loads on demand. Segoe UI/sans-serif and Consolas/monospace remain
-fallbacks. Source provenance and checksums live in `app/src/assets/fonts/README.md`;
-SIL OFL licenses ship in `app/public/licenses/fonts/`.
+fallbacks. Source provenance and checksums live in `web/assets/fonts/README.md`;
+SIL OFL licenses ship in `web/assets/licenses/fonts/`.
 
 - Preview titles use 20px and selected inspector titles use 23px.
 - Section headings, actions, and control values use 13px; field labels and

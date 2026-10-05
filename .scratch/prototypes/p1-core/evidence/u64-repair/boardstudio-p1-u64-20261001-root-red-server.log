@@ -1,8 +1,0 @@
-127.0.0.1 - - [01/Oct/2026 09:11:24] "GET / HTTP/1.1" 200 -
-127.0.0.1 - - [01/Oct/2026 09:11:24] "GET /assets/boardstudio-p1-core-dxh8c64828571fe63b.js HTTP/1.1" 200 -
-127.0.0.1 - - [01/Oct/2026 09:11:24] "GET /assets/boardstudio-p1-core_bg-dxhd2a919de93369d62.wasm HTTP/1.1" 200 -
-127.0.0.1 - - [01/Oct/2026 09:11:24] code 404, message File not found
-127.0.0.1 - - [01/Oct/2026 09:11:24] "GET /favicon.ico HTTP/1.1" 404 -
-127.0.0.1 - - [01/Oct/2026 09:11:24] "GET /worker/worker-entry.js HTTP/1.1" 200 -
-127.0.0.1 - - [01/Oct/2026 09:11:24] "GET /worker/boardstudio_p1_core.js HTTP/1.1" 200 -
-127.0.0.1 - - [01/Oct/2026 09:11:24] "GET /worker/boardstudio_p1_core_bg.wasm HTTP/1.1" 200 -

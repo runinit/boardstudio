@@ -6,10 +6,10 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const manifestPath=resolve(root,'app/src/modules/import-manifest.json');
-const outputPath=resolve(root,'app/src/modules/imported-modules.json');
+const manifestPath=resolve(root,'catalogue/modules/import-manifest.json');
+const outputPath=resolve(root,'catalogue/modules/imported-modules.json');
 const manifest=JSON.parse(readFileSync(manifestPath,'utf8'));
-const assets=JSON.parse(readFileSync(resolve(root,'app/src/modules/asset-ledger.json'),'utf8')).models;
+const assets=JSON.parse(readFileSync(resolve(root,'catalogue/modules/asset-ledger.json'),'utf8')).models;
 if (manifest.formatVersion!==1 || !Array.isArray(manifest.entries)) throw new Error('Expected a version 1 module manifest');
 const driver=process.env.BOARDSTUDIO_ARTIFACT_DRIVER ?? resolve(root,'core/target/debug/examples/artifact_request');
 const ids=new Set();

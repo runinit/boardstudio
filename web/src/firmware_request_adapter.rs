@@ -1,8 +1,6 @@
 //! Private translation from an accepted electrical plan to the existing firmware worker request.
 //!
-//! This is the Rust counterpart of `app/src/firmwareHandoff.ts` and
-//! `app/src/firmwarePeripherals.ts`. It only maps accepted electrical facts; it does not
-//! assemble plans or generate DTS itself.
+//! It maps accepted electrical facts without assembling plans or generating DTS.
 use boardstudio_core::{
     electrical::{ElectricalMode, ElectricalPlan},
     electrical_peripherals::PeripheralRequirement,

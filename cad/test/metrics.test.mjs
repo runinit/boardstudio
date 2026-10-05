@@ -121,7 +121,7 @@ test('allocated-memory sampling refreshes the buffer after growth and resets bet
 test('opening edits reuse bounded upstream solids while still rebuilding cuts and final meshes', async () => {
   const { readFile } = await import('node:fs/promises');
   const { prepareAssembly } = await import('./native-prepare.mjs');
-  const raw = JSON.parse(await readFile(new URL('../bench/fixtures/boss-tray.json', import.meta.url)));
+  const raw = JSON.parse(await readFile(new URL('./fixtures/boss-tray.json', import.meta.url)));
   const prepared = prepareAssembly(raw);
   const first = await profile(() => previewAssembly(prepared, () => {}));
   assert.equal(first.metrics.counters.upstreamStageMisses, 1);

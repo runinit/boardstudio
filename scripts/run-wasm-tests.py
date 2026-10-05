@@ -4,7 +4,7 @@
   run-wasm-tests.py --files web/src/presentation/foo.rs ...   run only the modules those files define
   run-wasm-tests.py --all                                     run everything
 
-Known failures (scripts/wasm-known-failures.json, tracked as RF-033) are executed but do not fail the
+Known failures (scripts/wasm-known-failures.json) are executed but do not fail the
 run; a known failure that now passes is reported so the entry can be removed.
 
 wasm-bindgen-test-runner accepts a single FILTER, so each module filter is one runner invocation.
@@ -191,6 +191,8 @@ def wasm_bindgen_dir(root=ROOT):
 
 def runner_environment(root=ROOT):
     env = os.environ.copy()
+    # Broad mounted batches exceed the runner's small per-invocation default.
+    env.setdefault("WASM_BINDGEN_TEST_TIMEOUT", "120")
     driver = env.get("CHROMEDRIVER") or shutil.which("chromedriver")
     if not driver:
         raise RunnerError("chromedriver not found; install it (e.g. `pacman -S chromium`/`apt install chromium-driver`) "
@@ -205,11 +207,13 @@ def runner_environment(root=ROOT):
     return env
 
 
-def run_filter(filter_, env, root=ROOT):
+def run_filter(filter_, env, root=ROOT, skip_filters=()):
     override = os.environ.get(RUNNER_ENV)
     command = shlex.split(override) if override else list(WASM_PACK)
     if filter_:
         command.append(filter_)
+    for skip_filter in skip_filters:
+        command.extend(["--skip", skip_filter])
     result = subprocess.run(command, cwd=root, env=env, text=True, capture_output=True)
     output = result.stdout + "\n" + result.stderr
     outcomes = {}
@@ -332,13 +336,37 @@ def filters_for_listed_files(files, env, root=ROOT):
     return filters, expected, unmatched
 
 
-def all_module_selection(env, root=ROOT, depth=None):
+def all_module_selection(env, root=ROOT, depth=None, isolated=()):
     """One filter per test module (or per `depth` leading path segments): a single unfiltered run
     shares one page, so a crash or leaked state in one module masks or breaks the rest."""
+    if depth is not None and depth <= 0:
+        raise RunnerError("--depth must be a positive integer")
     names = list_wasm_tests(env, root)
     modules = sorted({test_module_filter(name, depth) for name in names})
     filters = [m for m in modules if not any(o != m and m.startswith(o) for o in modules)]
-    expected = {module: [name for name in names if name.startswith(module)] for module in filters}
+    isolated = sorted(set(isolated))
+    if isolated and depth is None:
+        raise RunnerError("--isolate requires --depth so isolated tests have a grouped parent")
+    if any(not prefix.endswith("::") for prefix in isolated):
+        raise RunnerError("isolated modules must end with '::'")
+    for index, prefix in enumerate(isolated):
+        if any(other != prefix and (other.startswith(prefix) or prefix.startswith(other))
+               for other in isolated[:index]):
+            raise RunnerError(f"isolated module filters overlap: {prefix}")
+        matches = [name for name in names if name.startswith(prefix)]
+        if not matches:
+            raise RunnerError(f"isolated module has no listed tests: {prefix}")
+        parent = next((module for module in filters if prefix.startswith(module) and prefix != module), None)
+        if parent is None:
+            raise RunnerError(f"isolated module is not a strict descendant of a depth group: {prefix}")
+    expected = {
+        module: [name for name in names if name.startswith(module)
+                 and not any(name.startswith(prefix) for prefix in isolated)]
+        for module in filters
+    }
+    for prefix in isolated:
+        expected[prefix] = [name for name in names if name.startswith(prefix)]
+    filters = sorted([*filters, *isolated])
     return filters, expected
 
 
@@ -440,7 +468,19 @@ def run(filters, known, root=ROOT, expected_tests=None, env=None, unmatched_filt
         label = filter_ or "<all tests>"
         print(f"run-wasm-tests: [{index}/{len(filters)}] {label}", file=sys.stderr)
         started = time.monotonic()
-        code, found, output = run_filter(filter_, env, root)
+        expected_for_filter = set((expected_tests or {}).get(filter_, []))
+        skip_filters = sorted(name for name in (listed_tests or [])
+                              if filter_ in name and name not in expected_for_filter)
+        unsafe_skips = [skip for skip in skip_filters
+                        if any(skip in name for name in expected_for_filter)]
+        if unsafe_skips:
+            problems.append(f"cannot safely exclude substring collision for filter {label}: "
+                            + ", ".join(unsafe_skips))
+            continue
+        if skip_filters:
+            code, found, output = run_filter(filter_, env, root, skip_filters=skip_filters)
+        else:
+            code, found, output = run_filter(filter_, env, root)
         runner_filter = filter_
         if (not found and (expected_tests is None or filter_ not in expected_tests)
                 and filter_.count("::") > 2 and parent_filter(filter_)):
@@ -458,6 +498,14 @@ def run(filters, known, root=ROOT, expected_tests=None, env=None, unmatched_filt
             "terminal_outcomes": observations,
             "duration_ms": round((time.monotonic() - started) * 1000),
         })
+        if result_json_path:
+            log_dir = Path(str(result_json_path) + ".logs")
+            try:
+                log_dir.mkdir(parents=True, exist_ok=True)
+                (log_dir / f"filter-{index:03d}.log").write_text(output)
+                filter_reports[-1]["log_path"] = str(log_dir / f"filter-{index:03d}.log")
+            except OSError as error:
+                problems.append(f"could not write full WASM invocation log: {error}")
         if not found:
             problems.append(f"zero tests executed for filter {label}"
                             + ("" if code == 0 else f" (runner exit {code})")
@@ -539,6 +587,8 @@ def main(argv=None):
     parser.add_argument("--depth", type=int, default=None, metavar="N",
                         help="with --all: group tests by their first N module segments instead of one run per module "
                              "(fewer, faster runs; less isolation)")
+    parser.add_argument("--isolate", action="append", default=[], metavar="MODULE",
+                        help="with --all --depth: run this module prefix separately, e.g. presentation::panels::")
     parser.add_argument("--root", default=str(ROOT))
     parser.add_argument("--result-json", metavar="PATH",
                         help="write the exact listed, selected and terminal outcomes as JSON")
@@ -559,11 +609,11 @@ def main(argv=None):
                     selection = {"mode": "files", "requested_files": args.files,
                                  "resolved_filters": filters, "diagnostics": diagnostics}
                 else:
-                    filters, expected_tests = all_module_selection(env, root, args.depth)
+                    filters, expected_tests = all_module_selection(env, root, args.depth, args.isolate)
                     listed_tests = sorted({name for names in expected_tests.values() for name in names})
                     unmatched_filters = []
                     diagnostics = [f"--all -> {filter_ or '<all tests>'}" for filter_ in filters]
-                    selection = {"mode": "all", "depth": args.depth,
+                    selection = {"mode": "all", "depth": args.depth, "isolated": args.isolate,
                                  "resolved_filters": filters, "diagnostics": diagnostics}
                 for diagnostic in diagnostics:
                     print(f"run-wasm-tests: selection: {diagnostic}", file=sys.stderr)

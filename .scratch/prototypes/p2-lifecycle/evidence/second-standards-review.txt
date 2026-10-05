@@ -1,1 +1,0 @@
-Candidate9686a97c32960023561bb29b81b1257738b94d3b against7ed7b5ec:1 documentationdefect,0heuristic smells. Prior ignoredpatchref fixed; README still names scope-extension.json without evidence/ directory. API source verification vscompile/runtimeclear, repair1consistent, formatpatchunapplied/provider/API/pins/tests unchanged, taskblocked, cleancheckout.

@@ -1,8 +1,0 @@
-{
-  "binding": {
-    "hold": "LCTRL",
-    "kind": "mod-tap",
-    "tap": "Z"
-  },
-  "revision": 47
-}

@@ -1,7 +1,7 @@
 # Gasket generation comparison results
 
 Historical raw artifacts and experimental sources now live in the performance
-worktree. See [Development worktrees](development-worktrees.md) for their location.
+worktree. See Development worktrees (historical record in Git at `323967ff`) for their location.
 
 Measured 2026-09-28 against `49d33a91`. The current design and production backend
 are unchanged. These are isolated, uncached **single-bottom** experiments, not
@@ -9,7 +9,7 @@ new application release-to-paint measurements. The exact gasket target remains
 200 ms p95; the latest full-app result remains 370 ms.
 
 This is the **first bounded batch**, not the entire optimization plan. Follow
-the [E0–E9 coverage table](generation-optimization-status.md) and
+the E0–E9 coverage table (historical record in Git at `323967ff`) and
 [continued OCCT experiments](occt-optimization-round2.md) for the remaining work.
 
 ## Decisions

@@ -1,9 +1,0 @@
-    Checking once_cell v1.21.4
-   Compiling p3-durability-probe v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/p3-durability-20261001/.scratch/prototypes/p3-durability)
-    Checking wasm-bindgen v0.2.129
-    Checking js-sys v0.3.106
-    Checking wasm-bindgen-futures v0.4.79
-    Checking serde-wasm-bindgen v0.6.5
-    Checking web-sys v0.3.106
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 7.84s
-exit=0

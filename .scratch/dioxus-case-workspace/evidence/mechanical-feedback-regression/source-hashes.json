@@ -1,6 +1,0 @@
-{
-  "web/src/mechanical_feedback.rs": "26ecb2bfc4a13f707984de9ef06753a305bb324df501229bd29ef0ec94275383",
-  "web/src/presentation/mechanical_settings.rs": "096ea22ec7582dc2b4130d756cf6f81a2a5c900eb3c85bc338727e47a36a67ae",
-  "web/src/presentation/mechanical_settings_mount.rs": "5ac2db60f526943036318bb383a0c3339d81df3751bac4dcc0ac5749620b68d9",
-  "web/src/presentation/mechanical_settings_controller.rs": "5f4959824283532bb39d928a749a2216e63a1119cda07043207a38009f9e27d0"
-}

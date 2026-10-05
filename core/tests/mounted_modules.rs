@@ -32,7 +32,7 @@ fn placement(face: &str, facing: &str, gap: f64) -> Value {
 
 fn haptic() -> Value {
     let source = include_str!(
-        "../../app/src/modules/sources/sadekbaroudi-vik/pcb/haptic-drv2605l/haptic-drv2605l.kicad_pcb"
+        "../../catalogue/modules/sources/sadekbaroudi-vik/pcb/haptic-drv2605l/haptic-drv2605l.kicad_pcb"
     );
     let reply:Value=serde_json::from_str(&boardstudio_core::artifact::request(&json!({"id":"haptic","kind":"import-module-board",
         "definitionId":"vik:haptic","name":"DRV2605L","source":source,"provenance":definition()["source"],"family":"feedback","variant":"source"}).to_string())).unwrap();
@@ -44,7 +44,7 @@ fn haptic() -> Value {
 fn haptic_pullup_repair_is_an_explicit_source_preserving_variant() {
     let original = haptic();
     let source = include_str!(
-        "../../app/src/modules/sources/sadekbaroudi-vik/pcb/haptic-drv2605l/haptic-drv2605l.kicad_pcb"
+        "../../catalogue/modules/sources/sadekbaroudi-vik/pcb/haptic-drv2605l/haptic-drv2605l.kicad_pcb"
     );
     let reply: Value = serde_json::from_str(&boardstudio_core::artifact::request(&json!({
         "id":"repair", "kind":"import-module-board", "definitionId":"vik:haptic:repaired",
@@ -334,7 +334,7 @@ fn copying_the_unrepaired_haptic_retains_its_precise_electrical_blocker() {
 #[test]
 fn catalogue_retains_all_twenty_nine_rows_and_real_source_variants() {
     let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../app/src/modules/imported-modules.json");
+        .join("../catalogue/modules/imported-modules.json");
     let catalogue: Value = serde_json::from_str(
         &std::fs::read_to_string(file).expect("Generated module catalogue is missing"),
     )
@@ -1010,7 +1010,7 @@ fn module_attachment_is_atomic_and_resolves_facing_surface_gap_above_and_below()
 #[test]
 fn pinned_splitter_import_preserves_real_outline_mounts_and_reversed_interface_contacts() {
     let source = include_str!(
-        "../../app/src/modules/sources/sadekbaroudi-vik/pcb/vik-splitter/vik-splitter.kicad_pcb"
+        "../../catalogue/modules/sources/sadekbaroudi-vik/pcb/vik-splitter/vik-splitter.kicad_pcb"
     );
     let reply:Value = serde_json::from_str(&boardstudio_core::artifact::request(&json!({
         "id":"import","kind":"import-module-board","definitionId":"vik:splitter","name":"VIK splitter",

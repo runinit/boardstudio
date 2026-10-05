@@ -10,7 +10,7 @@ The [continued OCCT screening](occt-optimization-round2.md) measures eight more
 variants across five browser sessions and five bottom fixtures. Dedicated cuts,
 combined cutters, and analytic profile holes give roughly 4–6% diagnostic gains;
 none independently meets the 10% promotion threshold. All 45 native, independent
-STEP, and browser mesh comparisons pass. The [E0–E9 coverage table](generation-optimization-status.md)
+STEP, and browser mesh comparisons pass. The E0–E9 coverage table (historical record in Git at `323967ff`)
 explicitly retains tabbed meshing, bounded reuse, build tuning, wider correctness,
 and full-app acceptance as unfinished work. No production change is selected.
 

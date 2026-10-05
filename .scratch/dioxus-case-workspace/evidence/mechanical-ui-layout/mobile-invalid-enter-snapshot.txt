@@ -1,1 +1,0 @@
-46:      - spinbutton "Clearance mm" [ref=e68]: -0.10000000149011612

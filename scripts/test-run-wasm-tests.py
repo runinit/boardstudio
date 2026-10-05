@@ -23,6 +23,14 @@ spec.loader.exec_module(runner)
 
 
 class RunWasmTestsTests(unittest.TestCase):
+    def test_batch_timeout_is_bounded_and_respects_explicit_override(self):
+        with patch.dict(os.environ, {"PATH": "/bin"}, clear=True), \
+             patch.object(runner.shutil, "which", return_value="/bin/test-tool"), \
+             patch.object(runner, "wasm_bindgen_dir", return_value=Path("/tmp/test-runner")):
+            self.assertEqual(runner.runner_environment()["WASM_BINDGEN_TEST_TIMEOUT"], "120")
+            os.environ["WASM_BINDGEN_TEST_TIMEOUT"] = "37"
+            self.assertEqual(runner.runner_environment()["WASM_BINDGEN_TEST_TIMEOUT"], "37")
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="run-wasm-tests-")
         self.dir = Path(self.temp.name)
@@ -281,6 +289,68 @@ class RunWasmTestsTests(unittest.TestCase):
         self.assertIn("incomplete execution", err)
         self.assertIn("unlisted tests matched", err)
 
+    def test_all_depth_collision_skips_names_owned_by_neighbor_group(self):
+        self.fake(
+            'if [ "$1" = --list ]; then printf "%s\\n" '
+            '"cad_presentation::mounted_tests::case: test" '
+            '"presentation::panels::scroll_tests::case: test"; exit 0; fi\n'
+            'case "$1" in cad_presentation::) echo "test cad_presentation::mounted_tests::case ... ok";; '
+            'presentation::) echo "test presentation::panels::scroll_tests::case ... ok";; esac'
+        )
+        code, out, err = self.main("--all", "--depth", "1")
+        self.assertEqual(code, 0, out + err)
+        calls = self.log.read_text().splitlines()
+        self.assertIn("presentation:: --skip cad_presentation::mounted_tests::case", calls)
+
+    def test_run_filter_passes_exclusions_to_wasm_bindgen(self):
+        completed = subprocess.CompletedProcess([], 0, "", "")
+        with patch.dict(os.environ, {runner.RUNNER_ENV: "fake-runner"}), \
+                patch.object(runner.subprocess, "run", return_value=completed) as run_process:
+            runner.run_filter("presentation::", {}, self.dir,
+                              skip_filters=["cad_presentation::mounted_tests::case"])
+        command = run_process.call_args.args[0]
+        self.assertEqual(command[-3:], [
+            "presentation::", "--skip", "cad_presentation::mounted_tests::case"
+        ])
+
+    def test_depth_group_isolates_module_without_dropping_tests(self):
+        names = [
+            "cad_presentation::mounted_tests::case",
+            "presentation::case_workspace::mounted_live_scene_tests::layers",
+            "presentation::case_workspace::other_tests::cancel",
+            "presentation::panels::scroll_tests::bounded_owner",
+        ]
+        with patch.object(runner, "list_wasm_tests", return_value=names):
+            filters, expected = runner.all_module_selection(
+                {}, self.dir, depth=1, isolated=["presentation::case_workspace::"])
+        self.assertEqual(filters, [
+            "cad_presentation::", "presentation::", "presentation::case_workspace::"
+        ])
+        self.assertEqual(expected, {
+            "cad_presentation::": [names[0]],
+            "presentation::": [names[3]],
+            "presentation::case_workspace::": names[1:3],
+        })
+
+    def test_depth_group_rejects_overlapping_or_unlisted_isolation(self):
+        names = ["presentation::case_workspace::tests::case"]
+        with patch.object(runner, "list_wasm_tests", return_value=names):
+            with self.assertRaisesRegex(runner.RunnerError, "overlap"):
+                runner.all_module_selection(
+                    {}, self.dir, depth=1,
+                    isolated=["presentation::case_workspace::", "presentation::case_workspace::tests::"])
+            with self.assertRaisesRegex(runner.RunnerError, "no listed tests"):
+                runner.all_module_selection({}, self.dir, depth=1,
+                                            isolated=["presentation::missing::"])
+
+    def test_depth_group_rejects_non_positive_depth(self):
+        with patch.object(runner, "list_wasm_tests") as list_tests:
+            for depth in (0, -1):
+                with self.subTest(depth=depth), self.assertRaisesRegex(
+                        runner.RunnerError, "positive integer"):
+                    runner.all_module_selection({}, self.dir, depth=depth)
+            list_tests.assert_not_called()
+
     def test_result_json_distinguishes_complete_known_failure_from_success(self):
         self.fake("echo 'test presentation::x::tests::known_broken ... FAIL'; exit 1")
         report_path = self.dir / "report.json"
@@ -297,6 +367,8 @@ class RunWasmTestsTests(unittest.TestCase):
         }])
         self.assertEqual(len(report["filters"]), 1)
         self.assertGreaterEqual(report["filters"][0]["duration_ms"], 0)
+        invocation_log = Path(report["filters"][0]["log_path"])
+        self.assertIn("test presentation::x::tests::known_broken ... FAIL", invocation_log.read_text())
 
     def test_result_json_marks_incomplete_and_inventory_problems(self):
         self.fake(

@@ -1,6 +1,0 @@
-Filesystem      Size  Used Avail Use% Mounted on
-/dev/nvme0n1p5  1.2T  844G  293G  75% /home
-tmpfs            16G   16G   58M 100% /tmp
-Filesystem      Inodes IUsed   IFree IUse% Mounted on
-/dev/nvme0n1p5       0     0       0     - /home
-tmpfs          4015347 38064 3977283    1% /tmp

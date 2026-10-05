@@ -1,3 +1,0 @@
-command: node scripts/embed-worker-wasm.mjs dist/root v1
-{"version":"v1","wasmBytes":41475,"base64Bytes":55300,"bootstrapBytes":55518}
-exit=0

@@ -1,0 +1,10 @@
+[application]
+name = "BoardStudio"
+
+[web.app]
+title = "BoardStudio"
+
+[web.watcher]
+reload_html = true
+watch_path = ["src"]
+index_on_404 = false

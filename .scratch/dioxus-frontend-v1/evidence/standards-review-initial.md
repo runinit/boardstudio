@@ -1,5 +1,0 @@
-## Standards review
-
-**Hard violation — accessibility parity:** The default Layout view loses the page's only `<h1>`. The old shell rendered “BoardStudio” as an h1; the new root renders it in a generic `span` with `aria-label`/`title` (`web/src/presentation.rs:164-167`), while the Layout canvas and inspector expose only lower-level headings. The `aria-label` does not make the span a heading. This regresses semantic structure and the existing page-heading accessibility check, contrary to `CONSTRAINTS.md` UI requirements to preserve semantic accessibility. Keep a visually styled h1 (it may remain visually compact).
-
-No other material Standards violation found in the reviewed shell diff. The System theme preference, browser media listener cleanup, tab-switch drag cancellation, and numeric-draft cleanup are present. Source checks reported passing; browser-root evidence is still pending, so visual, responsive, and assistive-technology parity remain unverified gates rather than additional source findings.

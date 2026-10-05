@@ -1,4 +1,4 @@
-//! Application presets ported from app/src/mechanicalPresets.ts.
+//! Defaults for supported mechanical presets.
 use boardstudio_core::model::{MechanicalConfiguration, Part, PartDefinition, ProjectDoc};
 
 /// Existing configuration keeps all extension settings; a new board uses reference defaults.

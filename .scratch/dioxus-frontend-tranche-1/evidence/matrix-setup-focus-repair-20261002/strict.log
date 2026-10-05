@@ -1,5 +1,0 @@
-    Checking boardstudio-contracts v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/matrix-setup-focus-repair-20261002/contracts/rust)
-   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/matrix-setup-focus-repair-20261002/web)
-    Checking boardstudio_core v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/matrix-setup-focus-repair-20261002/core)
-    Checking boardstudio-application v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/matrix-setup-focus-repair-20261002/application)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 23.19s

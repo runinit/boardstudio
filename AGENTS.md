@@ -1,16 +1,6 @@
-# BoardStudio Dioxus migration: agent entry point
+# BoardStudio
 
-Worktree: `/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001`
-Branch: `codex/rust-v1-ui-parity-20261001`. Stay on it; do not push; do not use bare `git stash`.
-
-Read in order:
-1. `handoff.md`: current state, hold items, traps, next work.
-2. `CONSTRAINTS.md`: the operating contract (delivery loop, token discipline, agent routing). Use the Codex route.
-3. `.scratch/dioxus-frontend-v1/progress.py`: records tool. `frontier` shows grouped functional work separately from acceptance; `handoff` regenerates the generated half of `handoff.md`.
-
-Rules:
-- Stage commits by explicit path only; the tree has many unrelated untracked files.
-- Use built-in tools first: shell, `rg`, web search, the built-in browser plugin, native subagents. Use CodeGraph when this checkout has a `.codegraph/` index; otherwise use targeted reads/search. Use `cargo doc` or web search for Dioxus/Rust API facts.
-- Presentation code is wasm-only: run the wasm `page` check and `scripts/run-wasm-tests.py`; a plain `#[test]` there does not run.
-- Pipe build/test output through `tail`/`grep`. No screenshots or `innerText` dumps unless a visual difference is under test.
-- Subagent reports are 150 words or less, with detail in a file.
+- Read [architecture](docs/architecture.md) when locating ownership across Rust and browser providers; [CONTEXT.md](CONTEXT.md) defines domain terms.
+- Use the commands in [README.md](README.md) for development and checks. Browser presentation is compiled only for WASM; native tests alone do not validate it.
+- Before changing components, footprints, modules or models, read [component onboarding](docs/hardware/component-onboarding.md).
+- Preserve unrelated work and user project data. Stage explicit paths. Keep fixes and their verification within the affected behavior.

@@ -1,7 +1,7 @@
 use boardstudio_core::CoreEngine;
 use serde_json::{Value, json};
 
-const MODULE_LIBRARY: &str = include_str!("../../app/src/modules/imported-modules.json");
+const MODULE_LIBRARY: &str = include_str!("../../catalogue/modules/imported-modules.json");
 
 fn request(engine: &mut CoreEngine, value: Value) -> Value {
     serde_json::from_str(&engine.request(&value.to_string())).unwrap()

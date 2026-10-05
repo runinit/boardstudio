@@ -1,9 +1,0 @@
-{
-  "pid": 2876848,
-  "at": "2026-10-05T08:58:40.001505+00:00",
-  "signal": "SIGTERM",
-  "reason": "Required reviewer fixture-attribution correction supersedes this source; independently approved exact hash-bound owners replace broad unaffected presentation selection. Headless incomplete, not a passing gate.",
-  "native_passed": 245,
-  "wasm_page": "passed",
-  "reachability": "passed"
-}

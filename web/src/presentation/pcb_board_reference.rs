@@ -1345,7 +1345,7 @@ mod mounted_async_tests {
     }
 
     fn replacement_file(salt: usize) -> (File, String) {
-        let mut bytes = include_bytes!("../../../.scratch/dioxus-frontend-v1/evidence/pcb-routed-folder-20261005/Replacement_PCB.kicad_pcb").to_vec();
+        let mut bytes = include_bytes!("../../tests/fixtures/replacement.kicad_pcb").to_vec();
         // Trailing whitespace preserves the fixture as KiCad text while giving
         // each stale-owner case a unique BrowserStore identity.
         bytes.extend(std::iter::repeat_n(b'\n', salt));

@@ -1,5 +1,0 @@
-   Compiling boardstudio_core v0.1.0 (/tmp/boardstudio-outline-integration-local/core)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.44s
-Archive diagnostic (4 MiB incompressible asset): ZIP 4196477 bytes; WASM linear-memory high water 14680064 bytes (before 1900544); Node peak RSS 183590912 bytes.
-Matrix diagnostic: 9-cell scene 1554 bytes; 500-cell draft 55945 bytes.
-Native/WASM boundary parity: 17 core requests, 9 archive requests passed. WASM initialization 6.2 ms; raw size 4964878 bytes. Diagnostic memory: {"rss":183590912,"heapTotal":19906560,"heapUsed":11366136,"external":57854925,"arrayBuffers":51462563}

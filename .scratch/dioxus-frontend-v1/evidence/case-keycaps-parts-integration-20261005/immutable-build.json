@@ -1,9 +1,0 @@
-{
-  "pid": 3097898,
-  "state": "terminal",
-  "started_unix": 1791201475.5226057,
-  "source_commit": "55790e0a9c30b3e53cbd9690dc418fec23021d11",
-  "build_id": "frontend-case-parts-cap-selection-20261005",
-  "exit_code": 0,
-  "elapsed_seconds": 142.87930059432983
-}

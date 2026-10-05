@@ -5,37 +5,27 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const rootDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const require = createRequire(path.join(rootDirectory, 'app/package.json'));
+const require = createRequire(path.join(rootDirectory, 'package.json'));
 const ts = require('typescript/unstable/ast');
 const { API } = require('typescript/unstable/sync');
 const { createVirtualFileSystem } = require('typescript/unstable/fs');
-const packages = ['app', 'cad', 'contracts', 'ergogen', 'kicad'];
+const packages = ['cad', 'contracts', 'ergogen', 'kicad', 'tooling/demo-projects'];
 const extensions = ['.ts', '.tsx', '.mts', '.mjs', '.js'];
 const excludedDirectories = new Set(['node_modules', 'dist', 'pkg', 'target', '.git', '.impeccable', '.generated', 'library']);
 const isTest = file => /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(file) || /(?:^|\/)(?:test|e2e)\//.test(file);
 const isGenerated = file => file.startsWith('contracts/src/generated/');
 const entrypoints = [
-  'app/src/main.tsx',
-  'app/src/core.worker.ts', 'app/src/export.worker.ts', 'app/src/case.worker.ts', 'app/src/scene.worker.ts',
-  // Separate HTML benchmark documents load these roots, not the app shell.
-  'app/src/bench.ts', 'app/src/bench-workbench.tsx', 'app/src/bench-cad.ts',
   'cad/src/index.ts', 'contracts/src/index.ts', 'kicad/src/index.ts', 'ergogen/src/index.ts',
+  ...['demos/sofle', 'demos/keyboards', 'mechanicalPresets', 'demos/moduleReview', 'archive'].map(name => `tooling/demo-projects/src/${name}.ts`),
 ];
 // These package facades also describe runtime/worker contracts whose complete
 // surface is checked by native, contract, and package integration tests.
 const publicFacades = new Map([
   ['contracts/src/index.ts', 'Rust-generated protocol plus shared document constructors'],
   ['cad/src/index.ts', 'CAD worker/runtime package boundary'],
+  ['ergogen/src/index.ts', 'Generator ABI packaged by scripts/web/build-layout-generators.mjs'],
+  ...['demos/sofle', 'demos/keyboards', 'mechanicalPresets', 'demos/moduleReview', 'archive'].map(name => [`tooling/demo-projects/src/${name}.ts`, 'Build-time SSR entrypoint loaded by prepare-demo-projects.mjs']),
 ]);
-// These presentation modules delegate domain work through feature interfaces.
-const presentationModules = new Set([
-  'Workbench', 'AssemblyViewer', 'KeymapPanel', 'KeymapLayout',
-  'createKeymapWorkspace', 'useCaseWorkspace', 'usePcbWorkspace',
-  'useOutlineEditor', 'useScriptEditor', 'ConstraintEditor',
-]);
-const keymapModules = new Set(['KeymapPanel', 'KeymapLayout', 'createKeymapWorkspace']);
-const workerModules = new Set(['CoreClient', 'CaseClient', 'ExportClient', 'core.worker', 'case.worker', 'export.worker']);
-
 async function walk(directory, accept, prefix = '') {
   let entries;
   try { entries = await readdir(directory, { withFileTypes: true }); }
@@ -53,7 +43,6 @@ async function walk(directory, accept, prefix = '') {
 function analyze(ast) {
   const edges = [];
   const exported = new Set();
-  let replacesDocument = false;
   function visit(node) {
     if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
       const names = [];
@@ -98,20 +87,21 @@ function analyze(ast) {
       && node.arguments[1].getText(ast) === 'import.meta.url') {
       edges.push({ specifier: node.arguments[0].text, names: [], runtime: true });
     }
-    if (ts.isPropertyAssignment(node) && node.name.text === 'kind'
-      && ts.isStringLiteral(node.initializer) && node.initializer.text === 'replace-document') replacesDocument = true;
     node.forEachChild(visit);
   }
   visit(ast);
-  return { edges, exported, replacesDocument };
+  return { edges, exported };
 }
 
-async function check(root = rootDirectory) {
+async function check(root = rootDirectory, options = {}) {
+  const packageRoots = options.packages ?? packages;
+  const roots = [...(options.entrypoints ?? entrypoints)];
+  const facades = options.publicFacades ?? publicFacades;
   const files = new Set();
   const manifests = new Map();
   const packageExports = new Map();
   const isSource = file => extensions.includes(path.extname(file)) && !file.endsWith('.d.ts');
-  for (const directory of ['', ...packages]) {
+  for (const directory of ['', ...packageRoots]) {
     const manifest = path.posix.join(directory, 'package.json');
     try {
       const json = JSON.parse(await readFile(path.join(root, manifest), 'utf8'));
@@ -121,13 +111,20 @@ async function check(root = rootDirectory) {
         if (typeof target === 'string') packageExports.set(`${json.name}${subpath === '.' ? '' : subpath.slice(1)}`, path.posix.join(directory, target));
       }
     } catch (error) { if (error.code !== 'ENOENT') throw error; }
-    if (!directory) continue;
+    if (!directory) {
+      for (const file of await walk(path.join(root, 'scripts'), isSource)) {
+        const name = `scripts/${file}`;
+        files.add(name);
+        if (!isTest(name)) roots.push(name);
+      }
+      continue;
+    }
     for (const subdirectory of ['src', 'scripts', 'test', 'e2e']) {
       for (const file of await walk(path.join(root, directory, subdirectory), isSource)) files.add(path.posix.join(directory, subdirectory, file));
     }
   }
   // Minimal fixtures need not reproduce every workspace manifest.
-  for (const directory of packages.filter(directory => directory !== 'app')) {
+  for (const directory of packageRoots.filter(directory => !directory.includes('/'))) {
     if (!packageExports.has(`@boardstudio/v2-${directory}`)) packageExports.set(`@boardstudio/v2-${directory}`, `${directory}/src/index.ts`);
   }
   const infos = new Map();
@@ -168,8 +165,8 @@ async function check(root = rootDirectory) {
       if (target) visit(target);
     }
   }
-  entrypoints.forEach(visit);
-  const issues = entrypoints.filter(file => !files.has(file)).map(file => ({ kind: 'missing-entrypoint', file, message: 'Explicit entrypoint does not exist' }));
+  roots.forEach(visit);
+  const issues = roots.filter(file => !files.has(file)).map(file => ({ kind: 'missing-entrypoint', file, message: 'Explicit entrypoint does not exist' }));
   const used = new Map();
   for (const [file, info] of infos) {
     for (const edge of info.edges) {
@@ -182,23 +179,8 @@ async function check(root = rootDirectory) {
   }
   for (const [file, info] of infos) {
     if (isTest(file) || !file.includes('/src/') || isGenerated(file)) continue;
-    const name = path.posix.basename(file, path.posix.extname(file));
-    for (const edge of info.edges) {
-      const target = resolve(file, edge.specifier);
-      if (!target) continue;
-      const targetName = path.posix.basename(target, path.posix.extname(target));
-      if (file.startsWith('app/src/ui/') && presentationModules.has(name) && edge.runtime && workerModules.has(targetName)) {
-        issues.push({ kind: 'ownership-boundary', file, message: `Presentation delegates worker ownership to its feature module: ${edge.specifier}` });
-      }
-      if ((file.startsWith('app/src/exports/') || file === 'app/src/assemblyPreview.ts') && target.startsWith('app/src/ui/')) {
-        issues.push({ kind: 'ownership-boundary', file, message: `Domain workflow must not depend on presentation: ${edge.specifier}` });
-      }
-    }
-    if (file.startsWith('app/src/ui/') && keymapModules.has(name) && info.replacesDocument) {
-      issues.push({ kind: 'ownership-boundary', file, message: 'Keymap changes use typed Rust field edits instead of document replacement' });
-    }
     if (!reachable.has(file)) issues.push({ kind: 'unreachable-module', file, message: 'No production entrypoint reaches this module (test imports do not make it production code)' });
-    if (publicFacades.has(file)) continue;
+    if (facades.has(file)) continue;
     for (const name of info.exported) {
       if (!used.get(file)?.has(name) && !used.get(file)?.has('*')) {
         issues.push({ kind: 'unused-export', file, message: `Export ${name} has no import or re-export consumer` });
@@ -215,7 +197,7 @@ async function check(root = rootDirectory) {
       }
     }
   }
-  const markdown = ['README.md', 'PRODUCT.md', 'DESIGN.md', ...packages.map(directory => `${directory}/README.md`), ...(await walk(path.join(root, 'docs'), file => file.endsWith('.md'))).map(file => `docs/${file}`)];
+  const markdown = ['README.md', 'PRODUCT.md', 'DESIGN.md', ...packageRoots.map(directory => `${directory}/README.md`), ...(await walk(path.join(root, 'docs'), file => file.endsWith('.md'))).map(file => `docs/${file}`)];
   for (const file of markdown) {
     let source;
     try { source = await readFile(path.join(root, file), 'utf8'); }

@@ -1,1 +1,0 @@
-4a85b354922c836cf049437e6b3bc1671a550dfe182f8b9e20d57e1a630c9dba  web/src/presentation/mechanical_settings.rs

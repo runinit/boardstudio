@@ -1,8 +1,0 @@
-{
-  "source": ".scratch/dioxus-frontend-v1/evidence/case-handle-qualification-20261005/input.boardstudio",
-  "source_sha256": "5b4453dc1415540163369d5c053c3e577abfdbd972a6b66d12e9712368472e3a",
-  "project_id": "7035e09b-3dd1-4c72-b0b4-600ccf917dd3",
-  "fixture_sha256": "5823614c1785af9a4a2410f4723804e5d2486bac8019f995df2d21e887775f2d",
-  "mutation": "Fresh project ID/name; append clone of right instance as right-alternate, constructionLinked=false, openingAllowance=0.2. All other archive entries retained.",
-  "status": "Accepted by both public imports; all three assembly rows selectable. See RECEIPT.md for results and limitations."
-}

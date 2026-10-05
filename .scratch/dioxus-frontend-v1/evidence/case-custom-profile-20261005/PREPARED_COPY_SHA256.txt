@@ -1,3 +1,0 @@
-4ba4e29ca24a88f31a665d2911589a88f5b1cf1279b78a432879a0211a8d505e  .scratch/dioxus-frontend-v1/evidence/case-custom-profile-20261005/copies/web/src/presentation/mechanical_settings.rs
-62c1463a92271ccd62cf85729e10a0114fe8db05322f08d73eb15a0cf8536c26  .scratch/dioxus-frontend-v1/evidence/case-custom-profile-20261005/copies/web/src/presentation/mechanical_settings_controller.rs
-3e01a68ac5a7637d08febb5fa98feb0bd3e9c2f2052ebd78c57b5dde82248713  .scratch/dioxus-frontend-v1/evidence/case-custom-profile-20261005/copies/web/src/presentation/mechanical_settings_mount.rs

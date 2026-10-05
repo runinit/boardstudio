@@ -127,7 +127,7 @@ fn square(x: f64, y: f64, size: f64) -> Vec<Vec2> {
 #[test]
 fn overlapping_opening_profiles_preserve_exact_material_and_export() {
     let ir: PreparedCase = serde_json::from_str(include_str!(
-        "../../../../bench/fixtures/live-gasket-bottom-regression.json"
+        "../../../../test/fixtures/live-gasket-bottom-regression.json"
     ))
     .unwrap();
     for region in &ir.regions {

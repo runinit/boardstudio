@@ -1,4 +1,0 @@
-run-wasm-tests: [1/3] presentation::mechanical_settings::contextual_layer_tests::custom_profile_geometry_controls_read_apply_edit_and_remove_assigned_profile
-run-wasm-tests: [2/3] presentation::mechanical_settings::contextual_layer_tests::assigned_profile_adds_component_clearance_polygon_without_extraction
-run-wasm-tests: [3/3] presentation::mechanical_settings_controller::battery_patch_tests::assigned_custom_profile_updates_geometry_and_removes_by_current_definition
-{'executed': 3, 'failed': [], 'problems': []}

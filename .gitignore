@@ -39,8 +39,20 @@ SKILL.md
 /data/stream_store/
 ts-boardstudio2.code-workspace
 
-# Local memory journals and generated benchmark runs.
+# Local memory journals and Python bytecode.
 .memsearch/
-/app/performance-results/
-/cad/bench/results/*/
-!/cad/bench/results/baseline/
+__pycache__/
+
+# Local experiments and generated frontend providers.
+.scratch/
+core/pkg/
+web/assets/ergogen-models/
+web/assets/layout-generators/
+web/assets/layout-generators.js
+web/assets/preview-generator/
+web/assets/fixtures/
+web/assets/core-worker/
+web/assets/cad-worker/
+web/assets/cad/
+web/assets/renderer/
+web/assets/imported-modules.json

@@ -25,7 +25,7 @@ const configurations = [
   ['lumberjack', 'Lumberjack', 'lumberjack-keyboard', 'lumberjack.kicad_pcb', false, false, 60, numbered('MX',60)],
 ];
 const layouts = {};
-const licenses = new URL('../app/src/demos/licenses/', import.meta.url);
+const licenses = new URL('../content/demos/licenses/', import.meta.url);
 mkdirSync(licenses, { recursive: true });
 for (const [id, name, folder, path, split, choc, count, include] of configurations) {
   const checkout = resolve(root, folder);
@@ -51,5 +51,5 @@ for (const [id, name, folder, path, split, choc, count, include] of configuratio
   if (license) copyFileSync(resolve(checkout, license), new URL(`${id}.txt`, licenses));
   layouts[id] = { name, split, choc, repository, revision, path, sha256: createHash('sha256').update(source).digest('hex'), licenseFile: license ? `licenses/${id}.txt` : null, keys };
 }
-writeFileSync(new URL('../app/src/demos/keyboard-layouts.json', import.meta.url), JSON.stringify(layouts, null, 2)+'\n');
+writeFileSync(new URL('../tooling/demo-projects/src/keyboard-layouts.json', import.meta.url), JSON.stringify(layouts, null, 2)+'\n');
 console.log(`Measured ${Object.keys(layouts).length} layouts`);

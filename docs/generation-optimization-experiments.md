@@ -1,9 +1,9 @@
 # Generation optimization experiments
 
 Historical raw artifacts and experimental sources now live in the performance
-worktree. See [Development worktrees](development-worktrees.md) for their location.
+worktree. See Development worktrees (historical record in Git at `323967ff`) for their location.
 
-Planned 2026-09-28 against `49d33a91`. This is Phase 3 of [PLAN.md](../PLAN.md).
+Planned 2026-09-28 against `49d33a91`. This is Phase 3 of PLAN.md (historical record in Git at `323967ff`).
 It consolidates the gasket, parametric construction, Cadrum/OCCT, and alternative
 kernel discussions. The selected bounded E0/E1/E7, Manifold-preview, and
 Monstertruck screening has now been executed; see [results and revised
@@ -38,7 +38,7 @@ production kernel migrations, Truck, and Brepkit remain deferred.
 ## Completed bounded screening
 
 **The E0–E9 plan is not complete.** The comparisons below are one subset.
-The [coverage table](generation-optimization-status.md) tracks every remaining
+The coverage table (historical record in Git at `323967ff`) tracks every remaining
 item, and [round-two OCCT screening](occt-optimization-round2.md) continues
 history, Boolean selection/planning, non-destructive, and cleanup experiments.
 
@@ -86,7 +86,7 @@ Evidence:
 - Retained stage attribution (`app/performance-results/phase2-scene-live/gasket-attribution-comparison.json` in the performance worktree).
 - Final CAD summary (`cad/bench/results/phase2-scene-final/summary.json` in the performance worktree)
   and comparison (`cad/bench/results/phase2-scene-final/comparison.json` in the performance worktree).
-- [Frozen CAD protocol](../cad/bench/README.md) and [budgets](../cad/bench/budgets.json).
+- Frozen CAD protocol (retired React benchmark; retained in Git at `323967ff`) and budgets (retired React benchmark; retained in Git at `323967ff`).
 
 Already completed: batched deferred Boolean expressions, exact reduction of
 overlapping rectangular opening cutters, immutable final-solid sharing, bounded

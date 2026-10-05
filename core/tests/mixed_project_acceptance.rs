@@ -3,10 +3,10 @@
 use boardstudio_core::{CoreEngine, artifact_request};
 use serde_json::{Value, json};
 
-const THQ_LIBRARY: &str = include_str!("../../app/src/parts/imported-parts.json");
-const VIK_LIBRARY: &str = include_str!("../../app/src/modules/imported-modules.json");
+const THQ_LIBRARY: &str = include_str!("../../catalogue/parts/imported-parts.json");
+const VIK_LIBRARY: &str = include_str!("../../catalogue/modules/imported-modules.json");
 const HAPTIC_SOURCE: &str = include_str!(
-    "../../app/src/modules/sources/sadekbaroudi-vik/pcb/haptic-drv2605l/haptic-drv2605l.kicad_pcb"
+    "../../catalogue/modules/sources/sadekbaroudi-vik/pcb/haptic-drv2605l/haptic-drv2605l.kicad_pcb"
 );
 
 fn thq_definition(id: &str) -> Value {

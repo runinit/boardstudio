@@ -1,7 +1,0 @@
-{
-  "url": "http://127.0.0.1:5173/",
-  "modules": 3,
-  "footprints": 26,
-  "pads": 159,
-  "layerText": "Layers\nCopper\nBack copper\nFront copper\nObjects\nBoard outline\nCourtyards\nPads\nHoles\nReferences\nMounted modules\nFootprints\nBoard outlines\nClearance & service\nMounting holes\nStandoffs\nFront silkscreen\nBack silkscreen\nFront fabrication\nBack fabrication\nFindings & clearances"
-}

@@ -1,4 +1,0 @@
-usage: build-m1.py [-h] [--reuse-providers-from FULL_BUILD_ID |
-                   --refresh-fixtures-from FULL_BUILD_ID]
-                   build_id
-build-m1.py: error: unsupported module registration in included Rust source: web/src/renderer_host_page_base.rs

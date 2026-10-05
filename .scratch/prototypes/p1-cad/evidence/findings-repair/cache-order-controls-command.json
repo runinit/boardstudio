@@ -1,9 +1,0 @@
-{
-  "command": [
-    "node",
-    ".scratch/prototypes/p1-cad/evidence/findings-repair/cache-order-controls.mjs"
-  ],
-  "exit_code": 0,
-  "log": "cache-order-controls.log.gz",
-  "raw_sha256": "caa17037a9b2fe85a1442323d46a56c0e644eeeb466a1e05a8d3d55b385a9bc4"
-}

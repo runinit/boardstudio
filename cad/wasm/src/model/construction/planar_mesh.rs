@@ -182,7 +182,7 @@ mod tests {
 
     fn fixture() -> PreparedAssembly {
         serde_json::from_str(include_str!(
-            "../../../../bench/fixtures/live-numeric-plates-regression.json"
+            "../../../../test/fixtures/live-numeric-plates-regression.json"
         ))
         .unwrap()
     }

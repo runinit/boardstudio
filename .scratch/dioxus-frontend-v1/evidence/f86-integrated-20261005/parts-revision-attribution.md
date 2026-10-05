@@ -1,7 +1,0 @@
-# F8.6 Parts placement revision attribution
-
-The retained checkpoints show both apps at revision 16 after Column 1 X changed 2→3. After selecting built-in `mounting hole npth`, placing by canvas Enter, then setting X=60/Y=-40, the saved candidate checkpoint is revision 20 and the reference is revision 19. The saved state does not split those three accepted actions by revision.
-
-Source inspection does not prove a definition-plus-placement double commit. Candidate `part_placement.rs` loads/prepares the selected definition without editing the document, then `placement_operation` adds a missing definition and the placed part in one `Edit`. React `createWorkbenchPlacementActions.ts` constructs the part and `documentWithPlacedPart` in one emitted replacement. For coordinates, candidate `inspector.rs` sends preview-phase events on input and a commit on Enter; React `Coordinate` commits on blur, with Enter causing that blur. Both have one accepted commit per edited axis in these paths. No specific extra revision is attributable from the current archives/source.
-
-Discriminating next public checkpoint, only if root needs attribution: capture each app's saved revision immediately after placement Enter, then after X commit, then after Y commit, retaining field values and download identities. This will locate the divergence without repeating the rest of the journey. No browser/test/build or other action was run for this read-only attribution.

@@ -1,9 +1,0 @@
-migration-deliver: 11 wasm-relevant Rust file(s) in this commit (e.g. web/src/presentation.rs); ensuring wasm32 cargo check
-migration-deliver: passed wasm32 page check; receipt=web/target/migration-gates/wasm-page-check/7054c7fc99bf5a7946af7bc1ecfc7d25554f11cefdddb73d4c3f3b9965976ae3.json started=2026-10-05T05:03:08+00:00 ended=2026-10-05T05:03:08+00:00 duration=0.35s
-migration-deliver: ensuring native web tests passed before committing
-migration-deliver: passed native web tests (failed=0, ignored=1, passed=245); receipt=web/target/migration-gates/native-web/824ccafeb854413d8f5a6bd1dabc77409123a440958669cd69817b2ede8b86ec.json started=2026-10-05T05:03:09+00:00 ended=2026-10-05T05:03:13+00:00 duration=3.35s
-migration-deliver: ensuring scripts/check-wasm-tests.py passes for Rust files in this commit
-migration-deliver: passed wasm test reachability; receipt=web/target/migration-gates/wasm-test-reachability/8debaac3672f972d15e6b0bdc0fc38032ed79dce0f3f2b103e26ffc9fc8a410c.json started=2026-10-05T05:03:14+00:00 ended=2026-10-05T05:03:15+00:00 duration=1.76s
-migration-deliver: ensuring wasm-bindgen tests pass in headless Chrome for changed modules
-
-Coordinator terminated verified process group after reviewer found a source bug; tracked session2356 exit143. Headless incomplete, no pass claimed.

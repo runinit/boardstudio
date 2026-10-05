@@ -1,1 +1,0 @@
-"{\"origin\":\"http://127.0.0.1:4395\",\"fixtureSha256\":\"b577dd2009fffbf00489cc8d0f2ccc088861f62a7f30af42470d35c11534bdae\",\"id\":\"edbec892-9952-4b6b-a7ba-cb6b0a514ac4\",\"name\":\"REVIUNG41\",\"revision\":3,\"parts\":85,\"matrices\":[\"main-right-keys\",\"main-left-keys\",\"main-thumbs\"]}"

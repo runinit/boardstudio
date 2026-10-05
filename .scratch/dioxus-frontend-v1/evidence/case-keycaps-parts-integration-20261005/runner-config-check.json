@@ -1,6 +1,0 @@
-{
-  "command": "python3 scripts/test-run-wasm-tests.py",
-  "result": "37 tests passed, OK; process exit0",
-  "source": "Coordinator tool execution during current turn; output tailed, no raw full log retained",
-  "owner_map_sha256": "b6b9032548781fbcd0e3b88189f4d5c9967885811052e9fae772b0cb72899de9"
-}

@@ -1,5 +1,0 @@
-locator.click: Timeout 30000ms exceeded.
-Call log:
-[2m  - waiting for getByRole('button', { name: 'Project', exact: true })[22m
-
-    at /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-v1/evidence/layout-pcb-inventory-20261005/required-axe-check.cjs:25:72

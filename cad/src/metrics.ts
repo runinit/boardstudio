@@ -1,5 +1,5 @@
 // Internal diagnostics shared by the CAD adapter and worker, not a CAD entry point.
-export type CadMetrics = {
+type CadMetrics = {
   stages: Record<string, { durationMs: number; calls: number }>;
   counters: Record<string, number>;
   bodies?: { id: string; name: string; durationMs: number; stages: Record<string, number> }[];

@@ -1,8 +1,0 @@
-migration-deliver: 2 wasm-relevant Rust file(s) in this commit (e.g. web/src/presentation.rs); running wasm32 cargo check before committing
-migration-deliver: running native web tests before committing
-migration-deliver: running scripts/check-wasm-tests.py for Rust files in this commit
-migration-deliver: running wasm-bindgen tests in headless Chrome for changed wasm test modules
-[codex/rust-v1-ui-parity-20261001 f320e6b8] Repair Layout key recovery and isolate file-selected wasm tests
- 9 files changed, 852 insertions(+), 43 deletions(-)
- create mode 100644 .scratch/dioxus-frontend-v1/evidence/layout-catalog-retry-repair-20261004.md
- create mode 100644 .scratch/dioxus-frontend-v1/evidence/layout-selection-undo-repair-20261004.md

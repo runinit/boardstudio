@@ -1,3 +1,0 @@
-Traceback (most recent call last):
-  File "<stdin>", line 17, in <module>
-RuntimeError: Expected exactly one listed regression: presentation::mechanical_settings_controller::tests::assigned_custom_profile_updates_geometry_and_removes_by_current_definition

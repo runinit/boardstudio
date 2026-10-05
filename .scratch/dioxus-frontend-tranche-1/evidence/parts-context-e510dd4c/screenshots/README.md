@@ -1,1 +1,0 @@
-Actual public candidate e510dd4c at http://127.0.0.1:34657/boardstudio/, frontend-parts-context-20261002 build, viewport 1280x577, System theme. Exact Sofle archive publicly imported; screenshots captured by independent frontend_ui_verifier. Screenshots establish appearance only; lifecycle/selection/typed data evidence is separate.
