@@ -1,7 +1,7 @@
 # Footprint generators in Rust
 
 Planned: 2026-10-05. Inspected revision: `3cdeb2ac2`.
-Status: agreed plan; implementation has not started.
+Status: agreed plan; step 1 complete (`80b8e460e`, findings folded in below).
 
 This plan covers items 1 and 2 of the
 [TypeScript and Node removal assessment](typescript-node-removal.md): the
@@ -40,50 +40,83 @@ equivalent), the JavaScript worker, then Core `FinishPreview`.
   directly for drawings, parameter schemas and the catalogue. Measure the page
   WASM size change when the framework lands.
 - **Mechanical port.** One module per generator emits the same S-expression
-  text, which then passes through the existing parse step. Reuse Core's
-  `upgrade_legacy_arcs` instead of porting the TypeScript arc upgrade.
+  text, which then passes through the existing parse step. Reuse Core's arc
+  upgrade (`upgrade_legacy_arcs` in `core/src/artifact/source.rs`, currently
+  private) instead of porting the TypeScript one. Step 2 makes it shared and must
+  show its output matches the recorded export goldens, including six-decimal
+  rounding; if it does not, port the TypeScript upgrade instead.
 - **Declared metadata.** Each generator declares its kind, display name,
   matrix terminals, keycap-envelope parameters and explicit parameter types
-  (number, boolean, string, net, anchor, list, object). Remove the source-ID
-  regex classification, the hardcoded switch list and the duplicate display-name
-  table in the Parts catalogue.
+  (number, boolean, string, net, array). No generator uses anchor or object
+  parameters; the pose-derived render values (`p.point`, `p.at`, `p.xy`) are not
+  parameters. Net parameters are declared, not inferred from a missing default.
+  Remove the source-ID regex classification, the hardcoded switch list and the
+  duplicate display-name table in the Parts catalogue. Declared kinds must
+  reproduce the `catalogue` entries recorded in the golden fixtures; any
+  difference is a listed deviation.
+- **Side.** Every generator declares a `side` parameter with default `F`, so the
+  schema is the only source of the layer a body renders on. Part-side mirroring of
+  coordinates still follows the part. The 1→2 migration sets `side` to `B` on
+  each back-side part that has a generator and no saved `side`, preserving
+  today's output. Choc, gateron and trackpoint show `B` as their schema default
+  today; this becomes `F` (see Deviations).
+- **Generator lookup.** A definition without a `generator` passes through
+  normalization untouched. A definition whose generator source is not in the
+  registry, or whose version is not `bundled-1`, is a typed `UnknownGenerator`
+  error in parameters, render, normalization and the catalogue.
 - **Fixed quirks.** JavaScript coercion and formatting quirks are corrected,
   not reproduced. Each correction is a listed deviation. Rendering rejects values
   that do not match the declared parameter type. No correction may change the
   pad count or order of an existing definition without its own migration, because
   saved pad IDs and nets are matched by index. Generator version `bundled-1` is
   retained.
-- **Typed generator errors.** Validation failures name the generator and
-  parameter and carry a user-facing message; current message text is the
-  baseline wording.
+- **Typed generator errors.** Errors are typed with generator and parameter
+  fields. The user-facing message keeps the current text as its baseline, even
+  where that text does not name the generator or parameter. Messages produced by
+  the JavaScript engine (such as `utility_router`'s JSON parse failure) are not a
+  baseline.
 - **Licensing.** Each ported module keeps the SPDX identifier (MIT or
   CC-BY-NC-SA-4.0) and author attribution of its source. The crate documents its
   mixed licensing.
 - **Identifier rename.** After cutover, `ergogen:<namespace>/<name>`
   definition IDs become `generator:<namespace>/<name>` and `ergogen:model:<path>`
   asset IDs become `bundled-model:<path>`. Generator source IDs such as
-  `ceoloide/switch_mx` and `bundled-1` are unchanged.
+  `ceoloide/switch_mx` and `bundled-1` are unchanged, with one exception:
+  `ceoloide/utility_ergogen_logo` becomes `ceoloide/utility_logo` (display name
+  and footprint name likewise), so that no persisted identifier contains
+  `ergogen`. The 1→2 migration rewrites it in saved definitions and parts.
 
 ## Sequence
 
-1. **Golden baseline.** While Node is available, a temporary harness records,
-   for every generator: `parameters`, `catalogue`, render output, geometry,
-   normalized definitions, terminals, model bindings, KiCad export forms and
-   worker replies for existing fixtures. Inputs are defaults, each boolean
-   flipped, sides F and B, rotations 0, 90 and 37 degrees, marker nets, anchors,
-   and every generator configuration in the bundled demo projects. Commit the
-   fixtures; they cannot be regenerated after deletion.
+1. **Golden baseline.** Complete (`80b8e460e`, `footprints/tests/golden`; see its
+   README). A temporary harness recorded, for every generator: `parameters`,
+   `catalogue`, render output, geometry, normalized definitions, terminals,
+   model bindings, KiCad export forms and net snapshots, plus provider and
+   preview-worker scenarios. Inputs were defaults, each boolean flipped, sides F
+   and B, rotations 0, 90 and 37 degrees, marker nets, numeric-string coercion,
+   validation-error cases and every generator configuration in the bundled demo
+   projects: 820 generator cases and 28 worker scenarios. Anchors are covered
+   only through the part pose, because no generator declares an anchor
+   parameter. The fixtures cannot be regenerated after deletion; step 5 rewrites
+   them mechanically for the renames.
 2. **Provider framework.** Implement form handling, the render context,
    geometry and courtyard joining, normalization, terminal discovery, model IDs
    and bindings, model-path rewriting, net allocation, the generator registry and
    typed errors. Verify against golden render text, independently of generator
-   ports.
+   ports, by running a test generator module against the recorded cases and by
+   feeding recorded forms through parsing, geometry, normalization and export.
+   Of the 28 worker goldens, those for net allocation, repeated reserved names,
+   job-failure propagation, unresolved model paths and the 32-bit net limit carry
+   over; about 20 envelope-validation scenarios retire with the worker.
 3. **Generator ports.** Port in batches: utilities and mounting holes; diode,
    LED, reset and power switches; MX, Choc and KS27/KS33 switches; controllers,
    displays, encoder and connectors; infused-kim. Each batch must match goldens
    as parsed form trees with numbers compared as exact text and whitespace
    ignored, apart from listed deviations. Port the model-binding assertions from
-   the footprint-library Node tests. Batches merge unused by production.
+   the footprint-library Node tests. Before the first batch, survey every
+   string-typed parameter that is numeric in meaning (only
+   `mounting_hole_npth` is known) and list each. Batches merge unused by
+   production.
 4. **Cutover.** Switch every page call site to the crate, change
    `footprint_forms.rs` to typed forms, and replace the Prepare/worker/Finish
    paths with single Core requests. Run browser checks for generator edits,
@@ -91,12 +124,22 @@ equivalent), the JavaScript worker, then Core `FinishPreview`.
    examples and offline behavior.
 5. **Format version and rename.** Add a document format version. Documents
    without it are version 1. A 1→2 migration at Core's load boundary renames
-   identifiers and converts saved numeric strings for number parameters; it
-   covers browser storage, archive import and bundled examples. Migrated projects
+   identifiers (including the logo source ID), sets `side` on back-side parts and
+   converts saved numeric strings for every number parameter, not only
+   `mounting_hole_npth`; it covers browser storage, archive import and bundled
+   examples. Until item 3 lands, the JavaScript demo builders keep emitting
+   version 1 documents, which the migration handles at load. Migrated projects
    are written back immediately. Rewrite committed catalogue data with a one-off
    script after confirming no recorded hash covers the identifiers, then rewrite
-   golden fixtures mechanically.
-6. **Deletion.** Once item 3 replaces bundled-project preparation, delete the
+   golden fixtures mechanically: definition IDs, asset IDs, the `ergogen_model_…`
+   export paths, and the logo source ID, footprint name and display name. The
+   `${EG_INFUSED_KIM_3D_MODELS}` KiCad path variable is not an identifier and is
+   unchanged.
+6. **Deletion.** Blocked on item 3 of the
+   [removal assessment](typescript-node-removal.md): `tooling/demo-projects` and
+   `scripts/prepare-demo-projects.mjs` import the JavaScript provider, so nothing
+   it imports can be deleted until a Rust builder replaces them. Steps 1–5 do not
+   depend on it. Once item 3 replaces bundled-project preparation, delete the
    generator JavaScript, `defaultModels.mjs`, `generate.mjs`, `catalogue.mjs`,
    `ergogen/src`, `kicad/src/ergogen.ts`, the worker, both packaging scripts,
    staged `layout-generators` and `preview-generator` assets, their references in
@@ -104,8 +147,9 @@ equivalent), the JavaScript worker, then Core `FinishPreview`.
    upstream refresh scripts. Retain vendored models and source and licence
    manifests.
 
-Until step 6, bundled demos are still prepared by the JavaScript provider.
-Their stored pads reflect the old behavior until renormalized by Rust.
+Until item 3 lands and step 6 runs, bundled demos are still prepared by the
+JavaScript provider. Their stored pads reflect the old behavior until
+renormalized by Rust.
 
 ## Deviations
 
@@ -115,13 +159,18 @@ and corrected output.
 | Generator | Deviation | Previous | Corrected |
 | --- | --- | --- | --- |
 | `ceoloide/mounting_hole_npth` | `hole_size` and `hole_drill` typed as numbers, not strings | String parameters | Number parameters; saved strings migrated |
+| all | Number parameters reject non-numeric values; saved numeric strings migrated | Numeric strings accepted by most generators; `ceoloide/mounting_hole_plated`, `infused-kim/mounting_hole`, `infused-kim/trackpoint_mount` and `ceoloide/switch_gateron_ks27_ks33` throw "Invalid numeric Ergogen geometry" in geometry extraction, and `ceoloide/rotary_encoder_ec11_ec12` throws its hole-size error | Typed error naming the parameter |
+| all | `side` declared on every generator, default `F` | `side` read from render inputs, unset values follow the part side; schema default ignored | Declared parameter; migration sets `side` on back-side parts |
+| `ceoloide/switch_choc_v1_v2`, `ceoloide/switch_gateron_ks27_ks33`, `infused-kim/trackpoint_mount` | Schema default for `side` | `B` | `F` |
+| unknown generator source | Normalization returns the definition unchanged | Silent pass-through | Typed `UnknownGenerator` error (definitions without a `generator` still pass through) |
+| `ceoloide/utility_ergogen_logo` | Renamed `ceoloide/utility_logo`, with footprint and display names | `ceoloide:utility_ergogen_logo` | `ceoloide:utility_logo`; saved source IDs migrated |
 
 ## Completion criteria
 
 - [ ] All 36 generators render from Rust and match goldens apart from listed deviations.
-- [ ] No page code imports generator JavaScript; no preview worker exists.
+- [ ] No page code imports generator JavaScript; no preview worker exists (the demo builders are gated on item 3).
 - [ ] Board preview, case preview and KiCad export each use one Core request.
 - [ ] Version 1 documents from storage, archives and bundled examples migrate to version 2 without loss.
-- [ ] No persisted identifier or catalogue entry contains `ergogen`.
+- [ ] No persisted identifier or catalogue entry contains `ergogen`; licence and attribution text is exempt.
 - [ ] Ported modules carry their source licence and attribution.
-- [ ] Generator JavaScript and its Node packaging, tests and refresh scripts are deleted.
+- [ ] Generator JavaScript and its Node packaging, tests and refresh scripts are deleted (gated on item 3).
