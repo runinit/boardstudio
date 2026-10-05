@@ -1,0 +1,25 @@
+{
+  "candidate": [
+    "    - tab \"PCB\" [selected]:",
+    "        - option \"Board 3\" [selected]",
+    "        - treeitem \"Board 3 0 parts\" [expanded] [level=1]:",
+    "          - button \"Collapse Board 3\" [expanded]: ⌄",
+    "          - button \"Board 3 0 parts\":",
+    "            - generic: Board 3",
+    "      - strong: Board 3",
+    "      - generic: Board 3 / PCB",
+    "    - region \"Electrical wiring\":",
+    "      - paragraph: Board 3 / PCB"
+  ],
+  "reference": [
+    "    - tab \"PCB\" [selected]:",
+    "      - option \"Board 3\" [selected]",
+    "      - button \"Collapse Board 3\" [expanded]: ⌄",
+    "      - treeitem \"Board 3 0 parts\" [expanded] [level=1]:",
+    "        - generic \"Board 3\"",
+    "    - strong: Board 3",
+    "    - generic: Board 3 / PCB",
+    "    - generic: Board 3 / PCB",
+    "    - region \"Electrical wiring\":"
+  ]
+}

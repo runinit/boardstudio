@@ -1,0 +1,19 @@
+{
+  "parent": "F7.6",
+  "reason": "Independent complete Case generation/readiness review joins actual public jobs/output with settled four-test mounted failure/preview/gesture proof and all mandatory gates.",
+  "review": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+  "review_sha256": "0892afa5106be0b119dd416d8bdb3ce7b86d7d60c576c04752018463440ac509",
+  "criteria_accounting": {
+    "source_commit": "07b4c3466b1f388073e8e1f9d619b0703223d770",
+    "coverage": "complete",
+    "verified_criteria": [
+      "F7.6-C01",
+      "F7.6-C02",
+      "F7.6-C03",
+      "F7.6-C04",
+      "F7.6-C05",
+      "F7.6-C06"
+    ]
+  },
+  "accepted_joins": []
+}

@@ -1,0 +1,16 @@
+[
+  {
+    "role": "candidate",
+    "revision": 9,
+    "entire_project_equals_before": true,
+    "sha256": "52b5ccd1814a22c319480abe73df4ef240878bbf6ca860089d12a57c036de7c3",
+    "archive_equals_before": true
+  },
+  {
+    "role": "reference",
+    "revision": 9,
+    "entire_project_equals_before": true,
+    "sha256": "4c719778b9838bd005dd3dc9836f6436604ecdb25c03ba3dc46ba70fec3ca1a8",
+    "archive_equals_before": true
+  }
+]

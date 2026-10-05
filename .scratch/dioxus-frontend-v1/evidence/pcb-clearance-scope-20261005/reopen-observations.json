@@ -1,0 +1,40 @@
+{
+  "candidate": {
+    "clearance": [
+      {
+        "owner": "review/splitter-above",
+        "points": "22,18 38,18 38,26 22,26",
+        "qualified": "false"
+      },
+      {
+        "owner": "review/splitter-below",
+        "points": "64,22 48,22 48,14 64,14",
+        "qualified": "false"
+      }
+    ],
+    "hostPads": 56,
+    "modulePads": 159,
+    "scripts": [
+      "http://127.0.0.1:34822/assets/boardstudio-web-dxhd9c1c044c4d075.js"
+    ]
+  },
+  "reference": {
+    "clearance": [
+      {
+        "owner": "review/splitter-above",
+        "points": "22,18 38,18 38,26 22,26",
+        "qualified": "false"
+      },
+      {
+        "owner": "review/splitter-below",
+        "points": "64,22 48,22 48,14 64,14",
+        "qualified": "false"
+      }
+    ],
+    "hostPads": 56,
+    "modulePads": 159,
+    "scripts": [
+      "http://127.0.0.1:5175/assets/main-CYxchQWA.js"
+    ]
+  }
+}

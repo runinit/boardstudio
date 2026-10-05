@@ -1,0 +1,20 @@
+{
+  "parent": "F8.4",
+  "reason": "Independent consolidated review closes all F5.4 geometry/input/layer/ownership criteria and reconciles F8.4 already verified output/provider criteria. Explicit acceptance joins accepted; functional start capabilities are present, deferred visual criteria remain open.",
+  "review": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+  "review_sha256": "7c513839c63c4b24374648bc7e4ffff7072ae7db729a08530c4b2352c937a9b0",
+  "criteria_accounting": {
+    "source_commit": "07b4c3466b1f388073e8e1f9d619b0703223d770",
+    "coverage": "complete",
+    "verified_criteria": [
+      "F8.4-C01",
+      "F8.4-C02",
+      "F8.4-C03"
+    ]
+  },
+  "accepted_joins": [
+    "F5.2",
+    "F6K.4",
+    "F6C.5"
+  ]
+}

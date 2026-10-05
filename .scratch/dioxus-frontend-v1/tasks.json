@@ -625,7 +625,7 @@
         {
           "id": "F2.2-C02",
           "requirement": "Open saved projects, restore durable state and provide recovery/library route on failure.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/library.rs:576",
@@ -633,10 +633,12 @@
           ],
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
-            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/f2.2-c02-c03-paired-qualification.md"
+            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/f2.2-c02-c03-paired-qualification.md",
+            ".scratch/dioxus-frontend-v1/evidence/project-unavailable-recovery-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
           ],
           "blockers": [],
-          "next_action": "Paired saved Sofle→Corne→reopened Sofle retained a renamed 70-part board. Qualify unavailable/corrupt saved-project recovery and library route; do not repeat the successful reopen branch.",
+          "next_action": "Independent review joins retained successfuldurablereopen with actual cross-tab deleted-record openfailure, fullperapparchivebytepreservation, usefulfeedback and publicavailablelibraryrecovery. Candidatecacheddeletedrow difference documented; arbitrarycorruptrecordvariants unobserved and not extra requiredmatrix. C03supersession remains separate.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/library.rs",
@@ -3262,17 +3264,18 @@
         {
           "id": "F4.5-C01",
           "requirement": "Edit supported purpose, dimensions, clearances, evidence and qualification from selected part.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/parts/mechanical_profile_ui.rs:21",
             "web/src/presentation/parts/mechanical_profile.rs:1"
           ],
           "evidence": [
-            ".scratch/dioxus-parts-catalogue/evidence/parts-fit-profile-capability-receipt-20261002.md"
+            ".scratch/dioxus-parts-catalogue/evidence/parts-fit-profile-capability-receipt-20261002.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
           ],
           "blockers": [],
-          "next_action": "Paired 34807/5175 imported THQWGD001C selected-profile journey edited gap/cutout/clearance values, saved one accepted edit, Undo/Redo and reopen retention. Neither reference nor candidate exposes a separate evidence/qualification editor; both retain KiCad provenance through source mapping. Confirm whether the remaining clause denotes existing provenance/readiness rather than a v1 user edit before verified verdict; do not invent a TypeScript defect or repeat the successful field journey.",
+          "next_action": "Independent reference UI/domain review confirms supported purpose, dimensions, clearances and sourceGeometry provenance are covered by paired Save/history/reopen. Neither pinned reference editor nor MechanicalPartProfile exposes editable qualification state; do not invent a new field. Existing unqualified fit gates remain.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts/mechanical_profile_ui.rs",
@@ -4050,7 +4053,7 @@
       "acceptance_after": [
         "INT.2"
       ],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
       "shared_edit_owner": "integration coordinator",
@@ -4077,7 +4080,7 @@
         {
           "id": "F5.4-C01",
           "requirement": "Resolved source-owned footprints/artwork/pads/drills/outlines/clearances/source holes/standoffs/findings match React across front/back and flipped placements.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/pcb_scene.rs",
@@ -4085,10 +4088,12 @@
           ],
           "evidence": [
             ".scratch/dioxus-pcb-view/evidence/14-mounted-module-footprints-20261003/public-receipt.md",
-            ".scratch/dioxus-pcb-view/evidence/15-mounted-module-layers-20261003/public-receipt.md"
+            ".scratch/dioxus-pcb-view/evidence/15-mounted-module-layers-20261003/public-receipt.md",
+            ".scratch/dioxus-frontend-v1/evidence/pcb-clearance-scope-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
           ],
           "blockers": [],
-          "next_action": "Carry receipts for proven footprint/artwork layers; qualify remaining nonempty clearance, flipped geometry and source-hole/standoff cases on representative paired fixture.",
+          "next_action": "Independent review verifies current paired trueflip628geometryelements, nonemptyclearance, independentlayers, everymodule inputroute, realempty-board/return ownership and saved electricalnonmutation. Retained actual Findings-list route applies; obsolete markerfocus excluded. Detached stale-callback matrix unobserved and not an extra original requirement.",
           "finish_condition": "Source geometry and transformed ownership match React for all required front/back/flipped module geometry; empty source data stays empty.",
           "owned_files": [
             "web/src/presentation/pcb_scene.rs",
@@ -4104,7 +4109,7 @@
         {
           "id": "F5.4-C02",
           "requirement": "Module and host layer visibility are independent; finding focus reveals its target.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/pcb_layers.rs",
@@ -4113,10 +4118,12 @@
           ],
           "evidence": [
             ".scratch/dioxus-pcb-view/evidence/15-mounted-module-layers-20261003/public-receipt.md",
-            ".scratch/dioxus-pcb-view/evidence/24-module-source-route-20261003/receipt.md"
+            ".scratch/dioxus-pcb-view/evidence/24-module-source-route-20261003/receipt.md",
+            ".scratch/dioxus-frontend-v1/evidence/pcb-clearance-scope-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
           ],
           "blockers": [],
-          "next_action": "Packaged 34805 marker semantics are decorative; actual Findings-list pointer/keyboard route works and hidden layer settings persist, matching TS. Host SW2 and module selection remain. Finish independent host/module layer and nonempty clearance geometry coverage later; do not repeat marker click attempts.",
+          "next_action": "Independent review verifies current paired trueflip628geometryelements, nonemptyclearance, independentlayers, everymodule inputroute, realempty-board/return ownership and saved electricalnonmutation. Retained actual Findings-list route applies; obsolete markerfocus excluded. Detached stale-callback matrix unobserved and not an extra original requirement.",
           "finish_condition": "Paired evidence proves independent visibility and focused finding visibility override without altering project data.",
           "owned_files": [
             "web/src/presentation/pcb_scene.rs",
@@ -4133,7 +4140,7 @@
         {
           "id": "F5.4-C03",
           "requirement": "Selecting module graphics by mouse or keyboard identifies the owning module without turning daughterboard copper into host geometry.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/pcb_module_footprints.rs",
@@ -4141,10 +4148,12 @@
           ],
           "evidence": [
             ".scratch/dioxus-pcb-view/evidence/24-module-source-route-20261003/receipt.md",
-            ".scratch/dioxus-pcb-view/evidence/14-mounted-module-footprints-20261003/public-receipt.md"
+            ".scratch/dioxus-pcb-view/evidence/14-mounted-module-footprints-20261003/public-receipt.md",
+            ".scratch/dioxus-frontend-v1/evidence/pcb-clearance-scope-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
           ],
           "blockers": [],
-          "next_action": "Reuse the pointer/Enter/Space and source ownership receipt; close remaining every-instance and stale-route limits only when the owning-module journey is changed.",
+          "next_action": "Independent review verifies current paired trueflip628geometryelements, nonemptyclearance, independentlayers, everymodule inputroute, realempty-board/return ownership and saved electricalnonmutation. Retained actual Findings-list route applies; obsolete markerfocus excluded. Detached stale-callback matrix unobserved and not an extra original requirement.",
           "finish_condition": "Paired geometry and input evidence confirms exact module ownership, guarded navigation and no host electrical geometry mutation.",
           "owned_files": [
             "web/src/presentation/pcb_scene.rs",
@@ -4160,17 +4169,19 @@
         {
           "id": "F5.4-C04",
           "requirement": "All required module scene geometry and findings match across board/face/flip, with finding focus and mouse/keyboard paths.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/pcb_scene.rs",
             "web/src/presentation/pcb_module_footprints.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-pcb-view/evidence/24-module-source-route-20261003/receipt.md"
+            ".scratch/dioxus-pcb-view/evidence/24-module-source-route-20261003/receipt.md",
+            ".scratch/dioxus-frontend-v1/evidence/pcb-clearance-scope-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
           ],
           "blockers": [],
-          "next_action": "Close recorded untested nonempty clearance/finding-focus/every-instance cases with targeted paired cases; no full rerun of the established source route.",
+          "next_action": "Independent review verifies current paired trueflip628geometryelements, nonemptyclearance, independentlayers, everymodule inputroute, realempty-board/return ownership and saved electricalnonmutation. Retained actual Findings-list route applies; obsolete markerfocus excluded. Detached stale-callback matrix unobserved and not an extra original requirement.",
           "finish_condition": "All defined geometry and interaction dimensions have current same-source evidence with no unresolved module-target visibility discrepancy.",
           "owned_files": [
             "web/src/presentation/pcb_scene.rs",
@@ -4190,7 +4201,19 @@
         "assessed_at": "2026-10-03T19:32:35+00:00",
         "coverage": "complete",
         "note": "Split every clause of the existing parent acceptance into independent checks; states reflect source/evidence qualification, not parent acceptance. Historical baseline/prose findings are retained as context and are not newly classified as defects."
-      }
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f5-4-decision.json"
+      },
+      "status_history": [
+        {
+          "at": "2026-10-05T09:35:26.594763+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Independent consolidated review closes all F5.4 geometry/input/layer/ownership criteria and reconciles F8.4 already verified output/provider criteria. Explicit acceptance joins accepted; functional start capabilities are present, deferred visual criteria remain open.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f5-4-decision.json"
+        }
+      ]
     },
     {
       "id": "F5.5",
@@ -4208,7 +4231,7 @@
         "F5.4"
       ],
       "acceptance_after": [],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
       "shared_edit_owner": "integration coordinator",
@@ -4238,23 +4261,32 @@
           "from": "planned",
           "to": "implementing",
           "reason": "Mounted-module placement Inspector joined4d8e160f; canonical status spelling normalized from author in_progress. Parent criteria unchanged."
+        },
+        {
+          "at": "2026-10-05T09:44:03.794052+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Independent consolidated review joins actual placement controls/history, connections, resolver and scope evidence, pending real Persist isolation, paired rejection/retry and unsaved draft retirement with byte-identical accepted archives; F5.4 accepted.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f5-5-decision.json"
         }
       ],
       "criteria": [
         {
           "id": "F5.5-C01",
           "requirement": "PCB selection opens mounted-placement inspector for module/instance scope, face, pose, gap, attachment, clearance and supports.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/pcb_module_inspector.rs"
           ],
           "evidence": [
             ".scratch/dioxus-pcb-view/evidence/22-mounted-module-inspector-20261003/placement-save-reopen.md",
-            ".scratch/dioxus-pcb-view/evidence/23-mounted-module-supports-public-34767.md"
+            ".scratch/dioxus-pcb-view/evidence/23-mounted-module-supports-public-34767.md",
+            ".scratch/dioxus-frontend-v1/evidence/pcb-clearance-scope-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
           ],
           "blockers": [],
-          "next_action": "Reuse placement and supports/clearance receipts; qualify any changed current integrated selection-to-inspector route.",
+          "next_action": "Independently reviewed actual current paired ownership route, independent host/module layers, saved revision7/reopen, with retained placement/support history and actual Findings-list navigation. Other criteria remain separate.",
           "finish_condition": "Same-fixture route opens the correct placement and accepted edits for all listed placement fields preserve correct board/instance scope.",
           "owned_files": [
             "web/src/presentation/pcb_module_inspector.rs",
@@ -4300,7 +4332,7 @@
         {
           "id": "F5.5-C04",
           "requirement": "Placement identity, pending/error/cancel behavior, resolver results and board/instance scope match React.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/pcb_module_inspector.rs",
@@ -4308,10 +4340,14 @@
           ],
           "evidence": [
             ".scratch/dioxus-pcb-view/evidence/22-mounted-module-inspector-20261003/placement-save-reopen.md",
-            ".scratch/dioxus-pcb-view/evidence/22-mounted-module-inspector-20261003/undo-redo-settled-34765.md"
+            ".scratch/dioxus-pcb-view/evidence/22-mounted-module-inspector-20261003/undo-redo-settled-34765.md",
+            ".scratch/dioxus-frontend-v1/evidence/pcb-placement-draft-retirement-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/pcb-clearance-scope-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/lifecycle-deferred-20261005/remaining-required.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
           ],
           "blockers": [],
-          "next_action": "The 34801 public Remove success deleted the selected placement and updated findings. React also clears selection without a success label, so Inspector unmount is not a parity failure. Keep pending/rejected/cancelled outcome, resolver projection and stale board/instance scope unqualified; reuse existing Save and successful Remove evidence.",
+          "next_action": "Independently reviewed actual draft37→otherplacement57→return29 with unchangedr9ZIP, actualpairedrejection/retry, mountedSaving/Persist oldownercompletion/replacementisolation and retainedresolver/scope/identity proof. No Cancelplacementbutton exists; oldfeedbacktest coversCompleted/Rejected/PersistenceFailed, notCancelled.",
           "finish_condition": "Same-fixture paired evidence confirms identities, resolver projections and stale/pending/error/cancel behavior.",
           "owned_files": [
             "web/src/presentation/pcb_module_inspector.rs",
@@ -4331,6 +4367,9 @@
         "assessed_at": "2026-10-03T19:32:35+00:00",
         "coverage": "complete",
         "note": "Current active F5.5 acceptance clauses are split into independent checks; the removed definition-profile clause and its unfinished dependency are absent from the active parent. Historical scope records remain in Git."
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f5-5-decision.json"
       }
     },
     {
@@ -4613,14 +4652,17 @@
         {
           "id": "F5.7-C03",
           "requirement": "Invalid input, missing assets, and project/board/revision changes during async work show retryable errors.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/pcb_board_reference.rs"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/case-routed-integration-20261005/gate-summary.json",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
+          ],
           "blockers": [],
-          "next_action": "On paired candidate 34809/TS 5175, malformed .kicad_pcb produced the same mounted alert ('expected single root, got 8'); the Replace KiCad board chooser stayed usable, a valid-file retry cleared the alert, and accepted pose/model selection survived. Source f17ae37e and focused WASM 1/1 cover stale-error routing. Remaining qualification is missing-asset and controlled project/board/revision change during async work; do not repeat invalid-file or saved-model success.",
+          "next_action": "Reviewed paired invalid/retry evidence joins real BrowserStore missing-blob Retry and actual File.array_buffer admission retired by project/board/revision changes; full affected headless gate30/30. Closed-worker fixture does not claim post-worker delivery.",
           "finish_condition": "Each failure is recoverable, reports the relevant scope and cannot mutate a changed project/board.",
           "owned_files": [
             "web/src/presentation/pcb_board_reference.rs",
@@ -4635,7 +4677,7 @@
         {
           "id": "F5.7-C04",
           "requirement": "F7 viewer effect for routed references is checked at F5.8 after the actual F7 join.",
-          "state": "implemented",
+          "state": "missing",
           "classification": "functional",
           "sources": [
             "web/src/presentation/board_reference_effect.rs",
@@ -4643,11 +4685,11 @@
             "web/src/presentation/shared_viewer.rs",
             "renderer/src/wasm.rs"
           ],
-          "evidence": [],
-          "blockers": [
-            "F7.3"
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/pcb-routed-case-viewer-20261005/RECEIPT.md"
           ],
-          "next_action": "The shared-viewer projection now forwards the accepted enabled BoardReference pose/elevation; a nonidentity packet regression was RED before and GREEN after. On one imported routed-board archive, pair current visible PCB and attached-model transforms, save/reopen, then verify selected physical-instance effects at F5.8. Do not infer this public join from the packet test.",
+          "blockers": [],
+          "next_action": "Current cc candidate paired r22 routed fixture shows no Case viewport/pending/error while TS shows populated90/90model PCB. ExplicitLeft and Layout3D→Case return reproduce; Layout3D itself works. Diagnose accepted canonical/physical scope capture, obtain owning RED/GREEN and fix, then qualify routed transforms; packet-only pose proof is insufficient.",
           "finish_condition": "Paired integrated viewer shows accepted reference geometry and pose matching React.",
           "owned_files": [
             "web/src/presentation/pcb_board_reference.rs",
@@ -7260,7 +7302,7 @@
         {
           "id": "F7.5-C02",
           "requirement": "Validate pointer movement against current constraints/fit and show valid, invalid, provisional and canceled states without partial invalid commit.",
-          "state": "missing",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/case_gesture_preview.rs",
@@ -7272,10 +7314,12 @@
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/case-handle-qualification-20261005/RECEIPT.md",
             ".scratch/dioxus-frontend-v1/evidence/case-handle-qualification-20261005/canvas-feedback-reflow.json",
-            ".scratch/dioxus-frontend-v1/evidence/case-handle-qualification-20261005/prepared-constraint-analysis.json"
+            ".scratch/dioxus-frontend-v1/evidence/case-handle-qualification-20261005/prepared-constraint-analysis.json",
+            ".scratch/dioxus-frontend-v1/evidence/case-routed-integration-20261005/gate-summary.json",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
           ],
           "blockers": [],
-          "next_action": "Actual public r18 Right/Bottom closure drag inserts static flex feedback and shrinks canvas CSS width701→542.09375/backing1050→812, so pointer mapping changes during interaction and move is blocked. Exact packaged-provider constraints admit the reference accepted endpoint. Repair feedback layout with meaningful mounted RED/GREEN and packaged valid/invalid gesture replay; do not weaken clearance rules or speculatively change End semantics.",
+          "next_action": "Reviewed public valid/invalid/provisional gesture and accepted/history evidence joins real mounted Escape/scope/unmount cancellation compositions and full affected headless30/30. Feedback canvas reflow fix already packaged; original stale bug prose superseded.",
           "finish_condition": "Invalid movement remains preview-only and does not partially modify accepted document; each transient state is visible.",
           "owned_files": [
             "web/src/presentation/case_viewer.rs"
@@ -7287,15 +7331,18 @@
         {
           "id": "F7.5-C03",
           "requirement": "Pointer capture/cancel, scope change, Escape/cancel and unmount end transient interaction and release renderer resources reliably.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/case_viewer.rs",
             "web/src/presentation/shared_viewer.rs"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/case-routed-integration-20261005/gate-summary.json",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
+          ],
           "blockers": [],
-          "next_action": "Focused WASM regression now covers preview swap identity rebind, current Move/End emission and cancellation on source, scope, token, revision, mount or presentation-input changes. Qualify Escape/navigation/unmount in one public Case gesture journey; do not rerun the same source-level cancellation matrix.",
+          "next_action": "Reviewed actual Runtime provisional owner retired by mounted Escape, scope change/return and unmount/remount with unchanged whole accepted readmodel/document/history; joined retained pointer identity and renderer lifecycle proofs. Full affected gate30/30; no physical pointer injection claim for deterministic composition.",
           "finish_condition": "Every exit clears preview handles/draft and releases pointer/renderer ownership; stale gesture replies are ignored.",
           "owned_files": [
             "web/src/presentation/case_viewer.rs",
@@ -8411,10 +8458,11 @@
           ],
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/export-pcb-handoff-20261003/34769-RECEIPT.md",
-            ".scratch/dioxus-frontend-v1/evidence/export-pcb-handoff-20261003/34770-HEADING-GREEN.md"
+            ".scratch/dioxus-frontend-v1/evidence/export-pcb-handoff-20261003/34770-HEADING-GREEN.md",
+            ".scratch/dioxus-frontend-v1/evidence/export-incomplete-wiring-20261005/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Reuse successful fully wired mechanical-package proof; qualify draft/incomplete-wiring readiness and its findings before declaring all readiness branches verified.",
+          "next_action": "Paired ready Sofle encoder-a Unresolved correctly disables Full and enables Draft; actual Draft then fails in both apps with Resolve wiring findings before applying the plan and no artifact. Resolve intended draft contract/valid findings scenario before claiming successful incomplete-wiring archive; no speculative policy weakening.",
           "finish_condition": "Full/draft readiness and findings match reference on the selected board.",
           "owned_files": [
             "web/src/runtime.rs",
@@ -8462,13 +8510,14 @@
           ],
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/export-pcb-handoff-20261003/34769-RECEIPT.md",
-            ".scratch/dioxus-frontend-v1/evidence/planning/boundary-gaps.md"
+            ".scratch/dioxus-frontend-v1/evidence/planning/boundary-gaps.md",
+            ".scratch/dioxus-frontend-v1/evidence/export-incomplete-wiring-20261005/RECEIPT.md"
           ],
           "blockers": [
             "BND.2-C03",
             "F8.1-C02"
           ],
-          "next_action": "Qualify failed-package/protection and stale owner behavior, plus exact PCB/outline blocker navigation.",
+          "next_action": "Paired empty Board3 Full/Draft/SVG/DXF blocker copy and actual Review wiring→PCB preserving Board3 now recorded. Independently join retained accepted protection ordering, package-failure/retry and stale-owner evidence; do not repeat prior artifact tests. Parent still waits explicit joins.",
           "finish_condition": "Correct blocker copy/destination is paired; stale context never delivers and failed packaging never commits protection.",
           "owned_files": [
             "web/src/runtime.rs",
@@ -8516,7 +8565,7 @@
         "F6K.4",
         "F6C.5"
       ],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md",
       "shared_edit_owner": "integration coordinator",
@@ -8538,6 +8587,13 @@
           "from": "planned",
           "to": "implementing",
           "reason": "Reconcile verified mounted source/bounded evidence; preserve all parent acceptance criteria."
+        },
+        {
+          "at": "2026-10-05T09:35:26.600541+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Independent consolidated review closes all F5.4 geometry/input/layer/ownership criteria and reconciles F8.4 already verified output/provider criteria. Explicit acceptance joins accepted; functional start capabilities are present, deferred visual criteria remain open.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f8-4-decision.json"
         }
       ],
       "progress_evidence": [
@@ -8637,6 +8693,9 @@
         "assessed_at": "2026-10-03T19:35:06Z",
         "coverage": "complete",
         "note": "All current acceptance clauses for this parent were split into independently decidable criteria; broad baseline RED context was excluded as a requirement. Parent remains open unless all required criteria and joins are accepted. Candidate review corrected F8.4-C01: ready-only firmware evidence does not cover missing-prerequisite explanations."
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f8-4-decision.json"
       }
     },
     {
@@ -9697,8 +9756,8 @@
     "integration_slices": 2,
     "boundary_slices": 2,
     "status": {
-      "accepted": 31,
-      "implementing": 19,
+      "accepted": 34,
+      "implementing": 16,
       "planned": 11
     }
   },

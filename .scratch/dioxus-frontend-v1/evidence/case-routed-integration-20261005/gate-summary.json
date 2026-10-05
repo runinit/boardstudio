@@ -1,0 +1,38 @@
+{
+  "exit_code": 0,
+  "receipts": [
+    {
+      "kind": "wasm-page-check",
+      "file": ".scratch/dioxus-frontend-v1/evidence/case-routed-integration-20261005/7198b72c604faceaf4ea4ab360dfd92387b7bbe71f72a25726ffd0090ce4cec2.json",
+      "counts": {},
+      "complete": true
+    },
+    {
+      "kind": "native-web",
+      "file": ".scratch/dioxus-frontend-v1/evidence/case-routed-integration-20261005/edfe225886d7918a0693d571cf61a52a4b094dd5724de0aea8fd84b911731a5c.json",
+      "counts": {
+        "failed": 0,
+        "ignored": 1,
+        "passed": 246
+      },
+      "complete": true
+    },
+    {
+      "kind": "wasm-test-reachability",
+      "file": ".scratch/dioxus-frontend-v1/evidence/case-routed-integration-20261005/3bac74ab814bdd969c6b986858bd58d6f407321f8f8621b8c8c0912b5e83ccba.json",
+      "counts": {},
+      "complete": true
+    },
+    {
+      "kind": "wasm-headless-tests",
+      "file": ".scratch/dioxus-frontend-v1/evidence/case-routed-integration-20261005/416756304907d7ef03d319a7f962df39b90ea0e1b7c1bd3dd4ceb68f78f60b8a.json",
+      "counts": {
+        "excluded_failures": 0,
+        "failed": 0,
+        "incomplete": 0,
+        "passed": 30
+      },
+      "complete": true
+    }
+  ]
+}

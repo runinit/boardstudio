@@ -29,6 +29,9 @@ use boardstudio_web::{
 };
 use sha2::{Digest, Sha256};
 
+#[cfg(test)]
+type CaseGesturePreviewTestExecutor = dyn Fn(AcceptedSnapshot, Scope) -> Result<CadScene, String>;
+
 pub struct CadScene {
     pub scope: Scope,
     pub token: SnapshotToken,
@@ -465,6 +468,8 @@ pub struct Runtime {
     #[cfg(test)]
     firmware_export_test_deliveries: RefCell<Vec<FirmwareTestDelivery>>,
     #[cfg(test)]
+    case_gesture_preview_test_executor: RefCell<Option<Rc<CaseGesturePreviewTestExecutor>>>,
+    #[cfg(test)]
     project_name_test_core: RefCell<Option<boardstudio_core::CoreEngine>>,
     #[cfg(test)]
     project_name_persist_test_behavior: RefCell<Option<ProjectNamePersistTestBehavior>>,
@@ -557,6 +562,8 @@ impl Runtime {
             firmware_export_test_events: RefCell::new(Vec::new()),
             #[cfg(test)]
             firmware_export_test_deliveries: RefCell::new(Vec::new()),
+            #[cfg(test)]
+            case_gesture_preview_test_executor: RefCell::new(None),
             #[cfg(test)]
             project_name_test_core: RefCell::new(None),
             #[cfg(test)]
@@ -1825,6 +1832,19 @@ impl Runtime {
     }
 
     #[cfg(test)]
+    pub(crate) fn set_case_gesture_preview_executor_test(
+        &self,
+        executor: Rc<CaseGesturePreviewTestExecutor>,
+    ) {
+        *self.case_gesture_preview_test_executor.borrow_mut() = Some(executor);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn case_gesture_preview_active_test(&self) -> bool {
+        self.case_gesture_preview.borrow().active_owner().is_some()
+    }
+
+    #[cfg(test)]
     pub(crate) fn set_cad_scene_test(&self, scene: Option<Rc<CadScene>>) {
         *self.cad_scene.borrow_mut() = scene;
     }
@@ -2608,6 +2628,13 @@ impl Runtime {
         if !is_current() {
             return Err("Case gesture preview was superseded".into());
         }
+        #[cfg(test)]
+        {
+            let executor = self.case_gesture_preview_test_executor.borrow().clone();
+            if let Some(executor) = executor {
+                return executor(snapshot, owner.scope.clone());
+            }
+        }
         let core = self.core.borrow().clone();
         let executor_epoch = self.session.borrow().core_executor_epoch().0.to_string();
         let prepared =
@@ -3150,17 +3177,32 @@ impl Runtime {
         operation: u64,
         is_current: Rc<dyn Fn() -> bool>,
     ) -> Result<PcbPreview, String> {
+        let request_id = format!("layout-preview-{operation}-imported");
+        self.run_imported_board_preview(asset, request_id.clone(), is_current, |source| {
+            capture.artifact_request(request_id, Some(source))
+        })
+        .await
+    }
+
+    /// Both preview owners use the same SHA-verified asset and Core artifact path.
+    /// The caller retains its request construction and source-liveness checks.
+    async fn run_imported_board_preview(
+        &self,
+        asset: &boardstudio_core::model::Asset,
+        request_id: String,
+        is_current: Rc<dyn Fn() -> bool>,
+        make_request: impl FnOnce(String) -> Result<ArtifactRequest, String>,
+    ) -> Result<PcbPreview, String> {
         let bytes = self
-            .load_layout_document_asset(asset, is_current.clone())
+            .load_preview_document_asset(asset, is_current.clone())
             .await?;
         let source = String::from_utf8(bytes)
             .map_err(|error| format!("Imported board asset is not valid UTF-8: {error}"))?;
-        let request_id = format!("layout-preview-{operation}-imported");
-        let request = capture.artifact_request(request_id.clone(), Some(source))?;
+        let request = make_request(source)?;
         let core = self.core.borrow().clone();
         let core_epoch = self.session.borrow().core_executor_epoch().0;
         if !is_current() {
-            return Err("Imported Layout preview source became stale before Core dispatch".into());
+            return Err("Imported board preview source became stale before Core dispatch".into());
         }
         let epoch = core_epoch.to_string();
         let reply = core
@@ -3171,7 +3213,7 @@ impl Runtime {
             || self.session.borrow().core_executor_epoch().0 != core_epoch
             || !Rc::ptr_eq(&core, &self.core.borrow().clone())
         {
-            return Err("Imported Layout preview source changed during Core preview".into());
+            return Err("Imported board preview source changed during Core preview".into());
         }
         match reply {
             ArtifactReply::PreviewBoard { id, result } if id == request_id => Ok(result),
@@ -3233,13 +3275,13 @@ impl Runtime {
         }
     }
 
-    async fn load_layout_document_asset(
+    async fn load_preview_document_asset(
         &self,
         asset: &boardstudio_core::model::Asset,
         is_current: Rc<dyn Fn() -> bool>,
     ) -> Result<Vec<u8>, String> {
         if asset.sha256.is_empty() || !is_current() {
-            return Err("Imported Layout asset identity is missing or stale".into());
+            return Err("Imported board asset identity is missing or stale".into());
         }
         let cached = self.assets.borrow().get(&asset.sha256).cloned();
         let bytes = if let Some(bytes) = cached {
@@ -3253,7 +3295,7 @@ impl Runtime {
                 .to_vec()
         };
         if !is_current() {
-            return Err("Imported Layout asset request became stale after loading".into());
+            return Err("Imported board asset request became stale after loading".into());
         }
         let digest = Sha256::digest(&bytes);
         let digest = digest
@@ -3261,7 +3303,7 @@ impl Runtime {
             .map(|byte| format!("{byte:02x}"))
             .collect::<String>();
         if digest != asset.sha256 {
-            return Err("Imported Layout asset bytes do not match the accepted SHA-256".into());
+            return Err("Imported board asset bytes do not match the accepted SHA-256".into());
         }
         self.assets
             .borrow_mut()
@@ -3357,7 +3399,7 @@ impl Runtime {
         };
         let selections = crate::presentation::model_delivery::resolve_preview_assets(
             &preview.preview.models,
-            None,
+            preview.board_reference.as_ref(),
             &native_paths,
             &preview.accepted_document,
             |path| ergogen_ids_by_path.get(path).cloned().flatten(),
@@ -3707,10 +3749,21 @@ impl Runtime {
             generation,
             core_executor_epoch,
             core_worker_identity,
-            request_token,
+            request_token.clone(),
         ) {
             Ok(capture) => capture,
             Err(error) => {
+                let owner = crate::case_preview::CasePreviewOwnerIdentity::capture(
+                    &accepted,
+                    &expected_scope,
+                    generation,
+                    generation,
+                    core_executor_epoch,
+                    core_worker_identity,
+                    request_token,
+                );
+                self.native_case_preview.borrow_mut().error = Some((owner, error.clone()));
+                self.changed();
                 return Err(error);
             }
         };
@@ -3976,21 +4029,32 @@ impl Runtime {
         let owner = capture.owner.clone();
         let lease = capture.lease.clone();
         let weak = Rc::downgrade(self);
-        let preview = self
-            .run_preview_pipeline(
-                capture.request.clone(),
-                operation,
-                owner.scope.clone(),
-                owner.projection_generation,
-                Rc::new(move || {
-                    weak.upgrade().is_some_and(|runtime| {
-                        runtime.preview_owner_is_current(&owner)
-                            && runtime.preview_owner_lease_is_current(&owner)
-                            && lease.matches(&owner)
-                    })
-                }),
-            )
-            .await?;
+        let is_current: Rc<dyn Fn() -> bool> = Rc::new(move || {
+            weak.upgrade().is_some_and(|runtime| {
+                runtime.preview_owner_is_current(&owner)
+                    && runtime.preview_owner_lease_is_current(&owner)
+                    && lease.matches(&owner)
+            })
+        });
+        let preview = match &capture.request {
+            crate::case_preview::CasePreviewRequest::Authored(request) => {
+                self.run_preview_pipeline(
+                    request.as_ref().clone(),
+                    operation,
+                    capture.owner.scope.clone(),
+                    capture.owner.projection_generation,
+                    is_current,
+                )
+                .await?
+            }
+            crate::case_preview::CasePreviewRequest::Imported { asset, .. } => {
+                let request_id = format!("case-preview-{operation}-imported");
+                self.run_imported_board_preview(asset, request_id.clone(), is_current, |source| {
+                    capture.imported_artifact_request(request_id, source)
+                })
+                .await?
+            }
+        };
         crate::case_preview::accept_native_preview(capture, preview)
     }
 
@@ -6535,6 +6599,49 @@ async fn resolve_native_model_paths<
             changed();
             Err(error)
         }
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod case_preview_source_tests {
+    use super::*;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    #[wasm_bindgen_test]
+    async fn imported_capture_failure_is_visible_only_to_its_current_case_owner() {
+        let runtime = project_name_test_support::new_runtime();
+        let (_, mut accepted, scope) = firmware_export_test_support::opened_session();
+        let document = std::sync::Arc::make_mut(&mut accepted.document);
+        document
+            .board_references
+            .push(boardstudio_core::model::BoardReference {
+                id: "missing-routed-source".into(),
+                board_id: scope.board_id.clone(),
+                asset_id: "missing-asset".into(),
+                enabled: true,
+                pose: boardstudio_core::model::Pose2 {
+                    at: boardstudio_core::model::Vec2 { x: 0.0, y: 0.0 },
+                    rotation: 0.0,
+                },
+                elevation: 0.0,
+                model_assets: Default::default(),
+            });
+        runtime.set_definition_name_test_state(accepted.clone(), Some(scope.clone()));
+        let error = runtime
+            .prepare_native_case_preview(scope.clone(), accepted.token, accepted.document.revision)
+            .await
+            .expect_err("missing imported asset must fail before Core dispatch");
+        assert!(error.contains("Imported board asset is unavailable"));
+        assert_eq!(runtime.native_case_preview_error().as_ref(), Some(&error));
+        assert!(!runtime.native_case_preview_pending());
+        assert!(runtime.native_case_preview().is_none());
+        let mut other = scope;
+        other.board_id = "another-board".into();
+        runtime.set_definition_name_test_state(accepted, Some(other));
+        assert!(
+            runtime.native_case_preview_error().is_none(),
+            "old capture failures cannot follow another owner"
+        );
     }
 }
 

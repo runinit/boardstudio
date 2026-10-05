@@ -16,10 +16,10 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-05T09:04:34.272639+00:00",
+    "updated_at": "2026-10-05T10:04:02.004547+00:00",
     "parent_counts": {
-      "accepted": 31,
-      "implementing": 19,
+      "accepted": 34,
+      "implementing": 16,
       "planned": 11,
       "total": 61
     },
@@ -48,8 +48,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "cc728fc644d57b985feed9128ffdb40f9c75a709",
-      "state": "Published cc728fc6 extraction matches full reference project and history/reopen. Reviewed Case readiness test-only batch passes native245/page/reachability/strict4; exact hash-bound owners avoid unchanged broad UI rerun. Shared scope/lifecycle, Layout, Keycaps and Case configuration/readiness parent joins accepted.",
+      "source_commit": "b53d53590412e427728f4313e39290e95945d6bd",
+      "state": "Published cc candidate remains available. F5.4 andF8.4 independently accepted; actual paired PCB clearance/trueflip628geometry/boardownership and saved-open unavailable recovery recorded. Imported Case viewport defect nativeRED; combined required repair and cancellation batch active.",
       "packets": [
         {
           "stream": "Layout",
@@ -563,7 +563,7 @@
       },
       {
         "stream": "PCB",
-        "state": "F5.2 and export boundary BND.2 are accepted. PCB Wiring dynamic-option display passed saved-pin/reopen on 34810. Generic mounted placement scope reopened correctly on 34810; circuit/constituent edit evidence and missing-asset/stale async routed cases remain."
+        "state": "F5.4 andF5.5accepted; realdraftretirement leavesentirer9ZIPunchanged. RemainingfunctionalPCB: requiredimportedCaseviewport repair/nativeRED15GREEN andmissingblob/file-readasyncowner qualification."
       },
       {
         "stream": "Keymap",
@@ -575,15 +575,15 @@
       },
       {
         "stream": "Case",
-        "state": "F7.1/F7.3/F7.4/F7.6 accepted with actual paired controls/output and required mounted joins. F7.7 all criteria verified, parent waits F5.6. F7.5 provisional/cancel composition remains; evidence-only patch author active."
+        "state": "Imported routed Case repair and Escape/scope/unmount composition source CLEAR; combined gate running before commit/package/public replay. F7.7 parent waits F5.6."
       },
       {
         "stream": "Parts + Project",
-        "state": "F4.4 functional criteria verified and F7.3 join accepted; visual criterion remains open. F4.6 awaits F4.4. Existing source/worker/lifecycle proofs retained."
+        "state": "F2.2-C02verified actualunavailablesavedopen/recovery; C03supersessionopen. F4.4functionalverified/F4.6awaitvisualjoin; remainingParts6criteria qualification queue."
       }
     ],
     "pending_join_packets": [],
-    "next_work": "Finish current required readiness gate/review and source milestone; accept reviewed extraction/shared-viewer joins; required gesture cancellation composition prepared evidence-only. Continue remaining functional queues; F8/F9unassessed wait prerequisites.",
+    "next_work": "Required Case gesture composition author plus remaining PCB/Parts/Project qualification; retain published cc production identity and accepted b53 readiness milestone. Do not re-run completed profile, Layout, viewer lifecycle, or readiness branches.",
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
       "cadence": {
@@ -4063,50 +4063,75 @@
       ],
       "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
       "pending_source_batch": {
-        "id": "case-readiness-required-20261005",
-        "state": "All four source/config files independently CLEAR; page/native245/reachability/strict4 passed; explicit milestone integration",
-        "source_base": "cc728fc644d57b985feed9128ffdb40f9c75a709",
+        "id": "case-routed-preview-and-required-cancellation-20261005",
+        "state": "Final six-file CLEAR; exact combined gate terminal0, native246/1ignored, wasm30/0fail/0excluded/0incomplete, page/reachability passed. Explicit guarded commit next.",
+        "source_base": "b53d53590412e427728f4313e39290e95945d6bd",
         "owned_files": [
-          "web/src/cad_presentation.rs",
+          "web/src/case_preview.rs",
           "web/src/runtime.rs",
-          "web/src/presentation.rs",
+          "web/src/presentation/shared_viewer.rs",
+          "web/src/presentation/case_viewer.rs",
+          "web/src/presentation/pcb_board_reference.rs",
           "scripts/wasm-test-owners.json"
         ],
-        "review": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+        "author": "migration_acceleration_review",
+        "reviewer": "preset_batch_review",
         "originating_controls": [
-          "Failed current Case generation and retry",
-          "Session preview/gesture blocks exact export until canceled"
+          "Case handle provisional drag",
+          "Escape/scope retirement without accepted edit",
+          "Case tab on imported routed board with no authored Case bodies"
         ],
         "finish": [
-          "Retain prior exact scene with explicit stale/failure state and same-owner retry",
-          "Actual production readiness predicate blocks Session preview/gesture and restores after cancel",
-          "Independent review and grouped required native/wasm gate",
-          "Commit source and qualification milestones; reuse cc candidate for unchanged production UI"
+          "Actual mounted CaseViewer/Runtime Session provisional preview then cancellation clears preview and leaves full accepted document/revision/history unchanged",
+          "Reuse already verified valid/invalid drag/history/live/manual outcomes and synthetic owner matrix without pretending they prove composition",
+          "Independent diff review and settled affected-module/native/page gates",
+          "Commit explicit owned paths and publish immutable committed candidate for imported Case product repair",
+          "Paired routedCase fixture must show actual imported PCB and reference pose/model placement, including selected physical scope; supported by owning native RED/GREEN and actual packaged replay",
+          "Missing blob and asyncowner retirement tests execute mountedrouted handlers; qualified boundaries and limitations explicit"
+        ],
+        "optional_work": "stopped",
+        "focused_receipt": ".scratch/dioxus-frontend-v1/evidence/case-handle-qualification-20261005/cancellation-composition-result.md",
+        "authors": [
+          {
+            "agent": "migration_acceleration_review",
+            "files": [
+              "web/src/case_preview.rs",
+              "web/src/runtime.rs",
+              "web/src/presentation/shared_viewer.rs",
+              "web/src/presentation/case_viewer.rs"
+            ],
+            "scope": "Required imported Case preview owner/dispatch repair with nativeREDfirst and required scope/unmount cancellation composition"
+          },
+          {
+            "agent": "case_local_export",
+            "files": [
+              "web/src/presentation/pcb_board_reference.rs"
+            ],
+            "scope": "Required missing-browser-blob and file-read staleowner mounted qualification; no realCoreworker claim"
+          }
         ],
         "source_staged_before_gate": true,
-        "optional_work": "stopped",
-        "prior_gate": {
-          "pid": 2876848,
-          "log": "/tmp/case-readiness-final-gates.log",
-          "exit_file": "/tmp/case-readiness-final-gates.exit",
-          "state": "stopped by coordinator for required source correction; verified process group absent",
-          "headless": "incomplete",
-          "stop_record": ".scratch/dioxus-frontend-v1/evidence/case-readiness-required-20261005/superseded-broad-gate-stopped.json"
-        },
+        "review_verdict": "CLEAR",
         "gate": {
-          "pid": 2901285,
-          "log": ".scratch/dioxus-frontend-v1/evidence/case-readiness-required-20261005/gates.log",
-          "exit_file": "/tmp/case-readiness-settled-gates.exit",
-          "source_manifest": "/tmp/case-readiness-settled-gates.json",
+          "pid": 2955274,
+          "log": ".scratch/dioxus-frontend-v1/evidence/case-routed-integration-20261005/gates.log",
+          "exit_file": "/tmp/case-routed-combined-gates.exit",
+          "source_hashes": "/tmp/case-routed-required-source-hashes.json",
           "terminal_exit": 0,
-          "native_passed": 245,
+          "native_passed": 246,
           "native_ignored": 1,
-          "headless_passed": 4,
+          "headless_passed": 30,
           "excluded": 0,
           "incomplete": 0,
-          "headless_duration_seconds": 56.37
+          "headless_duration_seconds": 434.15
         },
-        "review_verdict": "CLEAR"
+        "focused_results": {
+          "native_case": "15/15; reproduced product RED first",
+          "case_attempt2": "4 passed/1 fixture numeric representation failure",
+          "case_attempt3": "1/1 corrected typed geometry assertion; no production correction",
+          "pcb_async": "2/2; real file-read admission, closed worker, no post-worker claim",
+          "owner_runner": "37/37"
+        }
       },
       "prior_source_batches": [
         {
@@ -4399,6 +4424,54 @@
           "integration_commit": "cc728fc644d57b985feed9128ffdb40f9c75a709",
           "published_build": "frontend-case-extraction-lifecycle-20261005",
           "public_receipt": ".scratch/dioxus-frontend-v1/evidence/case-custom-profile-20261005/public-cc728fc6.md"
+        },
+        {
+          "id": "case-readiness-required-20261005",
+          "state": "Integrated and accepted",
+          "source_base": "cc728fc644d57b985feed9128ffdb40f9c75a709",
+          "owned_files": [
+            "web/src/cad_presentation.rs",
+            "web/src/runtime.rs",
+            "web/src/presentation.rs",
+            "scripts/wasm-test-owners.json"
+          ],
+          "review": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+          "originating_controls": [
+            "Failed current Case generation and retry",
+            "Session preview/gesture blocks exact export until canceled"
+          ],
+          "finish": [
+            "Retain prior exact scene with explicit stale/failure state and same-owner retry",
+            "Actual production readiness predicate blocks Session preview/gesture and restores after cancel",
+            "Independent review and grouped required native/wasm gate",
+            "Commit source and qualification milestones; reuse cc candidate for unchanged production UI"
+          ],
+          "source_staged_before_gate": true,
+          "optional_work": "stopped",
+          "prior_gate": {
+            "pid": 2876848,
+            "log": "/tmp/case-readiness-final-gates.log",
+            "exit_file": "/tmp/case-readiness-final-gates.exit",
+            "state": "stopped by coordinator for required source correction; verified process group absent",
+            "headless": "incomplete",
+            "stop_record": ".scratch/dioxus-frontend-v1/evidence/case-readiness-required-20261005/superseded-broad-gate-stopped.json"
+          },
+          "gate": {
+            "pid": 2901285,
+            "log": ".scratch/dioxus-frontend-v1/evidence/case-readiness-required-20261005/gates.log",
+            "exit_file": "/tmp/case-readiness-settled-gates.exit",
+            "source_manifest": "/tmp/case-readiness-settled-gates.json",
+            "terminal_exit": 0,
+            "native_passed": 245,
+            "native_ignored": 1,
+            "headless_passed": 4,
+            "excluded": 0,
+            "incomplete": 0,
+            "headless_duration_seconds": 56.37
+          },
+          "review_verdict": "CLEAR",
+          "integration_commit": "b53d53590412e427728f4313e39290e95945d6bd",
+          "commit_gate_reuse": "All four exact receipts reused; integration-commit-reuse.log"
         }
       ],
       "started_at": "2026-10-05T08:35:52.837833+00:00",

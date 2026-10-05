@@ -837,6 +837,9 @@ fn project_case_scene(
             "holes": holes,
             "models": models
         },
+        "reference": physical_preview.and_then(|preview| preview.board_reference.as_ref()).map(|reference| {
+            serde_json::json!({ "pose": &reference.pose, "elevation": reference.elevation })
+        }),
         "models": [],
         "mechanicalStack": stack
     });
@@ -905,6 +908,9 @@ fn project_native_preview(
             "holes": &preview.preview.holes,
             "models": &preview.preview.models
         },
+        "reference": preview.board_reference.as_ref().map(|reference| {
+            serde_json::json!({ "pose": &reference.pose, "elevation": reference.elevation })
+        }),
         "models": [],
         "mechanicalStack": []
     });
@@ -1457,6 +1463,22 @@ impl PointerOwner {
     }
 }
 
+#[cfg(all(test, target_arch = "wasm32"))]
+#[derive(Clone, Default)]
+pub(super) struct SharedViewerEscapeProbe(Rc<RefCell<Option<Rc<dyn Fn(String)>>>>);
+
+#[cfg(all(test, target_arch = "wasm32"))]
+impl SharedViewerEscapeProbe {
+    pub(super) fn arm_handle_capture(&self, handle_id: impl Into<String>) {
+        let arm = self
+            .0
+            .borrow()
+            .clone()
+            .expect("mounted SharedViewer publishes its Escape test probe");
+        arm(handle_id.into());
+    }
+}
+
 #[component]
 fn SharedViewer(
     projection: Rc<RendererSceneProjection>,
@@ -1495,6 +1517,21 @@ fn SharedViewer(
     let pointer = use_hook(|| Rc::new(RefCell::new(None::<PointerOwner>)));
     let applied_sequence = use_hook(|| Rc::new(Cell::new(0_u64)));
     let applied_identity = use_hook(|| Rc::new(RefCell::new(None::<ViewerIdentity>)));
+    #[cfg(all(test, target_arch = "wasm32"))]
+    if let Some(probe) = try_consume_context::<SharedViewerEscapeProbe>() {
+        let pointer = pointer.clone();
+        let identity = projection.identity.clone();
+        let handle_projection = handle_projection.clone();
+        *probe.0.borrow_mut() = Some(Rc::new(move |handle_id| {
+            *pointer.borrow_mut() = Some(PointerOwner::Handle {
+                identity: identity.clone(),
+                projection: handle_projection.clone(),
+                pointer_id: 13,
+                z: 0.8,
+                id: handle_id,
+            });
+        }));
+    }
 
     use_effect(use_reactive((&projection, &handle_projection), {
         let pointer = pointer.clone();
@@ -3018,6 +3055,28 @@ fn emit_signal(
     });
 }
 
+#[cfg(all(test, target_arch = "wasm32"))]
+pub(super) fn emit_handle_gesture_for_test(
+    on_signal: EventHandler<ScopedViewerSignal>,
+    identity: &ViewerIdentity,
+    phase: HandleGesturePhase,
+    handle_id: String,
+    point: Option<[f32; 3]>,
+) {
+    let owner = ViewerOwner::new().expect("test viewer owner identity is available");
+    *owner.identity.borrow_mut() = Some(identity.clone());
+    emit_signal(
+        &owner,
+        on_signal,
+        identity,
+        ViewerSignalKind::HandleGesture {
+            phase,
+            handle_id,
+            point,
+        },
+    );
+}
+
 fn display_state(
     display: &CaseDisplay,
     selected_layer: &str,
@@ -3235,14 +3294,13 @@ mod tests {
         );
     }
 
-    fn imported_layout_projection(
+    fn imported_preview_fixture(
         reference: boardstudio_core::model::BoardReference,
-        model_rows: Option<ModelDeliveryRows>,
-    ) -> RendererSceneProjection {
+    ) -> (boardstudio_application::AcceptedSnapshot, ViewerIdentity) {
         use boardstudio_core::model::{
-            Asset, Board, BoardContours, PcbPreview, ProjectDoc, Readiness, SceneDelta,
+            Asset, Board, BoardContours, ProjectDoc, Readiness, SceneDelta,
         };
-        use std::{collections::BTreeMap, sync::Arc};
+        use std::sync::Arc;
 
         let viewer = identity();
         let mut document = ProjectDoc::empty("project-1", "Routed board");
@@ -3266,6 +3324,20 @@ mod tests {
             source: None,
         });
         document.board_references.push(reference);
+        document.hardware = Some(boardstudio_core::model::HardwareConfiguration {
+            instances: vec![boardstudio_core::model::PhysicalBoardInstance {
+                id: "case-instance-1".into(),
+                name: "Case instance".into(),
+                board_id: "board-1".into(),
+                half: "left".into(),
+                role: "central".into(),
+                flipped: false,
+                controller_part_id: None,
+                mechanical: None,
+                construction_linked: false,
+            }],
+            ..Default::default()
+        });
         let accepted = boardstudio_application::AcceptedSnapshot {
             token: viewer.snapshot_token,
             session_epoch: viewer.scope.session_epoch,
@@ -3294,6 +3366,16 @@ mod tests {
                 },
             }),
         };
+        (accepted, viewer)
+    }
+
+    fn imported_layout_projection(
+        reference: boardstudio_core::model::BoardReference,
+        model_rows: Option<ModelDeliveryRows>,
+    ) -> RendererSceneProjection {
+        use boardstudio_core::model::PcbPreview;
+        use std::collections::BTreeMap;
+        let (accepted, viewer) = imported_preview_fixture(reference);
         let capture = super::super::layout_viewer_source::LayoutSourceCapture::capture(
             &accepted,
             &viewer.scope,
@@ -3352,6 +3434,94 @@ mod tests {
                 "elevation": 4.75
             })
         );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn imported_case_projection_keeps_routed_contours_and_pose_in_pcb_and_case_scene_packets() {
+        use boardstudio_core::model::{
+            BoardReference, Contour, PcbPreview, Pose2, PreparedCaseAssemblyIR, Vec2,
+        };
+        let reference = BoardReference {
+            id: "routed-case".into(),
+            board_id: "board-1".into(),
+            asset_id: "routed-source".into(),
+            enabled: true,
+            pose: Pose2 {
+                at: Vec2 { x: 4.2, y: -3.1 },
+                rotation: 15.0,
+            },
+            elevation: 2.5,
+            model_assets: Default::default(),
+        };
+        let (accepted, viewer) = imported_preview_fixture(reference.clone());
+        let capture = crate::case_preview::capture_native_preview(
+            &accepted,
+            &viewer.scope,
+            1,
+            1,
+            1,
+            1,
+            "case-routed-projection".into(),
+        )
+        .unwrap();
+        let contours = vec![Contour {
+            points: vec![
+                Vec2 { x: 10.0, y: 20.0 },
+                Vec2 { x: 30.0, y: 20.0 },
+                Vec2 { x: 30.0, y: 40.0 },
+            ],
+            hole: false,
+        }];
+        let preview = crate::case_preview::accept_native_preview(
+            capture,
+            PcbPreview {
+                revision: viewer.revision,
+                thickness: 1.6,
+                contours: contours.clone(),
+                surfaces: vec![],
+                holes: vec![],
+                models: vec![],
+                diagnostics: vec![],
+            },
+        )
+        .unwrap();
+        let scene = Rc::new(CadScene {
+            scope: viewer.scope.clone(),
+            token: accepted.token,
+            snapshot: accepted,
+            result: boardstudio_web::cad_jobs::CadResult {
+                revision: viewer.revision,
+                ..Default::default()
+            },
+            prepared: PreparedCaseAssemblyIR {
+                revision: viewer.revision,
+                bodies: vec![],
+            },
+            physical_fingerprint: None,
+            mechanical: None,
+            exact: true,
+            contours: vec![],
+        });
+        for projection in [
+            project_native_preview(&preview, viewer.clone(), "light", None).unwrap(),
+            project_case_scene(scene, viewer, "light", Some(&preview), None).unwrap(),
+        ] {
+            let encoded = js_sys::JSON::stringify(&projection.input)
+                .unwrap()
+                .as_string()
+                .unwrap();
+            let packet: serde_json::Value = serde_json::from_str(&encoded).unwrap();
+            let projected_pose: Pose2 =
+                serde_json::from_value(packet["reference"]["pose"].clone()).unwrap();
+            assert_eq!(projected_pose, reference.pose);
+            assert_eq!(
+                packet["reference"]["elevation"].as_f64(),
+                Some(reference.elevation)
+            );
+            let projected_contours: Vec<Contour> =
+                serde_json::from_value(packet["board"]["contours"].clone()).unwrap();
+            assert_eq!(projected_contours, contours);
+        }
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]

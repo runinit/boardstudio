@@ -236,6 +236,8 @@ async fn import_routed_board(
         return Err("The active project or board changed. Retry with the current board.".into());
     }
     let (bytes, source) = read_kicad_file(&file).await?;
+    #[cfg(all(test, target_arch = "wasm32"))]
+    test_support::pause_import_after_file_read().await;
     if generation() != request_generation
         || !super::board_reference_owner_is_current(runtime, workspace, adapter, owner)
     {
@@ -1000,6 +1002,460 @@ pub(super) fn Editor(
                     "Retry model-path discovery"
                 }
             }
+        }
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod test_support {
+    use futures_channel::oneshot;
+    use std::cell::RefCell;
+
+    struct ImportGate {
+        entered: oneshot::Sender<()>,
+        release: oneshot::Receiver<()>,
+    }
+
+    thread_local! {
+        static IMPORT_GATE: RefCell<Option<ImportGate>> = const { RefCell::new(None) };
+    }
+
+    pub(super) fn install_import_gate() -> (oneshot::Receiver<()>, oneshot::Sender<()>) {
+        let (entered_tx, entered_rx) = oneshot::channel();
+        let (release_tx, release_rx) = oneshot::channel();
+        IMPORT_GATE.with(|gate| {
+            *gate.borrow_mut() = Some(ImportGate {
+                entered: entered_tx,
+                release: release_rx,
+            });
+        });
+        (entered_rx, release_tx)
+    }
+
+    pub(super) async fn pause_import_after_file_read() {
+        let gate = IMPORT_GATE.with(|gate| gate.borrow_mut().take());
+        if let Some(gate) = gate {
+            let _ = gate.entered.send(());
+            let _ = gate.release.await;
+        }
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod mounted_async_tests {
+    use super::*;
+    use boardstudio_application::{AcceptedSnapshot, Durability, Lifecycle, ReadModel, Scope};
+    use boardstudio_core::model::{Asset, Board, BoardReference, Pose2, Vec2};
+    use dioxus::prelude::*;
+    use js_sys::{Array, Uint8Array};
+    use std::{cell::RefCell, rc::Rc, sync::Arc};
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::wasm_bindgen_test;
+    use web_sys::{File, HtmlElement};
+
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    #[derive(Clone)]
+    struct Fixture {
+        runtime: Rc<Runtime>,
+        accepted: AcceptedSnapshot,
+        scope: Scope,
+        reference: BoardReference,
+        asset: Asset,
+    }
+
+    impl PartialEq for Fixture {
+        fn eq(&self, other: &Self) -> bool {
+            Rc::ptr_eq(&self.runtime, &other.runtime)
+                && self.accepted.token == other.accepted.token
+                && self.scope == other.scope
+                && self.reference == other.reference
+                && self.asset == other.asset
+        }
+    }
+
+    fn fixture() -> Fixture {
+        let runtime = Runtime::new().expect("browser Runtime initializes");
+        let (_, opened, scope) = crate::runtime::firmware_export_test_support::opened_session();
+        let missing_sha = sha256_bytes(b"absent routed board browser-store fixture");
+        let asset = Asset {
+            id: "routed-board-asset".into(),
+            name: "Left_PCB.kicad_pcb".into(),
+            media_type: "application/x-kicad_pcb".into(),
+            sha256: missing_sha,
+            license: None,
+            source: None,
+        };
+        let reference = BoardReference {
+            id: "routed-board-reference".into(),
+            board_id: scope.board_id.clone(),
+            asset_id: asset.id.clone(),
+            enabled: true,
+            pose: Pose2 {
+                at: Vec2 { x: 0.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            elevation: 0.0,
+            model_assets: Default::default(),
+        };
+        let mut document = (*opened.document).clone();
+        document.assets.push(asset.clone());
+        document.board_references.push(reference.clone());
+        let mut scene = (*opened.scene).clone();
+        scene.revision = document.revision;
+        let accepted = AcceptedSnapshot {
+            token: opened.token,
+            session_epoch: opened.session_epoch,
+            document: Arc::new(document),
+            scene: Arc::new(scene),
+        };
+        install_current_runtime_model(&runtime, accepted.clone(), scope.clone());
+        Fixture {
+            runtime,
+            accepted,
+            scope,
+            reference,
+            asset,
+        }
+    }
+
+    fn install_current_runtime_model(runtime: &Runtime, accepted: AcceptedSnapshot, scope: Scope) {
+        let revision = accepted.document.revision;
+        runtime.set_definition_name_test_state(accepted.clone(), Some(scope.clone()));
+        runtime.set_definition_name_test_model(ReadModel {
+            lifecycle: Lifecycle::Ready,
+            durability: Durability::Saved { revision },
+            active_board_id: scope.board_id.clone(),
+            active_instance_id: scope.instance_id.clone(),
+            accepted: Some(accepted),
+            ..ReadModel::default()
+        });
+    }
+
+    #[component]
+    fn missing_asset_host(fixture: Fixture) -> Element {
+        let workspace = use_signal(|| "Layout");
+        let selected_context = use_signal(|| None);
+        let anchor_scope = use_signal(|| None);
+        let generation = use_signal(|| 1u64);
+        let adapter = use_hook(|| {
+            super::super::SelectionAdapter::new(selected_context, anchor_scope, generation)
+        });
+        let owner = super::super::current_layout_owner(&fixture.runtime, workspace, &adapter);
+        rsx! {
+            Editor {
+                reference: Some(fixture.reference.clone()),
+                assets: vec![fixture.asset.clone()],
+                disabled: false,
+                runtime: BoardReferenceRuntimeHandle::new(fixture.runtime.clone()),
+                workspace,
+                adapter: BoardReferenceAdapterHandle::new(adapter),
+                owner,
+            }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_missing_stored_board_blob_reports_retry_and_keeps_reference() {
+        let fixture = fixture();
+        assert!(
+            fixture
+                .runtime
+                .store
+                .load_asset(fixture.asset.sha256.clone())
+                .await
+                .expect("IndexedDB asset lookup succeeds")
+                .is_none(),
+            "fixture SHA must be absent from browser storage"
+        );
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("pcb-reference-missing-asset-test-root");
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new_with_props(
+            missing_asset_host,
+            missing_asset_hostProps {
+                fixture: fixture.clone(),
+            },
+        );
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+
+        for _ in 0..100 {
+            if root.query_selector("[role=alert]").unwrap().is_some() {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        let alert = root
+            .query_selector("[role=alert]")
+            .unwrap()
+            .expect("missing stored blob produces a mounted alert");
+        assert!(
+            alert
+                .text_content()
+                .unwrap()
+                .contains("Saved routed-board file is missing from browser storage")
+        );
+        let buttons = root.query_selector_all("button").unwrap();
+        let retry = (0..buttons.length())
+            .filter_map(|index| buttons.item(index))
+            .find(|button| button.text_content().as_deref() == Some("Retry model-path discovery"))
+            .expect("failed discovery offers retry")
+            .dyn_into::<HtmlElement>()
+            .unwrap();
+        assert!(retry.get_attribute("disabled").is_none());
+        retry.click();
+        for _ in 0..100 {
+            if root.query_selector("[role=alert]").unwrap().is_none() {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        for _ in 0..100 {
+            if root.query_selector("[role=alert]").unwrap().is_some() {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert!(
+            root.query_selector("[role=alert]")
+                .unwrap()
+                .expect("retry runs the real missing-asset lookup again")
+                .text_content()
+                .unwrap()
+                .contains("Saved routed-board file is missing from browser storage")
+        );
+        assert!(fixture.runtime.take_definition_name_test_event().is_none());
+        assert!(
+            fixture
+                .runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .board_references
+                .iter()
+                .any(|reference| reference == &fixture.reference)
+        );
+        root.remove();
+    }
+
+    #[derive(Clone)]
+    struct ReplaceHostProbe {
+        fixture: Fixture,
+        file: File,
+        file_sha: String,
+        busy: Rc<RefCell<Option<Signal<bool>>>>,
+        error: Rc<RefCell<Option<Signal<Option<String>>>>>,
+    }
+
+    impl PartialEq for ReplaceHostProbe {
+        fn eq(&self, other: &Self) -> bool {
+            Rc::ptr_eq(&self.busy, &other.busy)
+        }
+    }
+
+    #[component]
+    fn replace_host(probe: ReplaceHostProbe) -> Element {
+        let workspace = use_signal(|| "Layout");
+        let selected_context = use_signal(|| None);
+        let anchor_scope = use_signal(|| None);
+        let generation = use_signal(|| 1u64);
+        let adapter = use_hook(|| {
+            super::super::SelectionAdapter::new(selected_context, anchor_scope, generation)
+        });
+        let owner = super::super::current_layout_owner(&probe.fixture.runtime, workspace, &adapter);
+        let request_generation = use_signal(|| 0u64);
+        let busy = use_signal(|| false);
+        let error = use_signal(|| None::<String>);
+        let paths = use_signal(Vec::<String>::new);
+        let paths_asset_id = use_signal(|| None::<String>);
+        *probe.busy.borrow_mut() = Some(busy);
+        *probe.error.borrow_mut() = Some(error);
+        let runtime = probe.fixture.runtime.clone();
+        let adapter_for_import = adapter.clone();
+        let reference = probe.fixture.reference.clone();
+        let file = probe.file.clone();
+        rsx! {
+            button {
+                id: "pcb-reference-test-begin-replace",
+                disabled: busy(),
+                onclick: move |_| begin_board_import(
+                    runtime.clone(),
+                    workspace,
+                    adapter_for_import.clone(),
+                    owner.clone(),
+                    Some(reference.clone()),
+                    file.clone(),
+                    request_generation,
+                    busy,
+                    error,
+                    paths,
+                    paths_asset_id,
+                ),
+                "Begin routed-board replacement"
+            }
+            if busy() { p { role: "status", "Reading routed board" } }
+            if let Some(message) = error() { p { role: "alert", "{message}" } }
+        }
+    }
+
+    #[derive(Clone, Copy)]
+    enum OwnerChange {
+        Project,
+        Board,
+        Revision,
+    }
+
+    fn changed_owner(fixture: &Fixture, change: OwnerChange) {
+        let mut document = (*fixture.accepted.document).clone();
+        let mut scope = fixture.scope.clone();
+        match change {
+            OwnerChange::Project => {
+                document.id = "changed-routed-board-project".into();
+                scope.document_id = document.id.clone();
+            }
+            OwnerChange::Board => {
+                document.boards.push(Board {
+                    id: "changed-routed-board-target".into(),
+                    name: "Changed target board".into(),
+                    outline_ids: Vec::new(),
+                    part_ids: Vec::new(),
+                    net_ids: Vec::new(),
+                    thickness: 1.6,
+                    traces: Vec::new(),
+                    vias: Vec::new(),
+                });
+                scope.board_id = "changed-routed-board-target".into();
+            }
+            OwnerChange::Revision => document.revision += 1,
+        }
+        let mut scene = (*fixture.accepted.scene).clone();
+        scene.revision = document.revision;
+        let accepted = AcceptedSnapshot {
+            token: fixture.accepted.token,
+            session_epoch: fixture.accepted.session_epoch,
+            document: Arc::new(document),
+            scene: Arc::new(scene),
+        };
+        install_current_runtime_model(&fixture.runtime, accepted, scope);
+    }
+
+    fn replacement_file(salt: usize) -> (File, String) {
+        let mut bytes = include_bytes!("../../../.scratch/dioxus-frontend-v1/evidence/pcb-routed-folder-20261005/Replacement_PCB.kicad_pcb").to_vec();
+        // Trailing whitespace preserves the fixture as KiCad text while giving
+        // each stale-owner case a unique BrowserStore identity.
+        bytes.extend(std::iter::repeat_n(b'\n', salt));
+        let sha256 = sha256_bytes(&bytes);
+        let contents = Uint8Array::from(bytes.as_slice());
+        let file = File::new_with_u8_array_sequence(
+            &Array::of1(&contents.into()),
+            "Replacement_PCB.kicad_pcb",
+        )
+        .expect("supported routed-board File fixture constructs");
+        (file, sha256)
+    }
+
+    #[wasm_bindgen_test]
+    async fn replace_discards_async_file_read_after_project_board_or_revision_changes() {
+        for (index, change) in [
+            OwnerChange::Project,
+            OwnerChange::Board,
+            OwnerChange::Revision,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let fixture = fixture();
+            let (file, file_sha) = replacement_file(index + 1);
+            let probe = ReplaceHostProbe {
+                fixture: fixture.clone(),
+                file,
+                file_sha,
+                busy: Rc::new(RefCell::new(None)),
+                error: Rc::new(RefCell::new(None)),
+            };
+            let document = web_sys::window().unwrap().document().unwrap();
+            let root = document.create_element("div").unwrap();
+            root.set_id(&format!("pcb-reference-replace-stale-test-{index}"));
+            document.body().unwrap().append_child(&root).unwrap();
+            dioxus_web::launch::launch_virtual_dom(
+                VirtualDom::new_with_props(
+                    replace_host,
+                    replace_hostProps {
+                        probe: probe.clone(),
+                    },
+                ),
+                dioxus_web::Config::new().rootnode(root.clone().into()),
+            );
+            let (entered, release) = test_support::install_import_gate();
+            for _ in 0..100 {
+                if root
+                    .query_selector("#pcb-reference-test-begin-replace")
+                    .unwrap()
+                    .is_some()
+                {
+                    break;
+                }
+                gloo_timers::future::TimeoutFuture::new(10).await;
+            }
+            root.query_selector("#pcb-reference-test-begin-replace")
+                .unwrap()
+                .unwrap()
+                .dyn_into::<HtmlElement>()
+                .unwrap()
+                .click();
+            entered
+                .await
+                .expect("real File.array_buffer read reaches gate");
+            changed_owner(&fixture, change);
+            release.send(()).expect("release file-read admission gate");
+
+            let busy = probe.busy.borrow().expect("mounted busy signal");
+            let error = probe.error.borrow().expect("mounted error signal");
+            for _ in 0..100 {
+                if !busy() && error().is_some() {
+                    break;
+                }
+                gloo_timers::future::TimeoutFuture::new(10).await;
+            }
+            assert!(
+                !busy(),
+                "stale operation settles and re-enables replacement"
+            );
+            let message = error().expect("changed owner reports a retryable failure");
+            match change {
+                OwnerChange::Project | OwnerChange::Board => {
+                    assert!(message.contains("result was discarded"));
+                }
+                OwnerChange::Revision => {
+                    assert!(message.contains("changed while the routed-board file was read"));
+                }
+            }
+            assert!(
+                root.query_selector("#pcb-reference-test-begin-replace:not([disabled])")
+                    .unwrap()
+                    .is_some(),
+                "replacement action remains usable for retry"
+            );
+            assert!(
+                fixture.runtime.take_definition_name_test_event().is_none(),
+                "no project edit may be submitted after the stale file read"
+            );
+            let stored = fixture
+                .runtime
+                .store
+                .load_asset(probe.file_sha.clone())
+                .await
+                .expect("IndexedDB asset lookup succeeds");
+            assert!(
+                stored.is_none(),
+                "stale read must not store replacement bytes"
+            );
+            root.remove();
         }
     }
 }

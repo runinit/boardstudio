@@ -1,0 +1,18 @@
+{
+  "draft": {
+    "candidate": [
+      "      - spinbutton \"X (mm)\" [active]: \"37\""
+    ],
+    "reference": [
+      "    - spinbutton \"Module X\" [active]: \"37\""
+    ]
+  },
+  "returned": {
+    "candidate": [
+      "      - spinbutton \"X (mm)\": \"29\""
+    ],
+    "reference": [
+      "    - spinbutton \"Module X\" [active]: \"29\""
+    ]
+  }
+}

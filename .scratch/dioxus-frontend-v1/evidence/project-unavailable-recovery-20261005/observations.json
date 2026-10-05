@@ -1,0 +1,28 @@
+{
+  "candidate": [
+    "    - generic: VIK module review · above and below",
+    "        - option \"Main board\" [selected]",
+    "        - option \"Board 2\"",
+    "        - treeitem \"Main board 33 parts\" [expanded] [level=1]:",
+    "          - button \"Collapse Main board\" [expanded]: ⌄",
+    "          - button \"Main board 33 parts\":",
+    "            - generic: Main board",
+    "      - heading \"Main board\" [level=2]",
+    "      - textbox \"Board name\": Main board",
+    "  - status: The saved keyboard is unavailable. Choose an available copy from the library."
+  ],
+  "reference": [
+    "- alert: \"Error: This keyboard is no longer saved in this browser. Open a project file to restore it.\"",
+    "    - generic: VIK module review · above and below",
+    "      - option \"Main board\" [selected]",
+    "      - option \"Board 2\"",
+    "      - button \"Collapse Main board\" [expanded]: ⌄",
+    "      - treeitem \"Main board 33 parts\" [expanded] [level=1]:",
+    "        - generic \"Main board\"",
+    "    - strong: Main board",
+    "    - generic: Main board / Layout",
+    "    - generic: Main board / Layout",
+    "    - heading \"Main board\" [level=2]",
+    "    - textbox \"Board name\": Main board"
+  ]
+}

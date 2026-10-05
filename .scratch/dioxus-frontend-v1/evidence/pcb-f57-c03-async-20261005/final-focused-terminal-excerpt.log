@@ -1,0 +1,13 @@
+Verbatim terminal excerpt retained from the final `scripts/migration-deliver.py focused-test` invocation (the command output itself was not tee'd to a full raw log).
+
+Running headless tests in Chrome on `http://127.0.0.1:35669/`
+Loading Wasm module...
+running 2 tests
+Invoking test: presentation::pcb_board_reference::mounted_async_tests::replace_discards_async_file_read_after_project_board_or_revision_changes
+test presentation::pcb_board_reference::mounted_async_tests::replace_discards_async_file_read_after_project_board_or_revision_changes ... ok
+Invoking test: presentation::pcb_board_reference::mounted_async_tests::mounted_missing_stored_board_blob_reports_retry_and_keeps_reference
+test presentation::pcb_board_reference::mounted_async_tests::mounted_missing_stored_board_blob_reports_retry_and_keeps_reference ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 324 filtered out; finished in 1.22s
+
+migration-deliver: focused-test status=passed passed=2 started=2026-10-05T09:46:32+00:00 ended=2026-10-05T09:47:23+00:00 duration=51.49s

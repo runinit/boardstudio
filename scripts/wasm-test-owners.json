@@ -55,15 +55,49 @@
     },
     "web/src/runtime.rs": {
       "tests": [
+        "runtime::native_model_mapping_tests::delayed_old_owner_mapping_failure_cannot_report_into_replacement",
+        "runtime::native_model_mapping_tests::failed_mapping_notifier_does_not_readmit_the_same_preview",
+        "runtime::native_model_mapping_tests::new_preview_retries_after_failure_and_success_keeps_batch_pending",
+        "runtime::native_model_mapping_tests::obsolete_failure_keeps_new_owner_pending_and_emits_no_report",
+        "runtime::native_model_mapping_tests::stale_mapping_success_cannot_enter_delivery_or_replace_pending",
+        "runtime::case_preview_source_tests::imported_capture_failure_is_visible_only_to_its_current_case_owner",
         "cad_presentation::mounted_tests::mounted_case_local_export_uses_current_exact_mechanical_scope",
+        "cad_presentation::mounted_tests::mounted_case_panel_starts_once_pauses_and_resumes_for_current_context",
         "cad_presentation::mounted_tests::mounted_failed_current_generation_keeps_previous_geometry_and_retries_owner",
         "cad_presentation::mounted_tests::mounted_read_model_preview_and_session_gesture_block_export_until_cancelled",
-        "cad_presentation::mounted_tests::mounted_case_panel_starts_once_pauses_and_resumes_for_current_context"
+        "presentation::case_viewer::gesture_cancellation_tests::mounted_escape_cancels_provisional_case_gesture_without_session_edit",
+        "presentation::case_viewer::gesture_cancellation_tests::mounted_scope_change_retires_provisional_case_gesture_without_session_edit",
+        "presentation::case_viewer::gesture_cancellation_tests::mounted_unmount_retires_provisional_case_gesture_without_session_edit",
+        "presentation::shared_viewer::tests::canvas_accessible_names_match_the_active_workflow_context",
+        "presentation::shared_viewer::tests::case_handle_preview_transfer_rejects_replaced_source_scope_revision_and_owner",
+        "presentation::shared_viewer::tests::case_handle_survives_published_provisional_scene_until_pointer_up",
+        "presentation::shared_viewer::tests::display_preference_aliases_match_case_display_groups",
+        "presentation::shared_viewer::tests::finding_focus_retriggers_repeats_and_rejects_stale_project_board_token_and_revision",
+        "presentation::shared_viewer::tests::generic_layout_module_projection_preserves_board_holes_and_omits_opening_voids",
+        "presentation::shared_viewer::tests::imported_case_projection_keeps_routed_contours_and_pose_in_pcb_and_case_scene_packets",
+        "presentation::shared_viewer::tests::imported_layout_projection_preserves_nonidentity_board_reference_pose_and_elevation",
+        "presentation::shared_viewer::tests::layout_module_model_normals_follow_nonuniform_core_scale",
+        "presentation::shared_viewer::tests::layout_packet_includes_module_model_mesh_at_core_stable_id_and_transform",
+        "presentation::shared_viewer::tests::mounted_case_gesture_feedback_preserves_canvas_geometry",
+        "presentation::shared_viewer::tests::physical_preview_rows_are_qualified_by_source_scope_and_token",
+        "presentation::shared_viewer::tests::pointer_completion_keeps_its_starting_projection_identity",
+        "presentation::shared_viewer::tests::pointer_event_cannot_take_reused_id_from_another_projection",
+        "presentation::shared_viewer::tests::viewer_events_reject_changed_owner_identity_and_unmount"
       ],
-      "coverage": "Hash-bound test-only Case readiness fixture support. The presentation bridge calls the existing mechanical owner readiness hook; the per-Runtime ReadModel override is cfg(test), defaults to None, and is populated only by the mounted CAD fixtures. All four mounted CAD tests execute; direct cad_presentation module selection retains grouped fixture attribution. Any different base/current hash fails closed to broad selection. Native web, wasm page and reachability gates remain required.",
-      "requires_generator_assets": false,
-      "base_sha256": "5d94109e52827ee05831c154329ec4af96a30bd6286c20447f543fcf77fc410f",
-      "current_sha256": "33e568d43357bda42fdcb825d30e6ad71364aa43c405ab051939d73b08df92b6"
+      "coverage": "Hash-bound imported Case preview production repair: all affected Runtime model mapping and capture-error, mounted CAD, Case gesture retirement, and SharedViewer modules. Native Case capture, Layout source and model delivery are additionally covered by the required native gate. Public imported geometry, models and routed pose require packaged browser replay. Other hashes fail closed to broad selection.",
+      "requires_generator_assets": true,
+      "base_sha256": "33e568d43357bda42fdcb825d30e6ad71364aa43c405ab051939d73b08df92b6",
+      "current_sha256": "ff4e0190bf3a6d2a3fab6628332af7b792b876b93a54834026b7e42477d930c7"
+    },
+    "web/src/case_preview.rs": {
+      "tests": [
+        "runtime::case_preview_source_tests::imported_capture_failure_is_visible_only_to_its_current_case_owner",
+        "presentation::shared_viewer::tests::imported_case_projection_keeps_routed_contours_and_pose_in_pcb_and_case_scene_packets"
+      ],
+      "coverage": "Hash-bound imported Case source capture repair. All fifteen native Case capture tests run in the mandatory native gate; WASM owners cover current-owner capture errors and both routed-pose projection packets. Real worker/model rendering remains a required packaged replay. Other hashes fail closed to broad selection.",
+      "requires_generator_assets": true,
+      "base_sha256": "b5a994f0497db0d190e0f1685c033816d5ed4a2b039b7027e9889a8a737bc0f8",
+      "current_sha256": "0b45ee28e6b5aa5e24f56333cd60eb6d81814df486df48d890412576ecf72d34"
     }
   }
 }

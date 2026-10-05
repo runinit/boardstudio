@@ -1,0 +1,26 @@
+{
+  "parent": "F7.3",
+  "reason": "Independent clause-by-clause desktop scope and lifecycle reconciliation; committed renderer and actual Persist checks plus attributable paired public evidence close remaining criteria.",
+  "review": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+  "review_sha256": "c69ba8fbcc92ec2292e17029514ba411a9791da8599f0d779078f8692e7da656",
+  "criteria_accounting": {
+    "source_commit": "07b4c3466b1f388073e8e1f9d619b0703223d770",
+    "coverage": "complete",
+    "verified_criteria": [
+      "F7.3-C01",
+      "F7.3-C02",
+      "F7.3-C03",
+      "F7.3-C04",
+      "F7.3-C05",
+      "F7.3-C06",
+      "F7.3-C07",
+      "F7.3-C08",
+      "F7.3-C09",
+      "F7.3-C10"
+    ]
+  },
+  "accepted_joins": [
+    "INT.2",
+    "BND.1"
+  ]
+}

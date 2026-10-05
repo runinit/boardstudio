@@ -1,0 +1,287 @@
+COMMAND: ['cargo', 'test', '--manifest-path', 'web/Cargo.toml', '--locked', '--bin', 'boardstudio-web', 'case_preview::tests::physical_case_keeps_a_preview_owner_for_an_enabled_routed_board', '--', '--exact', '--nocapture']
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web)
+warning: function `is_ergogen_source` is never used
+  --> src/bundled_models.rs:41:21
+   |
+41 | pub(crate) async fn is_ergogen_source(_source: &str) -> Result<bool, String> {
+   |                     ^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `model_bindings` is never used
+   --> src/bundled_models.rs:237:21
+    |
+237 | pub(crate) async fn model_bindings(
+    |                     ^^^^^^^^^^^^^^
+
+warning: function `physical_case_fingerprint` is never used
+  --> src/case_generation_lifecycle.rs:32:15
+   |
+32 | pub(crate) fn physical_case_fingerprint(
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: multiple variants are never constructed
+  --> src/outline_settings.rs:10:5
+   |
+ 9 | pub(crate) enum OutlineEdit {
+   |                 ----------- variants in this enum
+10 |     RenameVersion { version_id: String, name: String },
+   |     ^^^^^^^^^^^^^
+...
+13 |     SetCorners(CornerStyle),
+   |     ^^^^^^^^^^
+14 |     SetSize(f64),
+   |     ^^^^^^^
+15 |     SetBridgeWidth(f64),
+16 |     SetRepairEnabled(bool),
+   |     ^^^^^^^^^^^^^^^^
+17 |     SetMaximumGapSpan(f64),
+   |     ^^^^^^^^^^^^^^^^^
+18 |     SetMinimumConnectionWidth(f64),
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+21 |     RemoveProtectedGap { gap_id: String },
+   |     ^^^^^^^^^^^^^^^^^^
+   |
+   = note: `OutlineEdit` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: variant `VersionFeature` is never constructed
+  --> src/outline_settings.rs:35:5
+   |
+25 | pub(crate) enum OutlineExpectation {
+   |                 ------------------ variant in this enum
+...
+35 |     VersionFeature {
+   |     ^^^^^^^^^^^^^^
+   |
+   = note: `OutlineExpectation` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: function `generated_margin` is never used
+  --> src/outline_settings.rs:59:15
+   |
+59 | pub(crate) fn generated_margin(feature: &OutlineFeature) -> Option<f64> {
+   |               ^^^^^^^^^^^^^^^^
+
+warning: fields `contours` and `path_assets` are never read
+  --> src/case_preview.rs:89:16
+   |
+85 | pub(crate) struct NativePreviewSnapshot {
+   |                   --------------------- fields in this struct
+...
+89 |     pub(crate) contours: Vec<boardstudio_core::model::Contour>,
+   |                ^^^^^^^^
+90 |     pub(crate) path_assets: BTreeMap<String, String>,
+   |                ^^^^^^^^^^^
+   |
+   = note: `NativePreviewSnapshot` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: method `matches` is never used
+  --> src/parts_preview.rs:57:19
+   |
+45 | impl PartsPreviewOwnerLease {
+   | --------------------------- method in this implementation
+...
+57 |     pub(crate) fn matches(&self, identity: &PartsPreviewOwnerIdentity) -> bool {
+   |                   ^^^^^^^
+
+warning: struct `PartsPreviewCapture` is never constructed
+  --> src/parts_preview.rs:67:19
+   |
+67 | pub(crate) struct PartsPreviewCapture {
+   |                   ^^^^^^^^^^^^^^^^^^^
+
+warning: struct `PartsPreviewSnapshot` is never constructed
+  --> src/parts_preview.rs:78:19
+   |
+78 | pub(crate) struct PartsPreviewSnapshot {
+   |                   ^^^^^^^^^^^^^^^^^^^^
+
+warning: associated items `capture` and `accept_preview` are never used
+   --> src/parts_preview.rs:205:19
+    |
+204 | impl PartsPreviewCapture {
+    | ------------------------ associated items in this implementation
+205 |     pub(crate) fn capture(
+    |                   ^^^^^^^
+...
+335 |     pub(crate) fn accept_preview(
+    |                   ^^^^^^^^^^^^^^
+
+warning: function `sample_envelope_points` is never used
+   --> src/parts_preview.rs:361:4
+    |
+361 | fn sample_envelope_points(member: &PartsPreviewRecipeMember) -> Vec<Vec2> {
+    |    ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `sample_contour` is never used
+   --> src/parts_preview.rs:403:4
+    |
+403 | fn sample_contour(points: Vec<Vec2>) -> Vec<Contour> {
+    |    ^^^^^^^^^^^^^^
+
+warning: method `is_active` is never used
+  --> src/presentation/model_delivery.rs:27:8
+   |
+26 | trait ModelSourceLease {
+   |       ---------------- method in this trait
+27 |     fn is_active(&self) -> bool;
+   |        ^^^^^^^^^
+
+warning: associated items `new`, `new_parts`, `is_current_owner`, `is_current_layout_owner`, and `is_current_parts_owner` are never used
+   --> src/presentation/model_delivery.rs:63:19
+    |
+ 62 | impl ModelOwnerIdentity {
+    | ----------------------- associated items in this implementation
+ 63 |     pub(crate) fn new(
+    |                   ^^^
+...
+ 98 |     pub(crate) fn new_parts(
+    |                   ^^^^^^^^^
+...
+125 |     pub(crate) fn is_current_owner(
+    |                   ^^^^^^^^^^^^^^^^
+...
+151 |     pub(crate) fn is_current_layout_owner(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^
+...
+170 |     pub(crate) fn is_current_parts_owner(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: fields `positions`, `normals`, and `colors` are never read
+   --> src/presentation/model_delivery.rs:422:16
+    |
+421 | pub(crate) struct ValidatedMesh {
+    |                   ------------- fields in this struct
+422 |     pub(crate) positions: Rc<[f32]>,
+    |                ^^^^^^^^^
+423 |     pub(crate) normals: Rc<[f32]>,
+    |                ^^^^^^^
+424 |     pub(crate) colors: Option<Rc<[f32]>>,
+    |                ^^^^^^
+    |
+    = note: `ValidatedMesh` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: methods `fail` and `fail_before_begin` are never used
+   --> src/presentation/layout_viewer_source.rs:176:19
+    |
+102 | impl LayoutPreviewState {
+    | ----------------------- methods in this implementation
+...
+176 |     pub(crate) fn fail(&mut self, owner: LayoutSourceIdentity, error: String) {
+    |                   ^^^^
+...
+189 |     pub(crate) fn fail_before_begin(&mut self, owner: LayoutSourceIdentity, error: String) {
+    |                   ^^^^^^^^^^^^^^^^^
+
+warning: method `names` is never used
+  --> src/presentation/pcb_wiring/connections.rs:22:12
+   |
+21 | impl ExistingConnectionReview {
+   | ----------------------------- method in this implementation
+22 |     pub fn names(&self) -> Vec<String> {
+   |            ^^^^^
+
+warning: constant `PITCH_MM` is never used
+ --> src/matrix_setup_operation.rs:5:7
+  |
+5 | const PITCH_MM: f64 = 19.05;
+  |       ^^^^^^^^
+
+warning: constant `MAX_MATRIX_CELLS` is never used
+ --> src/matrix_setup_operation.rs:6:7
+  |
+6 | const MAX_MATRIX_CELLS: u32 = 4096;
+  |       ^^^^^^^^^^^^^^^^
+
+warning: enum `MatrixSetupPreset` is never used
+ --> src/matrix_setup_operation.rs:9:17
+  |
+9 | pub(crate) enum MatrixSetupPreset {
+  |                 ^^^^^^^^^^^^^^^^^
+
+warning: struct `MatrixSetupRequest` is never constructed
+  --> src/matrix_setup_operation.rs:21:19
+   |
+21 | pub(crate) struct MatrixSetupRequest {
+   |                   ^^^^^^^^^^^^^^^^^^
+
+warning: methods `as_str` and `config` are never used
+  --> src/matrix_setup_operation.rs:28:19
+   |
+27 | impl MatrixSetupPreset {
+   | ---------------------- methods in this implementation
+28 |     pub(crate) fn as_str(self) -> &'static str {
+   |                   ^^^^^^
+...
+41 |     fn config(self) -> PresetConfig {
+   |        ^^^^^^
+
+warning: struct `PresetConfig` is never constructed
+  --> src/matrix_setup_operation.rs:95:8
+   |
+95 | struct PresetConfig {
+   |        ^^^^^^^^^^^^
+
+warning: struct `PreparedMatrix` is never constructed
+   --> src/matrix_setup_operation.rs:102:19
+    |
+102 | pub(crate) struct PreparedMatrix {
+    |                   ^^^^^^^^^^^^^^
+
+warning: function `next_matrix_id` is never used
+   --> src/matrix_setup_operation.rs:107:15
+    |
+107 | pub(crate) fn next_matrix_id(
+    |               ^^^^^^^^^^^^^^
+
+warning: function `prepare_matrix` is never used
+   --> src/matrix_setup_operation.rs:142:15
+    |
+142 | pub(crate) fn prepare_matrix(
+    |               ^^^^^^^^^^^^^^
+
+warning: function `required_catalogue_definition` is never used
+   --> src/matrix_setup_operation.rs:320:4
+    |
+320 | fn required_catalogue_definition<'a>(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `snapshot_definition` is never used
+   --> src/matrix_setup_operation.rs:337:4
+    |
+337 | fn snapshot_definition(
+    |    ^^^^^^^^^^^^^^^^^^^
+
+warning: variants `Preparing` and `Pending` are never constructed
+ --> src/mirrored_pair_lifecycle.rs:7:5
+  |
+5 | pub(crate) enum PairFormStage {
+  |                 ------------- variants in this enum
+6 |     Setup,
+7 |     Preparing,
+  |     ^^^^^^^^^
+8 |     Placement,
+9 |     Pending,
+  |     ^^^^^^^
+  |
+  = note: `PairFormStage` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: `boardstudio-web` (bin "boardstudio-web" test) generated 30 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.83s
+     Running unittests src/main.rs (web/target/debug/deps/boardstudio_web-2e9b3bcde1902357)
+
+running 1 test
+
+thread 'case_preview::tests::physical_case_keeps_a_preview_owner_for_an_enabled_routed_board' (2931398) panicked at src/case_preview.rs:802:14:
+Case must retain an imported preview owner instead of leaving the viewport empty: "Selected board uses the imported-board preview owner"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test case_preview::tests::physical_case_keeps_a_preview_owner_for_an_enabled_routed_board ... FAILED
+
+failures:
+
+failures:
+    case_preview::tests::physical_case_keeps_a_preview_owner_for_an_enabled_routed_board
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 207 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--bin boardstudio-web`

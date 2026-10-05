@@ -1,0 +1,7 @@
+# Unsaved mounted-placement draft retirement
+
+Current cc728fc6 candidate at34822 and pinned TS5a472a9 at5175. Both opened existing saved VIK module review project, exactly the retained board-switch-r9 archive from pcb-clearance-scope-20261005. Mainboard owns above/below/EC11; splitter-above accepted Front/Front and X29, splitter-below X57.
+
+Opened above placement through actual PCB→Parts→Edit selected placement route (reference retains editing within Parts). Entered X37 without Save; observed both visible drafts37. Candidate selected below from PCB artwork and entered its placement; reference selected below in Module placement control. Both showed accepted below X57. Selected above again through those same public owning routes; both show29. This is existing selection-driven unsaved-draft cancellation, not an invented operation-Cancel button.
+
+Saved actual project copies afterward. archive-comparison.json compares each to its previous r9 archive: entire ProjectDoc and ZIP bytes unchanged, revision9, so the discarded edit did not leak into persisted project/assets/history revision. No source edit or new test. observations.json retains actual draft and restored inputs. Join the earlier actual rejectedflip/support-error→acceptedretry and mounted Saving/Persist→replacement proof for the other F5.5-C04 branches; this receipt proves only previously missing unsaved-draft abandonment and accepted nonmutation. No explicit Cancel placement control exists in either frontend.

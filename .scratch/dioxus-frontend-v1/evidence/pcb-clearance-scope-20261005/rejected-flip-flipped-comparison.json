@@ -1,0 +1,9 @@
+{
+  "normalization": "class prefix m1/wb and numeric formatting to12significant digits; original raw attributes retained",
+  "candidate_shapes": [
+    141,
+    141,
+    155
+  ],
+  "all_equal": true
+}
