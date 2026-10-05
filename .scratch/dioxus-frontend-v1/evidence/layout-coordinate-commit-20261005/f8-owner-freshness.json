@@ -1,0 +1,16 @@
+{
+  "source": "462ec6afa4a85e58a023f8b7a453a877fe798930",
+  "retained_f8_source": "4c0a2fc46074121b85c7f0e8fb0d80cd5c3f1021",
+  "unchanged_owners": [
+    "web/src/presentation/export_workspace.rs",
+    "web/src/pcb_handoff.rs",
+    "application/src/session.rs",
+    "web/src/runtime.rs"
+  ],
+  "changed_web_source": [
+    "web/src/presentation/inspector/layout_component_inspector.rs",
+    "web/src/presentation/layout_component_inspector_tests.rs"
+  ],
+  "retained_evidence": ".scratch/dioxus-frontend-v1/evidence/f86-integrated-20261005/fixed-candidate/RECEIPT.md",
+  "changed_branch_public_green": "public-fixed-comparison.json"
+}

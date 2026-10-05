@@ -1,0 +1,28 @@
+{
+  "date": "2026-10-05T14:56:06.162Z",
+  "candidate": "462ec6afa4a85e58a023f8b7a453a877fe798930",
+  "candidateUrl": "http://127.0.0.1:34828/",
+  "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
+  "referenceUrl": "http://127.0.0.1:5175/",
+  "input": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-v1/evidence/f86-integrated-20261005/fixed-candidate/probe-01-placement.boardstudio",
+  "selection": {
+    "candidate": "Objects tree J1 button click",
+    "reference": "SVG J1 button Enter"
+  },
+  "action": [
+    "X mm press Shift (no input)",
+    "Y mm press Shift (blurs X; no input)",
+    "Project menu (blurs Y)",
+    "Save project copy"
+  ],
+  "candidateDisplayBefore": {
+    "x": "66.67",
+    "y": "-47.62"
+  },
+  "referenceDisplayBefore": {
+    "x": "66.67",
+    "y": "-47.63"
+  },
+  "candidateDownload": "Sofle v2 (34).boardstudio",
+  "referenceDownload": "Sofle v2 (35).boardstudio"
+}

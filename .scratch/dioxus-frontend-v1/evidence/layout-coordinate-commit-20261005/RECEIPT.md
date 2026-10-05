@@ -28,3 +28,32 @@ Frozen source SHA-256:
 The coordinator's combined native/page/reachability/affected-headless gate remains responsible for full affected-module coverage; no duplicate module run was started here.
 
 Coordinator combined gate terminal0: native247pass/1ignored, wasm page, reachability and strictheadless17pass with0failed/incomplete/excluded. Exact receipts retained in combined-gates.json. Source staged before gate; no source bytes changed after independent review. Public saved-history GREEN remains pending on the next immutable package.
+
+## Published history GREEN
+
+Immutable frontend-layout-coordinate-commit-20261005/source462ec6afa4a85e58a023f8b7a453a877fe798930, at34828, repeated actual exact r17 placed-J1 input with Objects tree selection, rapidX60Enter thenY-40Enter, ProjectSave, twoUndos and ProjectSave. Real downloaded edited copy is r19/60,-40; after exactly twoUndos the saved copy is r21/66.675,-47.625. Full accepted input document restored exactly except expected revision progression; sixassetbytes unchanged. Retained same-action reference aftertwoUndos is also r21/originalcoordinates; only four known1e-14pose serializations differ. public-fixed.json and public-fixed-comparison.json retain actual actions, download names/bytes/hashes and every reference difference. Candidate r17→r19→r21 now matches reference; original phantom history RED remains retained.
+
+All4 exact gate receipts reused at commit (integration-commit.json/log), strict17tests nofailures/exclusions/incomplete. Package proof validates source1409entries/root+subpath190assets each, no mismatches/warnings. Completed F8 output/roundtrip branches at4c retain originalsource/revision attribution; the fix changes only component Inspector submission and its regression test, not exporter/runtime/session owners. No full journey rerun required by sole independent review.
+
+## Required untouched-field correction
+
+The current462 candidate and pinned reference both imported exact r17 fixture SHA0215c9153cf4875bfd1f764136782eb2be15d555b3a625d3112eb12af2c602d6. Nonmutating J1 selection followed by X Shift, Y Shift and Project Save-copy sent no typed input. Actual candidate download Sofle v2(34) rounds accepted66.675,-47.625 to66.67,-47.62 and increasesrevision17→19. Reference Sofle v2(35) also adds two revisions and rounds to66.67,-47.63. Allsixassets unchanged. untouched-blur-public.json and untouched-blur-comparison.json retain exact actions and every raw document difference.
+
+This is a shared reference defect with an additional candidate rounding discrepancy. The deliberate necessary Dioxus behavior correction is to preserve accepted coordinates/history when there is no user edit, including a cancelled draft; copying the reference's accidental edit would violate functional cancellation/data preservation. Same bounded two-file repair and reviewer retained. No new geometry engine/API or full Export replay is needed. Final recovery acceptance remains on hold until mounted regression, combined gates and published changed-branch proof.
+
+## Focus-only blur precision follow-up
+
+The additional mounted regression `mounted_component_position_untouched_blur_and_escape_cancel_submit_no_edit` starts from X=66.675/Y=-47.625, focuses/blurs both fields without editing, then changes X and presses Escape before blur. Its RED log `untouched-blur-focused-red.log` failed as expected with three captured edits: unchanged X rounded to 66.67, unchanged Y rounded to -47.62, and the Escape-restored X rounded to 66.67. This is a command-boundary regression; the retained public candidate/reference archives `candidate-untouched-blur.boardstudio` and `reference-untouched-blur.boardstudio` provide paired persistence evidence.
+
+The minimal guard skips Blur submission when the draft text is still the two-decimal formatted accepted coordinate for that axis. Enter remains explicit, and a draft that differs from the accepted display still uses the existing blur commit path. Existing tests for changed blur against the latest owner and rapid Enter/focus change remain for the coordinator's affected-module gate.
+
+Focused GREEN command was the same command/filter as RED and passed 1/1 with 337 filtered. Raw RED and GREEN runner output are retained at `untouched-blur-focused-red.log` and `untouched-blur-focused-green.log`.
+
+Frozen source SHA-256:
+
+- `web/src/presentation/inspector/layout_component_inspector.rs`: `15ff2d996e91be39b19e6cbdd00d3e51b68bf3cb3f7440cd6c052ce3893b64ec`
+- `web/src/presentation/layout_component_inspector_tests.rs`: `bf6bb1565db10f3b24ef8a5953275feedec6cae4b3465b079156b217d260dd14`
+
+No further source edits or focused tests are planned here; the coordinator owns the combined gate.
+
+Coordinator combined untouched correction gates passed: native247/1ignored, wasm page, reachability, strictheadless18 with0failed/incomplete/excluded. Four exact receipt identities in untouched-combined-gates.json. Independent reviewer CLEAR at frozen inspector15ff2d99/testsbf6bb156. Source staged before gates for reuse. Immutable publication and actual downloaded nonmutation replay remain.

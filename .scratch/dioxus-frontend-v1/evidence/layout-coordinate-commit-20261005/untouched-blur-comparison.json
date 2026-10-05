@@ -1,0 +1,72 @@
+{
+  "input": {
+    "file": ".scratch/dioxus-frontend-v1/evidence/f86-integrated-20261005/fixed-candidate/probe-01-placement.boardstudio",
+    "sha256": "0215c9153cf4875bfd1f764136782eb2be15d555b3a625d3112eb12af2c602d6",
+    "diffs": [],
+    "assetsEqualInput": true
+  },
+  "candidate": {
+    "file": ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/candidate-untouched-blur.boardstudio",
+    "sha256": "e9d37823bc3f97c3424b47ceef1c151f9d111d928d95f7db2cc09a5108ba4d5d",
+    "diffs": [
+      {
+        "path": "/parts/142/pose/at/x",
+        "input": 66.675,
+        "output": 66.67
+      },
+      {
+        "path": "/parts/142/pose/at/y",
+        "input": -47.625,
+        "output": -47.62
+      },
+      {
+        "path": "/revision",
+        "input": 17,
+        "output": 19
+      }
+    ],
+    "assetsEqualInput": true
+  },
+  "reference": {
+    "file": ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/reference-untouched-blur.boardstudio",
+    "sha256": "4c922d469196965ec245d76309f63502c13ae76b828af92626548c907f46e4a7",
+    "diffs": [
+      {
+        "path": "/parts/10/pose/at/x",
+        "input": 104.22999999999999,
+        "output": 104.23
+      },
+      {
+        "path": "/parts/22/pose/at/x",
+        "input": 104.22999999999999,
+        "output": 104.23
+      },
+      {
+        "path": "/parts/34/pose/at/x",
+        "input": 104.22999999999999,
+        "output": 104.23
+      },
+      {
+        "path": "/parts/46/pose/at/x",
+        "input": 104.22999999999999,
+        "output": 104.23
+      },
+      {
+        "path": "/parts/142/pose/at/x",
+        "input": 66.675,
+        "output": 66.67
+      },
+      {
+        "path": "/parts/142/pose/at/y",
+        "input": -47.625,
+        "output": -47.63
+      },
+      {
+        "path": "/revision",
+        "input": 17,
+        "output": 19
+      }
+    ],
+    "assetsEqualInput": true
+  }
+}

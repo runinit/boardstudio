@@ -2322,7 +2322,7 @@
             ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Repair the demonstrated duplicate coordinate history entry; reuse completed exact geometry/save/reimport/camera and outline precision evidence. F8 outputs and portable roundtrip retained with original identities.",
+          "next_action": "Published rapid coordinate history correction is verified; repair actual untouched-field rounding/history mutation, then review and replay only changed coordinate branch. Completed F8 outputs/roundtrip and Layout evidence retained.",
           "finish_condition": "Current-candidate paired receipt records agreement for every named output and state boundary across the integrated journey.",
           "owned_files": [
             "web/src/presentation.rs",

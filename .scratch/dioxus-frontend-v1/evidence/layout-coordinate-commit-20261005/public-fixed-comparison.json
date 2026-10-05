@@ -1,0 +1,106 @@
+{
+  "input": {
+    "path": ".scratch/dioxus-frontend-v1/evidence/f86-integrated-20261005/fixed-candidate/probe-01-placement.boardstudio",
+    "sha256": "0215c9153cf4875bfd1f764136782eb2be15d555b3a625d3112eb12af2c602d6",
+    "revision": 17,
+    "J1": {
+      "id": "ui-1f6638b0-ba01-4e50-b083-333ecd5bee0e",
+      "definitionId": "ergogen:ceoloide/mounting_hole_npth",
+      "reference": "J1",
+      "pose": {
+        "at": {
+          "x": 66.675,
+          "y": -47.625
+        },
+        "rotation": 0.0
+      },
+      "side": "front",
+      "generatorParameters": {}
+    }
+  },
+  "candidateEdited": {
+    "path": ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/candidate-fixed-edited.boardstudio",
+    "sha256": "f2a51ad8dd7a7aade64f54d7861319610e8883a2827630a1faf2737bfac26ac4",
+    "revision": 19,
+    "J1": {
+      "id": "ui-1f6638b0-ba01-4e50-b083-333ecd5bee0e",
+      "definitionId": "ergogen:ceoloide/mounting_hole_npth",
+      "reference": "J1",
+      "pose": {
+        "at": {
+          "x": 60.0,
+          "y": -40.0
+        },
+        "rotation": 0.0
+      },
+      "side": "front",
+      "generatorParameters": {}
+    }
+  },
+  "candidateTwoUndos": {
+    "path": ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/candidate-fixed-two-undos.boardstudio",
+    "sha256": "876d293e540dca1fd7d452e55a5c4541b588f9ad811a502738450f6186e8a577",
+    "revision": 21,
+    "J1": {
+      "id": "ui-1f6638b0-ba01-4e50-b083-333ecd5bee0e",
+      "definitionId": "ergogen:ceoloide/mounting_hole_npth",
+      "reference": "J1",
+      "pose": {
+        "at": {
+          "x": 66.675,
+          "y": -47.625
+        },
+        "rotation": 0.0
+      },
+      "side": "front",
+      "generatorParameters": {}
+    }
+  },
+  "referenceTwoUndos": {
+    "path": ".scratch/dioxus-frontend-v1/evidence/f86-integrated-20261005/fixed-candidate/reference-two-undos.boardstudio",
+    "sha256": "fd7c658a3d7cd466720966c89b82ba19e718ba6348e485f97d85a7f939f6059f",
+    "revision": 21,
+    "J1": {
+      "id": "ui-1f6638b0-ba01-4e50-b083-333ecd5bee0e",
+      "definitionId": "ergogen:ceoloide/mounting_hole_npth",
+      "reference": "J1",
+      "pose": {
+        "at": {
+          "x": 66.675,
+          "y": -47.625
+        },
+        "rotation": 0
+      },
+      "side": "front",
+      "generatorParameters": {}
+    }
+  },
+  "full_input_restored_except_revision": true,
+  "assets_equal": true,
+  "reference_raw_differences": [
+    {
+      "path": "/parts/10/pose/at/x",
+      "candidate": 104.22999999999999,
+      "reference": 104.23,
+      "within_tolerance": true
+    },
+    {
+      "path": "/parts/22/pose/at/x",
+      "candidate": 104.22999999999999,
+      "reference": 104.23,
+      "within_tolerance": true
+    },
+    {
+      "path": "/parts/34/pose/at/x",
+      "candidate": 104.22999999999999,
+      "reference": 104.23,
+      "within_tolerance": true
+    },
+    {
+      "path": "/parts/46/pose/at/x",
+      "candidate": 104.22999999999999,
+      "reference": 104.23,
+      "within_tolerance": true
+    }
+  ]
+}

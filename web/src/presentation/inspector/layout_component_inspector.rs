@@ -447,7 +447,12 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                     value,
                 });
             }
-            if value != current {
+            // Position drafts are displayed to two decimal places. Blurring an
+            // untouched field (or one restored by Escape) must not submit that
+            // rounded display as a replacement for the accepted raw geometry.
+            let untouched_blur =
+                trigger == PositionCommitTrigger::Blur && draft == format!("{current:.2}");
+            if value != current && !untouched_blur {
                 action.call(LayoutComponentInspectorAction::SetPosition {
                     owner,
                     axis,

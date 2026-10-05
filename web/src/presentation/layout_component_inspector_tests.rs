@@ -1282,6 +1282,58 @@ async fn mounted_rapid_xy_enter_and_focus_change_submit_one_edit_per_axis() {
 }
 
 #[wasm_bindgen_test]
+async fn mounted_component_position_untouched_blur_and_escape_cancel_submit_no_edit() {
+    let (probe, root) = mounted_probe_configured(
+        "layout-component-position-untouched-blur-test-root",
+        |document| {
+            let part = document
+                .parts
+                .iter_mut()
+                .find(|part| part.id == "selected-part")
+                .unwrap();
+            part.reference = "J1".into();
+            part.pose.at = Vec2 {
+                x: 66.675,
+                y: -47.625,
+            };
+        },
+    );
+    settle_component_inspector().await;
+    let x = position_input(probe.root_id, "X mm");
+    let y = position_input(probe.root_id, "Y mm");
+    let bubbling = web_sys::EventInit::new();
+    bubbling.set_bubbles(true);
+    let escape = web_sys::KeyboardEventInit::new();
+    escape.set_key("Escape");
+    escape.set_bubbles(true);
+
+    // Merely moving through both fields must not turn their two-decimal
+    // presentation into a coordinate edit on blur.
+    x.focus().unwrap();
+    y.focus().unwrap();
+    x.focus().unwrap();
+
+    // Escape cancels a real draft. The ensuing blur must not submit the
+    // restored, formatted display value as a replacement for raw geometry.
+    x.set_value("71.125");
+    x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
+        .unwrap();
+    x.dispatch_event(
+        &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape).unwrap(),
+    )
+    .unwrap();
+    let _ = x.blur();
+    settle_component_inspector().await;
+
+    let events = probe.runtime.take_layout_component_inspector_test_events();
+    assert!(
+        events.is_empty(),
+        "untouched focus/blur and Escape-cancel must submit no coordinate edits; got {events:?}"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
 async fn mounted_group_position_blur_moves_all_selected_parts_from_first_anchor() {
     let (probe, root) = mounted_group_probe("layout-component-group-position-test-root");
     settle_component_inspector().await;
