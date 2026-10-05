@@ -48,7 +48,7 @@ fn invalid_feature_dimensions_are_rejected_before_cad() {
 
 fn internal_document() -> Value {
     serde_json::from_str::<Value>(include_str!(
-        "../../cad/bench/fixtures/internal-gasket-v1/rectangle.json"
+        "fixtures/internal-gasket-v1/rectangle.json"
     ))
     .unwrap()["document"]
         .clone()
@@ -193,7 +193,7 @@ fn adopted_closures_survive_support_count_changes() {
 #[test]
 fn split_case_preserves_one_regions_closures_and_generates_the_other() {
     let mut input: Value = serde_json::from_str(include_str!(
-        "../../cad/bench/fixtures/internal-gasket-v1/rectangle.json"
+        "fixtures/internal-gasket-v1/rectangle.json"
     ))
     .unwrap();
     let mut second = input["contours"][0].clone();
@@ -274,7 +274,7 @@ fn zero_pcb_gap_cannot_bypass_rigid_contact_validation() {
 #[test]
 fn rotated_and_concave_regions_keep_internal_features_within_the_wall_budget() {
     let mut input: Value = serde_json::from_str(include_str!(
-        "../../cad/bench/fixtures/internal-gasket-v1/rectangle.json"
+        "fixtures/internal-gasket-v1/rectangle.json"
     ))
     .unwrap();
     let concave = [
@@ -346,7 +346,7 @@ fn generated_anchors_repair_but_user_positions_stay_protected() {
 #[test]
 fn linked_split_supports_use_mirrored_tracks() {
     let mut input: Value = serde_json::from_str(include_str!(
-        "../../cad/bench/fixtures/internal-gasket-v1/rectangle.json"
+        "fixtures/internal-gasket-v1/rectangle.json"
     ))
     .unwrap();
     let mut right = input["contours"][0].clone();
@@ -470,7 +470,7 @@ fn every_supplied_foam_size_keeps_free_material_dimensions() {
         ("F5", 80., 4., 5.),
     ] {
         let mut input: Value = serde_json::from_str(include_str!(
-            "../../cad/bench/fixtures/internal-gasket-v1/rectangle.json"
+            "fixtures/internal-gasket-v1/rectangle.json"
         ))
         .unwrap();
         input["contours"][0]["points"] =
@@ -727,7 +727,7 @@ fn automatic_count_keeps_saved_support_slots_when_outline_target_is_smaller() {
 
 #[test]
 fn automatic_layout_centers_long_runs_and_covers_sofle_ledges() {
-    let fixture = include_str!("../../cad/bench/fixtures/internal-gasket-v1/sofle-outline.json");
+    let fixture = include_str!("fixtures/internal-gasket-v1/sofle-outline.json");
     let reply: Value = serde_json::from_str(&CoreEngine::new().request(fixture)).unwrap();
     let result = &reply["assembly"];
     assert_eq!(
@@ -799,9 +799,9 @@ fn automatic_long_edge_pairs_are_centered_and_symmetric() {
 #[test]
 fn run_placement_handles_rotated_reversed_and_split_outlines() {
     for fixture in [
-        include_str!("../../cad/bench/fixtures/internal-gasket-v1/rectangle.json"),
-        include_str!("../../cad/bench/fixtures/internal-gasket-v1/rotated-concave.json"),
-        include_str!("../../cad/bench/fixtures/internal-gasket-v1/split.json"),
+        include_str!("fixtures/internal-gasket-v1/rectangle.json"),
+        include_str!("fixtures/internal-gasket-v1/rotated-concave.json"),
+        include_str!("fixtures/internal-gasket-v1/split.json"),
     ] {
         for angle in [0_f64, 0.37, 1.57] {
             let mut request: Value = serde_json::from_str(fixture).unwrap();
@@ -864,7 +864,7 @@ fn automatic_closures_scale_with_case_perimeter() {
         }
     }
     let input: Value = serde_json::from_str(include_str!(
-        "../../cad/bench/fixtures/internal-gasket-v1/sofle-outline.json"
+        "fixtures/internal-gasket-v1/sofle-outline.json"
     ))
     .unwrap();
     let reply: Value =

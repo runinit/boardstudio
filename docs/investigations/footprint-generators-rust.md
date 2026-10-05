@@ -117,9 +117,11 @@ equivalent), the JavaScript worker, then Core `FinishPreview`.
    - Arcs stay in Core: `upgrade_legacy_arcs` reproduces the old worker's arcs
      on all 20 recorded cases (`core/src/artifact/source.rs` test), so the crate
      does not upgrade arcs and Core applies its function to exported text.
-   - `core` library tests do not compile in a fresh checkout: a test
-     `include_str!`s `cad/bench/fixtures/internal-gasket-v1/rectangle.json`,
-     which is not tracked. Unrelated; worked around locally for the arc test.
+   - Commit `3cdeb2ac2` deleted `cad/bench/fixtures`, which four core tests still
+     read, so `cargo test` for `core` did not compile. The four
+     `internal-gasket-v1` fixtures now live in `core/tests/fixtures`.
+   - Trigonometry and number formatting also match V8 when built for
+     `wasm32-unknown-unknown` (153 checks run in Node).
    - The page WASM size change is not measured yet; the crate is not linked into
      production. Measure it at step 4.
 3. **Generator ports.** Port in batches: utilities and mounting holes; diode,

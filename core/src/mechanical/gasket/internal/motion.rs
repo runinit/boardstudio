@@ -212,7 +212,7 @@ mod tests {
     #[test]
     fn foam_clears_supports_only_within_its_swept_height() {
         let input: serde_json::Value = serde_json::from_str(include_str!(
-            "../../../../../cad/bench/fixtures/internal-gasket-v1/rectangle.json"
+            "../../../../tests/fixtures/internal-gasket-v1/rectangle.json"
         ))
         .unwrap();
         let mut document: ProjectDoc = serde_json::from_value(input["document"].clone()).unwrap();
