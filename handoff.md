@@ -1,18 +1,18 @@
 # Handoff (generated from records)
 
-- Branch: codex/rust-v1-ui-parity-20261001 @ caa06c19
+- Branch: codex/rust-v1-ui-parity-20261001 @ f956c0df
 - Worktree: /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001
-- Parents: 57/60 accepted, 1 implementing, 2 planned
-- Criteria: unassessed 6, missing 1, implemented 1, verified 213; 221 total
+- Parents: 58/60 accepted, 1 implementing, 1 planned
+- Criteria: unassessed 3, missing 0, implemented 0, verified 218; 221 total
   - functional: verified 181
-  - release: implemented 1, missing 1, unassessed 6, verified 24
+  - release: unassessed 3, verified 29
   - visual: verified 8
 
 ## Served candidate
-- Build: frontend-layout-untouched-coordinate-20261005
-- Source commit: df6b04b9e8903381029a137fdfcef8d797305fb8
-- Root: http://127.0.0.1:34829/
-- Subpath: http://127.0.0.1:34829/boardstudio/
+- Build: frontend-layout-pointer-cache-20261005
+- Source commit: f956c0dfe9ec942cb79b9905565e9c404fb96732
+- Root: http://127.0.0.1:34830/
+- Subpath: http://127.0.0.1:34830/boardstudio/
 
 ## Functional readiness
 - Ready functional criteria: 0 investigate, 0 implement, 0 qualify (Layout 0 investigate/0 implement/0 qualify; PCB 0 investigate/0 implement/0 qualify; Keymap 0 investigate/0 implement/0 qualify; Keycaps 0 investigate/0 implement/0 qualify; Case 0 investigate/0 implement/0 qualify; Parts+Project 0 investigate/0 implement/0 qualify; Shared 0 investigate/0 implement/0 qualify)
@@ -31,13 +31,10 @@ Exact unmet final joins:
   none
 
 ## Parents
-- Accepted (57): INT.1, INT.2, BND.1, BND.2, F2.1, F2.2, F2.3, F2.4, F3.1, F3.2, F3.3, F3.4, F3.5, F3.6, F3.7, F3.8, F4.1, F4.2, F4.3, F4.4, F4.5, F4.6, F5.1, F5.2, F5.3, F5.4, F5.5, F5.6, F5.7, F5.8, F6K.1, F6K.2, F6K.3, F6K.4, F6C.1, F6C.2, F6C.3, F6C.4, F6C.5, F6.6, F7.1, F7.2, F7.3, F7.4, F7.5, F7.6, F7.7, F7.8, F8.1, F8.2, F8.3, F8.4, F8.5, F8.6, F9.1, F9.2, F9.4
+- Accepted (58): INT.1, INT.2, BND.1, BND.2, F2.1, F2.2, F2.3, F2.4, F3.1, F3.2, F3.3, F3.4, F3.5, F3.6, F3.7, F3.8, F4.1, F4.2, F4.3, F4.4, F4.5, F4.6, F5.1, F5.2, F5.3, F5.4, F5.5, F5.6, F5.7, F5.8, F6K.1, F6K.2, F6K.3, F6K.4, F6C.1, F6C.2, F6C.3, F6C.4, F6C.5, F6.6, F7.1, F7.2, F7.3, F7.4, F7.5, F7.6, F7.7, F7.8, F8.1, F8.2, F8.3, F8.4, F8.5, F8.6, F9.1, F9.2, F9.4, F9.5
 - Hold (0): none
 
 ## Criteria on hold or blocked
-- F9.5-C01 [unassessed]: Map each existing budget to eligible current evidence; preserve ineligible/failed baselines for applicability review.
-- F9.5-C03 [unassessed]: Attribute worker, URL and resource cleanup to final output paths; leave unmeasured/ineligible checks open.
-- F9.6-C01 [unassessed]: After F9.1, F9.2, F9.4, F9.5 and F2–F8 exits, reconcile every remaining placeholder/React island against inventory.
 - F9.6-C02 [unassessed]: Prepare reproducible candidate provenance plus copied-data cutover and rollback dry-run after qualification gates.
 - F9.7-C01 [unassessed]: After the concrete F9.6 patch is reviewed, obtain explicit approval for actual cutover, then qualify launch/compatibility/critical journey.
 - F9.7-C02 [unassessed]: Retain React reference and rollback until adoption approval; retire only inventory-covered entrypoints after approved cutover.
@@ -80,12 +77,12 @@ Exact unmet final joins:
 ## Qualification scope
 - Scope: f86-integrated-project-export-20261005 - Paired six-workbench project-to-export journey
 - Journeys: six-workbench-project-export
-- State: passed
+- State: qualifying
 
 Last retro checkpoint: 2026-10-04T15:56:00Z
 
-Current source batch: layout-pointer-performance-20261005, based on caa06c19. Served immutable candidate remains df6b04b9 at34829; 57/60 accepted. Final public pointer run found repeated100-key75–80ms above50ms, first200-key185.6ms above100ms. Source repair is frozen after native projection-count RED/GREEN and independent review: cache accepted-source selection membership in App with strong document/scene identities plus token/epoch/board/instance, preserve pernotification reconciliation/render. Separate benchmark import barrier now waits exact scene count+target. No Undo/Redo/mobile/accessibility work.
+Milestone: source f956c0df, immutable frontend-layout-pointer-cache-20261005 at34830. Independent review accepted F9.5 after actual five paired sessions: all30scenarios/100samples each meet33/50/100ms caps; median candidate p95 28.055/43.435/93.305ms. Source gates native248+1ignored, page, reachability, strict3WASM pass; exact receipts reused at guarded commit. No active performance/build job. Unrelated six staged entries preserved exactly.
 
-Combined gate session53492, /tmp/layout-pointer-performance-gates.log; page/native248/reachability and strict3headless pass, no exclusions. Source and reviewed owner mapping staged before gate. Explicit commit manifest /tmp/layout-pointer-performance-paths.json; preserve six unrelated index entries /tmp/case-layout-unrelated-index.json. Next guarded commit, build frontend-layout-pointer-cache-20261005 from committed snapshot with reusable frontend-case-layout-controls-20261005 providers, publish/serve34830, then quiet fullpaired five-session benchmark. Actual performance GREEN not yet measured.
+58/60 parents accepted; F9.6 implementing/F9.7 planned. C01 inventory reviewed and verified; authoritative tsx-inventory.json now has current63-row scoped responsibility mappings with stale prior fields preserved historically. No new product failure is inferred from old unassessed notes. Source/test deletion and excluded UndoRedo/mobile/a11y/visual checks are not claimed.
 
-F9.6 adoption proposal exists in evidence/f96-adoption-20261005, unapplied. It changes production Pages/build/start to Dioxus, retains ordinary React dev/reference and rollback. case_local_export and layout_escape_repair are completing actual final63row source/criterion/evidence reconciliation in disjoint scratch files; no source/config edits or extra browser/tests. Sole reviewer preset_batch_review. All F9.6 criteria stay open until required F9.5 join and real copied-data rehearsal/review. Explicit cutover approval remains the final separate step.
+case_local_export is executing required copied-data same-origin cutover/rollback rehearsal under evidence/f96-adoption-20261005/rehearsal only. React uses boardstudio-v2 store/active key and sw.js; Dioxus uses scoped boardstudio-m1 stores and service-worker.js. Archive transfer is the known compatibility boundary, no automatic IndexedDB migration. Preserve isolated profile/store/worker caches across controlled proxy switches to expose actual stale-shell problems; never preemptively unregister or clear. Source/publications unchanged; no external deploy. If natural worker transition fails, capture one realfailure before any repair. Sole reviewer preset_batch_review cleared performance/C01/entrypoint proposal; C03 final register independently CLEAR and criterion verified; C02 actual rehearsal remains. Default package/Pages patch is still unapplied; final explicit cutover approval remains separate. F95 acceptance/current inventory/RF notes and final measurement artifacts are uncommitted for next milestone. Rehearsal proxy HTTP framing and reference activation are corrected; preserve failed setup attempts as harness-only. Author now uses explicit imported-project readiness and must keep the session alive for selector recovery. No valid upstream switch has occurred yet.

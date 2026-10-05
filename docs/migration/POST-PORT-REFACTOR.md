@@ -338,6 +338,12 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
       "evidence": ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md",
       "observation": "Layout Inspector tab state survived a matrix→key selection transition because the shared Editor-owned tab signal did not observe selection identity. A private context-scoped reset hook repairs the v1 behavior; the cross-context state owner remains in shared composition.",
       "status": "bounded v1 correction; revisit context-scoped Inspector state ownership after the port"
+    },
+    {
+      "source": "f956c0dfe9ec942cb79b9905565e9c404fb96732",
+      "evidence": ".scratch/dioxus-frontend-v1/evidence/f95-final-20261005/performance-diagnosis.md",
+      "observation": "Final public pointer qualification reproduced100-key75–80ms and200-key185.6ms against50/100ms caps. Page-thread profile and source show App notifications reconstructing accepted live/eligible membership quadratically, even for preview-only state. Cache now holds strong accepted document/scene identity plus token/session/board/instance and retains eachnotification selection/currentness/render. Native projection-count RED/GREEN and integrated248native/3mounted/page/reachability pass. Final repaired-candidate five-session paired performance passes; actual raw measurements and eligibility remain in f95-final-20261005/RECEIPT.md.",
+      "status": "bounded source mitigation delivered and measured: final5 paired sessions all30 scenarios meet unchanged33/50/100ms caps, candidate median session p95 28.055/43.435/93.305ms. No general projection framework or backend rewrite; reviewer CLEAR."
     }
   ],
   "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted.",
@@ -747,7 +753,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 ## RF-004: Immutable export tokens do not model export-owned commits
 
-**Status:** private Session-owned export-commit path implemented in current F8.3a source packet; integrated download/history qualification pending
+**Status:** Bounded export-owned commit repair integrated and accepted under F8.2-C02/C03 and F8.3; broader operation-lineage design deferred. Outstanding Undo/Redo qualification is excluded by user instruction.
 
 **Confidence:** confirmed contract mismatch for PCB workflow
 
@@ -759,7 +765,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Later proposal:** Evaluate explicit operation lineage/transaction ownership across session jobs, edits, persistence and artifact delivery, with a documented consistency model.
 
-**Validation:** Race matrix: owned versus unrelated commits, save failure, navigation, cancellation and packaging failure; no stale delivery and no protection without successful packaging.
+**Validation:** Post-port operation-lineage changes must preserve owned versus unrelated commit, save failure, navigation/cancellation, packaging/protection and stale-delivery behavior. Existing migration evidence remains scoped to the accepted native, mounted and public paths.
 
 **Evidence:** `application/src/session.rs`; `app/src/exports/context.ts`; `app/src/exports/pcb.ts`; `web/src/runtime.rs`; `.scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/pcb-wiring-mode-source-review-1e5ef6ac-sol-20261002.md`
 
@@ -795,6 +801,17 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
       "observation": "The full/draft KiCad adapter now submits applied-wiring and post-package protection mutations as child operations tied to the parent export. Session runs both through the normal Core queue/persistence/history and advances only that still-registered owner's snapshot token; other active exports are cancelled. The changed browser/download journey and save-failure/unrelated-edit race evidence remain pending, so no lifecycle matrix claim is made.",
       "evidence": ".scratch/dioxus-frontend-v1/issues/08-export-pcb-handoff-slice.md; .scratch/dioxus-frontend-v1/evidence/export-pcb-handoff-20261003/REACT-RECEIPT.md",
       "status": "source-level mitigation in isolated packet; parent and runtime qualification remain open"
+    },
+    {
+      "date": "2026-10-05",
+      "source": "f956c0dfe9ec942cb79b9905565e9c404fb96732",
+      "observation": "Bounded export-owned commit repair integrated and accepted under F8.2-C02/C03 and F8.3; broader operation-lineage design deferred. Outstanding Undo/Redo qualification is excluded by user instruction.",
+      "evidence": [
+        ".scratch/dioxus-frontend-v1/tasks.json",
+        ".scratch/dioxus-frontend-v1/evidence/export-pcb-handoff-20261003/34769-RECEIPT.md",
+        ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
+      ],
+      "limits": "Current dispositions reuse attributed accepted evidence. No new browser execution, broad structural closure, or production cutover is claimed."
     }
   ],
   "follow_up_evidence": [
@@ -811,6 +828,16 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
         "/home/chris/.local/share/boardstudio/reviews/candidate-34769-20261003/REVIEW.md"
       ],
       "certainty": "source-verified candidate implementation defect repaired before browser build; no executed RED claim"
+    }
+  ],
+  "historical_assessments": [
+    {
+      "superseded_at": "2026-10-05",
+      "reason": "Final adoption reconciliation; retain original assessment without treating it as a current gate.",
+      "fields": {
+        "status": "private Session-owned export-commit path implemented in current F8.3a source packet; integrated download/history qualification pending",
+        "validation_needed": "Race matrix: owned versus unrelated commits, save failure, navigation, cancellation and packaging failure; no stale delivery and no protection without successful packaging."
+      }
     }
   ]
 }
@@ -1339,7 +1366,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 ## RF-009: Parity accounting and acceptance evidence are scattered
 
-**Status:** observed; structural proposal deferred until post-port review
+**Status:** Current 63-row responsibility inventory reconciled and independently reviewed for F9.6-C01; broader maintained conformance/CI proposal deferred.
 
 **Confidence:** confirmed planning and evidence gap
 
@@ -1347,7 +1374,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Impact:** Plans and passing partial checks can imply unsupported completeness; evidence may not identify the delivered source and environment consistently.
 
-**Current mitigation:** Maintain the source/task/evidence ledger and public Dioxus scenarios during the port; resolve actual AT and applicable release gates before frontend adoption.
+**Current mitigation:** Use canonical task, source, fixture and evidence records for in-scope desktop workflows. Mobile, accessibility/assistive technology and additional Undo/Redo qualification are excluded by user instruction; preserve their history without requiring or claiming passes.
 
 **Later proposal:** After parity, consolidate maintained conformance scenarios, source/fixture/build provenance and CI integration; treat evidence as reproducible outputs rather than accumulated prose.
 
@@ -1371,7 +1398,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
   "linked_tasks": [
     "F9.1",
     "F9.2",
-    "F9.3"
+    "F9.6"
   ],
   "follow_up_evidence": [
     {
@@ -1810,7 +1837,36 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
     "during_port": "Keep the conservative reuse guard and one full build for source 6d3e89fc; its verified provider artifacts are the baseline reused by subsequent Case/Parts page-only candidate 3b5bb1b3. Avoid more inline provider test edits in small page batches.",
     "post_port_follow_up": "If this recurs, extend the feature-aware test graph to recognize separate provider test modules with exact production-source identity; do not exempt provider files based on a regex for cfg(test).",
     "evidence": "web/target/builds/frontend-functional-refresh-20261004/provenance.json; web/target/builds/frontend-current-actions-20261004/provenance.json"
-  }
+  },
+  "historical_assessments": [
+    {
+      "superseded_at": "2026-10-05",
+      "reason": "Final adoption reconciliation; retain original assessment without treating it as a current gate.",
+      "fields": {
+        "status": "observed; structural proposal deferred until post-port review",
+        "during_port": "Maintain the source/task/evidence ledger and public Dioxus scenarios during the port; resolve actual AT and applicable release gates before frontend adoption.",
+        "linked_tasks": [
+          "F9.1",
+          "F9.2",
+          "F9.3"
+        ]
+      }
+    }
+  ],
+  "continuations": [
+    {
+      "date": "2026-10-05",
+      "source": "f956c0dfe9ec942cb79b9905565e9c404fb96732",
+      "observation": "Current 63-row responsibility inventory reconciled and independently reviewed for F9.6-C01; broader maintained conformance/CI proposal deferred.",
+      "evidence": [
+        "CONSTRAINTS.md",
+        ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/inventory-reconciliation.md",
+        ".scratch/dioxus-frontend-v1/evidence/tsx-inventory.json",
+        ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
+      ],
+      "limits": "Current dispositions reuse attributed accepted evidence. No new browser execution, broad structural closure, or production cutover is claimed."
+    }
+  ]
 }
 ```
 
@@ -1990,19 +2046,19 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 ## RF-013: Object tree containers have invalid required-child semantics
 
-**Status:** open; no accessibility waiver; candidate acceptance gate remains required; private semantics repair f65b is under independent review and is not integrated or accepted
+**Status:** Accessibility-only qualification and repairs excluded from this migration by user instruction on 2026-10-05; historical defect and bounded mitigation evidence retained, no conformance pass claimed.
 
 **Confidence:** confirmed inherited critical axe violation in the Dioxus candidate and pinned React reference
 
 **Observation:** Axe 4.12.1 reports the critical aria-required-children violation in both paired applications: the candidate .m1-component-list role=tree directly contains labelled disclosure buttons, and the React .wb-tree-viewport role=tree has the same invalid child pattern. The candidate report has one critical violation; the React report has the same critical violation plus a separate moderate page-has-heading-one finding. The shared result identifies an inherited reference defect; it does not establish candidate conformance or waive accessibility acceptance. A private candidate semantics repair exists at f65b and is under independent review; it is neither merged nor accepted and does not close this finding.
 
-**Impact:** Assistive technologies may not receive the required tree/treeitem structure for object hierarchy navigation. The axe impact is critical and remains an active correctness gate.
+**Impact:** The historical required-child semantic defect may affect assistive-technology hierarchy navigation. Its accessibility severity remains recorded; it is not an active migration acceptance gate after the explicit scope removal.
 
-**Current mitigation:** Do not suppress the rule, weaken the threshold or accept the candidate because the reference shares the defect. Correct candidate tree semantics while preserving hierarchy, selection and keyboard behavior; retain both reports as paired baseline evidence. Actual assistive-technology testing remains separately required where applicable.
+**Current mitigation:** Preserve current semantics, functional selection, keyboard and focus behavior and all historical evidence. Do not schedule axe, assistive-technology or accessibility-only repairs in this migration.
 
 **Later proposal:** Review the tree semantic structure and maintained accessibility conformance scenario across workspace navigation; keep the eventual design narrow and compatible with tree disclosure and selection behavior.
 
-**Validation:** Axe reports no aria-required-children violation on the candidate; public hierarchy, selection, keyboard and focus behavior remain correct; retain the React report as evidence of the inherited baseline defect. Actual assistive-technology evidence is a separate gate.
+**Validation:** If accessibility work is commissioned later, verify tree semantics with axe and actual assistive-technology evidence alongside functional hierarchy/selection/focus checks. These are future scope, not current gates.
 
 **Evidence:** `.scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/tree-515f390d-a11y.json`; `.scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/tree-react-a11y.json`; `.scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/tree-515f390d-hierarchy.json`; `.scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/tree-515f390d-unowned.json`; `.scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/parts-context-numeric-steps.json`; `.scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/provenance.json`
 
@@ -2018,14 +2074,9 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
     "F3",
     "F9"
   ],
-  "decision": "current acceptance gate; no waiver and no parent closure",
-  "follow_up_owner": "T1-10/F3.1 implementation and independent accessibility review",
-  "linked_tasks": [
-    "T1-10",
-    "F3.1",
-    "F9.2",
-    "F9.3"
-  ],
+  "decision": "User removed accessibility and F9.3 from migration scope; this is exclusion, not a waiver recorded as passing conformance.",
+  "follow_up_owner": "Future accessibility work, if commissioned; migration coordinator retains historical evidence.",
+  "linked_tasks": [],
   "handoff_evidence": [
     {
       "source": "Case/Keymap current integration; final source commit pending",
@@ -2033,13 +2084,45 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
       "observation": "f65 browser axe reports zero candidate violations after tree item ownership repair. Contrast remains incomplete; actual assistive technology remains unverified.",
       "status": "bounded mitigation/evidence update; broad structural refactor deferred"
     }
+  ],
+  "historical_assessments": [
+    {
+      "superseded_at": "2026-10-05",
+      "reason": "Final adoption reconciliation; retain original assessment without treating it as a current gate.",
+      "fields": {
+        "status": "open; no accessibility waiver; candidate acceptance gate remains required; private semantics repair f65b is under independent review and is not integrated or accepted",
+        "impact": "Assistive technologies may not receive the required tree/treeitem structure for object hierarchy navigation. The axe impact is critical and remains an active correctness gate.",
+        "during_port": "Do not suppress the rule, weaken the threshold or accept the candidate because the reference shares the defect. Correct candidate tree semantics while preserving hierarchy, selection and keyboard behavior; retain both reports as paired baseline evidence. Actual assistive-technology testing remains separately required where applicable.",
+        "validation_needed": "Axe reports no aria-required-children violation on the candidate; public hierarchy, selection, keyboard and focus behavior remain correct; retain the React report as evidence of the inherited baseline defect. Actual assistive-technology evidence is a separate gate.",
+        "decision": "current acceptance gate; no waiver and no parent closure",
+        "follow_up_owner": "T1-10/F3.1 implementation and independent accessibility review",
+        "linked_tasks": [
+          "T1-10",
+          "F3.1",
+          "F9.2",
+          "F9.3"
+        ]
+      }
+    }
+  ],
+  "continuations": [
+    {
+      "date": "2026-10-05",
+      "source": "f956c0dfe9ec942cb79b9905565e9c404fb96732",
+      "observation": "Accessibility-only qualification and repairs excluded from this migration by user instruction on 2026-10-05; historical defect and bounded mitigation evidence retained, no conformance pass claimed.",
+      "evidence": [
+        "CONSTRAINTS.md",
+        ".scratch/dioxus-frontend-v1/tasks.json"
+      ],
+      "limits": "Current dispositions reuse attributed accepted evidence. No new browser execution, broad structural closure, or production cutover is claimed."
+    }
   ]
 }
 ```
 
 ## RF-014: Host callback ownership must survive browser terminal events
 
-**Status:** minimal repair integrated d5eaafaf; independent source review clear; fresh full package/public acceptance pending
+**Status:** Terminal callback repair integrated; current persistence and recovery workflows accepted under F2.2 and F9.4. Broader host-observer audit and the historical initial-abort cause remain separate.
 
 **Confidence:** confirmed production defect
 
@@ -2051,7 +2134,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Later proposal:** Audit callback-backed host future ownership where lifecycle changes; consider a consistent private observer owner. Do not infer all observers defective.
 
-**Validation:** Full provider/package rebuild and current public save/history/reopen checks; original initial-abort investigation remains separate.
+**Validation:** Future changes to callback-backed host futures must retain terminal completion/abort settlement and callback detachment. Reuse current attributed save/reload/archive evidence; no additional history qualification or speculative observer audit is required for this migration.
 
 **Evidence:** `web/src/host/storage.rs`; `.scratch/dioxus-frontend-tranche-1/evidence/idb-observer-repair-20261002/FINDING.md`; `.scratch/dioxus-frontend-tranche-1/evidence/idb-observer-repair-20261002/expanded-red.log`; `.scratch/dioxus-frontend-tranche-1/evidence/idb-observer-repair-20261002/green.log`
 
@@ -2069,17 +2152,41 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
     "F9"
   ],
   "decision": "Required current correctness fixed without public API widening; broader host lifecycle audit deferred.",
-  "follow_up_owner": "F9 host lifecycle qualification",
+  "follow_up_owner": "Post-port host lifecycle maintenance",
   "linked_tasks": [
     "F2.2",
     "F3.2"
+  ],
+  "historical_assessments": [
+    {
+      "superseded_at": "2026-10-05",
+      "reason": "Final adoption reconciliation; retain original assessment without treating it as a current gate.",
+      "fields": {
+        "status": "minimal repair integrated d5eaafaf; independent source review clear; fresh full package/public acceptance pending",
+        "validation_needed": "Full provider/package rebuild and current public save/history/reopen checks; original initial-abort investigation remains separate.",
+        "follow_up_owner": "F9 host lifecycle qualification"
+      }
+    }
+  ],
+  "continuations": [
+    {
+      "date": "2026-10-05",
+      "source": "f956c0dfe9ec942cb79b9905565e9c404fb96732",
+      "observation": "Terminal callback repair integrated; current persistence and recovery workflows accepted under F2.2 and F9.4. Broader host-observer audit and the historical initial-abort cause remain separate.",
+      "evidence": [
+        ".scratch/dioxus-frontend-v1/tasks.json",
+        ".scratch/dioxus-frontend-v1/evidence/f94-final-20261005/RECEIPT.md",
+        ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
+      ],
+      "limits": "Current dispositions reuse attributed accepted evidence. No new browser execution, broad structural closure, or production cutover is claimed."
+    }
   ]
 }
 ```
 
 ## RF-015: Shared viewer controls can read a different source than the rendered scene
 
-**Status:** minimal private repair independently reviewed, integrated and served34737; bounded paired per-model visibility effect proven; broader stale/foreign/model readiness and responsive qualification open
+**Status:** Scoped viewer-source repair and required desktop viewer/control/lifecycle responsibilities accepted under F3.6, F7.3 and F7.4; typed source descriptor remains a deferred structural proposal. Mobile and accessibility qualification are excluded.
 
 **Confidence:** confirmed source-selection defect; broader interface improvement is a hypothesis
 
@@ -2091,7 +2198,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Later proposal:** After parity, evaluate a private typed viewer-source descriptor that bundles the accepted scene rows, decoded delivery rows, context/a11y text and visibility projection. Do not widen public APIs or clone the viewer for this repair.
 
-**Validation:** Current accepted Layout model rows produce ordered per-model controls; exact available toggles affect only the matching mesh; stale/foreign source rows do not leak; Case/native consumers retain their existing source and accessibility context. Verify in a current production package and paired browser journey.
+**Validation:** Any future typed-source refactor must preserve current-source model rows, per-model visibility, stale/foreign ownership rejection and Case/native behavior. Accepted evidence has its stated owner, fixture and lifecycle limits; no universal GPU or inaccessible failure-path claim.
 
 **Evidence:** `web/src/presentation/shared_viewer.rs`; `web/src/presentation/case_assembly_layers.rs`; `.scratch/dioxus-shared-viewer/evidence/layout-canonical-layer-controls-20261002/planning-evidence.md`; `.scratch/dioxus-frontend-v1/evidence/layout-case-transport-public-20261002/README.md`
 
@@ -2109,7 +2216,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
     "F7.4"
   ],
   "decision": "Fix source-selection correctness now; assess broader source descriptor only after parity.",
-  "follow_up_owner": "F7.3b shared viewer consumer qualification",
+  "follow_up_owner": "Post-port shared viewer architecture",
   "linked_tasks": [
     "F7.3b",
     "F3.6",
@@ -2138,6 +2245,29 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
       "observation": "Packaged candidate 34807 admitted five exact-current mechanical layer rows before a new viewport scene. Clicking Plate opened the Plate-specific Inspector; switching to Board 2 removed the old Plate row/Inspector and correctly attributed the stack to Main. This closes the bounded public follow-up to the resolved-versus-scene row defect.",
       "during_port": "Continue admitting Case settings and selected-layer actions against the same current owner when subsequent mechanical controls are ported.",
       "post_port": "Retain the typed accepted-viewer-source proposal for the broader refactoring phase."
+    },
+    {
+      "date": "2026-10-05",
+      "source": "f956c0dfe9ec942cb79b9905565e9c404fb96732",
+      "observation": "Scoped viewer-source repair and required desktop viewer/control/lifecycle responsibilities accepted under F3.6, F7.3 and F7.4; typed source descriptor remains a deferred structural proposal. Mobile and accessibility qualification are excluded.",
+      "evidence": [
+        ".scratch/dioxus-frontend-v1/tasks.json",
+        ".scratch/dioxus-frontend-v1/evidence/consolidated-34822-20261004/RECEIPT.md",
+        ".scratch/dioxus-frontend-v1/evidence/layout-grouped-review-20261004.md",
+        ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
+      ],
+      "limits": "Current dispositions reuse attributed accepted evidence. No new browser execution, broad structural closure, or production cutover is claimed."
+    }
+  ],
+  "historical_assessments": [
+    {
+      "superseded_at": "2026-10-05",
+      "reason": "Final adoption reconciliation; retain original assessment without treating it as a current gate.",
+      "fields": {
+        "status": "minimal private repair independently reviewed, integrated and served34737; bounded paired per-model visibility effect proven; broader stale/foreign/model readiness and responsive qualification open",
+        "validation_needed": "Current accepted Layout model rows produce ordered per-model controls; exact available toggles affect only the matching mesh; stale/foreign source rows do not leak; Case/native consumers retain their existing source and accessibility context. Verify in a current production package and paired browser journey.",
+        "follow_up_owner": "F7.3b shared viewer consumer qualification"
+      }
     }
   ]
 }
@@ -2598,7 +2728,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 ## RF-026: Dioxus delegated pointer handlers cannot assume a DOM currentTarget
 
-**Status:** v1 panel capture repaired in next source batch; shared event policy deferred
+**Status:** Desktop panel pointer repair integrated and qualified in the accepted F2.3 public journey; shared event adapter remains deferred.
 
 **Confidence:** confirmed by paired pointer-resize failure and focused source correction
 
@@ -2606,11 +2736,11 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Impact:** A control can compile and respond to keyboard actions while its pointer path silently fails; repeating raw currentTarget assumptions across the port risks similar gaps.
 
-**Current mitigation:** Resolve and verify the actual mounted target element in the panel handler, retain the paired pointer RED receipt, and recheck both pane drags on the next packaged candidate. Audit only newly touched pointer-capture controls at their changed-action milestone.
+**Current mitigation:** Retain verified mounted-target resolution and desktop pointer/keyboard resize behavior. Do not repeat accepted pane journeys unless relevant source changes.
 
 **Later proposal:** Offer a small private DOM target/capture adapter with explicit closest-selector and pointer-id semantics so Dioxus controls do not duplicate fragile raw event access.
 
-**Validation:** Paired next-candidate pointer drag, capture/release, bounds and reload pass for both desktop panes; focused audit of other currentTarget capture sites after the port.
+**Validation:** Future event-adapter extraction must preserve owning-element resolution, capture/release and panel bounds/persistence. Existing desktop public receipt supplies migration qualification; cross-control audit remains post-port.
 
 **Evidence:** `.scratch/dioxus-frontend-v1/evidence/compact-shell-parity-20261003/f23-public-qualification.md`; `web/src/presentation/panels.rs`; `web/src/presentation/objects/layout_transform_toolbar.rs`
 
@@ -2631,7 +2761,29 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
   "linked_tasks": [
     "F2.3"
   ],
-  "continuations": []
+  "continuations": [
+    {
+      "date": "2026-10-05",
+      "source": "f956c0dfe9ec942cb79b9905565e9c404fb96732",
+      "observation": "Desktop panel pointer repair integrated and qualified in the accepted F2.3 public journey; shared event adapter remains deferred.",
+      "evidence": [
+        ".scratch/dioxus-frontend-v1/tasks.json",
+        ".scratch/dioxus-frontend-v1/evidence/compact-shell-parity-20261003/f23-public-qualification.md"
+      ],
+      "limits": "Current dispositions reuse attributed accepted evidence. No new browser execution, broad structural closure, or production cutover is claimed."
+    }
+  ],
+  "historical_assessments": [
+    {
+      "superseded_at": "2026-10-05",
+      "reason": "Final adoption reconciliation; retain original assessment without treating it as a current gate.",
+      "fields": {
+        "status": "v1 panel capture repaired in next source batch; shared event policy deferred",
+        "during_port": "Resolve and verify the actual mounted target element in the panel handler, retain the paired pointer RED receipt, and recheck both pane drags on the next packaged candidate. Audit only newly touched pointer-capture controls at their changed-action milestone.",
+        "validation_needed": "Paired next-candidate pointer drag, capture/release, bounds and reload pass for both desktop panes; focused audit of other currentTarget capture sites after the port."
+      }
+    }
+  ]
 }
 ```
 
@@ -2809,7 +2961,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 ## RF-031: Mechanical profile targets and family defaults are split across presentation and controller rules
 
-**Status:** two v1 Case assignment repairs landed in 39ca24b3 and passed focused RED/GREEN; changed-action public qualification pending; shared policy refactor deferred
+**Status:** Narrow Case eligibility/family-default repairs integrated; required mechanical profile responsibilities accepted under F7.4-C01/C02/C05 with recorded native and public limits. Shared policy extraction deferred.
 
 **Confidence:** confirmed consolidated source review against pinned TypeScript behavior
 
@@ -2821,7 +2973,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Later proposal:** Centralize typed mechanical-profile eligibility and family-transition defaults in one domain policy consumed by Case and Parts projections, instead of duplicating switch/stabilizer tests and derived-dimension updates in UI controllers.
 
-**Validation:** Focused RED/GREEN for placed Custom stabilizer assignment and unknown-to-Choc first assignment, then one changed-action candidate journey; reuse unrelated Case evidence.
+**Validation:** Future shared mechanical-policy changes must preserve placed Custom stabilizer eligibility and unknown-to-known family defaults, plus accepted profile edits and derived dimensions. Retain original focused RED/GREEN and attributed public Case evidence; no additional history checks required.
 
 **Evidence:** `web/src/presentation/mechanical_settings.rs`; `web/src/presentation/mechanical_settings_mount.rs`; `web/src/presentation/mechanical_settings_controller.rs`; `.scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-dynamic-selects-df22f1cc-review-sol-20261004.md`
 
@@ -2847,6 +2999,27 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
       "evidence": "web/src/presentation/mechanical_settings_controller.rs",
       "observation": "Separate Switch/Stabilizer/ImportedGeometry target admission and first unknown-to-known family default policy landed with two focused RED/GREEN regressions; the combined page/offline package passed.",
       "status": "v1 source repair packaged; changed-action browser qualification pending"
+    },
+    {
+      "date": "2026-10-05",
+      "source": "f956c0dfe9ec942cb79b9905565e9c404fb96732",
+      "observation": "Narrow Case eligibility/family-default repairs integrated; required mechanical profile responsibilities accepted under F7.4-C01/C02/C05 with recorded native and public limits. Shared policy extraction deferred.",
+      "evidence": [
+        ".scratch/dioxus-frontend-v1/tasks.json",
+        ".scratch/dioxus-frontend-v1/evidence/case-custom-profile-20261005/RECEIPT.md",
+        ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
+      ],
+      "limits": "Current dispositions reuse attributed accepted evidence. No new browser execution, broad structural closure, or production cutover is claimed."
+    }
+  ],
+  "historical_assessments": [
+    {
+      "superseded_at": "2026-10-05",
+      "reason": "Final adoption reconciliation; retain original assessment without treating it as a current gate.",
+      "fields": {
+        "status": "two v1 Case assignment repairs landed in 39ca24b3 and passed focused RED/GREEN; changed-action public qualification pending; shared policy refactor deferred",
+        "validation_needed": "Focused RED/GREEN for placed Custom stabilizer assignment and unknown-to-Choc first assignment, then one changed-action candidate journey; reuse unrelated Case evidence."
+      }
     }
   ]
 }
@@ -2902,7 +3075,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 ## RF-033: 63 plain #[test]s in wasm-only presentation modules never run natively; one pre-existing mounted test fails
 
-**Status:** reachability conversion installed; final draft fixture corrected and scoped15/15 passed; known failure list empty; combined integration gate pending
+**Status:** Reachability conversion and fixture repairs integrated; known-failure list empty. Subsequent combined native/page/reachability/affected-headless gates passed, including final f956 native 248 passed/1 ignored and strict 3 passed/0 excluded. This is affected-source coverage, not a fresh all-tests run.
 
 **Confidence:** confirmed by scripts/check-wasm-tests.py and a failing headless-Chrome run
 
@@ -2911,6 +3084,10 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 **Impact:** Behavior the ledger calls covered may be untested; two defects already reached commits because of this blind spot.
 
 **Current mitigation:** Retain enforced native/page/reachability/headless gates. Corrected draft fixture now distinguishes dirty focused fields from tab resets and proves latest-owner edits. The obsolete sole failure exemption was removed after scoped15/15 execution; no failures or exclusions count as passes. Mobile remains deferred.
+
+**Later proposal:** Replace the hand-maintained #[path] mirror with a native-compilable controller layer.
+
+**Validation:** For future controller extraction, demonstrate native reachability and preserve mounted DOM assertions. Keep nonzero native execution, page compilation, reachability and exact affected headless terminal outcomes enforced; receipt reuse requires exact source/config/tool identities.
 
 **Evidence:** `scripts/check-wasm-tests.py`; `scripts/check-wasm-tests-baseline.json`; `.scratch/dioxus-frontend-v1/evidence/review-opus-20261004/consolidated-review.md`
 
@@ -2970,7 +3147,29 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
         ".scratch/dioxus-frontend-v1/evidence/layout-escape-repair-20261005/rf033-fixed-results.json",
         "scripts/wasm-known-failures.json"
       ]
+    },
+    {
+      "date": "2026-10-05",
+      "source": "f956c0dfe9ec942cb79b9905565e9c404fb96732",
+      "observation": "Reachability conversion and fixture repairs integrated; known-failure list empty. Subsequent combined native/page/reachability/affected-headless gates passed, including final f956 native 248 passed/1 ignored and strict 3 passed/0 excluded. This is affected-source coverage, not a fresh all-tests run.",
+      "evidence": [
+        "scripts/wasm-known-failures.json",
+        ".scratch/dioxus-frontend-v1/evidence/f95-final-20261005/integration-gates.log",
+        ".scratch/dioxus-frontend-v1/evidence/f95-final-20261005/RECEIPT.md",
+        ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
+      ],
+      "limits": "Current dispositions reuse attributed accepted evidence. No new browser execution, broad structural closure, or production cutover is claimed."
     }
-  ]
+  ],
+  "historical_assessments": [
+    {
+      "superseded_at": "2026-10-05",
+      "reason": "Final adoption reconciliation; retain original assessment without treating it as a current gate.",
+      "fields": {
+        "status": "reachability conversion installed; final draft fixture corrected and scoped15/15 passed; known failure list empty; combined integration gate pending"
+      }
+    }
+  ],
+  "follow_up_owner": "Post-port frontend test architecture; delivery tooling maintains gate enforcement."
 }
 ```

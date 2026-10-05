@@ -9704,7 +9704,7 @@
       "acceptance_after": [
         "F9.2"
       ],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
       "shared_edit_owner": "integration coordinator",
@@ -9725,16 +9725,19 @@
         {
           "id": "F9.5-C01",
           "requirement": "Existing budgets and endpoint eligibility remain applicable and evidenced.",
-          "state": "unassessed",
+          "state": "verified",
           "classification": "release",
           "sources": [
             ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md"
           ],
-          "evidence": [],
-          "blockers": [
-            "F9.2"
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/f95-final-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/f95-final-20261005/paired-f956c0df-final/summary.json",
+            ".scratch/dioxus-frontend-v1/evidence/f95-final-20261005/repaired-owner-freshness.json",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
           ],
-          "next_action": "Map each existing budget to eligible current evidence; preserve ineligible/failed baselines for applicability review.",
+          "blockers": [],
+          "next_action": "Complete: independent review CLEAR. Five paired sessions/all30 scenarios meet unchanged absolute pointer budgets with matched identities; source-attributed startup/size/crossing and lifecycle evidence retains actual bounds and historical ineligible endpoints.",
           "finish_condition": "Every applicable unchanged budget has eligible attributable evidence and failures remain visible.",
           "owned_files": [
             ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md"
@@ -9746,16 +9749,20 @@
         {
           "id": "F9.5-C02",
           "requirement": "Relevant paired pointer/frame, crossing/size/startup and renderer lifecycle observations are recorded.",
-          "state": "missing",
+          "state": "verified",
           "classification": "release",
           "sources": [
             ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md"
           ],
           "evidence": [
-            ".scratch/dioxus-frontend-v1/evidence/f95-final-20261005/paired-df6b04b9-final/stopped-summary.json"
+            ".scratch/dioxus-frontend-v1/evidence/f95-final-20261005/paired-df6b04b9-final/stopped-summary.json",
+            ".scratch/dioxus-frontend-v1/evidence/f95-final-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/f95-final-20261005/paired-f956c0df-final/summary.json",
+            ".scratch/dioxus-frontend-v1/evidence/f95-final-20261005/repaired-owner-freshness.json",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
           ],
           "blockers": [],
-          "next_action": "Repair reproduced final-candidate public pointer slowdown: 100-key p95 75.09/78.03ms exceeds50ms, first200-key185.635ms exceeds100ms; paired reference passes. Separate second200-key import-readiness race is incomplete setup, not a product failure. Resume full five-session qualification after focused diagnosis/repair.",
+          "next_action": "Complete: independent review CLEAR. Five paired sessions/all30 scenarios meet unchanged absolute pointer budgets with matched identities; source-attributed startup/size/crossing and lifecycle evidence retains actual bounds and historical ineligible endpoints.",
           "finish_condition": "Paired observations include the applicable pointer/frame/crossing/size/startup measures.",
           "owned_files": [
             ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md"
@@ -9768,16 +9775,19 @@
         {
           "id": "F9.5-C03",
           "requirement": "Worker/URL/resource lifecycle observations pass, with failed or ineligible gates left open.",
-          "state": "unassessed",
+          "state": "verified",
           "classification": "release",
           "sources": [
             ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md"
           ],
-          "evidence": [],
-          "blockers": [
-            "F9.2"
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/f95-final-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/f95-final-20261005/paired-f956c0df-final/summary.json",
+            ".scratch/dioxus-frontend-v1/evidence/f95-final-20261005/repaired-owner-freshness.json",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
           ],
-          "next_action": "Attribute worker, URL and resource cleanup to final output paths; leave unmeasured/ineligible checks open.",
+          "blockers": [],
+          "next_action": "Complete: independent review CLEAR. Five paired sessions/all30 scenarios meet unchanged absolute pointer budgets with matched identities; source-attributed startup/size/crossing and lifecycle evidence retains actual bounds and historical ineligible endpoints.",
           "finish_condition": "Resource lifecycle evidence is attributable to current candidate and failed/ineligible gates remain explicitly open.",
           "owned_files": [
             "web/src/runtime.rs"
@@ -9801,8 +9811,18 @@
           "from": "planned",
           "to": "implementing",
           "reason": "Final source public paired pointer measurements reproduce100/200-key budget failures; repair real bottleneck and independent import-readiness harness race before full qualification."
+        },
+        {
+          "at": "2026-10-05T16:30:30.982722+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Independent final review CLEAR: actual5 paired sessions/all30 scenarios/complete100sample rows meet unchanged33/50/100ms caps; matched source/fixture/endpoint/environment, source-fresh lifecycle and bounded ancillary observations.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f9-5-decision.json"
         }
-      ]
+      ],
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f9-5-decision.json"
+      }
     },
     {
       "id": "F9.6",
@@ -9826,7 +9846,7 @@
         "F9.5"
       ],
       "acceptance_after": [],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
       "shared_edit_owner": "integration coordinator",
@@ -9847,19 +9867,18 @@
         {
           "id": "F9.6-C01",
           "requirement": "No required placeholders or React UI islands remain.",
-          "state": "unassessed",
+          "state": "verified",
           "classification": "release",
           "sources": [
             ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md"
           ],
-          "evidence": [],
-          "blockers": [
-            "F9.1",
-            "F9.2",
-            "F9.4",
-            "F9.5"
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/inventory-reconciliation.md",
+            ".scratch/dioxus-frontend-v1/evidence/tsx-inventory.json",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
           ],
-          "next_action": "After F9.1, F9.2, F9.4, F9.5 and F2–F8 exits, reconcile every remaining placeholder/React island against inventory.",
+          "blockers": [],
+          "next_action": "Complete: sole independent review CLEAR for all63 production responsibility rows with current Rust owners and accepted criterion/evidence boundaries. Historical stale gaps corrected; excluded/retained tails are explicit. No React source/test deletion or production cutover inferred.",
           "finish_condition": "No required UI behavior remains a placeholder or React island.",
           "owned_files": [
             ".scratch/dioxus-frontend-v1/evidence/tsx-inventory.json"
@@ -9896,18 +9915,19 @@
         {
           "id": "F9.6-C03",
           "requirement": "Deliver the consolidated post-port refactoring register with evidence, confidence, impact, mitigation/retirement and proposed validation without waiving deferred parity.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "release",
           "sources": [
             "docs/migration/POST-PORT-REFACTOR.md",
             ".scratch/dioxus-frontend-v1/refactor-findings.json"
           ],
           "evidence": [
+            ".scratch/dioxus-frontend-v1/refactor-findings.json",
             "docs/migration/POST-PORT-REFACTOR.md",
-            ".scratch/dioxus-frontend-v1/refactor-findings.json"
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
           ],
           "blockers": [],
-          "next_action": "Carry forward and reconcile retained register at candidate freeze; do not treat deferred structural issues as parity waivers.",
+          "next_action": "Complete: final independent review CLEAR after current dispositions, excluded-scope accounting and RF-033 proposal/owner/validation were reconciled. Historical evidence and deferred structural proposals retained; no additional product blocker or cutover approval inferred.",
           "finish_condition": "Consolidated register has evidence/confidence/impact/mitigation or retirement/validation for every observation and no parity gate is waived.",
           "owned_files": [
             "docs/migration/POST-PORT-REFACTOR.md",
@@ -9923,7 +9943,15 @@
         "assessed_at": "2026-10-03T19:35:06Z",
         "coverage": "complete",
         "note": "All current acceptance clauses for this parent were split into independently decidable criteria; broad baseline RED context was excluded as a requirement. Parent remains open unless all required criteria and joins are accepted."
-      }
+      },
+      "status_history": [
+        {
+          "at": "2026-10-05T16:30:31.097282+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "All release qualification prerequisites accepted; concrete production entrypoint proposal and actual63-row reconciliation prepared. Required copied-data cutover/rollback rehearsal and final RF review remain."
+        }
+      ]
     },
     {
       "id": "F9.7",
@@ -10091,9 +10119,9 @@
     "integration_slices": 2,
     "boundary_slices": 2,
     "status": {
-      "accepted": 57,
+      "accepted": 58,
       "implementing": 1,
-      "planned": 2
+      "planned": 1
     }
   },
   "agent_policy": ".scratch/dioxus-frontend-v1/agent-policy.json",

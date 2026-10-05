@@ -1,0 +1,1279 @@
+{
+  "sessionNumber": 4,
+  "variant": "reference",
+  "keys": 30,
+  "startupObservation": {
+    "importControl": {
+      "selectorHint": "wb-open-project",
+      "tag": "button",
+      "text": "Open project…",
+      "title": null
+    },
+    "navigation": {
+      "decodedBodySize": 2519,
+      "domContentLoadedEventEnd": 109.19999998807909,
+      "domInteractive": 11.599999994039536,
+      "duration": 109.19999998807909,
+      "encodedBodySize": 838,
+      "fetchStart": 0.5,
+      "loadEventEnd": 109.19999998807909,
+      "responseStart": 2.7999999821186066,
+      "startTime": 0,
+      "transferSize": 300,
+      "type": "navigate"
+    },
+    "observedAtPerformanceNowMs": 143.69999998807907,
+    "readyState": "complete",
+    "semantics": "standard Navigation Timing plus a point-in-time observation of visible, accessible-name-bearing DOM controls; observedAtPerformanceNowMs is an upper bound on when the matching control first became visible, not a new gate",
+    "visibleControls": [
+      {
+        "selectorHint": "wb-library-new",
+        "tag": "button",
+        "text": "New project",
+        "title": null
+      },
+      {
+        "selectorHint": "wb-open-project",
+        "tag": "button",
+        "text": "Open project…",
+        "title": null
+      },
+      {
+        "selectorHint": "wb-keyboard-tile wb-keyboard-new",
+        "tag": "button",
+        "text": "Create new keyboard",
+        "title": null
+      },
+      {
+        "selectorHint": "wb-keyboard-tile",
+        "tag": "button",
+        "text": "Start Sofle v2",
+        "title": null
+      },
+      {
+        "selectorHint": "wb-keyboard-tile",
+        "tag": "button",
+        "text": "Start Sofle RGB",
+        "title": null
+      },
+      {
+        "selectorHint": "wb-keyboard-tile",
+        "tag": "button",
+        "text": "Start Sofle Choc",
+        "title": null
+      },
+      {
+        "selectorHint": "wb-keyboard-tile",
+        "tag": "button",
+        "text": "Start Corne",
+        "title": null
+      },
+      {
+        "selectorHint": "wb-keyboard-tile",
+        "tag": "button",
+        "text": "Start Lily58",
+        "title": null
+      },
+      {
+        "selectorHint": "wb-keyboard-tile",
+        "tag": "button",
+        "text": "Start Ferris Sweep",
+        "title": null
+      },
+      {
+        "selectorHint": "wb-keyboard-tile",
+        "tag": "button",
+        "text": "Start Chocofi",
+        "title": null
+      },
+      {
+        "selectorHint": "wb-keyboard-tile",
+        "tag": "button",
+        "text": "Start REVIUNG41",
+        "title": null
+      },
+      {
+        "selectorHint": "wb-keyboard-tile",
+        "tag": "button",
+        "text": "Start TOTEM",
+        "title": null
+      },
+      {
+        "selectorHint": "wb-keyboard-tile",
+        "tag": "button",
+        "text": "Start KLOR",
+        "title": null
+      },
+      {
+        "selectorHint": "wb-keyboard-tile",
+        "tag": "button",
+        "text": "Start Cantor",
+        "title": null
+      },
+      {
+        "selectorHint": "wb-keyboard-tile",
+        "tag": "button",
+        "text": "Start GH60 · ANSI",
+        "title": null
+      },
+      {
+        "selectorHint": "wb-keyboard-tile",
+        "tag": "button",
+        "text": "Start Discipline · ANSI",
+        "title": null
+      },
+      {
+        "selectorHint": "wb-keyboard-tile",
+        "tag": "button",
+        "text": "Start Mysterium · ANSI",
+        "title": null
+      },
+      {
+        "selectorHint": "wb-keyboard-tile",
+        "tag": "button",
+        "text": "Start Voyager97 · 103-key layout",
+        "title": null
+      },
+      {
+        "selectorHint": "wb-keyboard-tile",
+        "tag": "button",
+        "text": "Start Voyager104 · ANSI",
+        "title": null
+      },
+      {
+        "selectorHint": "wb-keyboard-tile",
+        "tag": "button",
+        "text": "Start Plaid",
+        "title": null
+      },
+      {
+        "selectorHint": "wb-keyboard-tile",
+        "tag": "button",
+        "text": "Start Lumberjack",
+        "title": null
+      },
+      {
+        "selectorHint": "wb-keyboard-tile",
+        "tag": "button",
+        "text": "Start VIK module review · above and below",
+        "title": null
+      }
+    ]
+  },
+  "partCount": 90,
+  "targetPartId": "key-2-4",
+  "targetReference": "SW15",
+  "warmups": 10,
+  "measuredSamples": 100,
+  "samples": [
+    {
+      "index": 0,
+      "eventTimeStamp": 1571.4000000059605,
+      "inputAt": 1571.9000000059605,
+      "domChangedAt": 1577.2999999821186,
+      "rafAt": 1586.5999999940395,
+      "latencyMs": 14.699999988079071,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 1,
+      "eventTimeStamp": 1679.199999988079,
+      "inputAt": 1679.7999999821186,
+      "domChangedAt": 1684.5999999940395,
+      "rafAt": 1686.199999988079,
+      "latencyMs": 6.4000000059604645,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 2,
+      "eventTimeStamp": 1786.699999988079,
+      "inputAt": 1787.199999988079,
+      "domChangedAt": 1791.9000000059605,
+      "rafAt": 1802.699999988079,
+      "latencyMs": 15.5,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 3,
+      "eventTimeStamp": 1893.0999999940395,
+      "inputAt": 1893.4000000059605,
+      "domChangedAt": 1896.5,
+      "rafAt": 1902.4000000059605,
+      "latencyMs": 9,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 4,
+      "eventTimeStamp": 2000.699999988079,
+      "inputAt": 2001,
+      "domChangedAt": 2006,
+      "rafAt": 2019.199999988079,
+      "latencyMs": 18.19999998807907,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 5,
+      "eventTimeStamp": 2107.9000000059605,
+      "inputAt": 2108.199999988079,
+      "domChangedAt": 2113.199999988079,
+      "rafAt": 2120.4000000059605,
+      "latencyMs": 12.200000017881393,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 6,
+      "eventTimeStamp": 2216.4000000059605,
+      "inputAt": 2217,
+      "domChangedAt": 2222.199999988079,
+      "rafAt": 2235.9000000059605,
+      "latencyMs": 18.900000005960464,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 7,
+      "eventTimeStamp": 2324.7999999821186,
+      "inputAt": 2325.4000000059605,
+      "domChangedAt": 2329.5,
+      "rafAt": 2336,
+      "latencyMs": 10.599999994039536,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 8,
+      "eventTimeStamp": 2434.2999999821186,
+      "inputAt": 2434.7999999821186,
+      "domChangedAt": 2439.5,
+      "rafAt": 2452.699999988079,
+      "latencyMs": 17.900000005960464,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 9,
+      "eventTimeStamp": 2541.7999999821186,
+      "inputAt": 2542.199999988079,
+      "domChangedAt": 2546.5999999940395,
+      "rafAt": 2552.5999999940395,
+      "latencyMs": 10.400000005960464,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 10,
+      "eventTimeStamp": 2647.7999999821186,
+      "inputAt": 2648.0999999940395,
+      "domChangedAt": 2651.5,
+      "rafAt": 2652,
+      "latencyMs": 3.9000000059604645,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 11,
+      "eventTimeStamp": 2753.4000000059605,
+      "inputAt": 2753.5999999940395,
+      "domChangedAt": 2757,
+      "rafAt": 2768.9000000059605,
+      "latencyMs": 15.300000011920929,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 12,
+      "eventTimeStamp": 2860.7999999821186,
+      "inputAt": 2861.4000000059605,
+      "domChangedAt": 2866.5999999940395,
+      "rafAt": 2868.7999999821186,
+      "latencyMs": 7.399999976158142,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 13,
+      "eventTimeStamp": 2968.5999999940395,
+      "inputAt": 2969,
+      "domChangedAt": 2974.4000000059605,
+      "rafAt": 2985.9000000059605,
+      "latencyMs": 16.900000005960464,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 14,
+      "eventTimeStamp": 3079.5999999940395,
+      "inputAt": 3080,
+      "domChangedAt": 3083.7999999821186,
+      "rafAt": 3085.2999999821186,
+      "latencyMs": 5.299999982118607,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 15,
+      "eventTimeStamp": 3187.4000000059605,
+      "inputAt": 3187.7999999821186,
+      "domChangedAt": 3191.5,
+      "rafAt": 3202.4000000059605,
+      "latencyMs": 14.600000023841858,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 16,
+      "eventTimeStamp": 3296.7999999821186,
+      "inputAt": 3297.2999999821186,
+      "domChangedAt": 3303.2999999821186,
+      "rafAt": 3303.9000000059605,
+      "latencyMs": 6.600000023841858,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 17,
+      "eventTimeStamp": 3404.5,
+      "inputAt": 3404.7999999821186,
+      "domChangedAt": 3408.2999999821186,
+      "rafAt": 3419,
+      "latencyMs": 14.200000017881393,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 18,
+      "eventTimeStamp": 3511.9000000059605,
+      "inputAt": 3512.4000000059605,
+      "domChangedAt": 3517,
+      "rafAt": 3518.699999988079,
+      "latencyMs": 6.299999982118607,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 19,
+      "eventTimeStamp": 3618.900000005961,
+      "inputAt": 3619.400000005961,
+      "domChangedAt": 3623.7999999821186,
+      "rafAt": 3636.099999994039,
+      "latencyMs": 16.69999998807816,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 20,
+      "eventTimeStamp": 3728.599999994039,
+      "inputAt": 3729,
+      "domChangedAt": 3733,
+      "rafAt": 3735.400000005961,
+      "latencyMs": 6.400000005960919,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 21,
+      "eventTimeStamp": 3835.599999994039,
+      "inputAt": 3835.900000005961,
+      "domChangedAt": 3841.099999994039,
+      "rafAt": 3852.2999999821186,
+      "latencyMs": 16.399999976157687,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 22,
+      "eventTimeStamp": 3942.699999988079,
+      "inputAt": 3943.099999994039,
+      "domChangedAt": 3946.900000005961,
+      "rafAt": 3952.199999988079,
+      "latencyMs": 9.09999999403999,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 23,
+      "eventTimeStamp": 4049,
+      "inputAt": 4049.5,
+      "domChangedAt": 4055.199999988079,
+      "rafAt": 4068.7999999821186,
+      "latencyMs": 19.299999982118607,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 24,
+      "eventTimeStamp": 4158.299999982119,
+      "inputAt": 4158.799999982119,
+      "domChangedAt": 4162.5999999940395,
+      "rafAt": 4169.5,
+      "latencyMs": 10.700000017881393,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 25,
+      "eventTimeStamp": 4266.199999988079,
+      "inputAt": 4266.699999988079,
+      "domChangedAt": 4271.5999999940395,
+      "rafAt": 4285.5999999940395,
+      "latencyMs": 18.900000005960464,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 26,
+      "eventTimeStamp": 4375.5,
+      "inputAt": 4376,
+      "domChangedAt": 4380.799999982119,
+      "rafAt": 4385.5,
+      "latencyMs": 9.5,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 27,
+      "eventTimeStamp": 4482.199999988079,
+      "inputAt": 4482.5,
+      "domChangedAt": 4489.199999988079,
+      "rafAt": 4502.4000000059605,
+      "latencyMs": 19.900000005960464,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 28,
+      "eventTimeStamp": 4590.799999982119,
+      "inputAt": 4591.199999988079,
+      "domChangedAt": 4594,
+      "rafAt": 4602,
+      "latencyMs": 10.800000011920929,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 29,
+      "eventTimeStamp": 4698.799999982119,
+      "inputAt": 4699.5,
+      "domChangedAt": 4704.9000000059605,
+      "rafAt": 4719.299999982119,
+      "latencyMs": 19.799999982118607,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 30,
+      "eventTimeStamp": 4809,
+      "inputAt": 4809.5999999940395,
+      "domChangedAt": 4813.4000000059605,
+      "rafAt": 4819.299999982119,
+      "latencyMs": 9.699999988079071,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 31,
+      "eventTimeStamp": 4915.9000000059605,
+      "inputAt": 4916.5,
+      "domChangedAt": 4921.9000000059605,
+      "rafAt": 4935.5,
+      "latencyMs": 19,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 32,
+      "eventTimeStamp": 5024.5999999940395,
+      "inputAt": 5025,
+      "domChangedAt": 5028.199999988079,
+      "rafAt": 5035.5,
+      "latencyMs": 10.5,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 33,
+      "eventTimeStamp": 5130.699999988079,
+      "inputAt": 5131.199999988079,
+      "domChangedAt": 5134,
+      "rafAt": 5135.299999982119,
+      "latencyMs": 4.0999999940395355,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 34,
+      "eventTimeStamp": 5236.9000000059605,
+      "inputAt": 5237.199999988079,
+      "domChangedAt": 5242,
+      "rafAt": 5252.199999988079,
+      "latencyMs": 15,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 35,
+      "eventTimeStamp": 5344.699999988079,
+      "inputAt": 5345.199999988079,
+      "domChangedAt": 5348.9000000059605,
+      "rafAt": 5352,
+      "latencyMs": 6.800000011920929,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 36,
+      "eventTimeStamp": 5452.9000000059605,
+      "inputAt": 5453.4000000059605,
+      "domChangedAt": 5457.299999982119,
+      "rafAt": 5469.0999999940395,
+      "latencyMs": 15.699999988079071,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 37,
+      "eventTimeStamp": 5560.699999988079,
+      "inputAt": 5561,
+      "domChangedAt": 5565.299999982119,
+      "rafAt": 5568.799999982119,
+      "latencyMs": 7.799999982118607,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 38,
+      "eventTimeStamp": 5668.4000000059605,
+      "inputAt": 5669,
+      "domChangedAt": 5674.199999988079,
+      "rafAt": 5685.5,
+      "latencyMs": 16.5,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 39,
+      "eventTimeStamp": 5774.9000000059605,
+      "inputAt": 5775.0999999940395,
+      "domChangedAt": 5778.299999982119,
+      "rafAt": 5785.699999988079,
+      "latencyMs": 10.599999994039536,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 40,
+      "eventTimeStamp": 5882.9000000059605,
+      "inputAt": 5883.299999982119,
+      "domChangedAt": 5887.799999982119,
+      "rafAt": 5902,
+      "latencyMs": 18.700000017881393,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 41,
+      "eventTimeStamp": 5990.799999982119,
+      "inputAt": 5991.299999982119,
+      "domChangedAt": 5994.9000000059605,
+      "rafAt": 6002.4000000059605,
+      "latencyMs": 11.100000023841858,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 42,
+      "eventTimeStamp": 6098.4000000059605,
+      "inputAt": 6098.9000000059605,
+      "domChangedAt": 6104.4000000059605,
+      "rafAt": 6119,
+      "latencyMs": 20.099999994039536,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 43,
+      "eventTimeStamp": 6205.5999999940395,
+      "inputAt": 6206.0999999940395,
+      "domChangedAt": 6209.4000000059605,
+      "rafAt": 6219,
+      "latencyMs": 12.900000005960464,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 44,
+      "eventTimeStamp": 6312.199999988079,
+      "inputAt": 6312.5999999940395,
+      "domChangedAt": 6316.9000000059605,
+      "rafAt": 6318.5999999940395,
+      "latencyMs": 6,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 45,
+      "eventTimeStamp": 6419.199999988079,
+      "inputAt": 6419.9000000059605,
+      "domChangedAt": 6423.5,
+      "rafAt": 6435.799999982119,
+      "latencyMs": 15.899999976158142,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 46,
+      "eventTimeStamp": 6525.9000000059605,
+      "inputAt": 6526.299999982119,
+      "domChangedAt": 6529.5,
+      "rafAt": 6535.4000000059605,
+      "latencyMs": 9.100000023841858,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 47,
+      "eventTimeStamp": 6633,
+      "inputAt": 6633.299999982119,
+      "domChangedAt": 6639,
+      "rafAt": 6652.5999999940395,
+      "latencyMs": 19.30000001192093,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 48,
+      "eventTimeStamp": 6742.4000000059605,
+      "inputAt": 6742.9000000059605,
+      "domChangedAt": 6746.9000000059605,
+      "rafAt": 6752.0999999940395,
+      "latencyMs": 9.199999988079071,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 49,
+      "eventTimeStamp": 6849.9000000059605,
+      "inputAt": 6850.799999982119,
+      "domChangedAt": 6856,
+      "rafAt": 6868.9000000059605,
+      "latencyMs": 18.100000023841858,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 50,
+      "eventTimeStamp": 6958.199999988079,
+      "inputAt": 6958.5999999940395,
+      "domChangedAt": 6961.5999999940395,
+      "rafAt": 6968.5999999940395,
+      "latencyMs": 10,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 51,
+      "eventTimeStamp": 7065.5999999940395,
+      "inputAt": 7066.0999999940395,
+      "domChangedAt": 7072.699999988079,
+      "rafAt": 7085.5999999940395,
+      "latencyMs": 19.5,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 52,
+      "eventTimeStamp": 7174.9000000059605,
+      "inputAt": 7175.4000000059605,
+      "domChangedAt": 7180.0999999940395,
+      "rafAt": 7185.5999999940395,
+      "latencyMs": 10.199999988079071,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 53,
+      "eventTimeStamp": 7283.09999999404,
+      "inputAt": 7283.5,
+      "domChangedAt": 7288.699999988079,
+      "rafAt": 7302.299999982119,
+      "latencyMs": 18.799999982118607,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 54,
+      "eventTimeStamp": 7393.299999982119,
+      "inputAt": 7394,
+      "domChangedAt": 7398.799999982119,
+      "rafAt": 7401.90000000596,
+      "latencyMs": 7.900000005959555,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 55,
+      "eventTimeStamp": 7499.59999999404,
+      "inputAt": 7500,
+      "domChangedAt": 7504.699999988079,
+      "rafAt": 7518.799999982119,
+      "latencyMs": 18.799999982118607,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 56,
+      "eventTimeStamp": 7607.90000000596,
+      "inputAt": 7608.59999999404,
+      "domChangedAt": 7612.40000000596,
+      "rafAt": 7619,
+      "latencyMs": 10.400000005959555,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 57,
+      "eventTimeStamp": 7715.5,
+      "inputAt": 7716.09999999404,
+      "domChangedAt": 7723,
+      "rafAt": 7735.699999988079,
+      "latencyMs": 19.599999994038626,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 58,
+      "eventTimeStamp": 7826.59999999404,
+      "inputAt": 7826.799999982119,
+      "domChangedAt": 7829.59999999404,
+      "rafAt": 7835.299999982119,
+      "latencyMs": 8.5,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 59,
+      "eventTimeStamp": 7931.09999999404,
+      "inputAt": 7931.5,
+      "domChangedAt": 7935,
+      "rafAt": 7935.59999999404,
+      "latencyMs": 4.099999994040445,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 60,
+      "eventTimeStamp": 8038.09999999404,
+      "inputAt": 8038.59999999404,
+      "domChangedAt": 8042.40000000596,
+      "rafAt": 8052.09999999404,
+      "latencyMs": 13.5,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 61,
+      "eventTimeStamp": 8145.09999999404,
+      "inputAt": 8145.59999999404,
+      "domChangedAt": 8149.40000000596,
+      "rafAt": 8151.799999982119,
+      "latencyMs": 6.1999999880781616,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 62,
+      "eventTimeStamp": 8253.199999988079,
+      "inputAt": 8253.699999988079,
+      "domChangedAt": 8257.40000000596,
+      "rafAt": 8268.799999982119,
+      "latencyMs": 15.099999994039536,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 63,
+      "eventTimeStamp": 8359.90000000596,
+      "inputAt": 8360.299999982119,
+      "domChangedAt": 8363.90000000596,
+      "rafAt": 8368.90000000596,
+      "latencyMs": 8.600000023841858,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 64,
+      "eventTimeStamp": 8467.40000000596,
+      "inputAt": 8467.699999988079,
+      "domChangedAt": 8472.799999982119,
+      "rafAt": 8485.699999988079,
+      "latencyMs": 18,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 65,
+      "eventTimeStamp": 8578.199999988079,
+      "inputAt": 8578.59999999404,
+      "domChangedAt": 8582.299999982119,
+      "rafAt": 8585.199999988079,
+      "latencyMs": 6.5999999940395355,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 66,
+      "eventTimeStamp": 8685.299999982119,
+      "inputAt": 8685.799999982119,
+      "domChangedAt": 8690.199999988079,
+      "rafAt": 8702.59999999404,
+      "latencyMs": 16.80000001192093,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 67,
+      "eventTimeStamp": 8792.5,
+      "inputAt": 8793.09999999404,
+      "domChangedAt": 8797.199999988079,
+      "rafAt": 8802.299999982119,
+      "latencyMs": 9.199999988079071,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 68,
+      "eventTimeStamp": 8899.59999999404,
+      "inputAt": 8900.199999988079,
+      "domChangedAt": 8905.799999982119,
+      "rafAt": 8918.90000000596,
+      "latencyMs": 18.700000017881393,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 69,
+      "eventTimeStamp": 9010,
+      "inputAt": 9010.40000000596,
+      "domChangedAt": 9014.29999998212,
+      "rafAt": 9018.69999998808,
+      "latencyMs": 8.299999982120426,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 70,
+      "eventTimeStamp": 9119.40000000596,
+      "inputAt": 9120.09999999404,
+      "domChangedAt": 9124.40000000596,
+      "rafAt": 9135.79999998212,
+      "latencyMs": 15.69999998808089,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 71,
+      "eventTimeStamp": 9225.09999999404,
+      "inputAt": 9225.59999999404,
+      "domChangedAt": 9228.90000000596,
+      "rafAt": 9235.19999998808,
+      "latencyMs": 9.599999994041355,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 72,
+      "eventTimeStamp": 9333.5,
+      "inputAt": 9334,
+      "domChangedAt": 9339.29999998212,
+      "rafAt": 9352.40000000596,
+      "latencyMs": 18.400000005960464,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 73,
+      "eventTimeStamp": 9442.59999999404,
+      "inputAt": 9443,
+      "domChangedAt": 9446.69999998808,
+      "rafAt": 9452,
+      "latencyMs": 9,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 74,
+      "eventTimeStamp": 9549.29999998212,
+      "inputAt": 9549.79999998212,
+      "domChangedAt": 9554.40000000596,
+      "rafAt": 9568.90000000596,
+      "latencyMs": 19.10000002384004,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 75,
+      "eventTimeStamp": 9658,
+      "inputAt": 9658.5,
+      "domChangedAt": 9662.69999998808,
+      "rafAt": 9668.90000000596,
+      "latencyMs": 10.400000005960464,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 76,
+      "eventTimeStamp": 9765,
+      "inputAt": 9765.40000000596,
+      "domChangedAt": 9768.79999998212,
+      "rafAt": 9769.29999998212,
+      "latencyMs": 3.899999976159961,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 77,
+      "eventTimeStamp": 9871.59999999404,
+      "inputAt": 9871.90000000596,
+      "domChangedAt": 9876.19999998808,
+      "rafAt": 9885.29999998212,
+      "latencyMs": 13.399999976159961,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 78,
+      "eventTimeStamp": 9977.40000000596,
+      "inputAt": 9977.90000000596,
+      "domChangedAt": 9981.90000000596,
+      "rafAt": 9985.40000000596,
+      "latencyMs": 7.5,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 79,
+      "eventTimeStamp": 10084.69999998808,
+      "inputAt": 10085.19999998808,
+      "domChangedAt": 10089.79999998212,
+      "rafAt": 10102.40000000596,
+      "latencyMs": 17.200000017879574,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 80,
+      "eventTimeStamp": 10193.29999998212,
+      "inputAt": 10193.69999998808,
+      "domChangedAt": 10197.09999999404,
+      "rafAt": 10201.90000000596,
+      "latencyMs": 8.200000017879574,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 81,
+      "eventTimeStamp": 10301.40000000596,
+      "inputAt": 10301.69999998808,
+      "domChangedAt": 10307.59999999404,
+      "rafAt": 10319.09999999404,
+      "latencyMs": 17.400000005958645,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 82,
+      "eventTimeStamp": 10407.90000000596,
+      "inputAt": 10408.29999998212,
+      "domChangedAt": 10411.79999998212,
+      "rafAt": 10418.69999998808,
+      "latencyMs": 10.400000005960464,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 83,
+      "eventTimeStamp": 10514.19999998808,
+      "inputAt": 10514.69999998808,
+      "domChangedAt": 10517.59999999404,
+      "rafAt": 10518.69999998808,
+      "latencyMs": 4,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 84,
+      "eventTimeStamp": 10619.40000000596,
+      "inputAt": 10619.90000000596,
+      "domChangedAt": 10623.09999999404,
+      "rafAt": 10635.40000000596,
+      "latencyMs": 15.5,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 85,
+      "eventTimeStamp": 10726.29999998212,
+      "inputAt": 10726.69999998808,
+      "domChangedAt": 10730.5,
+      "rafAt": 10735.19999998808,
+      "latencyMs": 8.5,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 86,
+      "eventTimeStamp": 10832.29999998212,
+      "inputAt": 10832.59999999404,
+      "domChangedAt": 10837.29999998212,
+      "rafAt": 10852.09999999404,
+      "latencyMs": 19.5,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 87,
+      "eventTimeStamp": 10939.90000000596,
+      "inputAt": 10940.29999998212,
+      "domChangedAt": 10943.59999999404,
+      "rafAt": 10952.19999998808,
+      "latencyMs": 11.900000005960464,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 88,
+      "eventTimeStamp": 11047.19999998808,
+      "inputAt": 11047.69999998808,
+      "domChangedAt": 11050.29999998212,
+      "rafAt": 11051.59999999404,
+      "latencyMs": 3.9000000059586455,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 89,
+      "eventTimeStamp": 11154,
+      "inputAt": 11154.40000000596,
+      "domChangedAt": 11157.29999998212,
+      "rafAt": 11168.90000000596,
+      "latencyMs": 14.5,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 90,
+      "eventTimeStamp": 11259.40000000596,
+      "inputAt": 11259.69999998808,
+      "domChangedAt": 11262.59999999404,
+      "rafAt": 11268.40000000596,
+      "latencyMs": 8.700000017879574,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 91,
+      "eventTimeStamp": 11366.09999999404,
+      "inputAt": 11366.5,
+      "domChangedAt": 11370.59999999404,
+      "rafAt": 11385.59999999404,
+      "latencyMs": 19.099999994039536,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 92,
+      "eventTimeStamp": 11472.69999998808,
+      "inputAt": 11473.19999998808,
+      "domChangedAt": 11477.79999998212,
+      "rafAt": 11485.40000000596,
+      "latencyMs": 12.200000017879574,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 93,
+      "eventTimeStamp": 11579.69999998808,
+      "inputAt": 11580.09999999404,
+      "domChangedAt": 11584,
+      "rafAt": 11585.40000000596,
+      "latencyMs": 5.300000011920929,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 94,
+      "eventTimeStamp": 11686.19999998808,
+      "inputAt": 11686.40000000596,
+      "domChangedAt": 11689.19999998808,
+      "rafAt": 11701.90000000596,
+      "latencyMs": 15.5,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 95,
+      "eventTimeStamp": 11793,
+      "inputAt": 11793.59999999404,
+      "domChangedAt": 11797,
+      "rafAt": 11802.19999998808,
+      "latencyMs": 8.599999994041355,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 96,
+      "eventTimeStamp": 11900.59999999404,
+      "inputAt": 11901.40000000596,
+      "domChangedAt": 11905.19999998808,
+      "rafAt": 11919,
+      "latencyMs": 17.599999994039536,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 97,
+      "eventTimeStamp": 12009.19999998808,
+      "inputAt": 12009.69999998808,
+      "domChangedAt": 12013.29999998212,
+      "rafAt": 12018.59999999404,
+      "latencyMs": 8.900000005958645,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    },
+    {
+      "index": 98,
+      "eventTimeStamp": 12117.09999999404,
+      "inputAt": 12117.5,
+      "domChangedAt": 12121.09999999404,
+      "rafAt": 12135.59999999404,
+      "latencyMs": 18.099999994039536,
+      "before": "translate(64.2 -38.1) rotate(0)",
+      "afterMutation": "translate(88.2 -39.1) rotate(0)",
+      "after": "translate(88.2 -39.1) rotate(0)"
+    },
+    {
+      "index": 99,
+      "eventTimeStamp": 12222.59999999404,
+      "inputAt": 12223,
+      "domChangedAt": 12225.69999998808,
+      "rafAt": 12235.59999999404,
+      "latencyMs": 12.599999994039536,
+      "before": "translate(88.2 -39.1) rotate(0)",
+      "afterMutation": "translate(64.2 -38.1) rotate(0)",
+      "after": "translate(64.2 -38.1) rotate(0)"
+    }
+  ],
+  "p50Ms": 11.900000005960464,
+  "p95Ms": 19.5,
+  "changedTransforms": 100,
+  "changedFrames": 110,
+  "missedInputMarkers": 0,
+  "thresholdMs": 33,
+  "withinExistingAbsoluteLimit": true,
+  "observerEndpoint": "same variant-neutral endpoint: first requestAnimationFrame opportunity after MutationObserver confirms the imported target part SVG transform changed; not physical display presentation",
+  "inputEndpoint": "native browser pointermove event received in capture phase; latency starts at performance.now() in that listener, and event.timeStamp is retained"
+}
