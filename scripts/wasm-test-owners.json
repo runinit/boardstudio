@@ -18,12 +18,15 @@
     },
     "web/src/presentation.rs": {
       "tests": [
-        "cad_presentation::mounted_tests::mounted_case_local_export_uses_current_exact_mechanical_scope"
+        "cad_presentation::mounted_tests::mounted_case_local_export_uses_current_exact_mechanical_scope",
+        "cad_presentation::mounted_tests::mounted_failed_current_generation_keeps_previous_geometry_and_retries_owner",
+        "cad_presentation::mounted_tests::mounted_read_model_preview_and_session_gesture_block_export_until_cancelled",
+        "cad_presentation::mounted_tests::mounted_case_panel_starts_once_pauses_and_resumes_for_current_context"
       ],
-      "coverage": "Mounted Case local export scope in the reviewed test-only context-helper revision; other presentation behavior requires broad fallback.",
+      "coverage": "Hash-bound test-only Case readiness fixture support. The presentation bridge calls the existing mechanical owner readiness hook; the per-Runtime ReadModel override is cfg(test), defaults to None, and is populated only by the mounted CAD fixtures. All four mounted CAD tests execute; direct cad_presentation module selection retains grouped fixture attribution. Any different base/current hash fails closed to broad selection. Native web, wasm page and reachability gates remain required.",
       "requires_generator_assets": false,
-      "base_sha256": "9c47231afa66375defd2493f73acf500a2e277053135027a1e506437d5314ec4",
-      "current_sha256": "f81f0ee22c0e6d0c851cf0b91c3d1953fb9ca41c31e56bf3ec0293fa0efbff0a"
+      "base_sha256": "fae911b0f35c6d935c6ce512319b2ef8b83b70e8e5a3a34c3a63f7defacc7b5c",
+      "current_sha256": "abae011da90fb4dcbe7d5ecfa957e084517eb23a5088957fed98b81c2f96519d"
     },
     "web/src/presentation/selection.rs": {
       "tests": [
@@ -49,6 +52,18 @@
       "requires_generator_assets": false,
       "base_sha256": "c1072aff079454475e9c492cbc6dbe7b73754dd3f35c1a4b2aa226146eb176d4",
       "current_sha256": "5d4454ead1b6a375b00e11aedb82ce5ed18c324e5caf1c6cbbaee5e7b0489576"
+    },
+    "web/src/runtime.rs": {
+      "tests": [
+        "cad_presentation::mounted_tests::mounted_case_local_export_uses_current_exact_mechanical_scope",
+        "cad_presentation::mounted_tests::mounted_failed_current_generation_keeps_previous_geometry_and_retries_owner",
+        "cad_presentation::mounted_tests::mounted_read_model_preview_and_session_gesture_block_export_until_cancelled",
+        "cad_presentation::mounted_tests::mounted_case_panel_starts_once_pauses_and_resumes_for_current_context"
+      ],
+      "coverage": "Hash-bound test-only Case readiness fixture support. The presentation bridge calls the existing mechanical owner readiness hook; the per-Runtime ReadModel override is cfg(test), defaults to None, and is populated only by the mounted CAD fixtures. All four mounted CAD tests execute; direct cad_presentation module selection retains grouped fixture attribution. Any different base/current hash fails closed to broad selection. Native web, wasm page and reachability gates remain required.",
+      "requires_generator_assets": false,
+      "base_sha256": "5d94109e52827ee05831c154329ec4af96a30bd6286c20447f543fcf77fc410f",
+      "current_sha256": "33e568d43357bda42fdcb825d30e6ad71364aa43c405ab051939d73b08df92b6"
     }
   }
 }

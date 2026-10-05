@@ -1,0 +1,86 @@
+--- a/web/src/cad_presentation.rs
++++ b/web/src/cad_presentation.rs
+@@ -489,6 +489,15 @@
+         case_button(root_id, "Refresh").click();
+     }
+ 
++    fn remove_case_root(root_id: &str) {
++        let document = web_sys::window().unwrap().document().unwrap();
++        if let Some(root) = document.get_element_by_id(root_id)
++            && let Some(parent) = root.parent_node()
++        {
++            let _ = parent.remove_child(&root);
++        }
++    }
++
+     fn accepted_after_revision(original: &AcceptedSnapshot) -> AcceptedSnapshot {
+         let revision = original.document.revision + 1;
+         let mut document = (*original.document).clone();
+@@ -541,7 +550,7 @@
+         dom.provide_root_context(runtime.clone());
+         dioxus_web::launch::launch_virtual_dom(
+             dom,
+-            dioxus_web::Config::new().rootnode(root.into()),
++            dioxus_web::Config::new().rootnode(root.clone().into()),
+         );
+         settle().await;
+ 
+@@ -565,15 +574,7 @@
+         preview_model.generation = GenerationStatus::Ready { job_id: JobId(2), exact: false };
+         runtime.set_definition_name_test_model(preview_model);
+         runtime.set_cad_scene_test(None);
+-        web_sys::window()
+-            .unwrap()
+-            .document()
+-            .unwrap()
+-            .get_element_by_id("case-export-refresh")
+-            .unwrap()
+-            .dyn_into::<web_sys::HtmlElement>()
+-            .unwrap()
+-            .click();
++        refresh_case_in("case-local-export-mounted");
+         settle().await;
+         let blocked_export = export_geometry_button();
+         let _ = take_events(&runtime);
+@@ -589,6 +590,7 @@
+                 .any(|event| matches!(event, AppEvent::StartExport { .. })),
+             "preview geometry must not start a mechanical export"
+         );
++        remove_case_root("case-local-export-mounted");
+     }
+ 
+     #[wasm_bindgen_test]
+@@ -602,7 +604,7 @@
+         web_sys::window().unwrap().document().unwrap().body().unwrap().append_child(&root).unwrap();
+         let dom = VirtualDom::new(export_host);
+         dom.provide_root_context(runtime.clone());
+-        dioxus_web::launch::launch_virtual_dom(dom, dioxus_web::Config::new().rootnode(root.into()));
++        dioxus_web::launch::launch_virtual_dom(dom, dioxus_web::Config::new().rootnode(root.clone().into()));
+         settle().await;
+         assert!(!export_geometry_button_in(root_id).has_attribute("disabled"),
+             "fixture first proves exact current readiness through the real owner hook");
+@@ -658,6 +660,7 @@
+         assert_eq!(model.accepted.as_ref().unwrap().document.revision, current.document.revision);
+         assert!(matches!(take_events(&runtime).as_slice(),
+             [AppEvent::StartGeneration { scope: actual, .. }] if actual == &scope));
++        remove_case_root(root_id);
+     }
+ 
+     #[wasm_bindgen_test]
+@@ -670,7 +673,7 @@
+         web_sys::window().unwrap().document().unwrap().body().unwrap().append_child(&root).unwrap();
+         let dom = VirtualDom::new(export_host);
+         dom.provide_root_context(runtime.clone());
+-        dioxus_web::launch::launch_virtual_dom(dom, dioxus_web::Config::new().rootnode(root.into()));
++        dioxus_web::launch::launch_virtual_dom(dom, dioxus_web::Config::new().rootnode(root.clone().into()));
+         settle().await;
+         assert!(!export_geometry_button_in(root_id).has_attribute("disabled"));
+ 
+@@ -725,6 +728,7 @@
+         refresh_case_in(root_id);
+         settle().await;
+         assert!(!export_geometry_button_in(root_id).has_attribute("disabled"));
++        remove_case_root(root_id);
+     }
+ 
+     #[wasm_bindgen_test]

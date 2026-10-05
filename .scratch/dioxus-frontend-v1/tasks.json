@@ -1967,7 +1967,7 @@
       "acceptance_after": [
         "F7.3"
       ],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
       "shared_edit_owner": "integration coordinator",
@@ -1989,6 +1989,13 @@
           "from": "planned",
           "to": "implementing",
           "reason": "Reconcile verified mounted source/bounded evidence; preserve all parent acceptance criteria."
+        },
+        {
+          "at": "2026-10-05T08:49:10.337798+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Independent consolidated review closes published profile extraction and shared viewer lifecycle; all actual criteria and prerequisite joins verified with retained applicable evidence.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f3-6-decision.json"
         }
       ],
       "progress_evidence": [
@@ -2087,7 +2094,7 @@
         {
           "id": "F3.6-C04",
           "requirement": "Renderer mount/resize/theme/error/context-loss/unmount and repeated switching settle callers and release listeners/GPU resources.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/shared_viewer.rs",
@@ -2095,10 +2102,11 @@
           ],
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/layout-grouped-20261004/RECEIPT.md",
-            ".scratch/dioxus-frontend-v1/evidence/layout-grouped-review-20261004.md"
+            ".scratch/dioxus-frontend-v1/evidence/layout-grouped-review-20261004.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
           ],
           "blockers": [],
-          "next_action": "Grouped candidate journey completes three settled 3D→2D cycles retaining picked Key/coordinates/camera and a selected-board change. No bounded error logs. These observations do not prove listener/GPU disposal, context-loss recovery, resize/theme or performance; keep those lifecycle gates open.",
+          "next_action": "Independent review joins retained three settled Layout 3D/2D cycles and board change to executed common renderer lifecycle evidence now verified F7.3-C07; no duplicate loops or hypothetical GPU benchmark required.",
           "finish_condition": "Lifecycle scenarios prove callers settle and listeners/GPU resources release on mount, resize, theme, error, context loss, unmount and repeated view switching.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",
@@ -2143,6 +2151,9 @@
         "assessed_at": "2026-10-03T19:29:50Z",
         "coverage": "complete",
         "note": "All five clauses represented. Task evidence says shared 3D and existing camera/fit are mounted, but no whole camera/viewer lifecycle acceptance is inferred from mount or unrelated viewer screenshots."
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f3-6-decision.json"
       }
     },
     {
@@ -5783,7 +5794,7 @@
         "F8.2",
         "BND.1"
       ],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
@@ -5980,7 +5991,19 @@
         "assessed_at": "2026-10-03T20:18:15.523405+00:00",
         "coverage": "complete",
         "note": "Focused accounting of the existing shared viewer, CAD preview, STEP and lifecycle paths. Current source guards are wired and receipts prove bounded visible/STEP paths; no new source gap is established. F7.3, F8.2 and BND.1 joins remain unchanged. Candidate review 2026-10-03 corrected partial-evidence overclaims for F6C.5-C02, F6C.5-C06: source is implemented; full behavioral qualification remains. Candidate review narrowed evidence for F6C.5-C05: partial behavior/source proof is retained; remaining branches are explicit qualification. Candidate 34777 adds pending board/project switches and paired empty-profile STEP message/retry. In-flight revision mutation and genuine provider-failure branches remain explicit; no new source gap or repair ticket."
-      }
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f6c-5-decision.json"
+      },
+      "status_history": [
+        {
+          "at": "2026-10-05T08:49:10.344715+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Independent consolidated review closes published profile extraction and shared viewer lifecycle; all actual criteria and prerequisite joins verified with retained applicable evidence.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f6c-5-decision.json"
+        }
+      ]
     },
     {
       "id": "F6.6",
@@ -6254,7 +6277,7 @@
       "owner": "F7 workflow lead",
       "start_after": [],
       "acceptance_after": [],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
       "shared_edit_owner": "integration coordinator",
@@ -6277,6 +6300,13 @@
           "from": "planned",
           "to": "implementing",
           "reason": "Reconciled already-mounted implementation and retained evidence; no acceptance gate waived."
+        },
+        {
+          "at": "2026-10-05T08:37:00.163187+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Independent clause-by-clause desktop scope and lifecycle reconciliation; committed renderer and actual Persist checks plus attributable paired public evidence close remaining criteria.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f7-1-decision.json"
         }
       ],
       "progress_evidence": {
@@ -6366,7 +6396,7 @@
         {
           "id": "F7.1-C04",
           "requirement": "Preserve canonical-board assembly inputs versus selected physical-instance Case assembly inputs.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/case_viewer.rs",
@@ -6375,10 +6405,11 @@
             ".scratch/dioxus-frontend-v1/issues/07-case-3d.md"
           ],
           "evidence": [
-            ".scratch/dioxus-case-workspace/evidence/default-instance-public/README.md"
+            ".scratch/dioxus-case-workspace/evidence/default-instance-public/README.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
           ],
           "blockers": [],
-          "next_action": "Source confirms canonical Layout capture vs instance/flip-scoped Case CAD projection. Candidate canonical Right Layout stayed unchanged after flip; fresh Case generation blocked by mechanical envelope errors and TS canonical post-flip model display differed. Complete with valid changed-flip geometry and Keymap/Keycaps canonical views; do not infer paired projection from stale display.",
+          "next_action": "Independent review reconciles existing paired df22f1cc/5175 Sofle scope proof with originating criterion: Case uses selected physical assembly while Layout/Keymap/Keycaps retain canonical board. Generated changed-flip geometry is outside this input/scope clause; no new geometry claim.",
           "finish_condition": "Paired public scope change demonstrates Case uses selected physical instance while Layout/Keymap/Keycaps retain canonical board.",
           "owned_files": [
             "web/src/presentation/case_viewer.rs",
@@ -6442,6 +6473,9 @@
         "assessed_at": "2026-10-03T19:34:54Z",
         "coverage": "complete",
         "note": "Canonical F7 acceptance clauses were decomposed into independently assessable capability criteria. Source presence is implemented; verified requires an existing receipt/check. Baseline prose is not a gap; visual-only differences are deferred by CONSTRAINTS. Historical public-API approval language is not treated as a blocker. F7.2 is intentionally untouched; original parent start/acceptance joins are preserved in tasks.json and not misreported as capability blockers."
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f7-1-decision.json"
       }
     },
     {
@@ -6541,7 +6575,7 @@
         "INT.2",
         "BND.1"
       ],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
       "shared_edit_owner": "integration coordinator",
@@ -6565,6 +6599,13 @@
           "from": "planned",
           "to": "implementing",
           "reason": "Reconcile verified mounted source/bounded evidence; preserve all parent acceptance criteria."
+        },
+        {
+          "at": "2026-10-05T08:37:00.169285+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Independent clause-by-clause desktop scope and lifecycle reconciliation; committed renderer and actual Persist checks plus attributable paired public evidence close remaining criteria.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f7-3-decision.json"
         }
       ],
       "progress_evidence": [
@@ -6763,7 +6804,7 @@
         {
           "id": "F7.3-C07",
           "requirement": "Handle theme, resize/DPR, context loss, loading/update failures, provider/model retry, superseded work, event capture, unmount and renderer/GPU disposal while preserving surrounding forms.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/shared_viewer.rs",
@@ -6776,10 +6817,13 @@
             ".scratch/dioxus-shared-viewer/evidence/case-viewport-layout/public-final/README.md",
             ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md",
             ".scratch/dioxus-frontend-v1/evidence/parts-preview-lifecycle-20261004/RECEIPT.md",
-            ".scratch/dioxus-frontend-v1/evidence/f73-asset-formats-20261004/RECEIPT.md"
+            ".scratch/dioxus-frontend-v1/evidence/f73-asset-formats-20261004/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+            ".scratch/dioxus-frontend-v1/evidence/lifecycle-deferred-20261005/pcb-save-diagnostic-run6.log",
+            ".scratch/dioxus-frontend-v1/evidence/case-extraction-lifecycle-20261005/gates.log"
           ],
           "blockers": [],
-          "next_action": "Reuse Parts no-mutation/currentness, real model failure/retry/recovery, renderer host5of5cleanup and new Parts Light/Dark3Dupdate/form continuity. Broader resize/DPR/consumer lifecycle and mounted-editor Save during project replacement remain unqualified; avoid repeating passing Parts branches.",
+          "next_action": "Independent complete desktop lifecycle reconciliation CLEAR at cc728fc6: committed renderer6/6 plus actualPCBSave/Persist1/1 and retained theme/contextloss/failure/retry/supersession/cleanup/form2D proofs; no optional matrix added.",
           "finish_condition": "Each lifecycle/error transition suppresses stale publication, releases renderer/listener resources and preserves the 2D/form route.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",
@@ -6884,6 +6928,9 @@
         "assessed_at": "2026-10-03T19:34:54Z",
         "coverage": "complete",
         "note": "Canonical F7 acceptance clauses were decomposed into independently assessable capability criteria. Source presence is implemented; verified requires an existing receipt/check. Baseline prose is not a gap; visual-only differences are deferred by CONSTRAINTS. Historical public-API approval language is not treated as a blocker. F7.2 is intentionally untouched; original parent start/acceptance joins are preserved in tasks.json and not misreported as capability blockers. Candidate review retained F7.3-C04 as implemented because its public receipt covers only a subset of the stated controls/branches."
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f7-3-decision.json"
       }
     },
     {
@@ -6912,7 +6959,7 @@
       "acceptance_after": [
         "INT.2"
       ],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
       "shared_edit_owner": "integration coordinator",
@@ -6934,6 +6981,13 @@
           "from": "planned",
           "to": "implementing",
           "reason": "Reconcile verified mounted source/bounded evidence; preserve all parent acceptance criteria."
+        },
+        {
+          "at": "2026-10-05T08:49:10.331016+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Independent consolidated review closes published profile extraction and shared viewer lifecycle; all actual criteria and prerequisite joins verified with retained applicable evidence.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f7-4-decision.json"
         }
       ],
       "progress_evidence": [
@@ -6949,7 +7003,7 @@
         {
           "id": "F7.4-C01",
           "requirement": "Migrate represented construction/mount/shell/frame/plate choices and case-configuration inherited/custom profiles, overrides and extraction; keep reusable PartDefinition profiles F4-owned.",
-          "state": "missing",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/mechanical_settings.rs",
@@ -6961,10 +7015,12 @@
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
             ".scratch/dioxus-case-workspace/evidence/public-mechanical-settings/candidate-0cad7577/RESULTS.md",
             ".scratch/dioxus-frontend-v1/evidence/case-custom-profile-20261005/RECEIPT.md",
-            ".scratch/dioxus-frontend-v1/evidence/case-custom-profile-20261005/public-bda42cae.md"
+            ".scratch/dioxus-frontend-v1/evidence/case-custom-profile-20261005/public-bda42cae.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-custom-profile-20261005/public-cc728fc6.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
           ],
           "blockers": [],
-          "next_action": "Publishedbda42cae fullmanualprofile edits/history/reopen/numericdraft match reference r38/r39. RealRead succeeds, but Applyselectedgeometry70 rejects mixed sourceID+kind/layer selector; same r42archive referenceacceptsr43. Fix frontendmapping with owningrealCorevalidationRED/GREEN then requalifyactualApply.",
+          "next_action": "Published cc728fc6 actual KiCad Apply r43 equals entire pinned-reference project; Undo/Redo r45 and reopen retain extracted -9.5. Full manual profile r38/r39 unchanged branches reused. Independent complete clause review CLEAR.",
           "finish_condition": "Represented Case settings work through existing resolver; F4 retains reusable profile authoring.",
           "owned_files": [
             "web/src/presentation/mechanical_settings.rs",
@@ -7122,6 +7178,9 @@
         "assessed_at": "2026-10-03T19:34:54Z",
         "coverage": "complete",
         "note": "Canonical F7 acceptance clauses were decomposed into independently assessable capability criteria. Source presence is implemented; verified requires an existing receipt/check. Baseline prose is not a gap; visual-only differences are deferred by CONSTRAINTS. Historical public-API approval language is not treated as a blocker. F7.2 is intentionally untouched; original parent start/acceptance joins are preserved in tasks.json and not misreported as capability blockers. Candidate review retained F7.4-C01 as implemented because its public receipt covers only a subset of the stated controls/branches."
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f7-4-decision.json"
       }
     },
     {
@@ -7250,7 +7309,7 @@
         {
           "id": "F7.5-C04",
           "requirement": "Commit a successful gesture once through existing session edit/history and request/update preview according to current live/manual setting.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/case_viewer.rs",
@@ -7258,10 +7317,12 @@
             "web/src/case_generation_lifecycle.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-case-workspace/evidence/reset-gasket-placement-20261003/public-receipt.md"
+            ".scratch/dioxus-case-workspace/evidence/reset-gasket-placement-20261003/public-receipt.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-handle-qualification-20261005/public-bda42cae.md"
           ],
           "blockers": [],
-          "next_action": "Receipt one drag with exactly one history step, undo/redo and live/manual preview behavior.",
+          "next_action": "Independent review CLEAR: publishedbda manualmove19 Undo20 restoresentireinput/Redo21 restoresmove exceptrevision; live lateral23 exact/exportenabled/reopen; invalidoutward leavesactualarchiveunchanged.",
           "finish_condition": "One successful drag produces one accepted edit and follows the current preview setting without duplicate commits.",
           "owned_files": [
             "web/src/presentation/case_viewer.rs",
@@ -7327,7 +7388,7 @@
         "F7.4"
       ],
       "acceptance_after": [],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
       "shared_edit_owner": "integration coordinator",
@@ -7353,7 +7414,7 @@
         {
           "id": "F7.6-C01",
           "requirement": "Port live-preview toggle/manual Update Preview, Configure Case, progress and preparing/running/ready/blocked/failed/cancelled messages, cancel and retry.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/case_workspace.rs",
@@ -7364,10 +7425,13 @@
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
             ".scratch/dioxus-frontend-v1/evidence/export-workspace-34763-20261003/RECEIPT.md",
             ".scratch/dioxus-frontend-v1/evidence/case-authored-step-34814-20261004/RECEIPT.md",
-            ".scratch/dioxus-frontend-v1/evidence/review-opus-20261004/consolidated-review.md"
+            ".scratch/dioxus-frontend-v1/evidence/review-opus-20261004/consolidated-review.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-readiness-required-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-generation-export-20261005/F76_REQUIRED_TESTS_RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Candidate 34814 (f551e4e0) now reaches a current authored Left Plate preview (Update preview enabled, exact geometry ready) and unconfigured Right stays disabled; see receipt. Cancel/retry/failed states rely on retained 34775 evidence and were not re-exercised; close at the consolidated Sol review if it accepts that reuse.",
+          "next_action": "Independent complete review joins retained public generation states/cancel/manual retry with executed mounted failed-current message and same-owner retry; all4 grouped CAD tests and mandatory gates pass.",
           "finish_condition": "Visible control/state transitions match accepted UI for every generation status and supported retry/cancel action.",
           "owned_files": [
             "web/src/presentation/case_workspace.rs",
@@ -7435,17 +7499,20 @@
         {
           "id": "F7.6-C04",
           "requirement": "Retain prior generated geometry only with explicit stale status while current work runs/fails; never label provisional output exact/current.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/case_generation_lifecycle.rs",
             "web/src/presentation/case_workspace.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-case-workspace/evidence/issue-12-show-and-f72-disclosure-34760/public-receipt.md"
+            ".scratch/dioxus-case-workspace/evidence/issue-12-show-and-f72-disclosure-34760/public-receipt.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-readiness-required-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-generation-export-20261005/F76_REQUIRED_TESTS_RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Use the blocked-current 34760 result as existing evidence; next capture prior geometry through running and failed current work.",
+          "next_action": "Mounted failed-current composition retains exact old scene token/revision, labels current failure, disables export and cannot dispatch StartExport; retained public running/blocked stale recovery supplies remaining clauses.",
           "finish_condition": "Prior geometry is visibly marked previous/stale and cannot enable exact export.",
           "owned_files": [
             "web/src/case_generation_lifecycle.rs",
@@ -7458,7 +7525,7 @@
         {
           "id": "F7.6-C05",
           "requirement": "Match readiness to current mechanical revision and scene, current preview/generation, no blocking outline/error diagnostics and no active draft/job; preserve supported warning policy.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/case_generation_lifecycle.rs",
@@ -7466,10 +7533,13 @@
             "web/src/presentation/case_workspace.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md"
+            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-readiness-required-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-generation-export-20261005/F76_REQUIRED_TESTS_RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Reconcile readiness predicate against the shared accepted truth table and qualify each blocking category once.",
+          "next_action": "Actual mechanical readiness hook mounted with ReadModel preview and real Session GestureBegin/Cancel output blocks export then restores it; native admission and retained public busy/stale/current/warning proofs complete required categories.",
           "finish_condition": "Visible readiness and request admission agree across exact-current, blocked, warning, draft, busy and stale scopes.",
           "owned_files": [
             "web/src/case_generation_lifecycle.rs",
@@ -7513,7 +7583,19 @@
         "assessed_at": "2026-10-03T19:34:54Z",
         "coverage": "complete",
         "note": "Canonical F7 acceptance clauses were decomposed into independently assessable capability criteria. Source presence is implemented; verified requires an existing receipt/check. Baseline prose is not a gap; visual-only differences are deferred by CONSTRAINTS. Historical public-API approval language is not treated as a blocker. F7.2 is intentionally untouched; original parent start/acceptance joins are preserved in tasks.json and not misreported as capability blockers."
-      }
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f7-6-decision.json"
+      },
+      "status_history": [
+        {
+          "at": "2026-10-05T09:04:34.267404+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Independent complete Case generation/readiness review joins actual public jobs/output with settled four-test mounted failure/preview/gesture proof and all mandatory gates.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f7-6-decision.json"
+        }
+      ]
     },
     {
       "id": "F7.7",
@@ -7591,7 +7673,7 @@
         {
           "id": "F7.7-C02",
           "requirement": "Keep Layout, Keymap and Keycaps on canonical board; Parts and other consumers use their own project/module scope.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/layout_viewer_source.rs",
@@ -7602,10 +7684,12 @@
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/keymap-3d-consumer-20261003/paired-receipt.md",
             ".scratch/dioxus-frontend-v1/evidence/keycaps-3d-preview-20261003/RECEIPT.md",
-            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md"
+            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
+            ".scratch/dioxus-frontend-v1/evidence/cross-consumer-cc728fc6-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
           ],
           "blockers": [],
-          "next_action": "Verify owner scope while switching from Case physical instance into a canonical consumer on the same live project.",
+          "next_action": "Current paired five-consumer sequence retains canonical Right board for Layout/Keymap/Keycaps, independent MX definition in Parts, selected Right physical assembly on return to Case; independent review CLEAR.",
           "finish_condition": "Consumer scenes/picks never inherit Case physical projection.",
           "owned_files": [
             "web/src/presentation/layout_viewer_source.rs",
@@ -7644,7 +7728,7 @@
         {
           "id": "F7.7-C04",
           "requirement": "Switching board/instance updates forms, viewer, jobs, findings and display preferences coherently; stale draft, scene or async result cannot cross scope.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/instance_selection.rs",
@@ -7654,10 +7738,12 @@
           ],
           "evidence": [
             ".scratch/dioxus-case-workspace/evidence/default-instance-public/README.md",
-            ".scratch/dioxus-frontend-v1/evidence/case-pending-scope-20261005/RECEIPT.md"
+            ".scratch/dioxus-frontend-v1/evidence/case-pending-scope-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+            ".scratch/dioxus-frontend-v1/evidence/cross-consumer-cc728fc6-20261005/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Published113d pending mechanical-save→instance switch retains Right-onlywall2.45 and byte-equal Leftinstance; actualr19archive retained. Pending CAD/model/viewer/preference branches remain: initial public switch attempts hit browser CDP timeouts and did not prove that race. Reuse deterministic owner evidence where attributable; do not infer full coherence.",
+          "next_action": "Independent reconciliation CLEAR: actual pending CAD cancellation/right-only ZIP, pending Right settings save across scope, executed scope/model/event retirement and current paired Right Plate visibility retained through Left→Right. Transient render mode resets equally; blocked Left geometry limits explicit.",
           "finish_condition": "All workspace projections follow the new scope and delayed old-scope completion is ignored.",
           "owned_files": [
             "web/src/presentation/instance_selection.rs",
@@ -7761,7 +7847,7 @@
         {
           "id": "F7.8-C01",
           "requirement": "Wire Layout, Parts, Keymap, Keycaps and Case to the same viewer implementation, with each workflow’s correct scope projection and controls.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/shared_viewer.rs",
@@ -7774,10 +7860,12 @@
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
             ".scratch/dioxus-frontend-v1/evidence/keymap-3d-consumer-20261003/paired-receipt.md",
-            ".scratch/dioxus-frontend-v1/evidence/keycaps-3d-preview-20261003/RECEIPT.md"
+            ".scratch/dioxus-frontend-v1/evidence/keycaps-3d-preview-20261003/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/cross-consumer-cc728fc6-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
           ],
           "blockers": [],
-          "next_action": "Produce one paired cross-consumer receipt on frozen candidate, including scope and control ownership per workflow.",
+          "next_action": "Independent common-viewer source review joined with actual same-fixture five-consumer scope/control sequence on cc728fc6 and pinned TS. Other parity/error/retry clauses remain separate.",
           "finish_condition": "All five consumer flows use one viewer and their own proper accepted source/scope; parent joins remain separately satisfied.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs"
@@ -9609,8 +9697,8 @@
     "integration_slices": 2,
     "boundary_slices": 2,
     "status": {
-      "accepted": 25,
-      "implementing": 25,
+      "accepted": 31,
+      "implementing": 19,
       "planned": 11
     }
   },

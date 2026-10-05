@@ -445,6 +445,9 @@ pub struct Runtime {
     archive_export_options: ArchiveExportOptions,
     #[cfg(test)]
     definition_name_test_state: RefCell<Option<(AcceptedSnapshot, Option<Scope>)>>,
+    // Preserve accepted scope/event fixtures while mounting transient ReadModel states.
+    #[cfg(test)]
+    definition_name_test_model: RefCell<Option<ReadModel>>,
     #[cfg(test)]
     layout_component_inspector_test_state: RefCell<Option<(ReadModel, Option<Scope>)>>,
     #[cfg(test)]
@@ -537,6 +540,8 @@ impl Runtime {
             #[cfg(test)]
             definition_name_test_state: RefCell::new(None),
             #[cfg(test)]
+            definition_name_test_model: RefCell::new(None),
+            #[cfg(test)]
             layout_component_inspector_test_state: RefCell::new(None),
             #[cfg(test)]
             layout_component_inspector_test_events: RefCell::new(Vec::new()),
@@ -612,6 +617,10 @@ impl Runtime {
         self.session.borrow().core_executor_epoch().0
     }
     pub fn model(&self) -> ReadModel {
+        #[cfg(test)]
+        if let Some(model) = self.definition_name_test_model.borrow().as_ref() {
+            return model.clone();
+        }
         #[cfg(test)]
         if let Some(context) = self.firmware_export_test_context.borrow().as_ref() {
             return ReadModel {
@@ -1808,6 +1817,11 @@ impl Runtime {
         scope: Option<Scope>,
     ) {
         *self.definition_name_test_state.borrow_mut() = Some((snapshot, scope));
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_definition_name_test_model(&self, model: ReadModel) {
+        *self.definition_name_test_model.borrow_mut() = Some(model);
     }
 
     #[cfg(test)]

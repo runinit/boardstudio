@@ -256,6 +256,25 @@ pub(crate) fn use_case_viewer_test_contexts() {
     use_context_provider(|| ResolvedTheme(theme));
 }
 
+// Assemble the real mechanical owner hook's contexts for mounted Case tests.
+// The readiness predicate remains owned by mechanical_settings_mount.
+#[cfg(all(test, target_arch = "wasm32"))]
+pub(crate) fn use_case_generation_readiness_test_bridge(runtime: Rc<Runtime>) -> bool {
+    let adapter = use_context::<SelectionAdapter>();
+    let WorkspaceState(workspace) = use_context::<WorkspaceState>();
+    let instance_selection = use_context::<InstanceSelection>();
+    let case_selection = use_context::<case_viewer::CaseSelection>();
+    mechanical_settings_mount::use_mechanical_settings_mount(
+        runtime,
+        adapter.generation,
+        workspace,
+        instance_selection,
+        case_selection,
+        EventHandler::new(|_| {}),
+    )
+    .generation_ready
+}
+
 #[cfg(all(test, target_arch = "wasm32"))]
 pub(crate) fn use_test_case_generation_state() {
     let live_preview = use_signal(|| true);

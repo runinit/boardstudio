@@ -1,0 +1,5 @@
+# Published extraction replay, cc728fc6
+
+Candidate frontend-case-extraction-lifecycle-20261005, root34822 scriptboardstudio-web-dxhd9c1c044c4d075.js after second navigation (first loaded previous offline asset). Imported exact candidate-extraction-apply-input.boardstudio revision42. Case→Read KiCad layers→saved checked geometry70/Dwgs.User plate-cutout→Apply selected geometry. Contour vertex1X changes-9.4→-9.5; accepted revision43 Saved. Actual candidate-cc-extraction-after.boardstudio entire parsed project equals retained pinned5175 reference-extraction-reapply-after.boardstudio revision43. Prior manualprofile r38/r39 branches unchanged and reused. Fixture has acceptedPCB-preview preparation error; no generation success claimed for this unknown-switch fixture. History/reopen follow-up pending.
+
+OneUndo settled contourX-9.4; oneRedo restored-9.5 atrevision45. Actual candidate-cc-extraction-redo.boardstudio entireparsedprojectequalsr43exceptrevision. Browserreopen thenCase retainedX-9.5. RequiredchangedApply/history/reopenbranch complete; fullmanualprofile r38/r39proof reused unchanged.

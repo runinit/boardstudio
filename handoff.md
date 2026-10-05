@@ -1,32 +1,31 @@
 # Handoff (generated from records)
 
-- Branch: codex/rust-v1-ui-parity-20261001 @ bda42cae
+- Branch: codex/rust-v1-ui-parity-20261001 @ cc728fc6
 - Worktree: /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001
-- Parents: 25/61 accepted, 25 implementing, 11 planned
-- Criteria: unassessed 27, missing 2, implemented 49, verified 144; 222 total
-  - functional: implemented 36, missing 2, unassessed 3, verified 140
+- Parents: 31/61 accepted, 19 implementing, 11 planned
+- Criteria: unassessed 27, missing 1, implemented 39, verified 155; 222 total
+  - functional: implemented 26, missing 1, unassessed 3, verified 151
   - release: implemented 10, unassessed 19, verified 4
   - visual: implemented 3, unassessed 5
 
 ## Served candidate
-- Build: frontend-case-profile-layout-finish-20261005
-- Source commit: bda42cae76b342147330f971c108711b80549038
+- Build: frontend-case-extraction-lifecycle-20261005
+- Source commit: cc728fc644d57b985feed9128ffdb40f9c75a709
 - Root: http://127.0.0.1:34822/
 - Subpath: http://127.0.0.1:34822/boardstudio/
 
 ## Functional readiness
-- Ready functional criteria: 1 investigate, 2 implement, 33 qualify (Layout 0 investigate/0 implement/1 qualify; PCB 0 investigate/0 implement/7 qualify; Keymap 0 investigate/0 implement/0 qualify; Keycaps 0 investigate/0 implement/0 qualify; Case 0 investigate/2 implement/12 qualify; Parts+Project 0 investigate/0 implement/7 qualify; Shared 1 investigate/0 implement/6 qualify)
+- Ready functional criteria: 1 investigate, 1 implement, 24 qualify (Layout 0 investigate/0 implement/0 qualify; PCB 0 investigate/0 implement/8 qualify; Keymap 0 investigate/0 implement/0 qualify; Keycaps 0 investigate/0 implement/0 qualify; Case 0 investigate/1 implement/3 qualify; Parts+Project 0 investigate/0 implement/7 qualify; Shared 1 investigate/0 implement/6 qualify)
 - Functionally verified parents awaiting formal acceptance: 8
-- Parents with unmet final joins: 16
-  Layout: unassessed 0, missing 0, implemented 1, verified 26; ready investigate 0, implement 0, qualify 1
-    Qualify: F3.6-C04
-  PCB: unassessed 0, missing 0, implemented 8, verified 18; ready investigate 0, implement 0, qualify 7
-    Qualify: F5.4-C01, F5.4-C02, F5.4-C03, F5.4-C04, F5.5-C01, F5.5-C04, F5.7-C03
+- Parents with unmet final joins: 11
+  Layout: unassessed 0, missing 0, implemented 0, verified 27; ready investigate 0, implement 0, qualify 0
+  PCB: unassessed 0, missing 0, implemented 8, verified 18; ready investigate 0, implement 0, qualify 8
+    Qualify: F5.4-C01, F5.4-C02, F5.4-C03, F5.4-C04, F5.5-C01, F5.5-C04, F5.7-C03, F5.7-C04
   Keymap: unassessed 0, missing 0, implemented 0, verified 7; ready investigate 0, implement 0, qualify 0
   Keycaps: unassessed 0, missing 0, implemented 0, verified 13; ready investigate 0, implement 0, qualify 0
-  Case: unassessed 0, missing 2, implemented 12, verified 25; ready investigate 0, implement 2, qualify 12
-    Implement: F7.4-C01, F7.5-C02
-    Qualify: F7.1-C04, F7.3-C07, F7.5-C01, F7.5-C03, F7.5-C04, F7.6-C01, F7.6-C04, F7.6-C05, F7.7-C02, F7.7-C04, F7.8-C01, F7.8-C05
+  Case: unassessed 0, missing 1, implemented 3, verified 35; ready investigate 0, implement 1, qualify 3
+    Implement: F7.5-C02
+    Qualify: F7.5-C01, F7.5-C03, F7.8-C05
   Parts+Project: unassessed 0, missing 0, implemented 7, verified 32; ready investigate 0, implement 0, qualify 7
     Qualify: F2.2-C02, F2.2-C03, F4.1-C01, F4.1-C02, F4.3-C02, F4.5-C01, F4.5-C03
   Shared: unassessed 3, missing 0, implemented 8, verified 19; ready investigate 1, implement 0, qualify 6
@@ -34,25 +33,20 @@
     Qualify: F6.6-C01, F6.6-C04, F6.6-C06, F8.3-C01, F8.3-C03, F8.5-C01
 Functional criteria verified; formal acceptance still outstanding:
   F2.4: visual/release F2.4-C04
-  F4.4: joins F7.3; visual/release F4.4-C05
+  F4.4: visual/release F4.4-C05
   F4.6: joins F4.4
   F5.1: visual/release F5.1-C03
   F5.6: visual/release F5.6-C05
-  F6C.5: joins F7.3
+  F7.7: joins F5.6
   F8.1: visual/release F8.1-C04
-  F8.4: joins F6C.5
+  F8.4: formal acceptance/review pending
 Exact unmet final joins:
-  F3.6 → F7.3
-  F4.4 → F7.3
   F4.6 → F4.4
-  F5.8 → F7.3, F7.7
-  F6C.5 → F7.3
-  F6.6 → F7.6
+  F5.8 → F7.7
   F7.7 → F5.6
-  F7.8 → F3.6, F4.4, F6C.5
+  F7.8 → F4.4
   F8.3 → F4.3, F5.5
-  F8.4 → F6C.5
-  F8.5 → F7.6, F7.7
+  F8.5 → F7.7
   F8.6 → F2.2, F3.7, F4.5, F4.6, F5.8, F6.6, F7.8
   F9.2 → F2.2, F2.4, F3.7, F4.5, F4.6, F5.8, F6.6, F7.8, F8.6
   F9.3 → F9.2
@@ -60,7 +54,7 @@ Exact unmet final joins:
   F9.5 → F9.2
 
 ## Parents
-- Accepted (25): INT.1, INT.2, BND.1, BND.2, F2.1, F2.3, F3.1, F3.2, F3.3, F3.4, F3.5, F3.8, F4.2, F5.2, F5.3, F6K.1, F6K.2, F6K.3, F6K.4, F6C.1, F6C.2, F6C.3, F6C.4, F7.2, F8.2
+- Accepted (31): INT.1, INT.2, BND.1, BND.2, F2.1, F2.3, F3.1, F3.2, F3.3, F3.4, F3.5, F3.6, F3.8, F4.2, F5.2, F5.3, F6K.1, F6K.2, F6K.3, F6K.4, F6C.1, F6C.2, F6C.3, F6C.4, F6C.5, F7.1, F7.2, F7.3, F7.4, F7.6, F8.2
 - Hold (0): none
 
 ## Criteria on hold or blocked
@@ -339,3 +333,20 @@ Manualfullprofile controls/history/reopen acceptedr38parsedwholeprojectequalsref
 Next2files frozen/reviewCLEAR: mechanical_settings.rs f3c07dd02aeba0c658961fedd985d2d701e8541951b91e0ea70639bd6abf7c34; pcb_module_inspector.rs06b6afff9288f8124b51c9fb945a64b1c160890f0076b93faac3ae90cfa6ec52. StagedexplicitBEFOREgate2855314: terminal0 native245/page/reachability/strictheadless12,0exclusions/incomplete. /tmp/case-extraction-lifecycle-{source-paths,source-hashes,commit-paths}.json. Sixunrelatedindexpreserved. Finalreviewcase-profile-handle-review-20261005.md. Commit/buildnext, thenactualApplysame42inputreplay. F76actualREADY.patch nowapplicable/readcheckpassed, preservedthreefileevidenceonly; pausedbehindprofilebug; no livewrites.
 
 Handlebda actualBottomview drag680,304→680,312 savedr19 withcanvas701wide/backing1050 andabsoluteoverlay. ActualUndo20parsedentiredocumentrestoresinputexceptrevision; Redo21restoresmoveddocument. Manualpreviewstale/Exportdisabledobserved. BUTUpdatepreviewonthisdownwardendpointreportsmount47hole/bossenvelopeblocked: do NOTqualifyentiregesture/constraintcriterion. RestoredoriginalwithUndo22 andclickedUpdatepreview; currenthandleC tab52generating. Nexttryknownreferencelateralgesture680,304→684,304 afterexactready, preservingdownwardadmissionlimit; theninvalid/noncommit/livepreviewbranches. Evidencecase-handle-qualification-20261005/candidate-bda-*.boardstudio/json.
+
+## Current continuation — published extraction; reviewed shared joins
+
+HEAD cc728fc644d57b985feed9128ffdb40f9c75a709. Published frontend-case-extraction-lifecycle-20261005 root34822/subpath, server PID2872710, actual JS boardstudio-web-dxhd9c1c044c4d075.js. Build202.55s,9freshcommands,23inherited-lineagecommands,0source/assetmismatches. First failed chain2862383 committed successfully then rejected reuse-derived baseline; never recommit/restart it. Successful build2867130 reused FULL frontend-case-layout-controls-20261005 and is terminal0.
+
+Actual profile Apply same r42 input now savesr43 entireparsedproject equal pinned TSreference; Undo-9.4/Redo-9.5 savesr45 entireprojectequal43exceptrevision and reopenretains-9.5. Receipt public-cc728fc6.md. Independent review accepted F7.1,F7.3,F7.4,F3.6,F6C.5. Current counts generated above. F7.5C04 verified actualmanualhistory/live/reopen. Validlateralr23 and invalidoutwardnochange archived. Actual TS downwardgesture itself savesr19 then sameboss-envelopeCADblocker; do not treat that pre-existingbackendpolicy as a newmigrationdefect or weakenconstraints.
+
+Frozen REQUIRED F76 test-only3file batch cad_presentation/runtime/presentation. Bothfocusedmountedtests1/1passed. Sources explicitlystaged BEFORE combinedgate PID2876848; /tmp/case-readiness-final-gates.log/.exit/.json. Native245/page/reachabilitypassed; broadpresentationheadlessstillRUNNING at lastactualPIDcheck. InspectlivePID/exit before any restart. Reviewer identified originalglobal #case-export-refresh lookup/newretainedroots collision risk; author case_local_export holdswrites awaitinggrouped result. If failureexpectedcrossroot, minimalrootscope/cleanup then wholecadmodule and renewedaggregate. No productdefectclaim; no source edits during activegate. Draft explicitcommitmanifest /tmp/case-readiness-milestone-commit-paths.json (25ownedpaths, refreshevidence/gatelog); preserve6unrelatedindexidentities /tmp/case-layout-unrelated-index.json. No newpackage needed for test-onlydelta unless releasebehaviorchanges; keep cc source attribution explicit.
+
+Same sole reviewer preset_batch_review consolidating remaining C04preference/sourceverdict. Actual paired cc/TS fiveconsumer scope receipt cross-consumer-cc728fc6-20261005 supportsF7.7C02/F7.8C01 (nowverified). RightWireframe resetsHybrid onLeft/Right BOTH. Distinct actualbodypref: bothimportedvalidhandle23, RightHidePlate→ShowPlate, Left→Right retainsShowPlate; Right exact, candidateLeftblocked/noPlaterow explicitlynotinvented. body-display-observations.json. F7.7C04 awaitsreview of thislastbranch; prior pendingCAD and pendingSave proofs alreadylocated, do NOTrepeatfailedCDPraces. F8.4 awaitsF8.1 visualjoin; noautomaticaccept.
+
+Secondauthor draft_failure_triage prepares EVIDENCE-ONLY required gestureprovisional/cancellationcomposition packet in shared_viewer/case_viewer after reviewing existing14/14 matrix. No livewrites/compile; do not duplicatecoveredinvalid/historychecks. F8/F9unassessed remainopenuntilprerequisites. No optional/mobilework/push. Currentbrowserbindings handleC/handleR mayclearatturndoundary; reusebrowser, createtabs asneeded.
+
+
+Superseding checkpoint: broadgate2876848 was deliberately stopped for REQUIREDfixturefix; wrapper/deliver/runner allverifiedMISSING. Incomplete headless, notpass. Minimal root-scoped Refresh and3ownedrootcleanup applied; wholeCADmodule4/4passed51.50s. Existinghashboundownerconfig nowmaps exacttest-onlypresentation/runtime toall4CADtests, independentlyapproved; runner37/37. Fourpaths stagedbefore new finalgatePID2901285 /tmp/case-readiness-settled-gates.log/.exit/.json; inspectthishandle, neverrestartoldgate. FinalcadSHA2d42e194d135e1330c89ada46a4f6d798ffd4f3f2fc203c23149cba5b00e32ef. Reviewerfinalhandshakepending; no extra package for test-onlybatch. F7.7C04 nowverified frombodypreference actualscope/revisit; parentjoinsremain.
+
+Final readiness milestone: four-file source/config independent CLEAR; settledgate2901285 TERMINAL0 native245/1ignored, page/reachability, strict4/0fail/0excluded/0incomplete56.37s. Prior2876848 deliberately stopped/incomplete. F7.6C01/C04/C05verified andparentaccepted; generatedcountsabove. Explicitmilestonecommit nowintegrates4paths andactualqualificationrecords, preserving6unrelatedindexentries. Publishedcc remainsunchangedproductioncandidate; noextra package. Next required author draft_failure_triage prepares actualevidence-onlyprovisional/Escapecompositionpatch; releaseaftercommit. No optional/mobilework.

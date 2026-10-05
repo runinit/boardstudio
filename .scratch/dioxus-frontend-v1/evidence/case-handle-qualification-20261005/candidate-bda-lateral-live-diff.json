@@ -1,0 +1,61 @@
+{
+  "baseline": "input.boardstudio:project.json",
+  "candidate": "candidate-bda-lateral-live.boardstudio:project.json",
+  "changes": [
+    [
+      "/boards/1/partIds/72",
+      "case-closure/right/208.29624/-2.73081",
+      "case-closure/right/206.38849/-2.62284"
+    ],
+    [
+      "/definitions/20/id",
+      "assembly-closure/definition/right/208.29624/-2.73081",
+      "assembly-closure/definition/right/206.38849/-2.62284"
+    ],
+    [
+      "/hardware/instances/1/mechanical/closureMounts/2/at/x",
+      208.2962435897436,
+      206.38848876953125
+    ],
+    [
+      "/hardware/instances/1/mechanical/closureMounts/2/at/y",
+      -2.7308064516129065,
+      -2.622844696044922
+    ],
+    [
+      "/hardware/sharedConstruction/closureMounts/2/at/x",
+      208.2962435897436,
+      206.38848876953125
+    ],
+    [
+      "/hardware/sharedConstruction/closureMounts/2/at/y",
+      -2.7308064516129065,
+      -2.622844696044922
+    ],
+    [
+      "/parts/146/definitionId",
+      "assembly-closure/definition/right/208.29624/-2.73081",
+      "assembly-closure/definition/right/206.38849/-2.62284"
+    ],
+    [
+      "/parts/146/id",
+      "case-closure/right/208.29624/-2.73081",
+      "case-closure/right/206.38849/-2.62284"
+    ],
+    [
+      "/parts/146/pose/at/x",
+      208.2962435897436,
+      206.38848876953125
+    ],
+    [
+      "/parts/146/pose/at/y",
+      -2.7308064516129065,
+      -2.622844696044922
+    ],
+    [
+      "/revision",
+      18,
+      23
+    ]
+  ]
+}
