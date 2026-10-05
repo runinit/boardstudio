@@ -1,0 +1,41 @@
+{
+  "source": "/tmp/f57-candidate-saved.boardstudio",
+  "source_sha256": "14f4995638e1629b5fb0ba0fc54dab3531a76fb512ef2a6d787640adba809910",
+  "input_sha256": "af4bd1bb6aab75adb480775b443ed1aea0c71ca029cd1e33babfd19ab82bf4fc",
+  "changes": [
+    "project id",
+    "project name"
+  ],
+  "models": [
+    {
+      "model_path": "${KIPRJMOD}/models/31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b.stp",
+      "file": ".scratch/dioxus-frontend-v1/evidence/pcb-routed-folder-20261005/models/31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b.stp",
+      "sha256": "31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b"
+    },
+    {
+      "model_path": "${KIPRJMOD}/models/42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3.step",
+      "file": ".scratch/dioxus-frontend-v1/evidence/pcb-routed-folder-20261005/models/42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3.step",
+      "sha256": "42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3"
+    },
+    {
+      "model_path": "${KIPRJMOD}/models/54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e.step",
+      "file": ".scratch/dioxus-frontend-v1/evidence/pcb-routed-folder-20261005/models/54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e.step",
+      "sha256": "54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e"
+    },
+    {
+      "model_path": "${KIPRJMOD}/models/77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f.step",
+      "file": ".scratch/dioxus-frontend-v1/evidence/pcb-routed-folder-20261005/models/77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f.step",
+      "sha256": "77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f"
+    },
+    {
+      "model_path": "${KIPRJMOD}/models/abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722.step",
+      "file": ".scratch/dioxus-frontend-v1/evidence/pcb-routed-folder-20261005/models/abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722.step",
+      "sha256": "abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722"
+    },
+    {
+      "model_path": "${KIPRJMOD}/models/ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4.stp",
+      "file": ".scratch/dioxus-frontend-v1/evidence/pcb-routed-folder-20261005/models/ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4.stp",
+      "sha256": "ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4"
+    }
+  ]
+}

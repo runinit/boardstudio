@@ -1,0 +1,233 @@
+[
+  {
+    "step": "keyboard-enter-perimeter",
+    "app": "candidate",
+    "dom": [
+      "      - heading \"Perimeter\" [level=2]",
+      "      - button \"Done\"",
+      "      - spinbutton \"Point 1 X mm\": \"180.97\"",
+      "      - spinbutton \"Point 1 Y mm\": \"-82.998\""
+    ],
+    "focus": {
+      "label": null,
+      "tag": "BODY",
+      "text": "\n        Case generation export20261005KeyboardsNew projectSave project copy…Ope"
+    }
+  },
+  {
+    "step": "keyboard-enter-perimeter",
+    "app": "reference",
+    "dom": [
+      "      - button \"Finish editing outline points\": Done",
+      "    - button \"Back to selection\":",
+      "    - heading \"Perimeter\" [level=2]",
+      "    - button \"Done\"",
+      "    - spinbutton \"Point 1 X mm\": \"180.97\"",
+      "    - spinbutton \"Point 1 Y mm\": \"-82.998\""
+    ],
+    "focus": {
+      "label": null,
+      "tag": "BODY",
+      "text": "\n    Case generation export20261005Saved locallyChanges are saved in this browse"
+    }
+  },
+  {
+    "step": "keyboard-done-perimeter",
+    "app": "candidate",
+    "dom": [
+      "      - heading \"Board outline\" [level=2]",
+      "      - button \"Edit perimeter points\""
+    ],
+    "focus": {
+      "label": null,
+      "tag": "BODY",
+      "text": "\n        Case generation export20261005KeyboardsNew projectSave project copy…Open project…Current pr"
+    }
+  },
+  {
+    "step": "keyboard-done-perimeter",
+    "app": "reference",
+    "dom": [
+      "    - button \"Back to selection\":",
+      "    - heading \"Board outline\" [level=2]",
+      "    - button \"Edit perimeter points\"",
+      "      - button \"Edit perimeter\":"
+    ],
+    "focus": {
+      "label": null,
+      "tag": "BODY",
+      "text": "\n    Case generation export20261005Saved locallyChanges are saved in this browser. Use Save project "
+    }
+  },
+  {
+    "step": "keyboard-escape-perimeter",
+    "app": "candidate",
+    "dom": [
+      "      - heading \"Perimeter\" [level=2]",
+      "      - button \"Done\" [active]"
+    ],
+    "focus": {
+      "label": null,
+      "tag": "BUTTON"
+    }
+  },
+  {
+    "step": "keyboard-escape-perimeter",
+    "app": "reference",
+    "dom": [
+      "    - heading \"Right PCB\" [level=2]"
+    ],
+    "focus": {
+      "label": "Board name",
+      "tag": "INPUT"
+    }
+  },
+  {
+    "step": "control-click-two-keys-inspector",
+    "app": "candidate",
+    "dom": [
+      "    - heading \"Objects\" [level=2]",
+      "    - heading \"Inspect\" [level=2]",
+      "      - heading \"right-keys-SW2\" [level=2]"
+    ]
+  },
+  {
+    "step": "control-click-two-keys-inspector",
+    "app": "reference",
+    "dom": [
+      "    - heading \"keys · Key 2.1\" [level=2]: Key 2.1",
+      "    - paragraph: 2 keys selected",
+      "      - tab \"Properties\" [selected]",
+      "      - tab \"Relations\"",
+      "      - checkbox \"Key enabled\" [checked]",
+      "      - generic: Local X",
+      "      - spinbutton \"Local X mm\": \"0\"",
+      "      - generic: Local Y",
+      "      - spinbutton \"Local Y mm\": \"0\"",
+      "      - text: Key Assembly",
+      "      - combobox \"Key Assembly\":",
+      "      - heading \"Attached components\" [level=3]"
+    ]
+  },
+  {
+    "step": "create-offset-driven-component",
+    "app": "candidate",
+    "dom": [
+      "  - generic \"Saved locally\"",
+      "      - heading \"MH5\" [level=2]",
+      "      - spinbutton \"X mm\" [disabled]: \"192.77\"",
+      "      - spinbutton \"Y mm\" [disabled]: \"-111.55\"",
+      "      - generic \"Layout constraint Active\":",
+      "        - generic: Layout constraint",
+      "      - combobox \"Constraint type\":",
+      "      - combobox \"Constraint source part\":",
+      "      - paragraph: right-keys-SW1 drives MH5.",
+      "      - button \"Save constraint\" [active]"
+    ]
+  },
+  {
+    "step": "create-offset-driven-component",
+    "app": "reference",
+    "dom": [
+      "  - generic \"Saved locally\"",
+      "    - heading \"MH5\" [level=2]",
+      "    - spinbutton \"X mm\": \"192.77\"",
+      "    - spinbutton \"Y mm\": \"-111.55\"",
+      "    - generic \"Layout constraint Active\":",
+      "      - generic: Layout constraint",
+      "    - combobox \"Constraint type\":",
+      "    - combobox \"Constraint source part\":",
+      "    - paragraph: right-keys-SW1 drives MH5.",
+      "    - button \"Save constraint\" [active]"
+    ]
+  },
+  {
+    "step": "driven-constraint-reload",
+    "app": "candidate",
+    "dom": [
+      "      - spinbutton \"X mm\" [disabled]: \"192.77\"",
+      "      - spinbutton \"Y mm\" [disabled]: \"-111.55\"",
+      "      - generic \"Layout constraint Active\":",
+      "      - paragraph: right-keys-SW1 drives MH5."
+    ]
+  },
+  {
+    "step": "mixed-key-controller-selection",
+    "app": "candidate",
+    "dom": [
+      "    - heading \"Objects\" [level=2]",
+      "    - heading \"Inspect\" [level=2]",
+      "      - heading \"right-U1\" [level=2]"
+    ]
+  },
+  {
+    "step": "mixed-key-controller-selection",
+    "app": "reference",
+    "dom": [
+      "    - generic: 2 selected",
+      "      - tab \"Properties\" [selected]",
+      "      - tab \"Relations\"",
+      "    - heading \"right-keys-SW1\" [level=2]",
+      "    - heading \"Position millimetres\" [level=3]:",
+      "    - spinbutton \"X mm\": \"212.77\"",
+      "    - spinbutton \"Y mm\": \"-71.55\"",
+      "    - paragraph: 2 parts selected. Position edits apply to selection."
+    ]
+  },
+  {
+    "step": "reference-mixed-position-plus1",
+    "app": "reference",
+    "geometry": [
+      {
+        "label": "right-keys-SW1, switch mx, X 212.77 Y -71.548",
+        "transform": "translate(212.77 -71.548) rotate(0)"
+      },
+      {
+        "label": "right-U1, mcu nice nano, X 192.27 Y -21.158",
+        "transform": "translate(192.27 -21.158) rotate(0)"
+      }
+    ]
+  },
+  {
+    "step": "reference-mixed-position-one-undo",
+    "app": "reference",
+    "geometry": [
+      {
+        "label": "right-keys-SW1, switch mx, X 212.77 Y -71.548",
+        "transform": "translate(212.77 -71.548) rotate(0)"
+      },
+      {
+        "label": "right-U1, mcu nice nano, X 192.27 Y -21.158",
+        "transform": "translate(192.27 -21.158) rotate(0)"
+      }
+    ]
+  },
+  {
+    "step": "reference-mixed-position-blur-settled",
+    "app": "reference",
+    "geometry": [
+      {
+        "label": "right-keys-SW1, switch mx, X 213.77 Y -71.548",
+        "transform": "translate(213.77 -71.548) rotate(0)"
+      },
+      {
+        "label": "right-U1, mcu nice nano, X 193.27 Y -21.158",
+        "transform": "translate(193.27 -21.158) rotate(0)"
+      }
+    ]
+  },
+  {
+    "step": "reference-mixed-position-blur-one-undo-settled",
+    "app": "reference",
+    "geometry": [
+      {
+        "label": "right-keys-SW1, switch mx, X 212.77 Y -71.548",
+        "transform": "translate(212.77 -71.548) rotate(0)"
+      },
+      {
+        "label": "right-U1, mcu nice nano, X 192.27 Y -21.158",
+        "transform": "translate(192.27 -21.158) rotate(0)"
+      }
+    ]
+  }
+]

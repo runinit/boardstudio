@@ -2892,7 +2892,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 ## RF-033: 63 plain #[test]s in wasm-only presentation modules never run natively; one pre-existing mounted test fails
 
-**Status:** reachability conversion and commit gates installed; current ratchet has zero baselined wasm-only plain tests; known assertion failures and external exclusions remain open
+**Status:** reachability conversion installed; final draft fixture corrected and scoped15/15 passed; known failure list empty; combined integration gate pending
 
 **Confidence:** confirmed by scripts/check-wasm-tests.py and a failing headless-Chrome run
 
@@ -2900,7 +2900,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Impact:** Behavior the ledger calls covered may be untested; two defects already reached commits because of this blind spot.
 
-**Current mitigation:** Retain zero-baseline reachability and enforced native/page/headless gates. Shared fresh generator setup restores five tests to the enforcing gate; mobile checks are deferred by user instruction, not repaired. The sole remaining exclusion is the unresolved mounted component draft assertion.
+**Current mitigation:** Retain enforced native/page/reachability/headless gates. Corrected draft fixture now distinguishes dirty focused fields from tab resets and proves latest-owner edits. The obsolete sole failure exemption was removed after scoped15/15 execution; no failures or exclusions count as passes. Mobile remains deferred.
 
 **Evidence:** `scripts/check-wasm-tests.py`; `scripts/check-wasm-tests-baseline.json`; `.scratch/dioxus-frontend-v1/evidence/review-opus-20261004/consolidated-review.md`
 
@@ -2950,6 +2950,15 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
       "observation": "Read-only triage of the sole excluded mounted component-draft test does not establish a product defect: its interceptor records blur edits without Core/Session acceptance, leaving accepted X at4 while expecting7.25 after remount. It also expects unsaved constraint state to survive a reference subtree unmount. Retain the exclusion and current production reset policy until the mounted fixture accepts real edits and a paired public check determines the correct assertions. No test pass or product fix is claimed.",
       "evidence": [
         ".scratch/dioxus-frontend-v1/evidence/component-draft-exclusion-triage-20261004.md"
+      ]
+    },
+    {
+      "date": "2026-10-05",
+      "observation": "Resolved final excluded draft assertion as fixture mismatch: intercepted blur edits were never applied before a Properties tab reset from accepted state. Replaced that impossible composite scenario with realistic focused X draft/clean Y refresh and latest-owner blur, margin Enter against latest document, and separate Relations-tab retention. Actual module JSON records15passed/0failed/0excluded/0incomplete; production unchanged. Removed obsolete sole known-failure entry; runner suite37/37 passed. Whole integration gate remains pending. Preserved original failure and old excluded-run limits.",
+      "evidence": [
+        ".scratch/dioxus-frontend-v1/evidence/layout-escape-repair-20261005/rf033-fixture-repair.md",
+        ".scratch/dioxus-frontend-v1/evidence/layout-escape-repair-20261005/rf033-fixed-results.json",
+        "scripts/wasm-known-failures.json"
       ]
     }
   ]

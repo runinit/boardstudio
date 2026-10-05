@@ -390,6 +390,7 @@ pub(super) struct OutlineInspectorProjection {
     pub(super) enabled: bool,
     pub(super) feedback: Option<OutlineFeedback>,
     pub(super) on_action: EventHandler<OutlineAction>,
+    selected_context: Signal<Option<super::objects::ScopedTreeContext>>,
     pub(super) scope: Scope,
     token: boardstudio_application::SnapshotToken,
     revision: u64,
@@ -1248,6 +1249,7 @@ fn project_inspector(
         enabled: editable,
         feedback: pending_feedback.or(visible_feedback),
         on_action,
+        selected_context,
         scope,
         token: snapshot.token,
         revision: snapshot.document.revision,
@@ -2163,6 +2165,24 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
                 if perimeter_open() {
             if let Some(perimeter) = perimeter.as_ref() {
                 section { class: "m1-outline-inspector m1-outline-point-editor", "aria-label": "Perimeter",
+                    onkeydown: {
+                        let mut selected_context = projection.selected_context;
+                        let scope = projection.scope.clone();
+                        let board_id = projection.board_id.clone();
+                        move |event: KeyboardEvent| {
+                            if event.data().key().to_string() != "Escape" { return; }
+                            event.prevent_default();
+                            event.stop_propagation();
+                            let Some(selected) = selected_context.read().clone() else { return; };
+                            if selected.scope != scope
+                                || !matches!(selected.context, super::objects::TreeContext::Outline { board_id: selected_board } if selected_board == board_id)
+                            { return; }
+                            selected_context.set(Some(super::objects::ScopedTreeContext {
+                                scope: scope.clone(),
+                                context: super::objects::TreeContext::Board { board_id: board_id.clone() },
+                            }));
+                        }
+                    },
                     div { class: "m1-outline-inspector-heading",
                         h2 { "Perimeter" }
                         button { r#type: "button", disabled: !enabled, onclick: move |_| perimeter_open.set(false), "Done" }
@@ -3601,7 +3621,9 @@ fn OutlineDimension(
                         }
                         "Escape" => {
                             event.prevent_default();
+                            let has_draft = field().1 != value.to_string();
                             field.set((value, value.to_string()));
+                            if has_draft { event.stop_propagation(); }
                         }
                         _ => {}
                     }
@@ -3665,7 +3687,9 @@ fn OutlineCoordinate(
                         }
                         "Escape" => {
                             event.prevent_default();
+                            let has_draft = field().1 != value.to_string();
                             field.set((value, value.to_string()));
+                            if has_draft { event.stop_propagation(); }
                         }
                         _ => {}
                     }

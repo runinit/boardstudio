@@ -15,6 +15,7 @@ pub struct LayoutComponentInspectorOwnerKey {
     pub scope: Option<Scope>,
     pub workspace: &'static str,
     pub part_id: Option<String>,
+    pub selected_part_ids: Vec<String>,
 }
 
 #[derive(Default)]
@@ -46,6 +47,7 @@ pub struct LayoutComponentInspectorOwner {
     pub context_generation: u64,
     pub scope_generation: u64,
     pub part_id: String,
+    pub selected_part_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -57,6 +59,7 @@ pub struct LayoutComponentInspectorProjection {
     pub envelope_notice: Option<String>,
     pub locked: bool,
     pub position: Vec2,
+    pub selection_count: usize,
     pub layout_id: Option<String>,
     pub layouts: Vec<LayoutChoice>,
     pub outline: PartOutline,
@@ -174,6 +177,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         owner.context_generation,
         owner.scope_generation,
         owner.part_id.clone(),
+        owner.selected_part_ids.clone(),
     );
     let capture_identity = (identity.clone(), owner.snapshot_token, owner.revision);
     let mut latest_capture = use_signal(|| owner.clone());
@@ -484,6 +488,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         }
     };
     let position = projection.position;
+    let group_selection = projection.selection_count > 1;
     let outline = projection.outline.clone();
     let active_constraint = projection.active_constraint.clone();
     let board_parts = projection.board_parts.clone();
@@ -508,9 +513,13 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                 button { r#type: "button", role: "tab", aria_selected: "{tab() == LayoutInspectorTab::Relations}", onclick: move |_| tab.set(LayoutInspectorTab::Relations), "Relations" }
             }
             if tab() == LayoutInspectorTab::Properties {
-                p { class: "m1-layout-component-definition", "{projection.definition_name}", span { "{projection.definition_kind}" } }
-                if let Some(notice) = projection.envelope_notice.as_ref() { p { class: "m1-layout-component-notice", "{notice}" } }
-                if !projection.layouts.is_empty() {
+                if group_selection {
+                    p { class: "m1-layout-component-selection-note", "{projection.selection_count} parts selected. Position edits apply to the selection." }
+                } else {
+                    p { class: "m1-layout-component-definition", "{projection.definition_name}", span { "{projection.definition_kind}" } }
+                    if let Some(notice) = projection.envelope_notice.as_ref() { p { class: "m1-layout-component-notice", "{notice}" } }
+                }
+                if !group_selection && !projection.layouts.is_empty() {
                     label { class: "m1-layout-component-layout", "Layout"
                         select {
                             aria_label: "Component layout",
@@ -563,6 +572,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                         } },
                     } }
                 }
+                if !group_selection {
                 details { class: "m1-layout-component-outline",
                     summary { span { "Board outline" } small { if projection.outline.excluded { "Excluded" } else { "Included" } } }
                     fieldset { disabled: projection.locked,
@@ -668,6 +678,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                             if active_constraint.is_some() { button { r#type: "button", onclick: remove_constraint, "Remove" } }
                         }
                     } else { p { "Add another part on this board to create a layout constraint." } }
+                }
                 }
                 if let Some(message) = error() { p { role: "alert", "{message}" } }
                 button { class: "m1-layout-component-electrical", r#type: "button", onclick: {

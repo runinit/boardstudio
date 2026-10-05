@@ -1,0 +1,11 @@
+{
+  "source": ".scratch/dioxus-frontend-v1/evidence/case-generation-export-20261005/candidate-dimensions-saved.boardstudio",
+  "source_sha256": "fdd43cd2f74abf30ada74931f1f31ef87c09b338e454a47fbc413a595786531f",
+  "fixture_sha256": "5b4453dc1415540163369d5c053c3e577abfdbd972a6b66d12e9712368472e3a",
+  "id": "d0b8c0da-1fc0-4a6d-950c-ec840dc1270d",
+  "revision": 18,
+  "changes": [
+    "top-level id",
+    "top-level name"
+  ]
+}

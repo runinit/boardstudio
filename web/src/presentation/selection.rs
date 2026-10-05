@@ -258,6 +258,7 @@ pub(super) fn submit_canvas_selection(
     } else {
         mode
     };
+    let context = additive_inspector_context(&model, &context, &ids, mode, None);
     let mut selected_context = adapter.selected_context;
     selected_context.set(Some(ScopedTreeContext {
         scope: scope.clone(),
@@ -356,6 +357,7 @@ pub(super) fn submit_matrix_cell_selection(
         .into_iter()
         .filter(|id| eligible.iter().any(|candidate| candidate == id))
         .collect::<Vec<_>>();
+    let context = additive_inspector_context(&model, &context, &ids, mode, Some(hit_context));
     let mut selected_context = adapter.selected_context;
     selected_context.set(Some(ScopedTreeContext {
         scope: scope.clone(),
@@ -372,6 +374,85 @@ pub(super) fn submit_matrix_cell_selection(
     let mut anchor_scope = adapter.anchor_scope;
     anchor_scope.set(Some(scope.clone()));
     Some(ids)
+}
+
+/// An additive canvas selection is shown through the context for the resulting
+/// selection. Keeping the clicked singleton Component context here made the
+/// Inspector disappear as soon as a second part was selected. Same-matrix key
+/// groups retain the clicked Key context; mixed groups keep the first part as
+/// their generic component-position anchor.
+fn additive_inspector_context(
+    model: &boardstudio_application::ReadModel,
+    requested: &TreeContext,
+    incoming_ids: &[String],
+    mode: SelectionMode,
+    hit_context: Option<&TreeContext>,
+) -> TreeContext {
+    if !matches!(
+        requested,
+        TreeContext::Component {
+            part_id: Some(_),
+            matrix_id: None,
+            ..
+        }
+    ) || !matches!(mode, SelectionMode::Add | SelectionMode::Toggle)
+    {
+        return requested.clone();
+    }
+    let mut resulting_ids = model.selected_part_ids.clone();
+    match mode {
+        SelectionMode::Add => {
+            for id in incoming_ids {
+                if !resulting_ids.contains(id) {
+                    resulting_ids.push(id.clone());
+                }
+            }
+        }
+        SelectionMode::Toggle => {
+            for id in incoming_ids {
+                if let Some(index) = resulting_ids.iter().position(|selected| selected == id) {
+                    resulting_ids.remove(index);
+                } else {
+                    resulting_ids.push(id.clone());
+                }
+            }
+        }
+        SelectionMode::Replace | SelectionMode::Range => unreachable!(),
+    }
+    if resulting_ids.is_empty() {
+        return requested.clone();
+    }
+
+    let contexts = resulting_ids
+        .iter()
+        .map(|id| objects::context_for_part(model, id))
+        .collect::<Vec<_>>();
+    let mut matrix_id: Option<String> = None;
+    let all_same_matrix_keys = contexts.iter().all(|context| match context {
+        Some(TreeContext::Key {
+            matrix_id: current, ..
+        }) => {
+            if matrix_id.as_ref().is_some_and(|matrix| matrix != current) {
+                return false;
+            }
+            matrix_id = Some(current.clone());
+            true
+        }
+        _ => false,
+    });
+    if all_same_matrix_keys {
+        if let Some(hit) = hit_context
+            && contexts.iter().any(|context| context.as_ref() == Some(hit))
+        {
+            return hit.clone();
+        }
+        if let Some(Some(context)) = contexts.first() {
+            return context.clone();
+        }
+    }
+
+    objects::component_context_for_finding_part(model, &resulting_ids[0])
+        .unwrap_or_else(|| requested.clone())
 }
 
 pub(super) fn cancel_scoped_drag(

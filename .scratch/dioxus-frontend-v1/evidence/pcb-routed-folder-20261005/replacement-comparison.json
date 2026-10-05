@@ -1,0 +1,56 @@
+[
+  {
+    "app": "candidate",
+    "archive_sha256": "7fa94b70e30c2ef1bc0ea29c546a37acf163d3ee89185d2c567dd9c78ab5f63f",
+    "revision": 25,
+    "reference": {
+      "id": "eb121f24-9d50-4f35-bfaa-0ea392fbe320",
+      "boardId": "left",
+      "assetId": "18a10cfa-2109-4640-b758-39fd6b6351a2",
+      "enabled": true,
+      "pose": {
+        "at": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "rotation": 0.0
+      },
+      "elevation": 0.0,
+      "modelAssets": {}
+    },
+    "asset": {
+      "id": "18a10cfa-2109-4640-b758-39fd6b6351a2",
+      "name": "Replacement_PCB.kicad_pcb",
+      "mediaType": "application/x-kicad_pcb",
+      "sha256": "e10047de7d072d68ec847c8d84ea88a8b3f92b1adba94ca79e6e608b2f09414b"
+    },
+    "actual_payload_sha256": "e10047de7d072d68ec847c8d84ea88a8b3f92b1adba94ca79e6e608b2f09414b"
+  },
+  {
+    "app": "reference",
+    "archive_sha256": "0d6e1a69bf3bf1d3597dca5098e3539e21d2876f5d9d9488b1feb352e7ff9261",
+    "revision": 25,
+    "reference": {
+      "id": "ddf7d7eb-9a8f-487d-9af8-7605ac694241",
+      "boardId": "left",
+      "assetId": "d3fec66b-99e8-459b-870b-c66b68316832",
+      "enabled": true,
+      "pose": {
+        "at": {
+          "x": 0,
+          "y": 0
+        },
+        "rotation": 0
+      },
+      "elevation": 0,
+      "modelAssets": {}
+    },
+    "asset": {
+      "id": "d3fec66b-99e8-459b-870b-c66b68316832",
+      "name": "Replacement_PCB.kicad_pcb",
+      "mediaType": "application/x-kicad-pcb",
+      "sha256": "e10047de7d072d68ec847c8d84ea88a8b3f92b1adba94ca79e6e608b2f09414b"
+    },
+    "actual_payload_sha256": "e10047de7d072d68ec847c8d84ea88a8b3f92b1adba94ca79e6e608b2f09414b"
+  }
+]

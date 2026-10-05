@@ -1,0 +1,13 @@
+{
+  "source": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/modules/vik-splitter-gnd-join-ad26b07a.boardstudio",
+  "source_sha256": "a12e79aa97b6170f4afff8140ab67eeedb6cf957e12c4447058dd011ba23634f",
+  "fixture_sha256": "07ae96cfa994169a9d9c2b02fe8f26f724c8b4b9058bab678bf20670c878779b",
+  "source_project_id": "vik-module-review",
+  "project_id": "c46d8ae8-6834-4723-8a62-0aa3ba7053e6",
+  "revision": 13,
+  "changes": [
+    "top-level project id",
+    "top-level project name"
+  ],
+  "purpose": "Reload already-saved generic circuit-copy/join and constituent placement from a legacy saved project; no catalogue/VIK feature acceptance"
+}

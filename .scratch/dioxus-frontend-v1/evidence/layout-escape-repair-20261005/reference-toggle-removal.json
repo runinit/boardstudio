@@ -1,0 +1,53 @@
+[
+  {
+    "app": "reference",
+    "step": "three-selected",
+    "dom": [
+      "    - generic: 3 selected",
+      "    - heading \"keys · Key 3.1\" [level=2]: Key 3.1",
+      "    - paragraph: 3 keys selected",
+      "      - spinbutton \"Local X mm\": \"0\"",
+      "      - spinbutton \"Local Y mm\": \"0\""
+    ]
+  },
+  {
+    "app": "reference",
+    "step": "remove-third",
+    "dom": [
+      "    - generic: 2 selected",
+      "    - heading \"keys · Key 3.1\" [level=2]: Key 3.1",
+      "    - paragraph: 2 keys selected",
+      "      - spinbutton \"Local X mm\": \"0\"",
+      "      - spinbutton \"Local Y mm\": \"0\""
+    ]
+  },
+  {
+    "app": "reference",
+    "step": "remove-second",
+    "dom": [
+      "    - generic: 1 selected",
+      "    - heading \"keys · Key 2.1\" [level=2]: Key 2.1",
+      "    - paragraph: 1 keys selected",
+      "      - spinbutton \"Local X mm\": \"0\"",
+      "      - spinbutton \"Local Y mm\": \"0\""
+    ]
+  },
+  {
+    "app": "reference",
+    "step": "remaining-A-selected-Local-X1-blur",
+    "parts": [
+      {
+        "label": "right-keys-SW1, switch mx, X 212.77 Y -71.548",
+        "selected": "true"
+      },
+      {
+        "label": "right-keys-SW2, switch mx, X 232.77 Y -69.148",
+        "selected": "false"
+      },
+      {
+        "label": "right-keys-SW3, switch mx, X 250.77 Y -66.648",
+        "selected": "false"
+      }
+    ]
+  }
+]

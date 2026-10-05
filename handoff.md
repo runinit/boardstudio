@@ -1,18 +1,67 @@
 # Handoff (generated from records)
 
-- Branch: codex/rust-v1-ui-parity-20261001 @ 7f3165b4
+- Branch: codex/rust-v1-ui-parity-20261001 @ eac47f42
 - Worktree: /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001
 - Parents: 22/61 accepted, 28 implementing, 11 planned
-- Criteria: unassessed 27, missing 1, implemented 67, verified 127; 222 total
-  - functional: implemented 54, missing 1, unassessed 3, verified 123
+- Criteria: unassessed 27, missing 0, implemented 57, verified 138; 222 total
+  - functional: implemented 44, unassessed 3, verified 134
   - release: implemented 10, unassessed 19, verified 4
   - visual: implemented 3, unassessed 5
 
 ## Served candidate
-- Build: frontend-preset-customization-20261004
-- Source commit: 4e716156a0692972b1309798cdc883739c7ff73b
+- Build: frontend-case-export-20261005
+- Source commit: eac47f42fec27816d09eec0530fb09e074c6685e
 - Root: http://127.0.0.1:34822/
 - Subpath: http://127.0.0.1:34822/boardstudio/
+
+## Functional readiness
+- Ready functional criteria: 1 investigate, 0 implement, 41 qualify (Layout 0 investigate/0 implement/3 qualify; PCB 0 investigate/0 implement/8 qualify; Keymap 0 investigate/0 implement/0 qualify; Keycaps 0 investigate/0 implement/0 qualify; Case 0 investigate/0 implement/17 qualify; Parts+Project 0 investigate/0 implement/7 qualify; Shared 1 investigate/0 implement/6 qualify)
+- Functionally verified parents awaiting formal acceptance: 10
+- Parents with unmet final joins: 19
+  Layout: unassessed 0, missing 0, implemented 3, verified 24; ready investigate 0, implement 0, qualify 3
+    Qualify: F3.5-C01, F3.5-C04, F3.6-C04
+  PCB: unassessed 0, missing 0, implemented 9, verified 17; ready investigate 0, implement 0, qualify 8
+    Qualify: F5.4-C01, F5.4-C02, F5.4-C03, F5.4-C04, F5.5-C01, F5.5-C02, F5.5-C04, F5.7-C03
+  Keymap: unassessed 0, missing 0, implemented 0, verified 7; ready investigate 0, implement 0, qualify 0
+  Keycaps: unassessed 0, missing 0, implemented 0, verified 13; ready investigate 0, implement 0, qualify 0
+  Case: unassessed 0, missing 0, implemented 17, verified 22; ready investigate 0, implement 0, qualify 17
+    Qualify: F7.1-C04, F7.3-C07, F7.4-C01, F7.4-C03, F7.5-C01, F7.5-C02, F7.5-C03, F7.5-C04, F7.6-C01, F7.6-C04, F7.6-C05, F7.7-C01, F7.7-C02, F7.7-C04, F7.7-C05, F7.8-C01, F7.8-C05
+  Parts+Project: unassessed 0, missing 0, implemented 7, verified 32; ready investigate 0, implement 0, qualify 7
+    Qualify: F2.2-C02, F2.2-C03, F4.1-C01, F4.1-C02, F4.3-C02, F4.5-C01, F4.5-C03
+  Shared: unassessed 3, missing 0, implemented 8, verified 19; ready investigate 1, implement 0, qualify 6
+    Investigate: F8.6-C03
+    Qualify: F6.6-C01, F6.6-C04, F6.6-C06, F8.3-C01, F8.3-C03, F8.5-C01
+Functional criteria verified; formal acceptance still outstanding:
+  F2.4: visual/release F2.4-C04
+  F3.8: joins F3.5
+  F4.4: joins F7.3; visual/release F4.4-C05
+  F4.6: joins F4.4
+  F5.1: visual/release F5.1-C03
+  F5.6: visual/release F5.6-C05
+  F6C.3: joins F3.5
+  F6C.5: joins F7.3
+  F8.1: visual/release F8.1-C04
+  F8.4: joins F6C.5
+Exact unmet final joins:
+  F3.6 → F7.3
+  F3.7 → F6C.3
+  F3.8 → F3.5
+  F4.4 → F7.3
+  F4.6 → F4.4
+  F5.8 → F7.3, F7.7
+  F6C.3 → F3.5
+  F6C.5 → F7.3
+  F6.6 → F7.6
+  F7.7 → F5.6
+  F7.8 → F3.6, F4.4, F6C.5
+  F8.3 → F4.3, F5.5
+  F8.4 → F6C.5
+  F8.5 → F7.6, F7.7
+  F8.6 → F2.2, F3.7, F4.5, F4.6, F5.8, F6.6, F7.8
+  F9.2 → F2.2, F2.4, F3.7, F4.5, F4.6, F5.8, F6.6, F7.8, F8.6
+  F9.3 → F9.2
+  F9.4 → F8.6
+  F9.5 → F9.2
 
 ## Parents
 - Accepted (22): INT.1, INT.2, BND.1, BND.2, F2.1, F2.3, F3.1, F3.2, F3.3, F3.4, F4.2, F5.2, F5.3, F6K.1, F6K.2, F6K.3, F6K.4, F6C.1, F6C.2, F6C.4, F7.2, F8.2
@@ -74,9 +123,9 @@
 - RF-033: 63 plain #[test]s in wasm-only presentation modules never run natively; one pre-existing mounted ...
 
 ## Qualification scope
-- Scope: frontend-parts-library-repairs-20261004 - Scoped assembly editing, shared-viewer consumption and durable project continuity
-- Journeys: F7.3-parts-individual-model-layers, F2.2-library-mounted-recovery, saved-recipe-layout, layout-keymap-keycaps, pcb-model-viewer, case-local-step-scope
-- State: qualified_partial
+- Scope: frontend-case-export-20261005 - Complete desktop Case generation and local export journey
+- Journeys: case-local-step-scope
+- State: qualifying
 
 Last retro checkpoint: 2026-10-04T15:56:00Z
 
@@ -194,3 +243,39 @@ User stopped all optional work; CONSTRAINTS now defines one bounded delivery bat
 24source/tooling paths are frozen/reviewed CLEAR in evidence/acceleration-implementation-20261005/integration-paths.json and integration-path-hashes.json. Corrected gate31866 terminal0: compiler/native245/reachability/strict headless3 passed; headless79.27s. Earlier broad run76294 was deliberately stopped143 after >9min of unrelated tests; no false pass. Six unrelated staged evidence files remain outside explicit commit manifest /tmp/case-acceleration-commit-paths.json. Next: cached guarded integration commit, then frontend-case-export-20261005 --source-commit HEAD snapshot build and publish.
 
 Required paired Case fixture is in evidence/case-generation-export-20261005. Both apps imported identical clonedSofle, addedPlate/configuredMechanical; candidatee12b6 remains Revision5Saved/exact with missinglocalbutton. Reference generated actual2.24MB ZIP with assembly.step+4partSTEPs, revision5, warningsallowed. Candidate output/settings/stale-current/scope/reopen remain unqualified untilnewpackage. No optional lifecycle fixture or benchmark work.
+
+
+## Current continuation — Case and Layout integration
+
+Published baseline frontend-case-export-20261005 is source eac47f42 at http://127.0.0.1:34822/; pinned TypeScript reference 5a472a9 remains read-only at5175. Case manufacturing controls are independently CLEAR. Layout Escape/multi-selection repairs passed focused checks, but final review found Ctrl-toggle removal retaining the removed key as Inspector owner; layout_escape_repair is correcting it with RED/GREEN before preset_batch_review rereview. Combined gate session2356 stopped terminal143 after that finding; native245/page/reachability passed, headless was incomplete and is not a pass. Three unchanged camera/PCB criteria were independently cleared and recorded. Preserve six unrelated staged evidence paths. Next: corrected source CLEAR, one settled combined gate, explicit commit, immutable provider-reuse build and actual paired manufacturing/Layout replay. No optional/mobile work or push.
+
+
+## Latest active goal checkpoint — frozen combined gate
+
+All12Case/Layout source files plus empty known-failure config reviewed CLEAR; manifest evidence/layout-escape-repair-20261005/combined-source-hashes.json. Corrected RF033 fixture15/15/noexclusions and runner37/37passed. Final aggregate gate session2278 is RUNNING, log /tmp/case-layout-final-gates.log; poll handle before any restart. Source edits frozen; next lifecycle and Case-readiness patches are evidence-only and uncompiled, released only after immutable snapshot starts. Explicit commit paths /tmp/case-layout-commit-paths.json; six unrelated staged identities /tmp/case-layout-unrelated-index.json preserved. New F5.6C04 verified; F5.5C02 actual current paired archive/reload evidence in pcb-module-reopen-20261005 awaits reviewer. Current tabs35/36 are own saved module circuit fixture. Candidate34822 remains eac47f42; package frontend-case-layout-controls-20261005 does not exist yet. Next: gate terminalpass, commitexplicitpaths withCodextrailer, provider-reuse snapshotbuild, publish then manufacturing/Layout publicreplay. Never claim25oldtests allpassed: oldrun excludedRF033. TS also editsdeselectedkey; newcandidatefix isintentionalcorrectnessimprovement, publiccomparison inreference-toggle-removal.json.
+
+
+## Latest continuation — resumed gate and new public gaps
+
+HEAD remains eac47f42; frozen13source/config hashes unchanged. Gate2278 was observed TERMINAL143 with no surviving child and no headless result; preserved integration-gate-2278-terminated.log. Resumed detached tracked gate PID2679472 (child2679473), /tmp/case-layout-resumed-gates.log, terminal status will be /tmp/case-layout-resumed-gates.exit. Confirm actual PID/child or exit file before any restart. Native245/page/reachability passed; broad headless still RUNNING (10minutes elapsed at checkpoint). Exact gate manifest /tmp/case-layout-source-paths.json. Prior gate2278 must not be polled as live.
+
+F7.7-C01 independently CLEAR/verified; counts now140/222verified,1missing,54implemented,27unassessed;22/61parentsaccepted. Public same-board multi-instance fixture/evidence in case-multi-instance-20261005 preserves only alternate-instance allowance edit through history/save/reload in both apps. Shared form display limits and geometry errors are explicit; C05notverified.
+
+Public Caseprofile gap confirmed on same imported unknown-switch fixture: Configure→Assign custom geometry to THQWGD001C2-pin tactile savesr16both. TS offers Remove profile/Read KiCad layers and actually returns extracted primitives; candidate offers neither. F7.4-C01 nowmissing. Evidence case-custom-profile-20261005 includes input/provenance,pairedassignedarchives,comparison andRECEIPT. case_local_export prepares evidence-only repair patch for3mechanicalsettingsfiles; no live source or compile until currentcommit/snapshot release. Preserve its earlier F76_REQUIRED_TESTS.patch separately.
+
+Casehandle mismatch retained in case-handle-qualification-20261005. Luna diagnosis localizes rejection to move_case_mount atEnd beforecontroller but lacksactualcandidateworldpoint; notyet provenconstraint/mappingcause. Astra migration_acceleration_review now diagnoses renderercoordinate/capturepath read-only, no optionaltooling. Twofutureauthorstreams areCaseprofile andhandle; lifecycle/readinesspreparedpatchesremainunapplied.
+
+Explicit commit manifest /tmp/case-layout-commit-paths.json expanded to112ownedpaths including newbounded evidence; needs explicit restaging beforecommit. Preserve6unrelatedstaged entries from /tmp/case-layout-unrelated-index.json. Reviewer preset_batch_review reconciling latest bounded evidence only. Build frontend-case-layout-controls-20261005 stillnotstarted. Sourcefreeze remains untilgatepass→explicitguardedcommit→immutable snapshotstart. Publishedcandidate34822remainsfrontend-case-export-20261005; reference5175read-only.
+
+Latest review also clears F7.7-C05 named saved-settings/publicmulti-instance requirement; now141/222verified,53implemented,1missing,27unassessed. Shared form/preference andasyncscope remainC04. CurrentgatePID2679472 stilllive; latestchildlayout_splay_pick_view_change_tests.
+
+
+## Integration chain queued; Case drag defect confirmed
+
+DO NOT manually duplicatecommit/build: tracked detached chainPID2709186, /tmp/case-layout-integrate-and-build.state.json and .log, waits on gate2679472 exit0, checksHEAD/sourcehashes/preserved6indexentries, copiesfinalgatelog, explicitly stagesownedmanifest then guardedcommit and frontend-case-layout-controls-20261005 provider-reuse snapshotbuild. Phase/commit/buildlogs are in itsstatefile. Currentphasewaiting_for_gate. It stops onanyfailure. InspectactualPID/exit/statebeforeaction; neverrestart justforquietoutput. Paths manifest now118ownedfiles; futureprofile/gesturepatches explicitlyexcluded. Sourceunchanged/frozen.
+
+ActualCasehandlecauseisfeedbacklayout: publicbeforecanvas701px/backing1050; afterinwarddrag542.09375/backing812 because static .m1-case-edit-hint consumes158.90625pxinflexrow. prepared-constraint-analysis.json fromexactpublishedCoreprovider provesreferenceacceptedpointpassescurrentconstraint. F7.5C02nowmissing; noEndrewrite/clearancerelaxation. Astra migration_acceleration_review preparingactual2fileCSS+SharedViewer mountedgeometryregressionpatch evidence-only, no liveedits/compile.
+
+Caseprofile TS oracle nowcomplete: geometry-70Dwgs.User rectangle appliedr17, vertex1X-9.4edit/UndoRedo,Removeprofile/Undo,reloadretains-9.4,r22actualarchive. Filesin case-custom-profile-20261005. case_local_export first producedproseoutline(98lines), rootrequestedactualapplicableimplementation/testpatch in3mechanicalfiles now; no livewrites/compileuntilrelease. Do notmistakeoutlineforimplementedcode. ExistingF76/lifecyclepatchesremainpreservedunapplied.
+
+Currentcounts141verified,52implemented,2missing,27unassessed;22parentsaccepted. No newpackageyet. Browserownnewtabs holdcandidateCasehandlefixture(r18 blockedmove) andreferencecustomprofileoracle(r22); tabs mayclear atturnboundaries.

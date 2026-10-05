@@ -526,6 +526,55 @@ fn open_ready(session: &mut Session, engine: &mut CoreEngine) {
 }
 
 #[test]
+fn group_position_edit_moves_selected_parts_together_and_undo_restores_both() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    let mut document = fixture();
+    let mut second = document.parts[0].clone();
+    second.id = "key-2".into();
+    second.reference = "SW2".into();
+    second.pose.at.x = 10.0;
+    document.parts.push(second);
+    let effects = session.submit(Event::Open {
+        operation_id: OperationId(1),
+        document,
+    });
+    settle_core_and_save(&mut session, &mut engine, effects);
+
+    let effects = session.submit(Event::Edit {
+        operation_id: OperationId(2),
+        command: EditCommand {
+            base_revision: 0,
+            transaction_id: "group-position-blur".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec!["key".into(), "key-2".into()],
+            operation: EditOperation::MoveParts {
+                positions: vec![
+                    Position {
+                        id: "key".into(),
+                        at: Vec2 { x: 3.0, y: 0.0 },
+                    },
+                    Position {
+                        id: "key-2".into(),
+                        at: Vec2 { x: 13.0, y: 0.0 },
+                    },
+                ],
+            },
+        },
+    });
+    let (moved, _) = settle_core_and_save(&mut session, &mut engine, effects);
+    assert_eq!(moved.parts[0].pose.at.x, 3.0);
+    assert_eq!(moved.parts[1].pose.at.x, 13.0);
+
+    let effects = session.submit(Event::Undo {
+        operation_id: OperationId(3),
+    });
+    let (restored, _) = settle_core_and_save(&mut session, &mut engine, effects);
+    assert_eq!(restored.parts[0].pose.at.x, 0.0);
+    assert_eq!(restored.parts[1].pose.at.x, 10.0);
+}
+
+#[test]
 fn queued_discrete_edits_use_each_preceding_durable_revision() {
     let mut session = Session::new();
     let mut engine = CoreEngine::new();

@@ -6,9 +6,10 @@
 use super::case_viewer::CaseSelection;
 use super::mechanical_settings::{
     MechanicalBoardMismatch, MechanicalFindingRow, MechanicalFitPart, MechanicalGasketSupportRow,
-    MechanicalHardwareMount, MechanicalLayerRow, MechanicalProfileChoice,
+    MechanicalHardwareMount, MechanicalLayerRow, MechanicalProcessTarget, MechanicalProfileChoice,
     MechanicalProfileTargetChoice, MechanicalSettingsFeedback, MechanicalSettingsFeedbackState,
     MechanicalSettingsIdentity, MechanicalSettingsProps, MechanicalSettingsValues,
+    MechanicalStabilizerFit,
 };
 use super::mechanical_settings_controller::{
     LoadSwitchProfilePort, MechanicalResolution, MechanicalSettingsController,
@@ -24,8 +25,8 @@ use boardstudio_application::{
 };
 use boardstudio_core::model::{
     EditCommand, EditOperation, EditPhase, HardwareTransport, MechanicalAssembly,
-    MechanicalBottomStyle, MechanicalConfiguration, MechanicalMount, Mount, Part, PartKind,
-    ProjectDoc,
+    MechanicalBottomStyle, MechanicalConfiguration, MechanicalMount, MechanicalStabilizerKind,
+    MechanicalStabilizerOverride, Mount, Part, PartKind, ProjectDoc,
 };
 use dioxus::prelude::*;
 use std::{
@@ -532,6 +533,12 @@ pub(crate) fn use_mechanical_settings_mount(
             &current.identity.active_board_id,
             configuration.map(|value| &**value),
         );
+        let process_targets = configuration.map_or_else(Vec::new, |configuration| {
+            process_targets(&current.accepted.document, configuration)
+        });
+        let stabilizer_fits = configuration.map_or_else(Vec::new, |configuration| {
+            stabilizer_fits(&current.accepted.document, configuration)
+        });
         let scene_rows = scene_rows.read();
         let layers = scene_rows
             .as_ref()
@@ -689,6 +696,8 @@ pub(crate) fn use_mechanical_settings_mount(
                 .map(|configuration| settings_values(configuration.as_ref(), transport)),
             profiles,
             profile_targets: Rc::from(profile_targets),
+            process_targets: Rc::from(process_targets),
+            stabilizer_fits: Rc::from(stabilizer_fits),
             layers,
             gasket_supports,
             fit_parts,
@@ -1005,6 +1014,7 @@ fn project_layer_rows(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use boardstudio_core::model::{Board, PartDefinition, PartGenerator, Pose2, Side};
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
@@ -1020,6 +1030,91 @@ mod tests {
             "diagnostics": []
         }))
         .expect("valid minimal mechanical assembly")
+    }
+
+    #[wasm_bindgen_test]
+    fn stabilizer_projection_uses_accepted_wide_mx_keys_and_current_override_kind() {
+        let mut document = ProjectDoc::empty("doc", "doc");
+        document.boards.push(Board {
+            id: "board".into(),
+            name: "Board".into(),
+            outline_ids: vec![],
+            part_ids: vec!["wide-key".into()],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        document.parts.push(Part {
+            keycap: Some(boardstudio_core::model::Vec2 { x: 37.0, y: 42.0 }),
+            outline: None,
+            id: "wide-key".into(),
+            definition_id: "mx-switch".into(),
+            reference: "K1".into(),
+            pose: Pose2 {
+                at: boardstudio_core::model::Vec2 { x: 10.0, y: 20.0 },
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            locked: None,
+            properties: None,
+            generator_parameters: None,
+        });
+        document.definitions.push(PartDefinition {
+            hardware_profile: None,
+            input_profile: None,
+            id: "mx-switch".into(),
+            name: "MX switch".into(),
+            kind: PartKind::Switch,
+            keycap: None,
+            envelope_source: None,
+            kicad_source: None,
+            terminals: Default::default(),
+            matrix_terminals: None,
+            envelope_notice: None,
+            courtyard: vec![],
+            pads: vec![],
+            models: None,
+            generator: Some(PartGenerator {
+                source: "ceoloide/switch_mx".into(),
+                version: "1".into(),
+                parameters: Default::default(),
+            }),
+            mechanical_profile: None,
+        });
+        let mut configuration: MechanicalConfiguration =
+            serde_json::from_value(serde_json::json!({
+                "boardId": "board",
+                "method": "printed",
+                "mount": "tray",
+                "plateThickness": 1.5,
+                "plateFoamThickness": 0.5,
+                "pcbThickness": 1.6,
+                "bottomFoamThickness": 2.0,
+                "batteryHeight": 0.0,
+                "bottomThickness": 3.0,
+                "plateToPcb": 3.5,
+                "wallThickness": 2.0,
+                "clearance": 0.3,
+                "profiles": []
+            }))
+            .unwrap();
+        configuration.stabilizers = Some(vec![MechanicalStabilizerOverride {
+            profile: None,
+            part_id: "wide-key".into(),
+            kind: MechanicalStabilizerKind::None,
+            units: 6.25,
+            rotation: Some(45.0),
+        }]);
+
+        let fits = stabilizer_fits(&document, &configuration);
+        assert_eq!(fits.len(), 1);
+        assert_eq!(fits[0].key_units, 2.25);
+        assert_eq!(fits[0].default.units, 2.0);
+        assert_eq!(fits[0].default.rotation, Some(90.0));
+        assert_eq!(fits[0].current.kind, MechanicalStabilizerKind::None);
+        assert_eq!(fits[0].current.units, 2.0);
+        assert_eq!(fits[0].current.rotation, Some(90.0));
     }
 
     #[wasm_bindgen_test]
@@ -1233,6 +1328,133 @@ fn settings_values(
         plate_to_pcb: configuration.plate_to_pcb,
         battery_height: configuration.battery_height,
     }
+}
+
+fn process_targets(
+    document: &ProjectDoc,
+    configuration: &MechanicalConfiguration,
+) -> Vec<MechanicalProcessTarget> {
+    let mut targets = ["plate", "plate-foam", "bottom-foam", "bottom"]
+        .into_iter()
+        .map(|part_id| process_target(configuration, part_id, part_id.replace('-', " ")))
+        .collect::<Vec<_>>();
+    targets.extend(document.parts.iter().map(|part| {
+        let name = document
+            .definitions
+            .iter()
+            .find(|definition| definition.id == part.definition_id)
+            .map_or_else(
+                || part.definition_id.clone(),
+                |definition| definition.name.clone(),
+            );
+        process_target(
+            configuration,
+            &part.id,
+            format!("{} · {name}", part.reference),
+        )
+    }));
+    targets
+}
+
+fn process_target(
+    configuration: &MechanicalConfiguration,
+    part_id: &str,
+    name: String,
+) -> MechanicalProcessTarget {
+    let default_thickness = match part_id {
+        "plate" => configuration.plate_thickness,
+        "plate-foam" => configuration.plate_foam_thickness,
+        "bottom-foam" => configuration.bottom_foam_thickness,
+        "bottom" => configuration.bottom_thickness,
+        _ => configuration.plate_thickness,
+    };
+    MechanicalProcessTarget {
+        part_id: part_id.to_owned(),
+        name,
+        default_thickness,
+        process: configuration
+            .part_processes
+            .iter()
+            .flatten()
+            .find(|process| process.part_id == part_id)
+            .cloned(),
+    }
+}
+
+fn stabilizer_fits(
+    document: &ProjectDoc,
+    configuration: &MechanicalConfiguration,
+) -> Vec<MechanicalStabilizerFit> {
+    let Some(board) = document
+        .boards
+        .iter()
+        .find(|board| board.id == configuration.board_id)
+    else {
+        return Vec::new();
+    };
+    let imported_stabilizers = document
+        .parts
+        .iter()
+        .filter(|part| board.part_ids.contains(&part.id))
+        .filter(|part| {
+            document
+                .definitions
+                .iter()
+                .find(|definition| definition.id == part.definition_id)
+                .and_then(|definition| definition.kicad_source.as_ref())
+                .is_some_and(|source| source.source.contains("(footprint \"STAB_MX_"))
+        })
+        .collect::<Vec<_>>();
+    document
+        .parts
+        .iter()
+        .filter(|part| board.part_ids.contains(&part.id))
+        .filter_map(|part| {
+            let definition = document
+                .definitions
+                .iter()
+                .find(|definition| definition.id == part.definition_id)?;
+            let size = part.keycap.or(definition.keycap)?;
+            let is_mx_switch = definition
+                .generator
+                .as_ref()
+                .is_some_and(|generator| generator.source.to_lowercase() == "ceoloide/switch_mx");
+            if !is_mx_switch
+                || size.x.max(size.y) < 37.0
+                || imported_stabilizers.iter().any(|stabilizer| {
+                    (stabilizer.pose.at.x - part.pose.at.x)
+                        .hypot(stabilizer.pose.at.y - part.pose.at.y)
+                        < 0.01
+                })
+            {
+                return None;
+            }
+            let key_units = (((size.x.max(size.y) + 1.0) / 19.05 * 4.0).round()) / 4.0;
+            let default = MechanicalStabilizerOverride {
+                profile: None,
+                part_id: part.id.clone(),
+                kind: MechanicalStabilizerKind::PcbMount,
+                units: if key_units <= 2.75 { 2.0 } else { key_units },
+                rotation: Some(if size.y > size.x { 90.0 } else { 0.0 }),
+            };
+            let mut current = configuration
+                .stabilizers
+                .iter()
+                .flatten()
+                .find(|stabilizer| stabilizer.part_id == part.id)
+                .cloned()
+                .unwrap_or_else(|| default.clone());
+            current.units = default.units;
+            current.rotation = default.rotation;
+            Some(MechanicalStabilizerFit {
+                part_id: part.id.clone(),
+                reference: part.reference.clone(),
+                key_units,
+                default,
+                current,
+            })
+        })
+        .collect()
 }
 
 fn mechanical_layer_label(id: &str, internal_gasket: bool) -> String {

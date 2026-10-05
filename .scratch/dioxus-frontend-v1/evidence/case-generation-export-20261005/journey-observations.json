@@ -1,0 +1,397 @@
+[
+  {
+    "step": "manual-wall-2.4-stale",
+    "app": "candidate",
+    "dom": [
+      "        - switch \"Live preview\"",
+      "        - generic: Live preview",
+      "        - button \"Update preview\"",
+      "        - button \"Export geometry\" [disabled]",
+      "        - status: Previous case geometry — regenerate for current changes.",
+      "        - status: 3D preview updated.",
+      "        - status: Mechanical settings saved.",
+      "          - generic: Wall thickness",
+      "          - spinbutton \"Wall thickness\": \"2.4\"",
+      "          - status: Saved",
+      "        - status: Generated assembly preview · 1 authored case bodies remain saved. Disable the mechanical stack to preview and edit them."
+    ]
+  },
+  {
+    "step": "manual-wall-2.4-stale",
+    "app": "reference",
+    "dom": [
+      "      - switch \"Live preview\"",
+      "      - generic: Live preview",
+      "      - status: Preview out of date · update the solids before export. Previous geometry is shown.",
+      "      - button \"Update preview\"",
+      "      - button \"Export geometry\" [disabled]",
+      "      - status: Showing previous geometry",
+      "      - status: 90 / 90 models · 1.6 mm PCB",
+      "    - generic: Configuration resolved · r6",
+      "    - generic: Wall thickness",
+      "    - spinbutton \"Wall thickness mm\": \"2.4\""
+    ]
+  },
+  {
+    "step": "manual-start-immediate-right-scope",
+    "app": "candidate",
+    "dom": [
+      "        - treeitem \"▰ Right case assembly\" [expanded] [level=1] [selected]:",
+      "          - button \"Collapse Right case assembly\" [expanded]: ⌄",
+      "          - button \"▰ Right case assembly\":",
+      "            - generic: Right case assembly",
+      "          - button \"Hide Right case assembly\" [pressed]:",
+      "        - strong: Right PCB",
+      "        - button \"Update preview\"",
+      "        - button \"Export geometry\" [disabled]",
+      "        - status: Case generation cancelled.",
+      "        - status: 3D preview updated.",
+      "        - option \"Right PCB\" [selected]",
+      "        - status: Generated assembly preview · 0 authored case bodies remain saved. Disable the mechanical stack to preview and edit them."
+    ]
+  },
+  {
+    "step": "manual-start-immediate-right-scope",
+    "app": "reference",
+    "dom": [
+      "      - button \"Collapse Right case assembly\" [expanded]: ⌄",
+      "      - treeitem \"Right case assembly\" [expanded] [active] [level=1] [selected]:",
+      "        - generic \"Right case assembly\"",
+      "      - button \"Hide Right case assembly\" [pressed]:",
+      "    - strong: Right PCB",
+      "    - generic: Right PCB / Case",
+      "      - status: Preview out of date · update the solids before export.",
+      "      - button \"Update preview\"",
+      "      - button \"Export geometry\" [disabled]",
+      "      - status: Preparing 3D geometry…",
+      "      - status: No generated solids",
+      "      - status: 0 / 90 models · 1.6 mm PCB",
+      "    - generic: Right PCB / Case",
+      "      - paragraph: right half · Right PCB · peripheral",
+      "      - option \"Right PCB\" [selected]",
+      "    - generic: Configuration resolved · r7"
+    ]
+  },
+  {
+    "step": "right-scope-settled-no-old-output",
+    "app": "candidate",
+    "dom": [
+      "        - button \"Export geometry\" [disabled]",
+      "        - status: Case generation cancelled.",
+      "        - status: 3D preview updated.",
+      "          - generic: Wall thickness",
+      "          - spinbutton \"Wall thickness\": \"2.4\"",
+      "        - status: Generated assembly preview · 0 authored case bodies remain saved. Disable the mechanical stack to preview and edit them."
+    ]
+  },
+  {
+    "step": "right-scope-settled-no-old-output",
+    "app": "reference",
+    "dom": [
+      "      - status: Preview out of date · update the solids before export.",
+      "      - button \"Export geometry\" [disabled]",
+      "      - status: Preparing 3D geometry…",
+      "      - status: No generated solids",
+      "      - status: 90 / 90 models · 1.6 mm PCB",
+      "    - generic: Configuration resolved · r7"
+    ]
+  },
+  {
+    "step": "right-generation-result",
+    "app": "candidate",
+    "dom": [
+      "        - button \"Export geometry\" [disabled]",
+      "        - status: Previous case geometry — regenerate for current changes.",
+      "        - status: 3D preview updated.",
+      "        - status: Mechanical settings saved.",
+      "        - status: Generated assembly preview · 0 authored case bodies remain saved. Disable the mechanical stack to preview and edit them."
+    ]
+  },
+  {
+    "step": "right-generation-result",
+    "app": "reference",
+    "dom": [
+      "      - status: Geometry current · export available with warnings to review.",
+      "      - button \"Export geometry\"",
+      "      - status: Preparing 3D geometry…",
+      "      - status: Generated CAD solids · 4 parts at revision 7",
+      "      - status: 90 / 90 models · 1.6 mm PCB",
+      "    - generic: Configuration resolved · r7"
+    ]
+  },
+  {
+    "step": "right-exact-current-before-export",
+    "app": "candidate",
+    "dom": [
+      "        - strong: Right PCB",
+      "        - button \"Export geometry\"",
+      "        - status: Exact case geometry ready.",
+      "        - status: 3D preview updated.",
+      "        - option \"Right PCB\" [selected]",
+      "        - status: Mechanical settings saved.",
+      "        - status: Generated assembly preview · 0 authored case bodies remain saved. Disable the mechanical stack to preview and edit them."
+    ]
+  },
+  {
+    "step": "one-undo-after-right-generation",
+    "app": "candidate",
+    "dom": [
+      "        - button \"Export geometry\" [disabled]",
+      "        - status: Previous case geometry — regenerate for current changes.",
+      "        - status: 3D preview updated.",
+      "          - generic: Wall thickness",
+      "          - spinbutton \"Wall thickness\": \"2.4\"",
+      "        - status: Generated assembly preview · 0 authored case bodies remain saved. Disable the mechanical stack to preview and edit them."
+    ]
+  },
+  {
+    "step": "one-undo-after-right-generation",
+    "app": "reference",
+    "dom": [
+      "      - status: Saving mounting defaults…",
+      "      - button \"Export geometry\" [disabled]",
+      "      - status: Preparing 3D geometry…",
+      "      - status: Showing previous geometry",
+      "      - status: 90 / 90 models · 1.6 mm PCB",
+      "    - generic: Configuration resolved · r8"
+    ]
+  },
+  {
+    "step": "all-dimension-families-committed",
+    "app": "candidate",
+    "dom": [
+      "        - button \"Export geometry\" [disabled]",
+      "        - status: Previous case geometry — regenerate for current changes.",
+      "        - status: 3D preview updated.",
+      "        - status: Saving mechanical settings…",
+      "        - status: Wait for the current mechanical settings change to finish.",
+      "          - paragraph: \"Plate underside to PCB top: 3.40 mm · current configured gap.\"",
+      "          - spinbutton \"Plate thickness\" [disabled]: \"1.6\"",
+      "          - status: Saved",
+      "          - spinbutton \"Plate foam\" [disabled]: \"3.2\"",
+      "          - status: Saved",
+      "          - spinbutton \"PCB thickness\" [disabled]: \"1.6\"",
+      "          - status: Saved",
+      "          - spinbutton \"Bottom foam\" [disabled]: \"2.2\"",
+      "          - status: Saved",
+      "          - spinbutton \"Bottom thickness\" [disabled]: \"3.2\"",
+      "          - status: Saved",
+      "          - spinbutton \"Wall thickness\" [disabled]: \"2.4\"",
+      "          - spinbutton \"Clearance\" [disabled]: \"0.4\"",
+      "          - status: Saved",
+      "          - generic: Radial opening allowance",
+      "          - spinbutton \"Radial opening allowance\" [disabled]: \"0.1\"",
+      "          - status: Saving…",
+      "          - status: Wait for the current mechanical settings change to finish.",
+      "        - status: Generated assembly preview · 0 authored case bodies remain saved. Disable the mechanical stack to preview and edit them."
+    ]
+  },
+  {
+    "step": "all-dimension-families-committed",
+    "app": "reference",
+    "dom": [
+      "      - status: Resolving configuration · export is unavailable. Previous geometry is shown.",
+      "      - button \"Export geometry\" [disabled]",
+      "      - status: Preparing 3D geometry…",
+      "      - status: Showing previous geometry",
+      "      - status: 90 / 90 models · 1.6 mm PCB",
+      "    - generic: Configuration resolved · r15",
+      "    - spinbutton \"Plate thickness mm\": \"1.6\"",
+      "    - spinbutton \"Plate foam mm\": \"3.2\"",
+      "    - spinbutton \"PCB thickness mm\": \"1.6\"",
+      "    - spinbutton \"Bottom foam mm\": \"2.2\"",
+      "    - spinbutton \"Bottom thickness mm\": \"3.2\"",
+      "    - spinbutton \"Wall thickness mm\": \"2.4\"",
+      "    - spinbutton \"Clearance mm\": \"0.4\"",
+      "    - paragraph: \"Plate underside to PCB top: 3.40 mm, derived from the switch mounting dimensions.\"",
+      "    - generic: Radial opening allowance",
+      "    - spinbutton \"Radial opening allowance mm\": \"0.1\""
+    ]
+  },
+  {
+    "step": "dimension-one-undo",
+    "app": "candidate",
+    "dom": [
+      "        - status: Previous case geometry — regenerate for current changes.",
+      "        - status: Preparing the accepted PCB preview…",
+      "        - status: 3D preview updated.",
+      "        - status: Mechanical settings saved.",
+      "          - status: Saved",
+      "          - status: Saved",
+      "          - status: Saved",
+      "          - status: Saved",
+      "          - status: Saved",
+      "          - status: Saved",
+      "          - generic: Radial opening allowance",
+      "          - spinbutton \"Radial opening allowance\": \"0\"",
+      "        - status: Generated assembly preview · 0 authored case bodies remain saved. Disable the mechanical stack to preview and edit them."
+    ]
+  },
+  {
+    "step": "dimension-one-undo",
+    "app": "reference",
+    "dom": [
+      "      - status: Preview out of date · update the solids before export. Previous geometry is shown.",
+      "      - status: Preparing 3D geometry…",
+      "      - status: Showing previous geometry",
+      "      - status: 90 / 90 models · 1.6 mm PCB",
+      "    - generic: Configuration resolved · r17",
+      "    - generic: Radial opening allowance",
+      "    - spinbutton \"Radial opening allowance mm\": \"0\""
+    ]
+  },
+  {
+    "step": "dimension-one-redo",
+    "app": "candidate",
+    "dom": [
+      "          - paragraph: \"Plate underside to PCB top: 3.40 mm · current configured gap.\"",
+      "          - spinbutton \"Plate thickness\": \"1.6\"",
+      "          - spinbutton \"Plate foam\": \"3.2\"",
+      "          - spinbutton \"PCB thickness\": \"1.6\"",
+      "          - spinbutton \"Bottom foam\": \"2.2\"",
+      "          - spinbutton \"Bottom thickness\": \"3.2\"",
+      "          - spinbutton \"Wall thickness\": \"2.4\"",
+      "          - spinbutton \"Clearance\": \"0.4\"",
+      "          - spinbutton \"Radial opening allowance\": \"0.1\""
+    ]
+  },
+  {
+    "step": "dimension-one-redo",
+    "app": "reference",
+    "dom": [
+      "    - generic: Configuration resolved · r18",
+      "    - spinbutton \"Plate thickness mm\": \"1.6\"",
+      "    - spinbutton \"Plate foam mm\": \"3.2\"",
+      "    - spinbutton \"PCB thickness mm\": \"1.6\"",
+      "    - spinbutton \"Bottom foam mm\": \"2.2\"",
+      "    - spinbutton \"Bottom thickness mm\": \"3.2\"",
+      "    - spinbutton \"Wall thickness mm\": \"2.4\"",
+      "    - spinbutton \"Clearance mm\": \"0.4\"",
+      "    - paragraph: \"Plate underside to PCB top: 3.40 mm, derived from the switch mounting dimensions.\"",
+      "    - spinbutton \"Radial opening allowance mm\": \"0.1\""
+    ]
+  },
+  {
+    "step": "reload-right-dimensions",
+    "app": "candidate",
+    "dom": [
+      "        - switch \"Live preview\" [checked]",
+      "        - generic: Live preview",
+      "        - button \"Export geometry\" [disabled]",
+      "        - status: Generating case…",
+      "        - status: 3D preview ready.",
+      "          - paragraph: \"Plate underside to PCB top: 3.40 mm · current configured gap.\"",
+      "          - spinbutton \"Plate thickness\": \"1.6\"",
+      "          - spinbutton \"Plate foam\": \"3.2\"",
+      "          - spinbutton \"PCB thickness\": \"1.6\"",
+      "          - spinbutton \"Bottom foam\": \"2.2\"",
+      "          - spinbutton \"Bottom thickness\": \"3.2\"",
+      "          - spinbutton \"Wall thickness\": \"2.4\"",
+      "          - spinbutton \"Clearance\": \"0.4\"",
+      "          - spinbutton \"Radial opening allowance\": \"0.1\"",
+      "        - status: Generated assembly preview · 0 authored case bodies remain saved. Disable the mechanical stack to preview and edit them."
+    ]
+  },
+  {
+    "step": "reload-right-dimensions",
+    "app": "reference",
+    "dom": [
+      "      - switch \"Live preview\" [checked]",
+      "      - generic: Live preview",
+      "      - status: Updating preview · Tessellating bottom · 2/4 parts",
+      "      - button \"Export geometry\" [disabled]",
+      "      - status: Preparing 3D geometry…",
+      "      - status: No generated solids",
+      "      - status: 0 / 90 models · 1.6 mm PCB",
+      "    - generic: Configuration resolved · r18",
+      "    - spinbutton \"Plate thickness mm\": \"1.6\"",
+      "    - spinbutton \"Plate foam mm\": \"3.2\"",
+      "    - spinbutton \"PCB thickness mm\": \"1.6\"",
+      "    - spinbutton \"Bottom foam mm\": \"2.2\"",
+      "    - spinbutton \"Bottom thickness mm\": \"3.2\"",
+      "    - spinbutton \"Wall thickness mm\": \"2.4\"",
+      "    - spinbutton \"Clearance mm\": \"0.4\"",
+      "    - paragraph: \"Plate underside to PCB top: 3.40 mm, derived from the switch mounting dimensions.\"",
+      "    - spinbutton \"Radial opening allowance mm\": \"0.1\""
+    ]
+  },
+  {
+    "step": "reload-generated-current",
+    "app": "candidate",
+    "dom": [
+      "        - button \"Export geometry\"",
+      "        - status: Exact case geometry ready.",
+      "        - status: 3D preview updated.",
+      "        - status: Generated assembly preview · 0 authored case bodies remain saved. Disable the mechanical stack to preview and edit them."
+    ]
+  },
+  {
+    "step": "reload-generated-current",
+    "app": "reference",
+    "dom": [
+      "      - status: Geometry current · export available with warnings to review.",
+      "      - button \"Export geometry\"",
+      "      - status: Preparing 3D geometry…",
+      "      - status: Generated CAD solids · 4 parts at revision 18",
+      "      - status: 90 / 90 models · 1.6 mm PCB",
+      "    - generic: Configuration resolved · r18"
+    ]
+  },
+  {
+    "step": "active-wall-draft-before-blur",
+    "app": "candidate",
+    "dom": [
+      "        - button \"Export geometry\"",
+      "        - status: Exact case geometry ready.",
+      "        - status: 3D preview updated.",
+      "          - generic: Wall thickness",
+      "          - spinbutton \"Wall thickness\" [active]: \"2.5\"",
+      "        - status: Generated assembly preview · 0 authored case bodies remain saved. Disable the mechanical stack to preview and edit them."
+    ]
+  },
+  {
+    "step": "active-wall-draft-before-blur",
+    "app": "reference",
+    "dom": [
+      "      - status: Geometry current · export available with warnings to review.",
+      "      - button \"Export geometry\"",
+      "      - status: Generated CAD solids · 4 parts at revision 18",
+      "      - status: 90 / 90 models · 1.6 mm PCB",
+      "    - generic: Configuration resolved · r18",
+      "    - generic: Wall thickness",
+      "    - spinbutton \"Wall thickness mm\" [active]: \"2.5\""
+    ]
+  },
+  {
+    "step": "explicit-cancel",
+    "app": "candidate",
+    "dom": [
+      "        - button \"Update preview\"",
+      "        - button \"Cancel\" [disabled]",
+      "        - button \"Export geometry\" [disabled]",
+      "        - status: Case generation cancelled.",
+      "        - status: 3D preview updated.",
+      "        - status: Generated assembly preview · 0 authored case bodies remain saved. Disable the mechanical stack to preview and edit them."
+    ]
+  },
+  {
+    "step": "after-new-opening-edit-stale",
+    "app": "candidate",
+    "dom": [
+      "        - button \"Export geometry\" [disabled]",
+      "        - status: Previous case geometry — regenerate for current changes.",
+      "        - status: 3D preview updated.",
+      "        - status: Generated assembly preview · 0 authored case bodies remain saved. Disable the mechanical stack to preview and edit them."
+    ]
+  },
+  {
+    "step": "explicit-cancel-then-retry-opening-revision-settled",
+    "app": "candidate",
+    "dom": [
+      "        - button \"Export geometry\"",
+      "        - status: Exact case geometry ready.",
+      "        - status: 3D preview updated.",
+      "        - status: Generated assembly preview · 0 authored case bodies remain saved. Disable the mechanical stack to preview and edit them."
+    ]
+  }
+]

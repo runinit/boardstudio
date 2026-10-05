@@ -1,0 +1,220 @@
+[
+  {
+    "frontend": "candidate",
+    "sha256": "4affd9d358a0f57c213320ef413d0039713b06a5b454f268db37a34771320ee1",
+    "revision": 16,
+    "mechanical": {
+      "bottomStyle": "shell",
+      "middleFrame": false,
+      "stabilizers": [],
+      "partProcesses": [
+        {
+          "partId": "plate",
+          "method": "printed",
+          "material": "PLA",
+          "thickness": 1.5,
+          "constraintsVersion": "2026-09-24"
+        },
+        {
+          "partId": "plate-foam",
+          "method": "cut-sheet",
+          "material": "EVA",
+          "thickness": 3.0,
+          "constraintsVersion": "2026-09-24"
+        },
+        {
+          "partId": "bottom-foam",
+          "method": "cut-sheet",
+          "material": "EVA",
+          "thickness": 2.0,
+          "constraintsVersion": "2026-09-24"
+        },
+        {
+          "partId": "bottom",
+          "method": "printed",
+          "material": "PLA",
+          "thickness": 3.0,
+          "constraintsVersion": "2026-09-24"
+        }
+      ],
+      "closureMounts": [
+        {
+          "id": "auto-closure/mount-proposal-1",
+          "at": {
+            "x": 37.90455882352941,
+            "y": -17.081
+          },
+          "kind": "boss",
+          "holeDiameter": 2.2,
+          "bossDiameter": 6.0,
+          "height": 7.1
+        },
+        {
+          "id": "auto-closure/mount-proposal-62",
+          "at": {
+            "x": 111.50558823529413,
+            "y": 33.758675675675676
+          },
+          "kind": "boss",
+          "holeDiameter": 2.2,
+          "bossDiameter": 6.0,
+          "height": 7.1
+        },
+        {
+          "id": "auto-closure/mount-proposal-80",
+          "at": {
+            "x": -11.16279411764706,
+            "y": 48.284297297297314
+          },
+          "kind": "boss",
+          "holeDiameter": 2.2,
+          "bossDiameter": 6.0,
+          "height": 7.1
+        },
+        {
+          "id": "auto-closure/mount-proposal-68",
+          "at": {
+            "x": 47.34058823529412,
+            "y": 41.021486486486495
+          },
+          "kind": "boss",
+          "holeDiameter": 2.2,
+          "bossDiameter": 6.0,
+          "height": 7.1
+        }
+      ],
+      "boardId": "main-board",
+      "integratedPlateFrame": false,
+      "mounts": [],
+      "method": "printed",
+      "mount": "tray",
+      "plateThickness": 1.5,
+      "plateFoamThickness": 3.0,
+      "pcbThickness": 1.6,
+      "bottomFoamThickness": 2.0,
+      "batteryHeight": 0.0,
+      "bottomThickness": 3.0,
+      "plateToPcb": 3.5,
+      "wallThickness": 2.0,
+      "clearance": 0.3,
+      "profiles": [
+        {
+          "definitionId": "thqwgd001:c-2pin-reversible",
+          "source": "KiCad THQWGD001C \u00b7 2-pin tactile \u00b7 reversible",
+          "cutouts": [],
+          "plateToPcb": 3.5
+        }
+      ]
+    },
+    "hardware": null
+  },
+  {
+    "frontend": "reference",
+    "sha256": "2fba15107d8a901f711d5f8be5e84ac78962c8d94193b62318bf9afe8fb4bc82",
+    "revision": 16,
+    "mechanical": {
+      "bottomStyle": "shell",
+      "middleFrame": false,
+      "stabilizers": [],
+      "partProcesses": [
+        {
+          "partId": "plate",
+          "method": "printed",
+          "material": "PLA",
+          "thickness": 1.5,
+          "constraintsVersion": "2026-09-24"
+        },
+        {
+          "partId": "plate-foam",
+          "method": "cut-sheet",
+          "material": "EVA",
+          "thickness": 3,
+          "constraintsVersion": "2026-09-24"
+        },
+        {
+          "partId": "bottom-foam",
+          "method": "cut-sheet",
+          "material": "EVA",
+          "thickness": 2,
+          "constraintsVersion": "2026-09-24"
+        },
+        {
+          "partId": "bottom",
+          "method": "printed",
+          "material": "PLA",
+          "thickness": 3,
+          "constraintsVersion": "2026-09-24"
+        }
+      ],
+      "closureMounts": [
+        {
+          "id": "auto-closure/mount-proposal-1",
+          "at": {
+            "x": 37.90455882352941,
+            "y": -17.081
+          },
+          "kind": "boss",
+          "holeDiameter": 2.2,
+          "bossDiameter": 6,
+          "height": 7.1
+        },
+        {
+          "id": "auto-closure/mount-proposal-62",
+          "at": {
+            "x": 111.50558823529413,
+            "y": 33.758675675675676
+          },
+          "kind": "boss",
+          "holeDiameter": 2.2,
+          "bossDiameter": 6,
+          "height": 7.1
+        },
+        {
+          "id": "auto-closure/mount-proposal-80",
+          "at": {
+            "x": -11.16279411764706,
+            "y": 48.284297297297314
+          },
+          "kind": "boss",
+          "holeDiameter": 2.2,
+          "bossDiameter": 6,
+          "height": 7.1
+        },
+        {
+          "id": "auto-closure/mount-proposal-68",
+          "at": {
+            "x": 47.34058823529412,
+            "y": 41.021486486486495
+          },
+          "kind": "boss",
+          "holeDiameter": 2.2,
+          "bossDiameter": 6,
+          "height": 7.1
+        }
+      ],
+      "boardId": "main-board",
+      "integratedPlateFrame": false,
+      "mounts": [],
+      "method": "printed",
+      "mount": "tray",
+      "plateThickness": 1.5,
+      "plateFoamThickness": 3,
+      "pcbThickness": 1.6,
+      "bottomFoamThickness": 2,
+      "batteryHeight": 0,
+      "bottomThickness": 3,
+      "plateToPcb": 3.5,
+      "wallThickness": 2,
+      "clearance": 0.3,
+      "profiles": [
+        {
+          "definitionId": "thqwgd001:c-2pin-reversible",
+          "source": "KiCad THQWGD001C \u00b7 2-pin tactile \u00b7 reversible",
+          "cutouts": [],
+          "plateToPcb": 3.5
+        }
+      ]
+    },
+    "hardware": null
+  }
+]

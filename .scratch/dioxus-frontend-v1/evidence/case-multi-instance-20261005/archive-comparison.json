@@ -1,0 +1,641 @@
+[
+  {
+    "file": "input.boardstudio",
+    "sha256": "5823614c1785af9a4a2410f4723804e5d2486bac8019f995df2d21e887775f2d",
+    "revision": 18,
+    "mechanical": {
+      "bottomStyle": "shell",
+      "middleFrame": false,
+      "gasketTravel": 0.3,
+      "partProcesses": [
+        {
+          "partId": "plate",
+          "method": "printed",
+          "material": "PLA",
+          "thickness": 1.5,
+          "constraintsVersion": "2026-09-24"
+        },
+        {
+          "partId": "plate-foam",
+          "method": "cut-sheet",
+          "material": "EVA",
+          "thickness": 3.0,
+          "constraintsVersion": "2026-09-24"
+        },
+        {
+          "partId": "bottom-foam",
+          "method": "cut-sheet",
+          "material": "EVA",
+          "thickness": 2.0,
+          "constraintsVersion": "2026-09-24"
+        },
+        {
+          "partId": "bottom",
+          "method": "printed",
+          "material": "PLA",
+          "thickness": 3.0,
+          "constraintsVersion": "2026-09-24"
+        }
+      ],
+      "boardId": "left",
+      "integratedPlateFrame": false,
+      "mounts": [],
+      "method": "printed",
+      "mount": "gasket",
+      "plateThickness": 1.5,
+      "plateFoamThickness": 3.0,
+      "pcbThickness": 1.6,
+      "bottomFoamThickness": 2.0,
+      "batteryHeight": 0.0,
+      "bottomThickness": 3.0,
+      "plateToPcb": 3.5,
+      "wallThickness": 2.0,
+      "clearance": 0.3,
+      "profiles": []
+    },
+    "instances": [
+      {
+        "id": "left",
+        "boardId": "left",
+        "constructionLinked": true,
+        "openingAllowance": null,
+        "closureMounts": [
+          {
+            "id": "auto-closure/mount-proposal-1",
+            "at": {
+              "x": 129.04975324675328,
+              "y": -112.01403225806452
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6.0,
+            "height": 7.1
+          },
+          {
+            "id": "auto-closure/mount-proposal-44",
+            "at": {
+              "x": -0.9088441558441558,
+              "y": -12.481741935483868
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6.0,
+            "height": 7.1
+          },
+          {
+            "id": "auto-closure/mount-proposal-53",
+            "at": {
+              "x": 111.84935064935067,
+              "y": -3.0919032258064476
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6.0,
+            "height": 7.1
+          },
+          {
+            "id": "auto-closure/mount-proposal-9",
+            "at": {
+              "x": 35.40311688311689,
+              "y": -98.86825806451613
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6.0,
+            "height": 7.1
+          }
+        ]
+      },
+      {
+        "id": "right",
+        "boardId": "right",
+        "constructionLinked": true,
+        "openingAllowance": 0.1,
+        "closureMounts": [
+          {
+            "id": "auto-closure/mount-proposal-1",
+            "at": {
+              "x": 183.63507692307692,
+              "y": -112.40506451612904
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6.0,
+            "height": 7.1
+          },
+          {
+            "id": "auto-closure/mount-proposal-40",
+            "at": {
+              "x": 318.3229871794872,
+              "y": -17.858290322580643
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6.0,
+            "height": 7.1
+          },
+          {
+            "id": "auto-closure/mount-proposal-47",
+            "at": {
+              "x": 208.2962435897436,
+              "y": -2.7308064516129065
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6.0,
+            "height": 7.1
+          },
+          {
+            "id": "auto-closure/mount-proposal-14",
+            "at": {
+              "x": 272.7946794871795,
+              "y": -99.16851612903227
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6.0,
+            "height": 7.1
+          }
+        ]
+      },
+      {
+        "id": "right-alternate",
+        "boardId": "right",
+        "constructionLinked": false,
+        "openingAllowance": 0.2,
+        "closureMounts": [
+          {
+            "id": "auto-closure/mount-proposal-1",
+            "at": {
+              "x": 183.63507692307692,
+              "y": -112.40506451612904
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6.0,
+            "height": 7.1
+          },
+          {
+            "id": "auto-closure/mount-proposal-40",
+            "at": {
+              "x": 318.3229871794872,
+              "y": -17.858290322580643
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6.0,
+            "height": 7.1
+          },
+          {
+            "id": "auto-closure/mount-proposal-47",
+            "at": {
+              "x": 208.2962435897436,
+              "y": -2.7308064516129065
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6.0,
+            "height": 7.1
+          },
+          {
+            "id": "auto-closure/mount-proposal-14",
+            "at": {
+              "x": 272.7946794871795,
+              "y": -99.16851612903227
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6.0,
+            "height": 7.1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "file": "candidate-after.boardstudio",
+    "sha256": "077837a00773b97c9276f2b79fc4d494e191ca8787b1014b8792d180fe70d599",
+    "revision": 21,
+    "mechanical": {
+      "bottomStyle": "shell",
+      "middleFrame": false,
+      "gasketTravel": 0.3,
+      "partProcesses": [
+        {
+          "partId": "plate",
+          "method": "printed",
+          "material": "PLA",
+          "thickness": 1.5,
+          "constraintsVersion": "2026-09-24"
+        },
+        {
+          "partId": "plate-foam",
+          "method": "cut-sheet",
+          "material": "EVA",
+          "thickness": 3.0,
+          "constraintsVersion": "2026-09-24"
+        },
+        {
+          "partId": "bottom-foam",
+          "method": "cut-sheet",
+          "material": "EVA",
+          "thickness": 2.0,
+          "constraintsVersion": "2026-09-24"
+        },
+        {
+          "partId": "bottom",
+          "method": "printed",
+          "material": "PLA",
+          "thickness": 3.0,
+          "constraintsVersion": "2026-09-24"
+        }
+      ],
+      "boardId": "left",
+      "integratedPlateFrame": false,
+      "mounts": [],
+      "method": "printed",
+      "mount": "gasket",
+      "plateThickness": 1.5,
+      "plateFoamThickness": 3.0,
+      "pcbThickness": 1.6,
+      "bottomFoamThickness": 2.0,
+      "batteryHeight": 0.0,
+      "bottomThickness": 3.0,
+      "plateToPcb": 3.5,
+      "wallThickness": 2.0,
+      "clearance": 0.3,
+      "profiles": []
+    },
+    "instances": [
+      {
+        "id": "left",
+        "boardId": "left",
+        "constructionLinked": true,
+        "openingAllowance": null,
+        "closureMounts": [
+          {
+            "id": "auto-closure/mount-proposal-1",
+            "at": {
+              "x": 129.04975324675328,
+              "y": -112.01403225806452
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6.0,
+            "height": 7.1
+          },
+          {
+            "id": "auto-closure/mount-proposal-44",
+            "at": {
+              "x": -0.9088441558441558,
+              "y": -12.481741935483868
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6.0,
+            "height": 7.1
+          },
+          {
+            "id": "auto-closure/mount-proposal-53",
+            "at": {
+              "x": 111.84935064935067,
+              "y": -3.0919032258064476
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6.0,
+            "height": 7.1
+          },
+          {
+            "id": "auto-closure/mount-proposal-9",
+            "at": {
+              "x": 35.40311688311689,
+              "y": -98.86825806451613
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6.0,
+            "height": 7.1
+          }
+        ]
+      },
+      {
+        "id": "right",
+        "boardId": "right",
+        "constructionLinked": true,
+        "openingAllowance": 0.1,
+        "closureMounts": [
+          {
+            "id": "auto-closure/mount-proposal-1",
+            "at": {
+              "x": 183.63507692307692,
+              "y": -112.40506451612904
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6.0,
+            "height": 7.1
+          },
+          {
+            "id": "auto-closure/mount-proposal-40",
+            "at": {
+              "x": 318.3229871794872,
+              "y": -17.858290322580643
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6.0,
+            "height": 7.1
+          },
+          {
+            "id": "auto-closure/mount-proposal-47",
+            "at": {
+              "x": 208.2962435897436,
+              "y": -2.7308064516129065
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6.0,
+            "height": 7.1
+          },
+          {
+            "id": "auto-closure/mount-proposal-14",
+            "at": {
+              "x": 272.7946794871795,
+              "y": -99.16851612903227
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6.0,
+            "height": 7.1
+          }
+        ]
+      },
+      {
+        "id": "right-alternate",
+        "boardId": "right",
+        "constructionLinked": true,
+        "openingAllowance": 0.25,
+        "closureMounts": [
+          {
+            "id": "auto-closure/mount-proposal-1",
+            "at": {
+              "x": 183.63507692307692,
+              "y": -112.40506451612904
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6.0,
+            "height": 7.1
+          },
+          {
+            "id": "auto-closure/mount-proposal-40",
+            "at": {
+              "x": 318.3229871794872,
+              "y": -17.858290322580643
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6.0,
+            "height": 7.1
+          },
+          {
+            "id": "auto-closure/mount-proposal-47",
+            "at": {
+              "x": 208.2962435897436,
+              "y": -2.7308064516129065
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6.0,
+            "height": 7.1
+          },
+          {
+            "id": "auto-closure/mount-proposal-14",
+            "at": {
+              "x": 272.7946794871795,
+              "y": -99.16851612903227
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6.0,
+            "height": 7.1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "file": "reference-after.boardstudio",
+    "sha256": "9c96b4e20b5ac8fdc22f88fcadd8b2681d20ee820fcdcb016504c341b52321c3",
+    "revision": 21,
+    "mechanical": {
+      "bottomStyle": "shell",
+      "middleFrame": false,
+      "gasketTravel": 0.3,
+      "partProcesses": [
+        {
+          "partId": "plate",
+          "method": "printed",
+          "material": "PLA",
+          "thickness": 1.5,
+          "constraintsVersion": "2026-09-24"
+        },
+        {
+          "partId": "plate-foam",
+          "method": "cut-sheet",
+          "material": "EVA",
+          "thickness": 3,
+          "constraintsVersion": "2026-09-24"
+        },
+        {
+          "partId": "bottom-foam",
+          "method": "cut-sheet",
+          "material": "EVA",
+          "thickness": 2,
+          "constraintsVersion": "2026-09-24"
+        },
+        {
+          "partId": "bottom",
+          "method": "printed",
+          "material": "PLA",
+          "thickness": 3,
+          "constraintsVersion": "2026-09-24"
+        }
+      ],
+      "boardId": "left",
+      "integratedPlateFrame": false,
+      "mounts": [],
+      "method": "printed",
+      "mount": "gasket",
+      "plateThickness": 1.5,
+      "plateFoamThickness": 3,
+      "pcbThickness": 1.6,
+      "bottomFoamThickness": 2,
+      "batteryHeight": 0,
+      "bottomThickness": 3,
+      "plateToPcb": 3.5,
+      "wallThickness": 2,
+      "clearance": 0.3,
+      "profiles": []
+    },
+    "instances": [
+      {
+        "id": "left",
+        "boardId": "left",
+        "constructionLinked": true,
+        "openingAllowance": null,
+        "closureMounts": [
+          {
+            "id": "auto-closure/mount-proposal-1",
+            "at": {
+              "x": 129.04975324675328,
+              "y": -112.01403225806452
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6,
+            "height": 7.1
+          },
+          {
+            "id": "auto-closure/mount-proposal-44",
+            "at": {
+              "x": -0.9088441558441558,
+              "y": -12.481741935483868
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6,
+            "height": 7.1
+          },
+          {
+            "id": "auto-closure/mount-proposal-53",
+            "at": {
+              "x": 111.84935064935068,
+              "y": -3.0919032258064476
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6,
+            "height": 7.1
+          },
+          {
+            "id": "auto-closure/mount-proposal-9",
+            "at": {
+              "x": 35.40311688311689,
+              "y": -98.86825806451613
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6,
+            "height": 7.1
+          }
+        ]
+      },
+      {
+        "id": "right",
+        "boardId": "right",
+        "constructionLinked": true,
+        "openingAllowance": 0.1,
+        "closureMounts": [
+          {
+            "id": "auto-closure/mount-proposal-1",
+            "at": {
+              "x": 183.63507692307692,
+              "y": -112.40506451612904
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6,
+            "height": 7.1
+          },
+          {
+            "id": "auto-closure/mount-proposal-40",
+            "at": {
+              "x": 318.3229871794872,
+              "y": -17.858290322580643
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6,
+            "height": 7.1
+          },
+          {
+            "id": "auto-closure/mount-proposal-47",
+            "at": {
+              "x": 208.2962435897436,
+              "y": -2.7308064516129065
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6,
+            "height": 7.1
+          },
+          {
+            "id": "auto-closure/mount-proposal-14",
+            "at": {
+              "x": 272.7946794871795,
+              "y": -99.16851612903228
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6,
+            "height": 7.1
+          }
+        ]
+      },
+      {
+        "id": "right-alternate",
+        "boardId": "right",
+        "constructionLinked": true,
+        "openingAllowance": 0.25,
+        "closureMounts": [
+          {
+            "id": "auto-closure/mount-proposal-1",
+            "at": {
+              "x": 183.63507692307692,
+              "y": -112.40506451612904
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6,
+            "height": 7.1
+          },
+          {
+            "id": "auto-closure/mount-proposal-40",
+            "at": {
+              "x": 318.3229871794872,
+              "y": -17.858290322580643
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6,
+            "height": 7.1
+          },
+          {
+            "id": "auto-closure/mount-proposal-47",
+            "at": {
+              "x": 208.2962435897436,
+              "y": -2.7308064516129065
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6,
+            "height": 7.1
+          },
+          {
+            "id": "auto-closure/mount-proposal-14",
+            "at": {
+              "x": 272.7946794871795,
+              "y": -99.16851612903228
+            },
+            "kind": "boss",
+            "holeDiameter": 2.2,
+            "bossDiameter": 6,
+            "height": 7.1
+          }
+        ]
+      }
+    ]
+  }
+]

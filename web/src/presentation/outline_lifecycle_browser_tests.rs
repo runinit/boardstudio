@@ -235,6 +235,7 @@ struct InspectorProbe {
     runtime: Rc<crate::runtime::Runtime>,
     scope: Scope,
     connection_action: Rc<RefCell<Option<(Rc<OutlineActionContext>, EventHandler<OutlineAction>)>>>,
+    selected_context: Rc<RefCell<Option<Signal<Option<super::super::objects::ScopedTreeContext>>>>>,
 }
 
 impl InspectorProbe {
@@ -263,6 +264,7 @@ fn mounted_outline_inspector_host() -> Element {
             },
         })
     });
+    *probe.selected_context.borrow_mut() = Some(selected);
     let (projection, _) =
         use_outline_lifecycle(probe.runtime.clone(), selected, workspace, generation);
     if let Some(projection) = projection.as_ref() {
@@ -353,6 +355,7 @@ fn mounted_outline_inspector_with_version(
         runtime,
         scope,
         connection_action: Rc::default(),
+        selected_context: Rc::default(),
     };
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
@@ -365,6 +368,62 @@ fn mounted_outline_inspector_with_version(
         dioxus_web::Config::new().rootnode(root.clone().into()),
     );
     (probe, root)
+}
+
+#[wasm_bindgen_test]
+async fn mounted_outline_perimeter_escape_returns_to_board_inspector() {
+    let (probe, root) = mounted_polygon_outline_inspector(true);
+    settle_dimension().await;
+    let document = web_sys::window().unwrap().document().unwrap();
+    let selection = *probe
+        .selected_context
+        .borrow()
+        .as_ref()
+        .expect("mounted lifecycle exposes its actual selected-context owner");
+    assert!(matches!(
+        selection.read().as_ref().map(|selected| &selected.context),
+        Some(super::super::objects::TreeContext::Outline { .. })
+    ));
+
+    let open = document
+        .query_selector("#outline-points-inspector-mount button.m1-outline-action")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap();
+    open.click();
+    settle_dimension().await;
+    let done = document
+        .query_selector("#outline-points-inspector-mount .m1-outline-point-editor button")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap();
+    done.focus().unwrap();
+    let init = web_sys::KeyboardEventInit::new();
+    init.set_key("Escape");
+    init.set_bubbles(true);
+    done.dispatch_event(
+        &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap(),
+    )
+    .unwrap();
+    settle_dimension().await;
+
+    assert!(
+        matches!(
+            selection.read().as_ref().map(|selected| &selected.context),
+            Some(super::super::objects::TreeContext::Board { board_id }) if board_id == &probe.scope.board_id
+        ),
+        "Escape from the focused Perimeter Done button returns selection to the board inspector"
+    );
+    assert!(
+        document
+            .query_selector("#outline-points-inspector-mount .m1-outline-point-editor")
+            .unwrap()
+            .is_none(),
+        "the nested Perimeter inspector is no longer mounted after returning to Board"
+    );
+    root.remove();
 }
 
 fn mounted_polygon_outline_inspector(fixed: bool) -> (InspectorProbe, web_sys::Element) {
@@ -538,6 +597,7 @@ fn mounted_polygon_outline_inspector_with_connections(
         runtime,
         scope,
         connection_action: Rc::default(),
+        selected_context: Rc::default(),
     };
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
@@ -924,6 +984,14 @@ async fn mounted_fixed_perimeter_coordinate_enter_updates_only_the_active_featur
     send_key(&input, "Escape");
     settle_dimension().await;
     assert_eq!(input.value(), "0");
+    let selected = *probe.selected_context.borrow().as_ref().unwrap();
+    assert!(
+        matches!(
+            selected.read().as_ref().map(|selected| &selected.context),
+            Some(super::super::objects::TreeContext::Outline { .. })
+        ),
+        "Escape first discards the coordinate draft without leaving the Perimeter inspector"
+    );
 
     input.focus().unwrap();
     send_input(&input, "1.5");

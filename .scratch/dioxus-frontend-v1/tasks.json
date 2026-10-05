@@ -636,7 +636,7 @@
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/f2.2-c02-c03-paired-qualification.md"
           ],
           "blockers": [],
-          "next_action": "Paired saved Sofle\u2192Corne\u2192reopened Sofle retained a renamed 70-part board. Qualify unavailable/corrupt saved-project recovery and library route; do not repeat the successful reopen branch.",
+          "next_action": "Paired saved Sofle→Corne→reopened Sofle retained a renamed 70-part board. Qualify unavailable/corrupt saved-project recovery and library route; do not repeat the successful reopen branch.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/library.rs",
@@ -801,7 +801,7 @@
             ".scratch/dioxus-frontend-v1/evidence/compact-shell-parity-20261003/f23-public-qualification.md"
           ],
           "blockers": [],
-          "next_action": "Verified on packaged source f399d8c2: paired desktop Objects/Inspect pointer and Arrow-key resize clamp to the public 200\u2013420/280\u2013480 ranges; pinned/auto-hide widths and modes survive reload. Existing F2.3 receipt holds the 34802 RED and 34803 GREEN.",
+          "next_action": "Verified on packaged source f399d8c2: paired desktop Objects/Inspect pointer and Arrow-key resize clamp to the public 200–420/280–480 ranges; pinned/auto-hide widths and modes survive reload. Existing F2.3 receipt holds the 34802 RED and 34803 GREEN.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/panels.rs",
@@ -1202,7 +1202,7 @@
             ".scratch/dioxus-layout-authoring/evidence/f32d-matrix-settings-20261003/README.md"
           ],
           "blockers": [],
-          "next_action": "Retain paired 34785 custom 2\u00d73 and mirrored 2\u00d72 pair preview, commit, one Undo, board-scoped identities and saved-project reopen. Preset placement is recorded in the same receipt; remaining Layout clauses stay separate.",
+          "next_action": "Retain paired 34785 custom 2×3 and mirrored 2×2 pair preview, commit, one Undo, board-scoped identities and saved-project reopen. Preset placement is recorded in the same receipt; remaining Layout clauses stay separate.",
           "finish_condition": "Public UI paired scenario proves custom and preset matrices plus mirrored pairs preview without durable writes, then commit through existing operations.",
           "owned_files": [
             "web/src/presentation/objects/matrix_setup.rs",
@@ -1228,7 +1228,7 @@
             ".scratch/dioxus-layout-authoring/evidence/f32-preset-placement-20261003/receipt.md"
           ],
           "blockers": [],
-          "next_action": "Retain paired active Grid \u00bcu ArrowRight +4.7625mm preview, Enter Matrix 5 commit, second ArrowUp/Escape non-durable cancel, and one Undo to baseline. Older pointer/reload evidence retained.",
+          "next_action": "Retain paired active Grid ¼u ArrowRight +4.7625mm preview, Enter Matrix 5 commit, second ArrowUp/Escape non-durable cancel, and one Undo to baseline. Older pointer/reload evidence retained.",
           "finish_condition": "Arrow adjustment, Enter commit and Escape cancellation all preserve the stated snap/revision/history semantics in paired public scenarios.",
           "owned_files": [
             "web/src/presentation/objects/matrix_placement_controller.rs",
@@ -1281,7 +1281,7 @@
             ".scratch/dioxus-layout-authoring/evidence/f32d-matrix-settings-20261003/README.md"
           ],
           "blockers": [],
-          "next_action": "Retain paired34786 keys matrix 4\u00d76\u21925\u00d76 structural edit, one Undo/Redo, saved-copy reopen and rejected 4096\u00d72 setup with unchanged revision/board. All F3.2 criteria now verified; run final parent join/review before acceptance.",
+          "next_action": "Retain paired34786 keys matrix 4×6→5×6 structural edit, one Undo/Redo, saved-copy reopen and rejected 4096×2 setup with unchanged revision/board. All F3.2 criteria now verified; run final parent join/review before acceptance.",
           "finish_condition": "Public UI scenarios cover commit, save/reload, Undo/redo, and invalid input for matrix/component authoring.",
           "owned_files": [
             "web/src/presentation/objects/matrix_inspector.rs",
@@ -1774,10 +1774,12 @@
             ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md",
             ".scratch/dioxus-frontend-v1/evidence/layout-grouped-20261004/RECEIPT.md",
             ".scratch/dioxus-frontend-v1/evidence/layout-grouped-review-20261004.md",
-            ".scratch/dioxus-frontend-v1/evidence/layout-context-followup-20261004/RECEIPT.md"
+            ".scratch/dioxus-frontend-v1/evidence/layout-context-followup-20261004/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-escape-repair-20261005.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-layout-repair-review-20261005.md"
           ],
           "blockers": [],
-          "next_action": "Currentpaired continuation adds board-context return,4logicalkey column group (bothUIlabels8keysselected), columnRelations\u2192singleKey resetsProperties and automaticdiodecomponent positions. Arbitrarytwo-key/mixed selections and remainingemptycontext combinations stayopen; no extra claim from groupedselection.",
+          "next_action": "Layout same-matrix/mixed selection Inspector wiring and group position edits implemented with mounted and native group MoveParts/Undo coverage. Independent review also corrected deselection targeting and proved remaining-key edit. Packaged public same/mixed selection, edits/history/reload and intentional correction over TS remain pending.",
           "finish_condition": "Paired public scenarios show the correct contextual properties and relation state for each selection cardinality and object context.",
           "owned_files": [
             "web/src/presentation/inspector.rs",
@@ -1793,7 +1795,7 @@
         {
           "id": "F3.5-C02",
           "requirement": "Numeric drafts commit/revert on the characterized boundaries; invalid values do not dispatch edits; locked or driven values are presented as unavailable.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/inspector/layout_component_inspector.rs",
@@ -1807,7 +1809,7 @@
             ".scratch/dioxus-frontend-v1/evidence/layout-guard-qualification-20261005/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Existing paired matrix Origin X commit/Undo, invalid negative Pitch X rejection, and Escape behavior remain recorded. Current e12b6ab0 paired locked-U1 fixture proves disabled candidate X/Y and unchanged reference accepted position after draft/blur/reload. Driven fields and remaining characterized draft boundaries stay open.",
+          "next_action": "Independent review accepts retained numeric commit/blur/Escape/invalid-input owner/browser checks plus current locked/driven guards and reload. Candidate direct drivenXY unavailable by explicitcriterion; reference directXY updatesconstraintoffset, documented rather than hidden.",
           "finish_condition": "Paired public evidence demonstrates characterized draft boundaries, no edit dispatch for invalid input, and unavailable locked/driven values.",
           "owned_files": [
             "web/src/presentation/inspector/layout_component_inspector.rs",
@@ -1822,7 +1824,7 @@
         {
           "id": "F3.5-C03",
           "requirement": "Findings are grouped/presented with live target navigation; outline and component targets select/focus/fit correctly, while missing targets have no dead action.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/layout_findings.rs",
@@ -1831,10 +1833,11 @@
           "evidence": [
             ".scratch/dioxus-layout-authoring/evidence/17-layout-findings-navigation/public-34767.md",
             ".scratch/dioxus-layout-authoring/evidence/17-layout-findings-navigation/source-contract.md",
-            ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md"
+            ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-grouped-review-20261004.md"
           ],
           "blockers": [],
-          "next_action": "Paired 34801/5175 fixture proved both live Show outline warnings navigate/select/fit and left-U1 Fit selection works, with minor zoom difference. Missing/stale finding target does not exist in this fixture; retain that branch unqualified until a fixture presents it.",
+          "next_action": "Independent review reconciles retained paired live outline/component navigation with exact named mounted stale/missing target tests in completed f320e6b8 gate; no arbitrary public fault injection. Findings/Inspector source identical through eac47f42.",
           "finish_condition": "Public paired scenarios prove grouped findings, live outline/component select-focus-fit, and no action for missing targets.",
           "owned_files": [
             "web/src/presentation/layout_findings.rs",
@@ -1860,10 +1863,12 @@
             ".scratch/dioxus-layout-authoring/evidence/f35a-layout-membership-tab-reset-20261003/README.md",
             ".scratch/dioxus-layout-authoring/evidence/f35-matrix-properties-relations-20261003/source-implementation.md",
             ".scratch/dioxus-frontend-v1/evidence/layout-grouped-20261004/RECEIPT.md",
-            ".scratch/dioxus-frontend-v1/evidence/layout-grouped-review-20261004.md"
+            ".scratch/dioxus-frontend-v1/evidence/layout-grouped-review-20261004.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-escape-repair-20261005.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-layout-repair-review-20261005.md"
           ],
           "blockers": [],
-          "next_action": "Complete paired desktop-only public keyboard scenarios for remaining Board and Outline Back focus restoration and outstanding nested Inspector routes, using valid targets where required. Mobile and compact-drawer qualification is deferred by user priority; historical compact evidence is not an active passing gate.",
+          "next_action": "Outline/Perimeter Escape now returns to Board Inspector while dirty numeric Escape retains local discard priority. Mounted RED/GREEN and independent source review recorded. Public candidate keyboard replay remains pending.",
           "finish_condition": "Paired desktop public keyboard scenarios prove Inspector tabs, nested routes, Escape/back, and focus restoration across Layout, Board, and Outline contexts. Mobile and compact-drawer scenarios remain deferred and must not be reported as passed.",
           "owned_files": [
             "web/src/presentation/inspector.rs",
@@ -1982,7 +1987,7 @@
         {
           "id": "F3.6-C01",
           "requirement": "2D pointer-centered zoom, Space-drag pan, Fit board and Fit selection match reference bounds and limits, including rotated part/keycap envelopes and visible outline geometry.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/layout_camera.rs",
@@ -1990,10 +1995,12 @@
             "web/src/presentation/canvas_interaction.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-frontend-v1/evidence/layout-camera-f36c01-20261004/RECEIPT.md"
+            ".scratch/dioxus-frontend-v1/evidence/layout-camera-f36c01-20261004/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-camera-f36c01-20261004/qualification-eac47f42.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-layout-repair-review-20261005.md"
           ],
           "blockers": [],
-          "next_action": "Packaged 34805 unfocused Space-pan, keyup stop and text-input exclusion pass; paired 34804/5175 pointer zoom and Fit rotated thumb/visible board outline matched. Remaining limits and additional rotated part/keycap envelopes can be checked in a later grouped Layout journey; do not repeat these accepted actions.",
+          "next_action": "Verified paired 25/400 percent zoom limits and rotated connector/keycap fit envelope containment on eac47f42, with retained pointer zoom, Space pan and visible outline fit evidence; independently reviewed. Cosmetic camera differences remain deferred.",
           "finish_condition": "Paired public scenarios establish zoom/pan and reference-matched board/selection fit bounds and limits for all listed geometry.",
           "owned_files": [
             "web/src/presentation/layout_camera.rs",
@@ -2018,7 +2025,7 @@
             ".scratch/dioxus-frontend-v1/evidence/layout-camera-f36c01-20261004/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Verified on published candidate 34812: active Pick origin cancels on 2D\u21923D and stays canceled on return; board, Column 1 selection, origin coordinates, camera, and Undo/Redo state remain unchanged. Earlier paired placement/camera evidence is reused. The TS reference retains this one pending hint across views; the required cancellation is an intentional functional correction recorded in the receipt.",
+          "next_action": "Verified on published candidate 34812: active Pick origin cancels on 2D→3D and stays canceled on return; board, Column 1 selection, origin coordinates, camera, and Undo/Redo state remain unchanged. Earlier paired placement/camera evidence is reused. The TS reference retains this one pending hint across views; the required cancellation is an intentional functional correction recorded in the receipt.",
           "finish_condition": "Public paired switching scenario proves active placement/gesture cancellation and exact camera/selection restoration after 3D return.",
           "owned_files": [
             "web/src/presentation/layout_workspace.rs",
@@ -2074,7 +2081,7 @@
             ".scratch/dioxus-frontend-v1/evidence/layout-grouped-review-20261004.md"
           ],
           "blockers": [],
-          "next_action": "Grouped candidate journey completes three settled 3D\u21922D cycles retaining picked Key/coordinates/camera and a selected-board change. No bounded error logs. These observations do not prove listener/GPU disposal, context-loss recovery, resize/theme or performance; keep those lifecycle gates open.",
+          "next_action": "Grouped candidate journey completes three settled 3D→2D cycles retaining picked Key/coordinates/camera and a selected-board change. No bounded error logs. These observations do not prove listener/GPU disposal, context-loss recovery, resize/theme or performance; keep those lifecycle gates open.",
           "finish_condition": "Lifecycle scenarios prove callers settle and listeners/GPU resources release on mount, resize, theme, error, context loss, unmount and repeated view switching.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",
@@ -2612,7 +2619,7 @@
         "red": "Dioxus Parts has no custom definition form or KiCad/model file import action.",
         "green": "Create a custom definition; import a supported KiCad footprint; edit supported courtyard, pad and profile fields; preserve source-owned geometry, IDs, assets, terminal/net relationships and unrelated document data; reject malformed input locally; commit through one normal edit/Undo/Redo/save/reopen path. Import errors, invalid fields and changed-project async races leave the prior document intact. Do not claim board placement in this slice; F3 owns that public action."
       },
-      "boundary_status": "Rust ImportFootprint/compile and normal Edit operations exist; coordinator-owned typed Runtime artifact and model-asset fa\u00e7ade is a required adapter gap; no core contract/schema change. Editing/import/round-trip do not require full F3.",
+      "boundary_status": "Rust ImportFootprint/compile and normal Edit operations exist; coordinator-owned typed Runtime artifact and model-asset façade is a required adapter gap; no core contract/schema change. Editing/import/round-trip do not require full F3.",
       "workflow": "F4",
       "owner": "F4 workflow lead",
       "start_after": [
@@ -2914,7 +2921,7 @@
             ".scratch/dioxus-parts-catalogue/evidence/07-generator-settings-dioxus-paired-journey-20261003.md"
           ],
           "blockers": [],
-          "next_action": "Paired 34802/5175 journey showed Dioxus Generating\u2192Ready with Apply disabled while pending; width-zero and malformed JSON kept prior preview/document and disabled Apply in both apps. Genuine provider failure and delayed stale-result supersession remain unqualified; do not repeat the successful field/invalid branches. Dioxus width error adds a verbose JsValue stack, a presentation issue for later polish.",
+          "next_action": "Paired 34802/5175 journey showed Dioxus Generating→Ready with Apply disabled while pending; width-zero and malformed JSON kept prior preview/document and disabled Apply in both apps. Genuine provider failure and delayed stale-result supersession remain unqualified; do not repeat the successful field/invalid branches. Dioxus width error adds a verbose JsValue stack, a presentation issue for later polish.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts/generator_settings.rs",
@@ -3060,7 +3067,7 @@
             ".scratch/dioxus-parts-catalogue/evidence/parts-03-preview-34759/RESULTS.md"
           ],
           "blockers": [],
-          "next_action": "Paired 34805/5175 selected model/side/pose and current 34807 Back\u2192Apply\u2192Front\u2192Apply both settled to ready 1/1 model without stale alert or manual view toggle. Retain existing receipt; provider/model failure branch remains F4.4-C03.",
+          "next_action": "Paired 34805/5175 selected model/side/pose and current 34807 Back→Apply→Front→Apply both settled to ready 1/1 model without stale alert or manual view toggle. Retain existing receipt; provider/model failure branch remains F4.4-C03.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts/preview.rs",
@@ -3180,7 +3187,7 @@
         "red": "Dioxus Parts has no library-level part-fit profile editor or source-geometry extraction flow.",
         "green": "From a selected part, edit supported purpose, measured dimensions, clearances, evidence and qualification fields; extract only supported mappings from source geometry; show extraction/validation failures and preserve unqualified gates for unknown or unreviewed facts. Reject stale extraction results after selection/scope changes. Save through normal edit/Undo/Redo/save/reopen behavior without asserting case fit or fabrication readiness."
       },
-      "boundary_status": "Existing mechanical profile and ArtifactRequest::ExtractMechanical service behavior is available; there is no typed Dioxus Runtime fa\u00e7ade for profile/extraction calls, so coordinator adapter work is required. No schema or backend behavior change; case-level acceptance remains F7.",
+      "boundary_status": "Existing mechanical profile and ArtifactRequest::ExtractMechanical service behavior is available; there is no typed Dioxus Runtime façade for profile/extraction calls, so coordinator adapter work is required. No schema or backend behavior change; case-level acceptance remains F7.",
       "workflow": "F4",
       "owner": "F4 workflow lead",
       "start_after": [
@@ -3503,7 +3510,7 @@
       "progress_evidence": {
         "updated_at": "2026-10-03T08:59:38.988296+00:00",
         "checkpoint": "Served d7742d46/34757; next batch source38757073+84fbf801+ead8fe7c+0c17fd37",
-        "scope": "Actual PCB selected-board canvas, host layers and scoped visibility mounted;34748\u201334755 geometry/history receipts retained. PCB18 contextual inventory ead8fe7c integrated for next candidate.",
+        "scope": "Actual PCB selected-board canvas, host layers and scoped visibility mounted;34748–34755 geometry/history receipts retained. PCB18 contextual inventory ead8fe7c integrated for next candidate.",
         "remaining": "Default/finding visibility differences, remaining theme/compact qualification and full parent acceptance remain.",
         "acceptance": "Existing acceptance/dependencies unchanged. Boundary_status is the historical planning statement; this progress entry describes current implementation."
       },
@@ -3735,7 +3742,7 @@
             ".scratch/dioxus-pcb-view/evidence/pcb-apply-ui-20261002/receipt.md"
           ],
           "blockers": [],
-          "next_action": "Retain paired public Pending\u2192current and board switch without document mutation; production-mounted owner checks Pending, injected failure\u2192visible alert, same-action retry and stale reply rejection, while the Apply owner checks rejected-edit feedback. No public provider failure was induced or claimed.",
+          "next_action": "Retain paired public Pending→current and board switch without document mutation; production-mounted owner checks Pending, injected failure→visible alert, same-action retry and stale reply rejection, while the Apply owner checks rejected-edit feedback. No public provider failure was induced or claimed.",
           "finish_condition": "Paired public loading/scope behavior and deterministic mounted failure/retry/rejected-edit checks prove the lifecycle without requiring an unavailable public fault trigger.",
           "owned_files": [
             "web/src/presentation/pcb_wiring.rs",
@@ -3888,7 +3895,7 @@
             ".scratch/dioxus-pcb-view/evidence/pcb-apply-ui-20261002/receipt.md"
           ],
           "blockers": [],
-          "next_action": "Retain paired named-net/diode-pad mapping, Direct GPIO\u2194Unassigned input-mode history, 83 unrelated named nets preserved, and fresh reopen. Parent acceptance joins remain open.",
+          "next_action": "Retain paired named-net/diode-pad mapping, Direct GPIO↔Unassigned input-mode history, 83 unrelated named nets preserved, and fresh reopen. Parent acceptance joins remain open.",
           "finish_condition": "Public paired actions prove net creation/mapping, supported input mode changes, unrelated pin preservation, Undo/Redo and save/reopen.",
           "owned_files": [
             "web/src/presentation/pcb_wiring.rs",
@@ -3922,7 +3929,7 @@
             ".scratch/dioxus-pcb-view/evidence/17-controller-chooser-20261003/source-handoff.md"
           ],
           "blockers": [],
-          "next_action": "Retain paired selected-board binding edit/Undo/Redo/reopen and ordinary Add controller\u2192Parts\u2192Place\u2192PCB edit/Undo/Redo/reopen evidence. Project/board race and broader PCB presentation remain separate parent criteria.",
+          "next_action": "Retain paired selected-board binding edit/Undo/Redo/reopen and ordinary Add controller→Parts→Place→PCB edit/Undo/Redo/reopen evidence. Project/board race and broader PCB presentation remain separate parent criteria.",
           "finish_condition": "Current paired evidence proves PCB binding editor placement/values, one accepted edit, Undo/Redo, and save/reopen; the F5.2/F8.2/F6K.4 parent joins remain separately open.",
           "owned_files": [
             "web/src/firmware_position_projection.rs",
@@ -4225,7 +4232,7 @@
         {
           "id": "F5.5-C02",
           "requirement": "Inspector exposes connection, circuit joins and individual-component actions.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/pcb_module_inspector.rs",
@@ -4234,10 +4241,12 @@
           ],
           "evidence": [
             ".scratch/dioxus-pcb-view/issues/22-mounted-module-placement-inspector.md",
-            ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/modules/vik-splitter-gnd-join-ad26b07a.md"
+            ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/modules/vik-splitter-gnd-join-ad26b07a.md",
+            ".scratch/dioxus-frontend-v1/evidence/pcb-module-reopen-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-layout-repair-review-20261005.md"
           ],
           "blockers": [],
-          "next_action": "Reuse paired circuit join/copy/remove and nested constituent placement, foreign-connector rejection/clear, and34782 fresh automatic connector plus repeat Save/history/reopen. Finish remaining circuit/constituent archive-reopen and action/scope evidence; no current source gap established.",
+          "next_action": "Independent review joins eligible retained generic circuit/constituent/connection actions and history with current paired revision13 save/reload. Actual archives retain mounted placements, copied circuits, board membership and joined GND; J7 retains identity/pose with only1.8e-15 reference Y serialization difference. Legacy saved fixtures remain valid for generic behavior; no catalogue/VIK feature or pending/race/parent acceptance claim.",
           "finish_condition": "Each action matches React, is correctly scoped, undoable where existing Core semantics allow, and retains unrelated project data.",
           "owned_files": [
             "web/src/presentation/pcb_module_inspector.rs",
@@ -4381,7 +4390,7 @@
         },
         {
           "id": "F5.6-C03",
-          "requirement": "Case exposes controls to change an instance\u2019s associated PCB design and flip that PCB.",
+          "requirement": "Case exposes controls to change an instance’s associated PCB design and flip that PCB.",
           "state": "verified",
           "classification": "functional",
           "sources": [
@@ -4394,7 +4403,7 @@
           ],
           "blockers": [],
           "next_action": "None for this control criterion. Broader controller/mechanical retention and shared-preview joins remain F5.6-C04/C05; history focus behavior is recorded without unqualified TS parity claims.",
-          "finish_condition": "Case controls change the selected instance\u2019s board and flip state as React does, with correct scope, Undo/Redo, and reload behavior.",
+          "finish_condition": "Case controls change the selected instance’s board and flip state as React does, with correct scope, Undo/Redo, and reload behavior.",
           "owned_files": [
             "web/src/presentation/case_workspace.rs",
             "web/src/presentation/pcb_physical_setup/controller.rs"
@@ -4407,7 +4416,7 @@
         {
           "id": "F5.6-C04",
           "requirement": "Stable physical instance IDs, retained edits/controller and board associations survive switching, Undo/Redo and reload.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/physical_setup.rs",
@@ -4416,10 +4425,13 @@
           "evidence": [
             ".scratch/dioxus-pcb-view/evidence/physical-setup-20261002/ticket05-implementation.md",
             ".scratch/dioxus-pcb-view/evidence/physical-setup-20261002/ticket06-implementation.md",
-            ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/case/receipt.md"
+            ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/case/receipt.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-generation-export-20261005/physical-instance-retention.json",
+            ".scratch/dioxus-frontend-v1/evidence/case-generation-export-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-layout-repair-review-20261005.md"
           ],
           "blockers": [],
-          "next_action": "Reuse C03 association/flip history plus paired valid-Sofle shared CNC method history/reload and retained distinct Left/Right PCB/wired context. Remaining: prove retained controller-specific state and stable physical IDs from accepted archive; shared mechanical setting is not a per-instance edit.",
+          "next_action": "Independent review confirms actual r3/r18 paired archives preserve stable physical IDs, board/controller associations and complete nonempty per-board controller/pin configurations. Right-only radial allowance retains its0.1 edit through recorded Undo0/Redo0.1/reload, with separate Left state; retained C03 association/flip history reused. No new controller edit, full instance byte equality, changed-flip viewer or parent acceptance claim.",
           "finish_condition": "Paired public evidence confirms stable instance identity and retained board/controller/mechanical state across history and reload.",
           "owned_files": [
             "web/src/physical_setup.rs",
@@ -4509,14 +4521,17 @@
         {
           "id": "F5.7-C01",
           "requirement": "Import/replace/remove a supported .kicad_pcb under 32 MiB and preview model paths.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/pcb_board_reference.rs"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/pcb-routed-folder-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-layout-repair-review-20261005.md"
+          ],
           "blockers": [],
-          "next_action": "Inspect existing evidence receipts for import/replace/remove and qualify the current mounted public route only for uncovered cases.",
+          "next_action": "Verified actual supported 136274-byte KiCad import, removal, model-path preview and distinct-byte replacement in both frontends, with saved revision25 archives and matching replacement payload hash. No 32 MiB boundary stress claim.",
           "finish_condition": "Paired public journey proves supported file constraints, model-path preview and replacement/removal edits.",
           "owned_files": [
             "web/src/presentation/pcb_board_reference.rs",
@@ -4532,16 +4547,19 @@
         {
           "id": "F5.7-C02",
           "requirement": "Enable and position routed board; attach valid individual or uniquely basename-matched model assets; persist SHA-256 assets and survive reload.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/pcb_board_reference.rs",
             "web/src/presentation/pcb_board_reference/matching.rs",
             "web/src/presentation/board_reference_effect.rs"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/pcb-routed-folder-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-layout-repair-review-20261005.md"
+          ],
           "blockers": [],
-          "next_action": "Candidate 34806/source 6d3e89fc shows the individually attached saved model selected after reload, with persisted enabled and XYZ/rotation pose and matching asset ID. The basename matcher has a focused passing regression. Directory upload remains unqualified because browser automation did not emit the file-change event; use a controlled readable-directory upload or another public mechanism, then check save/reopen and asset hash before verifying this full criterion.",
+          "next_action": "Verified actual six-file directory attachment and exact SHA-256 asset bytes in both revision22 archives, enabled nonidentity XYZ/rotation pose and reload persistence; retained individual attachment evidence. Independently reviewed; async failures and viewer joins remain separate.",
           "finish_condition": "Paired evidence confirms SHA-256 asset bytes/identity and board reference mappings after reload.",
           "owned_files": [
             "web/src/presentation/pcb_board_reference.rs",
@@ -5364,7 +5382,7 @@
       "progress_evidence": {
         "updated_at": "2026-10-03T04:53:39.015941+00:00",
         "checkpoint": "served a201/34740; next baseline8afaaa2f",
-        "scope": "Paired profileSA\u2192Cherry/UndoRedo/reload green; headercounter child activelyporting; fullcriteriaremain.",
+        "scope": "Paired profileSA→Cherry/UndoRedo/reload green; headercounter child activelyporting; fullcriteriaremain.",
         "acceptance": "No criteria/dependencies waived; partial source and bounded proof only."
       },
       "status_history": [
@@ -5483,7 +5501,7 @@
             ".scratch/dioxus-frontend-v1/evidence/keycaps-size-reflow-20261003/paired-linked-resize.md"
           ],
           "blockers": [],
-          "next_action": "Retain paired Mixed\u2192Wide/Tall common long/short sizing and individual post-save selection checks. Different representative mixed pairs are recorded; broader sizing/history criteria remain separate.",
+          "next_action": "Retain paired Mixed→Wide/Tall common long/short sizing and individual post-save selection checks. Different representative mixed pairs are recorded; broader sizing/history criteria remain separate.",
           "finish_condition": "Heterogeneous sizes display Mixed; Wide and Tall apply the common long/short pair to all selected keys.",
           "owned_files": [
             "web/src/presentation/objects/keycap_size.rs",
@@ -5564,7 +5582,7 @@
             ".scratch/dioxus-frontend-v1/evidence/keycaps-size-reflow-20261003/paired-linked-resize.md"
           ],
           "blockers": [],
-          "next_action": "Retain paired both-mirrored-key selected Width 1\u21921.25u, both envelopes 18\u219222.8125mm, symmetric neighbor reflow X\u00b128.23\u2192\u00b130.63625mm and one Undo/Redo. Broader selection scopes remain C04.",
+          "next_action": "Retain paired both-mirrored-key selected Width 1→1.25u, both envelopes 18→22.8125mm, symmetric neighbor reflow X±28.23→±30.63625mm and one Undo/Redo. Broader selection scopes remain C04.",
           "finish_condition": "Reflow matches the established policy for neighbors and canonical linked halves, including deduplication when both halves are selected.",
           "owned_files": [
             "web/src/presentation/objects/keycap_size.rs",
@@ -6026,7 +6044,7 @@
             ".scratch/dioxus-keymap-layers/evidence/binding-editor-reference/README.md"
           ],
           "blockers": [],
-          "next_action": "Retain paired selection/layer/binding/macro/encoder evidence and the 34799 same-fixture legacy PCB quick binding\u2192typed Main edit, Undo/Redo and reload join. Continue separate F6.6 criteria and F5/F7/F8 parent joins without repeating C02.",
+          "next_action": "Retain paired selection/layer/binding/macro/encoder evidence and the 34799 same-fixture legacy PCB quick binding→typed Main edit, Undo/Redo and reload join. Continue separate F6.6 criteria and F5/F7/F8 parent joins without repeating C02.",
           "finish_condition": "Paired public journeys on equivalent saved fixtures show the listed Keymap and PCB quick-binding behavior.",
           "owned_files": [
             "web/src/presentation/keymap.rs",
@@ -6054,7 +6072,7 @@
             ".scratch/dioxus-frontend-v1/evidence/keycaps-3d-preview-20261003/f6c2-settings-receipt.md"
           ],
           "blockers": [],
-          "next_action": "Verified from one saved c6 fixture: paired 34803/5175 profile SA\u2192DCS and clearance 0.5\u21920.6 retained matching 27 fit findings and Undo/Redo, with existing same-fixture legend/color and linked-size receipts reused. Broader F6.6 history, workspace/export and release joins remain separate.",
+          "next_action": "Verified from one saved c6 fixture: paired 34803/5175 profile SA→DCS and clearance 0.5→0.6 retained matching 27 fit findings and Undo/Redo, with existing same-fixture legend/color and linked-size receipts reused. Broader F6.6 history, workspace/export and release joins remain separate.",
           "finish_condition": "Representative paired profile, legend, size, color and fit workflows use equivalent saved fixtures and preserve accepted state.",
           "owned_files": [
             "web/src/presentation/keycaps_settings.rs",
@@ -6569,7 +6587,7 @@
             ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md"
           ],
           "blockers": [],
-          "next_action": "Retain paired Case shade/wireframe/hybrid/hidden-line, assembled/exploded and XY/YZ Section controls plus matched YZ Section position 0\u219240% clipped-scene change on34785. Other viewer controls remain separate C03/C04/C05.",
+          "next_action": "Retain paired Case shade/wireframe/hybrid/hidden-line, assembled/exploded and XY/YZ Section controls plus matched YZ Section position 0→40% clipped-scene change on34785. Other viewer controls remain separate C03/C04/C05.",
           "finish_condition": "Each named mode, assembly state and supported plane/position change is exercised with visible outcome.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs"
@@ -6653,7 +6671,7 @@
             ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-routed-module-bb4f2216-review-sol-20261004.md"
           ],
           "blockers": [],
-          "next_action": "Retain paired ordinary part/empty and generated Case-body/empty picks, hidden-layer 3D finding focus, and the generic non-VIK module scene/pick-to-editor RED/GREEN on 34797\u219234798. The Sol delta review confirms the guarded Parts and PCB placement route; board switch clears selection and project switch clears the editor after settlement. One transient old-editor frame was observed during project replacement, without a stale Save attempt. Mounted-module asset models remain F7.3-C06; VIK-only catalogue/demo authoring stays outside v1.",
+          "next_action": "Retain paired ordinary part/empty and generated Case-body/empty picks, hidden-layer 3D finding focus, and the generic non-VIK module scene/pick-to-editor RED/GREEN on 34797→34798. The Sol delta review confirms the guarded Parts and PCB placement route; board switch clears selection and project switch clears the editor after settlement. One transient old-editor frame was observed during project replacement, without a stale Save attempt. Mounted-module asset models remain F7.3-C06; VIK-only catalogue/demo authoring stays outside v1.",
           "finish_condition": "Mapped and empty picks resolve only against current consumer scope; a mounted-module pick reaches its Parts context and placement editor, board/project replacement clears that route after settlement, and finding focus/highlight works with hidden layers. In-flight stale Save remains a C07 lifecycle check.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs",
@@ -6751,7 +6769,7 @@
             ".scratch/dioxus-case-workspace/evidence/default-instance-public/README.md"
           ],
           "blockers": [],
-          "next_action": "Retain the paired two-instance Sofle 34810/5175 journey and current source ownership trace: Case switched Left\u2192Right assembly and back, while Layout/Keymap/Keycaps stayed on the selected Right PCB's canonical board scene/key IDs. The fixture lacked generated geometry, so no geometry-success claim is made.",
+          "next_action": "Retain the paired two-instance Sofle 34810/5175 journey and current source ownership trace: Case switched Left→Right assembly and back, while Layout/Keymap/Keycaps stayed on the selected Right PCB's canonical board scene/key IDs. The fixture lacked generated geometry, so no geometry-success claim is made.",
           "finish_condition": "Case scene, selection and pending result switch to selected instance; canonical consumers remain canonical.",
           "owned_files": [
             "web/src/presentation/case_viewer.rs",
@@ -6894,7 +6912,7 @@
         {
           "id": "F7.4-C01",
           "requirement": "Migrate represented construction/mount/shell/frame/plate choices and case-configuration inherited/custom profiles, overrides and extraction; keep reusable PartDefinition profiles F4-owned.",
-          "state": "implemented",
+          "state": "missing",
           "classification": "functional",
           "sources": [
             "web/src/presentation/mechanical_settings.rs",
@@ -6904,10 +6922,11 @@
           ],
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
-            ".scratch/dioxus-case-workspace/evidence/public-mechanical-settings/candidate-0cad7577/RESULTS.md"
+            ".scratch/dioxus-case-workspace/evidence/public-mechanical-settings/candidate-0cad7577/RESULTS.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-custom-profile-20261005/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Reuse CNC/configuration, disable/history and instance-scoped settings evidence; qualify inherited/custom profiles, overrides and extraction in the public Case inspector.",
+          "next_action": "Paired eac47f42/5a472a9 fixture confirms custom assignment saves r16 in both, but candidate lacks Remove profile and Read KiCad layers. Reference reads actual primitives and offers Apply selected geometry. Add existing Case config-profile edit/remove/extraction routes with owning-layer RED/GREEN, independent review and packaged replay. Reuse library assignment and Parts-owned authoring evidence; do not duplicate them.",
           "finish_condition": "Represented Case settings work through existing resolver; F4 retains reusable profile authoring.",
           "owned_files": [
             "web/src/presentation/mechanical_settings.rs",
@@ -6920,17 +6939,18 @@
         {
           "id": "F7.4-C02",
           "requirement": "Edit represented plate/foam/PCB/bottom/wall/clearance dimensions and show supported derived gaps and allowances.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/mechanical_settings.rs",
             "web/src/presentation/mechanical_settings_controller.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md"
+            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-generation-export-20261005/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Inspect source-to-current-receipt coverage for derived dimensions and each supported layer.",
+          "next_action": "Verified represented plate/foam/PCB/bottom/wall/clearance/opening-allowance inputs against reference, derived gap3.40, single Undo/Redo and r18 saved archives/reload. PCB thickness request1.7 resolves1.6 in both. Review CLEAR.",
           "finish_condition": "Changed dimensions update accepted mechanical settings once and show supported computed gaps/allowances.",
           "owned_files": [
             "web/src/presentation/mechanical_settings.rs"
@@ -6952,10 +6972,13 @@
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
             ".scratch/dioxus-case-workspace/evidence/15-mounting-controls-20261003/public-receipt.md",
-            ".scratch/dioxus-case-workspace/evidence/f74-closure-fit-hardware-form-20261003/IMPLEMENTATION.md"
+            ".scratch/dioxus-case-workspace/evidence/f74-closure-fit-hardware-form-20261003/IMPLEMENTATION.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-generation-export-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-manufacturing-repair-20261005.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-layout-repair-review-20261005.md"
           ],
           "blockers": [],
-          "next_action": "Treat the form\u2019s source coverage as implemented; next gather bounded paired proof for closure hardware, critical fits, battery/cable and process/stabilizer fields.",
+          "next_action": "Missing per-part manufacturing controls and per-key stabilizer kind now implemented through existing scoped request owner. Mounted absent-control RED/GREEN and two reviewer regressions cover derived stack sync and numeric Escape/Enter/blur. Independent source review CLEAR; pinned same-input reference sequence is saved, candidate public controls/history/reload replay pending. Prior opening/battery/hardware evidence retained.",
           "finish_condition": "Every represented field has its existing scoped patch path; unsupported options are absent and current resolver errors remain visible.",
           "owned_files": [
             "web/src/presentation/mechanical_settings.rs",
@@ -7110,7 +7133,7 @@
       "criteria": [
         {
           "id": "F7.5-C01",
-          "requirement": "Support the source UI\u2019s existing gasket/mount handle edits and unlink actions through viewer handles and scoped draft operations.",
+          "requirement": "Support the source UI’s existing gasket/mount handle edits and unlink actions through viewer handles and scoped draft operations.",
           "state": "implemented",
           "classification": "functional",
           "sources": [
@@ -7137,7 +7160,7 @@
         {
           "id": "F7.5-C02",
           "requirement": "Validate pointer movement against current constraints/fit and show valid, invalid, provisional and canceled states without partial invalid commit.",
-          "state": "implemented",
+          "state": "missing",
           "classification": "functional",
           "sources": [
             "web/src/case_gesture_preview.rs",
@@ -7146,9 +7169,13 @@
             "web/src/presentation/shared_viewer.rs",
             "web/src/presentation/mechanical_settings_controller.rs"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/case-handle-qualification-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-handle-qualification-20261005/canvas-feedback-reflow.json",
+            ".scratch/dioxus-frontend-v1/evidence/case-handle-qualification-20261005/prepared-constraint-analysis.json"
+          ],
           "blockers": [],
-          "next_action": "Narrow Case Handle capture repair is source-integrated at 9dd2a412 with focused WASM RED/GREEN for current Move/End and invalid owner transitions. The first paired React setup reached Edit gaskets but no deterministic canvas handle hit point; do not retry guessed coordinates. Derive a valid handle target from viewer geometry or a stable fixture, then qualify one provisional accepted drag/Undo and one rejected non-commit on a packaged candidate.",
+          "next_action": "Actual public r18 Right/Bottom closure drag inserts static flex feedback and shrinks canvas CSS width701→542.09375/backing1050→812, so pointer mapping changes during interaction and move is blocked. Exact packaged-provider constraints admit the reference accepted endpoint. Repair feedback layout with meaningful mounted RED/GREEN and packaged valid/invalid gesture replay; do not weaken clearance rules or speculatively change End semantics.",
           "finish_condition": "Invalid movement remains preview-only and does not partially modify accepted document; each transient state is visible.",
           "owned_files": [
             "web/src/presentation/case_viewer.rs"
@@ -7315,7 +7342,7 @@
         {
           "id": "F7.6-C02",
           "requirement": "Reuse current session/CAD job identity and cancellation, preview-then-exact operation, accepted-snapshot semantics and verified M1 offline/STEP foundations.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/case_generation_lifecycle.rs",
@@ -7324,10 +7351,11 @@
             "web/src/cad_presentation.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md"
+            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-generation-export-20261005/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Inspect one current accepted-snapshot generation/export receipt for exact source and operation identity.",
+          "next_action": "Verified eac47f42 Case-local output from accepted Left r5 and Right r7; same reference assembly metadata/STEP data, retained Session/CAD/export authority guards. Independent milestone review CLEAR.",
           "finish_condition": "No duplicate generation/export authority; existing operation and snapshot path is used.",
           "owned_files": [
             "web/src/case_generation_lifecycle.rs",
@@ -7341,16 +7369,18 @@
         {
           "id": "F7.6-C03",
           "requirement": "Validate generation against document, board, physical instance, revision, request/job identity and current scope; ignore stale completion and cancel obsolete work.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/case_generation_lifecycle.rs",
             "web/src/case_generation_admission.rs",
             "web/src/presentation/case_workspace.rs"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/case-generation-export-20261005/RECEIPT.md"
+          ],
           "blockers": [],
-          "next_action": "Inspect guards in current owner path and capture a pending generation superseded by board/instance/revision change.",
+          "next_action": "Verified pending Left generation cancelled on immediate Right selection, no obsolete Left export; settled Right manual generation yields right-only r7 output. Retained scope/token/revision/request guards and all-native245 receipt reused by independent review.",
           "finish_condition": "Stale result is suppressed for each scope dimension and obsolete job is cancelled/ignored.",
           "owned_files": [
             "web/src/case_generation_lifecycle.rs",
@@ -7411,7 +7441,7 @@
         {
           "id": "F7.6-C06",
           "requirement": "Enable STEP only for exact current geometry under existing warning rules, using existing export path and captured accepted snapshot.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/case_generation_lifecycle.rs",
@@ -7421,10 +7451,11 @@
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
             ".scratch/dioxus-frontend-v1/evidence/consolidated-34822-20261004/RECEIPT.md",
-            ".scratch/dioxus-frontend-v1/evidence/case-local-export-repair-20261004.md"
+            ".scratch/dioxus-frontend-v1/evidence/case-local-export-repair-20261004.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-generation-export-20261005/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Case-local Export geometry is repaired in the settled source batch with meaningful mounted WASM RED/GREEN (1/1). The configured exact current control submits StartExport through the existing Runtime route; inexact/missing scene disables it. Integrate after independent batch review, publish, then verify actual captured-scope output file from this originating control. Mounted event interception does not prove Runtime admission or downloaded contents.",
+          "next_action": "Verified actual originating Case Export geometry Left/Right ZIPs, integrity/STEP identities and exact accepted revision; stale/busy/cancelled/wrong-scope output disabled. Review CLEAR.",
           "finish_condition": "Export is disabled for preview/stale/blocked geometry and a current exact accepted snapshot downloads through existing export service.",
           "owned_files": [
             "web/src/cad_presentation.rs",
@@ -7492,7 +7523,7 @@
         {
           "id": "F7.7-C01",
           "requirement": "Use selected physical board-instance Case document and its matching board/instance mechanical assembly only in Case.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/case_viewer.rs",
@@ -7501,10 +7532,12 @@
           ],
           "evidence": [
             ".scratch/dioxus-case-workspace/evidence/default-instance-public/README.md",
-            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md"
+            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-generation-export-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-layout-repair-review-20261005.md"
           ],
           "blockers": [],
-          "next_action": "Reconcile current selection projection against latest same-candidate multi-board/instance journey.",
+          "next_action": "Verified by independently reviewed selected Left/Right current scenes and actual generated exports with distinct plate bounds, matching per-instance settings and saved r18 reload. Scope comes from recorded public selection and unchanged capture owner, not nonexistent board/instance metadata in assembly.json. Parent joins and other F7.7 clauses remain open.",
           "finish_condition": "Changing selected Case instance switches both document projection and matching mechanical settings; no canonical fallback is silently persisted.",
           "owned_files": [
             "web/src/presentation/case_viewer.rs",
@@ -7597,17 +7630,19 @@
         {
           "id": "F7.7-C05",
           "requirement": "Preserve saved settings on correct scope and verify multi-board/instance selection with public actions.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/instance_selection.rs",
             "web/src/presentation/mechanical_settings_controller.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-case-workspace/evidence/default-instance-public/README.md"
+            ".scratch/dioxus-case-workspace/evidence/default-instance-public/README.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-multi-instance-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-layout-repair-review-20261005.md"
           ],
           "blockers": [],
-          "next_action": "Add a public accepted fixture with multiple instances on one board or retain this as a bounded fixture-production gate; existing public journey covers one instance per board only.",
+          "next_action": "Independent review CLEAR for original saved-settings/public multi-instance requirement: same-board Right and Right alternate public import/selection, alternate-only allowance edit, Undo/Redo and actual r21 saved archive/reload agree in both apps. Shared displayed form values are not distinct-instance form/preference correctness; those C04 obligations remain unverified. Imported fixture does not prove public instance creation or valid geometry under changed allowance.",
           "finish_condition": "Public selection and reopen demonstrate preferences/settings remain associated with correct board-instance scope.",
           "owned_files": [
             "web/src/presentation/instance_selection.rs",
@@ -7683,7 +7718,7 @@
       "criteria": [
         {
           "id": "F7.8-C01",
-          "requirement": "Wire Layout, Parts, Keymap, Keycaps and Case to the same viewer implementation, with each workflow\u2019s correct scope projection and controls.",
+          "requirement": "Wire Layout, Parts, Keymap, Keycaps and Case to the same viewer implementation, with each workflow’s correct scope projection and controls.",
           "state": "implemented",
           "classification": "functional",
           "sources": [
@@ -9061,7 +9096,7 @@
       "criteria": [
         {
           "id": "F9.4-C01",
-          "requirement": "React\u2194Dioxus round trip retains supported fields/assets, and actual saved writes are verified.",
+          "requirement": "React↔Dioxus round trip retains supported fields/assets, and actual saved writes are verified.",
           "state": "unassessed",
           "classification": "release",
           "sources": [
@@ -9297,7 +9332,7 @@
             "F9.4",
             "F9.5"
           ],
-          "next_action": "After F9.1\u2013F9.5 and F2\u2013F8 exits, reconcile every remaining placeholder/React island against inventory.",
+          "next_action": "After F9.1–F9.5 and F2–F8 exits, reconcile every remaining placeholder/React island against inventory.",
           "finish_condition": "No required UI behavior remains a placeholder or React island.",
           "owned_files": [
             ".scratch/dioxus-frontend-v1/evidence/tsx-inventory.json"

@@ -1,6 +1,1 @@
-[
-  {
-    "test": "mounted_component_drafts_survive_unrelated_acceptance_and_blur_uses_latest_owner",
-    "reason": "RF-033: real failing assertion (left \"4.00\", right \"7.25\")"
-  }
-]
+[]

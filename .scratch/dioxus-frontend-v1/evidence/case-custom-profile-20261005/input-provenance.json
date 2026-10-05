@@ -1,0 +1,10 @@
+{
+  "source": "/home/chris/.local/share/boardstudio/retained-tmp/20261004/case-unknown-switch-profile.boardstudio",
+  "source_sha256": "282fff9f2248177dd351df5993297dfc6d9cd608ffb9b66436ca5114c1b70820",
+  "id": "f06d00f7-1ae6-4b8a-808e-90c0499bcda0",
+  "mutations": [
+    "id",
+    "name"
+  ],
+  "fixture_sha256": "24d5b684de5b492029feb1d2b1f31f86f09ac986d95e67f4979b5e25a9344a55"
+}

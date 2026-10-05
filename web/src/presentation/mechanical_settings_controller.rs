@@ -18,9 +18,9 @@ use boardstudio_core::model::{
     InternalClosureHardware, InternalGasketConfiguration, MechanicalAssembly, MechanicalBattery,
     MechanicalBottomStyle, MechanicalBuiltinProfile, MechanicalConfiguration,
     MechanicalCriticalFit, MechanicalGasketLayout, MechanicalHardwareSpecification,
-    MechanicalMount, MechanicalPartProfile, MechanicalSwitchFamily, Mount, MountKind, Part,
-    PartDefinition, PartGenerator, PartKind, PlateMethod, ProjectDoc, ScrewDrive, ScrewHeadProfile,
-    ScrewLengthDatum, Vec2, Vec3,
+    MechanicalMount, MechanicalPartProcess, MechanicalPartProfile, MechanicalSwitchFamily, Mount,
+    MountKind, Part, PartDefinition, PartGenerator, PartKind, PlateMethod, ProjectDoc, ScrewDrive,
+    ScrewHeadProfile, ScrewLengthDatum, Vec2, Vec3,
 };
 use std::{
     cell::{Cell, RefCell},
@@ -1664,6 +1664,97 @@ fn apply_patch(
             configuration.plate_to_pcb = plate_to_pcb;
             configuration.plate_foam_thickness = default_plate_foam_thickness(plate_to_pcb);
         }
+        MechanicalSettingsPatch::AddProcessOverride { part_id } => {
+            if !is_process_target(document, part_id) {
+                return Err("The selected Case part is no longer available.".into());
+            }
+            if configuration
+                .part_processes
+                .iter()
+                .flatten()
+                .any(|process| process.part_id == *part_id)
+            {
+                return Err("A process override already exists for this part.".into());
+            }
+            let thickness = process_default_thickness(configuration, part_id);
+            let method = if part_id.ends_with("foam") {
+                PlateMethod::CutSheet
+            } else {
+                configuration.method.clone()
+            };
+            configuration
+                .part_processes
+                .get_or_insert_with(Vec::new)
+                .push(default_process(part_id, method, thickness));
+        }
+        MechanicalSettingsPatch::RemoveProcessOverride { part_id } => {
+            let processes = configuration.part_processes.as_mut().ok_or_else(|| {
+                "The selected process override is no longer available.".to_owned()
+            })?;
+            let previous_len = processes.len();
+            processes.retain(|process| process.part_id != *part_id);
+            if processes.len() == previous_len {
+                return Err("The selected process override is no longer available.".into());
+            }
+        }
+        MechanicalSettingsPatch::SetProcessMethod { part_id, method } => {
+            if !is_process_target(document, part_id) || part_id.ends_with("foam") {
+                return Err("The selected process method is not available.".into());
+            }
+            if part_id == "plate" {
+                configuration.method = method.clone();
+            } else {
+                let process = process_mut(configuration, document, part_id)?;
+                let previous_method = process.method.clone();
+                process.method = method.clone();
+                if previous_method != *method
+                    && !material_options(part_id, method).contains(&process.material.as_str())
+                {
+                    process.material = default_material(part_id, method).into();
+                }
+            }
+        }
+        MechanicalSettingsPatch::SetProcessMaterial { part_id, material } => {
+            let process = process_mut(configuration, document, part_id)?;
+            if !material_options(part_id, &process.method).contains(&material.as_str()) {
+                return Err("The selected material is not available for this process.".into());
+            }
+            process.material = material.clone();
+        }
+        MechanicalSettingsPatch::SetProcessThickness { part_id, thickness } => {
+            let min = if part_id.ends_with("foam") { 0.0 } else { 0.1 };
+            if !thickness.is_finite() || *thickness < min {
+                return Err(if min == 0.0 {
+                    "Foam thickness must be finite and nonnegative.".into()
+                } else {
+                    "Finished thickness must be at least 0.1 mm.".into()
+                });
+            }
+            if !is_process_target(document, part_id) {
+                return Err("The selected Case part is no longer available.".into());
+            }
+            match part_id.as_str() {
+                "plate" => configuration.plate_thickness = *thickness,
+                "plate-foam" => configuration.plate_foam_thickness = *thickness,
+                "bottom-foam" => configuration.bottom_foam_thickness = *thickness,
+                "bottom" => configuration.bottom_thickness = *thickness,
+                _ => process_mut(configuration, document, part_id)?.thickness = *thickness,
+            }
+        }
+        MechanicalSettingsPatch::SetStabilizerKind(stabilizer) => {
+            if !stabilizer_target_exists(document, board_id, &stabilizer.part_id) {
+                return Err("The selected wide key no longer needs a stabilizer.".into());
+            }
+            let values = configuration.stabilizers.get_or_insert_with(Vec::new);
+            if let Some(existing) = values
+                .iter_mut()
+                .find(|existing| existing.part_id == stabilizer.part_id)
+            {
+                *existing = stabilizer.clone();
+            } else {
+                values.push(stabilizer.clone());
+            }
+        }
     }
 
     let family =
@@ -1673,6 +1764,11 @@ fn apply_patch(
             field: MechanicalDimension::PlateThickness,
             value,
         } => Some(*value),
+        MechanicalSettingsPatch::SetProcessThickness { part_id, thickness }
+            if part_id == "plate" =>
+        {
+            Some(*thickness)
+        }
         MechanicalSettingsPatch::SetSwitchFamily { .. } => Some(configuration.plate_thickness),
         _ => None,
     };
@@ -1716,6 +1812,7 @@ fn apply_patch(
             | MechanicalSettingsPatch::SetHardwareDimension { .. }
             | MechanicalSettingsPatch::SetOpenings(_)
             | MechanicalSettingsPatch::SetOpeningDimension { .. }
+            | MechanicalSettingsPatch::SetStabilizerKind(_)
     ) || matches!(
         patch,
         MechanicalSettingsPatch::SetMountPosition { .. }
@@ -2017,6 +2114,11 @@ fn normalize_processes(
     patch: &MechanicalSettingsPatch,
 ) {
     let processes = configuration.part_processes.get_or_insert_with(Vec::new);
+    let top_level_method_change = matches!(patch, MechanicalSettingsPatch::SetMethod(_))
+        || matches!(
+            patch,
+            MechanicalSettingsPatch::SetProcessMethod { part_id, .. } if part_id == "plate"
+        );
     for process in processes.iter_mut() {
         let is_standard = matches!(
             process.part_id.as_str(),
@@ -2025,15 +2127,13 @@ fn normalize_processes(
         let is_foam = process.part_id.ends_with("foam");
         let method = if is_foam {
             PlateMethod::CutSheet
-        } else if process.part_id == "plate"
-            || (matches!(patch, MechanicalSettingsPatch::SetMethod(_)) && is_standard)
-        {
+        } else if process.part_id == "plate" || (top_level_method_change && is_standard) {
             configuration.method.clone()
         } else {
             process.method.clone()
         };
-        let method_changed = method != process.method
-            || (matches!(patch, MechanicalSettingsPatch::SetMethod(_)) && is_standard && !is_foam);
+        let method_changed =
+            method != process.method || (top_level_method_change && is_standard && !is_foam);
         let valid_material =
             material_options(&process.part_id, &method).contains(&process.material.as_str());
         if is_standard {
@@ -2050,6 +2150,97 @@ fn normalize_processes(
             };
         }
     }
+}
+
+fn is_process_target(document: &ProjectDoc, part_id: &str) -> bool {
+    matches!(part_id, "plate" | "plate-foam" | "bottom-foam" | "bottom")
+        || document.parts.iter().any(|part| part.id == part_id)
+}
+
+fn process_default_thickness(configuration: &MechanicalConfiguration, part_id: &str) -> f64 {
+    match part_id {
+        "plate" => configuration.plate_thickness,
+        "plate-foam" => configuration.plate_foam_thickness,
+        "bottom-foam" => configuration.bottom_foam_thickness,
+        "bottom" => configuration.bottom_thickness,
+        _ => configuration.plate_thickness,
+    }
+}
+
+fn default_process(part_id: &str, method: PlateMethod, thickness: f64) -> MechanicalPartProcess {
+    let method = if part_id.ends_with("foam") {
+        PlateMethod::CutSheet
+    } else {
+        method
+    };
+    MechanicalPartProcess {
+        part_id: part_id.to_owned(),
+        material: default_material(part_id, &method).to_owned(),
+        method,
+        thickness,
+        constraints_version: "2026-09-24".into(),
+    }
+}
+
+fn process_mut<'a>(
+    configuration: &'a mut MechanicalConfiguration,
+    document: &ProjectDoc,
+    part_id: &str,
+) -> Result<&'a mut MechanicalPartProcess, String> {
+    if !is_process_target(document, part_id) {
+        return Err("The selected Case part is no longer available.".into());
+    }
+    configuration
+        .part_processes
+        .as_mut()
+        .and_then(|processes| {
+            processes
+                .iter_mut()
+                .find(|process| process.part_id == part_id)
+        })
+        .ok_or_else(|| "The selected process override is no longer available.".to_owned())
+}
+
+fn stabilizer_target_exists(document: &ProjectDoc, board_id: &str, part_id: &str) -> bool {
+    let Some(board) = document.boards.iter().find(|board| board.id == board_id) else {
+        return false;
+    };
+    let Some(part) = document
+        .parts
+        .iter()
+        .find(|part| part.id == part_id && board.part_ids.contains(&part.id))
+    else {
+        return false;
+    };
+    let Some(definition) = document
+        .definitions
+        .iter()
+        .find(|definition| definition.id == part.definition_id)
+    else {
+        return false;
+    };
+    let Some(size) = part.keycap.or(definition.keycap) else {
+        return false;
+    };
+    if size.x.max(size.y) < 37.0
+        || definition
+            .generator
+            .as_ref()
+            .is_none_or(|generator| generator.source.to_lowercase() != "ceoloide/switch_mx")
+    {
+        return false;
+    }
+    !document.parts.iter().any(|stabilizer| {
+        board.part_ids.contains(&stabilizer.id)
+            && document
+                .definitions
+                .iter()
+                .find(|candidate| candidate.id == stabilizer.definition_id)
+                .and_then(|candidate| candidate.kicad_source.as_ref())
+                .is_some_and(|source| source.source.contains("(footprint \"STAB_MX_"))
+            && (stabilizer.pose.at.x - part.pose.at.x).hypot(stabilizer.pose.at.y - part.pose.at.y)
+                < 0.01
+    })
 }
 
 fn material_options(part_id: &str, method: &PlateMethod) -> &'static [&'static str] {
@@ -2325,6 +2516,137 @@ mod battery_patch_tests {
             clearance: 0.3,
             profiles: vec![],
         }
+    }
+
+    #[wasm_bindgen_test]
+    fn manufacturing_process_edits_route_standard_thickness_and_preserve_other_targets() {
+        let document = ProjectDoc::empty("doc", "doc");
+        let mut configuration = configuration();
+        configuration.part_processes = Some(vec![
+            MechanicalPartProcess {
+                part_id: "plate".into(),
+                method: PlateMethod::Printed,
+                material: "ABS".into(),
+                thickness: 1.5,
+                constraints_version: "2026-09-24".into(),
+            },
+            MechanicalPartProcess {
+                part_id: "bottom".into(),
+                method: PlateMethod::Printed,
+                material: "PLA".into(),
+                thickness: 3.0,
+                constraints_version: "2026-09-24".into(),
+            },
+        ]);
+
+        apply_patch(
+            &mut configuration,
+            &MechanicalSettingsPatch::SetProcessThickness {
+                part_id: "plate".into(),
+                thickness: 2.2,
+            },
+            &document,
+            "board",
+        )
+        .unwrap();
+        assert_eq!(configuration.plate_thickness, 2.2);
+        assert_eq!(
+            configuration.part_processes.as_ref().unwrap()[0].thickness,
+            2.2
+        );
+        assert_eq!(
+            configuration.part_processes.as_ref().unwrap()[1].thickness,
+            3.0
+        );
+
+        apply_patch(
+            &mut configuration,
+            &MechanicalSettingsPatch::SetProcessMethod {
+                part_id: "plate".into(),
+                method: PlateMethod::Cnc,
+            },
+            &document,
+            "board",
+        )
+        .unwrap();
+        let processes = configuration.part_processes.as_ref().unwrap();
+        assert_eq!(configuration.method, PlateMethod::Cnc);
+        assert_eq!(processes[0].material, "Aluminium");
+        assert_eq!(processes[1].material, "Aluminium");
+        assert_eq!(processes[0].constraints_version, "2026-09-24");
+
+        apply_patch(
+            &mut configuration,
+            &MechanicalSettingsPatch::RemoveProcessOverride {
+                part_id: "plate".into(),
+            },
+            &document,
+            "board",
+        )
+        .unwrap();
+        let remaining = configuration.part_processes.as_ref().unwrap();
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].part_id, "bottom");
+    }
+
+    #[wasm_bindgen_test]
+    fn plate_process_thickness_matches_dimension_profile_and_default_foam_sync() {
+        let document = ProjectDoc::empty("doc", "doc");
+        let mut base = configuration();
+        base.plate_foam_thickness = default_plate_foam_thickness(3.5);
+        base.profiles.push(MechanicalPartProfile {
+            source_geometry: None,
+            pcb_holes: None,
+            clearance_volumes: None,
+            openings: None,
+            clearances: None,
+            supported_thickness: None,
+            switch_family: Some(MechanicalSwitchFamily::Mx),
+            definition_id: "mx-switch".into(),
+            source: "fixture MX profile".into(),
+            cutouts: vec![],
+            plate_to_pcb: 3.5,
+        });
+        base.part_processes = Some(vec![MechanicalPartProcess {
+            part_id: "plate".into(),
+            method: PlateMethod::Printed,
+            material: "PLA".into(),
+            thickness: 1.5,
+            constraints_version: "2026-09-24".into(),
+        }]);
+
+        let mut process_route = base.clone();
+        let mut dimension_route = base;
+        apply_patch(
+            &mut process_route,
+            &MechanicalSettingsPatch::SetProcessThickness {
+                part_id: "plate".into(),
+                thickness: 2.5,
+            },
+            &document,
+            "board",
+        )
+        .unwrap();
+        apply_patch(
+            &mut dimension_route,
+            &MechanicalSettingsPatch::SetDimension {
+                field: MechanicalDimension::PlateThickness,
+                value: 2.5,
+            },
+            &document,
+            "board",
+        )
+        .unwrap();
+
+        assert_eq!(process_route.plate_to_pcb, dimension_route.plate_to_pcb);
+        assert_eq!(process_route.profiles, dimension_route.profiles);
+        assert_eq!(
+            process_route.plate_foam_thickness,
+            dimension_route.plate_foam_thickness
+        );
+        assert_eq!(process_route.part_processes, dimension_route.part_processes);
+        assert_eq!(process_route.plate_to_pcb, 2.5);
+        assert_eq!(process_route.plate_foam_thickness, 2.3);
     }
 
     #[wasm_bindgen_test]

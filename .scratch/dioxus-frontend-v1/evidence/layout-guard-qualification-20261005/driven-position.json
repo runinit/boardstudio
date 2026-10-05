@@ -1,0 +1,72 @@
+[
+  {
+    "app": "candidate",
+    "path": ".scratch/dioxus-frontend-v1/evidence/layout-guard-qualification-20261005/candidate-driven-position.boardstudio",
+    "sha256": "2a74062292c1652c779f3f5d9ef51914d94c6610bfc3f66dc1f9bc90eb89c635",
+    "revision": 20,
+    "constraints": [
+      {
+        "kind": "offset",
+        "id": "layout-component-constraint-63",
+        "sourcePartId": "matrix/right-keys/r0c0",
+        "targetPartId": "case-closure/right/183.63508/-112.40506",
+        "offset": {
+          "x": -20.0,
+          "y": -40.0
+        },
+        "rotation": 0.0
+      }
+    ],
+    "part": {
+      "outline": {
+        "excluded": true
+      },
+      "id": "case-closure/right/183.63508/-112.40506",
+      "definitionId": "assembly-closure/definition/right/183.63508/-112.40506",
+      "reference": "MH5",
+      "pose": {
+        "at": {
+          "x": 192.77,
+          "y": -111.548
+        },
+        "rotation": 0.0
+      },
+      "side": "front"
+    }
+  },
+  {
+    "app": "reference",
+    "path": ".scratch/dioxus-frontend-v1/evidence/layout-guard-qualification-20261005/reference-driven-position.boardstudio",
+    "sha256": "95b5e59e97e4e0cc2381d463217027f58e23d54eda2cc663e62e324b3f67c254",
+    "revision": 21,
+    "constraints": [
+      {
+        "kind": "offset",
+        "id": "ui-60d14ebc-b8aa-4651-bbc7-5f96440ae65f",
+        "sourcePartId": "matrix/right-keys/r0c0",
+        "targetPartId": "case-closure/right/183.63508/-112.40506",
+        "offset": {
+          "x": -19,
+          "y": -40
+        },
+        "rotation": 0
+      }
+    ],
+    "part": {
+      "outline": {
+        "excluded": true
+      },
+      "id": "case-closure/right/183.63508/-112.40506",
+      "definitionId": "assembly-closure/definition/right/183.63508/-112.40506",
+      "reference": "MH5",
+      "pose": {
+        "at": {
+          "x": 193.77,
+          "y": -111.548
+        },
+        "rotation": 0
+      },
+      "side": "front"
+    }
+  }
+]

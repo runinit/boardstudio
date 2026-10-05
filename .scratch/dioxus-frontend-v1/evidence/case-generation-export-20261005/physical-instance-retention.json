@@ -1,0 +1,714 @@
+{
+  "rows": [
+    {
+      "file": ".scratch/dioxus-frontend-v1/evidence/case-generation-export-20261005/input.boardstudio",
+      "sha256": "af5b1bde73de827a699ddf01f7f7a321c6cfe8922304056a1678dbe622c9a821",
+      "project_id": "47fc6fa9-2297-4111-9ebe-696d6b13b713",
+      "revision": 3,
+      "instances": [
+        {
+          "id": "left",
+          "name": "left half",
+          "boardId": "left",
+          "half": "left",
+          "role": "central",
+          "flipped": false,
+          "controllerPartId": "left/U1",
+          "mechanical": null,
+          "constructionLinked": false
+        },
+        {
+          "id": "right",
+          "name": "right half",
+          "boardId": "right",
+          "half": "right",
+          "role": "peripheral",
+          "flipped": false,
+          "controllerPartId": "right/U1",
+          "mechanical": null,
+          "constructionLinked": false
+        }
+      ],
+      "boards": [
+        {
+          "boardId": "left",
+          "controllerPartId": "left/U1",
+          "mode": "matrix",
+          "locks": {},
+          "assignments": {
+            "column/0": "P21",
+            "column/1": "P20",
+            "column/2": "P19",
+            "column/3": "P18",
+            "column/4": "P15",
+            "column/5": "P14",
+            "i2c/SCL": "P16",
+            "i2c/SDA": "P10",
+            "left/SW25/encoder-a": "P1",
+            "left/SW25/encoder-b": "P0",
+            "left/SW25/encoder-push": "P2",
+            "peripheral/left/J2/split-rx": "P3",
+            "peripheral/left/J2/split-tx": "P4",
+            "row/0": "P5",
+            "row/1": "P6",
+            "row/2": "P7",
+            "row/3": "P8",
+            "row/4": "P9"
+          },
+          "keyBindings": {},
+          "jumperStates": {},
+          "protectedHandoff": null
+        },
+        {
+          "boardId": "right",
+          "controllerPartId": "right/U1",
+          "mode": "matrix",
+          "locks": {},
+          "assignments": {
+            "column/0": "P21",
+            "column/1": "P20",
+            "column/2": "P19",
+            "column/3": "P18",
+            "column/4": "P15",
+            "column/5": "P14",
+            "i2c/SCL": "P16",
+            "i2c/SDA": "P10",
+            "peripheral/right/J2/split-rx": "P1",
+            "peripheral/right/J2/split-tx": "P0",
+            "right/SW25/encoder-a": "P2",
+            "right/SW25/encoder-b": "P3",
+            "right/SW25/encoder-push": "P4",
+            "row/0": "P5",
+            "row/1": "P6",
+            "row/2": "P7",
+            "row/3": "P8",
+            "row/4": "P9"
+          },
+          "keyBindings": {},
+          "jumperStates": {},
+          "protectedHandoff": null
+        }
+      ]
+    },
+    {
+      "file": ".scratch/dioxus-frontend-v1/evidence/case-generation-export-20261005/candidate-dimensions-saved.boardstudio",
+      "sha256": "fdd43cd2f74abf30ada74931f1f31ef87c09b338e454a47fbc413a595786531f",
+      "project_id": "47fc6fa9-2297-4111-9ebe-696d6b13b713",
+      "revision": 18,
+      "instances": [
+        {
+          "id": "left",
+          "name": "left half",
+          "boardId": "left",
+          "half": "left",
+          "role": "central",
+          "flipped": false,
+          "controllerPartId": "left/U1",
+          "mechanical": {
+            "bottomStyle": "shell",
+            "middleFrame": false,
+            "stabilizers": [],
+            "partProcesses": [
+              {
+                "partId": "plate",
+                "method": "printed",
+                "material": "PLA",
+                "thickness": 1.5,
+                "constraintsVersion": "2026-09-24"
+              },
+              {
+                "partId": "plate-foam",
+                "method": "cut-sheet",
+                "material": "EVA",
+                "thickness": 3.0,
+                "constraintsVersion": "2026-09-24"
+              },
+              {
+                "partId": "bottom-foam",
+                "method": "cut-sheet",
+                "material": "EVA",
+                "thickness": 2.0,
+                "constraintsVersion": "2026-09-24"
+              },
+              {
+                "partId": "bottom",
+                "method": "printed",
+                "material": "PLA",
+                "thickness": 3.0,
+                "constraintsVersion": "2026-09-24"
+              }
+            ],
+            "closureMounts": [
+              {
+                "id": "auto-closure/mount-proposal-1",
+                "at": {
+                  "x": 129.04975324675328,
+                  "y": -112.01403225806452
+                },
+                "kind": "boss",
+                "holeDiameter": 2.2,
+                "bossDiameter": 6.0,
+                "height": 7.1
+              },
+              {
+                "id": "auto-closure/mount-proposal-44",
+                "at": {
+                  "x": -0.9088441558441558,
+                  "y": -12.481741935483868
+                },
+                "kind": "boss",
+                "holeDiameter": 2.2,
+                "bossDiameter": 6.0,
+                "height": 7.1
+              },
+              {
+                "id": "auto-closure/mount-proposal-53",
+                "at": {
+                  "x": 111.84935064935067,
+                  "y": -3.0919032258064476
+                },
+                "kind": "boss",
+                "holeDiameter": 2.2,
+                "bossDiameter": 6.0,
+                "height": 7.1
+              },
+              {
+                "id": "auto-closure/mount-proposal-9",
+                "at": {
+                  "x": 35.40311688311689,
+                  "y": -98.86825806451613
+                },
+                "kind": "boss",
+                "holeDiameter": 2.2,
+                "bossDiameter": 6.0,
+                "height": 7.1
+              }
+            ],
+            "boardId": "left",
+            "integratedPlateFrame": false,
+            "mounts": [],
+            "method": "printed",
+            "mount": "tray",
+            "plateThickness": 1.5,
+            "plateFoamThickness": 3.0,
+            "pcbThickness": 1.6,
+            "bottomFoamThickness": 2.0,
+            "batteryHeight": 0.0,
+            "bottomThickness": 3.0,
+            "plateToPcb": 3.5,
+            "wallThickness": 2.4,
+            "clearance": 0.3,
+            "profiles": []
+          },
+          "constructionLinked": true
+        },
+        {
+          "id": "right",
+          "name": "right half",
+          "boardId": "right",
+          "half": "right",
+          "role": "peripheral",
+          "flipped": false,
+          "controllerPartId": "right/U1",
+          "mechanical": {
+            "bottomStyle": "shell",
+            "middleFrame": false,
+            "openingAllowance": 0.1,
+            "stabilizers": [],
+            "partProcesses": [
+              {
+                "partId": "plate",
+                "method": "printed",
+                "material": "PLA",
+                "thickness": 1.6,
+                "constraintsVersion": "2026-09-24"
+              },
+              {
+                "partId": "plate-foam",
+                "method": "cut-sheet",
+                "material": "EVA",
+                "thickness": 3.2,
+                "constraintsVersion": "2026-09-24"
+              },
+              {
+                "partId": "bottom-foam",
+                "method": "cut-sheet",
+                "material": "EVA",
+                "thickness": 2.2,
+                "constraintsVersion": "2026-09-24"
+              },
+              {
+                "partId": "bottom",
+                "method": "printed",
+                "material": "PLA",
+                "thickness": 3.2,
+                "constraintsVersion": "2026-09-24"
+              }
+            ],
+            "closureMounts": [
+              {
+                "id": "auto-closure/mount-proposal-1",
+                "at": {
+                  "x": 183.63507692307692,
+                  "y": -112.40506451612904
+                },
+                "kind": "boss",
+                "holeDiameter": 2.2,
+                "bossDiameter": 6.0,
+                "height": 7.1
+              },
+              {
+                "id": "auto-closure/mount-proposal-40",
+                "at": {
+                  "x": 318.3229871794872,
+                  "y": -17.858290322580643
+                },
+                "kind": "boss",
+                "holeDiameter": 2.2,
+                "bossDiameter": 6.0,
+                "height": 7.1
+              },
+              {
+                "id": "auto-closure/mount-proposal-47",
+                "at": {
+                  "x": 208.2962435897436,
+                  "y": -2.7308064516129065
+                },
+                "kind": "boss",
+                "holeDiameter": 2.2,
+                "bossDiameter": 6.0,
+                "height": 7.1
+              },
+              {
+                "id": "auto-closure/mount-proposal-14",
+                "at": {
+                  "x": 272.7946794871795,
+                  "y": -99.16851612903227
+                },
+                "kind": "boss",
+                "holeDiameter": 2.2,
+                "bossDiameter": 6.0,
+                "height": 7.1
+              }
+            ],
+            "boardId": "right",
+            "integratedPlateFrame": false,
+            "mounts": [],
+            "method": "printed",
+            "mount": "tray",
+            "plateThickness": 1.6,
+            "plateFoamThickness": 3.2,
+            "pcbThickness": 1.6,
+            "bottomFoamThickness": 2.2,
+            "batteryHeight": 0.0,
+            "bottomThickness": 3.2,
+            "plateToPcb": 3.4,
+            "wallThickness": 2.4,
+            "clearance": 0.4,
+            "profiles": []
+          },
+          "constructionLinked": true
+        }
+      ],
+      "boards": [
+        {
+          "boardId": "left",
+          "controllerPartId": "left/U1",
+          "mode": "matrix",
+          "locks": {},
+          "assignments": {
+            "column/0": "P21",
+            "column/1": "P20",
+            "column/2": "P19",
+            "column/3": "P18",
+            "column/4": "P15",
+            "column/5": "P14",
+            "i2c/SCL": "P16",
+            "i2c/SDA": "P10",
+            "left/SW25/encoder-a": "P1",
+            "left/SW25/encoder-b": "P0",
+            "left/SW25/encoder-push": "P2",
+            "peripheral/left/J2/split-rx": "P3",
+            "peripheral/left/J2/split-tx": "P4",
+            "row/0": "P5",
+            "row/1": "P6",
+            "row/2": "P7",
+            "row/3": "P8",
+            "row/4": "P9"
+          },
+          "keyBindings": {},
+          "jumperStates": {},
+          "protectedHandoff": null
+        },
+        {
+          "boardId": "right",
+          "controllerPartId": "right/U1",
+          "mode": "matrix",
+          "locks": {},
+          "assignments": {
+            "column/0": "P21",
+            "column/1": "P20",
+            "column/2": "P19",
+            "column/3": "P18",
+            "column/4": "P15",
+            "column/5": "P14",
+            "i2c/SCL": "P16",
+            "i2c/SDA": "P10",
+            "peripheral/right/J2/split-rx": "P1",
+            "peripheral/right/J2/split-tx": "P0",
+            "right/SW25/encoder-a": "P2",
+            "right/SW25/encoder-b": "P3",
+            "right/SW25/encoder-push": "P4",
+            "row/0": "P5",
+            "row/1": "P6",
+            "row/2": "P7",
+            "row/3": "P8",
+            "row/4": "P9"
+          },
+          "keyBindings": {},
+          "jumperStates": {},
+          "protectedHandoff": null
+        }
+      ]
+    },
+    {
+      "file": ".scratch/dioxus-frontend-v1/evidence/case-generation-export-20261005/reference-dimensions-saved.boardstudio",
+      "sha256": "e907b249dca4ebf8c37166bb7c50079b2fd17c4a4b0e409c4e26c3b4436de8a7",
+      "project_id": "47fc6fa9-2297-4111-9ebe-696d6b13b713",
+      "revision": 18,
+      "instances": [
+        {
+          "id": "left",
+          "name": "left half",
+          "boardId": "left",
+          "half": "left",
+          "role": "central",
+          "flipped": false,
+          "controllerPartId": "left/U1",
+          "mechanical": {
+            "bottomStyle": "shell",
+            "middleFrame": false,
+            "stabilizers": [],
+            "partProcesses": [
+              {
+                "partId": "plate",
+                "method": "printed",
+                "material": "PLA",
+                "thickness": 1.5,
+                "constraintsVersion": "2026-09-24"
+              },
+              {
+                "partId": "plate-foam",
+                "method": "cut-sheet",
+                "material": "EVA",
+                "thickness": 3,
+                "constraintsVersion": "2026-09-24"
+              },
+              {
+                "partId": "bottom-foam",
+                "method": "cut-sheet",
+                "material": "EVA",
+                "thickness": 2,
+                "constraintsVersion": "2026-09-24"
+              },
+              {
+                "partId": "bottom",
+                "method": "printed",
+                "material": "PLA",
+                "thickness": 3,
+                "constraintsVersion": "2026-09-24"
+              }
+            ],
+            "closureMounts": [
+              {
+                "id": "auto-closure/mount-proposal-1",
+                "at": {
+                  "x": 129.04975324675328,
+                  "y": -112.01403225806452
+                },
+                "kind": "boss",
+                "holeDiameter": 2.2,
+                "bossDiameter": 6,
+                "height": 7.1
+              },
+              {
+                "id": "auto-closure/mount-proposal-44",
+                "at": {
+                  "x": -0.9088441558441558,
+                  "y": -12.481741935483868
+                },
+                "kind": "boss",
+                "holeDiameter": 2.2,
+                "bossDiameter": 6,
+                "height": 7.1
+              },
+              {
+                "id": "auto-closure/mount-proposal-53",
+                "at": {
+                  "x": 111.84935064935068,
+                  "y": -3.0919032258064476
+                },
+                "kind": "boss",
+                "holeDiameter": 2.2,
+                "bossDiameter": 6,
+                "height": 7.1
+              },
+              {
+                "id": "auto-closure/mount-proposal-9",
+                "at": {
+                  "x": 35.40311688311689,
+                  "y": -98.86825806451613
+                },
+                "kind": "boss",
+                "holeDiameter": 2.2,
+                "bossDiameter": 6,
+                "height": 7.1
+              }
+            ],
+            "boardId": "left",
+            "integratedPlateFrame": false,
+            "mounts": [],
+            "method": "printed",
+            "mount": "tray",
+            "plateThickness": 1.5,
+            "plateFoamThickness": 3,
+            "pcbThickness": 1.6,
+            "bottomFoamThickness": 2,
+            "batteryHeight": 0,
+            "bottomThickness": 3,
+            "plateToPcb": 3.5,
+            "wallThickness": 2.4,
+            "clearance": 0.3,
+            "profiles": []
+          },
+          "constructionLinked": true
+        },
+        {
+          "id": "right",
+          "name": "right half",
+          "boardId": "right",
+          "half": "right",
+          "role": "peripheral",
+          "flipped": false,
+          "controllerPartId": "right/U1",
+          "mechanical": {
+            "bottomStyle": "shell",
+            "middleFrame": false,
+            "openings": [],
+            "openingAllowance": 0.1,
+            "stabilizers": [],
+            "partProcesses": [
+              {
+                "partId": "plate",
+                "method": "printed",
+                "material": "PLA",
+                "thickness": 1.6,
+                "constraintsVersion": "2026-09-24"
+              },
+              {
+                "partId": "plate-foam",
+                "method": "cut-sheet",
+                "material": "EVA",
+                "thickness": 3.2,
+                "constraintsVersion": "2026-09-24"
+              },
+              {
+                "partId": "bottom-foam",
+                "method": "cut-sheet",
+                "material": "EVA",
+                "thickness": 2.2,
+                "constraintsVersion": "2026-09-24"
+              },
+              {
+                "partId": "bottom",
+                "method": "printed",
+                "material": "PLA",
+                "thickness": 3.2,
+                "constraintsVersion": "2026-09-24"
+              }
+            ],
+            "closureMounts": [
+              {
+                "id": "auto-closure/mount-proposal-1",
+                "at": {
+                  "x": 183.63507692307692,
+                  "y": -112.40506451612904
+                },
+                "kind": "boss",
+                "holeDiameter": 2.2,
+                "bossDiameter": 6,
+                "height": 7.1
+              },
+              {
+                "id": "auto-closure/mount-proposal-40",
+                "at": {
+                  "x": 318.3229871794872,
+                  "y": -17.858290322580643
+                },
+                "kind": "boss",
+                "holeDiameter": 2.2,
+                "bossDiameter": 6,
+                "height": 7.1
+              },
+              {
+                "id": "auto-closure/mount-proposal-47",
+                "at": {
+                  "x": 208.2962435897436,
+                  "y": -2.7308064516129065
+                },
+                "kind": "boss",
+                "holeDiameter": 2.2,
+                "bossDiameter": 6,
+                "height": 7.1
+              },
+              {
+                "id": "auto-closure/mount-proposal-14",
+                "at": {
+                  "x": 272.7946794871795,
+                  "y": -99.16851612903228
+                },
+                "kind": "boss",
+                "holeDiameter": 2.2,
+                "bossDiameter": 6,
+                "height": 7.1
+              }
+            ],
+            "boardId": "right",
+            "integratedPlateFrame": false,
+            "mounts": [],
+            "method": "printed",
+            "mount": "tray",
+            "plateThickness": 1.6,
+            "plateFoamThickness": 3.2,
+            "pcbThickness": 1.6,
+            "bottomFoamThickness": 2.2,
+            "batteryHeight": 0,
+            "bottomThickness": 3.2,
+            "plateToPcb": 3.4,
+            "wallThickness": 2.4,
+            "clearance": 0.4,
+            "profiles": []
+          },
+          "constructionLinked": true
+        }
+      ],
+      "boards": [
+        {
+          "boardId": "left",
+          "controllerPartId": "left/U1",
+          "mode": "matrix",
+          "locks": {},
+          "assignments": {
+            "column/0": "P21",
+            "column/1": "P20",
+            "column/2": "P19",
+            "column/3": "P18",
+            "column/4": "P15",
+            "column/5": "P14",
+            "i2c/SCL": "P16",
+            "i2c/SDA": "P10",
+            "left/SW25/encoder-a": "P1",
+            "left/SW25/encoder-b": "P0",
+            "left/SW25/encoder-push": "P2",
+            "peripheral/left/J2/split-rx": "P3",
+            "peripheral/left/J2/split-tx": "P4",
+            "row/0": "P5",
+            "row/1": "P6",
+            "row/2": "P7",
+            "row/3": "P8",
+            "row/4": "P9"
+          },
+          "keyBindings": {},
+          "jumperStates": {},
+          "protectedHandoff": null
+        },
+        {
+          "boardId": "right",
+          "controllerPartId": "right/U1",
+          "mode": "matrix",
+          "locks": {},
+          "assignments": {
+            "column/0": "P21",
+            "column/1": "P20",
+            "column/2": "P19",
+            "column/3": "P18",
+            "column/4": "P15",
+            "column/5": "P14",
+            "i2c/SCL": "P16",
+            "i2c/SDA": "P10",
+            "peripheral/right/J2/split-rx": "P1",
+            "peripheral/right/J2/split-tx": "P0",
+            "right/SW25/encoder-a": "P2",
+            "right/SW25/encoder-b": "P3",
+            "right/SW25/encoder-push": "P4",
+            "row/0": "P5",
+            "row/1": "P6",
+            "row/2": "P7",
+            "row/3": "P8",
+            "row/4": "P9"
+          },
+          "keyBindings": {},
+          "jumperStates": {},
+          "protectedHandoff": null
+        }
+      ]
+    }
+  ],
+  "same_board_controller_configuration": true,
+  "same_instances": false,
+  "scope": "Archive inspection after already-recorded paired mechanical edits, history, physical scope switching and reload; no new controller edit or full parent acceptance claim.",
+  "same_instance_identity_and_associations": true,
+  "mechanical_summary": [
+    {
+      "file": ".scratch/dioxus-frontend-v1/evidence/case-generation-export-20261005/input.boardstudio",
+      "instances": [
+        {
+          "id": "left",
+          "constructionLinked": false,
+          "openingAllowance": null,
+          "method": null
+        },
+        {
+          "id": "right",
+          "constructionLinked": false,
+          "openingAllowance": null,
+          "method": null
+        }
+      ]
+    },
+    {
+      "file": ".scratch/dioxus-frontend-v1/evidence/case-generation-export-20261005/candidate-dimensions-saved.boardstudio",
+      "instances": [
+        {
+          "id": "left",
+          "constructionLinked": true,
+          "openingAllowance": null,
+          "method": "printed"
+        },
+        {
+          "id": "right",
+          "constructionLinked": true,
+          "openingAllowance": 0.1,
+          "method": "printed"
+        }
+      ]
+    },
+    {
+      "file": ".scratch/dioxus-frontend-v1/evidence/case-generation-export-20261005/reference-dimensions-saved.boardstudio",
+      "instances": [
+        {
+          "id": "left",
+          "constructionLinked": true,
+          "openingAllowance": null,
+          "method": "printed"
+        },
+        {
+          "id": "right",
+          "constructionLinked": true,
+          "openingAllowance": 0.1,
+          "method": "printed"
+        }
+      ]
+    }
+  ]
+}

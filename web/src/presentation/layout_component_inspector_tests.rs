@@ -303,10 +303,24 @@ fn standalone_component_projection_preserves_accepted_owner_and_metadata() {
 }
 
 #[wasm_bindgen_test]
-fn component_projection_rejects_ambiguous_and_non_standalone_selection() {
+fn component_projection_supports_group_position_selection_and_rejects_invalid_context() {
     let (mut model, selected) = fixture();
     model.selected_part_ids.push("source-part".into());
-    assert!(layout_component_inspector_projection(&model, Some(&selected), 7, 3).is_none());
+    let group = layout_component_inspector_projection(&model, Some(&selected), 7, 3)
+        .expect("a live mixed component selection has a group-position projection");
+    assert_eq!(group.selection_count, 2);
+    assert_eq!(group.owner.selected_part_ids, model.selected_part_ids);
+    assert_eq!(
+        group.position.x, 4.0,
+        "the first selected part anchors the group"
+    );
+
+    let mut reordered = model.clone();
+    reordered.selected_part_ids.reverse();
+    assert!(
+        layout_component_inspector_projection(&reordered, Some(&selected), 7, 3).is_none(),
+        "a component context cannot act for a group whose first selected part changed"
+    );
 
     let (model, mut selected) = fixture();
     selected.context = objects::TreeContext::Component {
@@ -355,6 +369,7 @@ struct MountedProbe {
     selection_kind: std::rc::Rc<RefCell<Option<Signal<objects::LayoutSelectionKind>>>>,
     projection: std::rc::Rc<RefCell<Option<LayoutComponentInspectorProjection>>>,
     action: std::rc::Rc<RefCell<Option<EventHandler<LayoutComponentInspectorAction>>>>,
+    render_generation: std::rc::Rc<RefCell<Option<Signal<u64>>>>,
     root_id: &'static str,
 }
 
@@ -430,6 +445,11 @@ impl MountedProbe {
         };
         self.runtime
             .set_layout_component_inspector_test_state(model.clone(), Some(scope));
+        let mut generation = self
+            .render_generation
+            .borrow()
+            .expect("mounted render-generation signal");
+        generation += 1;
         revision
     }
 }
@@ -439,6 +459,7 @@ fn mounted_component_inspector_host() -> Element {
     let probe = use_context::<MountedProbe>();
     let render_generation = use_signal(|| 0u64);
     let _ = render_generation();
+    *probe.render_generation.borrow_mut() = Some(render_generation);
     let workspace = use_signal(|| "Layout");
     let selection_kind = use_signal(objects::LayoutSelectionKind::default);
     let inspector_tab = use_signal(super::layout_workspace::LayoutInspectorTab::default);
@@ -508,7 +529,7 @@ fn mounted_component_inspector_host() -> Element {
         button { id: "component-inspector-select-original", onclick: { let mut generation = render_generation; move |_| { restore_probe.select(Some("selected-part")); generation += 1; } }, "Select original" }
         button { id: "component-inspector-select-component", onclick: { let mut generation = render_generation; move |_| { component_probe.select_component_from_finding("selected-part"); generation += 1; } }, "Select component from finding" }
         button { id: "component-inspector-clear", onclick: { let mut generation = render_generation; move |_| { clear_probe.select(None); generation += 1; } }, "Clear selection" }
-        button { id: "component-inspector-unrelated-refresh", onclick: { let mut generation = render_generation; move |_| { refresh_probe.accept_unrelated_revision(); generation += 1; } }, "Accept unrelated revision" }
+        button { id: "component-inspector-unrelated-refresh", onclick: move |_| { refresh_probe.accept_unrelated_revision(); }, "Accept unrelated revision" }
         if let Some(projection) = projection {
             LayoutComponentInspector { projection, inspector_tab, on_action: action_handler }
         }
@@ -517,6 +538,20 @@ fn mounted_component_inspector_host() -> Element {
 
 fn mounted_probe(root_id: &'static str) -> (MountedProbe, web_sys::Element) {
     mounted_probe_configured(root_id, |_| {})
+}
+
+fn mounted_group_probe(root_id: &'static str) -> (MountedProbe, web_sys::Element) {
+    let runtime = crate::runtime::Runtime::new().expect("browser runtime fixture initializes");
+    let (mut model, selected) = fixture();
+    let document = Arc::make_mut(&mut model.accepted.as_mut().unwrap().document);
+    document
+        .parts
+        .iter_mut()
+        .find(|part| part.id == "selected-part")
+        .unwrap()
+        .locked = Some(false);
+    model.selected_part_ids = vec!["selected-part".into(), "source-part".into()];
+    mounted_probe_with_model(root_id, runtime, model, selected.scope)
 }
 
 /// Mount the production Inspector over the standalone fixture with the selected
@@ -568,6 +603,7 @@ fn mounted_probe_with_model(
         selection_kind: std::rc::Rc::default(),
         projection: std::rc::Rc::default(),
         action: std::rc::Rc::default(),
+        render_generation: std::rc::Rc::default(),
         root_id,
     };
     let document = web_sys::window().unwrap().document().unwrap();
@@ -835,7 +871,8 @@ async fn mounted_component_margin_enter_commits_and_escape_restores_the_accepted
 }
 
 #[wasm_bindgen_test]
-async fn mounted_component_drafts_survive_unrelated_acceptance_and_blur_uses_latest_owner() {
+async fn mounted_component_position_draft_survives_unrelated_acceptance_and_blur_uses_latest_owner()
+{
     let (probe, root) = mounted_probe("layout-component-inspector-refresh-test-root");
     settle_component_inspector().await;
     let document = web_sys::window().unwrap().document().unwrap();
@@ -857,16 +894,11 @@ async fn mounted_component_drafts_survive_unrelated_acceptance_and_blur_uses_lat
             .unwrap();
     };
 
-    type_value(&input("X mm"), "7.25");
-    type_value(&input("Y mm"), "99.0");
     click_component_inspector(probe.root_id, ".m1-layout-component-outline summary");
-    settle_component_inspector().await;
-    type_value(&input("Part edge margin"), "5.5");
     click_component_inspector(probe.root_id, ".m1-layout-component-constraint summary");
     settle_component_inspector().await;
-    type_value(&input("Offset X (mm)"), "8.5");
-    click_component_inspector(probe.root_id, "button[role='tab']:nth-child(2)");
-    settle_component_inspector().await;
+    let x = input("X mm");
+    type_value(&x, "7.25");
 
     let accepted_revision = probe
         .model
@@ -884,7 +916,10 @@ async fn mounted_component_drafts_survive_unrelated_acceptance_and_blur_uses_lat
         .unwrap()
         .owner
         .context_generation;
-    click_component_inspector(probe.root_id, "#component-inspector-unrelated-refresh");
+    // Advance accepted state without changing focus. The fixture records editor
+    // actions instead of applying them, so clicking a control here would blur and
+    // submit the draft before the unrelated acceptance being tested.
+    probe.accept_unrelated_revision();
     settle_component_inspector().await;
     assert_eq!(
         probe.projection.borrow().as_ref().unwrap().owner.revision,
@@ -899,48 +934,107 @@ async fn mounted_component_drafts_survive_unrelated_acceptance_and_blur_uses_lat
             .owner
             .context_generation,
         initial_context_generation,
-        "accepted revision changes refresh the capture without ending the selected component lifetime"
+        "accepted revisions refresh action capture without ending component selection"
+    );
+    assert_eq!(
+        x.value(),
+        "7.25",
+        "dirty focused X draft survives the refresh"
+    );
+    assert_eq!(
+        input("Y mm").value(),
+        "4.00",
+        "clean Y follows the accepted position"
+    );
+    for selector in [
+        ".m1-layout-component-outline",
+        ".m1-layout-component-constraint",
+    ] {
+        assert!(
+            document
+                .query_selector(&format!("#{} {selector}", probe.root_id))
+                .unwrap()
+                .unwrap()
+                .has_attribute("open"),
+            "disclosure {selector} survives unrelated acceptance"
+        );
+    }
+
+    let _ = probe.runtime.take_layout_component_inspector_test_events();
+    x.blur();
+    settle_component_inspector().await;
+    let events = probe.runtime.take_layout_component_inspector_test_events();
+    assert!(
+        matches!(
+            events.as_slice(),
+            [boardstudio_application::Event::Edit { command, .. }]
+                if command.base_revision == accepted_revision
+                    && matches!(&command.operation, boardstudio_core::model::EditOperation::MoveParts { positions }
+                        if positions.len() == 1
+                            && positions[0].at.x == 7.25
+                            && positions[0].at.y == 4.0)
+        ),
+        "blur emits the retained X draft against the refreshed owner: {events:?}"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_component_margin_enter_uses_latest_accepted_document() {
+    let (probe, root) = mounted_probe("layout-component-inspector-margin-refresh-test-root");
+    settle_component_inspector().await;
+    let document = web_sys::window().unwrap().document().unwrap();
+    click_component_inspector(probe.root_id, ".m1-layout-component-outline summary");
+    settle_component_inspector().await;
+    let margin = document
+        .query_selector(&format!(
+            "#{} input[aria-label='Part edge margin']",
+            probe.root_id
+        ))
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlInputElement>()
+        .unwrap();
+    margin.focus().unwrap();
+    margin.set_value("5.5");
+    let input = web_sys::EventInit::new();
+    input.set_bubbles(true);
+    margin
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &input).unwrap())
+        .unwrap();
+
+    let accepted_revision = probe.accept_unrelated_revision();
+    settle_component_inspector().await;
+    assert_eq!(
+        margin.value(),
+        "5.5",
+        "dirty margin draft survives acceptance"
     );
     assert_eq!(
         document
-            .query_selector(&format!(
-                "#{} button[role='tab']:nth-child(2)",
-                probe.root_id
-            ))
+            .query_selector(&format!("#{} input[aria-label='Y mm']", probe.root_id))
             .unwrap()
             .unwrap()
-            .get_attribute("aria-selected")
-            .as_deref(),
-        Some("true"),
-        "the selected Relations tab must survive unrelated accepted revisions"
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap()
+            .value(),
+        "4.00",
+        "clean position follows accepted state"
     );
-    click_component_inspector(probe.root_id, "button[role='tab']:nth-child(1)");
-    settle_component_inspector().await;
-    click_component_inspector(probe.root_id, ".m1-layout-component-outline summary");
-    settle_component_inspector().await;
-    assert_eq!(input("X mm").value(), "7.25");
-    assert_eq!(input("Y mm").value(), "4.00");
-    assert_eq!(input("Part edge margin").value(), "5.5");
-    assert_eq!(input("Offset X (mm)").value(), "8.5");
     assert!(
         document
-            .query_selector(&format!(
-                "#{} .m1-layout-component-constraint",
-                probe.root_id
-            ))
+            .query_selector(&format!("#{} .m1-layout-component-outline", probe.root_id))
             .unwrap()
             .unwrap()
             .has_attribute("open"),
-        "the constraint editor disclosure state must survive an unrelated accepted revision"
+        "outline disclosure survives unrelated acceptance"
     );
 
     let _ = probe.runtime.take_layout_component_inspector_test_events();
-    let margin_field = input("Part edge margin");
-    margin_field.focus().unwrap();
     let enter = web_sys::KeyboardEventInit::new();
     enter.set_key("Enter");
     enter.set_bubbles(true);
-    margin_field
+    margin
         .dispatch_event(
             &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
         )
@@ -957,7 +1051,36 @@ async fn mounted_component_drafts_survive_unrelated_acceptance_and_blur_uses_lat
                             && document.parts.iter().find(|part| part.id == "selected-part").is_some_and(|part| part.pose.at.y == 4.0)
                             && document.parameters.get("unrelated-inspector-edit") == Some(&serde_json::json!(42)))
         ),
-        "blur must commit the preserved draft against the latest accepted base and document: {events:?}"
+        "Enter dispatches the margin edit against the latest accepted document: {events:?}"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_component_relations_tab_survives_unrelated_acceptance() {
+    let (probe, root) = mounted_probe("layout-component-inspector-tab-refresh-test-root");
+    settle_component_inspector().await;
+    let document = web_sys::window().unwrap().document().unwrap();
+    click_component_inspector(probe.root_id, "button[role='tab']:nth-child(2)");
+    settle_component_inspector().await;
+    let revision = probe.accept_unrelated_revision();
+    settle_component_inspector().await;
+    assert_eq!(
+        probe.projection.borrow().as_ref().unwrap().owner.revision,
+        revision
+    );
+    assert_eq!(
+        document
+            .query_selector(&format!(
+                "#{} button[role='tab']:nth-child(2)",
+                probe.root_id
+            ))
+            .unwrap()
+            .unwrap()
+            .get_attribute("aria-selected")
+            .as_deref(),
+        Some("true"),
+        "Relations tab survives an unrelated accepted revision"
     );
     root.remove();
 }
@@ -1089,6 +1212,45 @@ async fn mounted_editable_component_position_commits_so_the_unavailable_cases_ar
             if matches!(&command.operation, boardstudio_core::model::EditOperation::MoveParts { positions }
                 if positions.len() == 1 && positions[0].at.x == 42.0)
     ));
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_group_position_blur_moves_all_selected_parts_from_first_anchor() {
+    let (probe, root) = mounted_group_probe("layout-component-group-position-test-root");
+    settle_component_inspector().await;
+    let document = web_sys::window().unwrap().document().unwrap();
+    assert_eq!(
+        document
+            .query_selector(&format!(
+                "#{} .m1-layout-component-selection-note",
+                probe.root_id
+            ))
+            .unwrap()
+            .unwrap()
+            .text_content()
+            .as_deref(),
+        Some("2 parts selected. Position edits apply to the selection.")
+    );
+    let x = position_input(probe.root_id, "X mm");
+    assert!(!x.disabled());
+    let _ = probe.runtime.take_layout_component_inspector_test_events();
+    try_commit_position(&x, "5.5");
+    settle_component_inspector().await;
+    let events = probe.runtime.take_layout_component_inspector_test_events();
+    assert!(
+        matches!(
+            events.as_slice(),
+            [boardstudio_application::Event::Edit { command, .. }]
+                if command.target_ids == ["selected-part", "source-part"]
+                    && matches!(&command.operation, boardstudio_core::model::EditOperation::MoveParts { positions }
+                        if positions == &[
+                            boardstudio_core::model::Position { id: "selected-part".into(), at: Vec2 { x: 5.5, y: 3.0 } },
+                            boardstudio_core::model::Position { id: "source-part".into(), at: Vec2 { x: 11.5, y: 3.0 } },
+                        ])
+        ),
+        "the group position edit must translate every selected part by the anchor delta: {events:?}"
+    );
     root.remove();
 }
 

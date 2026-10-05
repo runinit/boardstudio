@@ -655,6 +655,7 @@ mod relation_escape_regression_tests {
                 context_generation: 2,
                 scope_generation: 3,
                 part_id,
+                selected_part_ids: vec!["left-keys-SW1".to_owned()],
             },
         )
     }

@@ -2168,7 +2168,7 @@ fn layout_component_inspector_projection(
     else {
         return None;
     };
-    if model.selected_part_ids.len() != 1
+    if model.selected_part_ids.is_empty()
         || model.selected_part_ids.first() != Some(part_id)
         || !selection::context_is_current(model, &selected.scope, &selected.context)
         || objects::component_context_for_finding_part(model, part_id).as_ref()
@@ -2187,7 +2187,14 @@ fn layout_component_inspector_projection(
         .boards
         .iter()
         .find(|board| board.id == model.active_board_id)?;
-    if !board.part_ids.iter().any(|id| id == part_id) {
+    if model.selected_part_ids.iter().any(|selected_id| {
+        !board.part_ids.iter().any(|id| id == selected_id)
+            || !snapshot
+                .document
+                .parts
+                .iter()
+                .any(|part| part.id == *selected_id)
+    }) {
         return None;
     }
     let board_parts: Vec<_> = board
@@ -2232,7 +2239,10 @@ fn layout_component_inspector_projection(
         .constraints
         .iter()
         .find(|constraint| {
-            constraint.target() == part.id.as_str()
+            model
+                .selected_part_ids
+                .iter()
+                .any(|id| constraint.target() == id)
                 && board.part_ids.iter().any(|id| id == constraint.source())
         })
         .cloned();
@@ -2255,13 +2265,21 @@ fn layout_component_inspector_projection(
             context_generation,
             scope_generation,
             part_id: part.id.clone(),
+            selected_part_ids: model.selected_part_ids.clone(),
         },
         reference: part.reference.clone(),
         definition_name: definition.name.clone(),
         definition_kind: definition_kind.to_owned(),
         envelope_notice: definition.envelope_notice.clone(),
-        locked: part.locked.unwrap_or(false),
+        locked: model.selected_part_ids.iter().any(|selected_id| {
+            document
+                .parts
+                .iter()
+                .find(|part| part.id == *selected_id)
+                .is_none_or(|part| part.locked.unwrap_or(false))
+        }),
         position: part.pose.at,
+        selection_count: model.selected_part_ids.len(),
         layout_id: active_layout.map(|layout| layout.id.clone()),
         layouts,
         outline: part.outline.clone().unwrap_or_else(PartOutline::default),
@@ -2460,6 +2478,7 @@ fn layout_component_inspector_owner_key(
         scope: Some(selected.scope.clone()),
         workspace,
         part_id: Some(part_id.clone()),
+        selected_part_ids: model.selected_part_ids.clone(),
     })
 }
 
@@ -2502,7 +2521,7 @@ fn layout_component_inspector_owner_is_current(
             } if part_id == &owner.part_id
         )
         && selection::context_is_current(&model, &owner.scope, &selected.context)
-        && model.selected_part_ids.len() == 1
+        && model.selected_part_ids == owner.selected_part_ids
         && model.selected_part_ids.first() == Some(&owner.part_id)
 }
 
@@ -2564,10 +2583,16 @@ fn dispatch_layout_component_inspector_action(
     else {
         return;
     };
-    if !board
-        .part_ids
-        .iter()
-        .any(|part_id| part_id == &action_owner.part_id)
+    if action_owner.selected_part_ids.is_empty()
+        || action_owner.selected_part_ids.first() != Some(&action_owner.part_id)
+        || action_owner.selected_part_ids.iter().any(|selected_id| {
+            !board.part_ids.iter().any(|part_id| part_id == selected_id)
+                || !snapshot
+                    .document
+                    .parts
+                    .iter()
+                    .any(|part| part.id == *selected_id)
+        })
     {
         return;
     }
@@ -2589,16 +2614,36 @@ fn dispatch_layout_component_inspector_action(
                 inspector::ComponentPositionAxis::X => at.x = value,
                 inspector::ComponentPositionAxis::Y => at.y = value,
             }
+            let delta = Vec2 {
+                x: at.x - part.pose.at.x,
+                y: at.y - part.pose.at.y,
+            };
+            let positions = owner
+                .selected_part_ids
+                .iter()
+                .filter_map(|selected_id| {
+                    let selected = snapshot
+                        .document
+                        .parts
+                        .iter()
+                        .find(|part| part.id == *selected_id)?;
+                    Some(Position {
+                        id: selected.id.clone(),
+                        at: Vec2 {
+                            x: selected.pose.at.x + delta.x,
+                            y: selected.pose.at.y + delta.y,
+                        },
+                    })
+                })
+                .collect::<Vec<_>>();
+            if positions.len() != owner.selected_part_ids.len() {
+                return;
+            }
             submit_layout_component_edit(
                 runtime,
                 &owner,
-                vec![owner.part_id.clone()],
-                EditOperation::MoveParts {
-                    positions: vec![Position {
-                        id: owner.part_id.clone(),
-                        at,
-                    }],
-                },
+                owner.selected_part_ids.clone(),
+                EditOperation::MoveParts { positions },
             );
         }
         inspector::LayoutComponentInspectorAction::AssignLayout { owner, layout_id } => {

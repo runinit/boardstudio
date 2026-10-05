@@ -1,0 +1,155 @@
+[
+  {
+    "file": "input.boardstudio",
+    "sha256": "5b4453dc1415540163369d5c053c3e577abfdbd972a6b66d12e9712368472e3a",
+    "revision": 18,
+    "mounts": [
+      {
+        "id": "auto-closure/mount-proposal-1",
+        "at": {
+          "x": 183.63507692307692,
+          "y": -112.40506451612904
+        },
+        "kind": "boss",
+        "holeDiameter": 2.2,
+        "bossDiameter": 6.0,
+        "height": 7.1
+      },
+      {
+        "id": "auto-closure/mount-proposal-40",
+        "at": {
+          "x": 318.3229871794872,
+          "y": -17.858290322580643
+        },
+        "kind": "boss",
+        "holeDiameter": 2.2,
+        "bossDiameter": 6.0,
+        "height": 7.1
+      },
+      {
+        "id": "auto-closure/mount-proposal-47",
+        "at": {
+          "x": 208.2962435897436,
+          "y": -2.7308064516129065
+        },
+        "kind": "boss",
+        "holeDiameter": 2.2,
+        "bossDiameter": 6.0,
+        "height": 7.1
+      },
+      {
+        "id": "auto-closure/mount-proposal-14",
+        "at": {
+          "x": 272.7946794871795,
+          "y": -99.16851612903227
+        },
+        "kind": "boss",
+        "holeDiameter": 2.2,
+        "bossDiameter": 6.0,
+        "height": 7.1
+      }
+    ]
+  },
+  {
+    "file": "candidate-after-attempt.boardstudio",
+    "sha256": "956799b36825282c97c6d2b884461e58372d422cad1920920b54bcf2b3a25013",
+    "revision": 18,
+    "mounts": [
+      {
+        "id": "auto-closure/mount-proposal-1",
+        "at": {
+          "x": 183.63507692307692,
+          "y": -112.40506451612904
+        },
+        "kind": "boss",
+        "holeDiameter": 2.2,
+        "bossDiameter": 6.0,
+        "height": 7.1
+      },
+      {
+        "id": "auto-closure/mount-proposal-40",
+        "at": {
+          "x": 318.3229871794872,
+          "y": -17.858290322580643
+        },
+        "kind": "boss",
+        "holeDiameter": 2.2,
+        "bossDiameter": 6.0,
+        "height": 7.1
+      },
+      {
+        "id": "auto-closure/mount-proposal-47",
+        "at": {
+          "x": 208.2962435897436,
+          "y": -2.7308064516129065
+        },
+        "kind": "boss",
+        "holeDiameter": 2.2,
+        "bossDiameter": 6.0,
+        "height": 7.1
+      },
+      {
+        "id": "auto-closure/mount-proposal-14",
+        "at": {
+          "x": 272.7946794871795,
+          "y": -99.16851612903227
+        },
+        "kind": "boss",
+        "holeDiameter": 2.2,
+        "bossDiameter": 6.0,
+        "height": 7.1
+      }
+    ]
+  },
+  {
+    "file": "reference-after-move.boardstudio",
+    "sha256": "8005158f17e0126f462afe6d4e65e8a9e7ae58a783c403dea50bcdff4e500f8e",
+    "revision": 19,
+    "mounts": [
+      {
+        "id": "auto-closure/mount-proposal-1",
+        "at": {
+          "x": 183.63507692307692,
+          "y": -112.40506451612904
+        },
+        "kind": "boss",
+        "holeDiameter": 2.2,
+        "bossDiameter": 6,
+        "height": 7.1
+      },
+      {
+        "id": "auto-closure/mount-proposal-40",
+        "at": {
+          "x": 318.3229871794872,
+          "y": -17.858290322580643
+        },
+        "kind": "boss",
+        "holeDiameter": 2.2,
+        "bossDiameter": 6,
+        "height": 7.1
+      },
+      {
+        "id": "auto-closure/mount-proposal-47",
+        "at": {
+          "x": 205.6639709472656,
+          "y": -2.2012462615966797
+        },
+        "kind": "boss",
+        "holeDiameter": 2.2,
+        "bossDiameter": 6,
+        "height": 7.1
+      },
+      {
+        "id": "auto-closure/mount-proposal-14",
+        "at": {
+          "x": 272.7946794871795,
+          "y": -99.16851612903228
+        },
+        "kind": "boss",
+        "holeDiameter": 2.2,
+        "bossDiameter": 6,
+        "height": 7.1
+      }
+    ]
+  }
+]

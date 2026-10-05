@@ -7,6 +7,7 @@ use boardstudio_core::model::{
     CaseOpening, GasketPlacement, HardwareTransport, InsertInstallation, InternalClosureHardware,
     MechanicalBattery, MechanicalBottomStyle, MechanicalBuiltinProfile, MechanicalCriticalFit,
     MechanicalGasketAnchor, MechanicalHardwareSpecification, MechanicalMount,
+    MechanicalPartProcess, MechanicalStabilizerKind, MechanicalStabilizerOverride,
     MechanicalSwitchFamily, Mount, MountKind, PlateMethod, ScrewDrive, ScrewHeadProfile,
     ScrewLengthDatum, Severity, Vec2,
 };
@@ -65,6 +66,23 @@ pub(crate) struct MechanicalProfileTargetChoice {
     pub(crate) name: String,
     pub(crate) switch_profile: bool,
     pub(crate) imported_geometry: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct MechanicalProcessTarget {
+    pub(crate) part_id: String,
+    pub(crate) name: String,
+    pub(crate) default_thickness: f64,
+    pub(crate) process: Option<MechanicalPartProcess>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct MechanicalStabilizerFit {
+    pub(crate) part_id: String,
+    pub(crate) reference: String,
+    pub(crate) key_units: f64,
+    pub(crate) default: MechanicalStabilizerOverride,
+    pub(crate) current: MechanicalStabilizerOverride,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -540,6 +558,25 @@ pub(crate) enum MechanicalSettingsPatch {
         definition_id: String,
         family: MechanicalSwitchFamily,
     },
+    AddProcessOverride {
+        part_id: String,
+    },
+    RemoveProcessOverride {
+        part_id: String,
+    },
+    SetProcessMethod {
+        part_id: String,
+        method: PlateMethod,
+    },
+    SetProcessMaterial {
+        part_id: String,
+        material: String,
+    },
+    SetProcessThickness {
+        part_id: String,
+        thickness: f64,
+    },
+    SetStabilizerKind(MechanicalStabilizerOverride),
 }
 
 impl MechanicalSettingsPatch {
@@ -670,6 +707,14 @@ impl MechanicalSettingsPatch {
             Self::SetSwitchFamily { definition_id, .. } => {
                 format!("switch-family:{definition_id}")
             }
+            Self::AddProcessOverride { part_id } => format!("process:{part_id}:add"),
+            Self::RemoveProcessOverride { part_id } => format!("process:{part_id}:remove"),
+            Self::SetProcessMethod { part_id, .. } => format!("process:{part_id}:method"),
+            Self::SetProcessMaterial { part_id, .. } => format!("process:{part_id}:material"),
+            Self::SetProcessThickness { part_id, .. } => format!("process:{part_id}:thickness"),
+            Self::SetStabilizerKind(stabilizer) => {
+                format!("stabilizer:{}", stabilizer.part_id)
+            }
         }
     }
 }
@@ -698,6 +743,8 @@ pub(crate) struct MechanicalSettingsProps {
     pub(crate) values: Option<MechanicalSettingsValues>,
     pub(crate) profiles: Rc<[MechanicalProfileChoice]>,
     pub(crate) profile_targets: Rc<[MechanicalProfileTargetChoice]>,
+    pub(crate) process_targets: Rc<[MechanicalProcessTarget]>,
+    pub(crate) stabilizer_fits: Rc<[MechanicalStabilizerFit]>,
     pub(crate) layers: Rc<[MechanicalLayerRow]>,
     pub(crate) gasket_supports: Rc<[MechanicalGasketSupportRow]>,
     pub(crate) fit_parts: Rc<[MechanicalFitPart]>,
@@ -926,6 +973,15 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     plate_thickness: values.plate_thickness,
                     plate_to_pcb: values.plate_to_pcb,
                     editable: props.editable,
+                    request_sequence,
+                    on_request: props.on_request,
+                }
+                ManufacturingControls {
+                    identity: props.identity.clone(),
+                    targets: props.process_targets.clone(),
+                    stabilizers: props.stabilizer_fits.clone(),
+                    editable: props.editable,
+                    feedback: props.feedback.clone(),
                     request_sequence,
                     on_request: props.on_request,
                 }
@@ -2580,6 +2636,210 @@ struct ConstructionControlsProps {
     on_request: EventHandler<MechanicalSettingsRequest>,
 }
 
+#[derive(Props, Clone, PartialEq)]
+struct ManufacturingControlsProps {
+    identity: MechanicalSettingsIdentity,
+    targets: Rc<[MechanicalProcessTarget]>,
+    stabilizers: Rc<[MechanicalStabilizerFit]>,
+    editable: bool,
+    feedback: Rc<[MechanicalSettingsFeedback]>,
+    request_sequence: Signal<u64>,
+    on_request: EventHandler<MechanicalSettingsRequest>,
+}
+
+#[component]
+fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
+    let version = "2026-09-24";
+    rsx! {
+        section { class: "m1-mechanical-group", aria_label: "Manufacturing overrides",
+            h3 { "Manufacturing overrides" }
+            section { class: "m1-mechanical-profile", aria_label: "Per-part process overrides",
+                h4 { "Per-part process overrides {props.targets.iter().filter(|target| target.process.is_some()).count()}" }
+                for target in props.targets.iter() {
+                    div { class: "m1-mechanical-profile", key: "{target.part_id}",
+                        strong { "{target.name}" }
+                        if let Some(process) = target.process.as_ref() {
+                            button {
+                                r#type: "button",
+                                class: "m1-mechanical-context-settings",
+                                disabled: !props.editable,
+                                onclick: {
+                                    let part_id = target.part_id.clone();
+                                    let identity = props.identity.clone();
+                                    let mut sequence = props.request_sequence;
+                                    let on_request = props.on_request;
+                                    move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::RemoveProcessOverride { part_id: part_id.clone() })
+                                },
+                                "Remove"
+                            }
+                            div { class: "m1-mechanical-field",
+                                label {
+                                    span { "Method" }
+                                    if target.part_id.ends_with("foam") {
+                                        output { "Cut sheet" }
+                                    } else {
+                                        select {
+                                            aria_label: "Method",
+                                            disabled: !props.editable,
+                                            value: "{method_id(&process.method)}",
+                                            onchange: {
+                                                let part_id = target.part_id.clone();
+                                                let identity = props.identity.clone();
+                                                let mut sequence = props.request_sequence;
+                                                let on_request = props.on_request;
+                                                move |event: FormEvent| if let Some(method) = parse_method(&event.value()) {
+                                                    send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetProcessMethod { part_id: part_id.clone(), method });
+                                                }
+                                            },
+                                            option { value: "pcb-fr4", "PCB FR-4" }
+                                            option { value: "printed", "3D printed" }
+                                            option { value: "cnc", "CNC machined" }
+                                            option { value: "cut-sheet", "Cut sheet" }
+                                        }
+                                    }
+                                }
+                            }
+                            div { class: "m1-mechanical-field",
+                                label {
+                                    span { "Material" }
+                                    select {
+                                        aria_label: "Material",
+                                        disabled: !props.editable,
+                                        value: "{process.material}",
+                                        onchange: {
+                                            let part_id = target.part_id.clone();
+                                            let identity = props.identity.clone();
+                                            let mut sequence = props.request_sequence;
+                                            let on_request = props.on_request;
+                                            move |event: FormEvent| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetProcessMaterial { part_id: part_id.clone(), material: event.value() })
+                                        },
+                                        for material in process_material_options(&target.part_id, &process.method) {
+                                            option { value: material, "{material}" }
+                                        }
+                                    }
+                                }
+                            }
+                            DimensionField {
+                                key: "process-thickness:{target.part_id}",
+                                identity: props.identity.clone(),
+                                request_sequence: props.request_sequence,
+                                on_request: props.on_request,
+                                feedback: props.feedback.clone(),
+                                field: MechanicalDimension::PlateThickness,
+                                label: "Finished thickness",
+                                value: process_thickness(process, target.default_thickness),
+                                editable: props.editable,
+                                process_target: Some(target.part_id.clone()),
+                            }
+                            p { class: "m1-mechanical-help", "Constraint set " code { "{process_constraint_version(process)}" }
+                                if !process.constraints_version.is_empty() && process.constraints_version != version {
+                                    small { role: "alert", "Unsupported constraint set. Diagnostics will block export." }
+                                }
+                            }
+                        } else {
+                            button {
+                                r#type: "button",
+                                class: "m1-mechanical-context-settings",
+                                disabled: !props.editable,
+                                onclick: {
+                                    let part_id = target.part_id.clone();
+                                    let identity = props.identity.clone();
+                                    let mut sequence = props.request_sequence;
+                                    let on_request = props.on_request;
+                                    move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::AddProcessOverride { part_id: part_id.clone() })
+                                },
+                                "Add process override"
+                            }
+                        }
+                    }
+                }
+                p { class: "m1-mechanical-help", "Supported constraint set: {version}." }
+            }
+            section { class: "m1-mechanical-profile", aria_label: "Stabilizer fit",
+                h4 { "Stabilizer fit {props.stabilizers.len()} wide keys" }
+                for stabilizer in props.stabilizers.iter() {
+                    div { class: "m1-mechanical-profile", key: "{stabilizer.part_id}",
+                        strong { "{stabilizer.reference} · {stabilizer.key_units}u" }
+                        label { class: "m1-mechanical-field",
+                            span { "Stabilizer" }
+                            select {
+                                aria_label: "Stabilizer for {stabilizer.reference}",
+                                disabled: !props.editable,
+                                value: "{stabilizer_kind_id(&stabilizer.current.kind)}",
+                                onchange: {
+                                    let mut current = stabilizer.current.clone();
+                                    let identity = props.identity.clone();
+                                    let mut sequence = props.request_sequence;
+                                    let on_request = props.on_request;
+                                    move |event: FormEvent| if let Some(kind) = parse_stabilizer_kind(&event.value()) {
+                                        current.kind = kind;
+                                        send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetStabilizerKind(current.clone()));
+                                    }
+                                },
+                                option { value: "pcb-mount", "Cherry PCB mount · {stabilizer.default.units}u" }
+                                option { value: "none", "None" }
+                                if stabilizer.current.profile.is_some() {
+                                    option { value: "plate-mount", "Custom plate mount" }
+                                }
+                            }
+                        }
+                        p { class: "m1-mechanical-help", "Size and orientation follow the key layout." }
+                    }
+                }
+                if props.stabilizers.is_empty() {
+                    p { class: "m1-mechanical-help", "No keys in this layout need stabilizers." }
+                }
+            }
+        }
+    }
+}
+
+fn process_material_options(part_id: &str, method: &PlateMethod) -> &'static [&'static str] {
+    if part_id.ends_with("foam") {
+        &["EVA"]
+    } else {
+        match method {
+            PlateMethod::Printed => &["PLA", "ABS"],
+            PlateMethod::Cnc => &["Aluminium"],
+            PlateMethod::CutSheet => &["Acrylic"],
+            PlateMethod::PcbFr4 => &["FR-4"],
+        }
+    }
+}
+
+fn process_thickness(process: &MechanicalPartProcess, default_thickness: f64) -> f64 {
+    if process.thickness >= 0.0 {
+        process.thickness
+    } else {
+        default_thickness
+    }
+}
+
+fn process_constraint_version(process: &MechanicalPartProcess) -> &str {
+    if process.constraints_version.is_empty() {
+        "2026-09-24"
+    } else {
+        &process.constraints_version
+    }
+}
+
+fn stabilizer_kind_id(kind: &MechanicalStabilizerKind) -> &'static str {
+    match kind {
+        MechanicalStabilizerKind::PcbMount => "pcb-mount",
+        MechanicalStabilizerKind::None => "none",
+        MechanicalStabilizerKind::PlateMount => "plate-mount",
+    }
+}
+
+fn parse_stabilizer_kind(value: &str) -> Option<MechanicalStabilizerKind> {
+    Some(match value {
+        "pcb-mount" => MechanicalStabilizerKind::PcbMount,
+        "none" => MechanicalStabilizerKind::None,
+        "plate-mount" => MechanicalStabilizerKind::PlateMount,
+        _ => return None,
+    })
+}
+
 #[component]
 fn ConstructionControls(props: ConstructionControlsProps) -> Element {
     let values = &props.values;
@@ -2978,6 +3238,8 @@ struct DimensionFieldProps {
     critical_fit_target: Option<CriticalFitDimensionTarget>,
     #[props(default)]
     hardware_target: Option<HardwareDimensionTarget>,
+    #[props(default)]
+    process_target: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -3090,6 +3352,7 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
         let opening_target = props.opening_target.clone();
         let critical_fit_target = props.critical_fit_target.clone();
         let hardware_target = props.hardware_target.clone();
+        let process_target = props.process_target.clone();
         let accepted = props.value;
         let sequence = props.request_sequence;
         let on_request = props.on_request;
@@ -3101,15 +3364,23 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
             let mut dirty = dirty;
             let mut draft = draft;
             let text = draft();
+            let process_rule = process_target.as_deref().map(|target| {
+                if target.ends_with("foam") {
+                    NumberRule::Nonnegative
+                } else {
+                    NumberRule::AtLeastTenth
+                }
+            });
+            let rule = process_rule.unwrap_or_else(|| field.rule());
             if submitted().is_some() {
                 return;
             }
             let Ok(value) = text.trim().parse::<f64>() else {
-                error.set(Some(field.rule().error().to_owned()));
+                error.set(Some(rule.error().to_owned()));
                 return;
             };
-            if !field.rule().valid(value) {
-                error.set(Some(field.rule().error().to_owned()));
+            if !rule.valid(value) {
+                error.set(Some(rule.error().to_owned()));
                 return;
             }
             error.set(None);
@@ -3153,6 +3424,11 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                     field,
                     value,
                 }
+            } else if let Some(part_id) = process_target.clone() {
+                MechanicalSettingsPatch::SetProcessThickness {
+                    part_id,
+                    thickness: value,
+                }
             } else {
                 MechanicalSettingsPatch::SetDimension { field, value }
             };
@@ -3184,7 +3460,9 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                 input {
                     r#type: "number",
                     step: props.field.step(),
-                    min: props.field.rule().minimum(),
+                    min: props.process_target.as_deref().map(|target| {
+                        if target.ends_with("foam") { "0" } else { "0.1" }
+                    }).unwrap_or_else(|| props.field.rule().minimum()),
                     max: if props.field == MechanicalDimension::OpeningAllowance { "1" },
                     aria_label: props.accessible_label.as_deref().unwrap_or(props.label),
                     value: "{draft}",
@@ -3688,6 +3966,26 @@ mod contextual_layer_tests {
         }
     }
 
+    fn test_process(
+        part_id: &str,
+        method: PlateMethod,
+        material: &str,
+        thickness: f64,
+    ) -> MechanicalProcessTarget {
+        MechanicalProcessTarget {
+            part_id: part_id.into(),
+            name: part_id.replace('-', " "),
+            default_thickness: thickness,
+            process: Some(MechanicalPartProcess {
+                part_id: part_id.into(),
+                method,
+                material: material.into(),
+                thickness,
+                constraints_version: "2026-09-24".into(),
+            }),
+        }
+    }
+
     fn test_page() -> Element {
         test_page_with_previous(false)
     }
@@ -3702,6 +4000,18 @@ mod contextual_layer_tests {
         let request_sequence = use_signal(|| 0_u64);
         let identity = test_identity();
         let values = test_values(HardwareTransport::Wired, None);
+        let mut process_targets = vec![
+            test_process("plate", PlateMethod::Printed, "PLA", 1.5),
+            test_process("plate-foam", PlateMethod::CutSheet, "EVA", 0.0),
+            test_process("bottom-foam", PlateMethod::CutSheet, "EVA", 0.5),
+            test_process("bottom", PlateMethod::Printed, "PLA", 2.0),
+        ];
+        process_targets.push(MechanicalProcessTarget {
+            part_id: "part-1".into(),
+            name: "U1 · Fixture part".into(),
+            default_thickness: 1.5,
+            process: None,
+        });
         let layers = Rc::from([
             MechanicalLayerRow {
                 id: "plate".into(),
@@ -3771,6 +4081,8 @@ mod contextual_layer_tests {
                 values: Some(values),
                 profiles: Rc::from([]),
                 profile_targets: Rc::from([]),
+                process_targets: Rc::from(process_targets),
+                stabilizer_fits: Rc::from([]),
                 layers,
                 gasket_supports: Rc::from([]),
                 fit_parts: Rc::from([]),
@@ -3809,6 +4121,42 @@ mod contextual_layer_tests {
     }
 
     #[component]
+    fn ProcessThicknessTestPage() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut request_count = use_signal(|| 0_u32);
+        rsx! {
+            div { id: "case-process-thickness-test-root",
+                MechanicalSettings {
+                    identity: test_identity(),
+                    request_sequence,
+                    values: Some(test_values(HardwareTransport::Wired, None)),
+                    profiles: Rc::from([]),
+                    profile_targets: Rc::from([]),
+                    process_targets: Rc::from([test_process("plate", PlateMethod::Printed, "PLA", 1.5)]),
+                    stabilizer_fits: Rc::from([]),
+                    layers: Rc::from([]),
+                    gasket_supports: Rc::from([]),
+                    fit_parts: Rc::from([]),
+                    fit_parts_resolved: false,
+                    hardware_mounts: Rc::from([]),
+                    suggested_mounts: Rc::from([]),
+                    findings: Rc::from([]),
+                    selected_layer: String::new(),
+                    mismatch: None,
+                    editable: true,
+                    disabled_reason: None,
+                    feedback: Rc::from([]),
+                    summary_feedback: None,
+                    on_request: move |_| request_count += 1,
+                    on_select_layer: move |_| {},
+                    on_show_finding: move |_| {},
+                }
+            }
+            div { id: "case-process-thickness-request-count", "{request_count()}" }
+        }
+    }
+
+    #[component]
     fn BatteryTestPage() -> Element {
         let wired_request_sequence = use_signal(|| 0_u64);
         let wireless_request_sequence = use_signal(|| 0_u64);
@@ -3821,6 +4169,8 @@ mod contextual_layer_tests {
                     values: Some(test_values(HardwareTransport::Wired, None)),
                     profiles: Rc::from([]),
                     profile_targets: Rc::from([]),
+                    process_targets: Rc::from([]),
+                    stabilizer_fits: Rc::from([]),
                     layers: Rc::from([]),
                     gasket_supports: Rc::from([]),
                     fit_parts: Rc::from([]),
@@ -3856,6 +4206,8 @@ mod contextual_layer_tests {
                     )),
                     profiles: Rc::from([]),
                     profile_targets: Rc::from([]),
+                    process_targets: Rc::from([]),
+                    stabilizer_fits: Rc::from([]),
                     layers: Rc::from([]),
                     gasket_supports: Rc::from([]),
                     fit_parts: Rc::from([]),
@@ -3945,6 +4297,34 @@ mod contextual_layer_tests {
         element("#case-contextual-mechanical-settings-test-root .m1-mechanical-context-return")
             .click();
         rendered().await;
+        let assembly_panel =
+            element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings");
+        assert!(
+            assembly_panel
+                .query_selector("section[aria-label='Manufacturing overrides']")
+                .unwrap()
+                .is_some(),
+            "the assembly settings should expose per-part manufacturing controls"
+        );
+        let manufacturing_text = assembly_panel.text_content().unwrap_or_default();
+        assert!(manufacturing_text.contains("Per-part process overrides 4"));
+        assert!(manufacturing_text.contains("Stabilizer fit 0 wide keys"));
+        assert_eq!(
+            assembly_panel
+                .query_selector_all("select[aria-label='Material']")
+                .unwrap()
+                .length(),
+            4,
+            "each accepted standard process override should expose its material"
+        );
+        assert_eq!(
+            assembly_panel
+                .text_content()
+                .unwrap_or_default()
+                .matches("Add process override")
+                .count(),
+            1
+        );
         let text =
             element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings")
                 .text_content()
@@ -4038,6 +4418,87 @@ mod contextual_layer_tests {
         assert!(
             text.contains("Plate underside to PCB top: 3.00 mm"),
             "show the accepted plate gap even when no explicit profile row is assigned"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn process_thickness_draft_escape_enter_and_blur_follow_numeric_field_semantics() {
+        mount_battery_test_page(
+            "case-process-thickness-test-root-host",
+            ProcessThicknessTestPage,
+        );
+        rendered().await;
+        let input =
+            element("#case-process-thickness-test-root input[aria-label='Finished thickness']")
+                .dyn_into::<web_sys::HtmlInputElement>()
+                .unwrap();
+        let dispatch_input = |input: &web_sys::HtmlInputElement, value: &str| {
+            input.set_value(value);
+            let init = web_sys::EventInit::new();
+            init.set_bubbles(true);
+            input
+                .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap())
+                .unwrap();
+        };
+        let dispatch_key = |input: &web_sys::HtmlInputElement, key: &str| {
+            let init = web_sys::KeyboardEventInit::new();
+            init.set_key(key);
+            init.set_bubbles(true);
+            input
+                .dispatch_event(
+                    &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+                        .unwrap(),
+                )
+                .unwrap();
+        };
+
+        input.focus().unwrap();
+        dispatch_input(&input, "2.5");
+        dispatch_key(&input, "Escape");
+        input.blur();
+        let change = web_sys::EventInit::new();
+        change.set_bubbles(true);
+        input
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &change).unwrap())
+            .unwrap();
+        rendered().await;
+        assert_eq!(input.value(), "1.5");
+        assert_eq!(
+            element("#case-process-thickness-request-count")
+                .text_content()
+                .as_deref(),
+            Some("0"),
+            "Escape then blur should restore the accepted value without submitting"
+        );
+
+        input.focus().unwrap();
+        dispatch_input(&input, "2.0");
+        dispatch_key(&input, "Enter");
+        input.blur();
+        let change = web_sys::EventInit::new();
+        change.set_bubbles(true);
+        input
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &change).unwrap())
+            .unwrap();
+        rendered().await;
+        assert_eq!(
+            element("#case-process-thickness-request-count")
+                .text_content()
+                .as_deref(),
+            Some("1"),
+            "Enter followed by blur should submit the thickness once"
+        );
+
+        input.focus().unwrap();
+        dispatch_input(&input, "0.05");
+        input.blur();
+        rendered().await;
+        assert_eq!(
+            element("#case-process-thickness-request-count")
+                .text_content()
+                .as_deref(),
+            Some("1"),
+            "thickness below 0.1 mm should not submit"
         );
     }
 
