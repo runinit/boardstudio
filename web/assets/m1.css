@@ -1142,6 +1142,7 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 /* Case workspace shell: assembly navigation stays in Objects; the viewer owns the center. */
 .m1-case-panel > .m1-case-live-status { flex: none; padding-inline: 2px; color: var(--wb-muted); font-size: var(--wb-type-label); line-height: 1.35; }
 .m1-case-panel > .m1-case-live-status.is-error { color: var(--wb-status-error); }
+.m1-case-keycap-findings { flex: none; max-height: min(25vh, 180px); overflow: auto; overscroll-behavior: contain; }
 .m1-case-model-delivery { position: absolute; z-index: 6; top: 46px; right: 12px; max-width: min(420px, calc(100% - 24px)); padding: 6px 9px; border: 1px solid var(--wb-rule); background: var(--wb-panel); }
 .m1-case-model-delivery > summary { cursor: pointer; color: var(--wb-muted); font-size: var(--wb-type-label); }
 .m1-case-model-delivery p { margin: 6px 0 0; color: var(--wb-status-error); font-size: var(--wb-type-label); }

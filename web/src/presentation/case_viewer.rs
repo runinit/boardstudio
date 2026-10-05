@@ -301,7 +301,7 @@ fn use_case_keycaps(
             }
         }
         if !shown.findings.is_empty() {
-            details { open: true,
+            details { class: "m1-case-keycap-findings", open: true,
                 summary { "Keycap clearance · {shown.findings.len()} findings" }
                 for finding in &shown.findings { p { key: "{finding.id}", "{finding.message}" } }
             }

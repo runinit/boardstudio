@@ -1,0 +1,11 @@
+{
+  "pid": 3111403,
+  "state": "terminal",
+  "started_unix": 1791202379.805981,
+  "paths": [
+    "web/assets/m1.css",
+    "web/src/presentation/case_viewer.rs"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 116.18488335609436
+}

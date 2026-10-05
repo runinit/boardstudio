@@ -1,0 +1,22 @@
+[
+  {
+    "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-v1/evidence/case-generation-export-20261005/input.boardstudio",
+    "sha256": "af5b1bde73de827a699ddf01f7f7a321c6cfe8922304056a1678dbe622c9a821",
+    "bytes": 1585884
+  },
+  {
+    "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-v1/evidence/pcb-routed-folder-20261005/candidate-after.boardstudio",
+    "sha256": "33eda5831497ec0f4a9271b3b3be761f8df55401f4e86dc82ef5c17c36df9e21",
+    "bytes": 1597704
+  },
+  {
+    "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-v1/evidence/pcb-routed-folder-20261005/reference-after.boardstudio",
+    "sha256": "9669ec91caf675244f108e6740fd0d9d2e31cc9f09272143e9299d0aa70c53ab",
+    "bytes": 1597654
+  },
+  {
+    "path": "/home/chris/.local/share/boardstudio/retained-tmp/20261002/keycaps-findings-f6c4-c6.boardstudio",
+    "sha256": "9027125846d2878176f127ec39b60c9ab605a0eb2a4b9019e10dbba846fe87a6",
+    "bytes": 1585914
+  }
+]

@@ -575,7 +575,7 @@
       "acceptance_after": [
         "INT.2"
       ],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
       "shared_edit_owner": "integration coordinator",
@@ -652,7 +652,7 @@
         {
           "id": "F2.2-C03",
           "requirement": "Import validated archives; malformed input leaves current project intact; stale opens/imports cannot replace newer selection.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/runtime.rs:702",
@@ -661,10 +661,12 @@
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
             ".scratch/dioxus-parts-catalogue/evidence/05-import-kicad-footprint-paired-journey-20261003.md",
-            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/f2.2-c02-c03-paired-qualification.md"
+            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/f2.2-c02-c03-paired-qualification.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-keycaps-parts-integration-20261005/final-combined-headless-receipt.json",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
           ],
           "blockers": [],
-          "next_action": "Valid import and paired malformed-ZIP preservation are retained. Qualify delayed open/import supersession only after a newer project visibly becomes active before the old reply; upload closes the Project menu, and the prior CLI retry took 12.8s against a 6s delay.",
+          "next_action": "Independent consolidated review CLEAR; bounded current evidence plus retained unchanged public proofs suffice. No duplicate journey required.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/runtime.rs",
@@ -715,7 +717,19 @@
         "assessed_at": "2026-10-03T19:37:09Z",
         "coverage": "complete",
         "note": "Split existing parent acceptance text into independently decidable behaviors; original scope and joins preserved. Implemented is source inspection only; verified cites existing journey/receipt. Candidate review 2026-10-03 corrected partial-evidence overclaims for F2.2-C03: source is implemented; full behavioral qualification remains."
-      }
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f2-2-decision.json"
+      },
+      "status_history": [
+        {
+          "at": "2026-10-05T12:05:07.711943+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Independent review clears actual accepted/durable Project supersession in completed54test gate and bounded desktop long-name/System/guide/panel focus observations, joined to retained public import/recovery and shell evidence.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f2-2-decision.json"
+        }
+      ]
     },
     {
       "id": "F2.3",
@@ -891,7 +905,7 @@
         "F2.3"
       ],
       "acceptance_after": [],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
       "shared_edit_owner": "integration coordinator",
@@ -914,6 +928,13 @@
           "from": "planned",
           "to": "implementing",
           "reason": "Current source contains mounted guide/readiness, mechanical-fit editing, module inspection, physical-setup ownership, guarded export coordination and PCB/Case export consumers; remaining source completion and candidate qualification are active. This corrects stale planned status without accepting any parent or waiving its final joins."
+        },
+        {
+          "at": "2026-10-05T12:05:07.717630+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Independent review clears actual accepted/durable Project supersession in completed54test gate and bounded desktop long-name/System/guide/panel focus observations, joined to retained public import/recovery and shell evidence.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f2-4-decision.json"
         }
       ],
       "criteria": [
@@ -999,7 +1020,7 @@
         {
           "id": "F2.4-C04",
           "requirement": "Guide/menu/panel/drawer focus order is logical; Light/Dark/System is consistent; long names and empty/loading/selected/confirm/error states work at desktop sizes.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "visual",
           "sources": [
             "web/src/presentation/panels.rs:334",
@@ -1007,9 +1028,12 @@
             "web/src/presentation.rs:570",
             "web/src/presentation/library.rs:348"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
+          ],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Independent consolidated review CLEAR; bounded current evidence plus retained unchanged public proofs suffice. No duplicate journey required.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation.rs",
@@ -1051,6 +1075,9 @@
         "assessed_at": "2026-10-03T19:37:09Z",
         "coverage": "complete",
         "note": "Split existing parent acceptance text into independently decidable behaviors; original scope and joins preserved. Implemented is source inspection only; verified cites existing journey/receipt."
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f2-4-decision.json"
       }
     },
     {
@@ -2273,14 +2300,18 @@
         {
           "id": "F3.7-C03",
           "requirement": "F3a layer/keycap/footprint behavior remains covered by its existing evidence and is not reimplemented or claimed as newly missing.",
-          "state": "unassessed",
+          "state": "verified",
           "classification": "release",
           "sources": [
             ".scratch/dioxus-frontend-v1/tasks.json"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/tsx-inventory.json",
+            ".scratch/dioxus-frontend-v1/evidence/layout-pcb-inventory-20261005/row-edits.json",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
+          ],
           "blockers": [],
-          "next_action": "Locate and inspect the retained F3a layer/keycap/footprint evidence pointers in the canonical records; preserve those claims without relabeling them as current missing work.",
+          "next_action": "Reviewed scoped owner/evidence/disposition mapping recorded; retained F3a partial coverage and React oracles preserved. Integrated journey and remaining joins are separate, still open.",
           "finish_condition": "Canonical F3a references remain accessible and the integrated qualification explicitly reuses them without claiming new implementation.",
           "owned_files": [
             ".scratch/dioxus-frontend-v1/tasks.json"
@@ -2352,15 +2383,19 @@
         {
           "id": "F3.7-C07",
           "requirement": "Map each inventory responsibility and retained React test to Dioxus owner, public scenario, or reviewed disposition; no whole shared TSX file is marked ported by partial coverage.",
-          "state": "unassessed",
+          "state": "verified",
           "classification": "release",
           "sources": [
             ".scratch/dioxus-frontend-v1/tasks.json",
             ".scratch/dioxus-frontend-v1/"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/tsx-inventory.json",
+            ".scratch/dioxus-frontend-v1/evidence/layout-pcb-inventory-20261005/row-edits.json",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
+          ],
           "blockers": [],
-          "next_action": "Inspect the current migration inventory and retained React test map, then fill any responsibility-to-owner/scenario/disposition gaps for Layout.",
+          "next_action": "Reviewed scoped owner/evidence/disposition mapping recorded; retained F3a partial coverage and React oracles preserved. Integrated journey and remaining joins are separate, still open.",
           "finish_condition": "Every inventory responsibility and retained React test has a Dioxus owner, public scenario or reviewed disposition, with no whole-file port claim inferred from partial coverage.",
           "owned_files": [
             ".scratch/dioxus-frontend-v1/"
@@ -2533,7 +2568,7 @@
         "INT.1"
       ],
       "acceptance_after": [],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
       "shared_edit_owner": "integration coordinator",
@@ -2555,6 +2590,13 @@
           "from": "planned",
           "to": "implementing",
           "reason": "Reconcile verified mounted source/bounded evidence; preserve all parent acceptance criteria."
+        },
+        {
+          "at": "2026-10-05T12:12:30.706112+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Reviewed completed54test owner gate joins published55790 initialBack geometry, usable catalogue choices, unobscured pending feedback and actualcap picks; retained qualified profile archive roundtrip/history and per-workbench proofs complete the bounded criteria.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f4-1-decision.json"
         }
       ],
       "progress_evidence": [
@@ -2597,7 +2639,7 @@
         {
           "id": "F4.1-C02",
           "requirement": "Keyboard selection/query changes and empty/no-match/loading/source-error states match React fixtures.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/parts.rs:736",
@@ -2605,10 +2647,13 @@
           ],
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
-            ".scratch/dioxus-frontend-v1/evidence/parts-desktop-visual-20261005/RECEIPT.md"
+            ".scratch/dioxus-frontend-v1/evidence/parts-desktop-visual-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+            ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-keycaps-parts-integration-20261005/final-combined-headless-receipt.json"
           ],
           "blockers": [],
-          "next_action": "Required loading/source-error test running. Also fix actual desktop Key assemblies details clipping (40.93px container includes38.84px header; first option has about2px visible) shown on38641 versus readable reference. Preserve existing query/keyboard evidence.",
+          "next_action": "Consolidated independent review CLEAR: owning mounted/native evidence joins attributable retained public journeys and required changed55790public replay. No duplicate history/fault/theme matrix.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts.rs",
@@ -2649,6 +2694,9 @@
         "assessed_at": "2026-10-03T19:37:09Z",
         "coverage": "complete",
         "note": "Split existing parent acceptance text into independently decidable behaviors; original scope and joins preserved. Implemented is source inspection only; verified cites existing journey/receipt."
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f4-1-decision.json"
       }
     },
     {
@@ -2894,7 +2942,7 @@
       "acceptance_after": [
         "INT.2"
       ],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
       "shared_edit_owner": "integration coordinator",
@@ -2916,6 +2964,13 @@
           "from": "planned",
           "to": "implementing",
           "reason": "Reconcile verified mounted source/bounded evidence; preserve all parent acceptance criteria."
+        },
+        {
+          "at": "2026-10-05T12:12:30.711475+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Reviewed completed54test owner gate joins published55790 initialBack geometry, usable catalogue choices, unobscured pending feedback and actualcap picks; retained qualified profile archive roundtrip/history and per-workbench proofs complete the bounded criteria.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f4-3-decision.json"
         }
       ],
       "progress_evidence": [
@@ -2955,7 +3010,7 @@
         {
           "id": "F4.3-C02",
           "requirement": "Use retained generator/shared SVG projection with pending/error/invalid states; stale results after edits/selections are discarded.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/parts/generator_settings.rs:720",
@@ -2963,10 +3018,13 @@
             "web/src/presentation/parts/preview.rs:89"
           ],
           "evidence": [
-            ".scratch/dioxus-parts-catalogue/evidence/07-generator-settings-dioxus-paired-journey-20261003.md"
+            ".scratch/dioxus-parts-catalogue/evidence/07-generator-settings-dioxus-paired-journey-20261003.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+            ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-keycaps-parts-integration-20261005/final-combined-headless-receipt.json"
           ],
           "blockers": [],
-          "next_action": "Paired 34802/5175 journey showed Dioxus Generating→Ready with Apply disabled while pending; width-zero and malformed JSON kept prior preview/document and disabled Apply in both apps. Genuine provider failure and delayed stale-result supersession remain unqualified; do not repeat the successful field/invalid branches. Dioxus width error adds a verbose JsValue stack, a presentation issue for later polish.",
+          "next_action": "Consolidated independent review CLEAR: owning mounted/native evidence joins attributable retained public journeys and required changed55790public replay. No duplicate history/fault/theme matrix.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts/generator_settings.rs",
@@ -3009,6 +3067,9 @@
         "assessed_at": "2026-10-03T19:37:09Z",
         "coverage": "complete",
         "note": "Split existing parent acceptance text into independently decidable behaviors; original scope and joins preserved. Implemented is source inspection only; verified cites existing journey/receipt."
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f4-3-decision.json"
       }
     },
     {
@@ -3037,7 +3098,7 @@
         "F7.3",
         "INT.2"
       ],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
       "shared_edit_owner": "integration coordinator",
@@ -3059,6 +3120,13 @@
           "from": "planned",
           "to": "implementing",
           "reason": "Reconcile verified mounted source/bounded evidence; preserve all parent acceptance criteria."
+        },
+        {
+          "at": "2026-10-05T12:12:30.717892+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Reviewed completed54test owner gate joins published55790 initialBack geometry, usable catalogue choices, unobscured pending feedback and actualcap picks; retained qualified profile archive roundtrip/history and per-workbench proofs complete the bounded criteria.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f4-4-decision.json"
         }
       ],
       "progress_evidence": [
@@ -3074,7 +3142,7 @@
         {
           "id": "F4.4-C01",
           "requirement": "2D preview shows pads/drills/graphics/text/layers and named per-part visibility.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/parts/preview.rs:1",
@@ -3083,10 +3151,13 @@
           "evidence": [
             ".scratch/dioxus-parts-catalogue/evidence/05-import-kicad-footprint-paired-journey-20261003.md",
             ".scratch/dioxus-parts-catalogue/evidence/parts-03-preview-34759/RESULTS.md",
-            ".scratch/dioxus-frontend-v1/evidence/parts-desktop-visual-20261005/RECEIPT.md"
+            ".scratch/dioxus-frontend-v1/evidence/parts-desktop-visual-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+            ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-keycaps-parts-integration-20261005/final-combined-headless-receipt.json"
           ],
           "blockers": [],
-          "next_action": "Retain verified imported-controller pads/layers slice, but actual38641 bundled MX comparison now exposes F.Cu/F.SilkS and opposite pad orientation while both controls say Back/reference B.Cu/B.SilkS. Diagnose source/draft/projection identity, repair a confirmed defect with owning RED, then packaged replay. No cause inferred solely from screenshot.",
+          "next_action": "Consolidated independent review CLEAR: owning mounted/native evidence joins attributable retained public journeys and required changed55790public replay. No duplicate history/fault/theme matrix.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts/preview.rs",
@@ -3194,17 +3265,20 @@
         {
           "id": "F4.4-C05",
           "requirement": "Paired React/Dioxus light/dark desktop captures and service outputs agree.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "visual",
           "sources": [
             "web/src/presentation/parts/preview.rs:300",
             "web/src/presentation/shared_viewer.rs:277"
           ],
           "evidence": [
-            ".scratch/dioxus-frontend-v1/evidence/parts-desktop-visual-20261005/RECEIPT.md"
+            ".scratch/dioxus-frontend-v1/evidence/parts-desktop-visual-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+            ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-keycaps-parts-integration-20261005/final-combined-headless-receipt.json"
           ],
           "blockers": [],
-          "next_action": "Paired1280x720 Light/Dark captures retained; functional MX orientation/layer mismatch and clipped assembly list must resolve before comparison passes. Cosmetic differences remain separately scoped.",
+          "next_action": "Consolidated independent review CLEAR: owning mounted/native evidence joins attributable retained public journeys and required changed55790public replay. No duplicate history/fault/theme matrix.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts/preview.rs",
@@ -3220,6 +3294,9 @@
         "assessed_at": "2026-10-03T19:37:09Z",
         "coverage": "complete",
         "note": "Split existing acceptance text into independently decidable behaviors; original scope and joins preserved. Implemented is source inspection only; verified cites existing journey/receipt. Renderer/context retry is explicitly excluded by F7.3; provider/model retry remains unassessed pending a current Parts path proof."
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f4-4-decision.json"
       }
     },
     {
@@ -3244,7 +3321,7 @@
       "acceptance_after": [
         "INT.2"
       ],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
       "shared_edit_owner": "integration coordinator",
@@ -3266,6 +3343,13 @@
           "from": "planned",
           "to": "implementing",
           "reason": "Current source contains mounted guide/readiness, mechanical-fit editing, module inspection, physical-setup ownership, guarded export coordination and PCB/Case export consumers; remaining source completion and candidate qualification are active. This corrects stale planned status without accepting any parent or waiving its final joins."
+        },
+        {
+          "at": "2026-10-05T12:12:30.723303+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Reviewed completed54test owner gate joins published55790 initialBack geometry, usable catalogue choices, unobscured pending feedback and actualcap picks; retained qualified profile archive roundtrip/history and per-workbench proofs complete the bounded criteria.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f4-5-decision.json"
         }
       ],
       "criteria": [
@@ -3323,16 +3407,21 @@
         {
           "id": "F4.5-C03",
           "requirement": "Reject stale extraction after selection/scope changes; save through edit/Undo/Redo/save/reopen without claiming case fit/fabrication readiness.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/parts/mechanical_profile.rs:1",
             "web/src/presentation/parts/mechanical_profile_ui.rs:21",
             "web/src/presentation/parts/mechanical_profile_editor.rs"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+            ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-keycaps-parts-integration-20261005/final-combined-headless-receipt.json",
+            ".scratch/dioxus-frontend-v1/evidence/frontend-parts-search-feedback-20261003/journey.md"
+          ],
           "blockers": [],
-          "next_action": "Source 8c4c7db9 guards extraction replies by mounted owner, accepted snapshot, selection, scope, workspace and request identity. At the Parts milestone check selection/board/project switches, Save/Undo/Redo/reopen and retained fit-readiness qualifiers.",
+          "next_action": "Consolidated independent review CLEAR: owning mounted/native evidence joins attributable retained public journeys and required changed55790public replay. No duplicate history/fault/theme matrix.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts/mechanical_profile.rs",
@@ -3350,6 +3439,9 @@
         "assessed_at": "2026-10-03T19:37:09Z",
         "coverage": "complete",
         "note": "Split existing parent acceptance text into independently decidable behaviors; original scope and joins preserved. Implemented is source inspection only; verified cites existing journey/receipt. Correction on 2026-10-04: C02 was marked implemented before the extraction control and private Runtime port existed; source 8c4c7db9 adds them. Public qualification remains pending."
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f4-5-decision.json"
       }
     },
     {
@@ -3376,7 +3468,7 @@
         "F4.4",
         "F3.2"
       ],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
       "shared_edit_owner": "integration coordinator",
@@ -3398,6 +3490,13 @@
           "from": "planned",
           "to": "implementing",
           "reason": "Saved-assembly authoring is active and the routed-board reference Inspector is integrated at18f05311, with import/model attachment remaining. Status records implementation only; original criteria, source history and final acceptance joins remain intact."
+        },
+        {
+          "at": "2026-10-05T12:14:21.089534+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Independent consolidated review confirms every criterion verified; previously outstanding F4.4/F4.3 joins are now accepted, with no external gate or duplicate journey required.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f4-6-decision.json"
         }
       ],
       "criteria": [
@@ -3514,6 +3613,9 @@
         "assessed_at": "2026-10-03T19:37:09Z",
         "coverage": "complete",
         "note": "Split existing parent acceptance text into independently decidable behaviors; original scope and joins preserved. Implemented is source inspection only; verified cites existing journey/receipt. Candidate review 2026-10-03 corrected partial-evidence overclaims for F4.6-C03: source is implemented; full behavioral qualification remains."
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f4-6-decision.json"
       }
     },
     {
@@ -4846,15 +4948,19 @@
         {
           "id": "F5.8-C03",
           "requirement": "Every scoped TSX/test inventory row has an owner, evidence and truthful status.",
-          "state": "unassessed",
+          "state": "verified",
           "classification": "release",
           "sources": [
             ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
             ".scratch/dioxus-frontend-v1/tasks.json"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/tsx-inventory.json",
+            ".scratch/dioxus-frontend-v1/evidence/layout-pcb-inventory-20261005/row-edits.json",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
+          ],
           "blockers": [],
-          "next_action": "Reconcile all six scoped production TSX rows and ModulePcbOverlay.test.tsx with named Dioxus owner, evidence, and disposition.",
+          "next_action": "Reviewed scoped owner/evidence/disposition mapping recorded; retained F3a partial coverage and React oracles preserved. Integrated journey and remaining joins are separate, still open.",
           "finish_condition": "Inventory maps every scoped source/test row to owner, retained evidence and accurate open/closed status.",
           "owned_files": [
             ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
@@ -6117,7 +6223,7 @@
         "F5.2",
         "F7.6"
       ],
-      "status": "planned",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
@@ -6225,7 +6331,7 @@
         {
           "id": "F6.6-C04",
           "requirement": "Compare Undo/Redo, reload/archive, workspace switching, exports, validation failures, and stale/cancelled preview on identical saved fixtures.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/keymap.rs",
@@ -6235,10 +6341,13 @@
           "evidence": [
             ".scratch/dioxus-keymap-layers/evidence/encoder-public-workflow/RESULTS.md",
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
-            ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/candidate-dd7697ed/REVIEW.md"
+            ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/candidate-dd7697ed/REVIEW.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+            ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-keycaps-parts-integration-20261005/final-combined-headless-receipt.json"
           ],
           "blockers": [],
-          "next_action": "Reuse bounded paired journeys already present for history, reimport, workspace switching, ZMK/STEP and pending-preview unmount; close only remaining owner/join paths.",
+          "next_action": "Consolidated independent review CLEAR: owning mounted/native evidence joins attributable retained public journeys and required changed55790public replay. No duplicate history/fault/theme matrix.",
           "finish_condition": "Equivalent-fixture evidence covers each named behavior and preserves current-document ownership across failure or stale/cancelled preview.",
           "owned_files": [
             "web/src/presentation/keymap.rs",
@@ -6256,7 +6365,7 @@
         {
           "id": "F6.6-C05",
           "requirement": "Review paired desktop captures in light/dark themes plus visible focus, labels, empty/loading/error states.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "visual",
           "sources": [
             ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
@@ -6264,10 +6373,11 @@
           ],
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/RECEIPT.md",
-            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-keycaps-parts-integration-20261005/final-combined-headless-receipt.json"
           ],
           "blockers": [],
-          "next_action": "Independent review finds paired desktop Light/Dark, focus/labels, retained empty and new ordinary invalid-input error captures sufficient. Actual candidate pending feedback is covered by absolute view toolbar; CSS spacing repair is implemented. Only unobscured pending feedback on the next immutable candidate remains; do not repeat fault/theme/state matrix.",
+          "next_action": "Consolidated independent review CLEAR: owning mounted/native evidence joins attributable retained public journeys and required changed55790public replay. No duplicate history/fault/theme matrix.",
           "finish_condition": "The parent visual criterion is accounted against representative paired captures; visual findings remain separate from functional blockers.",
           "owned_files": [
             "web/src/presentation/keymap.rs",
@@ -6340,7 +6450,19 @@
         "assessed_at": "2026-10-03T19:31:25Z",
         "coverage": "complete",
         "note": "Aggregate criterion accounting preserves the joins and independently usable fixture evidence. Visual comparison remains explicitly deferred under the 2026-10-03 delivery priority; F2.3, F5.2 and F7.6 remain unchanged acceptance joins. Candidate review narrowed evidence for F6.6-C03: partial behavior/source proof is retained; remaining branches are explicit qualification."
-      }
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f6-6-decision.json"
+      },
+      "status_history": [
+        {
+          "at": "2026-10-05T12:12:30.729541+00:00",
+          "from": "planned",
+          "to": "accepted",
+          "reason": "Reviewed completed54test owner gate joins published55790 initialBack geometry, usable catalogue choices, unobscured pending feedback and actualcap picks; retained qualified profile archive roundtrip/history and per-workbench proofs complete the bounded criteria.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f6-6-decision.json"
+        }
+      ]
     },
     {
       "id": "F7.1",
@@ -8508,7 +8630,7 @@
         "F5.3",
         "F5.5"
       ],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md",
       "shared_edit_owner": "integration coordinator",
@@ -8530,6 +8652,13 @@
           "from": "planned",
           "to": "implementing",
           "reason": "Current source contains mounted guide/readiness, mechanical-fit editing, module inspection, physical-setup ownership, guarded export coordination and PCB/Case export consumers; remaining source completion and candidate qualification are active. This corrects stale planned status without accepting any parent or waiving its final joins."
+        },
+        {
+          "at": "2026-10-05T12:14:21.098070+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Independent consolidated review confirms every criterion verified; previously outstanding F4.4/F4.3 joins are now accepted, with no external gate or duplicate journey required.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f8-3-decision.json"
         }
       ],
       "criteria": [
@@ -8622,6 +8751,9 @@
         "assessed_at": "2026-10-03T19:35:06Z",
         "coverage": "complete",
         "note": "All current acceptance clauses for this parent were split into independently decidable criteria; broad baseline RED context was excluded as a requirement. Parent remains open unless all required criteria and joins are accepted. Candidate review corrected F8.3-C01: ready-only artifact evidence does not cover draft/incomplete-wiring readiness."
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f8-3-decision.json"
       }
     },
     {
@@ -9852,9 +9984,9 @@
     "integration_slices": 2,
     "boundary_slices": 2,
     "status": {
-      "accepted": 40,
-      "implementing": 11,
-      "planned": 10
+      "accepted": 49,
+      "implementing": 3,
+      "planned": 9
     }
   },
   "agent_policy": ".scratch/dioxus-frontend-v1/agent-policy.json",

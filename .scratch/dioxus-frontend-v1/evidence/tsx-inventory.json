@@ -196,11 +196,11 @@
           "role": "CanvasLayers",
           "status": "partial_port",
           "source_sha256": "e1b41a10094b0006dacd21dda5a58b827926afc1d9ec9192097395073c2ba0eb",
-          "dioxus_owner": "web/src/presentation.rs and private presentation/footprint_{graphics,forms}.rs (F1 shell plus scoped F3a Layout layers/keycaps/footprints)",
+          "dioxus_owner": "web/src/presentation.rs; web/src/presentation/footprint_graphics.rs; web/src/presentation/footprint_forms.rs",
           "evidence": [
-            "layout-layers/handoff.md"
+            ".scratch/dioxus-frontend-v1/evidence/layout-layers/handoff.md"
           ],
-          "acceptance": "F3a increment verified; complete Layout/Parts/PCB/3D responsibilities stay open",
+          "acceptance": "F1/F3a layers/keycaps/footprints slice only; no whole-file claim.",
           "planning_assignment": {
             "lead_workflow": "F3",
             "shared_consumers": [],
@@ -212,11 +212,13 @@
           "role": "CanvasObjects",
           "status": "partial_port",
           "source_sha256": "dfd094d9a0941bc6aa6e64d6aa1368797f3a4b6f55985e0f9a9d4a7e65c34f8f",
-          "dioxus_owner": "web/src/presentation.rs and private presentation/footprint_{graphics,forms}.rs (F1 shell plus scoped F3a Layout layers/keycaps/footprints)",
+          "dioxus_owner": "web/src/presentation.rs; web/src/presentation/footprint_graphics.rs; web/src/presentation/footprint_forms.rs; web/src/presentation/objects.rs; web/src/presentation/layout_viewer.rs; web/src/presentation/shared_viewer.rs",
           "evidence": [
-            "layout-layers/handoff.md"
+            ".scratch/dioxus-frontend-v1/evidence/layout-layers/handoff.md",
+            ".scratch/dioxus-layout-authoring/evidence/f32-preset-placement-20261003/receipt.md",
+            ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/layout/RESULTS.md"
           ],
-          "acceptance": "F3a increment verified; complete Layout/Parts/PCB/3D responsibilities stay open",
+          "acceptance": "Preserve prior F1/F3a attribution and add the separate F3.2/F3.3 object slice; broader shared file remains partial.",
           "planning_assignment": {
             "lead_workflow": "F3",
             "shared_consumers": [],
@@ -247,11 +249,14 @@
         {
           "path": "app/src/ui/ConstraintEditor.tsx",
           "role": "ConstraintEditor",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "eff7c2f709459a789fc6315a817bacf2dbc4d61782450d70de605170c8ef8328",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned",
+          "dioxus_owner": "web/src/presentation/objects/matrix_transform_inspector.rs; web/src/presentation/objects/matrix_transform_controller.rs; web/src/presentation/objects/layout_toolbar.rs",
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/layout/RESULTS.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-grouped-20261004/RECEIPT.md"
+          ],
+          "acceptance": "Accepted transform/constraint responsibilities only; integrated Layout remains open.",
           "planning_assignment": {
             "lead_workflow": "F3",
             "shared_consumers": [],
@@ -263,9 +268,11 @@
           "role": "ExistingHalfSetup",
           "status": "inventory_only",
           "source_sha256": "ba55efbef1c4ba70d3dac7f87ddc9236567b0576ee3dcc4f8b1eaf4bb74df0f6",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned",
+          "dioxus_owner": "web/src/presentation/objects/existing_half.rs; web/src/presentation/objects/board_setup_controller.rs; web/src/presentation/layout_workspace.rs",
+          "evidence": [
+            ".scratch/dioxus-layout-authoring/evidence/f32-preset-placement-20261003/receipt.md"
+          ],
+          "acceptance": "Owner identified; adjacent matrix/pair receipt reviewed but does not directly prove this ExistingHalfSetup row. Keep inventory_only pending row-specific evidence.",
           "planning_assignment": {
             "lead_workflow": "F3",
             "shared_consumers": [],
@@ -275,11 +282,15 @@
         {
           "path": "app/src/ui/FindingList.tsx",
           "role": "FindingList",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "63254e5e7c22a4a043a67123645c0012f52e46ec7aab27a8f96529ca712d081c",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned",
+          "dioxus_owner": "web/src/presentation/layout_findings.rs; web/src/presentation/layout_workspace.rs",
+          "evidence": [
+            ".scratch/dioxus-layout-authoring/evidence/f34d-perimeter-paired-20261003/README.md",
+            ".scratch/dioxus-layout-authoring/evidence/17-layout-findings-navigation/public-34767.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-grouped-20261004/RECEIPT.md"
+          ],
+          "acceptance": "Accepted outline/component finding navigation subset.",
           "planning_assignment": {
             "lead_workflow": "F3",
             "shared_consumers": [
@@ -336,11 +347,14 @@
         {
           "path": "app/src/ui/MatrixInspector.tsx",
           "role": "Matrix inspector",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "f22a2ad8f384c6877e0890272ba484251b4b389bd6800506c89ea8881ec2132e",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned",
+          "dioxus_owner": "web/src/presentation/objects/matrix_inspector.rs; web/src/presentation/objects/matrix_inspector_controller.rs; web/src/presentation/layout_workspace.rs",
+          "evidence": [
+            ".scratch/dioxus-layout-authoring/evidence/f32d-matrix-settings-20261003/README.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-grouped-20261004/RECEIPT.md"
+          ],
+          "acceptance": "Accepted matrix settings and contextual properties/relations subsets; F3.7 remains open.",
           "planning_assignment": {
             "lead_workflow": "F3",
             "shared_consumers": [],
@@ -350,11 +364,14 @@
         {
           "path": "app/src/ui/MatrixInspectorPanel.tsx",
           "role": "Matrix inspector panel",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "6016655034b755a772aeaea4a788e55ee253df58997870396b71636f5bd41174",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned",
+          "dioxus_owner": "web/src/presentation/objects/matrix_inspector.rs; web/src/presentation/objects/matrix_inspector_controller.rs; web/src/presentation/layout_workspace.rs",
+          "evidence": [
+            ".scratch/dioxus-layout-authoring/evidence/f32d-matrix-settings-20261003/README.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-grouped-20261004/RECEIPT.md"
+          ],
+          "acceptance": "Accepted matrix settings and contextual properties/relations subsets; F3.7 remains open.",
           "planning_assignment": {
             "lead_workflow": "F3",
             "shared_consumers": [],
@@ -364,11 +381,13 @@
         {
           "path": "app/src/ui/MatrixSetupPreview.tsx",
           "role": "MatrixSetupPreview",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "b4015e0d166e2c7f107cf71ec1e2924841d5187486458a8f2a54129cd25a9339",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned",
+          "dioxus_owner": "web/src/presentation/objects/matrix_setup.rs; web/src/presentation/objects/matrix_setup_controller.rs; web/src/presentation/layout_workspace.rs",
+          "evidence": [
+            ".scratch/dioxus-layout-authoring/evidence/f32-preset-placement-20261003/receipt.md"
+          ],
+          "acceptance": "Accepted custom/preset preview, commit, cancel and history subset.",
           "planning_assignment": {
             "lead_workflow": "F3",
             "shared_consumers": [],
@@ -378,11 +397,13 @@
         {
           "path": "app/src/ui/MirroredPairSetup.tsx",
           "role": "MirroredPairSetup",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "106b227d9c44bbac60621f7f0779fda861d45c548e8fbcffce3a09af28999a65",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned",
+          "dioxus_owner": "web/src/presentation/objects/mirrored_pair.rs; web/src/presentation/objects/mirrored_pair_controller.rs; web/src/presentation/layout_workspace.rs",
+          "evidence": [
+            ".scratch/dioxus-layout-authoring/evidence/f32-preset-placement-20261003/receipt.md"
+          ],
+          "acceptance": "Accepted mirrored-pair preview/commit/scope/Undo/reopen subset.",
           "planning_assignment": {
             "lead_workflow": "F3",
             "shared_consumers": [],
@@ -392,11 +413,14 @@
         {
           "path": "app/src/ui/OutlineControlOverlay.tsx",
           "role": "OutlineControlOverlay",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "ac7270529f9f3557e672560268e68ee274f2bc16362d710f1a55e2503325b782",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned",
+          "dioxus_owner": "web/src/presentation/outline_lifecycle.rs; web/src/presentation/outline_snapping.rs; web/src/presentation/outline_grid_rounding.rs; web/src/presentation/layout_workspace.rs",
+          "evidence": [
+            ".scratch/dioxus-layout-authoring/evidence/f34d-perimeter-paired-20261003/README.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-escape-repair-20261005.md"
+          ],
+          "acceptance": "Paired pointer/snap/Escape/nudge branches.",
           "planning_assignment": {
             "lead_workflow": "F3",
             "shared_consumers": [],
@@ -406,11 +430,14 @@
         {
           "path": "app/src/ui/OutlineDraftPreview.tsx",
           "role": "OutlineDraftPreview",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "b1017716be27981fc0cac91b5ffb0af58c5d196930dc85e5e413b9efbee0e8d1",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned",
+          "dioxus_owner": "web/src/presentation/outline_lifecycle.rs; web/src/presentation/outline_snapping.rs; web/src/presentation/outline_grid_rounding.rs; web/src/presentation/layout_workspace.rs",
+          "evidence": [
+            ".scratch/dioxus-layout-authoring/evidence/f34d-perimeter-paired-20261003/README.md",
+            ".scratch/dioxus-layout-authoring/evidence/f34e-manual-polygon-drafts-source-20261003.md"
+          ],
+          "acceptance": "Manual-draft preview/finish/cancel scope.",
           "planning_assignment": {
             "lead_workflow": "F3",
             "shared_consumers": [],
@@ -420,11 +447,14 @@
         {
           "path": "app/src/ui/OutlineFeatureEditor.tsx",
           "role": "OutlineFeatureEditor",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "022d545627da36770ded7d33a0e96f018f4801a140c21c673d510f613c3f3b04",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned",
+          "dioxus_owner": "web/src/presentation/outline_lifecycle.rs; web/src/presentation/outline_snapping.rs; web/src/presentation/outline_grid_rounding.rs; web/src/presentation/layout_workspace.rs",
+          "evidence": [
+            ".scratch/dioxus-layout-authoring/evidence/f34d-perimeter-paired-20261003/README.md",
+            ".scratch/dioxus-layout-authoring/evidence/f34e-manual-polygon-drafts-source-20261003.md"
+          ],
+          "acceptance": "Supported feature and point-edit subset; shape-specific limits remain.",
           "planning_assignment": {
             "lead_workflow": "F3",
             "shared_consumers": [],
@@ -434,11 +464,14 @@
         {
           "path": "app/src/ui/OutlineInspector.tsx",
           "role": "Outline inspector",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "6315ced0811d8c92624b47896f63713b0178ceb592f4ec72ce964e9b046b286b",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned",
+          "dioxus_owner": "web/src/presentation/outline_lifecycle.rs; web/src/presentation/outline_snapping.rs; web/src/presentation/outline_grid_rounding.rs; web/src/presentation/layout_workspace.rs",
+          "evidence": [
+            ".scratch/dioxus-layout-authoring/evidence/f34d-perimeter-paired-20261003/README.md",
+            ".scratch/dioxus-layout-authoring/evidence/f34e-add-object-outline-entry-20261003/README.md"
+          ],
+          "acceptance": "Version/configuration/history subset.",
           "planning_assignment": {
             "lead_workflow": "F3",
             "shared_consumers": [],
@@ -448,11 +481,14 @@
         {
           "path": "app/src/ui/OutlineSnapGuides.tsx",
           "role": "OutlineSnapGuides",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "9860fc5afa8bd94b8625e26d8f5b6d7f1dc8854bd1ce12de518221e012130964",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned",
+          "dioxus_owner": "web/src/presentation/outline_lifecycle.rs; web/src/presentation/outline_snapping.rs; web/src/presentation/outline_grid_rounding.rs; web/src/presentation/layout_workspace.rs",
+          "evidence": [
+            ".scratch/dioxus-layout-authoring/evidence/f34d-perimeter-paired-20261003/README.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-escape-repair-20261005.md"
+          ],
+          "acceptance": "Accepted snap/guide behavior; residual limits remain explicit.",
           "planning_assignment": {
             "lead_workflow": "F3",
             "shared_consumers": [],
@@ -462,11 +498,14 @@
         {
           "path": "app/src/ui/OutlineTools.tsx",
           "role": "OutlineTools",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "c3259ad453e459e533e6f24387fc6e2e768e0e1bafc9fe59fcade231def2b8b0",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned",
+          "dioxus_owner": "web/src/presentation/outline_lifecycle.rs; web/src/presentation/outline_snapping.rs; web/src/presentation/outline_grid_rounding.rs; web/src/presentation/layout_workspace.rs",
+          "evidence": [
+            ".scratch/dioxus-layout-authoring/evidence/f34d-perimeter-paired-20261003/README.md",
+            ".scratch/dioxus-layout-authoring/evidence/f34e-manual-polygon-drafts-source-20261003.md"
+          ],
+          "acceptance": "Supported tool/draft routes only.",
           "planning_assignment": {
             "lead_workflow": "F3",
             "shared_consumers": [],
@@ -478,11 +517,11 @@
           "role": "WorkbenchLayers",
           "status": "partial_port",
           "source_sha256": "1ff03a8ad230adbd9200b192d180be361c6d77af320c94e4e36bcb1feda32188",
-          "dioxus_owner": "web/src/presentation.rs and private presentation/footprint_{graphics,forms}.rs (F1 shell plus scoped F3a Layout layers/keycaps/footprints)",
+          "dioxus_owner": "web/src/presentation.rs; web/src/presentation/footprint_graphics.rs; web/src/presentation/footprint_forms.rs",
           "evidence": [
-            "layout-layers/handoff.md"
+            ".scratch/dioxus-frontend-v1/evidence/layout-layers/handoff.md"
           ],
-          "acceptance": "F3a increment verified; complete Layout/Parts/PCB/3D responsibilities stay open",
+          "acceptance": "F1/F3a layers/keycaps/footprints slice only; no whole-file claim.",
           "planning_assignment": {
             "lead_workflow": "F3",
             "shared_consumers": [],
@@ -492,11 +531,14 @@
         {
           "path": "app/src/ui/WorkbenchTree.tsx",
           "role": "WorkbenchTree",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "b5a557f075e4777a9223c85b01d70ea4f5b1489c3d84da5482f78719994a62d3",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned",
+          "dioxus_owner": "web/src/presentation/objects/tree.rs; web/src/presentation/objects/tree_tests.rs; web/src/presentation/objects.rs; web/src/presentation/layout_workspace.rs",
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/layout-f31-acceptance-20261003/DECISION.json",
+            ".scratch/dioxus-frontend-v1/evidence/layout-grouped-20261004/RECEIPT.md"
+          ],
+          "acceptance": "Accepted tree/scope/selection responsibilities, not whole Workbench coverage.",
           "planning_assignment": {
             "lead_workflow": "F3",
             "shared_consumers": [],
@@ -506,11 +548,14 @@
         {
           "path": "app/src/ui/useOutlineEditor.tsx",
           "role": "use OutlineEditor",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "d37ca5ed08b873bac42f26e8fe2b68099f7bbd9b987b97bba906b1189fa60af4",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned",
+          "dioxus_owner": "web/src/presentation/outline_lifecycle.rs; web/src/presentation/outline_snapping.rs; web/src/presentation/outline_grid_rounding.rs; web/src/presentation/layout_workspace.rs",
+          "evidence": [
+            ".scratch/dioxus-layout-authoring/evidence/f34d-perimeter-paired-20261003/README.md",
+            ".scratch/dioxus-layout-authoring/evidence/f34e-manual-polygon-drafts-source-20261003.md"
+          ],
+          "acceptance": "Owner-scoped outline draft/history branches only.",
           "planning_assignment": {
             "lead_workflow": "F3",
             "shared_consumers": [],
@@ -520,11 +565,13 @@
         {
           "path": "app/src/ui/useScriptEditor.tsx",
           "role": "use ScriptEditor",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "2150dea6c81112f2cfb478843101c9cd44810d45377855396a2812a15b03c05a",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned",
+          "dioxus_owner": "web/src/presentation/geometry_scripts.rs; web/src/presentation/layout_workspace.rs",
+          "evidence": [
+            ".scratch/dioxus-layout-authoring/evidence/f38-geometry-scripts-20261003/README.md"
+          ],
+          "acceptance": "F3.8 leaf accepted; integrated F3.7 route remains separate.",
           "planning_assignment": {
             "lead_workflow": "F3",
             "shared_consumers": [],
@@ -738,11 +785,17 @@
         {
           "path": "app/src/ui/BoardReferencePanel.tsx",
           "role": "BoardReference panel",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "4d5ffc4207030d183b5a7ddabedee82defde19d2bf8619cd76dca91e8fd9715e",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned",
+          "dioxus_owner": "web/src/presentation/pcb_board_reference.rs; web/src/presentation/pcb_board_reference/matching.rs; web/src/presentation/board_reference_effect.rs",
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/pcb-routed-folder-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/pcb-f57-c03-async-triage-20261005.md",
+            ".scratch/dioxus-frontend-v1/evidence/f73-asset-formats-20261004/RECEIPT.md",
+            ".scratch/dioxus-shared-viewer/evidence/public-case-first/F7.3-controls-20261003.md",
+            ".scratch/dioxus-frontend-v1/evidence/pcb-routed-case-viewer-20261005/RECEIPT.md"
+          ],
+          "acceptance": "Import/replace/remove/assets and bounded pre-worker missing/stale admission; routed viewer effect still unqualified.",
           "planning_assignment": {
             "lead_workflow": "F5",
             "shared_consumers": [],
@@ -752,11 +805,15 @@
         {
           "path": "app/src/ui/HardwareInstancesPanel.tsx",
           "role": "HardwareInstances panel",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "eb82625d5546ed481aa91c897ac92b1bd74f846beb218ef47d4b0aa5308e857e",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned",
+          "dioxus_owner": "web/src/presentation/pcb_physical_setup.rs; web/src/presentation/pcb_physical_setup/controller.rs; web/src/presentation/case_workspace.rs",
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/case-multi-instance-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/physical-viewer-join-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-layout-repair-review-20261005.md"
+          ],
+          "acceptance": "Accepted F5.6 selection and accepted F7.7 instance/viewer join; F5.8 must record its own joined observation.",
           "planning_assignment": {
             "lead_workflow": "F5",
             "shared_consumers": [
@@ -768,11 +825,15 @@
         {
           "path": "app/src/ui/HardwareReadiness.tsx",
           "role": "HardwareReadiness",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "30778f22579b33c95a93c98254be271ab5f3501be6766dd3af7f724e5bc05f94",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned",
+          "dioxus_owner": "web/src/presentation/parts/modules_catalogue.rs; web/src/presentation/pcb_module_inspector.rs",
+          "evidence": [
+            ".scratch/dioxus-pcb-view/evidence/14-mounted-module-footprints-20261003/public-receipt.md",
+            ".scratch/dioxus-pcb-view/evidence/24-module-source-route-20261003/receipt.md",
+            ".scratch/dioxus-frontend-v1/evidence/module-profile-editor-source-20261003/RECEIPT.md"
+          ],
+          "acceptance": "Source-only partial F4-led readiness projection with F5/F7 shared consumption; cited generic module/public routes do not prove current catalogue readiness rows publicly. Historical VIK-specific visibility is excluded by current scope. Not a public-ready or whole-file claim.",
           "planning_assignment": {
             "lead_workflow": "F4",
             "shared_consumers": [
@@ -785,11 +846,16 @@
         {
           "path": "app/src/ui/ModulePcbOverlay.tsx",
           "role": "ModulePcbOverlay",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "63bb74b24b204574c3e37d466b79d83da094cc230d13463d0657fde25eff9937",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned",
+          "dioxus_owner": "web/src/presentation/pcb_module_footprints.rs; web/src/presentation/pcb_layers.rs; web/src/presentation/pcb_module_inspector.rs; web/src/presentation/pcb_scene.rs",
+          "evidence": [
+            ".scratch/dioxus-pcb-view/evidence/14-mounted-module-footprints-20261003/public-receipt.md",
+            ".scratch/dioxus-pcb-view/evidence/15-mounted-module-layers-20261003/public-receipt.md",
+            ".scratch/dioxus-pcb-view/evidence/24-module-source-route-20261003/receipt.md",
+            ".scratch/dioxus-frontend-v1/evidence/pcb-clearance-scope-20261005/RECEIPT.md"
+          ],
+          "acceptance": "Accepted F5.4 overlay/layer/selection slice; F5.8 parity remains separate.",
           "planning_assignment": {
             "lead_workflow": "F5",
             "shared_consumers": [],
@@ -799,11 +865,14 @@
         {
           "path": "app/src/ui/WiringPanel.tsx",
           "role": "Wiring panel",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "96c2c3cd6b6d740b44e53e2aa8a1ac041bbd4937d8bcb2e832b7e44e98dce488",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned",
+          "dioxus_owner": "web/src/presentation/pcb_wiring.rs; web/src/presentation/pcb_wiring/controller.rs; web/src/presentation/pcb_wiring/connections.rs; web/src/presentation/pcb_wiring/pins.rs; web/src/presentation/pcb_wiring/apply.rs; web/src/presentation/pcb_wiring/remap.rs; web/src/presentation/pcb_wiring/part_connections.rs",
+          "evidence": [
+            ".scratch/dioxus-pcb-view/evidence/pcb-apply-ui-20261002/receipt.md",
+            ".scratch/dioxus-pcb-view/evidence/public-pcb-qualification-20261002/paired-walkthrough.md"
+          ],
+          "acceptance": "Accepted F5.2/F5.3 resolver/plan/apply/lock/conflict/net/protected-review slices; preserve public error-injection limitations.",
           "planning_assignment": {
             "lead_workflow": "F5",
             "shared_consumers": [],
@@ -813,11 +882,16 @@
         {
           "path": "app/src/ui/usePcbWorkspace.tsx",
           "role": "use Pcb workspace",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "f66a97c030c2e747de454ab5ba1b520765b6d9259f09e556a78d026e4dd1bf23",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned",
+          "dioxus_owner": "web/src/presentation/pcb_workspace.rs; web/src/presentation/pcb_wiring.rs; web/src/presentation.rs; web/src/runtime.rs",
+          "evidence": [
+            ".scratch/dioxus-pcb-view/evidence/public-pcb-qualification-20261002/paired-walkthrough.md",
+            ".scratch/dioxus-frontend-v1/evidence/pcb-host-themes-20261004/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/RECEIPT.md",
+            ".scratch/dioxus-pcb-view/evidence/pcb-apply-ui-20261002/receipt.md"
+          ],
+          "acceptance": "F5.1 workspace/scope/layers and F5.2/F5.3 wiring handlers; F5.1 accepted.",
           "planning_assignment": {
             "lead_workflow": "F5",
             "shared_consumers": [],
@@ -1285,13 +1359,27 @@
       "path": "app/src/ui/ModulePcbOverlay.test.tsx",
       "kind": "test",
       "primary_milestone": "04-pcb-workspace",
-      "role": "ModulePcbOverlay"
+      "role": "ModulePcbOverlay",
+      "dioxus_owner": "web/src/presentation/pcb_module_footprints.rs; web/src/presentation/pcb_layers.rs; web/src/presentation/pcb_module_inspector.rs",
+      "evidence": [
+        ".scratch/dioxus-pcb-view/evidence/14-mounted-module-footprints-20261003/public-receipt.md",
+        ".scratch/dioxus-pcb-view/evidence/15-mounted-module-layers-20261003/public-receipt.md",
+        ".scratch/dioxus-pcb-view/evidence/24-module-source-route-20261003/receipt.md",
+        ".scratch/dioxus-frontend-v1/evidence/pcb-clearance-scope-20261005/RECEIPT.md"
+      ],
+      "disposition": "retained_react_oracle: SSR source geometry, flipped layers, independent visibility, holes/standoffs; receipts are bounded evidence, not a Rust test port."
     },
     {
       "path": "app/src/ui/OutlineControlOverlay.test.tsx",
       "kind": "test",
       "primary_milestone": "02-layout-tree-inspector-and-tools",
-      "role": "OutlineControlOverlay"
+      "role": "OutlineControlOverlay",
+      "dioxus_owner": "web/src/presentation/outline_lifecycle.rs; web/src/presentation/outline_lifecycle_browser_tests.rs",
+      "evidence": [
+        ".scratch/dioxus-layout-authoring/evidence/f34d-perimeter-paired-20261003/README.md",
+        ".scratch/dioxus-frontend-v1/evidence/layout-escape-repair-20261005.md"
+      ],
+      "disposition": "retained_react_oracle: bounded paired snap/drag/cancel/nudge/point-removal behavior; no Rust test-port claim."
     },
     {
       "path": "app/src/ui/ProjectLibrary.test.tsx",
@@ -1303,13 +1391,24 @@
       "path": "app/src/ui/Workbench.performance.test.tsx",
       "kind": "test",
       "primary_milestone": "02-layout-tree-inspector-and-tools",
-      "role": "Workbench"
+      "role": "Workbench",
+      "dioxus_owner": "web/src/presentation/parts.rs; web/src/presentation/parts/catalogue.rs",
+      "evidence": [
+        ".scratch/dioxus-frontend-v1/evidence/layout-grouped-20261004/RECEIPT.md",
+        ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/layout/RESULTS.md"
+      ],
+      "disposition": "retained_react_oracle: test is catalogue caching across document updates, not Layout performance; F3.7-C06 is separate."
     },
     {
       "path": "app/src/ui/WorkbenchLayers.test.tsx",
       "kind": "test",
       "primary_milestone": "02-layout-tree-inspector-and-tools",
-      "role": "WorkbenchLayers"
+      "role": "WorkbenchLayers",
+      "dioxus_owner": "web/src/presentation.rs; web/src/presentation/footprint_graphics.rs; web/src/presentation/footprint_forms.rs; web/src/presentation/shared_viewer.rs",
+      "evidence": [
+        ".scratch/dioxus-frontend-v1/evidence/layout-layers/handoff.md"
+      ],
+      "disposition": "retained_react_oracle: F3a geometry/layer characterization."
     },
     {
       "path": "app/src/ui/libraryDisplay.test.tsx",
@@ -1327,7 +1426,13 @@
       "path": "app/src/ui/useWorkbenchNavigation.test.tsx",
       "kind": "test",
       "primary_milestone": "02-layout-tree-inspector-and-tools",
-      "role": "use WorkbenchNavigation"
+      "role": "use WorkbenchNavigation",
+      "dioxus_owner": "web/src/presentation.rs; web/src/presentation/layout_workspace.rs; web/src/presentation/layout_camera.rs; web/src/presentation/layout_viewer.rs",
+      "evidence": [
+        ".scratch/dioxus-frontend-v1/evidence/layout-f31-acceptance-20261003/DECISION.json",
+        ".scratch/dioxus-frontend-v1/evidence/layout-camera-f36c01-20261004/RECEIPT.md"
+      ],
+      "disposition": "retained_react_oracle: navigation/camera state only, not the integrated F3.7 journey."
     },
     {
       "path": "app/src/useCaseGeneration.live.test.tsx",

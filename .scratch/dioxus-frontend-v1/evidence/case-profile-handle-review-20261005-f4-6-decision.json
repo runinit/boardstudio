@@ -1,0 +1,20 @@
+{
+  "parent": "F4.6",
+  "reason": "Independent consolidated review confirms every criterion verified; previously outstanding F4.4/F4.3 joins are now accepted, with no external gate or duplicate journey required.",
+  "review": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+  "review_sha256": "a02aeeffcc2b1d7857443a8b499cade57f484f13d71ea9941a0304651692ede8",
+  "criteria_accounting": {
+    "source_commit": "07b4c3466b1f388073e8e1f9d619b0703223d770",
+    "coverage": "complete",
+    "verified_criteria": [
+      "F4.6-C01",
+      "F4.6-C02",
+      "F4.6-C03",
+      "F4.6-C04"
+    ]
+  },
+  "accepted_joins": [
+    "F4.4",
+    "F3.2"
+  ]
+}

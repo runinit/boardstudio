@@ -1,0 +1,20 @@
+{
+  "candidate": [
+    "        - treeitem \"▰ Right case assembly\" [expanded] [level=1] [selected]:",
+    "        - strong: Right PCB",
+    "        - status: Generate a case from the saved keyboard.",
+    "        - status: 3D preview updated.",
+    "        - option \"Right PCB\" [selected]",
+    "        - status: Add a plate, tray, or lid to begin the case stack."
+  ],
+  "reference": [
+    "  - status \"Keyboard movement\"",
+    "      - treeitem \"Right case assembly\" [expanded] [active] [level=1] [selected]:",
+    "    - strong: Right PCB",
+    "    - generic: Right PCB / Case",
+    "      - status: Waiting to update preview",
+    "      - status: Preparing 3D geometry…",
+    "      - status: 0 / 90 models · 1.6 mm PCB",
+    "    - generic: Right PCB / Case"
+  ]
+}

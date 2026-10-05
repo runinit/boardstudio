@@ -1,0 +1,22 @@
+{
+  "candidate": {
+    "hidden": [
+      "  - generic \"Saved locally\"",
+      "            - button \"Show Keycaps\" [active]:"
+    ],
+    "restored": [
+      "  - generic \"Saved locally\"",
+      "            - button \"Hide Keycaps\" [active] [pressed]:"
+    ]
+  },
+  "reference": {
+    "hidden": [
+      "  - generic \"Saved locally\"",
+      "        - button \"Show Keycaps\" [active]:"
+    ],
+    "restored": [
+      "  - generic \"Saved locally\"",
+      "        - button \"Hide Keycaps\" [active] [pressed]:"
+    ]
+  }
+}

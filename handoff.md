@@ -1,51 +1,43 @@
 # Handoff (generated from records)
 
-- Branch: codex/rust-v1-ui-parity-20261001 @ 38641dd1
+- Branch: codex/rust-v1-ui-parity-20261001 @ 55790e0a
 - Worktree: /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001
-- Parents: 40/61 accepted, 11 implementing, 10 planned
-- Criteria: unassessed 24, missing 2, implemented 16, verified 180; 222 total
-  - functional: implemented 6, missing 1, unassessed 3, verified 171
-  - release: implemented 7, missing 1, unassessed 19, verified 6
-  - visual: implemented 3, unassessed 2, verified 3
+- Parents: 49/61 accepted, 3 implementing, 9 planned
+- Criteria: unassessed 21, missing 2, implemented 7, verified 192; 222 total
+  - functional: missing 1, unassessed 3, verified 177
+  - release: implemented 7, missing 1, unassessed 16, verified 9
+  - visual: unassessed 2, verified 6
 
 ## Served candidate
-- Build: frontend-routed-case-cancellation-20261005
-- Source commit: 38641dd1353bcfb6230d52c1d5b84c7ad7908e7a
-- Root: http://127.0.0.1:34823/
-- Subpath: http://127.0.0.1:34823/boardstudio/
+- Build: frontend-case-parts-cap-selection-20261005
+- Source commit: 55790e0a9c30b3e53cbd9690dc418fec23021d11
+- Root: http://127.0.0.1:34824/
+- Subpath: http://127.0.0.1:34824/boardstudio/
 
 ## Functional readiness
-- Ready functional criteria: 1 investigate, 1 implement, 6 qualify (Layout 0 investigate/0 implement/0 qualify; PCB 0 investigate/1 implement/0 qualify; Keymap 0 investigate/0 implement/0 qualify; Keycaps 0 investigate/0 implement/0 qualify; Case 0 investigate/0 implement/0 qualify; Parts+Project 0 investigate/0 implement/5 qualify; Shared 1 investigate/0 implement/1 qualify)
-- Functionally verified parents awaiting formal acceptance: 4
-- Parents with unmet final joins: 8
+- Ready functional criteria: 2 investigate, 1 implement, 0 qualify (Layout 0 investigate/0 implement/0 qualify; PCB 0 investigate/1 implement/0 qualify; Keymap 0 investigate/0 implement/0 qualify; Keycaps 0 investigate/0 implement/0 qualify; Case 0 investigate/0 implement/0 qualify; Parts+Project 0 investigate/0 implement/0 qualify; Shared 2 investigate/0 implement/0 qualify)
+- Functionally verified parents awaiting formal acceptance: 1
+- Parents with unmet final joins: 5
   Layout: unassessed 0, missing 0, implemented 0, verified 27; ready investigate 0, implement 0, qualify 0
   PCB: unassessed 0, missing 1, implemented 0, verified 25; ready investigate 0, implement 1, qualify 0
     Implement: F5.7-C04
   Keymap: unassessed 0, missing 0, implemented 0, verified 7; ready investigate 0, implement 0, qualify 0
   Keycaps: unassessed 0, missing 0, implemented 0, verified 13; ready investigate 0, implement 0, qualify 0
   Case: unassessed 0, missing 0, implemented 0, verified 39; ready investigate 0, implement 0, qualify 0
-  Parts+Project: unassessed 0, missing 0, implemented 5, verified 34; ready investigate 0, implement 0, qualify 5
-    Qualify: F2.2-C03, F4.1-C02, F4.3-C02, F4.4-C01, F4.5-C03
-  Shared: unassessed 3, missing 0, implemented 1, verified 26; ready investigate 1, implement 0, qualify 1
-    Investigate: F8.6-C03
-    Qualify: F6.6-C04
+  Parts+Project: unassessed 0, missing 0, implemented 0, verified 39; ready investigate 0, implement 0, qualify 0
+  Shared: unassessed 3, missing 0, implemented 0, verified 27; ready investigate 2, implement 0, qualify 0
+    Investigate: F8.6-C02, F8.6-C03
 Functional criteria verified; formal acceptance still outstanding:
-  F2.4: visual/release F2.4-C04
-  F4.6: joins F4.4
-  F7.8: joins F4.4; visual/release F7.8-C02, F7.8-C03, F7.8-C04
-  F8.3: joins F4.3
+  F7.8: visual/release F7.8-C02, F7.8-C03, F7.8-C04
 Exact unmet final joins:
-  F4.6 → F4.4
-  F7.8 → F4.4
-  F8.3 → F4.3
-  F8.6 → F2.2, F3.7, F4.5, F4.6, F5.8, F6.6, F7.8
-  F9.2 → F2.2, F2.4, F3.7, F4.5, F4.6, F5.8, F6.6, F7.8, F8.6
+  F8.6 → F3.7, F5.8, F7.8
+  F9.2 → F3.7, F5.8, F7.8, F8.6
   F9.3 → F9.2
   F9.4 → F8.6
   F9.5 → F9.2
 
 ## Parents
-- Accepted (40): INT.1, INT.2, BND.1, BND.2, F2.1, F2.3, F3.1, F3.2, F3.3, F3.4, F3.5, F3.6, F3.8, F4.2, F5.1, F5.2, F5.3, F5.4, F5.5, F5.6, F6K.1, F6K.2, F6K.3, F6K.4, F6C.1, F6C.2, F6C.3, F6C.4, F6C.5, F7.1, F7.2, F7.3, F7.4, F7.5, F7.6, F7.7, F8.1, F8.2, F8.4, F8.5
+- Accepted (49): INT.1, INT.2, BND.1, BND.2, F2.1, F2.2, F2.3, F2.4, F3.1, F3.2, F3.3, F3.4, F3.5, F3.6, F3.8, F4.1, F4.2, F4.3, F4.4, F4.5, F4.6, F5.1, F5.2, F5.3, F5.4, F5.5, F5.6, F6K.1, F6K.2, F6K.3, F6K.4, F6C.1, F6C.2, F6C.3, F6C.4, F6C.5, F6.6, F7.1, F7.2, F7.3, F7.4, F7.5, F7.6, F7.7, F8.1, F8.2, F8.3, F8.4, F8.5
 - Hold (0): none
 
 ## Criteria on hold or blocked
@@ -105,4 +97,4 @@ Exact unmet final joins:
 
 Last retro checkpoint: 2026-10-04T15:56:00Z
 
-Combined gate3074104 TERMINAL0: native247/1ignored, page/reachability, strictheadless54/0fail/0excluded/0incomplete939.96s. All11frozenhashes intact;6unrelatedstagedidentities preserved. F5.1accepted andF3.7C04verified from same consolidatedreview. F2longname/System/guide-panel focus public observations now viewer-actions shell-* receipts; reviewer checking exactclause. Source integration commit then immutablepackage next, no newpublic GREEN claimed. Corrected Layout/PCB inventory proposal evidence-only in progress; no compiler/sourcewrites.
+Requiredfindingsgate3111403 nowTERMINAL0: native247/1ignored,page/reachability,strictheadless4/0fail/0excluded/incomplete96.13s. Sourcehashes intact, same soleindependentreviewCLEAR. Explicitownedcommitmanifest /tmp/case-findings-bounds-commit-paths.json;6unrelatedindexentries preserved. Commit/build/publicexpandedfindingsGREEN next; no wholeCaseacceptancebeforepublicresult.

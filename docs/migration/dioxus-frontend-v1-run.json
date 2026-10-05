@@ -16,29 +16,29 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-05T11:53:24.245239+00:00",
+    "updated_at": "2026-10-05T12:14:21.105261+00:00",
     "parent_counts": {
-      "accepted": 40,
-      "implementing": 11,
-      "planned": 10,
+      "accepted": 49,
+      "implementing": 3,
+      "planned": 9,
       "total": 61
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-routed-case-cancellation-20261005",
-      "source_commit": "38641dd1353bcfb6230d52c1d5b84c7ad7908e7a",
-      "root_url": "http://127.0.0.1:34823/",
-      "subpath_url": "http://127.0.0.1:34823/boardstudio/",
-      "provenance": "web/target/builds/frontend-routed-case-cancellation-20261005/provenance.json",
-      "provenance_sha256": "2afad69082a062180966364052dc82728049c5dcc107d536af5e9c6c6a66bfa5",
+      "build_id": "frontend-case-parts-cap-selection-20261005",
+      "source_commit": "55790e0a9c30b3e53cbd9690dc418fec23021d11",
+      "root_url": "http://127.0.0.1:34824/",
+      "subpath_url": "http://127.0.0.1:34824/boardstudio/",
+      "provenance": "web/target/builds/frontend-case-parts-cap-selection-20261005/provenance.json",
+      "provenance_sha256": "a976c2c330a68a2cf76674392e572aed98711c66367f6bf41277d0d02afe374e",
       "fresh_commands": 9,
       "inherited_commands": 23,
       "source_inputs": 1409,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 136.055607,
+      "command_span_seconds": 135.493201,
       "package_qualification": "Combined package provenance, committed snapshot inputs and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-routed-case-cancellation-20261005/package-proof.json",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-case-parts-cap-selection-20261005/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -49,7 +49,7 @@
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
       "source_commit": "38641dd1353bcfb6230d52c1d5b84c7ad7908e7a",
-      "state": "All11source/configpaths independentCLEAR and terminal0 combinedgate3074104: native247passed/1ignored, wasm-page/reachability passed, strictheadless54passed/0failed/excluded/incomplete. Explicitcommit and immutablepackage next; public changed journeys remain unqualified.",
+      "state": "IndependentCLEAR; gate3111403terminal0/native247+1ignored/page/reachability/strictheadless4passed0failed0excluded0incomplete. Explicitcommit/immutablepackage/publicdefaultopenviewportGREEN next.",
       "packets": [
         {
           "stream": "Layout",
@@ -559,31 +559,31 @@
       {
         "stream": "Layout",
         "priority": "Functional gaps alongside other streams; exact visual parity deferred",
-        "state": "F3.5/F3.6/F3.8 accepted after actual public owner/history/Escape and independently reconciled shared viewer lifecycle; no functional Layout criteria remain in current frontier."
+        "state": "F3.1-F3.6/F3.8 accepted; F3.7 visual and scoped inventory verified. One coherent integrated Layout journey plus affected accessibility/performance qualification remains."
       },
       {
         "stream": "PCB",
-        "state": "F5.7-C03 verified missing-blob retry and file-read retirement. Imported PCB/models now render on38641; remaining F5.7-C04 keycaps omission repaired with owning RED/GREEN, pending aggregate gate and packaged public replay."
+        "state": "F5.1-F5.6 accepted. RoutedPCB/models/generatedcaps public55790GREEN afterfindingscollapse; F5.7 finishing defaultopenviewport usability repair, then F5.8 integratedjoins."
       },
       {
         "stream": "Keymap",
-        "state": "F6K.4 accepted through independent seven-clause closure review and verified F5.2/F8.2 joins; existing successful encoder, legacy Wiring and real ZMK evidence reused. Broader release remains with its owners; compact/mobile duplicate-download checks are deferred by user instruction."
+        "state": "All Keymap leaves and F6.6 accepted; actual generatedcapclick selects SW20 on55790. Required cross-workbench release qualification remains separate."
       },
       {
         "stream": "Keycaps",
-        "state": "F6C.3 and F6C.5 accepted; shared viewer join and retained actual preview/STEP proofs cleared by consolidated review."
+        "state": "All Keycaps leaves and F6.6 accepted; actual generatedcapclick selectsSW19 andordinarypendinglabel readable on55790."
       },
       {
         "stream": "Case",
-        "state": "F7.5/F7.7 accepted; F7.8-C05desktopfallback verified. GeneratedCasekeycaps focusedRED/GREEN/sourceCLEAR, aggregate/packagepending."
+        "state": "F7.1-F7.7 accepted. Actualgeneratedcaps7u/layers/physicalscope qualified55790; F7.8 waits required defaultopenfindingsviewport repair and final consolidatedjoin."
       },
       {
         "stream": "Parts + Project",
-        "state": "F2.2-C03Runtime2races focused2/2/sourceCLEAR. Parts4newfixtures failedsetup and are being corrected coherently. Actual initialMXschema-defaultpreview mismatch now reproduced; required productRED/fix authorized. Desktopassemblylist2pxclipping CSSrepair reviewed, packagedGREENpending."
+        "state": "F2.2/F2.4/F4.1-F4.6 accepted with completed54testaggregate, actualinitialBack/defaults/catalogue usability and retainedqualifiedprofileportable-reopen proofs. No remainingPartsfunctionalqueue."
       }
     ],
     "pending_join_packets": [],
-    "next_work": "Finish current Parts initial-default and catalogue fixtures, then bounded generated-cap pick repair; single reviewed grouped gate/explicit commit/immutable package. Replay changed Casecaps, Partsdefaults/listclipping and Keymap/Keycaps picks. Reuse successful desktop viewer actions and conditional F7 aggregate joins.",
+    "next_work": "Finish required2fileCasefindingsheightrepair through independentreview/affectedgates/explicitcommit/immutablepackage and actualexpandedviewportGREEN. Record reviewed Parts/F6/publicpicks closures and accepted joins. Then one coherent paired F3.7Layoutjourney plus remaining requiredPCB/accessibility/performance qualification; no mobile/optionalwork.",
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
       "cadence": {
@@ -4064,12 +4064,65 @@
               "state": "pending"
             }
           ]
+        },
+        {
+          "candidate_build_id": "frontend-routed-case-cancellation-20261005",
+          "source_commit": "38641dd1353bcfb6230d52c1d5b84c7ad7908e7a",
+          "phase": "qualifying",
+          "review": {
+            "profile": "sol-review",
+            "state": "pending"
+          },
+          "journeys": [
+            {
+              "id": "case-local-step-scope",
+              "scope": "Paired desktop Case journey from pinned Sofle: add Plate, configure mechanical settings, generate exact geometry, edit a setting and observe stale/current recovery, verify Export geometry readiness, download and inspect the exact-current mechanical package, change physical scope, and save/reopen. Qualify only branches actually executed; all existing criteria and warning/currentness rules remain.",
+              "source_roots": [
+                "web",
+                "application",
+                "core",
+                "contracts",
+                "renderer",
+                "cad",
+                "kicad/src",
+                "app/src",
+                "app/public",
+                "scripts",
+                "ergogen"
+              ],
+              "source_paths": [
+                ".node-version",
+                ".npmrc",
+                "package.json",
+                "pnpm-lock.yaml",
+                "pnpm-workspace.yaml",
+                "rust-toolchain.toml"
+              ],
+              "optional_source_paths": [
+                ".cargo/config",
+                ".cargo/config.toml"
+              ],
+              "source_paths_complete": true,
+              "fixtures": [
+                {
+                  "path": ".scratch/dioxus-frontend-v1/evidence/case-generation-export-20261005/input.boardstudio",
+                  "sha256": "af5b1bde73de827a699ddf01f7f7a321c6cfe8922304056a1678dbe622c9a821"
+                },
+                {
+                  "path": ".scratch/dioxus-frontend-v1/evidence/case-generation-export-20261005/input.json",
+                  "sha256": "e9aa38882a73f4faeb2ac7c32ad7ea54e38b57ecbf6b0f7991cff941bd9a5569"
+                }
+              ],
+              "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+              "state": "pending"
+            }
+          ]
         }
       ],
       "phase": "qualifying",
       "unmet_start_conditions": [],
-      "candidate_build_id": "frontend-routed-case-cancellation-20261005",
-      "source_commit": "38641dd1353bcfb6230d52c1d5b84c7ad7908e7a",
+      "candidate_build_id": "frontend-case-parts-cap-selection-20261005",
+      "source_commit": "55790e0a9c30b3e53cbd9690dc418fec23021d11",
       "journeys": [
         {
           "id": "case-local-step-scope",
@@ -4117,7 +4170,7 @@
       "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
       "pending_source_batch": {
         "id": "case-keycap-consumer-and-required-parts-project-20261005",
-        "state": "All11source/configpaths independentCLEAR and terminal0 combinedgate3074104: native247passed/1ignored, wasm-page/reachability passed, strictheadless54passed/0failed/excluded/incomplete. Explicitcommit and immutablepackage next; public changed journeys remain unqualified.",
+        "state": "Committed55790e0a published34824; immutablebuildterminal0 in142.88s, public initialPartsBack/catalogue/keymappicks/pendingfeedback GREEN. ActualCasecaps render/layers GREEN aftercollapsingfindings, but defaultopen27findings makesviewportheight0. Required2filefeedbackboundsrepair inreview; publicexpandedGREEN pending.",
         "source_base": "38641dd1353bcfb6230d52c1d5b84c7ad7908e7a",
         "owned_files": [
           "web/src/runtime.rs",
@@ -4231,7 +4284,29 @@
         "review_sha256": "288cb9f86b7a67ed7b4b5a44c7634d5b2306bb7416cbedd2d0c3106004fd3301",
         "review_verdict": "CLEAR for all settled source/config; no public closure inferred",
         "aggregate_result": ".scratch/dioxus-frontend-v1/evidence/case-keycaps-parts-integration-20261005/final-combined-gate.json",
-        "aggregate_headless_receipt": ".scratch/dioxus-frontend-v1/evidence/case-keycaps-parts-integration-20261005/final-combined-headless-receipt.json"
+        "aggregate_headless_receipt": ".scratch/dioxus-frontend-v1/evidence/case-keycaps-parts-integration-20261005/final-combined-headless-receipt.json",
+        "source_commit": "55790e0a9c30b3e53cbd9690dc418fec23021d11",
+        "build": {
+          "pid": 3097898,
+          "state": "terminal",
+          "build_id": "frontend-case-parts-cap-selection-20261005",
+          "state_file": "/tmp/case-keycaps-parts-build.json",
+          "exit_code": 0,
+          "elapsed_seconds": 142.87930059432983
+        },
+        "required_followup": {
+          "reason": "Actual Case default-open findings shrinks viewer to height0",
+          "files": [
+            "web/src/presentation/case_viewer.rs",
+            "web/assets/m1.css"
+          ],
+          "red": ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/case-55790-findings-overflow.json",
+          "state": "IndependentCLEAR; gate3111403terminal0/native247+1ignored/page/reachability/strictheadless4passed0failed0excluded0incomplete. Explicitcommit/immutablepackage/publicdefaultopenviewportGREEN next.",
+          "gate": {
+            "pid": 3111403,
+            "state_file": "/tmp/case-findings-bounds-gates.json"
+          }
+        }
       },
       "prior_source_batches": [
         {
@@ -4656,7 +4731,7 @@
           }
         }
       ],
-      "started_at": "2026-10-05T10:08:36.892928+00:00",
+      "started_at": "2026-10-05T12:00:38.610568+00:00",
       "review": {
         "profile": "sol-review",
         "state": "pending"
@@ -4784,6 +4859,11 @@
         "build_id": "frontend-routed-case-cancellation-20261005",
         "published_at": "2026-10-05T10:08:34.998458+00:00",
         "extra_candidate_reason": "Required imported-board Case viewport repair after paired public failure; combined reviewed cancellation and PCB ownership batch."
+      },
+      {
+        "build_id": "frontend-case-parts-cap-selection-20261005",
+        "published_at": "2026-10-05T12:00:36.831740+00:00",
+        "extra_candidate_reason": "Required reviewed repairs for missing Case generated caps, ignored generated-cap picks, wrong initial Parts side geometry and clipped desktop feedback; changed journeys cannot qualify on38641."
       }
     ],
     "validation_scope": {
