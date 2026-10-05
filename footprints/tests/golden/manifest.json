@@ -1,0 +1,685 @@
+{
+  "generators": {
+    "ceoloide/battery_connector_jst_ph_2": {
+      "file": "generators/ceoloide__battery_connector_jst_ph_2.json",
+      "cases": 22,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 5,
+        "side-rotation": 10,
+        "marker-nets": 3,
+        "parameter-merge": 1,
+        "coercion": 1
+      },
+      "outputErrors": 0,
+      "parameterCount": 14
+    },
+    "ceoloide/battery_connector_molex_pico_ezmate_1x02": {
+      "file": "generators/ceoloide__battery_connector_molex_pico_ezmate_1x02.json",
+      "cases": 20,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 4,
+        "side-rotation": 10,
+        "marker-nets": 3,
+        "parameter-merge": 1
+      },
+      "outputErrors": 0,
+      "parameterCount": 16
+    },
+    "ceoloide/diode_tht_sod123": {
+      "file": "generators/ceoloide__diode_tht_sod123.json",
+      "cases": 43,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 4,
+        "side-rotation": 10,
+        "marker-nets": 3,
+        "parameter-merge": 1,
+        "coercion": 1,
+        "extra": 2,
+        "demo-definition": 1,
+        "demo-part": 19
+      },
+      "outputErrors": 12,
+      "parameterCount": 16
+    },
+    "ceoloide/display_nice_view": {
+      "file": "generators/ceoloide__display_nice_view.json",
+      "cases": 24,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 7,
+        "side-rotation": 10,
+        "marker-nets": 3,
+        "parameter-merge": 1,
+        "coercion": 1
+      },
+      "outputErrors": 0,
+      "parameterCount": 28
+    },
+    "ceoloide/display_ssd1306": {
+      "file": "generators/ceoloide__display_ssd1306.json",
+      "cases": 26,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 7,
+        "side-rotation": 10,
+        "marker-nets": 3,
+        "parameter-merge": 1,
+        "coercion": 1,
+        "demo-definition": 1,
+        "demo-part": 1
+      },
+      "outputErrors": 0,
+      "parameterCount": 19
+    },
+    "ceoloide/led_sk6812mini-e": {
+      "file": "generators/ceoloide__led_sk6812mini-e.json",
+      "cases": 29,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 5,
+        "side-rotation": 10,
+        "marker-nets": 3,
+        "parameter-merge": 1,
+        "coercion": 1,
+        "demo-definition": 2,
+        "demo-part": 5
+      },
+      "outputErrors": 0,
+      "parameterCount": 20
+    },
+    "ceoloide/mcu_nice_nano": {
+      "file": "generators/ceoloide__mcu_nice_nano.json",
+      "cases": 40,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 11,
+        "side-rotation": 10,
+        "marker-nets": 3,
+        "parameter-merge": 1,
+        "coercion": 1,
+        "demo-definition": 1,
+        "demo-part": 11
+      },
+      "outputErrors": 6,
+      "parameterCount": 69
+    },
+    "ceoloide/mcu_supermini_nrf52840": {
+      "file": "generators/ceoloide__mcu_supermini_nrf52840.json",
+      "cases": 28,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 11,
+        "side-rotation": 10,
+        "marker-nets": 3,
+        "parameter-merge": 1,
+        "coercion": 1
+      },
+      "outputErrors": 6,
+      "parameterCount": 70
+    },
+    "ceoloide/mounting_hole_npth": {
+      "file": "generators/ceoloide__mounting_hole_npth.json",
+      "cases": 16,
+      "byFamily": {
+        "default": 2,
+        "side-rotation": 10,
+        "extra": 2,
+        "demo-definition": 1,
+        "demo-part": 1
+      },
+      "outputErrors": 0,
+      "parameterCount": 4
+    },
+    "ceoloide/mounting_hole_plated": {
+      "file": "generators/ceoloide__mounting_hole_plated.json",
+      "cases": 14,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 1,
+        "side-rotation": 10,
+        "coercion": 1
+      },
+      "outputErrors": 1,
+      "parameterCount": 6
+    },
+    "ceoloide/power_switch_smd_side": {
+      "file": "generators/ceoloide__power_switch_smd_side.json",
+      "cases": 20,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 4,
+        "side-rotation": 10,
+        "marker-nets": 3,
+        "parameter-merge": 1
+      },
+      "outputErrors": 0,
+      "parameterCount": 12
+    },
+    "ceoloide/reset_switch_smd_side": {
+      "file": "generators/ceoloide__reset_switch_smd_side.json",
+      "cases": 20,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 4,
+        "side-rotation": 10,
+        "marker-nets": 3,
+        "parameter-merge": 1
+      },
+      "outputErrors": 0,
+      "parameterCount": 12
+    },
+    "ceoloide/reset_switch_tht_top": {
+      "file": "generators/ceoloide__reset_switch_tht_top.json",
+      "cases": 23,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 2,
+        "side-rotation": 10,
+        "marker-nets": 3,
+        "parameter-merge": 1,
+        "demo-definition": 1,
+        "demo-part": 4
+      },
+      "outputErrors": 0,
+      "parameterCount": 6
+    },
+    "ceoloide/rotary_encoder_ec11_ec12": {
+      "file": "generators/ceoloide__rotary_encoder_ec11_ec12.json",
+      "cases": 26,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 5,
+        "side-rotation": 10,
+        "marker-nets": 3,
+        "parameter-merge": 1,
+        "coercion": 1,
+        "extra": 2,
+        "demo-definition": 1,
+        "demo-part": 1
+      },
+      "outputErrors": 10,
+      "parameterCount": 22
+    },
+    "ceoloide/switch_choc_v1_v2": {
+      "file": "generators/ceoloide__switch_choc_v1_v2.json",
+      "cases": 49,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 18,
+        "side-rotation": 10,
+        "marker-nets": 3,
+        "parameter-merge": 1,
+        "coercion": 1,
+        "extra": 7,
+        "demo-definition": 1,
+        "demo-part": 6
+      },
+      "outputErrors": 16,
+      "parameterCount": 47
+    },
+    "ceoloide/switch_gateron_ks27_ks33": {
+      "file": "generators/ceoloide__switch_gateron_ks27_ks33.json",
+      "cases": 32,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 12,
+        "side-rotation": 10,
+        "marker-nets": 3,
+        "parameter-merge": 1,
+        "coercion": 1,
+        "extra": 3
+      },
+      "outputErrors": 8,
+      "parameterCount": 34
+    },
+    "ceoloide/switch_mx": {
+      "file": "generators/ceoloide__switch_mx.json",
+      "cases": 48,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 12,
+        "side-rotation": 10,
+        "marker-nets": 3,
+        "parameter-merge": 1,
+        "coercion": 1,
+        "extra": 6,
+        "demo-definition": 2,
+        "demo-part": 11
+      },
+      "outputErrors": 3,
+      "parameterCount": 41
+    },
+    "ceoloide/trrs_pj320a": {
+      "file": "generators/ceoloide__trrs_pj320a.json",
+      "cases": 22,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 2,
+        "side-rotation": 10,
+        "marker-nets": 3,
+        "parameter-merge": 1,
+        "demo-definition": 1,
+        "demo-part": 3
+      },
+      "outputErrors": 0,
+      "parameterCount": 12
+    },
+    "ceoloide/utility_ergogen_logo": {
+      "file": "generators/ceoloide__utility_ergogen_logo.json",
+      "cases": 15,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 1,
+        "side-rotation": 10,
+        "coercion": 1,
+        "extra": 1
+      },
+      "outputErrors": 0,
+      "parameterCount": 5
+    },
+    "ceoloide/utility_filled_zone": {
+      "file": "generators/ceoloide__utility_filled_zone.json",
+      "cases": 19,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 1,
+        "side-rotation": 10,
+        "marker-nets": 3,
+        "coercion": 1,
+        "extra": 2
+      },
+      "outputErrors": 0,
+      "parameterCount": 21
+    },
+    "ceoloide/utility_keepout_zone": {
+      "file": "generators/ceoloide__utility_keepout_zone.json",
+      "cases": 23,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 6,
+        "side-rotation": 10,
+        "parameter-merge": 1,
+        "coercion": 1,
+        "extra": 3
+      },
+      "outputErrors": 5,
+      "parameterCount": 11
+    },
+    "ceoloide/utility_point_debugger": {
+      "file": "generators/ceoloide__utility_point_debugger.json",
+      "cases": 13,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 1,
+        "side-rotation": 10
+      },
+      "outputErrors": 0,
+      "parameterCount": 2
+    },
+    "ceoloide/utility_router": {
+      "file": "generators/ceoloide__utility_router.json",
+      "cases": 24,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 1,
+        "side-rotation": 10,
+        "marker-nets": 3,
+        "coercion": 1,
+        "extra": 7
+      },
+      "outputErrors": 25,
+      "parameterCount": 7
+    },
+    "ceoloide/utility_text": {
+      "file": "generators/ceoloide__utility_text.json",
+      "cases": 21,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 5,
+        "side-rotation": 10,
+        "parameter-merge": 1,
+        "coercion": 1,
+        "extra": 2
+      },
+      "outputErrors": 0,
+      "parameterCount": 14
+    },
+    "infused-kim/conn_molex_pico_ezmate_1x02": {
+      "file": "generators/infused-kim__conn_molex_pico_ezmate_1x02.json",
+      "cases": 16,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 1,
+        "side-rotation": 10,
+        "marker-nets": 3
+      },
+      "outputErrors": 0,
+      "parameterCount": 15
+    },
+    "infused-kim/conn_molex_pico_ezmate_1x05": {
+      "file": "generators/infused-kim__conn_molex_pico_ezmate_1x05.json",
+      "cases": 16,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 1,
+        "side-rotation": 10,
+        "marker-nets": 3
+      },
+      "outputErrors": 0,
+      "parameterCount": 18
+    },
+    "infused-kim/icon_bat": {
+      "file": "generators/infused-kim__icon_bat.json",
+      "cases": 15,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 1,
+        "side-rotation": 10,
+        "coercion": 1,
+        "extra": 1
+      },
+      "outputErrors": 0,
+      "parameterCount": 4
+    },
+    "infused-kim/mounting_hole": {
+      "file": "generators/infused-kim__mounting_hole.json",
+      "cases": 13,
+      "byFamily": {
+        "default": 2,
+        "side-rotation": 10,
+        "coercion": 1
+      },
+      "outputErrors": 1,
+      "parameterCount": 4
+    },
+    "infused-kim/nice_view": {
+      "file": "generators/infused-kim__nice_view.json",
+      "cases": 20,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 3,
+        "side-rotation": 10,
+        "marker-nets": 3,
+        "parameter-merge": 1,
+        "coercion": 1
+      },
+      "outputErrors": 0,
+      "parameterCount": 24
+    },
+    "infused-kim/pads": {
+      "file": "generators/infused-kim__pads.json",
+      "cases": 21,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 3,
+        "side-rotation": 10,
+        "marker-nets": 3,
+        "parameter-merge": 1,
+        "coercion": 1,
+        "extra": 1
+      },
+      "outputErrors": 0,
+      "parameterCount": 21
+    },
+    "infused-kim/point_debugger": {
+      "file": "generators/infused-kim__point_debugger.json",
+      "cases": 13,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 1,
+        "side-rotation": 10
+      },
+      "outputErrors": 0,
+      "parameterCount": 2
+    },
+    "infused-kim/smd_0805": {
+      "file": "generators/infused-kim__smd_0805.json",
+      "cases": 21,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 4,
+        "side-rotation": 10,
+        "marker-nets": 3,
+        "parameter-merge": 1,
+        "coercion": 1
+      },
+      "outputErrors": 0,
+      "parameterCount": 51
+    },
+    "infused-kim/switch_power": {
+      "file": "generators/infused-kim__switch_power.json",
+      "cases": 16,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 1,
+        "side-rotation": 10,
+        "marker-nets": 3
+      },
+      "outputErrors": 0,
+      "parameterCount": 10
+    },
+    "infused-kim/switch_reset": {
+      "file": "generators/infused-kim__switch_reset.json",
+      "cases": 16,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 1,
+        "side-rotation": 10,
+        "marker-nets": 3
+      },
+      "outputErrors": 0,
+      "parameterCount": 10
+    },
+    "infused-kim/text": {
+      "file": "generators/infused-kim__text.json",
+      "cases": 15,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 1,
+        "side-rotation": 10,
+        "extra": 2
+      },
+      "outputErrors": 0,
+      "parameterCount": 4
+    },
+    "infused-kim/trackpoint_mount": {
+      "file": "generators/infused-kim__trackpoint_mount.json",
+      "cases": 21,
+      "byFamily": {
+        "default": 2,
+        "boolean-flip": 5,
+        "side-rotation": 10,
+        "parameter-merge": 1,
+        "coercion": 1,
+        "extra": 2
+      },
+      "outputErrors": 6,
+      "parameterCount": 22
+    }
+  },
+  "totals": {
+    "generators": 36,
+    "cases": 820,
+    "byFamily": {
+      "default": 72,
+      "boolean-flip": 151,
+      "side-rotation": 360,
+      "marker-nets": 75,
+      "parameter-merge": 22,
+      "coercion": 23,
+      "extra": 43,
+      "demo-definition": 12,
+      "demo-part": 62
+    },
+    "errors": 99,
+    "workerScenarios": 28
+  },
+  "demoProjects": [
+    {
+      "project": "starter",
+      "definitions": 1,
+      "parts": 15,
+      "uniqueDefinitions": 1,
+      "uniqueParts": 1
+    },
+    {
+      "project": "sofle-v2",
+      "definitions": 14,
+      "parts": 140,
+      "uniqueDefinitions": 8,
+      "uniqueParts": 9
+    },
+    {
+      "project": "sofle-rgb",
+      "definitions": 19,
+      "parts": 212,
+      "uniqueDefinitions": 2,
+      "uniqueParts": 8
+    },
+    {
+      "project": "sofle-choc",
+      "definitions": 18,
+      "parts": 198,
+      "uniqueDefinitions": 1,
+      "uniqueParts": 7
+    },
+    {
+      "project": "measured-corne",
+      "definitions": 11,
+      "parts": 90,
+      "uniqueDefinitions": 0,
+      "uniqueParts": 3
+    },
+    {
+      "project": "measured-lily58",
+      "definitions": 11,
+      "parts": 122,
+      "uniqueDefinitions": 0,
+      "uniqueParts": 3
+    },
+    {
+      "project": "measured-sweep",
+      "definitions": 11,
+      "parts": 74,
+      "uniqueDefinitions": 0,
+      "uniqueParts": 3
+    },
+    {
+      "project": "measured-chocofi",
+      "definitions": 11,
+      "parts": 78,
+      "uniqueDefinitions": 0,
+      "uniqueParts": 2
+    },
+    {
+      "project": "measured-reviung41",
+      "definitions": 8,
+      "parts": 84,
+      "uniqueDefinitions": 0,
+      "uniqueParts": 2
+    },
+    {
+      "project": "measured-totem",
+      "definitions": 15,
+      "parts": 82,
+      "uniqueDefinitions": 0,
+      "uniqueParts": 2
+    },
+    {
+      "project": "measured-klor",
+      "definitions": 11,
+      "parts": 90,
+      "uniqueDefinitions": 0,
+      "uniqueParts": 2
+    },
+    {
+      "project": "measured-cantor",
+      "definitions": 11,
+      "parts": 90,
+      "uniqueDefinitions": 0,
+      "uniqueParts": 2
+    },
+    {
+      "project": "measured-gh60",
+      "definitions": 4,
+      "parts": 124,
+      "uniqueDefinitions": 0,
+      "uniqueParts": 2
+    },
+    {
+      "project": "measured-discipline",
+      "definitions": 4,
+      "parts": 138,
+      "uniqueDefinitions": 0,
+      "uniqueParts": 2
+    },
+    {
+      "project": "measured-mysterium",
+      "definitions": 10,
+      "parts": 176,
+      "uniqueDefinitions": 0,
+      "uniqueParts": 2
+    },
+    {
+      "project": "measured-voyager97",
+      "definitions": 12,
+      "parts": 208,
+      "uniqueDefinitions": 0,
+      "uniqueParts": 3
+    },
+    {
+      "project": "measured-voyager104",
+      "definitions": 12,
+      "parts": 210,
+      "uniqueDefinitions": 0,
+      "uniqueParts": 2
+    },
+    {
+      "project": "measured-plaid",
+      "definitions": 4,
+      "parts": 98,
+      "uniqueDefinitions": 0,
+      "uniqueParts": 2
+    },
+    {
+      "project": "measured-lumberjack",
+      "definitions": 6,
+      "parts": 122,
+      "uniqueDefinitions": 0,
+      "uniqueParts": 1
+    },
+    {
+      "project": "vik-module-review",
+      "definitions": 1,
+      "parts": 13,
+      "uniqueDefinitions": 0,
+      "uniqueParts": 0
+    },
+    {
+      "project": "reviung41",
+      "definitions": 8,
+      "parts": 84,
+      "uniqueDefinitions": 0,
+      "uniqueParts": 4
+    }
+  ],
+  "provenance": {
+    "node": "v26.10.0",
+    "revision": "recorded from the working tree at commit 851875a0e (provider unchanged since 3cdeb2ac2)",
+    "sourceHashes": {
+      "ergogen/src/index.ts": "d544cb9a395fa7cb5c2db720566c1a005c23f68a108f920c9caab74b7554d13d",
+      "ergogen/generated/catalogue.mjs": "3acdf3c1000658409c0f288eb338668aa9783a0688c3a37ba91a7b0120ec2b97",
+      "kicad/src/ergogen.ts": "fd3dcfe3555f2a2bcaeef7cb6f05ebff2997741aa55d75d2271449d445825605",
+      "scripts/web/preview-generator-worker.ts": "6bae601ac2f452c542de9fe91b31a1c07a5ec58bad59efe4813889b43f8a03f6",
+      "ergogen/library/manifest/default-models.json": "0f7413d4326942a787951c8321ef93b34d6b3399c90331651a74b65c8e4c3867"
+    },
+    "fixtureProjects": [
+      "content/archives/reviung41-original.boardstudio",
+      "tooling/demo-projects/src/demos/*",
+      "tooling/demo-projects/src/demo.ts"
+    ]
+  }
+}
