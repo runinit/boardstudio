@@ -1,0 +1,14 @@
+{
+  "web/src/runtime.rs": {
+    "currentHash": "8831fa6099e13d3f88ab7ccce435f3caa8a30eb96ee98dd4bef09e6a55a9e525",
+    "unchanged": true,
+    "earlierFocusedFixtureHash": "42987ebceb3c8ddb298fe14eef9b9af0acef2a264840a817a3c81ad56fb61824",
+    "acceptedEvidenceHash": "8831fa6099e13d3f88ab7ccce435f3caa8a30eb96ee98dd4bef09e6a55a9e525",
+    "evidence": "case-profile-handle-review-20261005.md:677 and wasm-headless-tests/f0fa97eb1e7d7984a72fc1ed384fb2902d7b8da2531d77f333865051ba9736e3.json: both supersession tests in54/54"
+  },
+  "web/src/presentation/pcb_module_inspector.rs": {
+    "acceptedEvidenceHash": "06b6afff9288f8124b51c9fb945a64b1c160890f0076b93faac3ae90cfa6ec52",
+    "currentHash": "06b6afff9288f8124b51c9fb945a64b1c160890f0076b93faac3ae90cfa6ec52",
+    "unchanged": true
+  }
+}

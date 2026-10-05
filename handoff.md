@@ -1,11 +1,11 @@
 # Handoff (generated from records)
 
-- Branch: codex/rust-v1-ui-parity-20261001 @ df6b04b9
+- Branch: codex/rust-v1-ui-parity-20261001 @ caa06c19
 - Worktree: /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001
-- Parents: 57/60 accepted, 0 implementing, 3 planned
-- Criteria: unassessed 7, missing 0, implemented 1, verified 213; 221 total
+- Parents: 57/60 accepted, 1 implementing, 2 planned
+- Criteria: unassessed 6, missing 1, implemented 1, verified 213; 221 total
   - functional: verified 181
-  - release: implemented 1, unassessed 7, verified 24
+  - release: implemented 1, missing 1, unassessed 6, verified 24
   - visual: verified 8
 
 ## Served candidate
@@ -36,7 +36,6 @@ Exact unmet final joins:
 
 ## Criteria on hold or blocked
 - F9.5-C01 [unassessed]: Map each existing budget to eligible current evidence; preserve ineligible/failed baselines for applicability review.
-- F9.5-C02 [unassessed]: Qualify applicable interaction/rendering performance on final integrated source.
 - F9.5-C03 [unassessed]: Attribute worker, URL and resource cleanup to final output paths; leave unmeasured/ineligible checks open.
 - F9.6-C01 [unassessed]: After F9.1, F9.2, F9.4, F9.5 and F2–F8 exits, reconcile every remaining placeholder/React island against inventory.
 - F9.6-C02 [unassessed]: Prepare reproducible candidate provenance plus copied-data cutover and rollback dry-run after qualification gates.
@@ -85,6 +84,8 @@ Exact unmet final joins:
 
 Last retro checkpoint: 2026-10-04T15:56:00Z
 
-Current milestone: source df6b04b9; immutable frontend-layout-untouched-coordinate-20261005 at34829. F3.7/F8.6/F9.2/F9.4 accepted after independent review; 57/60 parents. User explicitly deferred remaining Undo/Redo qualification/repairs. Controls/tests/historical proof preserved, deferral is not a pass. Shared rapid lost-axis limitation in RF-016 is recorded, no new axis-intent/backend redesign in migration.
+Current source batch: layout-pointer-performance-20261005, based on caa06c19. Served immutable candidate remains df6b04b9 at34829; 57/60 accepted. Final public pointer run found repeated100-key75–80ms above50ms, first200-key185.6ms above100ms. Source repair is frozen after native projection-count RED/GREEN and independent review: cache accepted-source selection membership in App with strong document/scene identities plus token/epoch/board/instance, preserve pernotification reconciliation/render. Separate benchmark import barrier now waits exact scene count+target. No Undo/Redo/mobile/accessibility work.
 
-Final performance running as tracked session84013; /tmp/f95-final-pointer.log; evidence/f95-final-20261005/paired-df6b04b9-final. Five paired sessions, fixed30/100/200 archives, unchanged33/50/100ms caps. Quiet-host signal captured after all build/browserQA finished. Do not run concurrent heavy/browser tasks. case_local_export owns ancillary-applicability.md only (read-only source/evidence); preset_batch_review remains sole reviewer. After performance, required F9.6 concrete adoption/rollback patch and copied-data rehearsal, then separate explicit cutover approval/F9.7. No source/adoption edits started. Native application diagnostic removed after preserving patch/red log; source clean.
+Combined gate session53492, /tmp/layout-pointer-performance-gates.log; page/native248/reachability and strict3headless pass, no exclusions. Source and reviewed owner mapping staged before gate. Explicit commit manifest /tmp/layout-pointer-performance-paths.json; preserve six unrelated index entries /tmp/case-layout-unrelated-index.json. Next guarded commit, build frontend-layout-pointer-cache-20261005 from committed snapshot with reusable frontend-case-layout-controls-20261005 providers, publish/serve34830, then quiet fullpaired five-session benchmark. Actual performance GREEN not yet measured.
+
+F9.6 adoption proposal exists in evidence/f96-adoption-20261005, unapplied. It changes production Pages/build/start to Dioxus, retains ordinary React dev/reference and rollback. case_local_export and layout_escape_repair are completing actual final63row source/criterion/evidence reconciliation in disjoint scratch files; no source/config edits or extra browser/tests. Sole reviewer preset_batch_review. All F9.6 criteria stay open until required F9.5 join and real copied-data rehearsal/review. Explicit cutover approval remains the final separate step.

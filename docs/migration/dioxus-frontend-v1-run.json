@@ -16,10 +16,11 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-05T15:41:26.595418+00:00",
+    "updated_at": "2026-10-05T15:45:18.818930+00:00",
     "parent_counts": {
       "accepted": 57,
-      "planned": 3,
+      "implementing": 1,
+      "planned": 2,
       "total": 60
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
@@ -365,7 +366,7 @@
           "change": "F2.3 pointer and keyboard desktop pane resizing with persistence"
         }
       ],
-      "qualification": "F3.7, F8.6, F9.2 and F9.4 independently reviewed and accepted. Actual paired saved outputs/roundtrips, unchanged themes/keyboard/scene zoom, desktop short-height and root/subpath offline/lazy recovery evidence retained. Performance and adoption remain separate.",
+      "qualification": "F3.7, F8.6, F9.2 and F9.4 independently reviewed and accepted. Actual paired saved outputs/roundtrips, unchanged themes/keyboard/scene zoom, desktop short-height and root/subpath offline/lazy recovery evidence retained. Performance and adoption remain separate. F9.5 final pointer run has real100/200-key budget failures; stopped after recurring100-key failure. Source diagnosis active, no release pass.",
       "application_candidate_source": "df6b04b9e8903381029a137fdfcef8d797305fb8"
     },
     "journeys": [
@@ -582,7 +583,7 @@
       }
     ],
     "pending_join_packets": [],
-    "next_work": "Finish final quiet-host paired pointer/startup observations and source-attributed resource/applicability qualification (F9.5); then prepare/review concrete cutover and copied-data rollback patch (F9.6), followed by explicitly approved adoption (F9.7). Remaining Undo/Redo qualification/repairs deferred by user.",
+    "next_work": "F9.5: fix confirmed public pointer slowdown at100/200 keys and separate exact-import benchmark barrier; complete final paired performance/resource observations. Then F9.6 concrete cutover/rollback preparation and separately approved F9.7 adoption. Undo/Redo qualification/repairs remain deferred.",
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
       "cadence": {
@@ -5097,6 +5098,47 @@
         "state": "completed",
         "verdict": "clear",
         "path": ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/public-review.md"
+      },
+      "pending_source_batch": {
+        "id": "layout-pointer-performance-20261005",
+        "state": "source frozen and reviewed; native248/page/reachability/strict3headless passed; committing before immutable package",
+        "source_base": "caa06c1941fa10340102452b5817adce81ad877c",
+        "published_before_edits": "frontend-layout-untouched-coordinate-20261005",
+        "owned_files": [
+          "web/src/presentation.rs",
+          "web/src/matrix_transform_lifecycle.rs",
+          ".scratch/m1-production/evidence/performance/measure-candidate-pointer.mjs",
+          "scripts/wasm-test-owners.json"
+        ],
+        "authors": [
+          {
+            "agent": "migration_acceleration_review",
+            "files": [
+              "web/src/presentation.rs",
+              "web/src/matrix_transform_lifecycle.rs",
+              ".scratch/m1-production/evidence/performance/measure-candidate-pointer.mjs"
+            ]
+          }
+        ],
+        "reviewer": "preset_batch_review",
+        "evidence": ".scratch/dioxus-frontend-v1/evidence/f95-final-20261005/paired-df6b04b9-final/stopped-summary.json",
+        "finish": [
+          "Fix reproduced page-thread drag bottleneck; regression at actual owning seam, no new history work",
+          "Fix independently observed import-readiness driver race without changing thresholds or sample semantics",
+          "Same independent review and one combined native/page/reachability/affected-headless gate; explicit staged paths before gates",
+          "Commit and publish immutable repaired source; final five paired sessions within existing33/50/100ms caps, source-bound startup/resource evidence",
+          "Reuse unaffected accepted workflow evidence; final adoption packet/rehearsal/approval remains separate"
+        ],
+        "cause": "Runtime notifications repeat App eligible_live_ids -> context_for_part, rebuilding board-part HashSets once per part.100-key fixture has300parts; membership recomputation is quadratic pergesture update. Preserve eachnotification selection/currentness, cache only membership under accepted-source/token/board/instance identity.",
+        "frozen_source_hashes": {
+          "web/src/presentation.rs": "0eec0ed1720c617d543379feff15e8d2c949cf0d81ad637e1d73aed7ccc081e5",
+          "web/src/matrix_transform_lifecycle.rs": "b346b1ca4738897fe66fd92acea0533bfcf725762c5e324fe203d308f807f989",
+          ".scratch/m1-production/evidence/performance/measure-candidate-pointer.mjs": "abf17e9b80f49b10b1056fcdcad225547bbb1b6d216b871b54d9cf762bd31f2a",
+          "scripts/wasm-test-owners.json": "1a5d6a601da5f7ad25427cb0d460c7ccd793700bcb399a87eda0a7b2918bc955"
+        },
+        "review": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+        "focused_proof": ".scratch/dioxus-frontend-v1/evidence/f95-final-20261005/performance-diagnosis.md",
+        "gate_log": ".scratch/dioxus-frontend-v1/evidence/f95-final-20261005/integration-gates.log"
       }
     },
     "delivery_priority": {

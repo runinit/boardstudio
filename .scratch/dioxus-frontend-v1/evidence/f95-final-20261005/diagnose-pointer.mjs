@@ -6,7 +6,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = fileURLToPath(new URL('../../../../', import.meta.url));
+const root = '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001';
 const fixtureDir = resolve(process.env.BOARDSTUDIO_FIXTURE_DIR ?? '.scratch/m1-production/evidence/performance/fixtures');
 const variant = process.env.BOARDSTUDIO_POINTER_VARIANT ?? 'candidate';
 const candidateUrl = process.env.BOARDSTUDIO_CANDIDATE_URL;
@@ -189,7 +189,7 @@ try {
   assert.equal(environment.height, 720);
   assert.equal(environment.dpr, 1, 'candidate pointer comparison requires DPR 1');
 
-  for (const keys of [30, 100, 200]) {
+  for (const keys of [100]) {
     const fixture = fixtureManifest.fixtures.find((item) => item.keys === keys);
     assert.ok(fixture, `missing ${keys}-key archive`);
     const archive = resolve(fixtureDir, fixture.archive);
@@ -285,7 +285,9 @@ try {
       );
     }
     pointerCommands.push(['mouse', 'up', 'left']);
+    browser(['profiler', 'start', '--categories', 'devtools.timeline,v8.execute,blink.user_timing,disabled-by-default-v8.cpu_profiler,disabled-by-default-v8.cpu_profiler.hires']);
     browser(['batch', '--bail'], JSON.stringify(pointerCommands));
+    browser(['profiler', 'stop', resolve(runDir, 'pointer-cpu-profile.json')]);
 
     const records = evalPage('window.__ticket06PointerObservation.results');
     assert.equal(records.length, count, `${keys}-key fixture must yield one transform observation per native movement`);

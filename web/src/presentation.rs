@@ -370,6 +370,11 @@ pub fn App() -> Element {
             crate::matrix_transform_lifecycle::SelectionRetention::default(),
         ))
     });
+    let selection_membership = use_hook(|| {
+        Rc::new(RefCell::new(
+            crate::matrix_transform_lifecycle::SelectionMembershipCache::default(),
+        ))
+    });
     let observed_scope = use_hook({
         let runtime = runtime.clone();
         move || Rc::new(RefCell::new(runtime.scope()))
@@ -389,6 +394,7 @@ pub fn App() -> Element {
         let weak_runtime = Rc::downgrade(&runtime);
         let adapter = adapter.clone();
         let selection_retention = selection_retention.clone();
+        let selection_membership = selection_membership.clone();
         let observed_scope = observed_scope.clone();
         let reconciling_scope = reconciling_scope.clone();
         move || {
@@ -461,16 +467,20 @@ pub fn App() -> Element {
                     anchor_scope.set(None);
                 }
 
-                let eligible = selection::eligible_live_ids(&model);
-                let live = selection::live_board_ids(&model);
+                let membership = selection_membership.borrow_mut().project(&model, |model| {
+                    crate::matrix_transform_lifecycle::SelectionMembership {
+                        eligible: selection::eligible_live_ids(model),
+                        live: selection::live_board_ids(model),
+                    }
+                });
                 let selected_context = (adapter.selected_context)().filter(|selected| {
                     matches!(&selected.context, objects::TreeContext::Key { .. })
                 });
                 let selected_ids = selection_retention.borrow_mut().reconcile(
                     selected_context.as_ref(),
                     &model.selected_part_ids,
-                    &eligible,
-                    &live,
+                    &membership.eligible,
+                    &membership.live,
                 );
                 if selected_ids != model.selected_part_ids {
                     anchor_scope.set(None);
@@ -483,9 +493,15 @@ pub fn App() -> Element {
                 }
                 if let Some(scope) = next_scope.as_ref() {
                     let current = runtime.model();
+                    let membership = selection_membership.borrow_mut().project(&current, |model| {
+                        crate::matrix_transform_lifecycle::SelectionMembership {
+                            eligible: selection::eligible_live_ids(model),
+                            live: selection::live_board_ids(model),
+                        }
+                    });
                     if (adapter.anchor_scope)().as_ref() == Some(scope)
                         && current.selection_anchor_id.as_ref().is_none_or(|anchor| {
-                            !selection::eligible_live_ids(&current)
+                            !membership.eligible
                                 .iter()
                                 .any(|id| id == anchor)
                         })

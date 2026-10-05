@@ -18,15 +18,14 @@
     },
     "web/src/presentation.rs": {
       "tests": [
-        "cad_presentation::mounted_tests::mounted_case_local_export_uses_current_exact_mechanical_scope",
-        "cad_presentation::mounted_tests::mounted_failed_current_generation_keeps_previous_geometry_and_retries_owner",
-        "cad_presentation::mounted_tests::mounted_read_model_preview_and_session_gesture_block_export_until_cancelled",
-        "cad_presentation::mounted_tests::mounted_case_panel_starts_once_pauses_and_resumes_for_current_context"
+        "presentation::objects::matrix_transform_inspector::mounted_tests::additive_canvas_selection_keeps_key_properties_for_same_matrix_keys",
+        "presentation::objects::matrix_transform_inspector::mounted_tests::additive_mixed_component_selection_keeps_first_part_group_context",
+        "presentation::objects::matrix_transform_inspector::mounted_tests::toggle_removal_keeps_the_inspector_and_commands_aimed_at_remaining_keys"
       ],
-      "coverage": "Hash-bound test-only Case readiness fixture support. The presentation bridge calls the existing mechanical owner readiness hook; the per-Runtime ReadModel override is cfg(test), defaults to None, and is populated only by the mounted CAD fixtures. All four mounted CAD tests execute; direct cad_presentation module selection retains grouped fixture attribution. Any different base/current hash fails closed to broad selection. Native web, wasm page and reachability gates remain required.",
-      "requires_generator_assets": false,
-      "base_sha256": "fae911b0f35c6d935c6ce512319b2ef8b83b70e8e5a3a34c3a63f7defacc7b5c",
-      "current_sha256": "abae011da90fb4dcbe7d5ecfa957e084517eb23a5088957fed98b81c2f96519d"
+      "coverage": "Exact hash-bound App accepted-membership cache change. Three mounted selection-adapter/synthetic SVG tests retain same-matrix, mixed component and toggle-removal command ownership. They do not mount the App subscription. The required full native web gate covers the actual cache used by App, preview-notification reuse and accepted-source/scope invalidation; wasm page and reachability remain required. Real packaged native-pointer performance proves the public App path after integration. Runtime notification, context/currentness/anchor reconciliation and preview rendering remain active. Any different base/current source hash fails closed to broad selection.",
+      "requires_generator_assets": true,
+      "base_sha256": "abae011da90fb4dcbe7d5ecfa957e084517eb23a5088957fed98b81c2f96519d",
+      "current_sha256": "0eec0ed1720c617d543379feff15e8d2c949cf0d81ad637e1d73aed7ccc081e5"
     },
     "web/src/presentation/selection.rs": {
       "tests": [

@@ -2,6 +2,71 @@
 //! and native regressions. Draft merging remains field-local in the inspector.
 use boardstudio_application::{SnapshotToken, TerminalOutcome};
 
+#[derive(Default)]
+pub(crate) struct SelectionMembership {
+    pub(crate) eligible: Vec<String>,
+    pub(crate) live: Vec<String>,
+}
+
+#[derive(Default)]
+pub(crate) struct SelectionMembershipCache {
+    source: Option<SelectionMembershipSource>,
+    membership: std::rc::Rc<SelectionMembership>,
+}
+
+struct SelectionMembershipSource {
+    accepted: boardstudio_application::AcceptedSnapshot,
+    board_id: String,
+    instance_id: Option<String>,
+}
+
+impl SelectionMembershipSource {
+    fn matches(&self, model: &boardstudio_application::ReadModel) -> bool {
+        model.accepted.as_ref().is_some_and(|accepted| {
+            self.board_id == model.active_board_id
+                && self.instance_id == model.active_instance_id
+                && self.accepted.token == accepted.token
+                && self.accepted.session_epoch == accepted.session_epoch
+                && std::sync::Arc::ptr_eq(&self.accepted.document, &accepted.document)
+                && std::sync::Arc::ptr_eq(&self.accepted.scene, &accepted.scene)
+        })
+    }
+}
+
+impl SelectionMembershipCache {
+    pub(crate) fn project(
+        &mut self,
+        model: &boardstudio_application::ReadModel,
+        compute: impl FnOnce(&boardstudio_application::ReadModel) -> SelectionMembership,
+    ) -> std::rc::Rc<SelectionMembership> {
+        if (self.source.is_none() && model.accepted.is_none())
+            || self
+                .source
+                .as_ref()
+                .is_some_and(|source| source.matches(model))
+        {
+            return self.membership.clone();
+        }
+        // Membership depends on accepted document/scene and scope, never a drag's
+        // display preview, camera, selected IDs or pending operation status. Hold
+        // the immutable sources strongly so pointer identity cannot be recycled.
+        self.source = model
+            .accepted
+            .as_ref()
+            .map(|accepted| SelectionMembershipSource {
+                accepted: accepted.clone(),
+                board_id: model.active_board_id.clone(),
+                instance_id: model.active_instance_id.clone(),
+            });
+        self.membership = std::rc::Rc::new(if self.source.is_some() {
+            compute(model)
+        } else {
+            SelectionMembership::default()
+        });
+        self.membership.clone()
+    }
+}
+
 #[derive(Clone, Copy)]
 pub(crate) struct AcceptedIdentity {
     pub(crate) token: SnapshotToken,
@@ -351,6 +416,97 @@ mod selection_retention_tests {
             mechanical_profile: None,
         });
         document
+    }
+
+    #[test]
+    fn accepted_membership_reuses_preview_notifications_and_retires_on_source_change() {
+        use boardstudio_application::{GestureView, SessionEpoch};
+        use std::{cell::Cell, rc::Rc, sync::Arc};
+
+        let mut session = Session::new();
+        let mut core = CoreEngine::new();
+        let effects = session.submit(Event::Open {
+            operation_id: OperationId(1),
+            document: matrix_fixture(),
+        });
+        advance(&mut session, &mut core, effects);
+        let mut model = session.read_model().clone();
+        assert!(
+            model.accepted.is_some(),
+            "fixture must reach real Core acceptance"
+        );
+        let calls = Cell::new(0);
+        let compute = |model: &boardstudio_application::ReadModel| {
+            calls.set(calls.get() + 1);
+            SelectionMembership {
+                eligible: eligible_ids(model, "matrix-main", "key"),
+                live: live_ids(model, "key"),
+            }
+        };
+        let mut cache = SelectionMembershipCache::default();
+        let first = cache.project(&model, compute);
+        for generation in 1..=100 {
+            model.gesture = Some(GestureView {
+                pointer_id: 1,
+                generation,
+                target_ids: vec!["key".into()],
+                changed: true,
+                snap: true,
+                alt: false,
+            });
+            model.display_preview =
+                Some(Arc::new((*model.accepted.as_ref().unwrap().scene).clone()));
+            model.camera.zoom += 0.01;
+            model.selected_part_ids = vec![format!("selection-{generation}")];
+            model.selection_anchor_id = model.selected_part_ids.first().cloned();
+            let next = cache.project(&model, compute);
+            assert_eq!(
+                calls.get(),
+                1,
+                "gesture/display/selection notifications must reuse accepted membership"
+            );
+            assert!(Rc::ptr_eq(&first, &next));
+        }
+        let mut expect_refresh = |model: &boardstudio_application::ReadModel| {
+            let before = calls.get();
+            let refreshed = cache.project(model, compute);
+            assert_eq!(
+                calls.get(),
+                before + 1,
+                "changed membership owner must recompute"
+            );
+            assert!(!Rc::ptr_eq(&first, &refreshed));
+        };
+        model.active_board_id = "other-board".into();
+        expect_refresh(&model);
+        model.active_instance_id = Some("physical-instance".into());
+        expect_refresh(&model);
+        model.accepted.as_mut().unwrap().token = SnapshotToken(99);
+        expect_refresh(&model);
+        model.accepted.as_mut().unwrap().session_epoch = SessionEpoch(99);
+        expect_refresh(&model);
+        let accepted = model.accepted.as_mut().unwrap();
+        accepted.document = Arc::new((*accepted.document).clone());
+        expect_refresh(&model);
+        let accepted = model.accepted.as_mut().unwrap();
+        accepted.scene = Arc::new((*accepted.scene).clone());
+        expect_refresh(&model);
+        let accepted = model.accepted.as_mut().unwrap();
+        Arc::make_mut(&mut accepted.document).revision += 1;
+        expect_refresh(&model);
+        model.accepted = None;
+        let empty = cache.project(&model, |_| {
+            panic!("closed source has no membership to project")
+        });
+        assert!(empty.eligible.is_empty() && empty.live.is_empty());
+        let reopened = session.read_model().clone();
+        let before = calls.get();
+        cache.project(&reopened, compute);
+        assert_eq!(
+            calls.get(),
+            before + 1,
+            "reopen cannot inherit retired membership"
+        );
     }
 
     #[test]
