@@ -13,6 +13,14 @@ pub(crate) mod util;
 
 /// Every bundled generator.
 pub static SPECS: &[&GeneratorSpec] = &[
+    &ceoloide::trrs_pj320a::SPEC,
+    &ceoloide::battery_connector_molex_pico_ezmate_1x02::SPEC,
+    &ceoloide::battery_connector_jst_ph_2::SPEC,
+    &ceoloide::rotary_encoder_ec11_ec12::SPEC,
+    &ceoloide::display_ssd1306::SPEC,
+    &ceoloide::display_nice_view::SPEC,
+    &ceoloide::mcu_supermini_nrf52840::SPEC,
+    &ceoloide::mcu_nice_nano::SPEC,
     &ceoloide::switch_gateron_ks27_ks33::SPEC,
     &ceoloide::switch_choc_v1_v2::SPEC,
     &ceoloide::switch_mx::SPEC,

@@ -45,3 +45,12 @@ pub(crate) fn json_string(text: &str) -> String {
 pub(crate) fn yes_no(flag: bool) -> &'static str {
     if flag { "yes" } else { "no" }
 }
+
+/// `list.join(' ')` for a list of numbers.
+pub(crate) fn join_numbers(items: &[Value]) -> String {
+    items
+        .iter()
+        .map(|item| js_number(item.as_f64().unwrap_or(f64::NAN)))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
