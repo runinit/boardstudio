@@ -1,0 +1,11 @@
+# F9.7 adopted-path browser journey — prepared, waiting for coordinator URL
+
+Use the actual local default `pnpm start` candidate once the coordinator publishes its URL (expected port 4173). Do not use the frozen candidate servers from F9.6. New isolated `agent-browser` session: `f97-adoption-20261005`; preserve all pre-existing sessions and fixtures.
+
+Input is the F9.6 copied React save at `../f96-adoption-20261005/rehearsal/bootstrap-reference-final-20261005/reference-resaved.boardstudio`, SHA-256 `58c0d6303c08dafe4f2259b297d78c619f8c9469163575ff4dcea53c95cf2342`. It contains project `m1-sofle-v2-copy`, “Sofle v2”, revision 23 and six assets.
+
+Wait for the public M1 shell, exact active root worker `/service-worker.js`, and no installing/waiting worker. Import through `input[type=file][accept='.boardstudio']` (open `details.m1-project-menu > summary` only if the file input is not currently available). Wait for “Saved locally” and the expected project name. Use actual `details.m1-project-menu` state before interacting: open the details only when closed, then use `input[aria-label='Project name']`, which the source marks “Rename project”. Fill it with `Sofle v2 F9.7 adoption` and press Enter (the component blurs on Enter and commits on blur). Wait for saved state and the renamed project label; reload and verify the same active ID/name and saved status.
+
+Navigate each actual tab by `#m1-tab-Layout`, `#m1-tab-PCB`, `#m1-tab-Keymap`, `#m1-tab-Keycaps`, `#m1-tab-Case`, and `#m1-tab-Parts`, waiting for `aria-selected=true` after each. Then open `#m1-tab-Export`, wait for selected state, and produce one portable project copy through `button.m1-project-copy-action` (check/open the project details menu only if needed; verify center hit-test before download). Compare full ProjectDoc and all six asset hashes against the imported archive, allowing only the existing F94 numeric serialization tolerance. Reload the exported copy and confirm the renamed project. Capture `agent-browser errors` and console errors after the journey; do not clear them first.
+
+No screenshot, broad edit matrix, history, accessibility, mobile, or production Pages check is planned. Execution begins only after the coordinator supplies the `pnpm start` URL.

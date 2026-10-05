@@ -1,18 +1,18 @@
 # Handoff (generated from records)
 
-- Branch: codex/rust-v1-ui-parity-20261001 @ 12a4cd03
+- Branch: codex/rust-v1-ui-parity-20261001 @ f4107630
 - Worktree: /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001
-- Parents: 59/60 accepted, 1 implementing, 0 planned
-- Criteria: unassessed 2, missing 0, implemented 0, verified 219; 221 total
+- Parents: 60/60 accepted, 0 implementing, 0 planned
+- Criteria: unassessed 0, missing 0, implemented 0, verified 221; 221 total
   - functional: verified 181
-  - release: unassessed 2, verified 30
+  - release: verified 32
   - visual: verified 8
 
 ## Served candidate
-- Build: frontend-worker-activation-20261005
-- Source commit: 82207f752e93d889877bab72c6e86b2d248620ce
-- Root: http://127.0.0.1:34834/
-- Subpath: http://127.0.0.1:34834/boardstudio/
+- Build: start-f4107630-20261005T181117Z-3535061
+- Source commit: f41076301c592cf7145fbd2125bf7de00e4e7b72
+- Root: http://127.0.0.1:4173/
+- Subpath: http://127.0.0.1:4173/boardstudio/
 
 ## Functional readiness
 - Ready functional criteria: 0 investigate, 0 implement, 0 qualify (Layout 0 investigate/0 implement/0 qualify; PCB 0 investigate/0 implement/0 qualify; Keymap 0 investigate/0 implement/0 qualify; Keycaps 0 investigate/0 implement/0 qualify; Case 0 investigate/0 implement/0 qualify; Parts+Project 0 investigate/0 implement/0 qualify; Shared 0 investigate/0 implement/0 qualify)
@@ -31,12 +31,11 @@ Exact unmet final joins:
   none
 
 ## Parents
-- Accepted (59): INT.1, INT.2, BND.1, BND.2, F2.1, F2.2, F2.3, F2.4, F3.1, F3.2, F3.3, F3.4, F3.5, F3.6, F3.7, F3.8, F4.1, F4.2, F4.3, F4.4, F4.5, F4.6, F5.1, F5.2, F5.3, F5.4, F5.5, F5.6, F5.7, F5.8, F6K.1, F6K.2, F6K.3, F6K.4, F6C.1, F6C.2, F6C.3, F6C.4, F6C.5, F6.6, F7.1, F7.2, F7.3, F7.4, F7.5, F7.6, F7.7, F7.8, F8.1, F8.2, F8.3, F8.4, F8.5, F8.6, F9.1, F9.2, F9.4, F9.5, F9.6
+- Accepted (60): INT.1, INT.2, BND.1, BND.2, F2.1, F2.2, F2.3, F2.4, F3.1, F3.2, F3.3, F3.4, F3.5, F3.6, F3.7, F3.8, F4.1, F4.2, F4.3, F4.4, F4.5, F4.6, F5.1, F5.2, F5.3, F5.4, F5.5, F5.6, F5.7, F5.8, F6K.1, F6K.2, F6K.3, F6K.4, F6C.1, F6C.2, F6C.3, F6C.4, F6C.5, F6.6, F7.1, F7.2, F7.3, F7.4, F7.5, F7.6, F7.7, F7.8, F8.1, F8.2, F8.3, F8.4, F8.5, F8.6, F9.1, F9.2, F9.4, F9.5, F9.6, F9.7
 - Hold (0): none
 
 ## Criteria on hold or blocked
-- F9.7-C01 [unassessed]: After the concrete F9.6 patch is reviewed, obtain explicit approval for actual cutover, then qualify launch/compatibility/critical journey.
-- F9.7-C02 [unassessed]: Retain React reference and rollback until adoption approval; retire only inventory-covered entrypoints after approved cutover.
+- none
 
 ## Open RF findings (34)
 - RF-001: Shared presentation and Runtime are integration hotspots
@@ -75,10 +74,12 @@ Exact unmet final joins:
 - RF-034: Frontend artifact switches leave the prior service worker controlling the shell
 
 ## Qualification scope
-- Scope: f96-same-origin-release-rehearsal-20261005 - Copied-data cutover, rollback and re-adoption
-- Journeys: same-origin-copied-data-cutover-rollback
+- Scope: f97-approved-default-adoption-20261005 - Approved default Dioxus launch and React entrypoint retirement
+- Journeys: adopted-default-project-journey
 - State: qualified
 
 Last retro checkpoint: 2026-10-04T15:56:00Z
 
-User approved cutover/new frontend and React decommission on2026-10-05. F9.7 implementing. Default package/start/dev and production Pages switch applied; default React-only verification retired into explicit :react commands. Shared helpers/reference/rollback preserved. Sole reviewer checking final bootstrap correction. Exact wasm-pack normal-mode locked test listing passed, tooling gates pass; repo-check suite7/7 but pre-existing unchanged generator export/archive-link diagnostics remain. Next guarded commit then actual pnpm start full build at4173 and case agent adopted browser journey. No push. Preserve six unrelated staged entries from /tmp/case-layout-unrelated-index.json.
+Migration complete within approved scope. User approved cutover/decommission on2026-10-05. Sourcef4107630 changes default start/dev/build/Pages/checks to Dioxus; explicit :react reference/rollback commands and shared providers retained. Actual pnpm start full package start-f4107630-20261005T181117Z-3535061 passed and remains served at4173 root/subpath (execsession40201). Package1412sources/191assets each route, zero mismatches/warnings. Adopted public copied-project import/rename/save/reload/sixpanels/export passed; all other fields/six asset hashes preserved. Sole independent review CLEAR.
+
+No push or hosted Pages deployment was performed. Broader repo-check retains pre-existing unused generator export and archived-link failures, documented in f97 receipt; do not claim full pnpm check passed. Undo/Redo qualification/repairs, mobile/accessibility, unfinished VIK and visual polish remain excluded/deferred per user scope. RF structural follow-ups remain separate. Reference5175 and copied rollback34835 preserved; actual F97 browser profile remains open. Six unrelated staged entries preserved per /tmp/case-layout-unrelated-index.json.

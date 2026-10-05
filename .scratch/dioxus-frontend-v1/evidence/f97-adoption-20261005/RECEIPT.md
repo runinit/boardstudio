@@ -11,3 +11,9 @@ Repository-check unit suite: 7/7 pass. Full repository check fails on an unused 
 Source review, committed full default launch/package and adopted-path public browser results are recorded below when complete. Existing accepted application evidence retains its original source/fixture attribution; this batch changes entrypoints only.
 
 Final four-file source review: CLEAR, consolidated case-profile-handle-review-20261005.md SHA73b70aa16adf57fd58dc39b8cedf7ff5a30217110472c2ad70dee2bbc8d8be5e. Integration prepare-gates terminal0, source keyc629e790fef1217f; no Rust source changed, so no new native/headless suite claim.
+
+The actual root `pnpm start` command built committed source f41076301c592cf7145fbd2125bf7de00e4e7b72, then started its own server at http://127.0.0.1:4173/. Full build start-f4107630-20261005T181117Z-3535061 completed 23 fresh commands in 501.925 seconds; no provider command reuse. Package proof verifies 1,412 source inputs and 191 served assets at each root/subpath route, zero mismatches or release warnings, HTTP200 and required isolation headers. Actual default-start session40201 remains alive as the server. Public adopted-path qualification is separate below.
+
+`application-source-freshness.json` confirms application/provider/test roots are unchanged from the accepted 82207f75 candidate. Required prior native/headless/workflow evidence retains its original identities; this batch does not claim rerunning those suites.
+
+Final adopted public journey: PASS. See browser/RECEIPT.md and raw report; rename revision23→24 survived save/reload, all six matching workbench panels opened, portable copy preserves every other field and all six asset hashes, ordinary worker controls final page with no waiting/installing successor, and errors/console observations are empty. Sole independent final C01/C02/F9.7 review CLEAR, consolidated report SHA5babc21e3c4380ee161892b57b2161da3bf86cd809d44a3b39e1e616f0cb86e0.

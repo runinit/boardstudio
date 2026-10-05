@@ -1,3 +1,5 @@
+> Historical preparation packet: the user approved adoption on 2026-10-05. The patch and coherent default verification retirement were applied at f4107630 and qualified in [F9.7](../f97-adoption-20261005/RECEIPT.md). Statements below describe the earlier unapplied proposal, not current defaults.
+
 # F9.6 adoption proposal (unapplied)
 
 **Status:** proposal only, unapplied. F9.5 is accepted on immutable candidate frontend-layout-pointer-cache-20261005, source f956c0dfe9ec942cb79b9905565e9c404fb96732. F9.6-C01 inventory and C03 register are independently reviewed and verified. The repaired release candidate is frontend-worker-activation-20261005, source 82207f752e93d889877bab72c6e86b2d248620ce, at http://127.0.0.1:34834/. C02 copied-data rehearsal is complete and independently CLEAR; the default-entrypoint patch remains unapplied and no cutover or deployment is approved.

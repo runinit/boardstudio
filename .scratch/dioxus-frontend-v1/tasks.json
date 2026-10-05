@@ -9986,7 +9986,7 @@
         "F9.6"
       ],
       "acceptance_after": [],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [
         "explicit approval of concrete production cutover/retirement patch"
       ],
@@ -10009,16 +10009,21 @@
         {
           "id": "F9.7-C01",
           "requirement": "Approved default frontend works on adopted path with launch, compatibility and critical journey verified.",
-          "state": "unassessed",
+          "state": "verified",
           "classification": "release",
           "sources": [
             ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md"
           ],
-          "evidence": [],
-          "blockers": [
-            "F9.6"
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/f97-adoption-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/f97-adoption-20261005/browser/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/f97-adoption-20261005/browser/run-start-f4107630/report.json",
+            ".scratch/dioxus-frontend-v1/evidence/f97-adoption-20261005/application-source-freshness.json",
+            ".scratch/dioxus-frontend-v1/evidence/start-f4107630-20261005T181117Z-3535061/package-proof.json",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
           ],
-          "next_action": "After the concrete F9.6 patch is reviewed, obtain explicit approval for actual cutover, then qualify launch/compatibility/critical journey.",
+          "blockers": [],
+          "next_action": "Complete: user-approved default Dioxus cutover committed at f4107630, actual pnpm start built/served and public import/rename/save/reload/six-panel/export journey independently CLEAR. Covered React default launch/build/verification entrypoints retired; explicit reference/rollback preserved. No push/hosted deployment; broader pre-existing repository-check findings remain documented.",
           "finish_condition": "Approved default route launches and passes compatibility plus critical end-to-end journey.",
           "owned_files": [
             ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md"
@@ -10030,16 +10035,21 @@
         {
           "id": "F9.7-C02",
           "requirement": "Retire only covered React UI/test entrypoints while preserving recoverable reference and rollback.",
-          "state": "unassessed",
+          "state": "verified",
           "classification": "release",
           "sources": [
             ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md"
           ],
-          "evidence": [],
-          "blockers": [
-            "F9.6"
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/f97-adoption-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/f97-adoption-20261005/browser/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/f97-adoption-20261005/browser/run-start-f4107630/report.json",
+            ".scratch/dioxus-frontend-v1/evidence/f97-adoption-20261005/application-source-freshness.json",
+            ".scratch/dioxus-frontend-v1/evidence/start-f4107630-20261005T181117Z-3535061/package-proof.json",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
           ],
-          "next_action": "Retain React reference and rollback until adoption approval; retire only inventory-covered entrypoints after approved cutover.",
+          "blockers": [],
+          "next_action": "Complete: user-approved default Dioxus cutover committed at f4107630, actual pnpm start built/served and public import/rename/save/reload/six-panel/export journey independently CLEAR. Covered React default launch/build/verification entrypoints retired; explicit reference/rollback preserved. No push/hosted deployment; broader pre-existing repository-check findings remain documented.",
           "finish_condition": "Only covered entrypoints are retired and React reference, project data, and rollback remain recoverable.",
           "owned_files": [
             ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md"
@@ -10062,8 +10072,18 @@
           "from": "planned",
           "to": "implementing",
           "reason": "User explicitly approved cutover to the new frontend and decommissioning React. Apply reviewed default build/start/Pages switch plus coherent default dev/check retirement; retain reference/rollback and shared providers. No push."
+        },
+        {
+          "at": "2026-10-05T18:25:00.421273+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "User-approved default cutover committed; actual pnpm start full package and public import/edit/save/reload/six-panel/export evidence independently CLEAR. Covered React default entrypoints retired with recoverable reference/rollback; no push or hosted deployment.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f9-7-decision.json"
         }
-      ]
+      ],
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f9-7-decision.json"
+      }
     }
   ],
   "conservative_topological_order": [
@@ -10144,8 +10164,7 @@
     "integration_slices": 2,
     "boundary_slices": 2,
     "status": {
-      "accepted": 59,
-      "implementing": 1
+      "accepted": 60
     }
   },
   "agent_policy": ".scratch/dioxus-frontend-v1/agent-policy.json",
