@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-05T00:37:18.322882+00:00",
+    "updated_at": "2026-10-05T01:03:24.411457+00:00",
     "parent_counts": {
       "accepted": 22,
       "implementing": 28,
@@ -48,8 +48,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "e2ec1c1e511f82fb9aaaa10a0406da7dafa4f76c",
-      "state": "Reviewed Parts renderer-init mounted fixture is frozen and strict previewmodule10of10passed; mandatory integration gates pending. Grouped PCB host/defaults and Parts real STL/WRL/theme/reload evidence reconciled; no parent acceptance. Served4e716156release behavior unchanged. Exact-pin TypeScript reference rebuilt in isolation on5175; persistence works but recovered WebGL2init fails, separately recorded.",
+      "source_commit": "7f3165b497d135eafccbe8c3335cb48024fd62c1",
+      "state": "7f3165b4 integrates reviewed mounted Parts renderer-init error/form/2D/no-edit coverage and grouped PCB/STL/WRL/shared-consumer evidence. Strict Parts module10of10 and mandatory native web/page/reachability/affectedWASM gates passed. No release behavior change; served4e716156candidate retained. Exact-pin reference5175 rebuilt; savedassets reload, recoveredWebGL2startupfailure remains separately recorded.",
       "packets": [
         {
           "stream": "Layout",
@@ -559,7 +559,7 @@
       {
         "stream": "Layout",
         "priority": "Functional gaps alongside other streams; exact visual parity deferred",
-        "state": "Grouped paired Inspector/mirror/compact/3D receipt completed. f320e6b8/34821 publicly passes repaired mirrored/ordinary Key disable→Undo selection, target assembly/attachment history/reload, canonical locality, board clear and 3D return. F3.5/F3.6 remain open for remaining context/lifecycle coverage, catalogue hook/public fault limit and F7.3 join; visual parity deferred."
+        "state": "F3.6-C03/C05 verified by independent evidence reconciliation. Paired board/matrix/column/key/diode context follow-up retained. F3.5-C05 is missing: candidate attachment Replace offers seven unrelated assembly snapshots (59 versus52 options). Native-first repair owns matrix_transform_operation.rs and presentation/objects matrix transform controller/Inspector; earlier edit/history/locality proof reused. Mobile deferred; remaining context/keyboard and F7.3 joins stay open."
       },
       {
         "stream": "PCB",
@@ -584,8 +584,9 @@
     ],
     "pending_join_packets": [],
     "next_work": [
+      "Integrate and package source-reviewed F3.5-C05 attachment option repair, then replay same paired saved fixture. Native RED/GREEN complete. Unfinished lifecycle tests isolated as an exact retained patch so they no longer block production-source packaging.",
+      "Repair deferred F7.3-C07 fixture hang and add deterministic old Persist completion barrier before counting Save/project-replacement proof. Exact source patch/full copies/hashes retained in evidence/lifecycle-deferred-20261005. Positive desktop resize/DPR test is retained but not executed. Reference savedmodels render after fresh/reload checks; prior startupfailure cause unknown.",
       "Finish configured Case-local mechanical export repair after existing native-first/mounted-regression clarification; preserve exact snapshot/admission and existing export pipeline.",
-      "Complete remaining F7.3 lifecycle/resize/DPR and mounted-editor Save during project replacement qualification, reusing Parts init/contextloss/modelretry/theme evidence. Recovered pinned reference5175 has WebGL2startup failure; diagnose environment before using it for new paired3D success claims.",
       "Keep mobile/compact deferred and unassessed F8/F9 open. Review one coherent batch before parent acceptance; do not add duplicate Parts picking to shared-viewer wiring criteria."
     ],
     "process_retro": {
@@ -3519,43 +3520,34 @@
       ],
       "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
       "remaining_qualification": [
-        "F4.6criteria verified; prerequisite F4.4 remains open.",
-        "F4.4-C04verified. Remaining mounted Parts renderer initialization error presentation, applicable single-definition error path, and deferred visual C05 stay open.",
-        "F7.3broader consumer/model-pick/theme/DPR/stale-editor/resource joins retain exact scope; reuse passing Parts lifecycle and real model-failure receipts.",
+        "F4.6 criteria verified; prerequisite F4.4 remains open for deferred visual C05.",
+        "F7.3-C07: positive desktop resize/DPR and in-flight mounted-editor Save/project replacement checks in progress; other verified clauses reuse scoped evidence.",
+        "F3.5-C05: native-first attachment option repair and paired packaged replay pending; F3.6-C03/C05 verified without a new package.",
         "Case-local Export geometry awaits the existing mounted-first clarification; no repeat request."
       ],
       "pending_source_batch": {
-        "build_id": "frontend-preset-customization-20261004",
-        "base_commit": "418dcb41411b",
-        "provider_base": "frontend-parts-library-repairs-20261004",
-        "state": "qualified",
+        "build_id": "frontend-layout-attachment-20261005",
+        "base_commit": "7f3165b497d135eafccbe8c3335cb48024fd62c1",
+        "state": "source_reviewed",
         "source_paths": [
-          "web/src/main.rs",
-          "web/src/parts_assembly_preset_draft.rs",
-          "web/src/presentation/parts.rs",
-          "web/src/presentation/parts/assembly_editor.rs",
-          "web/src/presentation/parts/assembly_presets.rs"
+          "web/src/matrix_transform_operation.rs",
+          "web/src/presentation/objects/matrix_transform_controller.rs",
+          "web/src/presentation/objects/matrix_transform_inspector.rs"
         ],
         "source_paths_complete": true,
         "journeys": [
           {
-            "id": "F4.6-preset-customization",
-            "scope": "Desktop Parts library MX Hotswap RGB -> Customize 3D assembly -> three-member independent draft, current North/South orientation, generator parameter edits, default models, Save/Undo/reopen. Ordinary New assembly stays empty. Reuse unchanged model import and existing saved-recipe placement/history evidence; no mobile qualification.",
-            "evidence": ".scratch/dioxus-frontend-v1/evidence/preset-customization-repair-20261004.md"
+            "id": "F3.5-C05-attachment-options",
+            "scope": "Reuse paired saved PCB fixture at34822/5175; inspect Replace diode ordered option IDs, currently selected definition and absence of unrelated assembly snapshots. No repeated edit/history/mirror journey because dispatch/locality paths unchanged. Desktop only."
           }
         ],
         "review": {
           "profile": "gpt-6.1-sol/high",
           "verdict": "source_pass",
-          "path": ".scratch/dioxus-frontend-v1/evidence/preset-customization-review-20261004.md",
-          "sha256": "079810b1db7ab213cb47faa339fa1ff9704a3c43b5ca68ac14b5d3320661845e"
+          "path": ".scratch/dioxus-frontend-v1/evidence/layout-attachment-choice-review-20261005.md"
         },
-        "source_commit": "4e716156a0692972b1309798cdc883739c7ff73b",
-        "gate_evidence": ".scratch/dioxus-frontend-v1/evidence/frontend-preset-customization-20261004/commit-gate.log",
         "package_mode": "full",
-        "reuse_preflight": "Rejected before reserving output: unsupported module registration in included renderer_host_page_base.rs (existing inline lifecycle_tests). No source change; full build fallback.",
-        "public_receipt": ".scratch/dioxus-frontend-v1/evidence/frontend-preset-customization-20261004/RECEIPT.md",
-        "public_result": "Confirmed new asset hash after offline shell refresh. North3member poses/defaults/parameter edit save/history/reload/reopen pass; ordinary New assembly empty. No parent acceptance."
+        "reuse_preflight": "Known conservative parser limitation from previous candidate; do not bypass provider provenance guard."
       },
       "started_at": "2026-10-04T23:36:43.776961+00:00",
       "review": {

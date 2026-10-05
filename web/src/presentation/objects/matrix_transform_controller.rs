@@ -199,10 +199,14 @@ pub(in crate::presentation) fn use_workspace_matrix_transform(
                 .definitions
                 .iter()
                 .chain(switch_catalog().iter())
-                .map(|definition| (definition.id.clone(), definition.name.clone()))
-                .fold(Vec::new(), |mut all: Vec<(String, String)>, entry| {
-                    if !all.iter().any(|(id, _)| *id == entry.0) {
-                        all.push(entry);
+                .fold(Vec::new(), |mut all, definition| {
+                    if !all
+                        .iter()
+                        .any(|existing: &boardstudio_core::model::PartDefinition| {
+                            existing.id == definition.id
+                        })
+                    {
+                        all.push(definition.clone());
                     }
                     all
                 });

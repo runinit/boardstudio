@@ -1,10 +1,10 @@
 # Handoff (generated from records)
 
-- Branch: codex/rust-v1-ui-parity-20261001 @ e2ec1c1e
+- Branch: codex/rust-v1-ui-parity-20261001 @ 7f3165b4
 - Worktree: /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001
 - Parents: 22/61 accepted, 28 implementing, 11 planned
-- Criteria: unassessed 27, missing 1, implemented 69, verified 125; 222 total
-  - functional: implemented 56, missing 1, unassessed 3, verified 121
+- Criteria: unassessed 27, missing 1, implemented 67, verified 127; 222 total
+  - functional: implemented 54, missing 1, unassessed 3, verified 123
   - release: implemented 10, unassessed 19, verified 4
   - visual: implemented 3, unassessed 5
 
@@ -161,3 +161,19 @@ Parts fixture still sourceuncommitted under recipe_import_qualification, heavy s
 Final previewSHA3c57d81238b1ac228e9c01e131b7fa6259869e9432c9c6fb3bdf044f0fb5fb1f; sharedviewerSHA6d1b6bac802e9b9e8885505a9a4c685212ebecec1612b841e2a52e4bb4c6c56e. Settled strictpreviewmodule10of10passed; noauthors/heavyjobsactive. Scopedboard and validminimalKiCadfixtureincluded; nofurtheroptionaledit. C03Partsrendererfailure andF7.3C10verified from combined evidence, parentsunchanged. Rootmandatorycommitgate next.
 
 Reference rebuilt exact5a472a9 under isolatedtmp/reference-5a472a9-20261004/output, server5175PID2306232. Source/provider/outputhashes inreference-recovery-20261004.md. MatchingDOM main-CYxchQWA.js. Retainedrecipe reloads bothassetUUIDs, but referenceWebGL2startupfails0of2; notsuccessfulnewreference3Drender. Candidate34822continues3Dready. Sixunrelatedstagedfiles remain.
+
+## Integrated grouped viewer milestone
+
+HEAD7f3165b4 committed16explicitfiles after mandatorynative/page/reachability/affectedWASM gatespassed. Strictpreview10of10andindependentreviewfinalhashesmatch. Newgate log evidence/parts-renderer-init-commit-20261004.log isowneduntracked; runstateandhandoffupdateduncommitted fornextmilestone (no extra record-onlycommit). Noauthors orheavyjobsactive; reference5175PID2306232andcandidate34822PID2239133remainserved. Sixunrelatedstagedfilespreserved. Candidate release4e716156unchanged; test-onlyhooksdo notneednewpackage. F4.4C03/C04 andF7.3C01/C06/C09/C10verified, broaderlifecycle/visual/dependencyjoinsstillopen; parentacceptancenotclaimed.
+
+## Current continuation — attachment choices and desktop lifecycle batch
+
+Paired Layout follow-up reproduced seven unrelated assembly snapshots in Replace diode (candidate59/reference52); F3.5-C05 is missing until native RED/GREEN repair and packaged replay. Exact source lease: matrix_transform_operation.rs plus presentation/objects/matrix_transform_controller.rs and matrix_transform_inspector.rs (preset_customization_repair). A disjoint test-only lifecycle packet owns renderer_host_page_base.rs and pcb_module_inspector.rs plus optional pcb_module_inspector_lifecycle_tests.rs (draft_failure_triage), covering positive desktop resize/DPR and Save crossing project replacement. Slots1/2 reserved for focused checks; no full gate/package until their source edits settle. F3.6-C03/C05 verified by independent reconciliation; parent joins remain.
+
+The pinned reference at5175 rendered both retained STL/WRL models in a fresh tab and after reload; previous WebGL2 startup failure remains recorded with unknown cause. Source/config were not changed for recovery. Layout context receipt adds pointer-driven Outline→Perimeter→Done return with matching34points/Point1 coordinates; no keyboard claim. Mobile remains deferred. Six unrelated staged evidence files remain preserved; no push/switch.
+
+## Acceleration review and current integration
+
+User requested faster delivery and an Astra Max review of migration bottlenecks. Native agent migration_acceleration_review is read-only except evidence/migration-acceleration-review-20261005.md. Concrete coupling: build-m1.py requires every provenance source input committed, so unrelated same-checkout test additions can block a reviewed product package. No provenance guard bypass. Attachment repair native RED/GREEN and independent source review are CLEAR; F3.5-C05 is implemented pending packaged same-fixture menu replay. Lifecycle tests are source-frozen except minimal fixture compiler repairs and running strict modules; separate review proceeds concurrently. Slot2 latest retry handle is18173 (verify live handle, do not infer completion). Planned candidate frontend-layout-attachment-20261005; preserve all prior evidence and unrelated staged paths.
+
+Lifecycle retry18173 compiled but hung at first mounted-Save module; author interrupted it, so no passing tests. Independent review identified missing actual Persist-completion barrier. Exact two-file patch, full sources and SHA manifest are retained under evidence/lifecycle-deferred-20261005. Root reversed only that frozen patch; production source is now independent, no lifecycle work discarded and no criterion accepted. Author source lease paused until product publication. Attachment source review remains CLEAR; integration/package proceed now.

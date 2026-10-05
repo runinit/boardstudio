@@ -818,7 +818,7 @@ struct AttachedComponentsFieldProps {
     snapshot_token: SnapshotToken,
     revision: u64,
     value: Vec<(String, String)>,
-    choices: Vec<(String, String)>,
+    choices: Vec<boardstudio_core::model::PartDefinition>,
     mirror_target: bool,
     assemblies_local: bool,
     request_sequence: Signal<u64>,
@@ -891,38 +891,42 @@ fn AttachedComponentsField(props: AttachedComponentsFieldProps) -> Element {
             p { class: "m1-matrix-empty-note", "No attached components. Apply a component in Parts." }
         }
         for (assembly_id, definition_id) in props.value.iter().cloned() {
-            div { key: "{assembly_id}", class: "m1-matrix-attached-row",
-                select {
-                    aria_label: "Replace {assembly_id}", disabled, value: "{definition_id}",
-                    onchange: {
-                        let assembly_id = assembly_id.clone();
-                        let all = props.value.clone();
-                        let mut send = send.clone();
-                        move |event| {
-                            send(
-                                all.iter()
-                                    .map(|(id, def)| {
-                                        if *id == assembly_id { (id.clone(), event.value()) } else { (id.clone(), def.clone()) }
-                                    })
-                                    .collect(),
-                            );
+            { let choices = crate::matrix_transform_operation::attachment_component_choices(&props.choices, &definition_id);
+              rsx! {
+                div { key: "{assembly_id}", class: "m1-matrix-attached-row",
+                    select {
+                        aria_label: "Replace {assembly_id}", disabled, value: "{definition_id}",
+                        onchange: {
+                            let assembly_id = assembly_id.clone();
+                            let all = props.value.clone();
+                            let mut send = send.clone();
+                            move |event| {
+                                send(
+                                    all.iter()
+                                        .map(|(id, def)| {
+                                            if *id == assembly_id { (id.clone(), event.value()) } else { (id.clone(), def.clone()) }
+                                        })
+                                        .collect(),
+                                );
+                            }
+                        },
+                        for (id, label) in choices.iter() {
+                            option { key: "{id}", value: "{id}", selected: *id == definition_id, "{label}" }
                         }
-                    },
-                    for (id, label) in props.choices.iter() {
-                        option { key: "{id}", value: "{id}", selected: *id == definition_id, "{label}" }
+                    }
+                    button {
+                        r#type: "button", class: "m1-inspector-secondary", disabled,
+                        aria_label: "Remove {assembly_id}",
+                        onclick: {
+                            let assembly_id = assembly_id.clone();
+                            let all = props.value.clone();
+                            let mut send = send.clone();
+                            move |_| send(all.iter().filter(|(id, _)| *id != assembly_id).cloned().collect())
+                        },
+                        "Remove"
                     }
                 }
-                button {
-                    r#type: "button", class: "m1-inspector-secondary", disabled,
-                    aria_label: "Remove {assembly_id}",
-                    onclick: {
-                        let assembly_id = assembly_id.clone();
-                        let all = props.value.clone();
-                        let mut send = send.clone();
-                        move |_| send(all.iter().filter(|(id, _)| *id != assembly_id).cloned().collect())
-                    },
-                    "Remove"
-                }
+              }
             }
         }
         if let Some(message) = error.as_deref() { small { role: "alert", class: "m1-matrix-transform-error", "{message}" } }

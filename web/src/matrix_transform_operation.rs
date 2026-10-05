@@ -1,6 +1,7 @@
 //! Private, pure mapping from accepted matrix transform fields to existing edit operations.
 use boardstudio_core::model::{
-    EditOperation, Matrix, MatrixCell, MatrixSplayAffect, MatrixSplayChange, Mirror, Vec2,
+    EditOperation, Matrix, MatrixCell, MatrixSplayAffect, MatrixSplayChange, Mirror,
+    PartDefinition, Vec2,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -71,12 +72,83 @@ pub enum MatrixTransformFields {
         definition_id: String,
         choices: Vec<(String, String)>,
         assemblies: Vec<(String, String)>,
-        component_choices: Vec<(String, String)>,
+        component_choices: Vec<PartDefinition>,
         mirror_target: bool,
         assemblies_local: bool,
         offset: Vec2,
         rotation: f64,
     },
+}
+
+/// Produce the choices for one attached-component selector while preserving
+/// only its own assembly snapshot from the accepted document.
+pub(crate) fn attachment_component_choices(
+    definitions: &[PartDefinition],
+    current_id: &str,
+) -> Vec<(String, String)> {
+    definitions
+        .iter()
+        .filter(|definition| {
+            definition
+                .generator
+                .as_ref()
+                .is_none_or(|generator| generator.source != "infused-kim/nice_nano_pretty")
+                && (definition.id == current_id || !is_assembly_snapshot(definition))
+        })
+        .map(|definition| (definition.id.clone(), definition.name.clone()))
+        .collect()
+}
+
+fn is_assembly_snapshot(definition: &PartDefinition) -> bool {
+    if definition.kicad_source.is_some() {
+        return false;
+    }
+    const PREFIX: &str = "assembly-";
+    const MARKER: &[u8] = b"/definition/";
+    let id = definition.id.as_str();
+    let bytes = id.as_bytes();
+    let has_assembly_prefix = id
+        .get(..PREFIX.len())
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case(PREFIX));
+    if has_assembly_prefix
+        && bytes
+            .windows(MARKER.len())
+            .enumerate()
+            .any(|(position, candidate)| {
+                position > PREFIX.len()
+                    && candidate.eq_ignore_ascii_case(MARKER)
+                    && id
+                        .get(PREFIX.len()..position)
+                        .is_some_and(js_regex_dot_matches)
+            })
+    {
+        return true;
+    }
+    bytes
+        .windows(MARKER.len())
+        .enumerate()
+        .any(|(position, candidate)| {
+            position == 36
+                && candidate.eq_ignore_ascii_case(MARKER)
+                && id.get(..position).is_some_and(is_uuid)
+        })
+}
+
+fn js_regex_dot_matches(text: &str) -> bool {
+    !text
+        .chars()
+        .any(|character| matches!(character, '\n' | '\r' | '\u{2028}' | '\u{2029}'))
+}
+
+fn is_uuid(value: &str) -> bool {
+    value.len() == 36
+        && value.bytes().enumerate().all(|(index, byte)| {
+            if matches!(index, 8 | 13 | 18 | 23) {
+                byte == b'-'
+            } else {
+                byte.is_ascii_hexdigit()
+            }
+        })
 }
 
 /// Whether an assembly edit may proceed with the accepted document's available definitions.
@@ -569,7 +641,108 @@ fn set_cell_transform(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_core::model::{EditOperation, MatrixAssembly};
+    use boardstudio_core::model::{
+        EditOperation, KicadSource, MatrixAssembly, PartGenerator, PartKind,
+    };
+
+    fn component_definition(
+        id: String,
+        generator_source: Option<&str>,
+        kicad_source: bool,
+    ) -> PartDefinition {
+        PartDefinition {
+            hardware_profile: None,
+            input_profile: None,
+            id: id.clone(),
+            name: format!("Label {id}"),
+            kind: PartKind::Passive,
+            keycap: None,
+            envelope_source: None,
+            kicad_source: kicad_source.then(|| KicadSource {
+                format_version: 1,
+                source: "fixture".into(),
+            }),
+            terminals: Default::default(),
+            matrix_terminals: None,
+            envelope_notice: None,
+            courtyard: Vec::new(),
+            pads: Vec::new(),
+            models: None,
+            generator: generator_source.map(|source| PartGenerator {
+                source: source.into(),
+                version: "1".into(),
+                parameters: Default::default(),
+            }),
+            mechanical_profile: None,
+        }
+    }
+
+    #[test]
+    fn attached_component_choices_keep_only_this_members_snapshot_and_preserve_order() {
+        let current = "assembly-preset-mx-hotswap-south-left-keys-0/definition/diode".to_owned();
+        let mut definitions = (0..30)
+            .map(|index| {
+                let id = if index == 12 {
+                    "assembly-imported-board/definition/diode".into()
+                } else {
+                    format!("catalogue-{index:02}")
+                };
+                component_definition(id, None, index == 12)
+            })
+            .collect::<Vec<_>>();
+        let unrelated = (0..7)
+            .map(|index| {
+                component_definition(
+                    format!("assembly-placement-{index}/definition/switch"),
+                    None,
+                    false,
+                )
+            })
+            .collect::<Vec<_>>();
+        definitions.extend(unrelated);
+        definitions.push(component_definition(current.clone(), None, false));
+        definitions.extend(
+            (30..51)
+                .map(|index| component_definition(format!("catalogue-{index:02}"), None, false)),
+        );
+
+        let choices = attachment_component_choices(&definitions, &current);
+
+        let mut expected = definitions[..30]
+            .iter()
+            .map(|definition| (definition.id.clone(), definition.name.clone()))
+            .collect::<Vec<_>>();
+        let current_definition = definitions
+            .iter()
+            .find(|definition| definition.id == current)
+            .unwrap();
+        expected.push((current.clone(), current_definition.name.clone()));
+        expected.extend(
+            definitions[38..]
+                .iter()
+                .map(|definition| (definition.id.clone(), definition.name.clone())),
+        );
+        assert_eq!(choices, expected);
+        assert_eq!(choices.len(), 52);
+        assert!(choices.iter().any(|(id, _)| id == &current));
+        assert!(
+            choices
+                .iter()
+                .any(|(id, _)| { id == "assembly-imported-board/definition/diode" })
+        );
+        assert!(
+            !choices
+                .iter()
+                .any(|(id, _)| id.starts_with("assembly-placement-"))
+        );
+
+        let retired = component_definition(
+            "retired-nice-nano".into(),
+            Some("infused-kim/nice_nano_pretty"),
+            false,
+        );
+        assert!(attachment_component_choices(&[retired], "retired-nice-nano").is_empty());
+    }
 
     #[test]
     fn failed_catalogue_does_not_block_removing_a_document_owned_attachment() {
