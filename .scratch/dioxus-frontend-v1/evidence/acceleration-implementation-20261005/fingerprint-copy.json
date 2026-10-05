@@ -1,0 +1,57 @@
+{
+  "temporary_copy": "/tmp/migration-fingerprint-fix-ytutdn5t",
+  "red": [
+    {
+      "command": [
+        "python3",
+        "-B",
+        "/tmp/migration-fingerprint-fix-ytutdn5t/test-migration-gate-receipts.py",
+        "MigrationGateReceiptTests.test_document_and_unrelated_index_churn_do_not_change_gate_identity",
+        "MigrationGateReceiptTests.test_final_fingerprint_preserves_maintained_source_index_and_config_drift"
+      ],
+      "exit": 1,
+      "log": ".scratch/dioxus-frontend-v1/evidence/acceleration-implementation-20261005/fingerprint-red-1.log",
+      "tail": "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: '1cd65e406108e685d3c81670011df805c206d76b75a936ee33ff584fddfc533d' != '926c5e606db8831996235990857bf5583e5d33b5416e066d6f4bf9c1fee76cdb'\n- 1cd65e406108e685d3c81670011df805c206d76b75a936ee33ff584fddfc533d\n+ 926c5e606db8831996235990857bf5583e5d33b5416e066d6f4bf9c1fee76cdb\n\n\n======================================================================\nFAIL: test_final_fingerprint_preserves_maintained_source_index_and_config_drift (__main__.MigrationGateReceiptTests.test_final_fingerprint_preserves_maintained_source_index_and_config_drift)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/tmp/migration-fingerprint-fix-ytutdn5t/test-migration-gate-receipts.py\", line 102, in test_final_fingerprint_preserves_maintained_source_index_and_config_drift\n    self.assertEqual(before, receipts.source_fingerprint(self.root))\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: '4b8ff1cb47fb634aaf291c1716ff07e772b1b06ec0ede8f939f7fffbf38c07e0' != '25a7a3c85df1c1ddc35b6240f9af19fa178853c73134ab08bc7457640702f022'\n- 4b8ff1cb47fb634aaf291c1716ff07e772b1b06ec0ede8f939f7fffbf38c07e0\n+ 25a7a3c85df1c1ddc35b6240f9af19fa178853c73134ab08bc7457640702f022\n\n\n----------------------------------------------------------------------\nRan 2 tests in 0.060s\n\nFAILED (failures=2)\n"
+    },
+    {
+      "command": [
+        "python3",
+        "-B",
+        "/tmp/migration-fingerprint-fix-ytutdn5t/test-migration-deliver.py",
+        "MigrationDeliverTests.test_commit_allows_document_only_drift_after_executable_gates"
+      ],
+      "exit": 1,
+      "log": ".scratch/dioxus-frontend-v1/evidence/acceleration-implementation-20261005/fingerprint-red-2.log",
+      "tail": "test_commit_allows_document_only_drift_after_executable_gates (__main__.MigrationDeliverTests.test_commit_allows_document_only_drift_after_executable_gates) ... ERROR\n\n======================================================================\nERROR: test_commit_allows_document_only_drift_after_executable_gates (__main__.MigrationDeliverTests.test_commit_allows_document_only_drift_after_executable_gates)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/tmp/migration-fingerprint-fix-ytutdn5t/test-migration-deliver.py\", line 366, in test_commit_allows_document_only_drift_after_executable_gates\n    module._commit(self.root, \"integration\", \"checked source with policy record\", [])\n    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/migration-fingerprint-fix-ytutdn5t/migration-deliver.py\", line 604, in _commit\n    raise GuardError(\"maintained source inputs changed after gate success; rerun prepare-gates\")\nmigration_deliver_docs_drift_test.GuardError: maintained source inputs changed after gate success; rerun prepare-gates\n\n----------------------------------------------------------------------\nRan 1 test in 0.124s\n\nFAILED (errors=1)\n"
+    }
+  ],
+  "green": [
+    {
+      "command": [
+        "python3",
+        "-B",
+        "/tmp/migration-fingerprint-fix-ytutdn5t/test-migration-gate-receipts.py"
+      ],
+      "exit": 0,
+      "tests": 14,
+      "elapsed_seconds": 0.643,
+      "log": ".scratch/dioxus-frontend-v1/evidence/acceleration-implementation-20261005/fingerprint-green-1.log",
+      "log_sha256": "c88972a962aaa1fa4c0b3ea0335649e5ddb7406add6d8d75a3dc38b05a474d47",
+      "tail": "_timing_and_log_hash (__main__.MigrationGateReceiptTests.test_success_receipt_is_atomic_reusable_and_has_timing_and_log_hash) ... ok\ntest_wasm_gate_identity_tracks_rustup_selected_compiler_bytes (__main__.MigrationGateReceiptTests.test_wasm_gate_identity_tracks_rustup_selected_compiler_bytes) ... ok\n\n----------------------------------------------------------------------\nRan 14 tests in 0.590s\n\nOK\n"
+    },
+    {
+      "command": [
+        "python3",
+        "-B",
+        "/tmp/migration-fingerprint-fix-ytutdn5t/test-migration-deliver.py"
+      ],
+      "exit": 0,
+      "tests": 31,
+      "elapsed_seconds": 7.95,
+      "log": ".scratch/dioxus-frontend-v1/evidence/acceleration-implementation-20261005/fingerprint-green-2.log",
+      "log_sha256": "c00d69e4554e1f0d4c4b4688626a6fd7efbd519d2518170c05f64c03ffe90e1b",
+      "tail": "ith_no_wasm_tests_is_rejected (__main__.MigrationDeliverTests.test_wasm_only_module_with_no_wasm_tests_is_rejected) ... ok\ntest_wrapper_reaps_stale_marker_before_taking_its_shared_commit_lock (__main__.MigrationDeliverTests.test_wrapper_reaps_stale_marker_before_taking_its_shared_commit_lock) ... ok\n\n----------------------------------------------------------------------\nRan 31 tests in 7.904s\n\nOK\n"
+    }
+  ],
+  "patch_sha256": "d3eab945ab0fea8b09e8a77f941a9905484026218f4c99ba1b1d2d639b60734d"
+}

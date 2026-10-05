@@ -1,0 +1,69 @@
+{
+  "candidate": {
+    "fields": [
+      {
+        "disabled": false,
+        "label": "Snap gap",
+        "value": ""
+      },
+      {
+        "disabled": true,
+        "label": "X mm",
+        "value": "273.20"
+      },
+      {
+        "disabled": true,
+        "label": "Y mm",
+        "value": "-15.00"
+      },
+      {
+        "disabled": false,
+        "label": "Offset X (mm)",
+        "value": "0"
+      },
+      {
+        "disabled": false,
+        "label": "Offset Y (mm)",
+        "value": "0"
+      },
+      {
+        "disabled": false,
+        "label": "Rotation (degrees)",
+        "value": "0"
+      }
+    ],
+    "scripts": [
+      "/./assets/boardstudio-web-dxh20d9fd77d91a53a.js"
+    ]
+  },
+  "referenceAfterReload": {
+    "fields": [
+      {
+        "disabled": false,
+        "label": null,
+        "value": "273.20"
+      },
+      {
+        "disabled": false,
+        "label": null,
+        "value": "-15.00"
+      },
+      {
+        "disabled": false,
+        "label": "Offset X (mm)",
+        "value": "0"
+      },
+      {
+        "disabled": false,
+        "label": "Offset Y (mm)",
+        "value": "0"
+      },
+      {
+        "disabled": false,
+        "label": "Rotation (degrees)",
+        "value": "0"
+      }
+    ],
+    "selectedPart": "main-U1, mcu nice nano, X 273.19999999999993 Y -15"
+  }
+}

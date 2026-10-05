@@ -66,6 +66,46 @@ pub fn CasePanel(
         model.generation,
         GenerationStatus::Preparing { .. } | GenerationStatus::Running { .. }
     );
+    let mechanical_export_configured = current_scope.as_ref().is_some_and(|scope| {
+        boardstudio_web::cad_jobs::captured_case_document(snapshot, scope)
+            .ok()
+            .and_then(|document| {
+                document
+                    .mechanical
+                    .as_ref()
+                    .map(|configuration| configuration.board_id == scope.board_id)
+            })
+            .unwrap_or(false)
+    });
+    let export_outline_ready = snapshot
+        .scene
+        .board_readiness
+        .iter()
+        .find(|item| item.board_id == model.active_board_id)
+        .map_or(
+            snapshot.document.boards.len() <= 1 && snapshot.scene.readiness.outline,
+            |item| item.outline,
+        );
+    let exact_generation = matches!(
+        model.generation,
+        GenerationStatus::Ready { exact: true, .. }
+    );
+    let mechanical_export_ready = mechanical_export_configured
+        && generation_ready
+        && !generation_busy
+        && export_outline_ready
+        && exact_generation
+        && has_reusable_result
+        && current_scene.as_ref().is_some_and(|scene| {
+            scene.mechanical.as_ref().is_some_and(|assembly| {
+                assembly.revision == snapshot.document.revision
+                    && !assembly.generation_blocked
+                    && !assembly
+                        .diagnostics
+                        .iter()
+                        .any(|finding| finding.severity == boardstudio_core::model::Severity::Error)
+            })
+        });
     use_effect(use_reactive(
         (
             &runtime_version(),
@@ -101,6 +141,30 @@ pub fn CasePanel(
     ));
     let generate = runtime.clone();
     let cancel = runtime.clone();
+    let export_mechanical = runtime.clone();
+    let export_owner = generation_owner.clone();
+    let export_instance_selection = instance_selection;
+    let export_mechanical_click = move |_| {
+        let model = export_mechanical.model();
+        if let Some(owner) = export_owner.as_ref()
+            && export_mechanical.scope().as_ref() == Some(&owner.scope)
+            && export_instance_selection.is_current(&model)
+            && model.accepted.as_ref().is_some_and(|accepted| {
+                accepted.token == owner.token
+                    && accepted.document.revision == owner.revision
+                    && accepted.session_epoch == owner.scope.session_epoch
+            })
+            && export_mechanical.cad_scene().is_some_and(|scene| {
+                scene.exact
+                    && scene.scope == owner.scope
+                    && scene.token == owner.token
+                    && scene.snapshot.document.revision == owner.revision
+                    && scene.prepared.revision == owner.revision
+            })
+        {
+            export_mechanical.export_mechanical();
+        }
+    };
     let scene = current_scene;
     let mut live_preview_control = live_preview;
     let mut automatic_generation_control = automatic_generation;
@@ -151,6 +215,13 @@ pub fn CasePanel(
                     },
                     "Cancel"
                 }
+                if mechanical_export_configured {
+                    button {
+                        disabled: !mechanical_export_ready,
+                        onclick: export_mechanical_click,
+                        "Export geometry"
+                    }
+                }
             }
             p { class: "m1-case-live-status", role: "status", "aria-live": "polite", "{title}" }
             if runtime.native_case_preview_pending() {
@@ -198,7 +269,9 @@ mod mounted_tests {
         AcceptedSnapshot, Event as AppEvent, GenerationStatus, JobId, Scope, SessionEpoch,
         SnapshotToken,
     };
-    use boardstudio_core::model::{Board, ProjectDoc, Readiness, SceneDelta};
+    use boardstudio_core::model::{
+        Board, BoardReadiness, MechanicalAssembly, ProjectDoc, Readiness, SceneDelta,
+    };
     use std::sync::Arc;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
@@ -218,6 +291,92 @@ mod mounted_tests {
             button { id: "case-live-remount", onclick: move |_| mounted.set(true), "Enter Case" }
             if mounted() { CasePanel { generation_ready: true } }
         }
+    }
+
+    fn export_host() -> Element {
+        let mut runtime_version = use_signal(|| 0u64);
+        use_context_provider(|| runtime_version);
+        crate::presentation::use_empty_test_instance_selection();
+        crate::presentation::use_case_viewer_test_contexts();
+        crate::presentation::use_test_case_generation_state();
+        rsx! {
+            button { id: "case-export-refresh", onclick: move |_| runtime_version += 1, "Refresh" }
+            CasePanel { generation_ready: true }
+        }
+    }
+
+    fn configured_exact_mechanical_runtime() -> (Rc<Runtime>, Scope) {
+        let runtime = Runtime::new().expect("browser runtime fixture initializes");
+        let (session, opened, scope) =
+            crate::runtime::firmware_export_test_support::opened_session();
+        let mut document = (*opened.document).clone();
+        document.mechanical = Some(
+            boardstudio_web::case_settings::initial_settings(&document, &scope.board_id)
+                .expect("test board has initial mechanical settings"),
+        );
+        let mut delta = (*opened.scene).clone();
+        delta.readiness.outline = true;
+        delta.board_readiness = vec![BoardReadiness {
+            board_id: scope.board_id.clone(),
+            outline: true,
+            pcb: true,
+            case_ready: true,
+        }];
+        let accepted = AcceptedSnapshot {
+            token: opened.token,
+            session_epoch: opened.session_epoch,
+            document: Arc::new(document),
+            scene: Arc::new(delta),
+        };
+        let _ = session;
+        runtime.set_definition_name_test_state(accepted.clone(), Some(scope.clone()));
+        runtime.set_definition_name_test_generation(GenerationStatus::Ready {
+            job_id: JobId(1),
+            exact: true,
+        });
+        let mechanical = serde_json::from_value::<MechanicalAssembly>(serde_json::json!({
+            "suggestedMounts": [],
+            "nominalPlateContours": [],
+            "revision": accepted.document.revision,
+            "plateContours": [],
+            "case": {
+                "revision": accepted.document.revision,
+                "bodies": [{
+                    "revision": accepted.document.revision,
+                    "body": {
+                        "id": "plate",
+                        "name": "Plate body",
+                        "boardId": scope.board_id,
+                        "kind": "plate",
+                        "thickness": 1.5,
+                        "clearance": 0.2
+                    },
+                    "contours": []
+                }]
+            },
+            "stack": [{ "id": "plate", "z": 0.0, "thickness": 1.5 }],
+            "diagnostics": [],
+            "generationBlocked": false
+        }))
+        .expect("minimal exact mechanical assembly fixture");
+        runtime.set_cad_scene_test(Some(Rc::new(crate::runtime::CadScene {
+            scope: scope.clone(),
+            token: accepted.token,
+            snapshot: accepted.clone(),
+            result: boardstudio_web::cad_jobs::CadResult {
+                revision: accepted.document.revision,
+                ..Default::default()
+            },
+            prepared: boardstudio_core::model::PreparedCaseAssemblyIR {
+                revision: accepted.document.revision,
+                bodies: Vec::new(),
+            },
+            physical_fingerprint: None,
+            mechanical: Some(mechanical),
+            exact: true,
+            contours: Vec::new(),
+        })));
+        (runtime, scope)
     }
 
     fn accepted(token: u64) -> (AcceptedSnapshot, Scope) {
@@ -293,6 +452,90 @@ mod mounted_tests {
             .unwrap()
             .dyn_into()
             .unwrap()
+    }
+
+    fn export_geometry_button() -> web_sys::HtmlElement {
+        let buttons = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector_all("#case-local-export-mounted button")
+            .unwrap();
+        (0..buttons.length())
+            .filter_map(|index| buttons.item(index))
+            .find(|button| button.text_content().as_deref() == Some("Export geometry"))
+            .expect("Case mounts Export geometry")
+            .dyn_into()
+            .unwrap()
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_case_local_export_uses_current_exact_mechanical_scope() {
+        let (runtime, scope) = configured_exact_mechanical_runtime();
+        let root = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .create_element("div")
+            .unwrap();
+        root.set_id("case-local-export-mounted");
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .body()
+            .unwrap()
+            .append_child(&root)
+            .unwrap();
+        let dom = VirtualDom::new(export_host);
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.into()),
+        );
+        settle().await;
+
+        let export = export_geometry_button();
+        assert!(
+            !export.has_attribute("disabled"),
+            "current exact geometry is exportable"
+        );
+        export.click();
+        settle().await;
+        assert!(matches!(
+            take_events(&runtime).as_slice(),
+            [AppEvent::StartExport { scope: actual, .. }] if actual == &scope
+        ));
+
+        runtime.set_definition_name_test_generation(GenerationStatus::Ready {
+            job_id: JobId(2),
+            exact: false,
+        });
+        runtime.set_cad_scene_test(None);
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id("case-export-refresh")
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        settle().await;
+        let blocked_export = export_geometry_button();
+        let _ = take_events(&runtime);
+        assert!(
+            blocked_export.has_attribute("disabled"),
+            "preview geometry cannot be exported"
+        );
+        blocked_export.click();
+        settle().await;
+        assert!(
+            !take_events(&runtime)
+                .iter()
+                .any(|event| matches!(event, AppEvent::StartExport { .. })),
+            "preview geometry must not start a mechanical export"
+        );
     }
 
     #[wasm_bindgen_test]

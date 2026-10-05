@@ -1,0 +1,9 @@
+migration-deliver: 4 wasm-relevant Rust file(s) in this commit (e.g. web/src/cad_presentation.rs); ensuring wasm32 cargo check
+migration-deliver: passed wasm32 page check; receipt=web/target/migration-gates/wasm-page-check/8e4a13685fd7274a294ed6f0ec9c0127b27039e4839607f5f765a39a05dc83fc.json started=2026-10-05T02:18:05+00:00 ended=2026-10-05T02:18:05+00:00 duration=0.21s
+migration-deliver: ensuring native web tests passed before committing
+migration-deliver: passed native web tests (failed=0, ignored=1, passed=245); receipt=web/target/migration-gates/native-web/bb14f1a30cea6b496bb905ab0546b325155e25fcb12f060a68e92eb1ff2d0eb7.json started=2026-10-05T02:18:06+00:00 ended=2026-10-05T02:18:09+00:00 duration=3.36s
+migration-deliver: ensuring scripts/check-wasm-tests.py passes for Rust files in this commit
+migration-deliver: passed wasm test reachability; receipt=web/target/migration-gates/wasm-test-reachability/23ea5561ff1f7a311cac42d237d390244c9bdcd9f385036913ac94065231e48d.json started=2026-10-05T02:18:10+00:00 ended=2026-10-05T02:18:12+00:00 duration=1.74s
+migration-deliver: ensuring wasm-bindgen tests pass in headless Chrome for changed modules
+migration-deliver: passed headless-Chrome wasm tests (excluded_failures=0, failed=0, incomplete=0, passed=3); receipt=web/target/migration-gates/wasm-headless-tests/d87952c86a4e375f7342bff7033092d36daa9d927132aed74d0670bab491385c.json started=2026-10-05T02:18:13+00:00 ended=2026-10-05T02:19:32+00:00 duration=79.27s
+migration-deliver: gates complete for source 60e040b91441381e

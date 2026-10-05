@@ -24,18 +24,31 @@ an allegedly missing capability.
 Use `python3 .scratch/dioxus-frontend-v1/progress.py --help` for commands:
 
 - `show` / `show --json`: current operations and counts derived from the graph.
+- `frontier` / `frontier --json`: functional readiness and grouped stream work;
+  parent acceptance and final joins stay separate from functional implementation.
 - `parent ID`, `remaining`, and `ready`: query focused criteria and the implementation,
   qualification, investigation or closure queue. `--json` returns assignment fields;
   functional work is the default ready queue. Visual and release work remain recorded.
-- Build and serve a candidate: run `scripts/build-m1.py` outside the sandbox (wasm-pack's
-  `cargo install wasm-bindgen` needs a writable cache) as a tracked background task, never
-  a `&` job that dies with its shell. Serve it with `scripts/serve-candidate.py BUILD_ID PORT`
+- Build a committed batch with `python3 scripts/build-m1.py BUILD_ID --source-commit HEAD`
+  as a tracked background task. This creates/reuses the owned detached checkout under
+  `web/target/migration-snapshot`, installs its locked dependencies offline and retains
+  warm release caches. One repository-wide package lock serializes builds; author edits
+  and coordinator commits may continue. The executing build helpers must match the
+  selected commit. Source drift inside the private checkout still fails the build.
+  `--reuse-providers-from FULL_BUILD_ID` retains exact donor guards; helper changes may
+  require one fresh full donor first. Serve with `scripts/serve-candidate.py BUILD_ID PORT`
   (detached with `setsid nohup`); it supplies the COOP/COEP headers and root/subpath layout
   that `publish-candidate` checks. Check `presentation/*` edits with the wasm `page` check
   before committing; native tests do not compile them.
 - `scripts/migration-deliver.py publish-candidate`: derive the package proof from
-  completed provenance, validate sources and served assets, then record the candidate.
+  completed provenance, validate the snapshot's committed tree/manifest (or live source
+  hashes for an ordinary build) and served assets, then record the candidate.
   `record-candidate` remains available for existing validated proofs.
+- `scripts/migration-deliver.py prepare-gates [PATHS...]`: execute the checks for a
+  pending commit; the commit command reuses exact-input successful receipts. Source,
+  command, selection, configuration or compiler changes invalidate them. Receipts record
+  actual counts and execution time, not criterion acceptance; partial/known-excluded
+  failures cannot qualify as a cached success.
 - `sync`: derive counts and the complete readable RF report from their source records.
 - `check`: check record consistency; it runs no application tests.
 - `set-status`: preserve status history; acceptance requires verified canonical criteria

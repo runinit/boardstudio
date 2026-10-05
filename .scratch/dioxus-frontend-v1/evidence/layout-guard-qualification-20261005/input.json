@@ -1,0 +1,13 @@
+{
+  "source": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/layout/fixtures/reviung41-u1-locked.boardstudio",
+  "source_sha256": "10d27bedca865ba8e6d14e4ec07308ad43e07f794a7c25edf60fd2af233c1873",
+  "sha256": "affba2ddfff625adf9b9e18c88a2da3a1f6adaa365d7ea1e75a5ce0daec648a8",
+  "project_id": "203b03bd-a918-4c05-a34e-32d2995a0995",
+  "project_name": "Layout guard qualification20261005",
+  "starting_revision": 3,
+  "changes_from_source": [
+    "id",
+    "name"
+  ],
+  "status": "validated starting fixture; not yet imported or qualified"
+}

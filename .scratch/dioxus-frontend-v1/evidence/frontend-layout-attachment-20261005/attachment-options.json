@@ -1,0 +1,829 @@
+{
+  "candidate": "frontend-layout-attachment-20261005",
+  "source": "e12b6ab0",
+  "script": "boardstudio-web-dxh20d9fd77d91a53a.js",
+  "fixture": "PCB grouped qualification20261004",
+  "candidateOptions": [
+    {
+      "label": "mcu nice nano",
+      "selected": false,
+      "value": "sofle/mcu_nice_nano"
+    },
+    {
+      "label": "rotary encoder ec11 ec12",
+      "selected": false,
+      "value": "sofle/rotary_encoder_ec11_ec12"
+    },
+    {
+      "label": "display ssd1306",
+      "selected": false,
+      "value": "sofle/display_ssd1306"
+    },
+    {
+      "label": "trrs pj320a",
+      "selected": false,
+      "value": "sofle/trrs_pj320a"
+    },
+    {
+      "label": "reset switch tht top",
+      "selected": false,
+      "value": "sofle/reset_switch_tht_top"
+    },
+    {
+      "label": "mounting hole npth",
+      "selected": false,
+      "value": "sofle/mounting_hole_npth"
+    },
+    {
+      "label": "diode tht sod123",
+      "selected": true,
+      "value": "assembly-preset-mx-hotswap-south-left-keys-0/definition/diode"
+    },
+    {
+      "label": "switch mx",
+      "selected": false,
+      "value": "ergogen:ceoloide/switch_mx"
+    },
+    {
+      "label": "battery connector jst ph 2",
+      "selected": false,
+      "value": "ergogen:ceoloide/battery_connector_jst_ph_2"
+    },
+    {
+      "label": "battery connector molex pico ezmate 1x02",
+      "selected": false,
+      "value": "ergogen:ceoloide/battery_connector_molex_pico_ezmate_1x02"
+    },
+    {
+      "label": "diode tht sod123",
+      "selected": false,
+      "value": "ergogen:ceoloide/diode_tht_sod123"
+    },
+    {
+      "label": "display nice view",
+      "selected": false,
+      "value": "ergogen:ceoloide/display_nice_view"
+    },
+    {
+      "label": "display ssd1306",
+      "selected": false,
+      "value": "ergogen:ceoloide/display_ssd1306"
+    },
+    {
+      "label": "led sk6812mini e",
+      "selected": false,
+      "value": "ergogen:ceoloide/led_sk6812mini-e"
+    },
+    {
+      "label": "mcu nice nano",
+      "selected": false,
+      "value": "ergogen:ceoloide/mcu_nice_nano"
+    },
+    {
+      "label": "mcu supermini nrf52840",
+      "selected": false,
+      "value": "ergogen:ceoloide/mcu_supermini_nrf52840"
+    },
+    {
+      "label": "mounting hole npth",
+      "selected": false,
+      "value": "ergogen:ceoloide/mounting_hole_npth"
+    },
+    {
+      "label": "mounting hole plated",
+      "selected": false,
+      "value": "ergogen:ceoloide/mounting_hole_plated"
+    },
+    {
+      "label": "power switch smd side",
+      "selected": false,
+      "value": "ergogen:ceoloide/power_switch_smd_side"
+    },
+    {
+      "label": "reset switch smd side",
+      "selected": false,
+      "value": "ergogen:ceoloide/reset_switch_smd_side"
+    },
+    {
+      "label": "reset switch tht top",
+      "selected": false,
+      "value": "ergogen:ceoloide/reset_switch_tht_top"
+    },
+    {
+      "label": "rotary encoder ec11 ec12",
+      "selected": false,
+      "value": "ergogen:ceoloide/rotary_encoder_ec11_ec12"
+    },
+    {
+      "label": "switch choc v1 v2",
+      "selected": false,
+      "value": "ergogen:ceoloide/switch_choc_v1_v2"
+    },
+    {
+      "label": "switch gateron ks27 ks33",
+      "selected": false,
+      "value": "ergogen:ceoloide/switch_gateron_ks27_ks33"
+    },
+    {
+      "label": "trrs pj320a",
+      "selected": false,
+      "value": "ergogen:ceoloide/trrs_pj320a"
+    },
+    {
+      "label": "utility ergogen logo",
+      "selected": false,
+      "value": "ergogen:ceoloide/utility_ergogen_logo"
+    },
+    {
+      "label": "utility filled zone",
+      "selected": false,
+      "value": "ergogen:ceoloide/utility_filled_zone"
+    },
+    {
+      "label": "utility keepout zone",
+      "selected": false,
+      "value": "ergogen:ceoloide/utility_keepout_zone"
+    },
+    {
+      "label": "utility point debugger",
+      "selected": false,
+      "value": "ergogen:ceoloide/utility_point_debugger"
+    },
+    {
+      "label": "utility router",
+      "selected": false,
+      "value": "ergogen:ceoloide/utility_router"
+    },
+    {
+      "label": "utility text",
+      "selected": false,
+      "value": "ergogen:ceoloide/utility_text"
+    },
+    {
+      "label": "conn molex pico ezmate 1x02",
+      "selected": false,
+      "value": "ergogen:infused-kim/conn_molex_pico_ezmate_1x02"
+    },
+    {
+      "label": "conn molex pico ezmate 1x05",
+      "selected": false,
+      "value": "ergogen:infused-kim/conn_molex_pico_ezmate_1x05"
+    },
+    {
+      "label": "icon bat",
+      "selected": false,
+      "value": "ergogen:infused-kim/icon_bat"
+    },
+    {
+      "label": "mounting hole",
+      "selected": false,
+      "value": "ergogen:infused-kim/mounting_hole"
+    },
+    {
+      "label": "nice view",
+      "selected": false,
+      "value": "ergogen:infused-kim/nice_view"
+    },
+    {
+      "label": "pads",
+      "selected": false,
+      "value": "ergogen:infused-kim/pads"
+    },
+    {
+      "label": "point debugger",
+      "selected": false,
+      "value": "ergogen:infused-kim/point_debugger"
+    },
+    {
+      "label": "smd 0805",
+      "selected": false,
+      "value": "ergogen:infused-kim/smd_0805"
+    },
+    {
+      "label": "switch power",
+      "selected": false,
+      "value": "ergogen:infused-kim/switch_power"
+    },
+    {
+      "label": "switch reset",
+      "selected": false,
+      "value": "ergogen:infused-kim/switch_reset"
+    },
+    {
+      "label": "text",
+      "selected": false,
+      "value": "ergogen:infused-kim/text"
+    },
+    {
+      "label": "trackpoint mount",
+      "selected": false,
+      "value": "ergogen:infused-kim/trackpoint_mount"
+    },
+    {
+      "label": "MX PCB stabilizer · 2u",
+      "selected": false,
+      "value": "kicad:marbastlib/STAB_MX_2u"
+    },
+    {
+      "label": "MX PCB stabilizer · 6.25u",
+      "selected": false,
+      "value": "kicad:marbastlib/STAB_MX_6.25u"
+    },
+    {
+      "label": "THQWGD001 · rotation only · reversible",
+      "selected": false,
+      "value": "thqwgd001:rotation-reversible"
+    },
+    {
+      "label": "THQWGD001C · 2-pin tactile · reversible",
+      "selected": false,
+      "value": "thqwgd001:c-2pin-reversible"
+    },
+    {
+      "label": "THQWGD001C · 4-pin tactile · reversible",
+      "selected": false,
+      "value": "thqwgd001:c-4pin-reversible"
+    },
+    {
+      "label": "THQWGD001 mounting cuts · routed slots",
+      "selected": false,
+      "value": "thqwgd001:slit"
+    },
+    {
+      "label": "THQWGD001 mounting cuts · drilled slots",
+      "selected": false,
+      "value": "thqwgd001:slit-drill"
+    },
+    {
+      "label": "THQWGD001C mounting cuts · routed slots",
+      "selected": false,
+      "value": "thqwgd001:slitc"
+    },
+    {
+      "label": "THQWGD001C mounting cuts · drilled slots",
+      "selected": false,
+      "value": "thqwgd001:slitc-drill"
+    }
+  ],
+  "referenceOptions": [
+    {
+      "label": "battery connector jst ph 2",
+      "selected": false,
+      "value": "ergogen:ceoloide/battery_connector_jst_ph_2"
+    },
+    {
+      "label": "battery connector molex pico ezmate 1x02",
+      "selected": false,
+      "value": "ergogen:ceoloide/battery_connector_molex_pico_ezmate_1x02"
+    },
+    {
+      "label": "Matrix diode (SOD-123 / THT)",
+      "selected": false,
+      "value": "ergogen:ceoloide/diode_tht_sod123"
+    },
+    {
+      "label": "display nice view",
+      "selected": false,
+      "value": "ergogen:ceoloide/display_nice_view"
+    },
+    {
+      "label": "display ssd1306",
+      "selected": false,
+      "value": "ergogen:ceoloide/display_ssd1306"
+    },
+    {
+      "label": "SK6812 MINI-E",
+      "selected": false,
+      "value": "ergogen:ceoloide/led_sk6812mini-e"
+    },
+    {
+      "label": "mcu nice nano",
+      "selected": false,
+      "value": "ergogen:ceoloide/mcu_nice_nano"
+    },
+    {
+      "label": "mcu supermini nrf52840",
+      "selected": false,
+      "value": "ergogen:ceoloide/mcu_supermini_nrf52840"
+    },
+    {
+      "label": "mounting hole npth",
+      "selected": false,
+      "value": "ergogen:ceoloide/mounting_hole_npth"
+    },
+    {
+      "label": "mounting hole plated",
+      "selected": false,
+      "value": "ergogen:ceoloide/mounting_hole_plated"
+    },
+    {
+      "label": "power switch smd side",
+      "selected": false,
+      "value": "ergogen:ceoloide/power_switch_smd_side"
+    },
+    {
+      "label": "reset switch smd side",
+      "selected": false,
+      "value": "ergogen:ceoloide/reset_switch_smd_side"
+    },
+    {
+      "label": "reset switch tht top",
+      "selected": false,
+      "value": "ergogen:ceoloide/reset_switch_tht_top"
+    },
+    {
+      "label": "rotary encoder ec11 ec12",
+      "selected": false,
+      "value": "ergogen:ceoloide/rotary_encoder_ec11_ec12"
+    },
+    {
+      "label": "Choc V1 / V2 switch",
+      "selected": false,
+      "value": "ergogen:ceoloide/switch_choc_v1_v2"
+    },
+    {
+      "label": "Gateron KS27 / KS33 switch",
+      "selected": false,
+      "value": "ergogen:ceoloide/switch_gateron_ks27_ks33"
+    },
+    {
+      "label": "MX switch",
+      "selected": false,
+      "value": "ergogen:ceoloide/switch_mx"
+    },
+    {
+      "label": "trrs pj320a",
+      "selected": false,
+      "value": "ergogen:ceoloide/trrs_pj320a"
+    },
+    {
+      "label": "utility ergogen logo",
+      "selected": false,
+      "value": "ergogen:ceoloide/utility_ergogen_logo"
+    },
+    {
+      "label": "utility filled zone",
+      "selected": false,
+      "value": "ergogen:ceoloide/utility_filled_zone"
+    },
+    {
+      "label": "utility keepout zone",
+      "selected": false,
+      "value": "ergogen:ceoloide/utility_keepout_zone"
+    },
+    {
+      "label": "utility point debugger",
+      "selected": false,
+      "value": "ergogen:ceoloide/utility_point_debugger"
+    },
+    {
+      "label": "utility router",
+      "selected": false,
+      "value": "ergogen:ceoloide/utility_router"
+    },
+    {
+      "label": "utility text",
+      "selected": false,
+      "value": "ergogen:ceoloide/utility_text"
+    },
+    {
+      "label": "conn molex pico ezmate 1x02",
+      "selected": false,
+      "value": "ergogen:infused-kim/conn_molex_pico_ezmate_1x02"
+    },
+    {
+      "label": "conn molex pico ezmate 1x05",
+      "selected": false,
+      "value": "ergogen:infused-kim/conn_molex_pico_ezmate_1x05"
+    },
+    {
+      "label": "icon bat",
+      "selected": false,
+      "value": "ergogen:infused-kim/icon_bat"
+    },
+    {
+      "label": "mounting hole",
+      "selected": false,
+      "value": "ergogen:infused-kim/mounting_hole"
+    },
+    {
+      "label": "nice view",
+      "selected": false,
+      "value": "ergogen:infused-kim/nice_view"
+    },
+    {
+      "label": "pads",
+      "selected": false,
+      "value": "ergogen:infused-kim/pads"
+    },
+    {
+      "label": "point debugger",
+      "selected": false,
+      "value": "ergogen:infused-kim/point_debugger"
+    },
+    {
+      "label": "smd 0805",
+      "selected": false,
+      "value": "ergogen:infused-kim/smd_0805"
+    },
+    {
+      "label": "switch power",
+      "selected": false,
+      "value": "ergogen:infused-kim/switch_power"
+    },
+    {
+      "label": "switch reset",
+      "selected": false,
+      "value": "ergogen:infused-kim/switch_reset"
+    },
+    {
+      "label": "text",
+      "selected": false,
+      "value": "ergogen:infused-kim/text"
+    },
+    {
+      "label": "trackpoint mount",
+      "selected": false,
+      "value": "ergogen:infused-kim/trackpoint_mount"
+    },
+    {
+      "label": "MX PCB stabilizer · 2u",
+      "selected": false,
+      "value": "kicad:marbastlib/STAB_MX_2u"
+    },
+    {
+      "label": "MX PCB stabilizer · 6.25u",
+      "selected": false,
+      "value": "kicad:marbastlib/STAB_MX_6.25u"
+    },
+    {
+      "label": "THQWGD001 · rotation only · reversible",
+      "selected": false,
+      "value": "thqwgd001:rotation-reversible"
+    },
+    {
+      "label": "THQWGD001C · 2-pin tactile · reversible",
+      "selected": false,
+      "value": "thqwgd001:c-2pin-reversible"
+    },
+    {
+      "label": "THQWGD001C · 4-pin tactile · reversible",
+      "selected": false,
+      "value": "thqwgd001:c-4pin-reversible"
+    },
+    {
+      "label": "THQWGD001 mounting cuts · routed slots",
+      "selected": false,
+      "value": "thqwgd001:slit"
+    },
+    {
+      "label": "THQWGD001 mounting cuts · drilled slots",
+      "selected": false,
+      "value": "thqwgd001:slit-drill"
+    },
+    {
+      "label": "THQWGD001C mounting cuts · routed slots",
+      "selected": false,
+      "value": "thqwgd001:slitc"
+    },
+    {
+      "label": "THQWGD001C mounting cuts · drilled slots",
+      "selected": false,
+      "value": "thqwgd001:slitc-drill"
+    },
+    {
+      "label": "mcu nice nano",
+      "selected": false,
+      "value": "sofle/mcu_nice_nano"
+    },
+    {
+      "label": "rotary encoder ec11 ec12",
+      "selected": false,
+      "value": "sofle/rotary_encoder_ec11_ec12"
+    },
+    {
+      "label": "display ssd1306",
+      "selected": false,
+      "value": "sofle/display_ssd1306"
+    },
+    {
+      "label": "trrs pj320a",
+      "selected": false,
+      "value": "sofle/trrs_pj320a"
+    },
+    {
+      "label": "reset switch tht top",
+      "selected": false,
+      "value": "sofle/reset_switch_tht_top"
+    },
+    {
+      "label": "mounting hole npth",
+      "selected": false,
+      "value": "sofle/mounting_hole_npth"
+    },
+    {
+      "label": "diode tht sod123",
+      "selected": true,
+      "value": "assembly-preset-mx-hotswap-south-left-keys-0/definition/diode"
+    }
+  ],
+  "priorCandidateOptions": [
+    {
+      "label": "mcu nice nano",
+      "selected": false,
+      "value": "sofle/mcu_nice_nano"
+    },
+    {
+      "label": "rotary encoder ec11 ec12",
+      "selected": false,
+      "value": "sofle/rotary_encoder_ec11_ec12"
+    },
+    {
+      "label": "display ssd1306",
+      "selected": false,
+      "value": "sofle/display_ssd1306"
+    },
+    {
+      "label": "trrs pj320a",
+      "selected": false,
+      "value": "sofle/trrs_pj320a"
+    },
+    {
+      "label": "reset switch tht top",
+      "selected": false,
+      "value": "sofle/reset_switch_tht_top"
+    },
+    {
+      "label": "mounting hole npth",
+      "selected": false,
+      "value": "sofle/mounting_hole_npth"
+    },
+    {
+      "label": "switch mx",
+      "selected": false,
+      "value": "assembly-preset-mx-hotswap-south-left-keys-0/definition/switch"
+    },
+    {
+      "label": "diode tht sod123",
+      "selected": true,
+      "value": "assembly-preset-mx-hotswap-south-left-keys-0/definition/diode"
+    },
+    {
+      "label": "switch mx",
+      "selected": false,
+      "value": "assembly-preset-mx-hotswap-south-left-thumbs-0/definition/switch"
+    },
+    {
+      "label": "diode tht sod123",
+      "selected": false,
+      "value": "assembly-preset-mx-hotswap-south-left-thumbs-0/definition/diode"
+    },
+    {
+      "label": "switch mx",
+      "selected": false,
+      "value": "assembly-preset-mx-hotswap-south-right-keys-0/definition/switch"
+    },
+    {
+      "label": "diode tht sod123",
+      "selected": false,
+      "value": "assembly-preset-mx-hotswap-south-right-keys-0/definition/diode"
+    },
+    {
+      "label": "switch mx",
+      "selected": false,
+      "value": "assembly-preset-mx-hotswap-south-right-thumbs-0/definition/switch"
+    },
+    {
+      "label": "diode tht sod123",
+      "selected": false,
+      "value": "assembly-preset-mx-hotswap-south-right-thumbs-0/definition/diode"
+    },
+    {
+      "label": "switch mx",
+      "selected": false,
+      "value": "ergogen:ceoloide/switch_mx"
+    },
+    {
+      "label": "battery connector jst ph 2",
+      "selected": false,
+      "value": "ergogen:ceoloide/battery_connector_jst_ph_2"
+    },
+    {
+      "label": "battery connector molex pico ezmate 1x02",
+      "selected": false,
+      "value": "ergogen:ceoloide/battery_connector_molex_pico_ezmate_1x02"
+    },
+    {
+      "label": "diode tht sod123",
+      "selected": false,
+      "value": "ergogen:ceoloide/diode_tht_sod123"
+    },
+    {
+      "label": "display nice view",
+      "selected": false,
+      "value": "ergogen:ceoloide/display_nice_view"
+    },
+    {
+      "label": "display ssd1306",
+      "selected": false,
+      "value": "ergogen:ceoloide/display_ssd1306"
+    },
+    {
+      "label": "led sk6812mini e",
+      "selected": false,
+      "value": "ergogen:ceoloide/led_sk6812mini-e"
+    },
+    {
+      "label": "mcu nice nano",
+      "selected": false,
+      "value": "ergogen:ceoloide/mcu_nice_nano"
+    },
+    {
+      "label": "mcu supermini nrf52840",
+      "selected": false,
+      "value": "ergogen:ceoloide/mcu_supermini_nrf52840"
+    },
+    {
+      "label": "mounting hole npth",
+      "selected": false,
+      "value": "ergogen:ceoloide/mounting_hole_npth"
+    },
+    {
+      "label": "mounting hole plated",
+      "selected": false,
+      "value": "ergogen:ceoloide/mounting_hole_plated"
+    },
+    {
+      "label": "power switch smd side",
+      "selected": false,
+      "value": "ergogen:ceoloide/power_switch_smd_side"
+    },
+    {
+      "label": "reset switch smd side",
+      "selected": false,
+      "value": "ergogen:ceoloide/reset_switch_smd_side"
+    },
+    {
+      "label": "reset switch tht top",
+      "selected": false,
+      "value": "ergogen:ceoloide/reset_switch_tht_top"
+    },
+    {
+      "label": "rotary encoder ec11 ec12",
+      "selected": false,
+      "value": "ergogen:ceoloide/rotary_encoder_ec11_ec12"
+    },
+    {
+      "label": "switch choc v1 v2",
+      "selected": false,
+      "value": "ergogen:ceoloide/switch_choc_v1_v2"
+    },
+    {
+      "label": "switch gateron ks27 ks33",
+      "selected": false,
+      "value": "ergogen:ceoloide/switch_gateron_ks27_ks33"
+    },
+    {
+      "label": "trrs pj320a",
+      "selected": false,
+      "value": "ergogen:ceoloide/trrs_pj320a"
+    },
+    {
+      "label": "utility ergogen logo",
+      "selected": false,
+      "value": "ergogen:ceoloide/utility_ergogen_logo"
+    },
+    {
+      "label": "utility filled zone",
+      "selected": false,
+      "value": "ergogen:ceoloide/utility_filled_zone"
+    },
+    {
+      "label": "utility keepout zone",
+      "selected": false,
+      "value": "ergogen:ceoloide/utility_keepout_zone"
+    },
+    {
+      "label": "utility point debugger",
+      "selected": false,
+      "value": "ergogen:ceoloide/utility_point_debugger"
+    },
+    {
+      "label": "utility router",
+      "selected": false,
+      "value": "ergogen:ceoloide/utility_router"
+    },
+    {
+      "label": "utility text",
+      "selected": false,
+      "value": "ergogen:ceoloide/utility_text"
+    },
+    {
+      "label": "conn molex pico ezmate 1x02",
+      "selected": false,
+      "value": "ergogen:infused-kim/conn_molex_pico_ezmate_1x02"
+    },
+    {
+      "label": "conn molex pico ezmate 1x05",
+      "selected": false,
+      "value": "ergogen:infused-kim/conn_molex_pico_ezmate_1x05"
+    },
+    {
+      "label": "icon bat",
+      "selected": false,
+      "value": "ergogen:infused-kim/icon_bat"
+    },
+    {
+      "label": "mounting hole",
+      "selected": false,
+      "value": "ergogen:infused-kim/mounting_hole"
+    },
+    {
+      "label": "nice view",
+      "selected": false,
+      "value": "ergogen:infused-kim/nice_view"
+    },
+    {
+      "label": "pads",
+      "selected": false,
+      "value": "ergogen:infused-kim/pads"
+    },
+    {
+      "label": "point debugger",
+      "selected": false,
+      "value": "ergogen:infused-kim/point_debugger"
+    },
+    {
+      "label": "smd 0805",
+      "selected": false,
+      "value": "ergogen:infused-kim/smd_0805"
+    },
+    {
+      "label": "switch power",
+      "selected": false,
+      "value": "ergogen:infused-kim/switch_power"
+    },
+    {
+      "label": "switch reset",
+      "selected": false,
+      "value": "ergogen:infused-kim/switch_reset"
+    },
+    {
+      "label": "text",
+      "selected": false,
+      "value": "ergogen:infused-kim/text"
+    },
+    {
+      "label": "trackpoint mount",
+      "selected": false,
+      "value": "ergogen:infused-kim/trackpoint_mount"
+    },
+    {
+      "label": "MX PCB stabilizer · 2u",
+      "selected": false,
+      "value": "kicad:marbastlib/STAB_MX_2u"
+    },
+    {
+      "label": "MX PCB stabilizer · 6.25u",
+      "selected": false,
+      "value": "kicad:marbastlib/STAB_MX_6.25u"
+    },
+    {
+      "label": "THQWGD001 · rotation only · reversible",
+      "selected": false,
+      "value": "thqwgd001:rotation-reversible"
+    },
+    {
+      "label": "THQWGD001C · 2-pin tactile · reversible",
+      "selected": false,
+      "value": "thqwgd001:c-2pin-reversible"
+    },
+    {
+      "label": "THQWGD001C · 4-pin tactile · reversible",
+      "selected": false,
+      "value": "thqwgd001:c-4pin-reversible"
+    },
+    {
+      "label": "THQWGD001 mounting cuts · routed slots",
+      "selected": false,
+      "value": "thqwgd001:slit"
+    },
+    {
+      "label": "THQWGD001 mounting cuts · drilled slots",
+      "selected": false,
+      "value": "thqwgd001:slit-drill"
+    },
+    {
+      "label": "THQWGD001C mounting cuts · routed slots",
+      "selected": false,
+      "value": "thqwgd001:slitc"
+    },
+    {
+      "label": "THQWGD001C mounting cuts · drilled slots",
+      "selected": false,
+      "value": "thqwgd001:slitc-drill"
+    }
+  ],
+  "orderedCandidateEqualsPriorAfterRemovingExtras": true,
+  "revision": 10
+}

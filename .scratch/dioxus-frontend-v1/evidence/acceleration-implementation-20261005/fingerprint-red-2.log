@@ -1,0 +1,18 @@
+
+test_commit_allows_document_only_drift_after_executable_gates (__main__.MigrationDeliverTests.test_commit_allows_document_only_drift_after_executable_gates) ... ERROR
+
+======================================================================
+ERROR: test_commit_allows_document_only_drift_after_executable_gates (__main__.MigrationDeliverTests.test_commit_allows_document_only_drift_after_executable_gates)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/migration-fingerprint-fix-ytutdn5t/test-migration-deliver.py", line 366, in test_commit_allows_document_only_drift_after_executable_gates
+    module._commit(self.root, "integration", "checked source with policy record", [])
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/migration-fingerprint-fix-ytutdn5t/migration-deliver.py", line 604, in _commit
+    raise GuardError("maintained source inputs changed after gate success; rerun prepare-gates")
+migration_deliver_docs_drift_test.GuardError: maintained source inputs changed after gate success; rerun prepare-gates
+
+----------------------------------------------------------------------
+Ran 1 test in 0.124s
+
+FAILED (errors=1)

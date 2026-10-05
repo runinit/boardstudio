@@ -9,6 +9,10 @@ use dioxus::prelude::*;
 use super::TreeContext;
 use super::matrix_transform_controller::MatrixTransformInspectorMount;
 
+#[cfg(all(test, target_arch = "wasm32"))]
+#[path = "matrix_transform_inspector_tests.rs"]
+mod mounted_tests;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::presentation) struct MatrixTransformInspectorOwner {
     pub editor_instance_id: u64,

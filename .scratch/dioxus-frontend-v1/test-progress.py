@@ -2,9 +2,11 @@
 
 import hashlib
 import importlib.util
+import io
 import json
 from pathlib import Path
 import tempfile
+from contextlib import redirect_stdout
 from urllib.parse import urlsplit
 import unittest
 from unittest.mock import patch
@@ -390,6 +392,74 @@ class ProgressTests(unittest.TestCase):
         self.assertEqual([row["criterion"]["id"] for row in qualify], ["F3.3-C01"])
         visual = progress.ready_rows(graph, "implement", classification="visual")
         self.assertEqual([row["criterion"]["id"] for row in visual], ["F3.2-C02"])
+
+    def test_functional_readiness_separates_ready_work_from_formal_joins(self):
+        graph = self.criterion_graph()
+        graph["tasks"][1]["criteria"][0]["state"] = "verified"
+        graph["tasks"][1]["criteria_accounting"]["coverage"] = "complete"
+        graph["tasks"][1]["acceptance_after"] = ["F3.62"]
+        graph["tasks"][2]["criteria"][0]["state"] = "implemented"
+        graph["tasks"][2]["criteria"][0]["blockers"] = []
+        graph["tasks"][2]["criteria_accounting"]["coverage"] = "complete"
+        graph["tasks"][5]["criteria"] = [self.criterion("F3.6", 1, state="unassessed")]
+        graph["tasks"][5]["criteria_accounting"] = {
+            "source_commit": "a" * 40, "assessed_at": "2026-10-03T12:00:00Z",
+            "coverage": "partial", "note": "Unassessed functional criterion",
+        }
+        graph["tasks"][5]["acceptance_after"] = ["F3.1"]
+        frontier = progress.functional_readiness(graph)
+        self.assertEqual(frontier["ready_investigate"], 1)
+        self.assertEqual(frontier["ready_implement"], 1)
+        self.assertEqual(frontier["ready_qualify"], 1)
+        self.assertEqual(frontier["by_stream"]["Layout"]["by_state"]["unassessed"], 1)
+        self.assertEqual(frontier["by_stream"]["Layout"]["ready_investigate"], ["F3.6-C01"])
+        self.assertEqual(frontier["by_stream"]["Layout"]["ready_implement"],
+                         ["F3.5-C01"])
+        self.assertEqual(frontier["by_stream"]["Layout"]["ready_qualify"], ["F3.3-C01"])
+        waiting = {row["parent"]: row for row in frontier["functionally_verified_waiting"]}
+        self.assertEqual(waiting["F3.2"]["unmet_final_joins"], ["F3.62"])
+        self.assertEqual(waiting["F3.2"]["unverified_visual_release"], ["F3.2-C02"])
+        self.assertNotIn("F3.6", waiting, "unassessed functional criteria are not functionally complete")
+        self.assertEqual(frontier["unmet_final_joins"], [{"parent":"F3.2", "joins":["F3.62"]}])
+
+    def test_complete_unaccepted_parent_remains_visible_for_formal_acceptance(self):
+        graph = self.criterion_graph()
+        task = graph["tasks"][3]
+        task["status"] = "implementing"
+        task["criteria"] = [self.criterion("F3.4", 1, state="verified"),
+                            self.criterion("F3.4", 2, state="verified", classification="visual")]
+        task["criteria_accounting"]["coverage"] = "complete"
+        task["acceptance_after"] = ["F3.1"]  # The only final join is already accepted.
+
+        frontier = progress.functional_readiness(graph)
+        waiting = {row["parent"]: row for row in frontier["functionally_verified_waiting"]}
+        self.assertEqual(waiting["F3.4"]["unmet_final_joins"], [])
+        self.assertEqual(waiting["F3.4"]["unverified_visual_release"], [])
+        self.assertEqual(waiting["F3.4"]["coverage"], "complete")
+        report = "\n".join(progress.functional_frontier_lines(graph))
+        self.assertIn("F3.4: formal acceptance/review pending", report)
+
+    def test_frontier_render_and_handoff_report_exact_joins_without_mobile_claims(self):
+        graph = self.criterion_graph()
+        graph["tasks"][1]["criteria"][0]["state"] = "verified"
+        graph["tasks"][1]["criteria_accounting"]["coverage"] = "complete"
+        graph["tasks"][1]["acceptance_after"] = ["F3.62"]
+        output = "\n".join(progress.functional_frontier_lines(graph))
+        self.assertIn("F3.2: joins F3.62; visual/release F3.2-C02", output)
+        self.assertIn("unassessed 0, missing 1", output)
+        self.assertIn("F3.2 → F3.62", output)
+        self.assertNotIn("mobile", output.casefold())
+        handoff = progress.handoff_markdown({"current_progress": {}}, graph, [])
+        self.assertIn("Exact unmet final joins:", handoff)
+        self.assertIn("F3.2 → F3.62", handoff)
+
+    def test_frontier_cli_json_emits_derived_frontier_payload(self):
+        graph = self.criterion_graph()
+        stream = io.StringIO()
+        with patch.object(progress, "read", side_effect=[{"current_progress": {}}, graph]):
+            with redirect_stdout(stream):
+                progress.main(["frontier", "--json"])
+        self.assertEqual(json.loads(stream.getvalue()), progress.functional_readiness(graph))
 
     def test_ready_payload_uses_compact_parent_metadata_and_exact_criterion(self):
         graph = self.criterion_graph()

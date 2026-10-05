@@ -1,0 +1,226 @@
+warning: unused import: `ProjectDoc`
+ --> src/presentation/case_controller.rs:9:82
+  |
+9 |     CaseBody, CaseKind, EditCommand, EditOperation, EditPhase, Mount, MountKind, ProjectDoc, Vec2,
+  |                                                                                  ^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `standard_profile_reply_matches` is never used
+   --> src/presentation/parts/mechanical_profile.rs:148:15
+    |
+148 | pub(crate) fn standard_profile_reply_matches(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `ModuleGroup` is never constructed
+  --> src/presentation/parts/modules_catalogue.rs:32:19
+   |
+32 | pub(super) struct ModuleGroup {
+   |                   ^^^^^^^^^^^
+
+warning: method `matches` is never used
+  --> src/presentation/parts/modules_catalogue.rs:39:12
+   |
+38 | impl ModuleGroup {
+   | ---------------- method in this implementation
+39 |     pub fn matches(&self, query: &str) -> bool {
+   |            ^^^^^^^
+
+warning: function `group_choices` is never used
+   --> src/presentation/parts/modules_catalogue.rs:328:15
+    |
+328 | pub(super) fn group_choices(entries: &[ModuleEntry]) -> Vec<ModuleGroup> {
+    |               ^^^^^^^^^^^^^
+
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web)
+warning: `boardstudio-web` (bin "boardstudio-web") generated 5 warnings (run `cargo fix --bin "boardstudio-web" -p boardstudio-web` to apply 1 suggestion)
+warning: unused imports: `SessionEpoch` and `SnapshotToken`
+    --> src/presentation/pcb_wiring.rs:1111:35
+     |
+1111 |     use boardstudio_application::{SessionEpoch, SnapshotToken};
+     |                                   ^^^^^^^^^^^^  ^^^^^^^^^^^^^
+
+warning: variable does not need to be mutable
+   --> src/presentation/objects/matrix_transform_inspector_tests.rs:222:9
+    |
+222 |     let mut dom = VirtualDom::new(matrix_transform_host);
+    |         ----^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> src/cad_presentation.rs:226:13
+    |
+226 |         let mut runtime_version = use_signal(|| 0u64);
+    |             ----^^^^^^^^^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/parts/preview.rs:1120:13
+     |
+1120 |         let mut selection = use_signal(|| None::<(Option<Scope>, String)>);
+     |             ----^^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: struct `ModuleGroup` is never constructed
+  --> src/presentation/parts/modules_catalogue.rs:32:19
+   |
+32 | pub(super) struct ModuleGroup {
+   |                   ^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `boardstudio-web` (bin "boardstudio-web" test) generated 8 warnings (3 duplicates) (run `cargo fix --bin "boardstudio-web" -p boardstudio-web --tests` to apply 4 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 26.91s
+[INFO]: ⬇️  Installing wasm-bindgen...
+warning: unused import: `ProjectDoc`
+ --> src/presentation/case_controller.rs:9:82
+  |
+9 |     CaseBody, CaseKind, EditCommand, EditOperation, EditPhase, Mount, MountKind, ProjectDoc, Vec2,
+  |                                                                                  ^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused imports: `SessionEpoch` and `SnapshotToken`
+    --> src/presentation/pcb_wiring.rs:1111:35
+     |
+1111 |     use boardstudio_application::{SessionEpoch, SnapshotToken};
+     |                                   ^^^^^^^^^^^^  ^^^^^^^^^^^^^
+
+warning: variable does not need to be mutable
+   --> src/presentation/objects/matrix_transform_inspector_tests.rs:222:9
+    |
+222 |     let mut dom = VirtualDom::new(matrix_transform_host);
+    |         ----^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> src/cad_presentation.rs:226:13
+    |
+226 |         let mut runtime_version = use_signal(|| 0u64);
+    |             ----^^^^^^^^^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/parts/preview.rs:1120:13
+     |
+1120 |         let mut selection = use_signal(|| None::<(Option<Scope>, String)>);
+     |             ----^^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: struct `ModuleGroup` is never constructed
+  --> src/presentation/parts/modules_catalogue.rs:32:19
+   |
+32 | pub(super) struct ModuleGroup {
+   |                   ^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `matches` is never used
+  --> src/presentation/parts/modules_catalogue.rs:39:12
+   |
+38 | impl ModuleGroup {
+   | ---------------- method in this implementation
+39 |     pub fn matches(&self, query: &str) -> bool {
+   |            ^^^^^^^
+
+warning: function `group_choices` is never used
+   --> src/presentation/parts/modules_catalogue.rs:328:15
+    |
+328 | pub(super) fn group_choices(entries: &[ModuleEntry]) -> Vec<ModuleGroup> {
+    |               ^^^^^^^^^^^^^
+
+warning: `boardstudio-web` (bin "boardstudio-web" test) generated 8 warnings (run `cargo fix --bin "boardstudio-web" -p boardstudio-web --tests` to apply 5 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+     Running unittests src/main.rs (target/wasm32-unknown-unknown/debug/deps/boardstudio_web-ade5ef492b9e030c.wasm)
+Error: some tests failed
+error: test failed, to rerun pass `--bin boardstudio-web`
+
+Caused by:
+  process didn't exit successfully: `/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-ade5ef492b9e030c.wasm 'cad_presentation::mounted_tests::mounted_case_local_export_uses_current_exact_mechanical_scope' --nocapture` (exit status: 1)
+Error: Running Wasm tests with wasm-bindgen-test failed
+Caused by: Running Wasm tests with wasm-bindgen-test failed
+Caused by: failed to execute `cargo test`: exited with exit status: 1
+  full command: cd "web" && CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER="/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner" CHROMEDRIVER="/usr/bin/chromedriver" WASM_BINDGEN_TEST_ONLY_WEB="1" "cargo" "test" "--target" "wasm32-unknown-unknown" "--no-default-features" "--features" "page" "--bin" "boardstudio-web" "--" "cad_presentation::mounted_tests::mounted_case_local_export_uses_current_exact_mechanical_scope" "--nocapture"
+Running headless tests in Chrome on `http://127.0.0.1:39707/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+Loading Wasm module...
+using deprecated parameters for the initialization function; pass a single object instead
+
+running 1 test
+Invoking test: cad_presentation::mounted_tests::mounted_case_local_export_uses_current_exact_mechanical_scope
+panicked at src/cad_presentation.rs:393:14:
+Case mounts Export geometry
+
+Stack:
+
+Error
+    at http://127.0.0.1:33177/wasm-bindgen-test:1706:25
+    at logError (http://127.0.0.1:33177/wasm-bindgen-test:2919:18)
+    at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:33177/wasm-bindgen-test:1705:57)
+    at boardstudio_web-ade5ef492b9e030c.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:33177/wasm-bindgen-test_bg.wasm:wasm-function[204655]:0x25fe556)
+    at boardstudio_web-ade5ef492b9e030c.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:33177/wasm-bindgen-test_bg.wasm:wasm-function[116703]:0x22469fb)
+    at boardstudio_web-ade5ef492b9e030c.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:33177/wasm-bindgen-test_bg.wasm:wasm-function[38418]:0x1974b1d)
+    at boardstudio_web-ade5ef492b9e030c.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:33177/wasm-bindgen-test_bg.wasm:wasm-function[122708]:0x22a27a1)
+    at boardstudio_web-ade5ef492b9e030c.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:33177/wasm-bindgen-test_bg.wasm:wasm-function[32533]:0x182c941)
+    at boardstudio_web-ade5ef492b9e030c.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:33177/wasm-bindgen-test_bg.wasm:wasm-function[68104]:0x1e10645)
+    at boardstudio_web-ade5ef492b9e030c.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:33177/wasm-bindgen-test_bg.wasm:wasm-function[207447]:0x2606b7c)
+
+
+test cad_presentation::mounted_tests::mounted_case_local_export_uses_current_exact_mechanical_scope ... FAIL
+
+failures:
+
+---- cad_presentation::mounted_tests::mounted_case_local_export_uses_current_exact_mechanical_scope output ----
+    error output:
+        panicked at src/cad_presentation.rs:393:14:
+        Case mounts Export geometry
+        
+        Stack:
+        
+        Error
+            at http://127.0.0.1:33177/wasm-bindgen-test:1706:25
+            at logError (http://127.0.0.1:33177/wasm-bindgen-test:2919:18)
+            at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:33177/wasm-bindgen-test:1705:57)
+            at boardstudio_web-ade5ef492b9e030c.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:33177/wasm-bindgen-test_bg.wasm:wasm-function[204655]:0x25fe556)
+            at boardstudio_web-ade5ef492b9e030c.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:33177/wasm-bindgen-test_bg.wasm:wasm-function[116703]:0x22469fb)
+            at boardstudio_web-ade5ef492b9e030c.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:33177/wasm-bindgen-test_bg.wasm:wasm-function[38418]:0x1974b1d)
+            at boardstudio_web-ade5ef492b9e030c.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:33177/wasm-bindgen-test_bg.wasm:wasm-function[122708]:0x22a27a1)
+            at boardstudio_web-ade5ef492b9e030c.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:33177/wasm-bindgen-test_bg.wasm:wasm-function[32533]:0x182c941)
+            at boardstudio_web-ade5ef492b9e030c.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:33177/wasm-bindgen-test_bg.wasm:wasm-function[68104]:0x1e10645)
+            at boardstudio_web-ade5ef492b9e030c.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:33177/wasm-bindgen-test_bg.wasm:wasm-function[207447]:0x2606b7c)
+        
+        
+    
+    JS exception that was thrown:
+        RuntimeError: unreachable
+            at boardstudio_web-ade5ef492b9e030c.wasm.__rustc[4b1ee1ef74718a7b]::__rust_abort (http://127.0.0.1:33177/wasm-bindgen-test_bg.wasm:wasm-function[208063]:0x2607dda)
+            at boardstudio_web-ade5ef492b9e030c.wasm.__rustc[4b1ee1ef74718a7b]::__rust_start_panic (http://127.0.0.1:33177/wasm-bindgen-test_bg.wasm:wasm-function[207962]:0x2607c16)
+            at boardstudio_web-ade5ef492b9e030c.wasm.__rustc[4b1ee1ef74718a7b]::rust_panic (http://127.0.0.1:33177/wasm-bindgen-test_bg.wasm:wasm-function[205405]:0x2600ceb)
+            at boardstudio_web-ade5ef492b9e030c.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:33177/wasm-bindgen-test_bg.wasm:wasm-function[32533]:0x182c9b4)
+            at boardstudio_web-ade5ef492b9e030c.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:33177/wasm-bindgen-test_bg.wasm:wasm-function[68104]:0x1e10645)
+            at boardstudio_web-ade5ef492b9e030c.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:33177/wasm-bindgen-test_bg.wasm:wasm-function[207447]:0x2606b7c)
+            at boardstudio_web-ade5ef492b9e030c.wasm.__rustc[4b1ee1ef74718a7b]::rust_begin_unwind (http://127.0.0.1:33177/wasm-bindgen-test_bg.wasm:wasm-function[159362]:0x24736f1)
+            at boardstudio_web-ade5ef492b9e030c.wasm.core[f0fd674eaa06beef]::panicking::panic_fmt (http://127.0.0.1:33177/wasm-bindgen-test_bg.wasm:wasm-function[120430]:0x228067d)
+            at boardstudio_web-ade5ef492b9e030c.wasm.core[f0fd674eaa06beef]::option::expect_failed (http://127.0.0.1:33177/wasm-bindgen-test_bg.wasm:wasm-function[120431]:0x22806bb)
+            at boardstudio_web-ade5ef492b9e030c.wasm.<core[f0fd674eaa06beef]::option::Option<web_sys[c6207118c7c473e1]::features::gen_Node::Node>>::expect (http://127.0.0.1:33177/wasm-bindgen-test_bg.wasm:wasm-function[86569]:0x200aca4)
+
+failures:
+
+    cad_presentation::mounted_tests::mounted_case_local_export_uses_current_exact_mechanical_scope
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 297 filtered out; finished in 0.16s
+
+migration-deliver: focused-test status=failed command_exit=1 started=2026-10-05T01:35:24+00:00 ended=2026-10-05T01:36:21+00:00 duration=56.34s

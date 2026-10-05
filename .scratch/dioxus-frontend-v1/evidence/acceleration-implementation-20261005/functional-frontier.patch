@@ -1,0 +1,626 @@
+diff --git a/.scratch/dioxus-frontend-v1/progress.py b/.scratch/dioxus-frontend-v1/progress.py
+index 30bccf03..871a0ef4 100644
+--- a/.scratch/dioxus-frontend-v1/progress.py
++++ b/.scratch/dioxus-frontend-v1/progress.py
+@@ -288,6 +288,96 @@ def criterion_rows(graph, *, parent=None, stream=None, state=None, classificatio
+     return rows
+ 
+ 
++def functional_readiness(graph):
++    """Derive runnable functional work separately from parent acceptance."""
++    validate_criteria(graph)
++    streams = ("Layout", "PCB", "Keymap", "Keycaps", "Case", "Parts+Project", "Shared")
++    states = ("unassessed", "missing", "implemented", "verified")
++    by_stream = {name: {"by_state": {state: 0 for state in states},
++                        "ready_investigate": [], "ready_implement": [], "ready_qualify": []}
++                 for name in streams}
++    accepted = {task["id"] for task in graph["tasks"] if task["status"] == "accepted"}
++    waiting_for_formal_acceptance = []
++    unmet_final_joins = []
++    for task in graph["tasks"]:
++        stream = parent_stream(task)
++        functional = [item for item in task.get("criteria", [])
++                      if item["classification"] == "functional"]
++        bucket = by_stream.setdefault(stream, {"by_state": {state: 0 for state in states},
++                                                "ready_investigate": [],
++                                                "ready_implement": [], "ready_qualify": []})
++        for criterion in functional:
++            bucket["by_state"][criterion["state"]] += 1
++        missing_joins = [join for join in task.get("acceptance_after", []) if join not in accepted]
++        if missing_joins and task["status"] != "accepted":
++            unmet_final_joins.append({"parent": task["id"], "joins": missing_joins})
++        unverified_nonfunctional = [item["id"] for item in task.get("criteria", [])
++                                   if item["classification"] in ("visual", "release")
++                                   and item["state"] != "verified"]
++        if (task["status"] != "accepted" and functional
++                and all(item["state"] == "verified" for item in functional)):
++            waiting_for_formal_acceptance.append({
++                "parent": task["id"], "unmet_final_joins": missing_joins,
++                "unverified_visual_release": unverified_nonfunctional,
++                "coverage": task.get("criteria_accounting", {}).get("coverage", "unrecorded"),
++            })
++    for kind in ("investigate", "implement", "qualify"):
++        for row in ready_rows(graph, kind):
++            stream = row["parent_spec"]["stream"]
++            by_stream.setdefault(stream, {"by_state": {value: 0 for value in states},
++                                          "ready_investigate": [],
++                                          "ready_implement": [], "ready_qualify": []})[
++                f"ready_{kind}"].append(row["criterion"]["id"])
++    return {
++        "by_stream": by_stream,
++        "ready_investigate": sum(len(value["ready_investigate"]) for value in by_stream.values()),
++        "ready_implement": sum(len(value["ready_implement"]) for value in by_stream.values()),
++        "ready_qualify": sum(len(value["ready_qualify"]) for value in by_stream.values()),
++        "functionally_verified_waiting": waiting_for_formal_acceptance,
++        "unmet_final_joins": unmet_final_joins,
++    }
++
++
++def functional_frontier_lines(graph):
++    """Render the read-only grouped functional frontier and exact remaining joins."""
++    frontier = functional_readiness(graph)
++    lines = ["Functional readiness by workbench:"]
++    for stream, value in frontier["by_stream"].items():
++        counts = value["by_state"]
++        lines.append(f"  {stream}: unassessed {counts['unassessed']}, missing {counts['missing']}, "
++                     f"implemented {counts['implemented']}, "
++                     f"verified {counts['verified']}; ready investigate {len(value['ready_investigate'])}, "
++                     f"implement {len(value['ready_implement'])}, "
++                     f"qualify {len(value['ready_qualify'])}")
++        if value["ready_investigate"]:
++            lines.append("    Investigate: " + ", ".join(value["ready_investigate"]))
++        if value["ready_implement"]:
++            lines.append("    Implement: " + ", ".join(value["ready_implement"]))
++        if value["ready_qualify"]:
++            lines.append("    Qualify: " + ", ".join(value["ready_qualify"]))
++    waiting = frontier["functionally_verified_waiting"]
++    lines.append("Functional criteria verified; formal acceptance still outstanding:")
++    for item in waiting:
++        details = []
++        if item["unmet_final_joins"]:
++            details.append("joins " + ", ".join(item["unmet_final_joins"]))
++        if item["unverified_visual_release"]:
++            details.append("visual/release " + ", ".join(item["unverified_visual_release"]))
++        if item["coverage"] != "complete":
++            details.append("criterion coverage " + item["coverage"])
++        if not details:
++            details.append("formal acceptance/review pending")
++        lines.append(f"  {item['parent']}: " + "; ".join(details))
++    if not waiting:
++        lines.append("  none")
++    lines.append("Exact unmet final joins:")
++    for item in frontier["unmet_final_joins"]:
++        lines.append(f"  {item['parent']} → " + ", ".join(item["joins"]))
++    if not frontier["unmet_final_joins"]:
++        lines.append("  none")
++    return lines
++
++
+ def ready_rows(graph, kind, *, stream=None, classification=None):
+     validate_criteria(graph)
+     criterion_index = {
+@@ -676,6 +766,19 @@ def handoff_markdown(run, graph, findings, git=None):
+     held = sorted({task["id"] for task in tasks if task["status"] != "accepted"
+                    for criterion in task.get("criteria", [])
+                    if "HOLD" in criterion.get("next_action", "")})
++    frontier = functional_readiness(graph)
++    stream_summary = "; ".join(
++        f"{stream} {len(data['ready_investigate'])} investigate/"
++        f"{len(data['ready_implement'])} implement/{len(data['ready_qualify'])} qualify"
++        for stream, data in frontier["by_stream"].items())
++    lines += ["", "## Functional readiness",
++              f"- Ready functional criteria: {frontier['ready_investigate']} investigate, "
++              f"{frontier['ready_implement']} implement, "
++              f"{frontier['ready_qualify']} qualify ({stream_summary})",
++              f"- Functionally verified parents awaiting formal acceptance: "
++              f"{len(frontier['functionally_verified_waiting'])}",
++              f"- Parents with unmet final joins: {len(frontier['unmet_final_joins'])}"]
++    lines += functional_frontier_lines(graph)[1:]
+     lines += ["", "## Parents", f"- Accepted ({len(accepted)}): " + (", ".join(accepted) or "none"),
+               f"- Hold ({len(held)}): " + (", ".join(held) or "none")]
+     lines += ["", "## Criteria on hold or blocked"]
+@@ -814,11 +917,13 @@ def set_status(graph, args):
+     task.setdefault("status_history", []).append(transition)
+ 
+ 
+-def main():
++def main(argv=None):
+     parser = argparse.ArgumentParser(description=__doc__)
+     commands = parser.add_subparsers(dest="command", required=True)
+     show = commands.add_parser("show", help="Read current candidate, derived parent counts and six queues")
+     show.add_argument("--json", action="store_true")
++    frontier_command = commands.add_parser("frontier", help="Read the grouped functional qualification frontier and acceptance joins")
++    frontier_command.add_argument("--json", action="store_true")
+     remaining = commands.add_parser("remaining", help="List criterion-level work that is not verified")
+     remaining.add_argument("--parent")
+     remaining.add_argument("--stream", choices=("Layout", "PCB", "Keymap", "Keycaps", "Case", "Parts+Project", "Shared"))
+@@ -850,7 +955,7 @@ def main():
+     candidate.add_argument("proof", help="repository-relative path to an existing package proof")
+     candidate.add_argument("--root-url", help="served root URL; defaults to the current candidate URL")
+     candidate.add_argument("--subpath-url", help="served subpath URL; defaults to the current candidate URL")
+-    args = parser.parse_args()
++    args = parser.parse_args(argv)
+     if args.command == "record-candidate":
+         changed = record_candidate(args.proof, args.root_url, args.subpath_url)
+         print("Served candidate recorded" if changed else "Served candidate already current")
+@@ -868,6 +973,12 @@ def main():
+         else:
+             print(text, end="")
+         return
++    if args.command == "frontier":
++        if args.json:
++            print(json.dumps(functional_readiness(graph), indent=2))
++        else:
++            print("\n".join(functional_frontier_lines(graph)))
++        return
+     if args.command == "parent":
+         validate_criteria(graph)
+         match = next((task for task in graph["tasks"] if task["id"] == args.parent), None)
+@@ -935,7 +1046,8 @@ def main():
+     progress = run["current_progress"]
+     if args.command == "show" and args.json:
+         print(json.dumps(progress | {"parent_counts": counts(graph["tasks"]),
+-                                    "criteria_counts": criterion_counts(graph)}, indent=2))
++                                    "criteria_counts": criterion_counts(graph),
++                                    "functional_readiness": functional_readiness(graph)}, indent=2))
+         return
+     tally = counts(graph["tasks"])
+     print(f"Parents: {tally.get('accepted', 0)}/{tally['total']} accepted; "
+@@ -946,6 +1058,15 @@ def main():
+         print("Durable criteria: " + ", ".join(f"{state} {states.get(state, 0)}"
+                                        for state in ("unassessed", "missing", "implemented", "verified"))
+               + f"; {criteria_summary['total']} total")
++        frontier = functional_readiness(graph)
++        grouped = "; ".join(
++            f"{stream} {len(data['ready_investigate'])} investigate/"
++            f"{len(data['ready_implement'])} implement/{len(data['ready_qualify'])} qualify"
++            for stream, data in frontier["by_stream"].items())
++        print(f"Functional readiness: {frontier['ready_investigate']} investigate, "
++              f"{frontier['ready_implement']} implement, "
++              f"{frontier['ready_qualify']} qualify; {grouped}; "
++              f"{len(frontier['functionally_verified_waiting'])} functionally verified parents await formal acceptance")
+     candidate = progress["served_candidate"]
+     print(f"Served: {candidate['root_url']} ({candidate['source_commit'][:8]})")
+     print(f"Integration: {progress['integration']['state']}")
+diff --git a/.scratch/dioxus-frontend-v1/qualification.py b/.scratch/dioxus-frontend-v1/qualification.py
+index 0f2cf8a2..d79f1b0e 100644
+--- a/.scratch/dioxus-frontend-v1/qualification.py
++++ b/.scratch/dioxus-frontend-v1/qualification.py
+@@ -1,4 +1,5 @@
+ """Advance a verified immutable candidate to selected-scope qualification, not acceptance."""
++import hashlib
+ from datetime import datetime, timezone
+ from pathlib import Path
+ import re
+@@ -91,6 +92,62 @@ def changed_paths(root, source_commit, candidate_commit):
+     return {path for path in output.split('\0') if path}
+ 
+ 
++def _valid_repo_path(value):
++    if (not isinstance(value, str) or not value or value.startswith("/")
++            or "\\" in value or "\0" in value or re.match(r"^[A-Za-z]:", value)):
++        return False
++    parts = value.split("/")
++    return all(part and part not in (".", "..") for part in parts)
++
++
++def _repo_path(root, value):
++    """Resolve a validated repository-relative path without traversing symlinks."""
++    if not _valid_repo_path(value):
++        return None
++    path = Path(root)
++    for part in Path(value).parts:
++        path = path / part
++        if path.is_symlink():
++            return None
++    return path
++
++
++def _changed_under_root(changed, source_root):
++    return changed == source_root or changed.startswith(source_root.rstrip("/") + "/")
++
++
++def fixture_identities_match(journey, prior, root):
++    """Require optional pinned fixture bytes to match this scope and its prior verdict."""
++    current = journey.get('fixtures', [])
++    previous = prior.get('fixtures', []) if isinstance(prior, dict) else []
++    if not isinstance(current, list) or current != previous:
++        return False
++    seen = set()
++    for fixture in current:
++        if (not isinstance(fixture, dict) or set(fixture) != {'path', 'sha256'}
++                or not _valid_repo_path(fixture['path'])
++                or not isinstance(fixture['sha256'], str)
++                or not re.fullmatch(r'[0-9a-f]{64}', fixture['sha256'])
++                or fixture['path'] in seen):
++            return False
++        seen.add(fixture['path'])
++        path = _repo_path(root, fixture['path'])
++        if path is None:
++            return False
++        if not path.is_file():
++            return False
++        digest = hashlib.sha256()
++        try:
++            with path.open('rb') as stream:
++                for chunk in iter(lambda: stream.read(1024 * 1024), b''):
++                    digest.update(chunk)
++        except OSError:
++            return False
++        if digest.hexdigest() != fixture['sha256']:
++            return False
++    return True
++
++
+ def reusable_journeys(scope_journeys, previous, previous_source, candidate_source, root):
+     """Carry passed behavior only when its explicit source footprint stayed unchanged."""
+     paths = changed_paths(root, previous_source, candidate_source)
+@@ -100,19 +157,40 @@ def reusable_journeys(scope_journeys, previous, previous_source, candidate_sourc
+     for journey in clean_journeys(scope_journeys):
+         prior = prior_by_id.get(journey.get('id'))
+         footprint = journey.get('source_paths')
++        source_roots = journey.get('source_roots', [])
++        optional_paths = journey.get('optional_source_paths', [])
+         complete_footprint = journey.get('source_paths_complete') is True
+-        if (paths is None or not isinstance(footprint, list) or not footprint
+-                or not complete_footprint
+-                or any(not isinstance(path, str) or not path or path.startswith('/')
+-                       or '..' in Path(path).parts or '\\' in path for path in footprint)
+-                or any(not (Path(root) / path).is_file() for path in footprint
+-                       if isinstance(path, str) and path)
+-                or paths.intersection(footprint) or not isinstance(prior, dict)
++        valid_files = (isinstance(footprint, list)
++                       and all(isinstance(path, str) and _repo_path(root, path) is not None
++                               and _repo_path(root, path).is_file() for path in footprint))
++        valid_roots = (isinstance(source_roots, list)
++                       and all(isinstance(path, str) and _repo_path(root, path) is not None
++                               and _repo_path(root, path).is_dir() for path in source_roots))
++        valid_optional = (isinstance(optional_paths, list)
++                          and all(isinstance(path, str) for path in optional_paths)
++                          and len(optional_paths) == len(set(optional_paths))
++                          and all(_repo_path(root, path) is not None
++                                  and not _repo_path(root, path).exists()
++                                  for path in optional_paths))
++        covered_paths = set(footprint) if valid_files else set()
++        covered_roots = source_roots if valid_roots else []
++        covered_optional = set(optional_paths) if valid_optional else set()
++        changed_covered = (paths is not None and any(
++            changed in covered_paths or changed in covered_optional
++            or any(_changed_under_root(changed, source_root)
++                                            for source_root in covered_roots)
++            for changed in paths))
++        if (paths is None or not valid_files or not valid_roots or not valid_optional
++                or not (footprint or source_roots or optional_paths) or not complete_footprint
++                or changed_covered or not isinstance(prior, dict)
+                 or prior.get('state') != 'passed'
+                 or prior.get('scope') != journey.get('scope')
+                 or prior.get('spec') != journey.get('spec')
+                 or prior.get('source_paths') != footprint
+-                or prior.get('source_paths_complete') is not True):
++                or prior.get('source_roots', []) != source_roots
++                or prior.get('optional_source_paths', []) != optional_paths
++                or prior.get('source_paths_complete') is not True
++                or not fixture_identities_match(journey, prior, root)):
+             result.append(dict(journey, state='pending'))
+             continue
+         evidence = prior.get('evidence')
+diff --git a/.scratch/dioxus-frontend-v1/test-progress.py b/.scratch/dioxus-frontend-v1/test-progress.py
+index ff4376f7..a3b71882 100644
+--- a/.scratch/dioxus-frontend-v1/test-progress.py
++++ b/.scratch/dioxus-frontend-v1/test-progress.py
+@@ -2,9 +2,11 @@
+ 
+ import hashlib
+ import importlib.util
++import io
+ import json
+ from pathlib import Path
+ import tempfile
++from contextlib import redirect_stdout
+ from urllib.parse import urlsplit
+ import unittest
+ from unittest.mock import patch
+@@ -391,6 +393,74 @@ class ProgressTests(unittest.TestCase):
+         visual = progress.ready_rows(graph, "implement", classification="visual")
+         self.assertEqual([row["criterion"]["id"] for row in visual], ["F3.2-C02"])
+ 
++    def test_functional_readiness_separates_ready_work_from_formal_joins(self):
++        graph = self.criterion_graph()
++        graph["tasks"][1]["criteria"][0]["state"] = "verified"
++        graph["tasks"][1]["criteria_accounting"]["coverage"] = "complete"
++        graph["tasks"][1]["acceptance_after"] = ["F3.62"]
++        graph["tasks"][2]["criteria"][0]["state"] = "implemented"
++        graph["tasks"][2]["criteria"][0]["blockers"] = []
++        graph["tasks"][2]["criteria_accounting"]["coverage"] = "complete"
++        graph["tasks"][5]["criteria"] = [self.criterion("F3.6", 1, state="unassessed")]
++        graph["tasks"][5]["criteria_accounting"] = {
++            "source_commit": "a" * 40, "assessed_at": "2026-10-03T12:00:00Z",
++            "coverage": "partial", "note": "Unassessed functional criterion",
++        }
++        graph["tasks"][5]["acceptance_after"] = ["F3.1"]
++        frontier = progress.functional_readiness(graph)
++        self.assertEqual(frontier["ready_investigate"], 1)
++        self.assertEqual(frontier["ready_implement"], 1)
++        self.assertEqual(frontier["ready_qualify"], 1)
++        self.assertEqual(frontier["by_stream"]["Layout"]["by_state"]["unassessed"], 1)
++        self.assertEqual(frontier["by_stream"]["Layout"]["ready_investigate"], ["F3.6-C01"])
++        self.assertEqual(frontier["by_stream"]["Layout"]["ready_implement"],
++                         ["F3.5-C01"])
++        self.assertEqual(frontier["by_stream"]["Layout"]["ready_qualify"], ["F3.3-C01"])
++        waiting = {row["parent"]: row for row in frontier["functionally_verified_waiting"]}
++        self.assertEqual(waiting["F3.2"]["unmet_final_joins"], ["F3.62"])
++        self.assertEqual(waiting["F3.2"]["unverified_visual_release"], ["F3.2-C02"])
++        self.assertNotIn("F3.6", waiting, "unassessed functional criteria are not functionally complete")
++        self.assertEqual(frontier["unmet_final_joins"], [{"parent":"F3.2", "joins":["F3.62"]}])
++
++    def test_complete_unaccepted_parent_remains_visible_for_formal_acceptance(self):
++        graph = self.criterion_graph()
++        task = graph["tasks"][3]
++        task["status"] = "implementing"
++        task["criteria"] = [self.criterion("F3.4", 1, state="verified"),
++                            self.criterion("F3.4", 2, state="verified", classification="visual")]
++        task["criteria_accounting"]["coverage"] = "complete"
++        task["acceptance_after"] = ["F3.1"]  # The only final join is already accepted.
++
++        frontier = progress.functional_readiness(graph)
++        waiting = {row["parent"]: row for row in frontier["functionally_verified_waiting"]}
++        self.assertEqual(waiting["F3.4"]["unmet_final_joins"], [])
++        self.assertEqual(waiting["F3.4"]["unverified_visual_release"], [])
++        self.assertEqual(waiting["F3.4"]["coverage"], "complete")
++        report = "\n".join(progress.functional_frontier_lines(graph))
++        self.assertIn("F3.4: formal acceptance/review pending", report)
++
++    def test_frontier_render_and_handoff_report_exact_joins_without_mobile_claims(self):
++        graph = self.criterion_graph()
++        graph["tasks"][1]["criteria"][0]["state"] = "verified"
++        graph["tasks"][1]["criteria_accounting"]["coverage"] = "complete"
++        graph["tasks"][1]["acceptance_after"] = ["F3.62"]
++        output = "\n".join(progress.functional_frontier_lines(graph))
++        self.assertIn("F3.2: joins F3.62; visual/release F3.2-C02", output)
++        self.assertIn("unassessed 0, missing 1", output)
++        self.assertIn("F3.2 → F3.62", output)
++        self.assertNotIn("mobile", output.casefold())
++        handoff = progress.handoff_markdown({"current_progress": {}}, graph, [])
++        self.assertIn("Exact unmet final joins:", handoff)
++        self.assertIn("F3.2 → F3.62", handoff)
++
++    def test_frontier_cli_json_emits_derived_frontier_payload(self):
++        graph = self.criterion_graph()
++        stream = io.StringIO()
++        with patch.object(progress, "read", side_effect=[{"current_progress": {}}, graph]):
++            with redirect_stdout(stream):
++                progress.main(["frontier", "--json"])
++        self.assertEqual(json.loads(stream.getvalue()), progress.functional_readiness(graph))
++
+     def test_ready_payload_uses_compact_parent_metadata_and_exact_criterion(self):
+         graph = self.criterion_graph()
+         row = progress.ready_rows(graph, "implement")[0]
+diff --git a/.scratch/dioxus-frontend-v1/test-qualification.py b/.scratch/dioxus-frontend-v1/test-qualification.py
+index 7c965a21..e1eab458 100644
+--- a/.scratch/dioxus-frontend-v1/test-qualification.py
++++ b/.scratch/dioxus-frontend-v1/test-qualification.py
+@@ -1,4 +1,5 @@
+ """Checks for the Layout-ready phase boundary; no application tests."""
++import hashlib
+ import importlib.util
+ from pathlib import Path
+ import tempfile
+@@ -233,6 +234,218 @@ class QualificationTests(unittest.TestCase):
+                     'c'*40, 'd'*40, root)
+             self.assertEqual(journeys[0]['state'], 'pending')
+ 
++    def test_complete_source_roots_reuse_and_invalidate_changed_or_new_consumed_files(self):
++        with tempfile.TemporaryDirectory() as directory:
++            root = Path(directory)
++            (root/'receipt.md').write_text('paired evidence')
++            (root/'web/src/provider').mkdir(parents=True)
++            (root/'web/src/provider/current.rs').write_text('source')
++            journey = {'id':'recipe-layout', 'scope':'Apply and re-edit recipe',
++                       'source_paths':['.scratch/fixtures/saved-recipe.json'],
++                       'source_roots':['web/src/provider'], 'source_paths_complete':True}
++            (root/'.scratch/fixtures').mkdir(parents=True)
++            (root/'.scratch/fixtures/saved-recipe.json').write_text('{}')
++            prior = dict(journey, state='passed', evidence='receipt.md')
++            def git_changed(value):
++                return lambda _root, *args: value if args[:3] == ('diff', '--no-renames', '--name-only') else ''
++            with patch.object(q, 'git', side_effect=git_changed('')):
++                result = q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)
++            self.assertEqual(result[0]['state'], 'passed')
++            for changed in ('web/src/provider/current.rs', 'web/src/provider/new.rs',
++                            '.scratch/fixtures/saved-recipe.json'):
++                with patch.object(q, 'git', side_effect=git_changed(changed + '\0')):
++                    result = q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)
++                self.assertEqual(result[0]['state'], 'pending', changed)
++
++    def test_source_roots_require_prior_exact_identity_and_complete_footprint(self):
++        with tempfile.TemporaryDirectory() as directory:
++            root = Path(directory)
++            (root/'receipt.md').write_text('paired evidence')
++            (root/'web/src/provider').mkdir(parents=True)
++            journey = {'id':'recipe-layout', 'scope':'Apply', 'source_paths':[],
++                       'source_roots':['web/src/provider'], 'source_paths_complete':True}
++            prior = dict(journey, state='passed', evidence='receipt.md')
++            def unchanged(_root, *args):
++                return ''
++            with patch.object(q, 'git', side_effect=unchanged):
++                self.assertEqual(q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)[0]['state'], 'passed')
++                prior['source_roots'] = ['web/src']
++                self.assertEqual(q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)[0]['state'], 'pending')
++                prior['source_roots'] = journey['source_roots']
++                prior['source_paths_complete'] = False
++                self.assertEqual(q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)[0]['state'], 'pending')
++                journey['source_paths_complete'] = False
++                prior['source_paths_complete'] = False
++                self.assertEqual(q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)[0]['state'], 'pending')
++                journey['source_paths_complete'] = True
++                prior['source_paths_complete'] = True
++                journey['source_roots'] = ['.']
++                prior['source_roots'] = ['.']
++                self.assertEqual(q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)[0]['state'], 'pending')
++
++    def test_malformed_source_footprints_fail_closed_without_raising(self):
++        with tempfile.TemporaryDirectory() as directory:
++            root = Path(directory)
++            (root/'receipt.md').write_text('paired evidence')
++            (root/'web/src/provider').mkdir(parents=True)
++            def unchanged(_root, *args):
++                return ''
++
++            malformed = [
++                ({'path':'web/src/provider'}, ['web/src/provider']),
++                (['web/src/provider'], {'path':'web/src/provider'}),
++                (None, ['web/src/provider']),
++                (['web/src/provider'], None),
++            ]
++            with patch.object(q, 'git', side_effect=unchanged):
++                for source_paths, source_roots in malformed:
++                    journey = {'id':'invalid-footprint', 'scope':'Edit',
++                               'source_paths':source_paths, 'source_roots':source_roots,
++                               'source_paths_complete':True}
++                    prior = dict(journey, state='passed', evidence='receipt.md')
++                    result = q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)
++                    self.assertEqual(result[0]['state'], 'pending')
++                journey = {'id':'invalid-optional-footprint', 'scope':'Edit',
++                           'source_paths':[], 'source_roots':['web/src/provider'],
++                           'optional_source_paths':[{'path':'.cargo/config'}],
++                           'source_paths_complete':True}
++                prior = dict(journey, state='passed', evidence='receipt.md')
++                result = q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)
++                self.assertEqual(result[0]['state'], 'pending')
++
++    def test_source_roots_and_files_reject_intermediate_symlinks(self):
++        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as outside:
++            root = Path(directory)
++            (root/'receipt.md').write_text('paired evidence')
++            (root/'linked').symlink_to(outside, target_is_directory=True)
++            outside_path = Path(outside)
++            (outside_path/'provider').mkdir()
++            (outside_path/'source.rs').write_text('source')
++            journey = {'id':'symlink-footprint', 'scope':'Edit',
++                       'source_paths':['linked/source.rs'], 'source_roots':['linked/provider'],
++                       'source_paths_complete':True}
++            prior = dict(journey, state='passed', evidence='receipt.md')
++            with patch.object(q, 'git', return_value=''):
++                result = q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)
++            self.assertEqual(result[0]['state'], 'pending')
++
++    def test_added_optional_source_input_invalidates_previously_passed_journey(self):
++        with tempfile.TemporaryDirectory() as directory:
++            root = Path(directory)
++            (root/'receipt.md').write_text('paired evidence')
++            (root/'web/src/provider').mkdir(parents=True)
++            journey = {'id':'optional-config', 'scope':'Layout route',
++                       'source_paths':[], 'source_roots':['web/src/provider'],
++                       'optional_source_paths':['.cargo/config', '.cargo/config.toml'],
++                       'source_paths_complete':True}
++            prior = dict(journey, state='passed', evidence='receipt.md')
++
++            def unchanged(_root, *args):
++                return ''
++
++            with patch.object(q, 'git', side_effect=unchanged):
++                result = q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)
++                self.assertEqual(result[0]['state'], 'passed')
++
++                prior['optional_source_paths'] = ['.cargo/config']
++                result = q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)
++                self.assertEqual(result[0]['state'], 'pending')
++                prior['optional_source_paths'] = journey['optional_source_paths']
++
++                def changed_config(_root, *args):
++                    return '.cargo/config\0' if args[:3] == ('diff', '--no-renames', '--name-only') else ''
++
++                with patch.object(q, 'git', side_effect=changed_config):
++                    result = q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)
++                self.assertEqual(result[0]['state'], 'pending')
++
++                # Presence invalidates the pinned-absent identity even if Git reports
++                # no changed path (for example, an untracked config addition).
++                (root/'.cargo').mkdir()
++                (root/'.cargo/config').write_text('[build]\ntarget-dir = "target"\n')
++                result = q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)
++                self.assertEqual(result[0]['state'], 'pending')
++
++    def test_fixture_identity_hashes_detect_untracked_byte_changes_and_new_hashes(self):
++        with tempfile.TemporaryDirectory() as directory:
++            root = Path(directory)
++            (root/'receipt.md').write_text('paired evidence')
++            (root/'web/src/provider').mkdir(parents=True)
++            (root/'web/src/provider/controller.rs').write_text('source')
++            fixture = root/'.scratch/fixtures/routed-board.boardstudio'
++            fixture.parent.mkdir(parents=True)
++            original_bytes = b'initial board fixture'
++            fixture.write_bytes(original_bytes)
++            original_identity = {
++                'path':'.scratch/fixtures/routed-board.boardstudio',
++                'sha256':hashlib.sha256(original_bytes).hexdigest(),
++            }
++            journey = {'id':'pcb-model-viewer', 'scope':'Pick, edit, save and reopen',
++                       'source_paths':[], 'source_roots':['web/src/provider'],
++                       'source_paths_complete':True,
++                       'fixtures':[original_identity]}
++            prior = dict(journey, state='passed', evidence='receipt.md')
++
++            def unchanged(_root, *args):
++                return ''
++
++            with patch.object(q, 'git', side_effect=unchanged):
++                result = q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)
++                self.assertEqual(result[0]['state'], 'passed')
++
++                # The file is deliberately untracked; Git reports no changed source paths.
++                edited_bytes = b'edited board fixture'
++                fixture.write_bytes(edited_bytes)
++                result = q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)
++                self.assertEqual(result[0]['state'], 'pending')
++
++                # Even with a matching new on-disk hash, the older verdict does not
++                # authorize reuse for a changed fixture identity at the same path.
++                new_identity = dict(original_identity,
++                                    sha256=hashlib.sha256(edited_bytes).hexdigest())
++                journey['fixtures'] = [new_identity]
++                result = q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)
++                self.assertEqual(result[0]['state'], 'pending')
++
++                # Once a prior passed verdict pins the same identity, reuse is eligible.
++                prior['fixtures'] = [new_identity]
++                result = q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)
++                self.assertEqual(result[0]['state'], 'passed')
++
++    def test_fixture_identities_reject_unsafe_missing_and_malformed_paths(self):
++        with tempfile.TemporaryDirectory() as directory:
++            root = Path(directory)
++            (root/'receipt.md').write_text('paired evidence')
++            (root/'web/src/provider').mkdir(parents=True)
++            (root/'web/src/provider/controller.rs').write_text('source')
++            fixture_bytes = b'fixture'
++            (root/'fixture.boardstudio').write_bytes(fixture_bytes)
++            digest = hashlib.sha256(fixture_bytes).hexdigest()
++            journey = {'id':'case-local-step-scope', 'scope':'Export current authored Case',
++                       'source_paths':[], 'source_roots':['web/src/provider'],
++                       'source_paths_complete':True}
++            prior = dict(journey, state='passed', evidence='receipt.md')
++
++            def unchanged(_root, *args):
++                return ''
++
++            invalid = [
++                {'path':'/etc/passwd', 'sha256':digest},
++                {'path':'../outside.boardstudio', 'sha256':digest},
++                {'path':'bad\0path.boardstudio', 'sha256':digest},
++                {'path':'C:/outside.boardstudio', 'sha256':digest},
++                {'path':'missing.boardstudio', 'sha256':digest},
++                {'path':'fixture.boardstudio', 'sha256':'0'*64},
++                {'path':'fixture.boardstudio', 'sha256':digest, 'label':'extra'},
++            ]
++            with patch.object(q, 'git', side_effect=unchanged):
++                for identity in invalid:
++                    journey['fixtures'] = [identity]
++                    prior['fixtures'] = [identity]
++                    result = q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)
++                    self.assertEqual(result[0]['state'], 'pending', identity)
++
++
+     def test_identical_source_candidate_still_requires_candidate_review(self):
+         state = self.progress['qualification']
+         state.update(candidate_build_id='candidate-1', source_commit='c'*40,

@@ -1,0 +1,26 @@
+[
+  {
+    "path": ".scratch/dioxus-frontend-v1/evidence/acceleration-implementation-20261005/case-local-export-red.log",
+    "sha256": "4a2faa46a53f523bbdb37bbfad536bc1ab901dbb6f1bfe01df59fb9efee3c042",
+    "observations": [
+      "  process didn't exit successfully: `/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-ade5ef492b9e030c.wasm 'cad_presentation::mounted_tests::mounted_case_local_export_uses_current_exact_mechanical_scope' --nocapture` (exit status: 1)",
+      "  full command: cd \"web\" && CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=\"/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner\" CHROMEDRIVER=\"/usr/bin/chromedriver\" WASM_BINDGEN_TEST_ONLY_WEB=\"1\" \"cargo\" \"test\" \"--target\" \"wasm32-unknown-unknown\" \"--no-default-features\" \"--features\" \"page\" \"--bin\" \"boardstudio-web\" \"--\" \"cad_presentation::mounted_tests::mounted_case_local_export_uses_current_exact_mechanical_scope\" \"--nocapture\"",
+      "Invoking test: cad_presentation::mounted_tests::mounted_case_local_export_uses_current_exact_mechanical_scope",
+      "Case mounts Export geometry",
+      "test cad_presentation::mounted_tests::mounted_case_local_export_uses_current_exact_mechanical_scope ... FAIL",
+      "---- cad_presentation::mounted_tests::mounted_case_local_export_uses_current_exact_mechanical_scope output ----",
+      "        Case mounts Export geometry",
+      "    cad_presentation::mounted_tests::mounted_case_local_export_uses_current_exact_mechanical_scope",
+      "test result: FAILED. 0 passed; 1 failed; 0 ignored; 297 filtered out; finished in 0.16s"
+    ]
+  },
+  {
+    "path": ".scratch/dioxus-frontend-v1/evidence/acceleration-implementation-20261005/case-local-export-green.log",
+    "sha256": "36c56416783c52706cf7ed689e4e32d8bbd4b2d38340f5b2c6bfc3c6c1587735",
+    "observations": [
+      "Invoking test: cad_presentation::mounted_tests::mounted_case_local_export_uses_current_exact_mechanical_scope",
+      "test cad_presentation::mounted_tests::mounted_case_local_export_uses_current_exact_mechanical_scope ... ok",
+      "test result: ok. 1 passed; 0 failed; 0 ignored; 297 filtered out; finished in 0.43s"
+    ]
+  }
+]

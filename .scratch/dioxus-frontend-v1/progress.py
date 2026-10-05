@@ -288,6 +288,96 @@ def criterion_rows(graph, *, parent=None, stream=None, state=None, classificatio
     return rows
 
 
+def functional_readiness(graph):
+    """Derive runnable functional work separately from parent acceptance."""
+    validate_criteria(graph)
+    streams = ("Layout", "PCB", "Keymap", "Keycaps", "Case", "Parts+Project", "Shared")
+    states = ("unassessed", "missing", "implemented", "verified")
+    by_stream = {name: {"by_state": {state: 0 for state in states},
+                        "ready_investigate": [], "ready_implement": [], "ready_qualify": []}
+                 for name in streams}
+    accepted = {task["id"] for task in graph["tasks"] if task["status"] == "accepted"}
+    waiting_for_formal_acceptance = []
+    unmet_final_joins = []
+    for task in graph["tasks"]:
+        stream = parent_stream(task)
+        functional = [item for item in task.get("criteria", [])
+                      if item["classification"] == "functional"]
+        bucket = by_stream.setdefault(stream, {"by_state": {state: 0 for state in states},
+                                                "ready_investigate": [],
+                                                "ready_implement": [], "ready_qualify": []})
+        for criterion in functional:
+            bucket["by_state"][criterion["state"]] += 1
+        missing_joins = [join for join in task.get("acceptance_after", []) if join not in accepted]
+        if missing_joins and task["status"] != "accepted":
+            unmet_final_joins.append({"parent": task["id"], "joins": missing_joins})
+        unverified_nonfunctional = [item["id"] for item in task.get("criteria", [])
+                                   if item["classification"] in ("visual", "release")
+                                   and item["state"] != "verified"]
+        if (task["status"] != "accepted" and functional
+                and all(item["state"] == "verified" for item in functional)):
+            waiting_for_formal_acceptance.append({
+                "parent": task["id"], "unmet_final_joins": missing_joins,
+                "unverified_visual_release": unverified_nonfunctional,
+                "coverage": task.get("criteria_accounting", {}).get("coverage", "unrecorded"),
+            })
+    for kind in ("investigate", "implement", "qualify"):
+        for row in ready_rows(graph, kind):
+            stream = row["parent_spec"]["stream"]
+            by_stream.setdefault(stream, {"by_state": {value: 0 for value in states},
+                                          "ready_investigate": [],
+                                          "ready_implement": [], "ready_qualify": []})[
+                f"ready_{kind}"].append(row["criterion"]["id"])
+    return {
+        "by_stream": by_stream,
+        "ready_investigate": sum(len(value["ready_investigate"]) for value in by_stream.values()),
+        "ready_implement": sum(len(value["ready_implement"]) for value in by_stream.values()),
+        "ready_qualify": sum(len(value["ready_qualify"]) for value in by_stream.values()),
+        "functionally_verified_waiting": waiting_for_formal_acceptance,
+        "unmet_final_joins": unmet_final_joins,
+    }
+
+
+def functional_frontier_lines(graph):
+    """Render the read-only grouped functional frontier and exact remaining joins."""
+    frontier = functional_readiness(graph)
+    lines = ["Functional readiness by workbench:"]
+    for stream, value in frontier["by_stream"].items():
+        counts = value["by_state"]
+        lines.append(f"  {stream}: unassessed {counts['unassessed']}, missing {counts['missing']}, "
+                     f"implemented {counts['implemented']}, "
+                     f"verified {counts['verified']}; ready investigate {len(value['ready_investigate'])}, "
+                     f"implement {len(value['ready_implement'])}, "
+                     f"qualify {len(value['ready_qualify'])}")
+        if value["ready_investigate"]:
+            lines.append("    Investigate: " + ", ".join(value["ready_investigate"]))
+        if value["ready_implement"]:
+            lines.append("    Implement: " + ", ".join(value["ready_implement"]))
+        if value["ready_qualify"]:
+            lines.append("    Qualify: " + ", ".join(value["ready_qualify"]))
+    waiting = frontier["functionally_verified_waiting"]
+    lines.append("Functional criteria verified; formal acceptance still outstanding:")
+    for item in waiting:
+        details = []
+        if item["unmet_final_joins"]:
+            details.append("joins " + ", ".join(item["unmet_final_joins"]))
+        if item["unverified_visual_release"]:
+            details.append("visual/release " + ", ".join(item["unverified_visual_release"]))
+        if item["coverage"] != "complete":
+            details.append("criterion coverage " + item["coverage"])
+        if not details:
+            details.append("formal acceptance/review pending")
+        lines.append(f"  {item['parent']}: " + "; ".join(details))
+    if not waiting:
+        lines.append("  none")
+    lines.append("Exact unmet final joins:")
+    for item in frontier["unmet_final_joins"]:
+        lines.append(f"  {item['parent']} → " + ", ".join(item["joins"]))
+    if not frontier["unmet_final_joins"]:
+        lines.append("  none")
+    return lines
+
+
 def ready_rows(graph, kind, *, stream=None, classification=None):
     validate_criteria(graph)
     criterion_index = {
@@ -676,6 +766,19 @@ def handoff_markdown(run, graph, findings, git=None):
     held = sorted({task["id"] for task in tasks if task["status"] != "accepted"
                    for criterion in task.get("criteria", [])
                    if "HOLD" in criterion.get("next_action", "")})
+    frontier = functional_readiness(graph)
+    stream_summary = "; ".join(
+        f"{stream} {len(data['ready_investigate'])} investigate/"
+        f"{len(data['ready_implement'])} implement/{len(data['ready_qualify'])} qualify"
+        for stream, data in frontier["by_stream"].items())
+    lines += ["", "## Functional readiness",
+              f"- Ready functional criteria: {frontier['ready_investigate']} investigate, "
+              f"{frontier['ready_implement']} implement, "
+              f"{frontier['ready_qualify']} qualify ({stream_summary})",
+              f"- Functionally verified parents awaiting formal acceptance: "
+              f"{len(frontier['functionally_verified_waiting'])}",
+              f"- Parents with unmet final joins: {len(frontier['unmet_final_joins'])}"]
+    lines += functional_frontier_lines(graph)[1:]
     lines += ["", "## Parents", f"- Accepted ({len(accepted)}): " + (", ".join(accepted) or "none"),
               f"- Hold ({len(held)}): " + (", ".join(held) or "none")]
     lines += ["", "## Criteria on hold or blocked"]
@@ -814,11 +917,13 @@ def set_status(graph, args):
     task.setdefault("status_history", []).append(transition)
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     show = commands.add_parser("show", help="Read current candidate, derived parent counts and six queues")
     show.add_argument("--json", action="store_true")
+    frontier_command = commands.add_parser("frontier", help="Read the grouped functional qualification frontier and acceptance joins")
+    frontier_command.add_argument("--json", action="store_true")
     remaining = commands.add_parser("remaining", help="List criterion-level work that is not verified")
     remaining.add_argument("--parent")
     remaining.add_argument("--stream", choices=("Layout", "PCB", "Keymap", "Keycaps", "Case", "Parts+Project", "Shared"))
@@ -850,7 +955,7 @@ def main():
     candidate.add_argument("proof", help="repository-relative path to an existing package proof")
     candidate.add_argument("--root-url", help="served root URL; defaults to the current candidate URL")
     candidate.add_argument("--subpath-url", help="served subpath URL; defaults to the current candidate URL")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     if args.command == "record-candidate":
         changed = record_candidate(args.proof, args.root_url, args.subpath_url)
         print("Served candidate recorded" if changed else "Served candidate already current")
@@ -867,6 +972,12 @@ def main():
             Path(args.out).write_text(text)
         else:
             print(text, end="")
+        return
+    if args.command == "frontier":
+        if args.json:
+            print(json.dumps(functional_readiness(graph), indent=2))
+        else:
+            print("\n".join(functional_frontier_lines(graph)))
         return
     if args.command == "parent":
         validate_criteria(graph)
@@ -935,7 +1046,8 @@ def main():
     progress = run["current_progress"]
     if args.command == "show" and args.json:
         print(json.dumps(progress | {"parent_counts": counts(graph["tasks"]),
-                                    "criteria_counts": criterion_counts(graph)}, indent=2))
+                                    "criteria_counts": criterion_counts(graph),
+                                    "functional_readiness": functional_readiness(graph)}, indent=2))
         return
     tally = counts(graph["tasks"])
     print(f"Parents: {tally.get('accepted', 0)}/{tally['total']} accepted; "
@@ -946,6 +1058,15 @@ def main():
         print("Durable criteria: " + ", ".join(f"{state} {states.get(state, 0)}"
                                        for state in ("unassessed", "missing", "implemented", "verified"))
               + f"; {criteria_summary['total']} total")
+        frontier = functional_readiness(graph)
+        grouped = "; ".join(
+            f"{stream} {len(data['ready_investigate'])} investigate/"
+            f"{len(data['ready_implement'])} implement/{len(data['ready_qualify'])} qualify"
+            for stream, data in frontier["by_stream"].items())
+        print(f"Functional readiness: {frontier['ready_investigate']} investigate, "
+              f"{frontier['ready_implement']} implement, "
+              f"{frontier['ready_qualify']} qualify; {grouped}; "
+              f"{len(frontier['functionally_verified_waiting'])} functionally verified parents await formal acceptance")
     candidate = progress["served_candidate"]
     print(f"Served: {candidate['root_url']} ({candidate['source_commit'][:8]})")
     print(f"Integration: {progress['integration']['state']}")

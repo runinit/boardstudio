@@ -241,6 +241,8 @@ class PageOnlyReuseTests(TestCase):
             path.write_bytes(body)
 
         def check_output(command, **kwargs):
+            if command[:2] == ["git", "status"]:
+                return b""
             if command[:2] == ["git", "rev-parse"]:
                 if len(command) == 3 and ":" in command[2]:
                     return next(iter(BUILD.COMPATIBLE_FULL_BUILD_HELPERS.values())) + "\n"
@@ -286,6 +288,34 @@ class PageOnlyReuseTests(TestCase):
             self.assertEqual(optimized.returncode, 2)
             self.assertFalse((root / "web/target/builds").exists())
             self.assertFalse(sentinel.exists())
+
+    def test_snapshot_donor_keeps_original_command_root_and_canonical_assets(self):
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            baseline, provenance = self.make_baseline(root)
+            donor = root / "web/target/migration-snapshot"
+            provenance["source_root"] = str(donor)
+            for row in provenance["commands"]:
+                label = Path(row["log"]).stem
+                row["argv"] = self.full_argv(label, donor, baseline)
+                row["cwd"] = str(donor / "web" if label.startswith("page-") and label != "page-check" else donor)
+            (baseline / "provenance.json").write_text(json.dumps(provenance))
+            with self._patches(self.mock_environment(root, provenance)):
+                self.assertEqual(BUILD.checked_baseline("full-fixture")[1]["source_root"], str(donor))
+                provenance["commands"][0]["cwd"] = str(root)
+                (baseline / "provenance.json").write_text(json.dumps(provenance))
+                with self.assertRaisesRegex(ValueError, "command identity"):
+                    BUILD.checked_baseline("full-fixture")
+
+    def test_donor_cannot_claim_an_unowned_execution_root(self):
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            baseline, provenance = self.make_baseline(root)
+            provenance["source_root"] = "/unowned/checkout"
+            (baseline / "provenance.json").write_text(json.dumps(provenance))
+            with self._patches(self.mock_environment(root, provenance)):
+                with self.assertRaisesRegex(ValueError, "not the coordinator or its owned snapshot"):
+                    BUILD.checked_baseline("full-fixture")
 
     def test_full_build_retains_twenty_two_command_sequence_and_complete_provenance(self):
         with TemporaryDirectory() as temporary:
@@ -344,7 +374,7 @@ class PageOnlyReuseTests(TestCase):
 
             with patch.object(BUILD, "REPO", root), patch.object(BUILD, "WEB", web), \
                  patch.object(BUILD, "BUILD_ROOT", web / "target/builds"), \
-                 patch.object(BUILD.subprocess, "check_output", return_value="b" * 40), \
+                 patch.object(BUILD.subprocess, "check_output", side_effect=lambda argv, **kwargs: b"" if argv[:2] == ["git", "status"] else "b" * 40), \
                  patch.object(BUILD, "sources", return_value={"web/src/lib.rs": sha(b"source")}), \
                  patch.object(BUILD.subprocess, "run", side_effect=executor):
                 BUILD.build_full("full-stub")
@@ -375,7 +405,7 @@ class PageOnlyReuseTests(TestCase):
 
             with patch.object(BUILD, "REPO", root), patch.object(BUILD, "WEB", web), \
                  patch.object(BUILD, "BUILD_ROOT", web / "target/builds"), \
-                 patch.object(BUILD.subprocess, "check_output", return_value="b" * 40), \
+                 patch.object(BUILD.subprocess, "check_output", side_effect=lambda argv, **kwargs: b"" if argv[:2] == ["git", "status"] else "b" * 40), \
                  patch.object(BUILD, "sources", return_value={"web/src/lib.rs": sha(b"source")}), \
                  patch.object(BUILD.subprocess, "run", side_effect=executor):
                 with self.assertRaises(SystemExit) as raised:
@@ -587,6 +617,49 @@ class PageOnlyReuseTests(TestCase):
                 self.assertEqual(set(checked[6]), {path, include, nested})
                 self.assertTrue({include, nested}.issubset(checked[10]["page_feature_rust_inputs"]))
             self.assertFalse((root / "web/target/builds/candidate").exists())
+
+    def test_included_cfg_test_inline_module_is_ignored_only_in_release_graph(self):
+        lib = SOURCE_BYTES["web/src/lib.rs"] + (
+            b'#[cfg(feature = "core-worker")]\n'
+            b'#[path = "renderer_host_page.rs"]\nmod renderer_host_page;\n'
+        )
+        renderer = b'include!("renderer_host_page_base.rs");\n'
+        base = b'#[cfg(test)]\nmod lifecycle_tests { fn test_helper() {} }\n'
+        sources = {
+            "web/src/lib.rs": lib,
+            "web/src/renderer_host_page.rs": renderer,
+            "web/src/renderer_host_page_base.rs": base,
+        }
+        with patch.dict(SOURCE_BYTES, sources):
+            with TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                self.make_baseline(root)
+                head = dict(SOURCE_BYTES)
+                current = {name: sha(body) for name, body in head.items()}
+                with self._patches(self.mock_environment(root, {}, current, head)):
+                    checked = BUILD.validate_reuse("candidate", "full-fixture")
+                provider_inputs = set().union(*map(set, checked[10]["provider_rust_inputs"].values()))
+                self.assertIn("web/src/renderer_host_page_base.rs", provider_inputs)
+                self.assertFalse((root / "web/target/builds/candidate").exists())
+
+        # Active external modules and opaque macros in included text still fail closed.
+        for registration in (
+            b"mod active_registration;\n",
+            b"macro_rules! register { () => { mod hidden; }; } register!();\n",
+        ):
+            with self.subTest(registration=registration), patch.dict(SOURCE_BYTES, {
+                **sources,
+                "web/src/renderer_host_page_base.rs": registration,
+            }):
+                with TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    self.make_baseline(root)
+                    head = dict(SOURCE_BYTES)
+                    current = {name: sha(body) for name, body in head.items()}
+                    with self._patches(self.mock_environment(root, {}, current, head)):
+                        with self.assertRaisesRegex(ValueError, "included Rust source"):
+                            BUILD.validate_reuse("candidate", "full-fixture")
+                    self.assertFalse((root / "web/target/builds/candidate").exists())
 
     def test_literal_include_alias_is_a_provider_input(self):
         path = "web/src/presentation/keymap/binding_editor.rs"

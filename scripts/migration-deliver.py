@@ -16,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+from datetime import datetime, timezone
 import time
 import uuid
 
@@ -313,6 +314,29 @@ def _committed_files(root, paths):
     return [name for name in result.stdout.split("\0") if name]
 
 
+def _check_staged_build_inputs_match_worktree(root, paths):
+    """Ensure default staged commits publish the source that gates exercised."""
+    if paths:
+        # `git commit -- <paths>` takes those paths from the worktree.
+        return
+    receipts = _load_gate_receipts()
+    staged = subprocess.run(
+        ["git", "diff", "--cached", "--name-only", "-z"], cwd=root,
+        text=True, capture_output=True, check=True,
+    )
+    maintained = [name for name in staged.stdout.split("\0")
+                  if name and receipts.is_maintained_build_input(root, name)]
+    for name in maintained:
+        difference = subprocess.run(["git", "diff", "--quiet", "--", name], cwd=root)
+        if difference.returncode == 1:
+            raise GuardError(
+                f"staged build input {name} differs from the worktree tested by migration gates; "
+                "stage the tested bytes or restore the matching worktree before committing"
+            )
+        if difference.returncode != 0:
+            raise GuardError(f"cannot compare staged build input with worktree: {name}")
+
+
 def _tail(text, lines=60):
     return "\n".join(text.strip().splitlines()[-lines:])
 
@@ -322,12 +346,74 @@ NATIVE_CORE_TEST_COMMAND = ["cargo", "test", "--manifest-path", "core/Cargo.toml
 _FAILED_TEST = re.compile(r"^test (\S+) \.\.\. FAILED", re.M)
 
 
-def _run_native_tests(root, command, label):
-    print(f"migration-deliver: running native {label} tests before committing", file=sys.stderr)
+def _load_gate_receipts():
+    import importlib.util
+    path = Path(__file__).with_name("migration_gate_receipts.py")
+    spec = importlib.util.spec_from_file_location("migration_gate_receipts", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _utc(unix_time):
+    return datetime.fromtimestamp(unix_time, timezone.utc).isoformat(timespec="seconds")
+
+
+def _format_gate_result(label, receipt, reused):
+    counts = receipt.get("counts", {})
+    count_text = ""
+    if counts:
+        count_text = ", ".join(f"{name}={count}" for name, count in sorted(counts.items()))
+    status = "reused" if reused else "passed"
+    detail = f" ({count_text})" if count_text else ""
+    duration = receipt.get("duration_seconds", 0.0)
+    started = _utc(receipt.get("started_unix", time.time()))
+    ended = _utc(receipt.get("ended_unix", time.time()))
+    identity = receipt.get("identity", {})
+    receipt_path = (Path("web/target/migration-gates") / identity.get("gate", "unknown")
+                    / f"{identity.get('key', 'unknown')}.json")
+    print(f"migration-deliver: {status} {label}{detail}; receipt={receipt_path} "
+          f"started={started} ended={ended} duration={duration:.2f}s", file=sys.stderr)
+
+
+def _cached_gate(root, gate, command, label, *, selected_files=(), extra_tools=(),
+                 parser=None, positive=False, env=None, tool_cache=None):
+    receipts = _load_gate_receipts()
     try:
-        result = subprocess.run(command, cwd=root, text=True, capture_output=True)
+        receipt, reused, result = receipts.run_cached(
+            root, gate, command, env=env, selected_files=selected_files,
+            extra_tools=extra_tools, result_parser=parser, require_positive=positive,
+            tool_cache=tool_cache,
+        )
     except FileNotFoundError as error:
-        raise GuardError(f"cannot run native {label} tests: {error.filename} not found on PATH") from error
+        raise GuardError(f"cannot run {label}: {error.filename} not found on PATH") from error
+    if result.returncode:
+        return receipt, False, result
+    counts = receipt.get("counts", {})
+    if (receipt.get("complete") is not True or counts.get("failed", 0) > 0
+            or counts.get("excluded_failures", 0) > 0 or counts.get("incomplete", 0) > 0
+            or (positive and counts.get("passed", 0) <= 0)):
+        return receipt, False, result
+    _format_gate_result(label, receipt, reused)
+    return receipt, reused, result
+
+
+def _native_result(output):
+    summaries = list(_TEST_SUMMARY.finditer(output))
+    counts = {
+        "passed": sum(int(match.group("passed")) for match in summaries),
+        "failed": sum(int(match.group("failed")) for match in summaries),
+        "ignored": sum(int(match.group("ignored")) for match in summaries),
+    }
+    return {"counts": counts, "complete": bool(summaries)}
+
+
+def _run_native_tests(root, command, label, tool_cache=None):
+    print(f"migration-deliver: ensuring native {label} tests passed before committing", file=sys.stderr)
+    receipt, _reused, result = _cached_gate(
+        root, f"native-{label}", command, f"native {label} tests",
+        parser=_native_result, positive=True, tool_cache=tool_cache,
+    )
     if result.returncode:
         output = result.stdout + "\n" + result.stderr
         names = sorted(set(_FAILED_TEST.findall(output)))
@@ -336,28 +422,86 @@ def _run_native_tests(root, command, label):
             f"native {label} tests failed (`{' '.join(command)}`). Fix and retry.\n{listing}\n"
             f"Output tail:\n{_tail(output)}"
         )
-    output = result.stdout + "\n" + result.stderr
-    summaries = list(_TEST_SUMMARY.finditer(output))
-    passed = sum(int(match.group("passed")) for match in summaries)
-    if passed == 0:
+    counts = receipt.get("counts", {})
+    if counts.get("failed", 0) > 0:
+        raise GuardError(
+            f"native {label} test output reported failures despite a successful command. "
+            f"Output tail:\n{_tail(result.stdout + result.stderr)}"
+        )
+    if not receipt.get("complete") or counts.get("passed", 0) <= 0:
         raise GuardError(
             f"native {label} tests did not execute any passed tests (`{' '.join(command)}`). "
-            f"at least one passed test is required. Output tail:\n{_tail(output)}"
+            f"at least one passed test is required. Output tail:\n{_tail(result.stdout + result.stderr)}"
         )
 
 
-def _check_wasm_commit(root, paths):
-    """Compile-check, lint and test the Rust files in a commit.
+def _wasm_result_parser(path):
+    def parse(_output):
+        try:
+            value = json.loads(Path(path).read_text())
+        except (OSError, json.JSONDecodeError):
+            return {"complete": False, "counts": {}, "reason": "runner result JSON missing or invalid"}
+        if not isinstance(value, dict):
+            return {"complete": False, "counts": {}, "reason": "runner result JSON must be an object"}
+        expected = value.get("expected_tests")
+        listed = value.get("listed_tests")
+        terminal = value.get("terminal_outcomes")
+        problems = value.get("problems")
+        known_failures = value.get("failed_known_exclusions")
+        valid_lists = all(isinstance(items, list) for items in (expected, listed, terminal, problems, known_failures))
+        if valid_lists:
+            valid_lists = (all(isinstance(name, str) for name in expected)
+                           and all(isinstance(name, str) for name in listed)
+                           and all(isinstance(name, str) for name in known_failures)
+                           and all(isinstance(problem, str) for problem in problems))
+        outcomes = {}
+        if valid_lists:
+            for item in terminal:
+                if not isinstance(item, dict) or not isinstance(item.get("test"), str):
+                    valid_lists = False
+                    break
+                if item["test"] in outcomes:
+                    valid_lists = False
+                    break
+                outcomes[item["test"]] = item.get("status")
+        terminal_names = set(outcomes)
+        passed_actual = sum(status == "passed" for status in outcomes.values())
+        failed_actual = sum(status == "failed" for status in outcomes.values())
+        incomplete_actual = sum(status == "incomplete" for status in outcomes.values())
+        raw_counts = (value.get("passed_count"), value.get("failed_count"), value.get("incomplete_count"))
+        counts_valid = all(type(count) is int and count >= 0 for count in raw_counts)
+        counts = {
+            "passed": raw_counts[0] if counts_valid else 0,
+            "failed": raw_counts[1] if counts_valid else 1,
+            "excluded_failures": len(known_failures) if isinstance(known_failures, list) else 1,
+            "incomplete": raw_counts[2] if counts_valid else 1,
+        }
+        complete = (value.get("schema_version") == 1 and value.get("complete") is True
+                    and counts_valid
+                    and valid_lists and bool(expected) and not problems
+                    and set(expected).issubset(set(listed)) and terminal_names == set(expected)
+                    and all(status in ("passed", "failed") for status in outcomes.values())
+                    and counts["passed"] == passed_actual and counts["failed"] == failed_actual
+                    and counts["incomplete"] == incomplete_actual == 0
+                    and set(known_failures).issubset(
+                        name for name, status in outcomes.items() if status == "failed"))
+        return {"complete": complete, "counts": counts,
+                "runner_result": value}
+    return parse
 
-    Native `cargo test` never compiles wasm32-only modules, so a commit touching them
-    must prove they compile for wasm32, that their tests are reachable, and that those tests pass in
-    headless Chrome. Any web/core Rust change also has to keep the native test suites green.
-    """
+
+def _check_wasm_commit(root, paths):
+    """Compile-check and test Rust inputs, reusing only exact-input successes."""
+    receipts = _load_gate_receipts()
+    # Tool versions and executable digests are stable during this synchronous
+    # gate sequence; memoize probes only for this invocation.
+    tool_cache = {}
+    source_before = receipts.source_fingerprint(root)
     files = _committed_files(root, paths)
     rust = [name for name in files if name.startswith("web/src/") and name.endswith(".rs")]
     core = [name for name in files if name.startswith("core/src/") and name.endswith(".rs")]
     if not rust and not core:
-        return
+        return source_before
     needs_wasm_check = []
     needs_wasm_tests = []
     if rust:
@@ -372,22 +516,28 @@ def _check_wasm_commit(root, paths):
         ]
     if needs_wasm_check:
         print(f"migration-deliver: {len(needs_wasm_check)} wasm-relevant Rust file(s) in this commit "
-              f"(e.g. {needs_wasm_check[0]}); running wasm32 cargo check before committing", file=sys.stderr)
-        result = subprocess.run(WASM_CHECK_COMMAND, cwd=root, text=True, capture_output=True)
+              f"(e.g. {needs_wasm_check[0]}); ensuring wasm32 cargo check", file=sys.stderr)
+        receipt, _reused, result = _cached_gate(
+            root, "wasm-page-check", WASM_CHECK_COMMAND, "wasm32 page check",
+            tool_cache=tool_cache,
+        )
         if result.returncode:
             raise GuardError(
                 "wasm32 page check failed; native cargo test does not compile this code. "
                 f"Fix and retry. Compiler output tail:\n{_tail(result.stderr or result.stdout)}"
             )
-    _run_native_tests(root, NATIVE_WEB_TEST_COMMAND, "web")
+    _run_native_tests(root, NATIVE_WEB_TEST_COMMAND, "web", tool_cache)
     if core:
-        _run_native_tests(root, NATIVE_CORE_TEST_COMMAND, "core")
+        _run_native_tests(root, NATIVE_CORE_TEST_COMMAND, "core", tool_cache)
     if not rust:
-        return
-    print("migration-deliver: running scripts/check-wasm-tests.py for Rust files in this commit", file=sys.stderr)
-    result = subprocess.run(
-        [sys.executable, str(Path(__file__).with_name("check-wasm-tests.py")), "--root", str(root)],
-        cwd=root, text=True, capture_output=True,
+        if receipts.source_fingerprint(root) != source_before:
+            raise GuardError("maintained source inputs changed during migration gates; rerun prepare-gates")
+        return source_before
+    print("migration-deliver: ensuring scripts/check-wasm-tests.py passes for Rust files in this commit", file=sys.stderr)
+    lint_command = [sys.executable, str(Path(__file__).with_name("check-wasm-tests.py")), "--root", str(root)]
+    receipt, _reused, result = _cached_gate(
+        root, "wasm-test-reachability", lint_command, "wasm test reachability",
+        selected_files=rust, extra_tools=(sys.executable,), tool_cache=tool_cache,
     )
     if result.returncode:
         raise GuardError(
@@ -395,18 +545,38 @@ def _check_wasm_commit(root, paths):
             + _tail(result.stdout + result.stderr)
         )
     if needs_wasm_tests:
-        print("migration-deliver: running wasm-bindgen tests in headless Chrome for changed wasm test modules", file=sys.stderr)
-        result = subprocess.run(
-            [sys.executable, str(Path(__file__).with_name("run-wasm-tests.py")), "--root", str(root),
-             "--files", *needs_wasm_tests],
-            cwd=root, text=True, capture_output=True,
-        )
-        if result.returncode:
+        print("migration-deliver: ensuring wasm-bindgen tests pass in headless Chrome for changed modules", file=sys.stderr)
+        result_dir = receipts.cache_directory(root) / "results"
+        result_dir.mkdir(parents=True, exist_ok=True)
+        fd, result_path_text = tempfile.mkstemp(prefix="wasm-result-", suffix=".json", dir=result_dir)
+        os.close(fd)
+        result_path = Path(result_path_text)
+        try:
+            runner_command = [sys.executable, str(Path(__file__).with_name("run-wasm-tests.py")),
+                              "--root", str(root), "--files", *needs_wasm_tests,
+                              "--result-json", str(result_path)]
+            receipt, _reused, result = _cached_gate(
+                root, "wasm-headless-tests", runner_command, "headless-Chrome wasm tests",
+                selected_files=needs_wasm_tests,
+                extra_tools=((sys.executable,) if os.environ.get("BOARDSTUDIO_WASM_TEST_COMMAND") else
+                             (sys.executable, "wasm-pack", "chromedriver", "google-chrome", "chromium",
+                              "google-chrome-stable", "chromium-browser")),
+                parser=_wasm_result_parser(result_path), tool_cache=tool_cache,
+            )
+        finally:
+            result_path.unlink(missing_ok=True)
+        counts = receipt.get("counts", {})
+        if (result.returncode or not receipt.get("complete")
+                or counts.get("passed", 0) <= 0 or counts.get("failed", 0) > 0
+                or counts.get("excluded_failures", 0) > 0 or counts.get("incomplete", 0) > 0):
             raise GuardError(
-                "headless-Chrome wasm tests failed or could not run "
+                "headless-Chrome wasm tests failed, were incomplete, or reported known exclusions "
                 "(see scripts/run-wasm-tests.py; known failures live in scripts/wasm-known-failures.json):\n"
                 + _tail(result.stdout + "\n" + result.stderr)
             )
+    if receipts.source_fingerprint(root) != source_before:
+        raise GuardError("maintained source inputs changed during migration gates; rerun prepare-gates")
+    return source_before
 
 
 def _commit(root, intent, message, paths):
@@ -419,7 +589,8 @@ def _commit(root, intent, message, paths):
     # this commit takes its own shared lease. The check is repeated below after
     # locking, so a build that wins the gap still blocks the commit.
     _check_commit(root, intent)
-    _check_wasm_commit(root, paths)
+    _check_staged_build_inputs_match_worktree(root, paths)
+    gate_source = _check_wasm_commit(root, paths)
     lock_path = _freeze_lock_path(root)
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     commit_lock = lock_path.open("a+")
@@ -429,6 +600,8 @@ def _commit(root, intent, message, paths):
         except BlockingIOError as error:
             raise GuardError("guarded commit blocked while this checkout is build-frozen or committing") from error
         _check_commit(root, intent)
+        if _load_gate_receipts().source_fingerprint(root) != gate_source:
+            raise GuardError("maintained source inputs changed after gate success; rerun prepare-gates")
         environment = os.environ.copy()
         environment["MIGRATION_DELIVERY_INTENT"] = intent
         args = ["git", "commit", "-m", message]
@@ -459,6 +632,8 @@ def _focused_test(root, command):
     if not (is_cargo_test or is_wasm_pack_test):
         raise GuardError("focused-test only accepts cargo test ... or wasm-pack test ... commands")
 
+    started = time.time()
+    started_mono = time.monotonic()
     # Keep test output live while retaining only a bounded tail for parsing.
     tails = {"stdout": bytearray(), "stderr": bytearray()}
     tail_limit = 1024 * 1024
@@ -482,16 +657,26 @@ def _focused_test(root, command):
     for thread in forwarders:
         thread.join()
     if returncode:
+        ended = time.time()
+        print(f"migration-deliver: focused-test status=failed command_exit={returncode} "
+              f"started={_utc(started)} ended={_utc(ended)} "
+              f"duration={time.monotonic() - started_mono:.2f}s", file=sys.stderr)
         return returncode
 
     output_tail = (tails["stdout"] + b"\n" + tails["stderr"]).decode(errors="replace")
     summaries = list(_TEST_SUMMARY.finditer(output_tail))
     passed = sum(int(match.group("passed")) for match in summaries)
+    ended = time.time()
     if passed == 0:
+        print(f"migration-deliver: focused-test status=empty started={_utc(started)} "
+              f"ended={_utc(ended)} duration={time.monotonic() - started_mono:.2f}s", file=sys.stderr)
         raise GuardError(
             "focused test command succeeded but reported zero executed tests; "
             "expected a Rust test result summary with at least one passed test"
         )
+    print(f"migration-deliver: focused-test status=passed passed={passed} "
+          f"started={_utc(started)} ended={_utc(ended)} "
+          f"duration={time.monotonic() - started_mono:.2f}s", file=sys.stderr)
     return 0
 
 
@@ -508,6 +693,8 @@ def main(argv=None):
     commit.add_argument("--intent", choices=("delivery", "integration"), required=True)
     commit.add_argument("-m", "--message", required=True)
     commit.add_argument("paths", nargs="*", help="optional pathspecs; otherwise commit the current index")
+    prepare = commands.add_parser("prepare-gates", help="run or reuse exact-input gates for the pending commit")
+    prepare.add_argument("paths", nargs="*", help="optional pathspecs; otherwise use the current index")
     candidate = commands.add_parser(
         "publish-candidate",
         help="derive and publish a candidate proof from a completed build",
@@ -578,6 +765,12 @@ def main(argv=None):
         elif args.command == "check":
             _, entry = validate_checkout(root, required=True)
             print(f"registered {root} on {entry['branch']} as {entry['role']}; build_frozen={_freeze_active(root)}")
+        elif args.command == "prepare-gates":
+            _, entry = validate_checkout(root, required=True)
+            if entry["role"] != "coordinator":
+                raise GuardError("only the registered coordinator checkout may prepare integration gates")
+            fingerprint = _check_wasm_commit(root, args.paths)
+            print(f"migration-deliver: gates complete for source {fingerprint[:16]}")
         elif args.command == "commit":
             _commit(root, args.intent, args.message, args.paths)
         return 0

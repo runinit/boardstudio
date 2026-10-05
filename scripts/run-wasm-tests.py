@@ -12,8 +12,10 @@ Override the runner with BOARDSTUDIO_WASM_TEST_COMMAND (shell-split; the filter,
 """
 
 import argparse
+from collections import Counter
 from contextlib import contextmanager, nullcontext
 import glob
+import hashlib
 import importlib.util
 import json
 import os
@@ -23,6 +25,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from tempfile import TemporaryDirectory
 from threading import Thread
@@ -30,6 +33,7 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parent.parent
 KNOWN_FAILURES = Path(__file__).with_name("wasm-known-failures.json")
+TEST_OWNERS = Path(__file__).with_name("wasm-test-owners.json")
 RUNNER_ENV = "BOARDSTUDIO_WASM_TEST_COMMAND"
 WASM_PACK = ["wasm-pack", "test", "--headless", "--chrome", "--mode", "no-install", "web",
              "--no-default-features", "--features", "page", "--bin", "boardstudio-web", "--"]
@@ -48,6 +52,13 @@ TEST_LINE = re.compile(r"^test (\S+) \.\.\. (ok|FAILED|FAIL)\b", re.M)
 INVOKED_LINE = re.compile(r"^\s*Invoking test: (\S+)", re.M)
 class RunnerError(RuntimeError):
     pass
+
+
+class DuplicateTestListingError(RunnerError):
+    def __init__(self, names):
+        self.listed_tests = names
+        self.duplicate_names = sorted(name for name, count in Counter(names).items() if count > 1)
+        super().__init__("duplicate test names in wasm listing: " + ", ".join(self.duplicate_names))
 
 
 def path_attr_modules(root):
@@ -110,6 +121,51 @@ def load_known_failures(path=None):
         return {}
 
 
+def load_test_owners(path=None):
+    """Load explicit, reviewed source-to-browser-test mappings; invalid entries fail closed."""
+    try:
+        mapping = json.loads(Path(path or TEST_OWNERS).read_text())
+    except FileNotFoundError:
+        return {}
+    if not isinstance(mapping, dict) or mapping.get("schema_version") != 1:
+        raise RunnerError("WASM test owner map must use schema_version 1")
+    sources = mapping.get("sources")
+    if not isinstance(sources, dict):
+        raise RunnerError("WASM test owner map must contain a sources object")
+    normalized = {}
+    for source, entry in sources.items():
+        if not isinstance(source, str) or not source.startswith("web/src/") or not source.endswith(".rs"):
+            raise RunnerError(f"invalid source path in WASM test owner map: {source!r}")
+        if not isinstance(entry, dict) or not isinstance(entry.get("tests"), list):
+            raise RunnerError(f"owner map entry for {source} must contain a tests list")
+        tests = entry["tests"]
+        if not tests or any(not isinstance(name, str) or not name for name in tests):
+            raise RunnerError(f"owner map entry for {source} must map at least one exact test name")
+        if len(tests) != len(set(tests)):
+            raise RunnerError(f"owner map entry for {source} contains duplicate test names")
+        if not isinstance(entry.get("coverage"), str) or not entry["coverage"].strip():
+            raise RunnerError(f"owner map entry for {source} must explain its coverage limits")
+        needs_generators = entry.get("requires_generator_assets", False)
+        if not isinstance(needs_generators, bool):
+            raise RunnerError(f"owner map entry for {source} requires a boolean "
+                              "requires_generator_assets value")
+        base_sha256 = entry.get("base_sha256")
+        current_sha256 = entry.get("current_sha256")
+        if (base_sha256 is None) != (current_sha256 is None):
+            raise RunnerError(f"owner map entry for {source} must provide both base_sha256 and current_sha256")
+        for key, digest in (("base_sha256", base_sha256), ("current_sha256", current_sha256)):
+            if digest is not None and (not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest)):
+                raise RunnerError(f"owner map entry for {source} has an invalid {key}")
+        normalized[source] = {
+            "tests": tests,
+            "coverage": entry["coverage"],
+            "requires_generator_assets": needs_generators,
+            "base_sha256": base_sha256,
+            "current_sha256": current_sha256,
+        }
+    return normalized
+
+
 def locked_wasm_bindgen_version(root=ROOT):
     lock = (Path(root) / "web/Cargo.lock").read_text()
     match = re.search(r'name = "wasm-bindgen"\nversion = "([^"]+)"', lock)
@@ -156,12 +212,13 @@ def run_filter(filter_, env, root=ROOT):
         command.append(filter_)
     result = subprocess.run(command, cwd=root, env=env, text=True, capture_output=True)
     output = result.stdout + "\n" + result.stderr
-    outcomes = {name: status for name, status in TEST_LINE.findall(output)}
+    outcomes = {}
+    for name, status in TEST_LINE.findall(output):
+        outcomes.setdefault(name, "FAILED" if status == "FAIL" else status)
     # Keep interrupted invocations distinct from assertion failures so the known-failure
     # allowlist cannot turn an incomplete browser run into a pass.
     for name in INVOKED_LINE.findall(output):
         outcomes.setdefault(name, "INCOMPLETE")
-    outcomes = {name: ("FAILED" if status == "FAIL" else status) for name, status in outcomes.items()}
     return result.returncode, outcomes, output
 
 
@@ -177,7 +234,28 @@ def list_wasm_tests(env, root=ROOT):
         detail = f" (runner exit {result.returncode})" if result.returncode else ""
         raise RunnerError("could not list wasm tests" + detail + ":\n"
                           + "\n".join((result.stdout + result.stderr).strip().splitlines()[-30:]))
+    if len(names) != len(set(names)):
+        raise DuplicateTestListingError(names)
     return names
+
+
+def terminal_observations(output):
+    observations = [
+        {"test": name, "status": _result_status("FAILED" if status == "FAIL" else status)}
+        for name, status in TEST_LINE.findall(output)
+    ]
+    terminal_names = {item["test"] for item in observations}
+    observations.extend(
+        {"test": name, "status": "incomplete"}
+        for name in INVOKED_LINE.findall(output)
+        if name not in terminal_names
+    )
+    return observations
+
+
+def duplicate_terminal_names(observations):
+    names = [item["test"] for item in observations if item["status"] in ("passed", "failed")]
+    return sorted(name for name, count in Counter(names).items() if count > 1)
 
 
 def test_module_filter(name, depth=None):
@@ -185,28 +263,72 @@ def test_module_filter(name, depth=None):
     return "".join(f"{part}::" for part in (parts[:depth] if depth else parts)) or name
 
 
-def filters_for_listed_files(files, env, root=ROOT):
-    """Resolve source prefixes to listed test modules without substring overreach."""
-    requested = filters_for_files(files, root)
+def active_owner_mapping(source, entry, root):
+    """Return a guarded owner only while both reviewed source revisions still match."""
+    if entry["base_sha256"] is None:
+        return True
+    current = Path(root) / source
+    try:
+        current_hash = hashlib.sha256(current.read_bytes()).hexdigest()
+        base = subprocess.run(["git", "-C", str(root), "show", f"HEAD:{source}"],
+                              capture_output=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return False
+    base_hash = hashlib.sha256(base).hexdigest()
+    return base_hash == entry["base_sha256"] and current_hash == entry["current_sha256"]
+
+
+def selection_for_listed_files(files, env, root=ROOT, owners_path=None):
+    """Resolve files only to their declared wasm modules or exact reviewed owner tests."""
+    path_modules = path_attr_modules(root)
+    owner_map = load_test_owners(owners_path)
+    pairs = sorted({(file.replace("\\", "/"), module_filter(file, path_modules)) for file in files})
+    active_owners = {source: owner for source, owner in owner_map.items()
+                     if active_owner_mapping(source, owner, root)}
+    # A direct broad module filter covers its descendants. An exact owner mapping does not:
+    # preserve child requests so independently changed components keep their reviewed tests.
+    requests = [pair for pair in pairs if not any(
+        other != pair and pair[1].startswith(other[1]) and other[0] not in active_owners
+        for other in pairs)]
     names = list_wasm_tests(env, root)
     available = sorted({test_module_filter(name) for name in names})
-    selected, unmatched = set(), []
-    for prefix in requested:
+    selected_modules, selected_owner_tests, unmatched, diagnostics = set(), set(), [], []
+    for source, prefix in requests:
+        owner = active_owners.get(source)
+        if owner:
+            absent = sorted(set(owner["tests"]) - set(names))
+            if absent:
+                raise RunnerError(f"owner map tests for {source} are absent from the WASM list: "
+                                  + ", ".join(absent))
+            selected_owner_tests.update(owner["tests"])
+            diagnostics.append(f"{source} -> owner map ({owner['coverage']}): "
+                               + ", ".join(owner["tests"]))
+            continue
+        inactive_guard = source in owner_map
         matches = [module for module in available if not prefix or module.startswith(prefix)]
-        if not matches:
-            parent = parent_filter(prefix)
-            if parent:
-                matches = [module for module in available if module.startswith(parent)]
         if matches:
-            selected.update(matches)
+            selected_modules.update(matches)
+            reason = " (guard mismatch; conservative fallback)" if inactive_guard else ""
+            diagnostics.append(f"{source} -> direct module prefix {prefix!r}{reason}: " + ", ".join(matches))
         else:
             unmatched.append(prefix)
-    filters = sorted(module for module in selected
-                     if not any(other != module and module.startswith(other) for other in selected))
+            diagnostics.append(f"{source} -> no direct module or reviewed owner mapping; fail closed")
+    modules = sorted(module for module in selected_modules
+                     if not any(other != module and module.startswith(other) for other in selected_modules))
+    # A selected owner test already covered by a direct module is executed once under that module.
+    owner_tests = sorted(test for test in selected_owner_tests
+                         if not any(test.startswith(module) for module in modules))
+    filters = sorted([*modules, *owner_tests])
     expected = {
-        module: [name for name in names if name.startswith(module)]
-        for module in filters if module in available
+        filter_: ([name for name in names if name.startswith(filter_)] if filter_ in modules else [filter_])
+        for filter_ in filters
     }
+    return filters, expected, unmatched, names, diagnostics
+
+
+def filters_for_listed_files(files, env, root=ROOT):
+    """Backward-compatible triple for callers that only need filters and expected outcomes."""
+    filters, expected, unmatched, _names, _diagnostics = selection_for_listed_files(files, env, root)
     return filters, expected, unmatched
 
 
@@ -221,6 +343,10 @@ def all_module_selection(env, root=ROOT, depth=None):
 
 
 def selected_generator_sources(files, root=ROOT):
+    owners = load_test_owners()
+    requested_paths = {file.replace("\\", "/") for file in files}
+    if any(owners.get(path, {}).get("requires_generator_assets") for path in requested_paths):
+        return True
     requested = filters_for_files(files, root)
     generator = filters_for_files(GENERATOR_SOURCE_FILES, root)
     return any(not request or not source or request.startswith(source) or source.startswith(request)
@@ -299,8 +425,9 @@ def packaged_generator_harness(root=ROOT, env=None):
             server_thread.join()
 
 
-def run(filters, known, root=ROOT, expected_tests=None, env=None, unmatched_filters=None):
-    """Returns (executed, failed_names, passing_known_names, problems)."""
+def run(filters, known, root=ROOT, expected_tests=None, env=None, unmatched_filters=None,
+        listed_tests=None, selection=None, result_json_path=None):
+    """Return execution summary and logs; optionally write a structured result report."""
     env = env if env is not None else (os.environ.copy() if os.environ.get(RUNNER_ENV) else runner_environment(root))
     outcomes, problems, logs = {}, [], []
     if not filters and not unmatched_filters:
@@ -308,16 +435,29 @@ def run(filters, known, root=ROOT, expected_tests=None, env=None, unmatched_filt
     for filter_ in unmatched_filters or []:
         problems.append(f"zero tests executed for filter {filter_ or '<all tests>'}; "
                         "no matching module appeared in the wasm test list")
+    filter_reports, observed_terminal_outcomes = [], []
     for index, filter_ in enumerate(filters, 1):
         label = filter_ or "<all tests>"
         print(f"run-wasm-tests: [{index}/{len(filters)}] {label}", file=sys.stderr)
+        started = time.monotonic()
         code, found, output = run_filter(filter_, env, root)
+        runner_filter = filter_
         if (not found and (expected_tests is None or filter_ not in expected_tests)
                 and filter_.count("::") > 2 and parent_filter(filter_)):
             parent = parent_filter(filter_)
             print(f"run-wasm-tests: no tests under {label}; widening to {parent}", file=sys.stderr)
             code, found, output = run_filter(parent, env, root)
+            runner_filter = parent
             label = f"{label} (via {parent})"
+        observations = terminal_observations(output)
+        observed_terminal_outcomes.extend(observations)
+        filter_reports.append({
+            "filter": filter_,
+            "runner_filter": runner_filter,
+            "expected_tests": sorted((expected_tests or {}).get(filter_, [])),
+            "terminal_outcomes": observations,
+            "duration_ms": round((time.monotonic() - started) * 1000),
+        })
         if not found:
             problems.append(f"zero tests executed for filter {label}"
                             + ("" if code == 0 else f" (runner exit {code})")
@@ -344,7 +484,11 @@ def run(filters, known, root=ROOT, expected_tests=None, env=None, unmatched_filt
             if unexpected:
                 problems.append(f"unlisted tests matched filter {label}: " + ", ".join(unexpected))
                 logs.append(f"--- {label} ---\n" + "\n".join(output.strip().splitlines()[-40:]))
-        outcomes.update(found)
+        for name, status in found.items():
+            outcomes.setdefault(name, status)
+    duplicate_terminal = duplicate_terminal_names(observed_terminal_outcomes)
+    if duplicate_terminal:
+        problems.append("duplicate terminal outcomes for tests: " + ", ".join(duplicate_terminal))
     short = lambda name: name.rsplit("::", 1)[-1]
     failed, passing_known = [], []
     for name, status in sorted(outcomes.items()):
@@ -353,7 +497,38 @@ def run(filters, known, root=ROOT, expected_tests=None, env=None, unmatched_filt
                 passing_known.append(name)
         elif status == "FAILED":
             failed.append(name)
+    if result_json_path:
+        expected = sorted({name for names in (expected_tests or {}).values() for name in names})
+        terminal = observed_terminal_outcomes
+        terminal_names = {item["test"] for item in terminal if item["status"] in ("passed", "failed")}
+        report = {
+            "schema_version": 1,
+            "selection": selection or {},
+            "listed_tests": sorted(listed_tests or []),
+            "duplicate_listed_tests": [],
+            "expected_tests": expected,
+            "terminal_outcomes": terminal,
+            "duplicate_terminal_outcomes": duplicate_terminal,
+            "filters": filter_reports,
+            "passed_count": sum(item["status"] == "passed" for item in terminal),
+            "failed_count": sum(item["status"] == "failed" for item in terminal),
+            "incomplete_count": sum(item["status"] == "incomplete" for item in terminal),
+            "failed_known_exclusions": sorted(name for name, status in outcomes.items()
+                                               if status == "FAILED" and short(name) in known),
+            "problems": problems,
+            "complete": bool(expected) and set(expected).issubset(terminal_names) and not problems,
+        }
+        try:
+            result_path = Path(result_json_path)
+            result_path.parent.mkdir(parents=True, exist_ok=True)
+            result_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+        except OSError as error:
+            problems.append(f"could not write structured WASM result {result_json_path}: {error}")
     return len(outcomes), failed, passing_known, problems, logs
+
+
+def _result_status(status):
+    return {"ok": "passed", "FAILED": "failed", "INCOMPLETE": "incomplete"}.get(status, "incomplete")
 
 
 def main(argv=None):
@@ -365,6 +540,8 @@ def main(argv=None):
                         help="with --all: group tests by their first N module segments instead of one run per module "
                              "(fewer, faster runs; less isolation)")
     parser.add_argument("--root", default=str(ROOT))
+    parser.add_argument("--result-json", metavar="PATH",
+                        help="write the exact listed, selected and terminal outcomes as JSON")
     args = parser.parse_args(argv)
     root = Path(args.root).resolve()
     try:
@@ -377,14 +554,52 @@ def main(argv=None):
         with (desktop_webdriver_config(env, root) if browser_setup else nullcontext(env)) as env:
             with (packaged_generator_harness(root, env) if needs_generator else nullcontext(env)) as env:
                 if args.files:
-                    filters, expected_tests, unmatched_filters = filters_for_listed_files(args.files, env, root)
+                    filters, expected_tests, unmatched_filters, listed_tests, diagnostics = \
+                        selection_for_listed_files(args.files, env, root)
+                    selection = {"mode": "files", "requested_files": args.files,
+                                 "resolved_filters": filters, "diagnostics": diagnostics}
                 else:
                     filters, expected_tests = all_module_selection(env, root, args.depth)
+                    listed_tests = sorted({name for names in expected_tests.values() for name in names})
                     unmatched_filters = []
+                    diagnostics = [f"--all -> {filter_ or '<all tests>'}" for filter_ in filters]
+                    selection = {"mode": "all", "depth": args.depth,
+                                 "resolved_filters": filters, "diagnostics": diagnostics}
+                for diagnostic in diagnostics:
+                    print(f"run-wasm-tests: selection: {diagnostic}", file=sys.stderr)
                 executed, failed, passing_known, problems, logs = run(
-                    filters, known, root, expected_tests, env, unmatched_filters)
+                    filters, known, root, expected_tests, env, unmatched_filters,
+                    listed_tests, selection, args.result_json)
     except RunnerError as error:
         print(f"run-wasm-tests: {error}", file=sys.stderr)
+        if args.result_json:
+            report = {
+                "schema_version": 1,
+                "selection": {"mode": "files" if args.files else "all",
+                              "requested_files": args.files, "depth": args.depth},
+                "listed_tests": [],
+                "duplicate_listed_tests": [],
+                "expected_tests": [],
+                "terminal_outcomes": [],
+                "duplicate_terminal_outcomes": [],
+                "filters": [],
+                "passed_count": 0,
+                "failed_count": 0,
+                "incomplete_count": 0,
+                "failed_known_exclusions": [],
+                "problems": [str(error)],
+                "complete": False,
+            }
+            if hasattr(error, "listed_tests"):
+                report["listed_tests"] = error.listed_tests
+                report["duplicate_listed_tests"] = error.duplicate_names
+            try:
+                result_path = Path(args.result_json)
+                result_path.parent.mkdir(parents=True, exist_ok=True)
+                result_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+            except OSError as write_error:
+                print(f"run-wasm-tests: could not write structured WASM result "
+                      f"{args.result_json}: {write_error}", file=sys.stderr)
         return 2
     for name in passing_known:
         print(f"run-wasm-tests: note: known failure now passes, remove it from "

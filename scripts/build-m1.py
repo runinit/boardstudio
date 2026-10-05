@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build a uniquely staged M1 candidate and retain commands/source/asset hashes."""
 from pathlib import Path
+from contextlib import contextmanager, nullcontext
 import argparse
 import hashlib
 import importlib.util
@@ -16,6 +17,8 @@ from datetime import datetime, timezone
 REPO = Path(__file__).resolve().parents[1]
 WEB = REPO / "web"
 BUILD_ROOT = WEB / "target" / "builds"
+SNAPSHOT_COMMIT = None
+SNAPSHOT_HELPER = None
 
 # Keep the historical audited leaf list explicit, then add only Rust modules
 # proven page-only by the active page/provider feature graphs below. In
@@ -72,6 +75,11 @@ BUILD_TEST_ONLY_PATHS = frozenset({
     "scripts/test-migration-deliver.py",
     "scripts/test-migration-candidate.py",
     "scripts/test-migration-browser.py",
+    "scripts/test-migration-snapshot.py",
+    "scripts/test-migration-gate-receipts.py",
+    "scripts/test-run-wasm-tests.py",
+    "scripts/run-wasm-tests.py",
+    "scripts/wasm-test-owners.json",
 })
 # The guard executes in the build CLI, so its exact source may change without
 # changing packaged providers. Keep this separate from verification-only files.
@@ -79,6 +87,8 @@ BUILD_CONTROL_ONLY_PATHS = frozenset({
     "scripts/migration-deliver.py",
     "scripts/migration_candidate.py",
     "scripts/migration-browser.py",
+    "scripts/migration_snapshot.py",
+    "scripts/migration_gate_receipts.py",
 })
 NON_PAGE_RUST_ALIASES = frozenset({"web/src/presentation/objects/layout_align_geometry.rs"})
 REUSED_PROVIDER_PREFIXES = (
@@ -474,7 +484,7 @@ def rust_module_graph(repo_root, root_relative, features, *, allow_opaque_macros
         "web/src/bundled_models.rs": "/bundled_ergogen_models.rs",
     }
 
-    def walk(module_path, included=False):
+    def walk(module_path, included=False, module_dir=None):
         module_path = module_path.resolve()
         try:
             module_path.relative_to(web_root)
@@ -486,9 +496,10 @@ def rust_module_graph(repo_root, root_relative, features, *, allow_opaque_macros
         if not module_path.is_file():
             raise ValueError(f"Rust module is missing from source graph: {relative}")
         tokens = rust_lex(module_path.read_bytes())
-        # Included code inherits its call site's module context. Rather than
-        # guess directory semantics, only module-free literal includes qualify.
-        if included and any(kind == "ident" and value in {"mod", "macro", "macro_rules"}
+        module_dir = module_dir or _module_base(module_path)
+        # Included code inherits its call site's module context. Carry that
+        # directory through literal includes so inline modules keep their owner.
+        if included and any(kind == "ident" and value in {"macro", "macro_rules"}
                             for kind, value in tokens) and not allow_opaque_macros:
             raise ValueError(f"unsupported module registration in included Rust source: {relative}")
         if relative in found:
@@ -509,7 +520,7 @@ def rust_module_graph(repo_root, root_relative, features, *, allow_opaque_macros
                     raise ValueError("unsupported literal Rust include path") from error
                 if not isinstance(path, str) or not path:
                     raise ValueError("unsupported literal Rust include path")
-                walk(module_path.parent / path, included=True)
+                walk(module_path.parent / path, included=True, module_dir=module_dir)
             else:
                 expected = generated_includes.get(relative)
                 allowed = ["concat", "!", "(", "env", "!", "(", '"OUT_DIR"', ")", ",",
@@ -518,10 +529,10 @@ def rust_module_graph(repo_root, root_relative, features, *, allow_opaque_macros
                     raise ValueError(f"unsupported dynamic Rust include in module graph: {relative}")
                 # These exact generated tables are owned by the byte-pinned
                 # web/build.rs and hashed generator inputs, and rebuilt fresh.
-        walk_tokens(tokens, module_path, _module_base(module_path), relative)
+        walk_tokens(tokens, module_path, module_dir, relative, included=included)
         active.remove(relative)
 
-    def walk_tokens(tokens, module_path, module_dir, relative):
+    def walk_tokens(tokens, module_path, module_dir, relative, *, included=False):
         values = [value for _, value in tokens]
         index = 0
         pending_attributes = []
@@ -564,6 +575,8 @@ def rust_module_graph(repo_root, root_relative, features, *, allow_opaque_macros
                 pending_attributes.clear()
                 if values[after_name] == ";":
                     if enabled:
+                        if included:
+                            raise ValueError(f"unsupported active module registration in included Rust source: {relative}")
                         if explicit_path is not None:
                             path_base = module_path.parent if module_dir == _module_base(module_path) else module_dir
                             child = path_base / explicit_path
@@ -581,7 +594,8 @@ def rust_module_graph(repo_root, root_relative, features, *, allow_opaque_macros
                     if enabled:
                         if explicit_path is not None:
                             raise ValueError(f"unsupported path on inline Rust module: {relative}")
-                        walk_tokens(tokens[after_name + 1:end - 1], module_path, module_dir / name, relative)
+                        walk_tokens(tokens[after_name + 1:end - 1], module_path, module_dir / name, relative,
+                                    included=included)
                     index = end
                     continue
                 raise ValueError(f"unsupported Rust module item in {relative}")
@@ -1010,38 +1024,40 @@ def page_check_command():
             "boardstudio-web"]
 
 
-def expected_full_commands(baseline, *, include_page_check=True):
+def expected_full_commands(baseline, *, include_page_check=True, source_root=None):
+    repo = Path(source_root) if source_root is not None else REPO
+    web = repo / "web"
     output = baseline
     commands = [
-        ("rustc-version", ["rustc", "--version"], REPO, {}),
-        ("cargo-version", ["cargo", "--version"], REPO, {}),
-        ("dx-version", ["dx", "--version"], REPO, {}),
-        ("wasm-pack-version", ["wasm-pack", "--version"], REPO, {}),
-        ("node-version", ["node", "--version"], REPO, {}),
-        ("pnpm-version", ["pnpm", "--version"], REPO, {}),
+        ("rustc-version", ["rustc", "--version"], repo, {}),
+        ("cargo-version", ["cargo", "--version"], repo, {}),
+        ("dx-version", ["dx", "--version"], repo, {}),
+        ("wasm-pack-version", ["wasm-pack", "--version"], repo, {}),
+        ("node-version", ["node", "--version"], repo, {}),
+        ("pnpm-version", ["pnpm", "--version"], repo, {}),
     ]
     if include_page_check:
-        commands.append(("page-check", page_check_command(), REPO, {}))
+        commands.append(("page-check", page_check_command(), repo, {}))
     commands.extend([
-        ("core", ["wasm-pack", "build", REPO / "core", "--target", "web", "--release", "--locked"], REPO, {}),
-        ("core-worker", ["wasm-pack", "build", WEB, "--target", "web", "--out-name", "m1_core_worker", "--out-dir", output / "core-worker", "--release", "--locked", "--no-default-features", "--features", "core-worker"], REPO, {}),
-        ("cad-worker", ["wasm-pack", "build", WEB, "--target", "web", "--out-name", "m1_cad_worker", "--out-dir", output / "cad-worker", "--release", "--locked", "--no-default-features", "--features", "cad-worker"], REPO, {}),
-        ("renderer", ["wasm-pack", "build", REPO / "renderer", "--target", "web", "--out-dir", output / "renderer", "--out-name", "boardstudio_renderer_wasm", "--release", "--locked"], REPO, {}),
-        ("cad", ["pnpm", "--dir", "cad", "run", "build:wasm"], REPO, {}),
-        ("fixtures", ["node", REPO / "scripts/prepare-m1-fixtures.mjs", output / "fixtures"], REPO, {}),
-        ("ergogen-catalogue", ["pnpm", "--dir", "ergogen", "run", "prepare:catalog"], REPO, {}),
-        ("layout-generators", ["node", REPO / "scripts/web/build-layout-generators.mjs", WEB / "assets"], REPO, {}),
-        ("preview-generator", ["node", REPO / "scripts/web/build-preview-generator.mjs", WEB / "assets"], REPO, {}),
-        ("ergogen-models", [sys.executable, REPO / "scripts/stage-ergogen-models.py", "--source-root", REPO / "ergogen/library/vendor", "--destination", WEB / "assets/ergogen-models", "--manifest", output / "ergogen-models-catalog.json"], REPO, {}),
+        ("core", ["wasm-pack", "build", repo / "core", "--target", "web", "--release", "--locked"], repo, {}),
+        ("core-worker", ["wasm-pack", "build", web, "--target", "web", "--out-name", "m1_core_worker", "--out-dir", output / "core-worker", "--release", "--locked", "--no-default-features", "--features", "core-worker"], repo, {}),
+        ("cad-worker", ["wasm-pack", "build", web, "--target", "web", "--out-name", "m1_cad_worker", "--out-dir", output / "cad-worker", "--release", "--locked", "--no-default-features", "--features", "cad-worker"], repo, {}),
+        ("renderer", ["wasm-pack", "build", repo / "renderer", "--target", "web", "--out-dir", output / "renderer", "--out-name", "boardstudio_renderer_wasm", "--release", "--locked"], repo, {}),
+        ("cad", ["pnpm", "--dir", "cad", "run", "build:wasm"], repo, {}),
+        ("fixtures", ["node", repo / "scripts/prepare-m1-fixtures.mjs", output / "fixtures"], repo, {}),
+        ("ergogen-catalogue", ["pnpm", "--dir", "ergogen", "run", "prepare:catalog"], repo, {}),
+        ("layout-generators", ["node", repo / "scripts/web/build-layout-generators.mjs", web / "assets"], repo, {}),
+        ("preview-generator", ["node", repo / "scripts/web/build-preview-generator.mjs", web / "assets"], repo, {}),
+        ("ergogen-models", [sys.executable, repo / "scripts/stage-ergogen-models.py", "--source-root", repo / "ergogen/library/vendor", "--destination", web / "assets/ergogen-models", "--manifest", output / "ergogen-models-catalog.json"], repo, {}),
     ])
     for mode, prefix in (("root", "/"), ("subpath", "/boardstudio/")):
-        commands.append((f"page-{mode}", ["dx", "build", "--web", "--release", "--base-path", prefix, "--no-default-features", "--features", "page", "--cargo-args=--locked"], WEB, {}))
+        commands.append((f"page-{mode}", ["dx", "build", "--web", "--release", "--base-path", prefix, "--no-default-features", "--features", "page", "--cargo-args=--locked"], web, {}))
         manifest = output / f"offline-manifest-{mode}.json"
-        commands.append((f"offline-worker-{mode}", ["wasm-pack", "build", WEB, "--target", "web", "--out-name", "boardstudio_offline_worker", "--out-dir", output / f"offline-{mode}", "--release", "--locked", "--no-default-features", "--features", "service-worker"], REPO, {"BOARDSTUDIO_OFFLINE_MANIFEST": str(manifest)}))
+        commands.append((f"offline-worker-{mode}", ["wasm-pack", "build", web, "--target", "web", "--out-name", "boardstudio_offline_worker", "--out-dir", output / f"offline-{mode}", "--release", "--locked", "--no-default-features", "--features", "service-worker"], repo, {"BOARDSTUDIO_OFFLINE_MANIFEST": str(manifest)}))
         destination = output / f"site-{mode}"
         if mode == "subpath":
             destination /= "boardstudio"
-        commands.append((f"embed-offline-{mode}", ["node", REPO / "scripts/web/embed-worker-wasm.mjs", output / f"offline-{mode}", manifest, destination / "service-worker.js"], REPO, {}))
+        commands.append((f"embed-offline-{mode}", ["node", repo / "scripts/web/embed-worker-wasm.mjs", output / f"offline-{mode}", manifest, destination / "service-worker.js"], repo, {}))
     return [(label, list(map(str, argv)), str(cwd), environment) for label, argv, cwd, environment in commands]
 
 
@@ -1106,7 +1122,17 @@ def checked_baseline(build_id):
             raise ValueError("legacy baseline helper Git identity cannot be verified") from error
         if helper_blob != compatible_blob:
             raise ValueError("legacy baseline helper Git identity differs from its pinned proof")
-    expected_commands = expected_full_commands(baseline, include_page_check=not legacy_schema)
+    # A donor may have been built from the persistent snapshot checkout. Preserve
+    # its recorded execution root instead of relabeling command provenance.
+    source_root = provenance.get("source_root", provenance["commands"][0].get("cwd"))
+    if not isinstance(source_root, str) or not Path(source_root).is_absolute():
+        raise ValueError("baseline build source root is missing or malformed")
+    coordinator = BUILD_ROOT.resolve().parents[2]
+    if Path(source_root) not in {coordinator, coordinator / "web/target/migration-snapshot"}:
+        raise ValueError("baseline build source root is not the coordinator or its owned snapshot")
+    expected_commands = expected_full_commands(
+        baseline, include_page_check=not legacy_schema, source_root=source_root
+    )
     command_log_hashes = {}
     for row, (label, expected_argv, expected_cwd, expected_env) in zip(provenance["commands"], expected_commands):
         log = Path(row.get("log", ""))
@@ -1374,6 +1400,7 @@ def build_reuse(build_id, baseline_id, *, refresh_fixtures=False):
         "tool_observations": tools,
         "commands": [],
     }
+    provenance.update(source_context(provenance["sources"]))
     (output / "provenance.json").write_text(json.dumps(provenance, indent=2)+"\n")
 
     def run(name, command, cwd=REPO, extra_env=None):
@@ -1511,6 +1538,7 @@ def build_full(build_id):
                   "build_id": build_id,
                   "sources": sources(), "commands": [], "scope": "Development candidate; acceptance is recorded separately.",
                   "status": "running"}
+    provenance.update(source_context(provenance["sources"]))
 
     def run(name, command, cwd=REPO, extra_env=None):
         print(f"{name}: {' '.join(map(str,command))}", flush=True)
@@ -1575,9 +1603,51 @@ def build_full(build_id):
     print(output, flush=True)
 
 
+def snapshot_helper():
+    spec = importlib.util.spec_from_file_location(
+        "migration_build_snapshot", Path(__file__).with_name("migration_snapshot.py")
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def source_context(source_manifest):
+    context = {"source_root": str(REPO)}
+    if SNAPSHOT_COMMIT is not None:
+        context["source_snapshot"] = SNAPSHOT_HELPER.source_identity(
+            REPO, source_manifest, is_build_source_path, SNAPSHOT_COMMIT
+        )
+    return context
+
+
+@contextmanager
+def snapshot_build_source(revision, guard, snapshot):
+    """Scope build reads to committed bytes while the coordinator keeps working."""
+    global REPO, WEB, SNAPSHOT_COMMIT, SNAPSHOT_HELPER
+    coordinator, entry = guard.validate_checkout(REPO, required=True)
+    if entry["role"] != "coordinator":
+        raise ValueError("snapshot builds require a registered coordinator checkout")
+    commit = snapshot.resolve_commit(coordinator, revision)
+    # The running Python helpers must also be exactly the selected committed code.
+    # A newer local helper cannot claim an older source tree as its own provenance.
+    for name in ("scripts/build-m1.py", "scripts/migration_snapshot.py"):
+        committed = subprocess.check_output(["git", "show", f"{commit}:{name}"], cwd=coordinator)
+        if (coordinator / name).read_bytes() != committed:
+            raise ValueError(f"snapshot helper differs from selected commit: {name}")
+    checkout = snapshot.prepare_checkout(coordinator, commit)
+    previous = REPO, WEB, SNAPSHOT_COMMIT, SNAPSHOT_HELPER
+    REPO, WEB, SNAPSHOT_COMMIT, SNAPSHOT_HELPER = checkout, checkout / "web", commit, snapshot
+    try:
+        yield
+    finally:
+        REPO, WEB, SNAPSHOT_COMMIT, SNAPSHOT_HELPER = previous
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Build a full M1 candidate or a guarded page-only reuse candidate.")
     parser.add_argument("build_id", help="unique alphanumeric/hyphen build identifier")
+    parser.add_argument("--source-commit", metavar="REVISION", help="build committed inputs in an owned isolated checkout, allowing concurrent coordinator edits")
     reuse = parser.add_mutually_exclusive_group()
     reuse.add_argument("--reuse-providers-from", metavar="FULL_BUILD_ID", help="reuse verified providers from a complete full build")
     reuse.add_argument("--refresh-fixtures-from", metavar="FULL_BUILD_ID", help="refresh demo fixtures and page/offline routes from a compatible complete full build")
@@ -1595,21 +1665,21 @@ def main(argv=None):
         raise RuntimeError("migration delivery build guard cannot be loaded")
     guard = importlib.util.module_from_spec(guard_spec)
     guard_spec.loader.exec_module(guard)
-    build_freeze = guard.build_freeze
-    with build_freeze(REPO):
-        if args.reuse_providers_from is not None:
-            try:
-                build_reuse(args.build_id, args.reuse_providers_from)
-            except ValueError as error:
-                parser.error(str(error))
-            return
-        if args.refresh_fixtures_from is not None:
-            try:
-                build_reuse(args.build_id, args.refresh_fixtures_from, refresh_fixtures=True)
-            except ValueError as error:
-                parser.error(str(error))
-            return
-        build_full(args.build_id)
+    snapshot = snapshot_helper()
+    try:
+        with snapshot.package_slot(REPO):
+            if (BUILD_ROOT / args.build_id).exists():
+                raise ValueError("candidate build id already exists; choose a new unique id")
+            source = snapshot_build_source(args.source_commit, guard, snapshot) if args.source_commit else nullcontext()
+            with source, guard.build_freeze(REPO):
+                if args.reuse_providers_from is not None:
+                    build_reuse(args.build_id, args.reuse_providers_from)
+                elif args.refresh_fixtures_from is not None:
+                    build_reuse(args.build_id, args.refresh_fixtures_from, refresh_fixtures=True)
+                else:
+                    build_full(args.build_id)
+    except (ValueError, guard.GuardError, subprocess.CalledProcessError) as error:
+        parser.error(str(error))
 
 
 if __name__ == "__main__":

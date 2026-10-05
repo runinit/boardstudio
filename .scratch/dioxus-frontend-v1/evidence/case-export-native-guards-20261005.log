@@ -1,0 +1,13 @@
+   Compiling boardstudio_core v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/core)
+   Compiling boardstudio-application v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/application)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.41s
+     Running tests/durable_session.rs (application/target/debug/deps/durable_session-48b1ba33d4dd5ce8)
+
+running 3 tests
+test cancelled_export_is_no_longer_current_before_its_async_cancel_effect_runs ... ok
+test failed_export_is_removed_and_not_cancelled_again_after_reopen ... ok
+test same_id_revision_reopen_invalidates_generation_and_export_tokens ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 14 filtered out; finished in 0.00s
+
+migration-deliver: focused-test status=passed passed=3 started=2026-10-05T01:46:46+00:00 ended=2026-10-05T01:46:52+00:00 duration=6.44s

@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-05T01:03:24.411457+00:00",
+    "updated_at": "2026-10-05T01:47:02.455563+00:00",
     "parent_counts": {
       "accepted": 22,
       "implementing": 28,
@@ -25,20 +25,20 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-preset-customization-20261004",
-      "source_commit": "4e716156a0692972b1309798cdc883739c7ff73b",
+      "build_id": "frontend-layout-attachment-20261005",
+      "source_commit": "e12b6ab0f17ba879a6d3e7a2b7bdb8365cffc5d1",
       "root_url": "http://127.0.0.1:34822/",
       "subpath_url": "http://127.0.0.1:34822/boardstudio/",
-      "provenance": "web/target/builds/frontend-preset-customization-20261004/provenance.json",
-      "provenance_sha256": "c53962a274d9ac1a54b862bc4290c53c71d144b38c0e5fa03c178757f5d1e4fe",
+      "provenance": "web/target/builds/frontend-layout-attachment-20261005/provenance.json",
+      "provenance_sha256": "024b7af637c2f4d70553d57f975d80e0b125a1e6a39671cadeb93cd84a1052ea",
       "fresh_commands": 23,
       "inherited_commands": 0,
       "source_inputs": 1403,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 470.716564,
+      "command_span_seconds": 475.190654,
       "package_qualification": "Combined package provenance, current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-preset-customization-20261004/package-proof.json",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-layout-attachment-20261005/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -48,8 +48,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "7f3165b497d135eafccbe8c3335cb48024fd62c1",
-      "state": "7f3165b4 integrates reviewed mounted Parts renderer-init error/form/2D/no-edit coverage and grouped PCB/STL/WRL/shared-consumer evidence. Strict Parts module10of10 and mandatory native web/page/reachability/affectedWASM gates passed. No release behavior change; served4e716156candidate retained. Exact-pin reference5175 rebuilt; savedassets reload, recoveredWebGL2startupfailure remains separately recorded.",
+      "source_commit": "e12b6ab0",
+      "state": "e12b6ab0 integrates reviewed native RED/GREEN attachment choice filtering. Required native/page/reachability/affectedChrome gates passed; full candidate published on34822 and paired52/52option-ID replay passes. F3.5-C05 verified; other parent criteria/joins remain.",
       "packets": [
         {
           "stream": "Layout",
@@ -559,7 +559,7 @@
       {
         "stream": "Layout",
         "priority": "Functional gaps alongside other streams; exact visual parity deferred",
-        "state": "F3.6-C03/C05 verified by independent evidence reconciliation. Paired board/matrix/column/key/diode context follow-up retained. F3.5-C05 is missing: candidate attachment Replace offers seven unrelated assembly snapshots (59 versus52 options). Native-first repair owns matrix_transform_operation.rs and presentation/objects matrix transform controller/Inspector; earlier edit/history/locality proof reused. Mobile deferred; remaining context/keyboard and F7.3 joins stay open."
+        "state": "F3.5-C05 verified by nativeRED/GREEN, independentreview and publishedpaired52/52optionID replay; earlierhistory/locality proof reused. F3.6-C03/C05 verified. Remaining Inspectorcontext/numeric/keyboard/finding clauses and parentjoins stayopen; mobile deferred."
       },
       {
         "stream": "PCB",
@@ -575,7 +575,7 @@
       },
       {
         "stream": "Case",
-        "state": "Fresh34822Sofle reaches exact authored Plate and mechanical stack; pending-generation Previous feedback and assembly switch recover. Configured mechanical Case lacks local Export geometry shown by reference. Bounded author awaits user exception for mounted-first regression because native cannot observe missing DOM control; existing export-workspace evidence preserved."
+        "state": "F7.6-C06 Case-local Export geometry implemented in settled source: mounted missing-control RED then GREEN1/1; existing native application export ownership guards GREEN3/3. Independent combined review and packaged actual output proof pending. Existing Runtime export route retained."
       },
       {
         "stream": "Parts + Project",
@@ -584,15 +584,15 @@
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Integrate and package source-reviewed F3.5-C05 attachment option repair, then replay same paired saved fixture. Native RED/GREEN complete. Unfinished lifecycle tests isolated as an exact retained patch so they no longer block production-source packaging.",
-      "Repair deferred F7.3-C07 fixture hang and add deterministic old Persist completion barrier before counting Save/project-replacement proof. Exact source patch/full copies/hashes retained in evidence/lifecycle-deferred-20261005. Positive desktop resize/DPR test is retained but not executed. Reference savedmodels render after fresh/reload checks; prior startupfailure cause unknown.",
-      "Finish configured Case-local mechanical export repair after existing native-first/mounted-regression clarification; preserve exact snapshot/admission and existing export pipeline.",
-      "Keep mobile/compact deferred and unassessed F8/F9 open. Review one coherent batch before parent acceptance; do not add duplicate Parts picking to shared-viewer wiring criteria."
+      "Finish only the current batch review blockers, run one combined integration gate, and commit its explicit files. Optional work is stopped.",
+      "Build and publish the pinned Case candidate from the committed snapshot; verify gate reuse and snapshot attribution on this necessary delivery. No benchmark-only build.",
+      "Execute the pinned grouped Case generation/settings/stale-current/export/scope/reopen journey. Repair only reproduced blockers to this required journey.",
+      "Preserve deferred lifecycle work and existing evidence. Keep mobile/compact deferred and unassessed F8/F9 open until prerequisites are accepted."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
       "cadence": {
-        "trigger": "After two further published functional candidates, or immediately when the same avoidable failure repeats; run the existing retro skill briefly without holding author packets.",
+        "trigger": "Optional scheduled retrospectives are stopped by user instruction. Correct a repeated real delivery blocker within the required active batch; use existing records.",
         "last_checkpoint_at": "2026-10-04T15:56:00Z",
         "last_checkpoint_candidate": "frontend-authored-case-and-layout-20261004",
         "last_checkpoint_source_fix": "f551e4e0"
@@ -726,6 +726,26 @@
             "agent-policy.json routes"
           ]
         }
+      },
+      "delivery_restructure_20261005": {
+        "authority": "User requested end-to-end restructure and stopped all optional work.",
+        "contract": "CONSTRAINTS.md#delivery-loop",
+        "findings": [
+          "Shared live source coupled product delivery to unrelated edits and fixture development.",
+          "Broad test ownership and repeated checks increased work; source-bound reuse and exact mappings are implemented.",
+          "New infrastructure and optional investigation extended a ready product batch; its scope is now frozen.",
+          "Accepted-parent totals hide implemented and functionally verified work.",
+          "Daily publication quota and scheduled retrospectives could delay required delivery without proving product correctness."
+        ],
+        "decisions": [
+          "One frozen deliverable with named public end-to-end outcome and at most two authors plus one reviewer.",
+          "One integration gate; exact-input commit reuse; one immutable committed candidate; grouped desktop qualification.",
+          "Optional work stopped. No benchmark-only builds, optional fixtures or extra review chains.",
+          "Publication quota removed; one concurrent package and provenance checks retained.",
+          "Keep state/DOM/public-pipeline checks distinct; no artificial native RED for absent markup."
+        ],
+        "evidence": ".scratch/dioxus-frontend-v1/evidence/acceleration-implementation-20261005/implementation-report.md",
+        "operational_status": "Corrected required gate passed: native245, affected headless3 in79.27s, compiler/reachability. Canonical record/index updates during gate did not cause false drift. Commit reuse and snapshot publication/output remain pending."
       }
     },
     "qualification": {
@@ -838,7 +858,7 @@
               "scope": "Sofle selection, contextual Objects/Inspector Properties and Relations, matrix/key edits, Undo and reopen",
               "spec": ".scratch/dioxus-layout-authoring/spec.md",
               "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/journey.md",
-              "verified": "Three Properties shortcut routes and key width1→1.25→Undo1→Redo1.25→reload1.25 match reference behavior.",
+              "verified": "Three Properties shortcut routes and key width1\u21921.25\u2192Undo1\u2192Redo1.25\u2192reload1.25 match reference behavior.",
               "remaining": "Inspector arrangement/typography/context footer and Objects-to-toolbar selection-kind synchronization; broader authoring criteria unchanged."
             },
             {
@@ -1935,7 +1955,7 @@
             "journeys": [
               {
                 "id": "F7.3-C05-module-route",
-                "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797→34798 RED/GREEN unless changed source affects it.",
+                "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797\u219234798 RED/GREEN unless changed source affects it.",
                 "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md"
               },
               {
@@ -1962,7 +1982,7 @@
           "journeys": [
             {
               "id": "F7.3-C05-module-route",
-              "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797→34798 RED/GREEN unless changed source affects it.",
+              "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797\u219234798 RED/GREEN unless changed source affects it.",
               "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
               "state": "pending"
             },
@@ -2031,7 +2051,7 @@
             "journeys": [
               {
                 "id": "F7.3-C05-module-route",
-                "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797→34798 RED/GREEN unless changed source affects it.",
+                "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797\u219234798 RED/GREEN unless changed source affects it.",
                 "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md"
               },
               {
@@ -2053,7 +2073,7 @@
           "journeys": [
             {
               "id": "F7.3-C05-module-route",
-              "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797→34798 RED/GREEN unless changed source affects it.",
+              "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797\u219234798 RED/GREEN unless changed source affects it.",
               "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
               "state": "pending"
             },
@@ -2258,7 +2278,7 @@
               "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
               "state": "partial",
               "evidence": ".scratch/dioxus-pcb-view/evidence/22-mounted-module-inspector-20261003/placement-save-reopen.md",
-              "verified": "Accepted removal deleted the selected placement (3→2) and updated findings (97→85). React also clears selection without a success label, so Inspector unmount is not a parity defect.",
+              "verified": "Accepted removal deleted the selected placement (3\u21922) and updated findings (97\u219285). React also clears selection without a success label, so Inspector unmount is not a parity defect.",
               "remaining": "Public rejected/cancelled/pending state and stale-scope outcome were not induced; F5.5-C04 remains open."
             },
             {
@@ -2267,7 +2287,7 @@
               "spec": ".scratch/dioxus-keymap-layers/spec.md",
               "state": "passed",
               "evidence": ".scratch/dioxus-keymap-layers/evidence/macro09-zmk-root-public-qualification/RESULTS.md",
-              "verified": "Paired imported fixture: unchanged A blur kept revision 29 and project hash; A→C submitted once and advanced to revision 30 in both apps."
+              "verified": "Paired imported fixture: unchanged A blur kept revision 29 and project hash; A\u2192C submitted once and advanced to revision 30 in both apps."
             },
             {
               "id": "F2.2-project-copy-menu",
@@ -2452,7 +2472,7 @@
               },
               {
                 "id": "F7.4-empty-profile-gap",
-                "scope": "On the saved split Sofle fixture change plate thickness 1.5→2.0 and observe plate foam 3.0→2.8, configured gap 3.00 mm and unavailable supported range with no explicit fit profile. Reuse paired TS/old Dioxus RED and focused 1/1 mounted regression.",
+                "scope": "On the saved split Sofle fixture change plate thickness 1.5\u21922.0 and observe plate foam 3.0\u21922.8, configured gap 3.00 mm and unavailable supported range with no explicit fit profile. Reuse paired TS/old Dioxus RED and focused 1/1 mounted regression.",
                 "spec": ".scratch/dioxus-frontend-v1/issues/07-case.md"
               }
             ]
@@ -2476,7 +2496,7 @@
               },
               {
                 "id": "F7.4-empty-profile-gap",
-                "scope": "On the saved split Sofle fixture change plate thickness 1.5→2.0 and observe plate foam 3.0→2.8, configured gap 3.00 mm and unavailable supported range with no explicit fit profile. Reuse paired TS/old Dioxus RED and focused 1/1 mounted regression.",
+                "scope": "On the saved split Sofle fixture change plate thickness 1.5\u21922.0 and observe plate foam 3.0\u21922.8, configured gap 3.00 mm and unavailable supported range with no explicit fit profile. Reuse paired TS/old Dioxus RED and focused 1/1 mounted regression.",
                 "spec": ".scratch/dioxus-frontend-v1/issues/07-case.md"
               }
             ]
@@ -2495,7 +2515,7 @@
             },
             {
               "id": "F7.4-empty-profile-gap",
-              "scope": "On the saved split Sofle fixture change plate thickness 1.5→2.0 and observe plate foam 3.0→2.8, configured gap 3.00 mm and unavailable supported range with no explicit fit profile. Reuse paired TS/old Dioxus RED and focused 1/1 mounted regression.",
+              "scope": "On the saved split Sofle fixture change plate thickness 1.5\u21922.0 and observe plate foam 3.0\u21922.8, configured gap 3.00 mm and unavailable supported range with no explicit fit profile. Reuse paired TS/old Dioxus RED and focused 1/1 mounted regression.",
               "spec": ".scratch/dioxus-frontend-v1/issues/07-case.md",
               "state": "passed",
               "evidence": ".scratch/dioxus-case-workspace/evidence/public-mechanical-settings/candidate-0cad7577/RESULTS.md"
@@ -3076,7 +3096,7 @@
               "source_paths_complete": true,
               "state": "passed",
               "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-camera-f36c01-20261004/RECEIPT.md",
-              "result": "Candidate 34812 cancels pending Pick origin on 2D→3D and return while board, Column 1 selection, origin coordinates, 2D camera and Undo/Redo state remain unchanged. Earlier placement cancellation evidence reused; TS retains the pending hint, so this is the specified functional correction rather than exact legacy behavior.",
+              "result": "Candidate 34812 cancels pending Pick origin on 2D\u21923D and return while board, Column 1 selection, origin coordinates, 2D camera and Undo/Redo state remain unchanged. Earlier placement cancellation evidence reused; TS retains the pending hint, so this is the specified functional correction rather than exact legacy behavior.",
               "completed_at": "2026-10-04T15:43:18Z"
             },
             {
@@ -3445,12 +3465,88 @@
               "verified": "Fresh Sofle reaches exact Plate/mechanical geometry; observed Generating and Previous feedback plus Right-to-Left switch/recovery. Local Export geometry control absent in configured stack; repair needs mounted regression exception to native-first instruction."
             }
           ]
+        },
+        {
+          "candidate_build_id": "frontend-preset-customization-20261004",
+          "source_commit": "4e716156a0692972b1309798cdc883739c7ff73b",
+          "phase": "qualified_partial",
+          "review": {
+            "profile": "sol-review",
+            "state": "pending"
+          },
+          "journeys": [
+            {
+              "id": "F7.3-parts-individual-model-layers",
+              "scope": "Paired MX switch Parts 3D sample: current sample model rows each hide/show independently, aggregate visibility and2D form return remain available; no mutation of live project. Reuse existing shared camera and Case controls evidence.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+              "source_paths": [
+                "web/src/presentation/shared_viewer.rs",
+                "web/src/presentation/case_display.rs",
+                "web/src/presentation/case_assembly_layers.rs"
+              ],
+              "source_paths_complete": true,
+              "state": "pending"
+            },
+            {
+              "id": "F2.2-library-mounted-recovery",
+              "scope": "Execute corrected mounted Project-menu suite with actual passing named confirmation/cancel/delete/replacement failure/retry/history and name/copy actions. Remove only exclusions proven green. Reuse retained paired portable-copy and delete receipts, retain public storage-fault observation limit.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
+              "source_paths": [
+                "web/src/presentation/library.rs"
+              ],
+              "source_paths_complete": true,
+              "state": "passed",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/parts-library-gates-20261004/commit-gate.log",
+              "reuse": "unchanged_scoped_source"
+            },
+            {
+              "id": "saved-recipe-layout",
+              "scope": "Saved recipe parameter/model and invalid-input branches; apply to matrix and board origin, then re-edit without mutating placed snapshots and save/reopen.",
+              "review_plan": ".scratch/dioxus-frontend-v1/evidence/astra-consolidation-review-20261004.md",
+              "source_paths": [
+                "web/src/main.rs",
+                "web/src/parts_assembly_preset_draft.rs",
+                "web/src/presentation/parts.rs",
+                "web/src/presentation/parts/assembly_editor.rs",
+                "web/src/presentation/parts/assembly_presets.rs"
+              ],
+              "source_paths_complete": true,
+              "state": "passed",
+              "source_scope": "Changed preset originating action; unchanged import/placement/history branches reuse their attributable earlier receipts.",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/frontend-preset-customization-20261004/RECEIPT.md",
+              "verified": "Preset North parameter edits/defaults/history/reopen and ordinary New assembly passed on4e716156; supported/empty/malformed model import and previously verified matrix/board placement/snapshot branches reused. Invalid-input claim is limited to the named exercised branches in those receipts. F4.6 parent remains gated by F4.4."
+            },
+            {
+              "id": "layout-keymap-keycaps",
+              "scope": "Current-board 3D pick into Keymap and Keycaps editors with accepted edits, 2D return and scope changes; reuse proven Layout history/orbit.",
+              "review_plan": ".scratch/dioxus-frontend-v1/evidence/astra-consolidation-review-20261004.md",
+              "source_paths": [],
+              "source_paths_complete": false,
+              "state": "pending"
+            },
+            {
+              "id": "pcb-model-viewer",
+              "scope": "Retained routed/module fixture: model pick into owning editor, actual unavailable-model feedback, pose/save/reopen and Case projection.",
+              "review_plan": ".scratch/dioxus-frontend-v1/evidence/astra-consolidation-review-20261004.md",
+              "source_paths": [],
+              "source_paths_complete": false,
+              "state": "pending"
+            },
+            {
+              "id": "case-local-step-scope",
+              "scope": "Valid authored Plate: Case-local STEP delivery/signature and observable pending-operation scope change, Previous/current admission, canonical consumer return.",
+              "review_plan": ".scratch/dioxus-frontend-v1/evidence/astra-consolidation-review-20261004.md",
+              "source_paths": [],
+              "source_paths_complete": false,
+              "state": "pending"
+            }
+          ]
         }
       ],
-      "phase": "qualified_partial",
+      "phase": "qualifying",
       "unmet_start_conditions": [],
-      "candidate_build_id": "frontend-preset-customization-20261004",
-      "source_commit": "4e716156a0692972b1309798cdc883739c7ff73b",
+      "candidate_build_id": "frontend-layout-attachment-20261005",
+      "source_commit": "e12b6ab0f17ba879a6d3e7a2b7bdb8365cffc5d1",
       "journeys": [
         {
           "id": "F7.3-parts-individual-model-layers",
@@ -3472,26 +3568,17 @@
             "web/src/presentation/library.rs"
           ],
           "source_paths_complete": true,
-          "state": "passed",
           "evidence": ".scratch/dioxus-frontend-v1/evidence/parts-library-gates-20261004/commit-gate.log",
+          "state": "passed",
           "reuse": "unchanged_scoped_source"
         },
         {
           "id": "saved-recipe-layout",
           "scope": "Saved recipe parameter/model and invalid-input branches; apply to matrix and board origin, then re-edit without mutating placed snapshots and save/reopen.",
           "review_plan": ".scratch/dioxus-frontend-v1/evidence/astra-consolidation-review-20261004.md",
-          "source_paths": [
-            "web/src/main.rs",
-            "web/src/parts_assembly_preset_draft.rs",
-            "web/src/presentation/parts.rs",
-            "web/src/presentation/parts/assembly_editor.rs",
-            "web/src/presentation/parts/assembly_presets.rs"
-          ],
-          "source_paths_complete": true,
-          "state": "passed",
-          "source_scope": "Changed preset originating action; unchanged import/placement/history branches reuse their attributable earlier receipts.",
-          "evidence": ".scratch/dioxus-frontend-v1/evidence/frontend-preset-customization-20261004/RECEIPT.md",
-          "verified": "Preset North parameter edits/defaults/history/reopen and ordinary New assembly passed on4e716156; supported/empty/malformed model import and previously verified matrix/board placement/snapshot branches reused. Invalid-input claim is limited to the named exercised branches in those receipts. F4.6 parent remains gated by F4.4."
+          "source_paths": [],
+          "source_paths_complete": false,
+          "state": "pending"
         },
         {
           "id": "layout-keymap-keycaps",
@@ -3523,36 +3610,186 @@
         "F4.6 criteria verified; prerequisite F4.4 remains open for deferred visual C05.",
         "F7.3-C07: positive desktop resize/DPR and in-flight mounted-editor Save/project replacement checks in progress; other verified clauses reuse scoped evidence.",
         "F3.5-C05: native-first attachment option repair and paired packaged replay pending; F3.6-C03/C05 verified without a new package.",
-        "Case-local Export geometry awaits the existing mounted-first clarification; no repeat request."
+        "Case-local Export geometry: integrate reviewed control repair, publish candidate, then verify actual exact-current captured-scope output through the local action. Mounted event and native owner proof do not establish packaged file contents."
       ],
       "pending_source_batch": {
-        "build_id": "frontend-layout-attachment-20261005",
-        "base_commit": "7f3165b497d135eafccbe8c3335cb48024fd62c1",
-        "state": "source_reviewed",
+        "build_id": "frontend-case-export-20261005",
+        "base_commit": "e12b6ab0f17ba879a6d3e7a2b7bdb8365cffc5d1",
+        "state": "reviewed and required gates passed; committing",
         "source_paths": [
-          "web/src/matrix_transform_operation.rs",
-          "web/src/presentation/objects/matrix_transform_controller.rs",
-          "web/src/presentation/objects/matrix_transform_inspector.rs"
+          "AGENTS.md",
+          "CONSTRAINTS.md",
+          "docs/agents/issue-tracker.md",
+          "scripts/build-m1.py",
+          "scripts/migration_snapshot.py",
+          "scripts/migration_candidate.py",
+          "scripts/migration-deliver.py",
+          "scripts/migration_gate_receipts.py",
+          "scripts/run-wasm-tests.py",
+          "scripts/wasm-test-owners.json",
+          "scripts/test-build-m1-reuse.py",
+          "scripts/test-migration-snapshot.py",
+          "scripts/test-migration-candidate.py",
+          "scripts/test-migration-deliver.py",
+          "scripts/test-migration-gate-receipts.py",
+          "scripts/test-run-wasm-tests.py",
+          ".scratch/dioxus-frontend-v1/progress.py",
+          ".scratch/dioxus-frontend-v1/qualification.py",
+          ".scratch/dioxus-frontend-v1/test-progress.py",
+          ".scratch/dioxus-frontend-v1/test-qualification.py",
+          "web/src/cad_presentation.rs",
+          "web/src/presentation.rs",
+          "web/src/presentation/objects/matrix_transform_inspector.rs",
+          "web/src/presentation/objects/matrix_transform_inspector_tests.rs"
         ],
         "source_paths_complete": true,
         "journeys": [
           {
-            "id": "F3.5-C05-attachment-options",
-            "scope": "Reuse paired saved PCB fixture at34822/5175; inspect Replace diode ordered option IDs, currently selected definition and absence of unrelated assembly snapshots. No repeated edit/history/mirror journey because dispatch/locality paths unchanged. Desktop only."
+            "id": "case-local-step-scope",
+            "scope": "Paired desktop Case journey from pinned Sofle: add Plate, configure mechanical settings, generate exact geometry, edit a setting and observe stale/current recovery, verify Export geometry readiness, download and inspect the exact-current mechanical package, change physical scope, and save/reopen. Qualify only branches actually executed; all existing criteria and warning/currentness rules remain.",
+            "state": "pending",
+            "source_roots": [
+              "web",
+              "application",
+              "core",
+              "contracts",
+              "renderer",
+              "cad",
+              "kicad/src",
+              "app/src",
+              "app/public",
+              "scripts",
+              "ergogen"
+            ],
+            "source_paths": [
+              ".node-version",
+              ".npmrc",
+              "package.json",
+              "pnpm-lock.yaml",
+              "pnpm-workspace.yaml",
+              "rust-toolchain.toml"
+            ],
+            "optional_source_paths": [
+              ".cargo/config",
+              ".cargo/config.toml"
+            ],
+            "source_paths_complete": true,
+            "fixtures": [
+              {
+                "path": ".scratch/dioxus-frontend-v1/evidence/case-generation-export-20261005/input.boardstudio",
+                "sha256": "af5b1bde73de827a699ddf01f7f7a321c6cfe8922304056a1678dbe622c9a821"
+              },
+              {
+                "path": ".scratch/dioxus-frontend-v1/evidence/case-generation-export-20261005/input.json",
+                "sha256": "e9aa38882a73f4faeb2ac7c32ad7ea54e38b57ecbf6b0f7991cff941bd9a5569"
+              }
+            ],
+            "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md"
           }
         ],
+        "package_mode": "full committed snapshot",
+        "finish_condition": "One reviewed integration, required gates with exact-input commit reuse, immutable source-commit package, verified root/subpath assets, then actual paired Case output and scoped currentness/reopen proof. No optional work or extra benchmarking builds.",
         "review": {
           "profile": "gpt-6.1-sol/high",
           "verdict": "source_pass",
-          "path": ".scratch/dioxus-frontend-v1/evidence/layout-attachment-choice-review-20261005.md"
+          "path": ".scratch/dioxus-frontend-v1/evidence/acceleration-implementation-20261005/integrated-review.md",
+          "source_hashes": ".scratch/dioxus-frontend-v1/evidence/acceleration-implementation-20261005/integration-path-hashes.json"
         },
-        "package_mode": "full",
-        "reuse_preflight": "Known conservative parser limitation from previous candidate; do not bypass provider provenance guard."
+        "operational_proof": [
+          "unchanged prepare-gates to commit reuses successful gates",
+          "snapshot package remains bound to commit while live records change",
+          "actual Case-originated output file; no event-interception substitute"
+        ],
+        "gate_attempt": {
+          "session_id": 76294,
+          "terminal_exit": 143,
+          "reason": "Coordinator deliberately stopped broad presentation suite: shared-file diff is only27lines cfg(test) Case fixture setup, yet runner traversed unrelated Keymap suites for more than9minutes. Incomplete headless run is not passing evidence.",
+          "completed_checks": {
+            "wasm_page_seconds": 7.2,
+            "native_web": {
+              "passed": 245,
+              "ignored": 1,
+              "seconds": 3.33
+            },
+            "reachability_seconds": 1.71
+          },
+          "log": ".scratch/dioxus-frontend-v1/evidence/acceleration-implementation-20261005/integration-overbroad-stopped.log",
+          "required_corrections": [
+            "Bind narrow Case test ownership to exact reviewed before/after shared-file hashes; mismatches retain broad coverage; preserve independently changed Inspector tests.",
+            "Use maintained source/index fingerprint for final drift; documentation-only record edits must not abort matching executable checks."
+          ]
+        },
+        "corrected_gate": {
+          "session_id": 31866,
+          "log": ".scratch/dioxus-frontend-v1/evidence/acceleration-implementation-20261005/integration-corrected-gates.log",
+          "state": "passed",
+          "record_updates_during_gate": "Necessary canonical records changed and were staged during execution; maintained-input fingerprint remained valid and final gate passed.",
+          "terminal_exit": 0,
+          "headless": {
+            "passed": 3,
+            "failed": 0,
+            "excluded_failures": 0,
+            "incomplete": 0,
+            "seconds": 79.27
+          }
+        }
       },
-      "started_at": "2026-10-04T23:36:43.776961+00:00",
+      "started_at": "2026-10-05T01:22:41.580624+00:00",
       "review": {
         "profile": "sol-review",
         "state": "pending"
+      },
+      "next_scope": {
+        "id": "frontend-case-export-20261005",
+        "label": "Complete desktop Case generation and local export journey",
+        "source_commit": "e12b6ab0f17ba879a6d3e7a2b7bdb8365cffc5d1",
+        "streams": [
+          "Case/shared 3D"
+        ],
+        "journeys": [
+          {
+            "id": "case-local-step-scope",
+            "scope": "Paired desktop Case journey from pinned Sofle: add Plate, configure mechanical settings, generate exact geometry, edit a setting and observe stale/current recovery, verify Export geometry readiness, download and inspect the exact-current mechanical package, change physical scope, and save/reopen. Qualify only branches actually executed; all existing criteria and warning/currentness rules remain.",
+            "state": "pending",
+            "source_roots": [
+              "web",
+              "application",
+              "core",
+              "contracts",
+              "renderer",
+              "cad",
+              "kicad/src",
+              "app/src",
+              "app/public",
+              "scripts",
+              "ergogen"
+            ],
+            "source_paths": [
+              ".node-version",
+              ".npmrc",
+              "package.json",
+              "pnpm-lock.yaml",
+              "pnpm-workspace.yaml",
+              "rust-toolchain.toml"
+            ],
+            "optional_source_paths": [
+              ".cargo/config",
+              ".cargo/config.toml"
+            ],
+            "source_paths_complete": true,
+            "fixtures": [
+              {
+                "path": ".scratch/dioxus-frontend-v1/evidence/case-generation-export-20261005/input.boardstudio",
+                "sha256": "af5b1bde73de827a699ddf01f7f7a321c6cfe8922304056a1678dbe622c9a821"
+              },
+              {
+                "path": ".scratch/dioxus-frontend-v1/evidence/case-generation-export-20261005/input.json",
+                "sha256": "e9aa38882a73f4faeb2ac7c32ad7ea54e38b57ecbf6b0f7991cff941bd9a5569"
+              }
+            ],
+            "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md"
+          }
+        ]
       }
     },
     "delivery_priority": {
@@ -3648,6 +3885,10 @@
         "build_id": "frontend-preset-customization-20261004",
         "published_at": "2026-10-04T23:36:41.994477+00:00",
         "extra_candidate_reason": "Repair publicly reproduced missing preset Customize 3D assembly entrypoint; reviewed source4e716156 and required native/wasm gates pass. Reuse retained desktop fixtures on the same local origin for one combined recipe action/parameter/history replay."
+      },
+      {
+        "build_id": "frontend-layout-attachment-20261005",
+        "published_at": "2026-10-05T01:22:39.838404+00:00"
       }
     ],
     "validation_scope": {

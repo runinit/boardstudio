@@ -1,0 +1,50 @@
+[
+  {
+    "command": [
+      "python3",
+      "-B",
+      "scripts/test-migration-gate-receipts.py"
+    ],
+    "exit": 0,
+    "tests": 13,
+    "wall_seconds": 0.463,
+    "log": ".scratch/dioxus-frontend-v1/evidence/acceleration-implementation-20261005/test-migration-gate-receipts.log",
+    "log_sha256": "6ec7fbb5f79df154ce70990dbc3f30bcf2ad43136f4e0468ea01d30ec03a19f6"
+  },
+  {
+    "command": [
+      "python3",
+      "-B",
+      "scripts/test-migration-deliver.py"
+    ],
+    "exit": 0,
+    "tests": 30,
+    "wall_seconds": 7.557,
+    "log": ".scratch/dioxus-frontend-v1/evidence/acceleration-implementation-20261005/test-migration-deliver.log",
+    "log_sha256": "381e0693d985d0bdc4cadefb8f1d4287709f1ba09de36194cdc314788773d73f"
+  },
+  {
+    "command": [
+      "python3",
+      "-B",
+      ".scratch/dioxus-frontend-v1/test-progress.py"
+    ],
+    "exit": 0,
+    "tests": 35,
+    "wall_seconds": 0.109,
+    "log": ".scratch/dioxus-frontend-v1/evidence/acceleration-implementation-20261005/test-progress.log",
+    "log_sha256": "122e6f1075fcecb24a99ccbd9818c40d302475dcd468c40373fd099a848add1d"
+  },
+  {
+    "command": [
+      "python3",
+      "-B",
+      ".scratch/dioxus-frontend-v1/test-qualification.py"
+    ],
+    "exit": 0,
+    "tests": 24,
+    "wall_seconds": 0.093,
+    "log": ".scratch/dioxus-frontend-v1/evidence/acceleration-implementation-20261005/test-qualification.log",
+    "log_sha256": "a4ba8f5aa1144d09c2bbcb80fd539a2ab8977de48a84e90aba07762b235b4921"
+  }
+]

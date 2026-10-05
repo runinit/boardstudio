@@ -26,12 +26,24 @@ def _load_progress():
     return module
 
 
-def _load_inventory():
+def _load_build():
     path = Path(__file__).with_name("build-m1.py")
     spec = importlib.util.spec_from_file_location("migration_candidate_build_m1", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module.sources
+    return module
+
+
+def _load_inventory():
+    return _load_build().sources
+
+
+def _validate_snapshot(root, provenance):
+    path = Path(__file__).with_name("migration_snapshot.py")
+    spec = importlib.util.spec_from_file_location("migration_candidate_snapshot", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.validate_identity(root, provenance, _load_build().is_build_source_path)
 
 
 def _relative_path(value, label):
@@ -94,10 +106,15 @@ def derive_proof(root, build_id, provenance_path, provenance_bytes, provenance, 
     sources = provenance.get("sources")
     if not isinstance(sources, dict) or not sources:
         raise ValueError("Candidate provenance has no source inventory")
-    current = inventory()
-    if current != sources:
-        paths = sorted(path for path in set(current) | set(sources) if current.get(path) != sources.get(path))
-        raise ValueError("Candidate source inventory drift: " + ", ".join(paths[:12]))
+    if "source_snapshot" in provenance:
+        # Frozen builds are attributed to the selected Git tree, not whatever
+        # independent author work happens to be in the coordinator now.
+        _validate_snapshot(root, provenance)
+    else:
+        current = inventory()
+        if current != sources:
+            paths = sorted(path for path in set(current) | set(sources) if current.get(path) != sources.get(path))
+            raise ValueError("Candidate source inventory drift: " + ", ".join(paths[:12]))
 
     fresh = provenance.get("commands")
     if not isinstance(fresh, list) or not fresh or any(not isinstance(row, dict) for row in fresh):
@@ -147,7 +164,9 @@ def derive_proof(root, build_id, provenance_path, provenance_bytes, provenance, 
         "duration_seconds": _duration(fresh),
         "release_warnings": warnings,
         "qualification": (
-            "Combined package provenance, current source hashes and local assets verified; "
+            ("Combined package provenance, committed snapshot inputs and local assets verified; "
+             if "source_snapshot" in provenance else
+             "Combined package provenance, current source hashes and local assets verified; ") +
             "live asset checks performed by record-candidate. Functional journey evidence is separate."
         ),
     }

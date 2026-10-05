@@ -1,4 +1,5 @@
 """Advance a verified immutable candidate to selected-scope qualification, not acceptance."""
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 import re
@@ -91,6 +92,62 @@ def changed_paths(root, source_commit, candidate_commit):
     return {path for path in output.split('\0') if path}
 
 
+def _valid_repo_path(value):
+    if (not isinstance(value, str) or not value or value.startswith("/")
+            or "\\" in value or "\0" in value or re.match(r"^[A-Za-z]:", value)):
+        return False
+    parts = value.split("/")
+    return all(part and part not in (".", "..") for part in parts)
+
+
+def _repo_path(root, value):
+    """Resolve a validated repository-relative path without traversing symlinks."""
+    if not _valid_repo_path(value):
+        return None
+    path = Path(root)
+    for part in Path(value).parts:
+        path = path / part
+        if path.is_symlink():
+            return None
+    return path
+
+
+def _changed_under_root(changed, source_root):
+    return changed == source_root or changed.startswith(source_root.rstrip("/") + "/")
+
+
+def fixture_identities_match(journey, prior, root):
+    """Require optional pinned fixture bytes to match this scope and its prior verdict."""
+    current = journey.get('fixtures', [])
+    previous = prior.get('fixtures', []) if isinstance(prior, dict) else []
+    if not isinstance(current, list) or current != previous:
+        return False
+    seen = set()
+    for fixture in current:
+        if (not isinstance(fixture, dict) or set(fixture) != {'path', 'sha256'}
+                or not _valid_repo_path(fixture['path'])
+                or not isinstance(fixture['sha256'], str)
+                or not re.fullmatch(r'[0-9a-f]{64}', fixture['sha256'])
+                or fixture['path'] in seen):
+            return False
+        seen.add(fixture['path'])
+        path = _repo_path(root, fixture['path'])
+        if path is None:
+            return False
+        if not path.is_file():
+            return False
+        digest = hashlib.sha256()
+        try:
+            with path.open('rb') as stream:
+                for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+                    digest.update(chunk)
+        except OSError:
+            return False
+        if digest.hexdigest() != fixture['sha256']:
+            return False
+    return True
+
+
 def reusable_journeys(scope_journeys, previous, previous_source, candidate_source, root):
     """Carry passed behavior only when its explicit source footprint stayed unchanged."""
     paths = changed_paths(root, previous_source, candidate_source)
@@ -100,19 +157,40 @@ def reusable_journeys(scope_journeys, previous, previous_source, candidate_sourc
     for journey in clean_journeys(scope_journeys):
         prior = prior_by_id.get(journey.get('id'))
         footprint = journey.get('source_paths')
+        source_roots = journey.get('source_roots', [])
+        optional_paths = journey.get('optional_source_paths', [])
         complete_footprint = journey.get('source_paths_complete') is True
-        if (paths is None or not isinstance(footprint, list) or not footprint
-                or not complete_footprint
-                or any(not isinstance(path, str) or not path or path.startswith('/')
-                       or '..' in Path(path).parts or '\\' in path for path in footprint)
-                or any(not (Path(root) / path).is_file() for path in footprint
-                       if isinstance(path, str) and path)
-                or paths.intersection(footprint) or not isinstance(prior, dict)
+        valid_files = (isinstance(footprint, list)
+                       and all(isinstance(path, str) and _repo_path(root, path) is not None
+                               and _repo_path(root, path).is_file() for path in footprint))
+        valid_roots = (isinstance(source_roots, list)
+                       and all(isinstance(path, str) and _repo_path(root, path) is not None
+                               and _repo_path(root, path).is_dir() for path in source_roots))
+        valid_optional = (isinstance(optional_paths, list)
+                          and all(isinstance(path, str) for path in optional_paths)
+                          and len(optional_paths) == len(set(optional_paths))
+                          and all(_repo_path(root, path) is not None
+                                  and not _repo_path(root, path).exists()
+                                  for path in optional_paths))
+        covered_paths = set(footprint) if valid_files else set()
+        covered_roots = source_roots if valid_roots else []
+        covered_optional = set(optional_paths) if valid_optional else set()
+        changed_covered = (paths is not None and any(
+            changed in covered_paths or changed in covered_optional
+            or any(_changed_under_root(changed, source_root)
+                                            for source_root in covered_roots)
+            for changed in paths))
+        if (paths is None or not valid_files or not valid_roots or not valid_optional
+                or not (footprint or source_roots or optional_paths) or not complete_footprint
+                or changed_covered or not isinstance(prior, dict)
                 or prior.get('state') != 'passed'
                 or prior.get('scope') != journey.get('scope')
                 or prior.get('spec') != journey.get('spec')
                 or prior.get('source_paths') != footprint
-                or prior.get('source_paths_complete') is not True):
+                or prior.get('source_roots', []) != source_roots
+                or prior.get('optional_source_paths', []) != optional_paths
+                or prior.get('source_paths_complete') is not True
+                or not fixture_identities_match(journey, prior, root)):
             result.append(dict(journey, state='pending'))
             continue
         evidence = prior.get('evidence')

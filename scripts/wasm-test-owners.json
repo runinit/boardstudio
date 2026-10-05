@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "sources": {
+    "web/src/presentation/objects/matrix_transform_controller.rs": {
+      "tests": [
+        "presentation::objects::matrix_transform_controller::workspace_route_tests::matrix_transform_owner_cannot_cross_workspace_routes",
+        "presentation::objects::matrix_transform_inspector::mounted_tests::mounted_attached_component_choices_are_current_item_scoped_and_emit_the_selected_replacement"
+      ],
+      "coverage": "The route guard protects workspace ownership; the mounted Inspector test exercises controller-produced attached choices and the selected replacement event. It does not cover every controller branch.",
+      "requires_generator_assets": true
+    },
+    "web/src/presentation/objects/matrix_transform_inspector.rs": {
+      "tests": [
+        "presentation::objects::matrix_transform_inspector::mounted_tests::mounted_attached_component_choices_are_current_item_scoped_and_emit_the_selected_replacement"
+      ],
+      "coverage": "Mounted controller-to-Inspector attached-choice projection and selected replacement event; unrelated Inspector presentation branches remain outside this owner mapping.",
+      "requires_generator_assets": true
+    },
+    "web/src/presentation.rs": {
+      "tests": [
+        "cad_presentation::mounted_tests::mounted_case_local_export_uses_current_exact_mechanical_scope"
+      ],
+      "coverage": "Mounted Case local export scope in the reviewed test-only context-helper revision; other presentation behavior requires broad fallback.",
+      "requires_generator_assets": false,
+      "base_sha256": "9c47231afa66375defd2493f73acf500a2e277053135027a1e506437d5314ec4",
+      "current_sha256": "f81f0ee22c0e6d0c851cf0b91c3d1953fb9ca41c31e56bf3ec0293fa0efbff0a"
+    }
+  }
+}

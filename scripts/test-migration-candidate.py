@@ -5,6 +5,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -141,6 +142,53 @@ class PublishCandidateTests(unittest.TestCase):
         self.assertEqual(proof["inherited_commands"], 0)
         self.assertEqual(proof["release_warnings"], {"root": 1, "subpath": 1})
         self.assertEqual(proof["duration_seconds"], 2.0)
+
+    def committed_snapshot(self):
+        source = self.root / "web/src/main.rs"
+        source.parent.mkdir(parents=True)
+        source.write_bytes(b"current source")
+        for args in (("init", "-b", "integration"), ("config", "user.name", "Candidate Test"),
+                     ("config", "user.email", "candidate@example.invalid"),
+                     ("add", "web/src/main.rs"), ("commit", "-m", "candidate source")):
+            subprocess.run(["git", "-C", str(self.root), *args], check=True, capture_output=True)
+        commit = subprocess.check_output(["git", "-C", str(self.root), "rev-parse", "HEAD"]).decode().strip()
+        tree = subprocess.check_output(["git", "-C", str(self.root), "rev-parse", "HEAD^{tree}"]).decode().strip()
+        self.provenance["source_commit"] = commit
+        manifest = json.dumps(self.provenance["sources"], sort_keys=True, separators=(",", ":")).encode()
+        self.provenance["source_snapshot"] = {
+            "schema": 1, "source_commit": commit, "source_tree": tree,
+            "manifest_sha256": sha(manifest),
+        }
+        self.write_provenance()
+        return source
+
+    def test_committed_snapshot_publishes_while_coordinator_has_new_source_edits(self):
+        source = self.committed_snapshot()
+        source.write_bytes(b"independent author work after the frozen commit")
+        self.inventory = lambda: {"web/src/main.rs": sha(source.read_bytes())}
+        with self.mock_routes():
+            self.publish()
+        proof = json.loads((self.root / self.proof_relative).read_text())
+        self.assertEqual(proof["source_commit"], self.provenance["source_commit"])
+        self.assertEqual(source.read_bytes(), b"independent author work after the frozen commit")
+
+    def test_snapshot_cannot_relabel_changed_or_incomplete_inputs_as_the_commit(self):
+        self.committed_snapshot()
+        self.provenance["sources"]["web/src/main.rs"] = sha(b"not committed")
+        manifest = json.dumps(self.provenance["sources"], sort_keys=True, separators=(",", ":")).encode()
+        self.provenance["source_snapshot"]["manifest_sha256"] = sha(manifest)
+        self.write_provenance()
+        with self.assertRaisesRegex(ValueError, "committed source"):
+            self.publish()
+        self.assertFalse((self.root / self.proof_relative).exists())
+
+    def test_snapshot_rejects_mismatched_tree_even_with_valid_source_bytes(self):
+        self.committed_snapshot()
+        self.provenance["source_snapshot"]["source_tree"] = "b" * 40
+        self.write_provenance()
+        with self.assertRaisesRegex(ValueError, "snapshot tree"):
+            self.publish()
+        self.assertFalse((self.root / self.proof_relative).exists())
 
     def test_reuse_accepts_integer_count_with_matching_lineage(self):
         self.provenance["reuse_mode"] = "page-only-provider-reuse"

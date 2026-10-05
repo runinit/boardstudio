@@ -1,0 +1,5 @@
+$ python3 scripts/run-wasm-tests.py --files web/src/presentation/objects/matrix_transform_inspector.rs --result-json /tmp/matrix-transform-inspector-wasm-result.json
+run-wasm-tests: selection: web/src/presentation/objects/matrix_transform_inspector.rs -> owner map (Mounted controller-to-Inspector attached-choice projection and selected replacement event; unrelated Inspector presentation branches remain outside this owner mapping.): presentation::objects::matrix_transform_inspector::mounted_tests::mounted_attached_component_choices_are_current_item_scoped_and_emit_the_selected_replacement
+run-wasm-tests: [1/1] presentation::objects::matrix_transform_inspector::mounted_tests::mounted_attached_component_choices_are_current_item_scoped_and_emit_the_selected_replacement
+run-wasm-tests: executed 1, failed 0 (filters: presentation::objects::matrix_transform_inspector::mounted_tests::mounted_attached_component_choices_are_current_item_scoped_and_emit_the_selected_replacement)
+process exit status: 0

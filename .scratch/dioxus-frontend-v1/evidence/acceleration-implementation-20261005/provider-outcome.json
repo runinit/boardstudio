@@ -1,0 +1,12 @@
+{
+  "current_page_rust_inputs": 171,
+  "provider_graphs": [
+    "cad-worker",
+    "core-worker",
+    "service-worker"
+  ],
+  "module_graph_seconds": 1.791,
+  "current_donor_eligible": false,
+  "reason": "baseline helper is neither unchanged nor the pinned compatible full-build helper",
+  "eligibility_probe_seconds": 1.54
+}

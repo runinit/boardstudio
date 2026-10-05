@@ -1,4 +1,5 @@
 """Checks for the Layout-ready phase boundary; no application tests."""
+import hashlib
 import importlib.util
 from pathlib import Path
 import tempfile
@@ -232,6 +233,218 @@ class QualificationTests(unittest.TestCase):
                       'source_paths_complete':True, 'state':'passed', 'evidence':'receipt.md'}],
                     'c'*40, 'd'*40, root)
             self.assertEqual(journeys[0]['state'], 'pending')
+
+    def test_complete_source_roots_reuse_and_invalidate_changed_or_new_consumed_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root/'receipt.md').write_text('paired evidence')
+            (root/'web/src/provider').mkdir(parents=True)
+            (root/'web/src/provider/current.rs').write_text('source')
+            journey = {'id':'recipe-layout', 'scope':'Apply and re-edit recipe',
+                       'source_paths':['.scratch/fixtures/saved-recipe.json'],
+                       'source_roots':['web/src/provider'], 'source_paths_complete':True}
+            (root/'.scratch/fixtures').mkdir(parents=True)
+            (root/'.scratch/fixtures/saved-recipe.json').write_text('{}')
+            prior = dict(journey, state='passed', evidence='receipt.md')
+            def git_changed(value):
+                return lambda _root, *args: value if args[:3] == ('diff', '--no-renames', '--name-only') else ''
+            with patch.object(q, 'git', side_effect=git_changed('')):
+                result = q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)
+            self.assertEqual(result[0]['state'], 'passed')
+            for changed in ('web/src/provider/current.rs', 'web/src/provider/new.rs',
+                            '.scratch/fixtures/saved-recipe.json'):
+                with patch.object(q, 'git', side_effect=git_changed(changed + '\0')):
+                    result = q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)
+                self.assertEqual(result[0]['state'], 'pending', changed)
+
+    def test_source_roots_require_prior_exact_identity_and_complete_footprint(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root/'receipt.md').write_text('paired evidence')
+            (root/'web/src/provider').mkdir(parents=True)
+            journey = {'id':'recipe-layout', 'scope':'Apply', 'source_paths':[],
+                       'source_roots':['web/src/provider'], 'source_paths_complete':True}
+            prior = dict(journey, state='passed', evidence='receipt.md')
+            def unchanged(_root, *args):
+                return ''
+            with patch.object(q, 'git', side_effect=unchanged):
+                self.assertEqual(q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)[0]['state'], 'passed')
+                prior['source_roots'] = ['web/src']
+                self.assertEqual(q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)[0]['state'], 'pending')
+                prior['source_roots'] = journey['source_roots']
+                prior['source_paths_complete'] = False
+                self.assertEqual(q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)[0]['state'], 'pending')
+                journey['source_paths_complete'] = False
+                prior['source_paths_complete'] = False
+                self.assertEqual(q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)[0]['state'], 'pending')
+                journey['source_paths_complete'] = True
+                prior['source_paths_complete'] = True
+                journey['source_roots'] = ['.']
+                prior['source_roots'] = ['.']
+                self.assertEqual(q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)[0]['state'], 'pending')
+
+    def test_malformed_source_footprints_fail_closed_without_raising(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root/'receipt.md').write_text('paired evidence')
+            (root/'web/src/provider').mkdir(parents=True)
+            def unchanged(_root, *args):
+                return ''
+
+            malformed = [
+                ({'path':'web/src/provider'}, ['web/src/provider']),
+                (['web/src/provider'], {'path':'web/src/provider'}),
+                (None, ['web/src/provider']),
+                (['web/src/provider'], None),
+            ]
+            with patch.object(q, 'git', side_effect=unchanged):
+                for source_paths, source_roots in malformed:
+                    journey = {'id':'invalid-footprint', 'scope':'Edit',
+                               'source_paths':source_paths, 'source_roots':source_roots,
+                               'source_paths_complete':True}
+                    prior = dict(journey, state='passed', evidence='receipt.md')
+                    result = q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)
+                    self.assertEqual(result[0]['state'], 'pending')
+                journey = {'id':'invalid-optional-footprint', 'scope':'Edit',
+                           'source_paths':[], 'source_roots':['web/src/provider'],
+                           'optional_source_paths':[{'path':'.cargo/config'}],
+                           'source_paths_complete':True}
+                prior = dict(journey, state='passed', evidence='receipt.md')
+                result = q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)
+                self.assertEqual(result[0]['state'], 'pending')
+
+    def test_source_roots_and_files_reject_intermediate_symlinks(self):
+        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as outside:
+            root = Path(directory)
+            (root/'receipt.md').write_text('paired evidence')
+            (root/'linked').symlink_to(outside, target_is_directory=True)
+            outside_path = Path(outside)
+            (outside_path/'provider').mkdir()
+            (outside_path/'source.rs').write_text('source')
+            journey = {'id':'symlink-footprint', 'scope':'Edit',
+                       'source_paths':['linked/source.rs'], 'source_roots':['linked/provider'],
+                       'source_paths_complete':True}
+            prior = dict(journey, state='passed', evidence='receipt.md')
+            with patch.object(q, 'git', return_value=''):
+                result = q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)
+            self.assertEqual(result[0]['state'], 'pending')
+
+    def test_added_optional_source_input_invalidates_previously_passed_journey(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root/'receipt.md').write_text('paired evidence')
+            (root/'web/src/provider').mkdir(parents=True)
+            journey = {'id':'optional-config', 'scope':'Layout route',
+                       'source_paths':[], 'source_roots':['web/src/provider'],
+                       'optional_source_paths':['.cargo/config', '.cargo/config.toml'],
+                       'source_paths_complete':True}
+            prior = dict(journey, state='passed', evidence='receipt.md')
+
+            def unchanged(_root, *args):
+                return ''
+
+            with patch.object(q, 'git', side_effect=unchanged):
+                result = q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)
+                self.assertEqual(result[0]['state'], 'passed')
+
+                prior['optional_source_paths'] = ['.cargo/config']
+                result = q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)
+                self.assertEqual(result[0]['state'], 'pending')
+                prior['optional_source_paths'] = journey['optional_source_paths']
+
+                def changed_config(_root, *args):
+                    return '.cargo/config\0' if args[:3] == ('diff', '--no-renames', '--name-only') else ''
+
+                with patch.object(q, 'git', side_effect=changed_config):
+                    result = q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)
+                self.assertEqual(result[0]['state'], 'pending')
+
+                # Presence invalidates the pinned-absent identity even if Git reports
+                # no changed path (for example, an untracked config addition).
+                (root/'.cargo').mkdir()
+                (root/'.cargo/config').write_text('[build]\ntarget-dir = "target"\n')
+                result = q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)
+                self.assertEqual(result[0]['state'], 'pending')
+
+    def test_fixture_identity_hashes_detect_untracked_byte_changes_and_new_hashes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root/'receipt.md').write_text('paired evidence')
+            (root/'web/src/provider').mkdir(parents=True)
+            (root/'web/src/provider/controller.rs').write_text('source')
+            fixture = root/'.scratch/fixtures/routed-board.boardstudio'
+            fixture.parent.mkdir(parents=True)
+            original_bytes = b'initial board fixture'
+            fixture.write_bytes(original_bytes)
+            original_identity = {
+                'path':'.scratch/fixtures/routed-board.boardstudio',
+                'sha256':hashlib.sha256(original_bytes).hexdigest(),
+            }
+            journey = {'id':'pcb-model-viewer', 'scope':'Pick, edit, save and reopen',
+                       'source_paths':[], 'source_roots':['web/src/provider'],
+                       'source_paths_complete':True,
+                       'fixtures':[original_identity]}
+            prior = dict(journey, state='passed', evidence='receipt.md')
+
+            def unchanged(_root, *args):
+                return ''
+
+            with patch.object(q, 'git', side_effect=unchanged):
+                result = q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)
+                self.assertEqual(result[0]['state'], 'passed')
+
+                # The file is deliberately untracked; Git reports no changed source paths.
+                edited_bytes = b'edited board fixture'
+                fixture.write_bytes(edited_bytes)
+                result = q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)
+                self.assertEqual(result[0]['state'], 'pending')
+
+                # Even with a matching new on-disk hash, the older verdict does not
+                # authorize reuse for a changed fixture identity at the same path.
+                new_identity = dict(original_identity,
+                                    sha256=hashlib.sha256(edited_bytes).hexdigest())
+                journey['fixtures'] = [new_identity]
+                result = q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)
+                self.assertEqual(result[0]['state'], 'pending')
+
+                # Once a prior passed verdict pins the same identity, reuse is eligible.
+                prior['fixtures'] = [new_identity]
+                result = q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)
+                self.assertEqual(result[0]['state'], 'passed')
+
+    def test_fixture_identities_reject_unsafe_missing_and_malformed_paths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root/'receipt.md').write_text('paired evidence')
+            (root/'web/src/provider').mkdir(parents=True)
+            (root/'web/src/provider/controller.rs').write_text('source')
+            fixture_bytes = b'fixture'
+            (root/'fixture.boardstudio').write_bytes(fixture_bytes)
+            digest = hashlib.sha256(fixture_bytes).hexdigest()
+            journey = {'id':'case-local-step-scope', 'scope':'Export current authored Case',
+                       'source_paths':[], 'source_roots':['web/src/provider'],
+                       'source_paths_complete':True}
+            prior = dict(journey, state='passed', evidence='receipt.md')
+
+            def unchanged(_root, *args):
+                return ''
+
+            invalid = [
+                {'path':'/etc/passwd', 'sha256':digest},
+                {'path':'../outside.boardstudio', 'sha256':digest},
+                {'path':'bad\0path.boardstudio', 'sha256':digest},
+                {'path':'C:/outside.boardstudio', 'sha256':digest},
+                {'path':'missing.boardstudio', 'sha256':digest},
+                {'path':'fixture.boardstudio', 'sha256':'0'*64},
+                {'path':'fixture.boardstudio', 'sha256':digest, 'label':'extra'},
+            ]
+            with patch.object(q, 'git', side_effect=unchanged):
+                for identity in invalid:
+                    journey['fixtures'] = [identity]
+                    prior['fixtures'] = [identity]
+                    result = q.reusable_journeys([journey], [prior], 'c'*40, 'd'*40, root)
+                    self.assertEqual(result[0]['state'], 'pending', identity)
+
 
     def test_identical_source_candidate_still_requires_candidate_review(self):
         state = self.progress['qualification']

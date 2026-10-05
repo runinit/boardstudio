@@ -1,0 +1,21 @@
+migration-deliver: extra candidate #3 today allowed: reviewer-blocking defect
+
+test_bad_local_asset_hash_and_bad_server_health_preserve_old_candidate (__main__.PublishCandidateTests.test_bad_local_asset_hash_and_bad_server_health_preserve_old_candidate) ... ok
+test_candidates_from_other_utc_days_do_not_count (__main__.PublishCandidateTests.test_candidates_from_other_utc_days_do_not_count) ... ok
+test_committed_snapshot_publishes_while_coordinator_has_new_source_edits (__main__.PublishCandidateTests.test_committed_snapshot_publishes_while_coordinator_has_new_source_edits) ... ok
+test_full_build_produces_zero_inherited_commands_and_warning_counts_from_logs (__main__.PublishCandidateTests.test_full_build_produces_zero_inherited_commands_and_warning_counts_from_logs) ... ok
+test_initial_proof_write_failure_after_replace_rolls_back_proof_and_run (__main__.PublishCandidateTests.test_initial_proof_write_failure_after_replace_rolls_back_proof_and_run) ... ok
+test_malformed_or_failed_provenance_preserves_previous_candidate_and_proof (__main__.PublishCandidateTests.test_malformed_or_failed_provenance_preserves_previous_candidate_and_proof) ... ok
+test_missing_release_log_is_not_reported_as_zero_warnings (__main__.PublishCandidateTests.test_missing_release_log_is_not_reported_as_zero_warnings) ... ok
+test_reuse_accepts_integer_count_with_matching_lineage (__main__.PublishCandidateTests.test_reuse_accepts_integer_count_with_matching_lineage) ... ok
+test_same_arguments_are_idempotent_and_different_finalized_proof_is_not_overwritten (__main__.PublishCandidateTests.test_same_arguments_are_idempotent_and_different_finalized_proof_is_not_overwritten) ... ok
+test_second_candidate_same_day_is_allowed (__main__.PublishCandidateTests.test_second_candidate_same_day_is_allowed) ... ok
+test_snapshot_cannot_relabel_changed_or_incomplete_inputs_as_the_commit (__main__.PublishCandidateTests.test_snapshot_cannot_relabel_changed_or_incomplete_inputs_as_the_commit) ... ok
+test_snapshot_rejects_mismatched_tree_even_with_valid_source_bytes (__main__.PublishCandidateTests.test_snapshot_rejects_mismatched_tree_even_with_valid_source_bytes) ... ok
+test_source_drift_preserves_old_candidate (__main__.PublishCandidateTests.test_source_drift_preserves_old_candidate) ... ok
+test_third_candidate_same_utc_day_needs_extra_reason_and_records_it (__main__.PublishCandidateTests.test_third_candidate_same_utc_day_needs_extra_reason_and_records_it) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 0.113s
+
+OK

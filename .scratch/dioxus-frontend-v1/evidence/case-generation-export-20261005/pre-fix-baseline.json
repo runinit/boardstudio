@@ -1,0 +1,17 @@
+{
+  "candidate": [
+    "    - generic: Case generation export20261005",
+    "        - status: Exact case geometry ready.",
+    "        - status: 3D preview updated.",
+    "        - status: Mechanical settings saved.",
+    "        - status: Generated assembly preview · 1 authored case bodies remain saved. Disable the mechanical stack to preview and edit them."
+  ],
+  "reference": [
+    "    - generic: Case generation export20261005",
+    "      - status: Geometry current · export available with warnings to review.",
+    "      - button \"Export geometry\"",
+    "      - status: Preparing 3D geometry…",
+    "      - status: Generated CAD solids · 4 parts at revision 5",
+    "      - status: 90 / 90 models · 1.6 mm PCB"
+  ]
+}

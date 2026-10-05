@@ -8,6 +8,8 @@ import json
 import os
 from pathlib import Path
 import re
+import hashlib
+import subprocess
 import tempfile
 import unittest
 from urllib.error import HTTPError, URLError
@@ -204,11 +206,13 @@ class RunWasmTestsTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("zero tests executed for filter presentation::x::", err)
 
-    def test_zero_executed_widens_to_parent_module_before_failing(self):
-        self.fake('case "$1" in presentation::a::b::c::) ;; presentation::a::b::sibling::|presentation::a::b::) echo "test presentation::a::b::sibling::t ... ok";; esac')
+    def test_zero_executed_does_not_widen_to_an_unrelated_parent_module(self):
+        self.fake('if [ "$1" = --list ]; then printf "%s\\n" "presentation::a::b::sibling::t: test"; exit 0; fi\n'
+                  'echo "test presentation::a::b::sibling::t ... ok"')
         code, out, err = self.main("--files", "web/src/presentation/a/b/c.rs")
-        self.assertEqual(code, 0, err)
-        self.assertEqual(self.log.read_text().split(), ["--list", "presentation::a::b::sibling::"])
+        self.assertEqual(code, 1, out)
+        self.assertIn("no direct module or reviewed owner mapping; fail closed", err)
+        self.assertEqual(self.log.read_text().split(), ["--list"])
 
     def test_invoked_but_never_reported_test_counts_as_failed(self):
         self.fake("echo '    Invoking test: presentation::x::tests::hangs'; exit 1")
@@ -254,6 +258,16 @@ class RunWasmTestsTests(unittest.TestCase):
         self.assertIn("listed tests were not completed", err)
         self.assertIn("a::m1::t2", err)
 
+    def test_all_mode_rejects_unlisted_outcomes(self):
+        self.fake(
+            'if [ "$1" = --list ]; then echo "a::m1::t1: test"; exit 0; fi\n'
+            'echo "test a::m1::t1 ... ok"; echo "test a::m1::invented ... ok"'
+        )
+        code, _, err = self.main("--all")
+        self.assertEqual(code, 1)
+        self.assertIn("unlisted tests matched filter", err)
+        self.assertIn("a::m1::invented", err)
+
     def test_all_depth_mode_rejects_unexpected_and_incomplete_outcomes(self):
         self.fake(
             'if [ "$1" = --list ]; then printf "%s\\n" '
@@ -266,6 +280,196 @@ class RunWasmTestsTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("incomplete execution", err)
         self.assertIn("unlisted tests matched", err)
+
+    def test_result_json_distinguishes_complete_known_failure_from_success(self):
+        self.fake("echo 'test presentation::x::tests::known_broken ... FAIL'; exit 1")
+        report_path = self.dir / "report.json"
+        code, _, _ = self.main("--files", "web/src/presentation/x.rs", "--result-json", str(report_path))
+        self.assertEqual(code, 0)
+        report = json.loads(report_path.read_text())
+        self.assertTrue(report["complete"])
+        self.assertEqual(report["passed_count"], 0)
+        self.assertEqual(report["failed_count"], 1)
+        self.assertEqual(report["failed_known_exclusions"], ["presentation::x::tests::known_broken"])
+        self.assertEqual(report["expected_tests"], ["presentation::x::tests::known_broken"])
+        self.assertEqual(report["terminal_outcomes"], [{
+            "test": "presentation::x::tests::known_broken", "status": "failed"
+        }])
+        self.assertEqual(len(report["filters"]), 1)
+        self.assertGreaterEqual(report["filters"][0]["duration_ms"], 0)
+
+    def test_result_json_marks_incomplete_and_inventory_problems(self):
+        self.fake(
+            'if [ "$1" = --list ]; then echo "presentation::x::tests::hangs: test"; exit 0; fi\n'
+            'echo "    Invoking test: presentation::x::tests::hangs"; exit 1'
+        )
+        report_path = self.dir / "incomplete.json"
+        code, _, _ = self.main("--files", "web/src/presentation/x.rs", "--result-json", str(report_path))
+        self.assertEqual(code, 1)
+        report = json.loads(report_path.read_text())
+        self.assertFalse(report["complete"])
+        self.assertEqual(report["incomplete_count"], 1)
+        self.assertTrue(report["problems"])
+
+    def test_result_json_records_empty_selection_as_incomplete(self):
+        self.fake('if [ "$1" = --list ]; then echo "cad_presentation::other::test: test"; exit 0; fi\n'
+                  'echo "running 0 tests"')
+        report_path = self.dir / "empty.json"
+        code, _, _ = self.main("--files", "web/src/presentation/unused.rs", "--result-json", str(report_path))
+        self.assertEqual(code, 1)
+        report = json.loads(report_path.read_text())
+        self.assertFalse(report["complete"])
+        self.assertEqual(report["expected_tests"], [])
+        self.assertEqual(report["passed_count"], 0)
+        self.assertTrue(report["problems"])
+
+    def test_result_json_records_listing_error(self):
+        self.fake('if [ "$1" = --list ]; then echo "partial: test"; exit 1; fi\n'
+                  'echo "test presentation::x::tests::a ... ok"')
+        report_path = self.dir / "listing-error.json"
+        code, _, _ = self.main("--files", "web/src/presentation/x.rs", "--result-json", str(report_path))
+        self.assertEqual(code, 2)
+        report = json.loads(report_path.read_text())
+        self.assertFalse(report["complete"])
+        self.assertEqual(report["listed_tests"], [])
+        self.assertTrue(report["problems"])
+
+    def test_conflicting_duplicate_terminal_outcomes_fail_and_are_preserved(self):
+        name = "presentation::x::tests::ambiguous"
+        self.fake(
+            f'if [ "$1" = --list ]; then echo "{name}: test"; exit 0; fi\n'
+            f'echo "test {name} ... FAILED"\n'
+            f'echo "test {name} ... ok"\n'
+            'exit 0'
+        )
+        report_path = self.dir / "duplicate-conflict.json"
+        code, _, err = self.main(
+            "--files", "web/src/presentation/x.rs", "--result-json", str(report_path)
+        )
+        self.assertEqual(code, 1)
+        self.assertIn("duplicate terminal outcomes", err)
+        report = json.loads(report_path.read_text())
+        self.assertFalse(report["complete"])
+        self.assertEqual(report["failed_count"], 1)
+        self.assertEqual(report["duplicate_terminal_outcomes"], [name])
+        self.assertEqual(report["terminal_outcomes"], [
+            {"test": name, "status": "failed"},
+            {"test": name, "status": "passed"},
+        ])
+
+    def test_identical_duplicate_terminal_outcomes_still_fail(self):
+        name = "presentation::x::tests::repeated"
+        self.fake(
+            f'if [ "$1" = --list ]; then echo "{name}: test"; exit 0; fi\n'
+            f'echo "test {name} ... ok"\n'
+            f'echo "test {name} ... ok"'
+        )
+        code, _, err = self.main("--files", "web/src/presentation/x.rs")
+        self.assertEqual(code, 1)
+        self.assertIn("duplicate terminal outcomes", err)
+
+    def test_duplicate_authoritative_list_names_fail_closed_and_are_reported(self):
+        name = "presentation::x::tests::listed_twice"
+        self.fake(
+            f'if [ "$1" = --list ]; then printf "%s\\n" "{name}: test" "{name}: test"; exit 0; fi\n'
+            f'echo "test {name} ... ok"'
+        )
+        report_path = self.dir / "duplicate-list.json"
+        code, _, err = self.main(
+            "--files", "web/src/presentation/x.rs", "--result-json", str(report_path)
+        )
+        self.assertEqual(code, 2)
+        self.assertIn("duplicate test names in wasm listing", err)
+        report = json.loads(report_path.read_text())
+        self.assertFalse(report["complete"])
+        self.assertEqual(report["listed_tests"], [name, name])
+        self.assertEqual(report["duplicate_listed_tests"], [name])
+
+    def test_guarded_root_owner_preserves_independent_child_and_falls_back_on_any_hash_change(self):
+        source = "web/src/presentation.rs"
+        base_bytes, current_bytes = b"committed presentation", b"reviewed helper-only presentation"
+        source_path = self.dir / source
+        source_path.parent.mkdir(parents=True, exist_ok=True)
+        source_path.write_bytes(base_bytes)
+        subprocess.run(["git", "init", "-q", str(self.dir)], check=True)
+        subprocess.run(["git", "-C", str(self.dir), "config", "user.email", "tests@example.invalid"], check=True)
+        subprocess.run(["git", "-C", str(self.dir), "config", "user.name", "Test"], check=True)
+        subprocess.run(["git", "-C", str(self.dir), "add", source], check=True)
+        subprocess.run(["git", "-C", str(self.dir), "commit", "-qm", "base"], check=True)
+        source_path.write_bytes(current_bytes)
+        case_test = "cad_presentation::mounted_tests::mounted_case_local_export_uses_current_exact_mechanical_scope"
+        inspector_test = "presentation::objects::matrix_transform_inspector::mounted_tests::choice"
+        unrelated = "presentation::keymap::unrelated::test"
+        names = [case_test, inspector_test, unrelated]
+        owner_path = self.dir / "owners.json"
+        owner_path.write_text(json.dumps({"schema_version": 1, "sources": {
+            source: {"tests": [case_test], "coverage": "mounted Case scope",
+                    "base_sha256": hashlib.sha256(base_bytes).hexdigest(),
+                    "current_sha256": hashlib.sha256(current_bytes).hexdigest()},
+            "web/src/presentation/objects/matrix_transform_inspector.rs": {
+                "tests": [inspector_test], "coverage": "mounted Inspector choice"}
+        }}))
+
+        with patch.object(runner, "list_wasm_tests", return_value=names):
+            filters, expected, unmatched, _, diagnostics = runner.selection_for_listed_files(
+                [source, "web/src/presentation/objects/matrix_transform_inspector.rs"], {},
+                self.dir, owner_path)
+        self.assertEqual(filters, sorted([case_test, inspector_test]))
+        self.assertEqual(expected, {case_test: [case_test], inspector_test: [inspector_test]})
+        self.assertEqual(unmatched, [])
+        self.assertEqual(len(diagnostics), 2)
+
+        # A changed committed revision or working copy disables the narrow root owner.
+        def fallback():
+            with patch.object(runner, "list_wasm_tests", return_value=names):
+                return runner.selection_for_listed_files([source], {}, self.dir, owner_path)
+        source_path.write_bytes(current_bytes + b" changed")
+        filters, expected, unmatched, _, diagnostics = fallback()
+        self.assertIn(unrelated, [name for group in expected.values() for name in group])
+        self.assertTrue(any("presentation::" in line and "guard mismatch; conservative fallback" in line
+                            for line in diagnostics))
+        self.assertEqual(unmatched, [])
+        source_path.write_bytes(b"changed committed base")
+        subprocess.run(["git", "-C", str(self.dir), "add", source], check=True)
+        subprocess.run(["git", "-C", str(self.dir), "commit", "-qm", "new base"], check=True)
+        source_path.write_bytes(current_bytes)
+        filters, expected, unmatched, _, diagnostics = fallback()
+        self.assertIn(unrelated, [name for group in expected.values() for name in group])
+        self.assertTrue(any("presentation::" in line and "guard mismatch; conservative fallback" in line
+                            for line in diagnostics))
+
+    def test_owner_mapping_selects_exact_listed_tests_and_diagnoses_coverage(self):
+        owner_path = self.dir / "owners.json"
+        owner_path.write_text(json.dumps({"schema_version": 1, "sources": {
+            "web/src/presentation/objects/matrix_transform_inspector.rs": {
+                "tests": ["presentation::objects::matrix_transform_inspector::mounted_tests::choice"],
+                "coverage": "mounted choices and replacement event"
+            }
+        }}))
+        names = ["presentation::objects::matrix_transform_inspector::mounted_tests::choice",
+                 "presentation::objects::matrix_transform_inspector::unrelated::other"]
+        with patch.object(runner, "TEST_OWNERS", owner_path), patch.object(runner, "list_wasm_tests", return_value=names):
+            filters, expected, unmatched, listed, diagnostics = runner.selection_for_listed_files(
+                ["web/src/presentation/objects/matrix_transform_inspector.rs"], {}, self.dir)
+        self.assertEqual(filters, [names[0]])
+        self.assertEqual(expected, {names[0]: [names[0]]})
+        self.assertEqual(unmatched, [])
+        self.assertEqual(listed, names)
+        self.assertIn("owner map (mounted choices and replacement event)", diagnostics[0])
+
+    def test_owner_mapping_fails_closed_when_a_reviewed_test_is_not_listed(self):
+        owner_path = self.dir / "owners.json"
+        owner_path.write_text(json.dumps({"schema_version": 1, "sources": {
+            "web/src/presentation/objects/matrix_transform_inspector.rs": {
+                "tests": ["presentation::objects::matrix_transform_inspector::mounted_tests::missing"],
+                "coverage": "mounted controller-to-Inspector replacement"
+            }
+        }}))
+        with patch.object(runner, "TEST_OWNERS", owner_path), patch.object(
+                runner, "list_wasm_tests", return_value=["presentation::objects::matrix_transform_inspector::other"]):
+            with self.assertRaisesRegex(runner.RunnerError, "are absent from the WASM list"):
+                runner.selection_for_listed_files(
+                    ["web/src/presentation/objects/matrix_transform_inspector.rs"], {}, self.dir)
 
     def test_generator_harness_builds_once_serves_allowlisted_assets_and_cleans_up(self):
         calls = []
@@ -301,6 +505,9 @@ class RunWasmTestsTests(unittest.TestCase):
             ["web/src/presentation/parts/catalogue.rs"], self.dir))
         self.assertFalse(runner.selected_generator_sources(
             ["web/src/presentation/layout_camera.rs"], self.dir))
+        self.assertTrue(runner.selected_generator_sources(
+            ["web/src/presentation/objects/matrix_transform_inspector.rs"], self.dir),
+            "the reviewed mounted controller owner loads the packaged catalogue asynchronously")
 
     def test_desktop_webdriver_config_is_wide_and_preserves_explicit_override(self):
         with runner.desktop_webdriver_config({}) as env:

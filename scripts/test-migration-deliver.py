@@ -82,6 +82,8 @@ class MigrationDeliverTests(unittest.TestCase):
             "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 40 filtered out"
         )
         self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("focused-test status=passed passed=2", result.stderr)
+        self.assertIn("duration=", result.stderr)
 
     def test_focused_test_preserves_command_failure(self):
         result = self.run_fake_focused_test(
@@ -91,7 +93,8 @@ class MigrationDeliverTests(unittest.TestCase):
         self.assertEqual(result.returncode, 7)
         self.assertIn("test result: FAILED", result.stdout)
 
-    def wasm_fixture(self, cargo_exit, test_attr="#[wasm_bindgen_test]", wasm_exit=0):
+    def wasm_fixture(self, cargo_exit, test_attr="#[wasm_bindgen_test]", wasm_exit=0,
+                     wasm_test_name="presentation::view::t", wasm_status="ok"):
         src = self.root / "web/src"
         (src / "presentation").mkdir(parents=True, exist_ok=True)
         (src / "lib.rs").write_text("")
@@ -120,8 +123,8 @@ class MigrationDeliverTests(unittest.TestCase):
         runner.write_text(
             "#!/bin/sh\n"
             f"echo \"$@\" >> '{self.wasm_log}'\n"
-            "if [ \"$1\" = --list ]; then echo 'presentation::view::t: test'; exit 0; fi\n"
-            "echo 'test presentation::view::t ... ok'\n"
+            f"if [ \"$1\" = --list ]; then echo '{wasm_test_name}: test'; exit 0; fi\n"
+            f"echo 'test {wasm_test_name} ... {wasm_status}'\n"
             f"exit {wasm_exit}\n"
         )
         runner.chmod(0o755)
@@ -130,6 +133,20 @@ class MigrationDeliverTests(unittest.TestCase):
 
     def commit_wrapped(self, env):
         return run_guard(self.root, "commit", "--intent", "integration", "-m", "wasm change", env=env)
+
+    def test_prepare_gates_precomputes_exact_commit_checks(self):
+        env = self.wasm_fixture(cargo_exit=0)
+        prepared = run_guard(self.root, "prepare-gates", env=env)
+        self.assertEqual(prepared.returncode, 0, prepared.stderr)
+        self.assertIn("gates complete", prepared.stdout)
+        committed = self.commit_wrapped(env)
+        self.assertEqual(committed.returncode, 0, committed.stderr)
+        self.assertIn("reused wasm32 page check", committed.stderr)
+        self.assertIn("reused native web tests", committed.stderr)
+        self.assertIn("reused wasm test reachability", committed.stderr)
+        self.assertIn("reused headless-Chrome wasm tests", committed.stderr)
+        cargo_lines = self.cargo_log.read_text().splitlines()
+        self.assertEqual(sum(line.startswith("test --manifest-path web/Cargo.toml") for line in cargo_lines), 1)
 
     def test_commit_with_wasm_only_rust_is_refused_when_wasm_check_fails(self):
         env = self.wasm_fixture(cargo_exit=101)
@@ -277,12 +294,96 @@ class MigrationDeliverTests(unittest.TestCase):
         self.assertIn("native core tests failed", result.stderr)
         self.assertIn("test --manifest-path core/Cargo.toml --locked", self.cargo_log.read_text())
 
+    def test_known_wasm_failure_blocks_commit_and_never_creates_receipt(self):
+        env = self.wasm_fixture(
+            cargo_exit=0,
+            wasm_test_name=("presentation::view::mounted_component_drafts_survive_"
+                            "unrelated_acceptance_and_blur_uses_latest_owner"),
+            wasm_status="FAILED",
+        )
+        result = self.commit_wrapped(env)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("known exclusions", result.stderr)
+        receipts = self.root / "web/target/migration-gates/wasm-headless-tests"
+        self.assertFalse(receipts.exists() and list(receipts.glob("*.json")))
+
     def test_commit_refuses_when_wasm_tests_fail(self):
         env = self.wasm_fixture(cargo_exit=0, wasm_exit=1)
         result = self.commit_wrapped(env)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("headless-Chrome wasm tests failed", result.stderr)
         self.assertEqual(run_git(self.root, "log", "--format=%s").stdout.count("wasm change"), 0)
+
+    def test_commit_rejects_source_drift_after_gates_before_git_commit(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("migration_deliver_drift_test", GUARD)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        (self.root / "source.rs").write_text("initial source\n")
+        run_git(self.root, "add", "source.rs")
+        run_git(self.root, "commit", "-m", "source baseline")
+        self.stage_change(self.root)
+        original_check = module._check_commit
+        original_gate = module._check_wasm_commit
+        calls = 0
+        module._check_wasm_commit = lambda root, paths: module._load_gate_receipts().source_fingerprint(root)
+
+        def drift_after_gate(root, intent):
+            nonlocal calls
+            original_check(root, intent)
+            calls += 1
+            if calls == 2:
+                (root / "source.rs").write_text("changed after checks\n")
+
+        module._check_commit = drift_after_gate
+        try:
+            with self.assertRaisesRegex(module.GuardError, "changed after gate success"):
+                module._commit(self.root, "integration", "must not commit", [])
+        finally:
+            module._check_commit = original_check
+            module._check_wasm_commit = original_gate
+        self.assertEqual(run_git(self.root, "log", "--format=%s").stdout.count("must not commit"), 0)
+
+    def test_commit_allows_document_only_drift_after_executable_gates(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("migration_deliver_docs_drift_test", GUARD)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.stage_change(self.root)
+        original_check = module._check_commit
+        calls = 0
+        module._check_wasm_commit = lambda root, paths: module._load_gate_receipts().source_fingerprint(root)
+
+        def update_record_after_gate(root, intent):
+            nonlocal calls
+            original_check(root, intent)
+            calls += 1
+            if calls == 2:
+                (root / "CONSTRAINTS.md").write_text("authorized delivery policy update\n")
+                run_git(root, "add", "CONSTRAINTS.md")
+
+        module._check_commit = update_record_after_gate
+        module._commit(self.root, "integration", "checked source with policy record", [])
+        self.assertEqual(run_git(self.root, "log", "-1", "--format=%s").stdout.strip(),
+                         "checked source with policy record")
+        self.assertEqual((self.root / "CONSTRAINTS.md").read_text(), "authorized delivery policy update\n")
+
+    def test_commit_rejects_staged_build_bytes_different_from_tested_worktree(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("migration_deliver_staged_drift_test", GUARD)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        source = self.root / "web/src/staged.rs"
+        source.parent.mkdir(parents=True)
+        source.write_text("#[cfg(test)] fn passing_worktree() {}\n")
+        run_git(self.root, "add", "web/src/staged.rs")
+        run_git(self.root, "commit", "-m", "passing baseline")
+        source.write_text("#[cfg(test)] fn failing_staged() { assert!(false); }\n")
+        run_git(self.root, "add", "web/src/staged.rs")
+        source.write_text("#[cfg(test)] fn passing_worktree() {}\n")
+        with self.assertRaisesRegex(module.GuardError, "differs from the worktree tested"):
+            module._check_staged_build_inputs_match_worktree(self.root, [])
+        self.assertEqual(run_git(self.root, "log", "--format=%s").stdout.count("must not commit"), 0)
 
     def test_docs_only_commit_does_not_run_cargo_or_lint(self):
         env = self.wasm_fixture(cargo_exit=101)

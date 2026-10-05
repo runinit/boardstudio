@@ -1,0 +1,95 @@
+--- a/scripts/migration_gate_receipts.py
++++ b/scripts/migration_gate_receipts.py
+@@ -336,8 +336,8 @@
+                   tool_cache=None) -> dict[str, Any]:
+     root = Path(root).resolve()
+     env = dict(os.environ if env is None else env)
+-    # Gate receipts cover executable build/test inputs. The broader worktree and
+-    # index inventory is reserved for source_fingerprint(), which protects commit.
++    # Gate receipts and commit drift checks cover the same maintained build/test
++    # inputs, including their staged identities; unrelated records are excluded.
+     inputs = _executable_inventory(root, extra_inputs)
+     external_inputs = {}
+     home = Path(env.get("HOME", str(Path.home()))).expanduser()
+@@ -404,7 +404,8 @@
+ 
+ 
+ def source_fingerprint(root: Path) -> str:
+-    return _digest(json.dumps(_inventory(Path(root).resolve()), sort_keys=True,
++    """Detect maintained source/index/config drift without blocking record edits."""
++    return _digest(json.dumps(_executable_inventory(Path(root).resolve()), sort_keys=True,
+                               separators=(",", ":")).encode())
+ 
+ 
+--- a/scripts/test-migration-gate-receipts.py
++++ b/scripts/test-migration-gate-receipts.py
+@@ -82,7 +82,35 @@
+         git(self.root, "add", "handoff.md")
+         after = self.identity()
+         self.assertEqual(before["key"], after["key"])
+-        self.assertNotEqual(fingerprint, receipts.source_fingerprint(self.root))
++        self.assertEqual(fingerprint, receipts.source_fingerprint(self.root))
++
++    def test_final_fingerprint_preserves_maintained_source_index_and_config_drift(self):
++        import shutil
++        scripts = self.root / "scripts"
++        scripts.mkdir()
++        shutil.copy2(SCRIPTS / "build-m1.py", scripts / "build-m1.py")
++        source = self.root / "web/src/owner.rs"
++        source.parent.mkdir(parents=True)
++        source.write_text("pub fn before() {}\n")
++        git(self.root, "add", "scripts/build-m1.py", "web/src/owner.rs")
++        before = receipts.source_fingerprint(self.root)
++        for name in ("CONSTRAINTS.md", "handoff.md", "docs/migration/run.json"):
++            path = self.root / name
++            path.parent.mkdir(parents=True, exist_ok=True)
++            path.write_text("record update\n")
++            git(self.root, "add", name)
++            self.assertEqual(before, receipts.source_fingerprint(self.root))
++        source.write_text("pub fn after() {}\n")
++        self.assertNotEqual(before, receipts.source_fingerprint(self.root))
++        git(self.root, "add", "web/src/owner.rs")
++        source.write_text("pub fn before() {}\n")
++        self.assertNotEqual(before, receipts.source_fingerprint(self.root))
++        git(self.root, "add", "web/src/owner.rs")
++        self.assertEqual(before, receipts.source_fingerprint(self.root))
++        config = self.root / ".cargo/config.toml"
++        config.parent.mkdir()
++        config.write_text("[build]\nrustflags = ['--cfg', 'changed']\n")
++        self.assertNotEqual(before, receipts.source_fingerprint(self.root))
+ 
+     def test_maintained_symlink_hashes_target_bytes_and_rejects_escaping_target(self):
+         target = self.root / "src-target.rs"
+--- a/scripts/test-migration-deliver.py
++++ b/scripts/test-migration-deliver.py
+@@ -343,6 +343,30 @@
+             module._check_commit = original_check
+             module._check_wasm_commit = original_gate
+         self.assertEqual(run_git(self.root, "log", "--format=%s").stdout.count("must not commit"), 0)
++
++    def test_commit_allows_document_only_drift_after_executable_gates(self):
++        import importlib.util
++        spec = importlib.util.spec_from_file_location("migration_deliver_docs_drift_test", GUARD)
++        module = importlib.util.module_from_spec(spec)
++        spec.loader.exec_module(module)
++        self.stage_change(self.root)
++        original_check = module._check_commit
++        calls = 0
++        module._check_wasm_commit = lambda root, paths: module._load_gate_receipts().source_fingerprint(root)
++
++        def update_record_after_gate(root, intent):
++            nonlocal calls
++            original_check(root, intent)
++            calls += 1
++            if calls == 2:
++                (root / "CONSTRAINTS.md").write_text("authorized delivery policy update\n")
++                run_git(root, "add", "CONSTRAINTS.md")
++
++        module._check_commit = update_record_after_gate
++        module._commit(self.root, "integration", "checked source with policy record", [])
++        self.assertEqual(run_git(self.root, "log", "-1", "--format=%s").stdout.strip(),
++                         "checked source with policy record")
++        self.assertEqual((self.root / "CONSTRAINTS.md").read_text(), "authorized delivery policy update\n")
+ 
+     def test_commit_rejects_staged_build_bytes_different_from_tested_worktree(self):
+         import importlib.util

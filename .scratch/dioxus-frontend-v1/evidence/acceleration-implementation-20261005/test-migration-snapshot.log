@@ -1,0 +1,16 @@
+HEAD is now at 0d12cb5 snapshot helpers
+HEAD is now at 6ac0330 base
+HEAD is now at 6ac0330 base
+HEAD is now at 6ac0330 base
+
+Preparing worktree (detached HEAD 0d12cb5)
+.Preparing worktree (detached HEAD 6ac0330)
+.Preparing worktree (detached HEAD 6ac0330)
+....Preparing worktree (detached HEAD 6ac0330)
+Previous HEAD position was 6ac0330 base
+HEAD is now at 2dd7933 next
+......
+----------------------------------------------------------------------
+Ran 12 tests in 0.340s
+
+OK
