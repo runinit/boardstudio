@@ -1,0 +1,18 @@
+{
+  "with-generated": {
+    "bytes": 816239,
+    "sha256": "e292d44c9e19f848fbc27e3643415788b97e03488164779e393b9145184458f3",
+    "step_signature": true,
+    "step_end": true,
+    "point_count": 2583
+  },
+  "only": {
+    "bytes": 816239,
+    "sha256": "e292d44c9e19f848fbc27e3643415788b97e03488164779e393b9145184458f3",
+    "step_signature": true,
+    "step_end": true,
+    "point_count": 2583
+  },
+  "only_download_name": "Case generation export20261005-Left_PCB-case.step",
+  "same_authored_geometry_point_multiset_1e8": true
+}

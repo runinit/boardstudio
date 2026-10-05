@@ -1,0 +1,41 @@
+{
+  "candidate": [
+    "        - status: No closed courtyard is available; the outline uses physical graphics and pad extents.",
+    "            - button \"Hide F.Cu\" [pressed]:",
+    "            - button \"Hide F.SilkS\" [pressed]:",
+    "            - button \"Hide Keycap\" [pressed]:",
+    "            - button \"Hide Drills\" [pressed]:",
+    "            - button \"Hide Pad numbers\" [pressed]:",
+    "            - button \"Hide MX switch\" [pressed]:",
+    "        - term: Definition ID",
+    "          - code: ergogen:ceoloide/switch_mx",
+    "          - checkbox \"hotswap\" [checked]",
+    "          - checkbox \"include_keycap\" [checked]",
+    "          - checkbox \"reversible\"",
+    "          - combobox \"side\":",
+    "            - option \"Front\"",
+    "            - option \"Back\" [selected]",
+    "          - checkbox \"solder\"",
+    "          - text: Keycap Height",
+    "          - spinbutton \"Keycap Height\": \"18\"",
+    "          - text: Keycap Width",
+    "          - spinbutton \"Keycap Width\": \"18\""
+  ],
+  "reference": [
+    "        - button \"Hide B.Cu\" [pressed]:",
+    "        - button \"Hide B.SilkS\" [pressed]:",
+    "        - button \"Hide Keycap\" [pressed]:",
+    "        - button \"Hide Drills\" [pressed]:",
+    "        - button \"Hide Pad numbers\" [pressed]:",
+    "        - button \"Hide part MX switch\" [pressed]:",
+    "          - combobox \"side\":",
+    "            - option \"Front\"",
+    "            - option \"Back\" [selected]",
+    "          - checkbox \"reversible\"",
+    "          - checkbox \"hotswap\" [checked]",
+    "          - checkbox \"solder\"",
+    "          - checkbox \"include_keycap\" [checked]",
+    "          - spinbutton \"Keycap Width\": \"18\"",
+    "          - spinbutton \"Keycap Height\": \"18\""
+  ]
+}

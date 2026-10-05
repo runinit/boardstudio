@@ -1,0 +1,49 @@
+run-wasm-tests: [1/1] presentation::case_viewer::keycap_consumer_tests::
+{
+  "count": 1,
+  "failed": [
+    "presentation::case_viewer::keycap_consumer_tests::mounted_case_keycaps_reach_both_packets_and_reject_late_physical_owner"
+  ],
+  "problems": []
+}
+--- presentation::case_viewer::keycap_consumer_tests:: ---
+5470 |         let _ = input.blur();
+     |         +++++++
+
+warning: unused `std::result::Result` that must be used
+    --> src/presentation/mechanical_settings.rs:5489:9
+     |
+5489 |         input.blur();
+     |         ^^^^^^^^^^^^
+     |
+     = note: this `Result` may be an `Err` variant, which should be handled
+help: use `let _ = ...` to ignore the resulting value
+     |
+5489 |         let _ = input.blur();
+     |         +++++++
+
+warning: unused `std::result::Result` that must be used
+    --> src/presentation/mechanical_settings.rs:5506:9
+     |
+5506 |         input.blur();
+     |         ^^^^^^^^^^^^
+     |
+     = note: this `Result` may be an `Err` variant, which should be handled
+help: use `let _ = ...` to ignore the resulting value
+     |
+5506 |         let _ = input.blur();
+     |         +++++++
+
+warning: `boardstudio-web` (bin "boardstudio-web" test) generated 34 warnings (run `cargo fix --bin "boardstudio-web" -p boardstudio-web --tests` to apply 16 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+     Running unittests src/main.rs (target/wasm32-unknown-unknown/debug/deps/boardstudio_web-ade5ef492b9e030c.wasm)
+Error: some tests failed
+error: test failed, to rerun pass `--bin boardstudio-web`
+
+Caused by:
+  process didn't exit successfully: `/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-ade5ef492b9e030c.wasm 'presentation::case_viewer::keycap_consumer_tests::'` (exit status: 1)
+note: test exited abnormally; to see the full output pass --no-capture to the harness.
+Error: Running Wasm tests with wasm-bindgen-test failed
+Caused by: Running Wasm tests with wasm-bindgen-test failed
+Caused by: failed to execute `cargo test`: exited with exit status: 1
+  full command: cd "web" && CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER="/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner" CHROMEDRIVER="/usr/bin/chromedriver" WASM_BINDGEN_TEST_ONLY_WEB="1" "cargo" "test" "--target" "wasm32-unknown-unknown" "--no-default-features" "--features" "page" "--bin" "boardstudio-web" "--" "presentation::case_viewer::keycap_consumer_tests::"

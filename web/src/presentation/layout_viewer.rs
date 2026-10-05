@@ -173,6 +173,10 @@ pub(crate) fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Elemen
         .as_ref()
         .and_then(|preview| runtime.layout_model_delivery(preview));
     let mut display = use_signal(CaseDisplay::default);
+    let rendered_keycaps_generation = keycaps_preview
+        .peek()
+        .as_ref()
+        .map(|preview| preview.generation);
     let on_signal = {
         let runtime = runtime.clone();
         let selection = selection.clone();
@@ -231,12 +235,40 @@ pub(crate) fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Elemen
                         }
                         return;
                     }
-                    let Some(part_id) = preview.part_for_current_pick(
-                        accepted,
-                        &preview.owner.scope,
-                        preview.owner.source_generation,
-                        &reference,
-                    ) else {
+                    let part_id = {
+                        let keycaps = keycaps_preview.read();
+                        let body_ids = keycaps
+                            .as_ref()
+                            .map(|keycaps| {
+                                keycaps
+                                    .bodies
+                                    .iter()
+                                    .map(|body| body.id.clone())
+                                    .collect::<Vec<_>>()
+                            })
+                            .unwrap_or_default();
+                        let pick_source = keycaps.as_ref().zip(rendered_keycaps_generation).map(
+                            |(keycaps, rendered_generation)| {
+                                super::layout_viewer_source::LayoutKeycapPickSource {
+                                    scope: &keycaps.scope,
+                                    snapshot_token: keycaps.token,
+                                    revision: keycaps.revision,
+                                    generation: keycaps.generation,
+                                    rendered_generation,
+                                    specs: &keycaps.specs,
+                                    body_ids: &body_ids,
+                                }
+                            },
+                        );
+                        preview.part_for_current_pick(
+                            accepted,
+                            &preview.owner.scope,
+                            preview.owner.source_generation,
+                            &reference,
+                            pick_source.as_ref(),
+                        )
+                    };
+                    let Some(part_id) = part_id else {
                         return;
                     };
                     let Some(context) = objects::context_for_part(&model, &part_id) else {

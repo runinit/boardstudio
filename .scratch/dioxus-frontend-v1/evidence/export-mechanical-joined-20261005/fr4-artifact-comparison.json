@@ -1,0 +1,186 @@
+{
+  "candidate": {
+    "bytes": 466329,
+    "sha256": "d0ebe05585c93e79a30deef0742bf16974a48a4cee336df907b7896b4678f46f",
+    "entries": [
+      "plate-kicad/mechanical-plate.kicad_pcb",
+      "plate-kicad/mechanical-plate.kicad_pro",
+      "plate-kicad/FABRICATION.md",
+      "assembly.step",
+      "parts/1-plate.step",
+      "parts/1-plate.stl",
+      "outlines/1-plate.dxf",
+      "outlines/1-plate.svg",
+      "parts/2-bottom.step",
+      "parts/2-bottom.stl",
+      "outlines/2-bottom.dxf",
+      "outlines/2-bottom.svg",
+      "parts/3-spacer-mount.step",
+      "parts/3-spacer-mount.stl",
+      "outlines/3-spacer-mount.dxf",
+      "outlines/3-spacer-mount.svg",
+      "FABRICATION.md",
+      "critical-fit.svg",
+      "assembly.json"
+    ],
+    "revision": 1,
+    "assembly": {
+      "diagnostics": [
+        {
+          "id": "mechanical:fr4-routing",
+          "message": "Sharp internal rectangular corners require a reviewed routing radius; PCB process capability is not implied by a valid plate outline.",
+          "scope": "case",
+          "severity": "warning",
+          "targetIds": [
+            "plate"
+          ]
+        },
+        {
+          "id": "mechanical:sheet-enclosure",
+          "message": "A sheet bottom without a middle frame leaves the assembly sides open.",
+          "scope": "case",
+          "severity": "warning",
+          "targetIds": [
+            "bottom"
+          ]
+        },
+        {
+          "id": "mechanical:process:constraints",
+          "message": "JLC PCB capability snapshot 2026-09-24: documented minimum NPTH 0.5 mm, non-plated slot 1.0 mm; slot tolerance \u00b10.2 mm. Supplier review is required for routing shape and stock selection.",
+          "scope": "case",
+          "severity": "info",
+          "targetIds": [
+            "plate"
+          ]
+        }
+      ],
+      "pcbReference": "Nominal unpopulated PCB only; component solids are not included",
+      "revision": 1,
+      "stack": [
+        {
+          "id": "plate",
+          "thickness": 1.5,
+          "z": 3.5
+        },
+        {
+          "id": "pcb",
+          "thickness": 1.6,
+          "z": -1.6
+        },
+        {
+          "id": "bottom",
+          "thickness": 2.0,
+          "z": -3.6
+        },
+        {
+          "id": "spacer:mount",
+          "thickness": 5.1,
+          "z": -1.6
+        }
+      ]
+    },
+    "fr4_files": {
+      "plate-kicad/mechanical-plate.kicad_pcb": {
+        "sha256": "84910304353fd5c63453a5bf194028a0fce2c80ea45036442b9fef1d4f14dce6",
+        "npth": true,
+        "has_circuitry": false,
+        "thickness_1_5": true,
+        "closed_cut_segments": 68
+      }
+    },
+    "zip_integrity": null
+  },
+  "reference": {
+    "bytes": 466316,
+    "sha256": "1ff27bad054f4e243710a6e6cc8d90c174b63ccd17eefa20143be10d980e68e9",
+    "entries": [
+      "plate-kicad/mechanical-plate.kicad_pcb",
+      "plate-kicad/mechanical-plate.kicad_pro",
+      "plate-kicad/FABRICATION.md",
+      "assembly.step",
+      "parts/1-plate.step",
+      "parts/1-plate.stl",
+      "outlines/1-plate.dxf",
+      "outlines/1-plate.svg",
+      "parts/2-bottom.step",
+      "parts/2-bottom.stl",
+      "outlines/2-bottom.dxf",
+      "outlines/2-bottom.svg",
+      "parts/3-spacer-mount.step",
+      "parts/3-spacer-mount.stl",
+      "outlines/3-spacer-mount.dxf",
+      "outlines/3-spacer-mount.svg",
+      "FABRICATION.md",
+      "critical-fit.svg",
+      "assembly.json"
+    ],
+    "revision": 1,
+    "assembly": {
+      "revision": 1,
+      "pcbReference": "Nominal unpopulated PCB only; component solids are not included",
+      "stack": [
+        {
+          "id": "plate",
+          "z": 3.5,
+          "thickness": 1.5
+        },
+        {
+          "id": "pcb",
+          "z": -1.6,
+          "thickness": 1.6
+        },
+        {
+          "id": "bottom",
+          "z": -3.6,
+          "thickness": 2
+        },
+        {
+          "id": "spacer:mount",
+          "z": -1.6,
+          "thickness": 5.1
+        }
+      ],
+      "diagnostics": [
+        {
+          "id": "mechanical:fr4-routing",
+          "severity": "warning",
+          "scope": "case",
+          "message": "Sharp internal rectangular corners require a reviewed routing radius; PCB process capability is not implied by a valid plate outline.",
+          "targetIds": [
+            "plate"
+          ]
+        },
+        {
+          "id": "mechanical:sheet-enclosure",
+          "severity": "warning",
+          "scope": "case",
+          "message": "A sheet bottom without a middle frame leaves the assembly sides open.",
+          "targetIds": [
+            "bottom"
+          ]
+        },
+        {
+          "id": "mechanical:process:constraints",
+          "severity": "info",
+          "scope": "case",
+          "message": "JLC PCB capability snapshot 2026-09-24: documented minimum NPTH 0.5 mm, non-plated slot 1.0 mm; slot tolerance \u00b10.2 mm. Supplier review is required for routing shape and stock selection.",
+          "targetIds": [
+            "plate"
+          ]
+        }
+      ]
+    },
+    "fr4_files": {
+      "plate-kicad/mechanical-plate.kicad_pcb": {
+        "sha256": "84910304353fd5c63453a5bf194028a0fce2c80ea45036442b9fef1d4f14dce6",
+        "npth": true,
+        "has_circuitry": false,
+        "thickness_1_5": true,
+        "closed_cut_segments": 68
+      }
+    },
+    "zip_integrity": null
+  },
+  "parsed_assembly_equal": true,
+  "fr4_file_records_equal": true
+}

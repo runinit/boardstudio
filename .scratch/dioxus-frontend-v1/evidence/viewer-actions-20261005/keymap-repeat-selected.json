@@ -1,0 +1,12 @@
+{
+  "candidate": {
+    "text": "Choose on the layout…",
+    "value": ""
+  },
+  "click": {
+    "x": 554,
+    "y": 224
+  },
+  "fixture": "keycaps-findings-f6c4-c6.boardstudio",
+  "candidateSource": "38641dd1"
+}

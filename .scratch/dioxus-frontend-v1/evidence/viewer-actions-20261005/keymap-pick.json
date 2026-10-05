@@ -1,0 +1,66 @@
+{
+  "coords": {
+    "candidate": [
+      554,
+      224
+    ],
+    "reference": [
+      535,
+      380
+    ]
+  },
+  "observations": {
+    "candidate": [
+      "        - option \"left-keys-SW6 · Unassigned\"",
+      "        - option \"left-keys-SW7 · Unassigned\"",
+      "        - option \"left-keys-SW8 · Unassigned\"",
+      "        - option \"left-keys-SW9 · Unassigned\"",
+      "        - option \"left-keys-SW10 · Unassigned\"",
+      "        - option \"left-keys-SW11 · Unassigned\"",
+      "        - option \"left-keys-SW12 · Unassigned\"",
+      "        - option \"left-keys-SW13 · Unassigned\"",
+      "        - option \"left-keys-SW14 · Unassigned\"",
+      "        - option \"left-keys-SW15 · Unassigned\"",
+      "        - option \"left-keys-SW16 · Unassigned\"",
+      "        - option \"left-keys-SW17 · Unassigned\"",
+      "        - option \"left-keys-SW18 · Unassigned\"",
+      "        - option \"left-keys-SW19 · Unassigned\"",
+      "        - option \"left-keys-SW20 · Unassigned\"",
+      "        - option \"left-keys-SW21 · Unassigned\"",
+      "        - option \"left-keys-SW22 · Unassigned\"",
+      "        - option \"left-keys-SW23 · Unassigned\"",
+      "        - option \"left-keys-SW24 · Unassigned\"",
+      "        - option \"left-thumbs-SW1 · Unassigned\"",
+      "        - option \"left-thumbs-SW2 · Unassigned\"",
+      "        - option \"left-thumbs-SW3 · Unassigned\"",
+      "        - option \"left-thumbs-SW4 · Unassigned\"",
+      "        - option \"left-thumbs-SW5 · Unassigned\""
+    ],
+    "reference": [
+      "      - option \"left-keys-SW8 · Unassigned\"",
+      "      - option \"left-keys-SW9 · Unassigned\"",
+      "      - option \"left-keys-SW10 · Unassigned\"",
+      "      - option \"left-keys-SW11 · Unassigned\"",
+      "      - option \"left-keys-SW12 · Unassigned\"",
+      "      - option \"left-keys-SW13 · Unassigned\"",
+      "      - option \"left-keys-SW14 · Unassigned\"",
+      "      - option \"left-keys-SW15 · Unassigned\"",
+      "      - option \"left-keys-SW16 · Unassigned\"",
+      "      - option \"left-keys-SW17 · Unassigned\"",
+      "      - option \"left-keys-SW18 · Unassigned\"",
+      "      - option \"left-keys-SW19 · Unassigned\" [selected]",
+      "      - option \"left-keys-SW20 · Unassigned\"",
+      "      - option \"left-keys-SW21 · Unassigned\"",
+      "      - option \"left-keys-SW22 · Unassigned\"",
+      "      - option \"left-keys-SW23 · Unassigned\"",
+      "      - option \"left-keys-SW24 · Unassigned\"",
+      "      - option \"left-thumbs-SW1 · Unassigned\"",
+      "      - option \"left-thumbs-SW2 · Unassigned\"",
+      "      - option \"left-thumbs-SW3 · Unassigned\"",
+      "      - option \"left-thumbs-SW4 · Unassigned\"",
+      "      - option \"left-thumbs-SW5 · Unassigned\"",
+      "    - combobox \"left-keys-SW19 behavior\":",
+      "      - option \"Unassigned\" [selected]"
+    ]
+  }
+}

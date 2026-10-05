@@ -714,6 +714,24 @@ struct GeneratorView {
     workspace: &'static str,
 }
 
+#[cfg(test)]
+type GeneratorCandidateFuture =
+    std::pin::Pin<Box<dyn std::future::Future<Output = Result<PartDefinition, String>>>>;
+
+/// Per-mounted-editor boundary for deterministic completion ordering in browser tests.
+/// The production path still calls `prepare_generator_candidate` directly.
+#[cfg(test)]
+#[derive(Clone)]
+struct GeneratorCandidateTestProvider(
+    Rc<
+        dyn Fn(
+            PartDefinition,
+            BTreeMap<String, Value>,
+            BTreeMap<String, Value>,
+        ) -> GeneratorCandidateFuture,
+    >,
+);
+
 /// Dynamic settings form. Each field remains a local JSON draft until Apply; every
 /// candidate preview uses the same retained generator renderer as the Parts canvas.
 #[component]
@@ -747,9 +765,11 @@ pub(super) fn GeneratorSettingsEditor(
     let mut model_uploading = use_signal(|| false);
     use_drop({
         let alive = alive.clone();
+        let sequence = sequence.clone();
         let model_sequence = model_sequence.clone();
         move || {
             alive.set(false);
+            sequence.set(sequence.get().wrapping_add(1));
             model_sequence.set(model_sequence.get().wrapping_add(1));
         }
     });
@@ -761,17 +781,7 @@ pub(super) fn GeneratorSettingsEditor(
         scope_generation(),
         selection_generation(),
     );
-    let definition_identity = (
-        definition.id.clone(),
-        generator_source.clone(),
-        definition
-            .generator
-            .as_ref()
-            .map(|generator| (generator.version.clone(), generator.parameters.clone())),
-        scope.clone(),
-        selected(),
-    );
-    use_effect(use_reactive((&definition_identity,), {
+    use_effect(use_reactive((&owner,), {
         let mut edits = edits;
         let mut store = store;
         move |_| {
@@ -846,12 +856,25 @@ pub(super) fn GeneratorSettingsEditor(
         }
     };
     let entries = parameters(&definition, &schema);
+    let initial_parameters = schema
+        .iter()
+        .filter_map(|(key, spec)| {
+            definition
+                .generator
+                .as_ref()
+                .and_then(|generator| generator.parameters.get(key))
+                .or_else(|| spec.get("value"))
+                .map(|value| (key.clone(), value.clone()))
+        })
+        .collect::<BTreeMap<_, _>>();
     let mut changed = edits;
     let callback_owner = owner.clone();
     let callback_runtime = runtime.clone();
-    let change_parameter = use_callback(move |(key, value): (String, Value)| {
-        let mut next = changed();
-        next.insert(key, value);
+    let callback_schema = schema.clone();
+    let preview_alive = alive.clone();
+    #[cfg(test)]
+    let candidate_provider = try_consume_context::<GeneratorCandidateTestProvider>();
+    let request_preview = use_callback(move |next: BTreeMap<String, Value>| {
         changed.set(next.clone());
         feedback.set(None);
         let request_owner = callback_owner.clone();
@@ -862,7 +885,7 @@ pub(super) fn GeneratorSettingsEditor(
             status: GeneratorPreviewStatus::Pending,
         }));
         let base = definition.clone();
-        let schema = schema.clone();
+        let schema = callback_schema.clone();
         let scope_generation = scope_generation;
         let selection_generation = selection_generation;
         let selected = selected;
@@ -870,11 +893,22 @@ pub(super) fn GeneratorSettingsEditor(
         let runtime = callback_runtime.clone();
         let mut store = store;
         let task = sequence.clone();
+        let alive = preview_alive.clone();
         let ticket = task.get().wrapping_add(1);
         task.set(ticket);
+        #[cfg(test)]
+        let candidate_provider = candidate_provider.clone();
         spawn_local(async move {
+            #[cfg(test)]
+            let result = if let Some(provider) = candidate_provider {
+                (provider.0)(base, schema, next).await
+            } else {
+                prepare_generator_candidate(base, schema, next).await
+            };
+            #[cfg(not(test))]
             let result = prepare_generator_candidate(base, schema, next).await;
-            if task.get() != ticket
+            if !alive.get()
+                || task.get() != ticket
                 || !owner_is_current(
                     &request_owner,
                     &runtime,
@@ -900,6 +934,16 @@ pub(super) fn GeneratorSettingsEditor(
             }));
         });
     });
+    let change_parameter = use_callback(move |(key, value): (String, Value)| {
+        let mut next = edits();
+        next.insert(key, value);
+        request_preview.call(next);
+    });
+    // The form and its first transient preview must use the same saved/default values.
+    // Owner changes also retire the previous draft and start a fresh guarded request.
+    use_effect(use_reactive((&owner, &schema), move |_| {
+        request_preview.call(initial_parameters.clone());
+    }));
     let active_draft = store().filter(|draft| draft.owner == owner);
     let preview_ready = active_draft.as_ref().is_some_and(|draft| {
         draft.status == GeneratorPreviewStatus::Ready && draft.definition.is_some()
@@ -1411,12 +1455,236 @@ mod tests {
     use super::*;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
     use boardstudio_core::model::{MechanicalPartProfile, ProjectDoc, SceneDelta};
+    use futures_channel::oneshot;
     use std::sync::Arc;
+    use std::{cell::RefCell, collections::VecDeque};
+    use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
 
     wasm_bindgen_test_configure!(run_in_browser);
 
     const DEFINITION_ID: &str = "ergogen:ceoloide/switch_mx";
+
+    struct CandidateRequest {
+        definition: PartDefinition,
+        schema: BTreeMap<String, Value>,
+        edits: BTreeMap<String, Value>,
+        complete: oneshot::Sender<Result<PartDefinition, String>>,
+        returned: oneshot::Receiver<()>,
+    }
+
+    #[derive(Clone)]
+    struct GeneratorMountedFixture {
+        snapshot: AcceptedSnapshot,
+        scope: Scope,
+        first: PartDefinition,
+        second: PartDefinition,
+        runtime: Rc<Runtime>,
+        requests: Rc<RefCell<VecDeque<CandidateRequest>>>,
+    }
+
+    #[derive(Clone, Copy)]
+    struct GeneratorMountedSignals {
+        definition: Signal<PartDefinition>,
+        selected: Signal<Option<(Option<Scope>, String)>>,
+        selection_generation: Signal<u64>,
+        store: Signal<Option<GeneratorPreviewDraft>>,
+    }
+
+    #[component]
+    fn GeneratorMountedHost() -> Element {
+        let fixture = use_context::<Rc<GeneratorMountedFixture>>();
+        let handles = use_context::<Rc<RefCell<Option<GeneratorMountedSignals>>>>();
+        let definition = use_signal(|| fixture.first.clone());
+        let selected = use_signal(|| Some((Some(fixture.scope.clone()), fixture.first.id.clone())));
+        let selection_generation = use_signal(|| 1_u64);
+        let scope_generation = use_signal(|| 1_u64);
+        let workspace = use_signal(|| "Parts");
+        let store = use_signal(|| None::<GeneratorPreviewDraft>);
+        let selected_context = use_signal(|| None);
+        let anchor_scope = use_signal(|| Some(fixture.scope.clone()));
+        let adapter = use_hook(|| {
+            super::super::super::selection::SelectionAdapter::new(
+                selected_context,
+                anchor_scope,
+                scope_generation,
+            )
+        });
+        use_context_provider(|| adapter.clone());
+        use_context_provider(|| super::super::PartsSelectionGeneration(selection_generation));
+        use_context_provider(|| super::super::GeneratorDraftStore(store));
+        use_context_provider(|| super::super::super::WorkspaceState(workspace));
+        use_context_provider(|| Signal::new(0_u64));
+        *handles.borrow_mut() = Some(GeneratorMountedSignals {
+            definition,
+            selected,
+            selection_generation,
+            store,
+        });
+        rsx! {
+            GeneratorSettingsEditor {
+                snapshot: fixture.snapshot.clone(),
+                scope: Some(fixture.scope.clone()),
+                selected,
+                definition: definition(),
+            }
+        }
+    }
+
+    fn controlled_candidate_provider(
+        requests: Rc<RefCell<VecDeque<CandidateRequest>>>,
+    ) -> GeneratorCandidateTestProvider {
+        GeneratorCandidateTestProvider(Rc::new(move |definition, schema, edits| {
+            let (complete, result) = oneshot::channel();
+            let (returned, returned_signal) = oneshot::channel();
+            requests.borrow_mut().push_back(CandidateRequest {
+                definition,
+                schema,
+                edits,
+                complete,
+                returned: returned_signal,
+            });
+            Box::pin(async move {
+                let result = result
+                    .await
+                    .unwrap_or_else(|_| Err("controlled preview was retired".into()));
+                let _ = returned.send(());
+                result
+            })
+        }))
+    }
+
+    async fn mount_generator_editor() -> (
+        web_sys::Element,
+        Rc<GeneratorMountedFixture>,
+        Rc<RefCell<Option<GeneratorMountedSignals>>>,
+    ) {
+        let first = definition();
+        let mut second = first.clone();
+        second.id = "test:other-mx-switch".into();
+        second.name = "Other MX switch".into();
+        let snapshot = snapshot(vec![first.clone(), second.clone()], 4);
+        let scope = scope();
+        let runtime = Runtime::new().expect("browser Runtime fixture initializes");
+        runtime.set_definition_name_test_state(snapshot.clone(), Some(scope.clone()));
+        let requests = Rc::new(RefCell::new(VecDeque::new()));
+        let fixture = Rc::new(GeneratorMountedFixture {
+            snapshot,
+            scope,
+            first,
+            second,
+            runtime: runtime.clone(),
+            requests: requests.clone(),
+        });
+        let handles = Rc::new(RefCell::new(None));
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("parts-generator-owner-mounted-test");
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(GeneratorMountedHost);
+        dom.provide_root_context(fixture.clone());
+        dom.provide_root_context(handles.clone());
+        dom.provide_root_context(runtime);
+        dom.provide_root_context(controlled_candidate_provider(requests));
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_for_selector(&root, "input[aria-label='Keycap Width']").await;
+        (root, fixture, handles)
+    }
+
+    async fn wait_for_selector(root: &web_sys::Element, selector: &str) {
+        for _ in 0..150 {
+            if root.query_selector(selector).unwrap().is_some() {
+                return;
+            }
+            gloo_timers::future::TimeoutFuture::new(20).await;
+        }
+        panic!(
+            "timed out waiting for mounted selector {selector}; mounted text was: {}",
+            root.text_content().unwrap_or_default()
+        );
+    }
+
+    async fn take_request(
+        requests: &Rc<RefCell<VecDeque<CandidateRequest>>>,
+        width: f64,
+    ) -> CandidateRequest {
+        for _ in 0..150 {
+            let index =
+                {
+                    let queue = requests.borrow();
+                    queue.iter().position(|request| {
+                        request.edits.get("keycap_width").and_then(|value| {
+                            value.as_f64().or_else(|| value.as_str()?.parse().ok())
+                        }) == Some(width)
+                    })
+                };
+            if let Some(index) = index {
+                return requests.borrow_mut().remove(index).unwrap();
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        panic!("no controlled candidate request arrived for width {width}");
+    }
+
+    fn dispatch_width(root: &web_sys::Element, width: &str) {
+        let input = root
+            .query_selector("input[aria-label='Keycap Width']")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap();
+        input.set_value(width);
+        let event = web_sys::EventInit::new();
+        event.set_bubbles(true);
+        input
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+            .unwrap();
+    }
+
+    fn candidate(request: &CandidateRequest) -> PartDefinition {
+        apply_input(&request.definition, &request.schema, &request.edits)
+            .expect("test width is valid against the retained parameter schema")
+    }
+
+    async fn finish_request(request: CandidateRequest, result: Result<PartDefinition, String>) {
+        request.complete.send(result).unwrap();
+        request.returned.await.expect("candidate provider returned");
+    }
+
+    async fn wait_for_text(root: &web_sys::Element, selector: &str, text: &str) {
+        for _ in 0..150 {
+            let found = root
+                .query_selector(selector)
+                .unwrap()
+                .and_then(|element| element.text_content())
+                .is_some_and(|content| content.contains(text));
+            if found {
+                return;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        panic!("timed out waiting for `{text}` in {selector}");
+    }
+
+    async fn take_initial_default_request(
+        requests: &Rc<RefCell<VecDeque<CandidateRequest>>>,
+    ) -> CandidateRequest {
+        for _ in 0..150 {
+            if let Some(index) = {
+                let queue = requests.borrow();
+                queue.iter().position(|request| {
+                    request.edits.get("side") == Some(&Value::String("B".into()))
+                })
+            } {
+                return requests.borrow_mut().remove(index).unwrap();
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        panic!("initial mounted generator preview did not request the schema default side B");
+    }
 
     fn definition() -> PartDefinition {
         serde_json::from_value(serde_json::json!({
@@ -1588,5 +1856,192 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_generator_provider_failure_is_visible_and_never_enables_apply() {
+        let (root, fixture, _) = mount_generator_editor().await;
+        dispatch_width(&root, "19");
+        wait_for_text(&root, "[role='status']", "Generating footprint preview").await;
+        let request = take_request(&fixture.requests, 19.0).await;
+        assert!(
+            root.query_selector(".m1-generator-settings > button.m1-generator-apply")
+                .unwrap()
+                .unwrap()
+                .has_attribute("disabled")
+        );
+
+        finish_request(request, Err("controlled candidate provider failure".into())).await;
+        wait_for_text(
+            &root,
+            "[role='alert']",
+            "controlled candidate provider failure",
+        )
+        .await;
+        assert!(
+            root.query_selector(".m1-generator-settings > button.m1-generator-apply")
+                .unwrap()
+                .unwrap()
+                .has_attribute("disabled")
+        );
+        let accepted = fixture.runtime.model().accepted.unwrap();
+        assert_eq!(accepted.document, fixture.snapshot.document);
+        assert_eq!(
+            accepted.document.revision,
+            fixture.snapshot.document.revision
+        );
+        assert_eq!(
+            accepted.document.definitions[0]
+                .generator
+                .as_ref()
+                .unwrap()
+                .parameters["keycap_width"],
+            18
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_generator_initial_schema_default_seeds_unapplied_preview() {
+        let (root, fixture, handles) = mount_generator_editor().await;
+        let side = root.query_selector("select[aria-label='side']").unwrap();
+        let side = side.expect("mounted Board side control");
+        assert_eq!(
+            js_sys::Reflect::get(side.as_ref(), &"value".into())
+                .unwrap()
+                .as_string()
+                .as_deref(),
+            Some("B")
+        );
+
+        let request = take_initial_default_request(&fixture.requests).await;
+        assert_eq!(request.edits.get("side"), Some(&Value::String("B".into())));
+        let candidate =
+            super::super::catalogue::normalize_generator_definition(candidate(&request))
+                .await
+                .expect("packaged normalizer prepares the default-side draft");
+        assert_eq!(
+            candidate.pads.len(),
+            7,
+            "real MX hotswap geometry replaces the catalogue fixture"
+        );
+        let pad_one = candidate.pads.iter().find(|pad| pad.number == "1").unwrap();
+        let pad_two = candidate.pads.iter().find(|pad| pad.number == "2").unwrap();
+        assert!(pad_one.at.x < 0.0, "Back preview places pad 1 on the left");
+        assert!(pad_two.at.x > 0.0, "Back preview places pad 2 on the right");
+        finish_request(request, Ok(candidate.clone())).await;
+        wait_for_text(
+            &root,
+            "[role='status']",
+            "Current generator preview is ready",
+        )
+        .await;
+        let draft = (handles.borrow().as_ref().unwrap().store)().unwrap();
+        assert_eq!(draft.status, GeneratorPreviewStatus::Ready);
+        assert_eq!(draft.definition.as_ref(), Some(&candidate));
+        assert_eq!(
+            draft
+                .definition
+                .as_ref()
+                .unwrap()
+                .generator
+                .as_ref()
+                .unwrap()
+                .parameters["side"],
+            "B"
+        );
+        let accepted = fixture.runtime.model().accepted.unwrap();
+        assert_eq!(accepted.document, fixture.snapshot.document);
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_generator_discards_superseded_edit_and_selection_results() {
+        let (root, fixture, handles) = mount_generator_editor().await;
+        let initial_request = take_initial_default_request(&fixture.requests).await;
+        dispatch_width(&root, "19");
+        let older_edit = take_request(&fixture.requests, 19.0).await;
+        dispatch_width(&root, "20");
+        let newer_edit = take_request(&fixture.requests, 20.0).await;
+        let newer_candidate = candidate(&newer_edit);
+        finish_request(newer_edit, Ok(newer_candidate)).await;
+        wait_for_text(
+            &root,
+            "[role='status']",
+            "Current generator preview is ready",
+        )
+        .await;
+        let ready = (handles.borrow().as_ref().unwrap().store)().unwrap();
+        assert_eq!(
+            ready
+                .definition
+                .as_ref()
+                .unwrap()
+                .generator
+                .as_ref()
+                .unwrap()
+                .parameters["keycap_width"]
+                .as_f64(),
+            Some(20.0)
+        );
+
+        let older_candidate = candidate(&older_edit);
+        finish_request(older_edit, Ok(older_candidate)).await;
+        let initial_candidate = candidate(&initial_request);
+        finish_request(initial_request, Ok(initial_candidate)).await;
+        let still_ready = (handles.borrow().as_ref().unwrap().store)().unwrap();
+        assert_eq!(
+            still_ready
+                .definition
+                .as_ref()
+                .unwrap()
+                .generator
+                .as_ref()
+                .unwrap()
+                .parameters["keycap_width"]
+                .as_f64(),
+            Some(20.0)
+        );
+
+        dispatch_width(&root, "21");
+        let retired_selection = take_request(&fixture.requests, 21.0).await;
+        let mut mounted = handles.borrow().as_ref().copied().unwrap();
+        mounted.definition.set(fixture.second.clone());
+        mounted.selected.set(Some((
+            Some(fixture.scope.clone()),
+            fixture.second.id.clone(),
+        )));
+        mounted
+            .selection_generation
+            .with_mut(|generation| *generation += 1);
+        let new_selection = take_initial_default_request(&fixture.requests).await;
+        assert_eq!(new_selection.definition.id, fixture.second.id);
+        let pending = (handles.borrow().as_ref().unwrap().store)().unwrap();
+        assert_eq!(pending.owner.definition_id, fixture.second.id);
+        assert_eq!(pending.status, GeneratorPreviewStatus::Pending);
+        let retired_candidate = candidate(&retired_selection);
+        finish_request(retired_selection, Ok(retired_candidate)).await;
+        let still_pending = (handles.borrow().as_ref().unwrap().store)().unwrap();
+        assert_eq!(
+            still_pending, pending,
+            "retired selection cannot replace the new pending draft"
+        );
+        let new_candidate = candidate(&new_selection);
+        finish_request(new_selection, Ok(new_candidate.clone())).await;
+        wait_for_text(
+            &root,
+            "[role='status']",
+            "Current generator preview is ready",
+        )
+        .await;
+        let current = (handles.borrow().as_ref().unwrap().store)().unwrap();
+        assert_eq!(current.owner.definition_id, fixture.second.id);
+        assert_eq!(current.status, GeneratorPreviewStatus::Ready);
+        assert_eq!(current.definition.as_ref(), Some(&new_candidate));
+        assert_eq!(
+            fixture.runtime.model().accepted.unwrap().document,
+            fixture.snapshot.document
+        );
+        root.remove();
     }
 }

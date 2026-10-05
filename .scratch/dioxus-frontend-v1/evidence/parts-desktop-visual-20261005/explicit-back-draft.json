@@ -1,0 +1,18 @@
+{
+  "action": "Front then Back, both preview completions; no Apply",
+  "source": "38641dd1",
+  "outcome": [
+    "        - status: Unapplied generator preview",
+    "        - status: No closed courtyard is available; the outline uses physical graphics and pad extents.",
+    "            - button \"Hide B.Cu\" [pressed]:",
+    "            - button \"Hide B.SilkS\" [pressed]:",
+    "            - button \"Hide F.SilkS\" [pressed]:",
+    "            - button \"Hide Keycap\" [pressed]:",
+    "            - button \"Hide Drills\" [pressed]:",
+    "            - button \"Hide Pad numbers\" [pressed]:",
+    "            - button \"Hide MX switch\" [pressed]:",
+    "            - option \"Back\" [selected]",
+    "        - status: Current generator preview is ready to apply.",
+    "        - button \"Apply generator settings\""
+  ]
+}

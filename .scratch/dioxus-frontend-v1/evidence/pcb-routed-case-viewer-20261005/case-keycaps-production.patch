@@ -1,0 +1,557 @@
+--- a/web/src/runtime.rs
++++ b/web/src/runtime.rs
+@@ -1532,6 +1532,28 @@
+         token: SnapshotToken,
+         revision: u64,
+     ) -> Result<boardstudio_core::model::KeycapResolution, String> {
++        self.resolve_keycaps_preview_source(scope, token, revision, false)
++            .await
++    }
++
++    /// Case consumes the selected physical projection; Layout retains the canonical document.
++    pub(crate) async fn resolve_case_keycaps_preview(
++        &self,
++        scope: Scope,
++        token: SnapshotToken,
++        revision: u64,
++    ) -> Result<boardstudio_core::model::KeycapResolution, String> {
++        self.resolve_keycaps_preview_source(scope, token, revision, true)
++            .await
++    }
++
++    async fn resolve_keycaps_preview_source(
++        &self,
++        scope: Scope,
++        token: SnapshotToken,
++        revision: u64,
++        physical_case: bool,
++    ) -> Result<boardstudio_core::model::KeycapResolution, String> {
+         let accepted = self
+             .model()
+             .accepted
+@@ -1556,13 +1578,33 @@
+             return Err("The Core worker changed before keycap fit resolution started.".into());
+         }
+ 
++        let document = if physical_case {
++            captured_case_document(&accepted, &scope)
++                .map_err(|error| format!("Could not capture physical Case keycaps: {error:?}"))?
++        } else {
++            (*accepted.document).clone()
++        };
+         let request_id = format!("keycaps-fit-{}", self.operation().0);
+         let request = CoreRequest::ResolveKeycaps {
+             id: request_id.clone(),
+-            document: (*accepted.document).clone(),
++            document,
+             board_id: scope.board_id.clone(),
+             cases,
+         };
++        #[cfg(test)]
++        let test_reply = self
++            .project_name_test_core
++            .borrow_mut()
++            .as_mut()
++            .map(|core| core.handle(request.clone()));
++        #[cfg(test)]
++        let reply = if let Some(reply) = test_reply {
++            Ok(reply)
++        } else {
++            core.request(&request_id, &executor_epoch.0.to_string(), &request)
++                .await
++        };
++        #[cfg(not(test))]
+         let reply = core
+             .request(&request_id, &executor_epoch.0.to_string(), &request)
+             .await;
+--- a/web/src/presentation/case_viewer.rs
++++ b/web/src/presentation/case_viewer.rs
+@@ -13,7 +13,11 @@
+ };
+ use boardstudio_web::cad_jobs::captured_case_document;
+ use dioxus::prelude::*;
+-use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
++use std::{
++    cell::{Cell, RefCell},
++    collections::BTreeMap,
++    rc::Rc,
++};
+ 
+ #[derive(Clone, PartialEq)]
+ pub(super) struct BodySelection {
+@@ -145,6 +149,167 @@
+     }
+ }
+ 
++#[derive(Clone, PartialEq)]
++struct CaseKeycapsSource {
++    scope: Scope,
++    token: SnapshotToken,
++    revision: u64,
++    prepared: Option<boardstudio_core::model::PreparedCaseAssemblyIR>,
++}
++
++#[derive(Clone, Default)]
++struct CaseKeycapsState {
++    source: Option<CaseKeycapsSource>,
++    preview: Option<crate::runtime::KeycapsCadPreview>,
++    findings: Vec<boardstudio_core::model::Finding>,
++    pending: bool,
++    error: Option<String>,
++}
++
++fn use_case_keycaps(
++    runtime: Rc<Runtime>,
++    scope: &Scope,
++    token: SnapshotToken,
++    revision: u64,
++) -> (Option<crate::runtime::KeycapsCadPreview>, Element) {
++    let _ = use_context::<Signal<u64>>()();
++    let source = runtime
++        .model()
++        .accepted
++        .filter(|accepted| {
++            runtime.scope().as_ref() == Some(scope)
++                && accepted.token == token
++                && accepted.document.revision == revision
++                && accepted.document.keycaps.is_some()
++        })
++        .map(|_| CaseKeycapsSource {
++            scope: scope.clone(),
++            token,
++            revision,
++            prepared: runtime
++                .cad_scene()
++                .filter(|scene| {
++                    scene.exact
++                        && scene.scope == *scope
++                        && scene.token == token
++                        && scene.snapshot.document.revision == revision
++                        && scene.prepared.revision == revision
++                })
++                .map(|scene| scene.prepared.clone()),
++        });
++    let mut state = use_signal(CaseKeycapsState::default);
++    let mut retry = use_signal(|| 0_u64);
++    let alive = use_hook(|| Rc::new(Cell::new(true)));
++    let sequence = use_hook(|| Rc::new(Cell::new(0_u64)));
++    use_drop({
++        let alive = alive.clone();
++        let runtime = runtime.clone();
++        move || {
++            alive.set(false);
++            runtime.cancel_keycaps_cad_preview();
++        }
++    });
++    use_effect(use_reactive((&source, &retry()), {
++        let runtime = runtime.clone();
++        let alive = alive.clone();
++        let sequence = sequence.clone();
++        move |(source, _)| {
++            let request = sequence.get().saturating_add(1);
++            sequence.set(request);
++            runtime.cancel_keycaps_cad_preview();
++            state.set(CaseKeycapsState {
++                source: source.clone(),
++                pending: source.is_some(),
++                ..Default::default()
++            });
++            let Some(source) = source else {
++                return;
++            };
++            let runtime = runtime.clone();
++            let alive = alive.clone();
++            let sequence = sequence.clone();
++            wasm_bindgen_futures::spawn_local(async move {
++                let current = || {
++                    alive.get()
++                        && sequence.get() == request
++                        && runtime.scope().as_ref() == Some(&source.scope)
++                        && runtime.model().accepted.as_ref().is_some_and(|accepted| {
++                            accepted.token == source.token
++                                && accepted.document.revision == source.revision
++                        })
++                };
++                let result = async {
++                    let fit = runtime
++                        .resolve_case_keycaps_preview(
++                            source.scope.clone(),
++                            source.token,
++                            source.revision,
++                        )
++                        .await?;
++                    if !current() {
++                        return Err("Case keycap source changed during resolution.".to_owned());
++                    }
++                    if fit.specs.is_empty()
++                        || fit.findings.iter().any(|finding| {
++                            finding.severity == boardstudio_core::model::Severity::Error
++                        })
++                    {
++                        return Ok((None, fit.findings));
++                    }
++                    let preview = runtime
++                        .request_keycaps_cad_preview(crate::runtime::KeycapsPreviewInput {
++                            scope: source.scope.clone(),
++                            token: source.token,
++                            revision: source.revision,
++                            specs: fit.specs,
++                        })
++                        .await?;
++                    Ok((Some(preview), fit.findings))
++                }
++                .await;
++                if !current() {
++                    return;
++                }
++                state.set(match result {
++                    Ok((preview, findings)) => CaseKeycapsState {
++                        source: Some(source),
++                        preview,
++                        findings,
++                        ..Default::default()
++                    },
++                    Err(error) => CaseKeycapsState {
++                        source: Some(source),
++                        error: Some(error),
++                        ..Default::default()
++                    },
++                });
++            });
++        }
++    }));
++    let state = state();
++    let shown = if state.source == source {
++        state
++    } else {
++        CaseKeycapsState::default()
++    };
++    let feedback = rsx! {
++        if shown.pending { p { role: "status", "Generating keycap CAD…" } }
++        if let Some(error) = &shown.error {
++            div { role: "alert",
++                "Keycap preview failed: {error}"
++                button { type: "button", onclick: move |_| retry += 1, "Retry keycaps" }
++            }
++        }
++        if !shown.findings.is_empty() {
++            details { open: true,
++                summary { "Keycap clearance · {shown.findings.len()} findings" }
++                for finding in &shown.findings { p { key: "{finding.id}", "{finding.message}" } }
++            }
++        }
++    };
++    (shown.preview, feedback)
++}
++
+ #[component]
+ pub(crate) fn CaseViewer(
+     scene: Rc<CadScene>,
+@@ -153,6 +318,12 @@
+     mechanical_settings: Option<super::MechanicalSettingsProps>,
+ ) -> Element {
+     let runtime = use_context::<Rc<Runtime>>();
++    let (keycaps_preview, keycaps_feedback) = use_case_keycaps(
++        runtime.clone(),
++        &scene.scope,
++        scene.token,
++        scene.snapshot.document.revision,
++    );
+     let instance_selection = use_context::<InstanceSelection>();
+     let case_generation = use_context::<super::CaseGenerationState>();
+     let runtime_version = use_context::<Signal<u64>>();
+@@ -403,7 +574,7 @@
+             handle_source: Some(scene.clone()),
+             preview,
+             layout_preview: None,
+-            keycaps_preview: None,
++            keycaps_preview,
+             parts_preview: None,
+             model_rows,
+             selected_layer,
+@@ -419,6 +590,7 @@
+             gesture_message: displayed_gesture_message,
+             focus_request,
+         }
++        {keycaps_feedback}
+     }
+ }
+ 
+@@ -428,6 +600,12 @@
+     model_rows: Option<super::model_delivery::ModelDeliveryRows>,
+ ) -> Element {
+     let runtime = use_context::<Rc<Runtime>>();
++    let (keycaps_preview, keycaps_feedback) = use_case_keycaps(
++        runtime.clone(),
++        &preview.owner.scope,
++        preview.owner.snapshot_token,
++        preview.owner.accepted_revision,
++    );
+     let instance_selection = use_context::<InstanceSelection>();
+     let selection_adapter = use_context::<SelectionAdapter>();
+     let selection = use_context::<CaseSelection>();
+@@ -504,7 +682,7 @@
+             scene: None,
+             preview: Some(preview),
+             layout_preview: None,
+-            keycaps_preview: None,
++            keycaps_preview,
+             parts_preview: None,
+             model_rows,
+             selected_layer: "pcb".to_owned(),
+@@ -519,6 +697,7 @@
+             handle_preview: None,
+             gesture_message: None,
+         }
++        {keycaps_feedback}
+     }
+ }
+ 
+--- a/web/src/presentation/shared_viewer.rs
++++ b/web/src/presentation/shared_viewer.rs
+@@ -388,12 +388,24 @@
+         }
+         ViewerSource::Parts(_) => None,
+     };
++    let preview_key = (
++        matching_preview.map_or(0, |preview| Rc::as_ptr(preview) as usize),
++        keycaps_preview.as_ref().map(|preview| preview.generation),
++    );
++    let preview_identity = use_hook(|| Rc::new(RefCell::new((None, 0_usize))));
++    let preview_generation = {
++        let mut identity = preview_identity.borrow_mut();
++        if identity.0 != Some(preview_key) {
++            let Some(next) = identity.1.checked_add(1) else {
++                return rsx! { p { role: "alert", "3D preview identity exhausted" } };
++            };
++            *identity = (Some(preview_key), next);
++        }
++        identity.1
++    };
+     let inputs = ProjectionInputs {
+         source: source.pointer(),
+-        preview: keycaps_preview.as_ref().map_or_else(
+-            || matching_preview.map_or(0, |preview| Rc::as_ptr(preview) as usize),
+-            |preview| preview.generation as usize,
+-        ),
++        preview: preview_generation,
+         models: matching_model_rows
+             .map(|rows| {
+                 rows.delivered
+@@ -773,11 +785,16 @@
+     keycaps_preview: Option<&crate::runtime::KeycapsCadPreview>,
+ ) -> Result<RendererSceneProjection, String> {
+     match source {
+-        ViewerSource::Cad(scene) => {
+-            project_case_scene(scene.clone(), identity, theme, preview, model_rows)
+-        }
++        ViewerSource::Cad(scene) => project_case_scene(
++            scene.clone(),
++            identity,
++            theme,
++            preview,
++            model_rows,
++            keycaps_preview,
++        ),
+         ViewerSource::Native(preview) => {
+-            project_native_preview(preview, identity, theme, model_rows)
++            project_native_preview(preview, identity, theme, model_rows, keycaps_preview)
+         }
+         ViewerSource::Layout(preview) => {
+             project_layout_preview(preview, identity, theme, model_rows, keycaps_preview)
+@@ -800,6 +817,7 @@
+     theme: &str,
+     preview: Option<&NativePreviewSnapshot>,
+     model_rows: Option<&ModelDeliveryRows>,
++    keycaps_preview: Option<&crate::runtime::KeycapsCadPreview>,
+ ) -> Result<RendererSceneProjection, String> {
+     let document = captured_case_document(&scene.snapshot, &scene.scope)
+         .map_err(|error| format!("Case scene projection failed: {error:?}"))?;
+@@ -884,6 +902,13 @@
+             layers.push((body.id.clone(), body.name.clone()));
+         }
+     }
++    append_keycap_bodies(
++        &bodies,
++        &mut layers,
++        keycaps_preview,
++        &identity,
++        scene.snapshot.document.revision,
++    )?;
+     Ok(RendererSceneProjection {
+         identity,
+         input,
+@@ -896,6 +921,7 @@
+     identity: ViewerIdentity,
+     theme: &str,
+     model_rows: Option<&ModelDeliveryRows>,
++    keycaps_preview: Option<&crate::runtime::KeycapsCadPreview>,
+ ) -> Result<RendererSceneProjection, String> {
+     if preview.owner.scope != identity.scope
+         || preview.owner.snapshot_token != identity.snapshot_token
+@@ -927,11 +953,85 @@
+     let input = js_sys::JSON::parse(&packet.to_string()).map_err(js_error)?;
+     let models = loaded_model_inputs(model_rows);
+     Reflect::set(&input, &"models".into(), &models).map_err(js_error)?;
++    let bodies = Array::new();
++    let mut layers = vec![("pcb".to_owned(), "PCB".to_owned())];
++    append_keycap_bodies(
++        &bodies,
++        &mut layers,
++        keycaps_preview,
++        &identity,
++        preview.owner.accepted_revision,
++    )?;
++    Reflect::set(&input, &"bodies".into(), &bodies).map_err(js_error)?;
+     Ok(RendererSceneProjection {
+         identity,
+         input,
+-        layers: vec![("pcb".to_owned(), "PCB".to_owned())],
++        layers,
+     })
++}
++
++fn append_keycap_bodies(
++    bodies: &Array,
++    layers: &mut Vec<(String, String)>,
++    keycaps_preview: Option<&crate::runtime::KeycapsCadPreview>,
++    identity: &ViewerIdentity,
++    revision: u64,
++) -> Result<(), String> {
++    if let Some(keycaps) = keycaps_preview {
++        if keycaps.scope != identity.scope
++            || keycaps.token != identity.snapshot_token
++            || keycaps.revision != revision
++        {
++            return Err("Keycap preview does not match the current viewer source".into());
++        }
++        for body in &keycaps.bodies {
++            let (color, label) = if let Some(id) = body.id.strip_prefix("keycap-legend:") {
++                let spec = keycaps
++                    .specs
++                    .iter()
++                    .find(|spec| spec.id == id)
++                    .ok_or_else(|| {
++                        "Keycap legend preview does not match its accepted specification".to_owned()
++                    })?;
++                (
++                    spec.legend_color.as_str(),
++                    format!("{} legend", spec.reference),
++                )
++            } else if let Some(id) = body.id.strip_prefix("keycap:") {
++                let spec = keycaps
++                    .specs
++                    .iter()
++                    .find(|spec| spec.id == id)
++                    .ok_or_else(|| {
++                        "Keycap preview does not match its accepted specification".to_owned()
++                    })?;
++                (spec.color.as_str(), spec.reference.clone())
++            } else {
++                return Err("Keycap preview returned an unknown body identity".into());
++            };
++            let value = Object::new();
++            let mesh = Object::new();
++            Reflect::set(
++                &mesh,
++                &"positions".into(),
++                &Float32Array::from(body.positions.as_slice()),
++            )
++            .map_err(js_error)?;
++            Reflect::set(
++                &mesh,
++                &"normals".into(),
++                &Float32Array::from(body.normals.as_slice()),
++            )
++            .map_err(js_error)?;
++            Reflect::set(&value, &"id".into(), &body.id.clone().into()).map_err(js_error)?;
++            Reflect::set(&value, &"name".into(), &body.name.clone().into()).map_err(js_error)?;
++            Reflect::set(&value, &"color".into(), &color.into()).map_err(js_error)?;
++            Reflect::set(&value, &"mesh".into(), &mesh).map_err(js_error)?;
++            bodies.push(&value);
++            layers.push((body.id.clone(), label));
++        }
++    }
++    Ok(())
+ }
+ 
+ fn project_layout_preview(
+@@ -1003,60 +1103,13 @@
+         bodies.push(&value);
+         layers.push((id, name));
+     }
+-    if let Some(keycaps) = keycaps_preview {
+-        if keycaps.scope != identity.scope
+-            || keycaps.token != identity.snapshot_token
+-            || keycaps.revision != preview.owner.accepted_revision
+-        {
+-            return Err("Keycap preview does not match the current canonical board".into());
+-        }
+-        for body in &keycaps.bodies {
+-            let (color, label) = if let Some(id) = body.id.strip_prefix("keycap-legend:") {
+-                let spec = keycaps
+-                    .specs
+-                    .iter()
+-                    .find(|spec| spec.id == id)
+-                    .ok_or_else(|| {
+-                        "Keycap legend preview does not match its accepted specification".to_owned()
+-                    })?;
+-                (
+-                    spec.legend_color.as_str(),
+-                    format!("{} legend", spec.reference),
+-                )
+-            } else if let Some(id) = body.id.strip_prefix("keycap:") {
+-                let spec = keycaps
+-                    .specs
+-                    .iter()
+-                    .find(|spec| spec.id == id)
+-                    .ok_or_else(|| {
+-                        "Keycap preview does not match its accepted specification".to_owned()
+-                    })?;
+-                (spec.color.as_str(), spec.reference.clone())
+-            } else {
+-                return Err("Keycap preview returned an unknown body identity".into());
+-            };
+-            let value = Object::new();
+-            let mesh = Object::new();
+-            Reflect::set(
+-                &mesh,
+-                &"positions".into(),
+-                &Float32Array::from(body.positions.as_slice()),
+-            )
+-            .map_err(js_error)?;
+-            Reflect::set(
+-                &mesh,
+-                &"normals".into(),
+-                &Float32Array::from(body.normals.as_slice()),
+-            )
+-            .map_err(js_error)?;
+-            Reflect::set(&value, &"id".into(), &body.id.clone().into()).map_err(js_error)?;
+-            Reflect::set(&value, &"name".into(), &body.name.clone().into()).map_err(js_error)?;
+-            Reflect::set(&value, &"color".into(), &color.into()).map_err(js_error)?;
+-            Reflect::set(&value, &"mesh".into(), &mesh).map_err(js_error)?;
+-            bodies.push(&value);
+-            layers.push((body.id.clone(), label));
+-        }
+-    }
++    append_keycap_bodies(
++        &bodies,
++        &mut layers,
++        keycaps_preview,
++        &identity,
++        preview.owner.accepted_revision,
++    )?;
+     Reflect::set(&input, &"bodies".into(), &bodies).map_err(js_error)?;
+     Ok(RendererSceneProjection {
+         identity,
+@@ -3513,8 +3566,8 @@
+             contours: vec![],
+         });
+         for projection in [
+-            project_native_preview(&preview, viewer.clone(), "light", None).unwrap(),
+-            project_case_scene(scene, viewer, "light", Some(&preview), None).unwrap(),
++            project_native_preview(&preview, viewer.clone(), "light", None, None).unwrap(),
++            project_case_scene(scene, viewer, "light", Some(&preview), None, None).unwrap(),
+         ] {
+             let encoded = js_sys::JSON::stringify(&projection.input)
+                 .unwrap()

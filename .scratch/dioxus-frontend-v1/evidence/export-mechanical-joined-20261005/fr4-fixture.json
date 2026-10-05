@@ -1,0 +1,5 @@
+{
+  "sha256": "599139ebc2760bc8836460cbcf99716802e53cba74ec73eccc7c64daed51e337",
+  "basis": "core/src/artifact/mechanical_plate.rs::tests::fixture",
+  "construction": "Explicit synthetic QA project; empty document with source fixture mechanical parameters, 40x30 outline, radius7 circular opening approximated with64points,2.2mm NPTH mount at4/4. Physical primary owner added for public Case route. No claim of measured component fit or fabrication approval."
+}

@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "run": "dioxus-frontend-v1-20261001",
-  "scope": "100% frontend: all TSX, UI state, theming and responsive/interaction behavior",
+  "scope": "Desktop frontend: TSX, UI state, theming and interaction behavior; mobile/compact validation excluded by explicit user instruction",
   "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
   "branch": "codex/rust-v1-ui-parity-20261001",
   "authority": "CONSTRAINTS.md",
@@ -16,29 +16,29 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-05T10:04:02.004547+00:00",
+    "updated_at": "2026-10-05T11:53:24.245239+00:00",
     "parent_counts": {
-      "accepted": 34,
-      "implementing": 16,
-      "planned": 11,
+      "accepted": 40,
+      "implementing": 11,
+      "planned": 10,
       "total": 61
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-case-extraction-lifecycle-20261005",
-      "source_commit": "cc728fc644d57b985feed9128ffdb40f9c75a709",
-      "root_url": "http://127.0.0.1:34822/",
-      "subpath_url": "http://127.0.0.1:34822/boardstudio/",
-      "provenance": "web/target/builds/frontend-case-extraction-lifecycle-20261005/provenance.json",
-      "provenance_sha256": "72d8c19db4f8ee99204ddc37f5783790f87e04300c41880400a23a5ee3045c52",
+      "build_id": "frontend-routed-case-cancellation-20261005",
+      "source_commit": "38641dd1353bcfb6230d52c1d5b84c7ad7908e7a",
+      "root_url": "http://127.0.0.1:34823/",
+      "subpath_url": "http://127.0.0.1:34823/boardstudio/",
+      "provenance": "web/target/builds/frontend-routed-case-cancellation-20261005/provenance.json",
+      "provenance_sha256": "2afad69082a062180966364052dc82728049c5dcc107d536af5e9c6c6a66bfa5",
       "fresh_commands": 9,
       "inherited_commands": 23,
       "source_inputs": 1409,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 202.548757,
+      "command_span_seconds": 136.055607,
       "package_qualification": "Combined package provenance, committed snapshot inputs and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-case-extraction-lifecycle-20261005/package-proof.json",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-routed-case-cancellation-20261005/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -48,8 +48,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "b53d53590412e427728f4313e39290e95945d6bd",
-      "state": "Published cc candidate remains available. F5.4 andF8.4 independently accepted; actual paired PCB clearance/trueflip628geometry/boardownership and saved-open unavailable recovery recorded. Imported Case viewport defect nativeRED; combined required repair and cancellation batch active.",
+      "source_commit": "38641dd1353bcfb6230d52c1d5b84c7ad7908e7a",
+      "state": "All11source/configpaths independentCLEAR and terminal0 combinedgate3074104: native247passed/1ignored, wasm-page/reachability passed, strictheadless54passed/0failed/excluded/incomplete. Explicitcommit and immutablepackage next; public changed journeys remain unqualified.",
       "packets": [
         {
           "stream": "Layout",
@@ -366,8 +366,8 @@
           "change": "F2.3 pointer and keyboard desktop pane resizing with persistence"
         }
       ],
-      "qualification": "Published cc profile extraction complete; samefixture crossconsumer scope sequence recorded; remaining reviewedjoins and required readiness gates pending.",
-      "application_candidate_source": "cc728fc644d57b985feed9128ffdb40f9c75a709"
+      "qualification": "Published38641 routedCase repair: actualPCB/models render; enabledkeycaps gap under diagnosis. Required project supersession test-only Runtime author active. F8.3C01/C03 now verified after real incompleteDraft artifacts and blockers.",
+      "application_candidate_source": "38641dd1353bcfb6230d52c1d5b84c7ad7908e7a"
     },
     "journeys": [
       {
@@ -563,7 +563,7 @@
       },
       {
         "stream": "PCB",
-        "state": "F5.4 andF5.5accepted; realdraftretirement leavesentirer9ZIPunchanged. RemainingfunctionalPCB: requiredimportedCaseviewport repair/nativeRED15GREEN andmissingblob/file-readasyncowner qualification."
+        "state": "F5.7-C03 verified missing-blob retry and file-read retirement. Imported PCB/models now render on38641; remaining F5.7-C04 keycaps omission repaired with owning RED/GREEN, pending aggregate gate and packaged public replay."
       },
       {
         "stream": "Keymap",
@@ -575,15 +575,15 @@
       },
       {
         "stream": "Case",
-        "state": "Imported routed Case repair and Escape/scope/unmount composition source CLEAR; combined gate running before commit/package/public replay. F7.7 parent waits F5.6."
+        "state": "F7.5/F7.7 accepted; F7.8-C05desktopfallback verified. GeneratedCasekeycaps focusedRED/GREEN/sourceCLEAR, aggregate/packagepending."
       },
       {
         "stream": "Parts + Project",
-        "state": "F2.2-C02verified actualunavailablesavedopen/recovery; C03supersessionopen. F4.4functionalverified/F4.6awaitvisualjoin; remainingParts6criteria qualification queue."
+        "state": "F2.2-C03Runtime2races focused2/2/sourceCLEAR. Parts4newfixtures failedsetup and are being corrected coherently. Actual initialMXschema-defaultpreview mismatch now reproduced; required productRED/fix authorized. Desktopassemblylist2pxclipping CSSrepair reviewed, packagedGREENpending."
       }
     ],
     "pending_join_packets": [],
-    "next_work": "Required Case gesture composition author plus remaining PCB/Parts/Project qualification; retain published cc production identity and accepted b53 readiness milestone. Do not re-run completed profile, Layout, viewer lifecycle, or readiness branches.",
+    "next_work": "Finish current Parts initial-default and catalogue fixtures, then bounded generated-cap pick repair; single reviewed grouped gate/explicit commit/immutable package. Replay changed Casecaps, Partsdefaults/listclipping and Keymap/Keycaps picks. Reuse successful desktop viewer actions and conditional F7 aggregate joins.",
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
       "cadence": {
@@ -840,7 +840,7 @@
               "scope": "Sofle selection, contextual Objects/Inspector Properties and Relations, matrix/key edits, Undo and reopen",
               "spec": ".scratch/dioxus-layout-authoring/spec.md",
               "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/journey.md",
-              "verified": "Three Properties shortcut routes and key width1→1.25→Undo1→Redo1.25→reload1.25 match reference behavior.",
+              "verified": "Three Properties shortcut routes and key width1\u21921.25\u2192Undo1\u2192Redo1.25\u2192reload1.25 match reference behavior.",
               "remaining": "Inspector arrangement/typography/context footer and Objects-to-toolbar selection-kind synchronization; broader authoring criteria unchanged."
             },
             {
@@ -1937,7 +1937,7 @@
             "journeys": [
               {
                 "id": "F7.3-C05-module-route",
-                "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797→34798 RED/GREEN unless changed source affects it.",
+                "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797\u219234798 RED/GREEN unless changed source affects it.",
                 "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md"
               },
               {
@@ -1964,7 +1964,7 @@
           "journeys": [
             {
               "id": "F7.3-C05-module-route",
-              "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797→34798 RED/GREEN unless changed source affects it.",
+              "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797\u219234798 RED/GREEN unless changed source affects it.",
               "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
               "state": "pending"
             },
@@ -2033,7 +2033,7 @@
             "journeys": [
               {
                 "id": "F7.3-C05-module-route",
-                "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797→34798 RED/GREEN unless changed source affects it.",
+                "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797\u219234798 RED/GREEN unless changed source affects it.",
                 "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md"
               },
               {
@@ -2055,7 +2055,7 @@
           "journeys": [
             {
               "id": "F7.3-C05-module-route",
-              "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797→34798 RED/GREEN unless changed source affects it.",
+              "scope": "A current generic mounted-module body pick in Layout 3D reaches its Parts context and placement editor; board/project replacement clears the route after settlement. Reuse the paired 34797\u219234798 RED/GREEN unless changed source affects it.",
               "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
               "state": "pending"
             },
@@ -2260,7 +2260,7 @@
               "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
               "state": "partial",
               "evidence": ".scratch/dioxus-pcb-view/evidence/22-mounted-module-inspector-20261003/placement-save-reopen.md",
-              "verified": "Accepted removal deleted the selected placement (3→2) and updated findings (97→85). React also clears selection without a success label, so Inspector unmount is not a parity defect.",
+              "verified": "Accepted removal deleted the selected placement (3\u21922) and updated findings (97\u219285). React also clears selection without a success label, so Inspector unmount is not a parity defect.",
               "remaining": "Public rejected/cancelled/pending state and stale-scope outcome were not induced; F5.5-C04 remains open."
             },
             {
@@ -2269,7 +2269,7 @@
               "spec": ".scratch/dioxus-keymap-layers/spec.md",
               "state": "passed",
               "evidence": ".scratch/dioxus-keymap-layers/evidence/macro09-zmk-root-public-qualification/RESULTS.md",
-              "verified": "Paired imported fixture: unchanged A blur kept revision 29 and project hash; A→C submitted once and advanced to revision 30 in both apps."
+              "verified": "Paired imported fixture: unchanged A blur kept revision 29 and project hash; A\u2192C submitted once and advanced to revision 30 in both apps."
             },
             {
               "id": "F2.2-project-copy-menu",
@@ -2454,7 +2454,7 @@
               },
               {
                 "id": "F7.4-empty-profile-gap",
-                "scope": "On the saved split Sofle fixture change plate thickness 1.5→2.0 and observe plate foam 3.0→2.8, configured gap 3.00 mm and unavailable supported range with no explicit fit profile. Reuse paired TS/old Dioxus RED and focused 1/1 mounted regression.",
+                "scope": "On the saved split Sofle fixture change plate thickness 1.5\u21922.0 and observe plate foam 3.0\u21922.8, configured gap 3.00 mm and unavailable supported range with no explicit fit profile. Reuse paired TS/old Dioxus RED and focused 1/1 mounted regression.",
                 "spec": ".scratch/dioxus-frontend-v1/issues/07-case.md"
               }
             ]
@@ -2478,7 +2478,7 @@
               },
               {
                 "id": "F7.4-empty-profile-gap",
-                "scope": "On the saved split Sofle fixture change plate thickness 1.5→2.0 and observe plate foam 3.0→2.8, configured gap 3.00 mm and unavailable supported range with no explicit fit profile. Reuse paired TS/old Dioxus RED and focused 1/1 mounted regression.",
+                "scope": "On the saved split Sofle fixture change plate thickness 1.5\u21922.0 and observe plate foam 3.0\u21922.8, configured gap 3.00 mm and unavailable supported range with no explicit fit profile. Reuse paired TS/old Dioxus RED and focused 1/1 mounted regression.",
                 "spec": ".scratch/dioxus-frontend-v1/issues/07-case.md"
               }
             ]
@@ -2497,7 +2497,7 @@
             },
             {
               "id": "F7.4-empty-profile-gap",
-              "scope": "On the saved split Sofle fixture change plate thickness 1.5→2.0 and observe plate foam 3.0→2.8, configured gap 3.00 mm and unavailable supported range with no explicit fit profile. Reuse paired TS/old Dioxus RED and focused 1/1 mounted regression.",
+              "scope": "On the saved split Sofle fixture change plate thickness 1.5\u21922.0 and observe plate foam 3.0\u21922.8, configured gap 3.00 mm and unavailable supported range with no explicit fit profile. Reuse paired TS/old Dioxus RED and focused 1/1 mounted regression.",
               "spec": ".scratch/dioxus-frontend-v1/issues/07-case.md",
               "state": "passed",
               "evidence": ".scratch/dioxus-case-workspace/evidence/public-mechanical-settings/candidate-0cad7577/RESULTS.md"
@@ -3078,7 +3078,7 @@
               "source_paths_complete": true,
               "state": "passed",
               "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-camera-f36c01-20261004/RECEIPT.md",
-              "result": "Candidate 34812 cancels pending Pick origin on 2D→3D and return while board, Column 1 selection, origin coordinates, 2D camera and Undo/Redo state remain unchanged. Earlier placement cancellation evidence reused; TS retains the pending hint, so this is the specified functional correction rather than exact legacy behavior.",
+              "result": "Candidate 34812 cancels pending Pick origin on 2D\u21923D and return while board, Column 1 selection, origin coordinates, 2D camera and Undo/Redo state remain unchanged. Earlier placement cancellation evidence reused; TS retains the pending hint, so this is the specified functional correction rather than exact legacy behavior.",
               "completed_at": "2026-10-04T15:43:18Z"
             },
             {
@@ -4011,12 +4011,65 @@
               "state": "pending"
             }
           ]
+        },
+        {
+          "candidate_build_id": "frontend-case-extraction-lifecycle-20261005",
+          "source_commit": "cc728fc644d57b985feed9128ffdb40f9c75a709",
+          "phase": "qualifying",
+          "review": {
+            "profile": "sol-review",
+            "state": "pending"
+          },
+          "journeys": [
+            {
+              "id": "case-local-step-scope",
+              "scope": "Paired desktop Case journey from pinned Sofle: add Plate, configure mechanical settings, generate exact geometry, edit a setting and observe stale/current recovery, verify Export geometry readiness, download and inspect the exact-current mechanical package, change physical scope, and save/reopen. Qualify only branches actually executed; all existing criteria and warning/currentness rules remain.",
+              "source_roots": [
+                "web",
+                "application",
+                "core",
+                "contracts",
+                "renderer",
+                "cad",
+                "kicad/src",
+                "app/src",
+                "app/public",
+                "scripts",
+                "ergogen"
+              ],
+              "source_paths": [
+                ".node-version",
+                ".npmrc",
+                "package.json",
+                "pnpm-lock.yaml",
+                "pnpm-workspace.yaml",
+                "rust-toolchain.toml"
+              ],
+              "optional_source_paths": [
+                ".cargo/config",
+                ".cargo/config.toml"
+              ],
+              "source_paths_complete": true,
+              "fixtures": [
+                {
+                  "path": ".scratch/dioxus-frontend-v1/evidence/case-generation-export-20261005/input.boardstudio",
+                  "sha256": "af5b1bde73de827a699ddf01f7f7a321c6cfe8922304056a1678dbe622c9a821"
+                },
+                {
+                  "path": ".scratch/dioxus-frontend-v1/evidence/case-generation-export-20261005/input.json",
+                  "sha256": "e9aa38882a73f4faeb2ac7c32ad7ea54e38b57ecbf6b0f7991cff941bd9a5569"
+                }
+              ],
+              "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+              "state": "pending"
+            }
+          ]
         }
       ],
       "phase": "qualifying",
       "unmet_start_conditions": [],
-      "candidate_build_id": "frontend-case-extraction-lifecycle-20261005",
-      "source_commit": "cc728fc644d57b985feed9128ffdb40f9c75a709",
+      "candidate_build_id": "frontend-routed-case-cancellation-20261005",
+      "source_commit": "38641dd1353bcfb6230d52c1d5b84c7ad7908e7a",
       "journeys": [
         {
           "id": "case-local-step-scope",
@@ -4063,75 +4116,122 @@
       ],
       "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
       "pending_source_batch": {
-        "id": "case-routed-preview-and-required-cancellation-20261005",
-        "state": "Final six-file CLEAR; exact combined gate terminal0, native246/1ignored, wasm30/0fail/0excluded/0incomplete, page/reachability passed. Explicit guarded commit next.",
-        "source_base": "b53d53590412e427728f4313e39290e95945d6bd",
+        "id": "case-keycap-consumer-and-required-parts-project-20261005",
+        "state": "All11source/configpaths independentCLEAR and terminal0 combinedgate3074104: native247passed/1ignored, wasm-page/reachability passed, strictheadless54passed/0failed/excluded/incomplete. Explicitcommit and immutablepackage next; public changed journeys remain unqualified.",
+        "source_base": "38641dd1353bcfb6230d52c1d5b84c7ad7908e7a",
         "owned_files": [
-          "web/src/case_preview.rs",
           "web/src/runtime.rs",
           "web/src/presentation/shared_viewer.rs",
           "web/src/presentation/case_viewer.rs",
-          "web/src/presentation/pcb_board_reference.rs",
-          "scripts/wasm-test-owners.json"
+          "web/src/presentation/parts/generator_settings.rs",
+          "web/src/presentation/parts/mechanical_profile_editor.rs",
+          "web/src/presentation/parts.rs",
+          "web/assets/m1.css",
+          "web/src/presentation/parts/catalogue.rs",
+          "web/src/presentation/layout_viewer_source.rs",
+          "web/src/presentation/layout_viewer.rs"
         ],
-        "author": "migration_acceleration_review",
-        "reviewer": "preset_batch_review",
-        "originating_controls": [
-          "Case handle provisional drag",
-          "Escape/scope retirement without accepted edit",
-          "Case tab on imported routed board with no authored Case bodies"
-        ],
-        "finish": [
-          "Actual mounted CaseViewer/Runtime Session provisional preview then cancellation clears preview and leaves full accepted document/revision/history unchanged",
-          "Reuse already verified valid/invalid drag/history/live/manual outcomes and synthetic owner matrix without pretending they prove composition",
-          "Independent diff review and settled affected-module/native/page gates",
-          "Commit explicit owned paths and publish immutable committed candidate for imported Case product repair",
-          "Paired routedCase fixture must show actual imported PCB and reference pose/model placement, including selected physical scope; supported by owning native RED/GREEN and actual packaged replay",
-          "Missing blob and asyncowner retirement tests execute mountedrouted handlers; qualified boundaries and limitations explicit"
-        ],
-        "optional_work": "stopped",
-        "focused_receipt": ".scratch/dioxus-frontend-v1/evidence/case-handle-qualification-20261005/cancellation-composition-result.md",
         "authors": [
           {
             "agent": "migration_acceleration_review",
             "files": [
-              "web/src/case_preview.rs",
-              "web/src/runtime.rs",
-              "web/src/presentation/shared_viewer.rs",
-              "web/src/presentation/case_viewer.rs"
+              "web/src/presentation/layout_viewer_source.rs",
+              "web/src/presentation/layout_viewer.rs"
             ],
-            "scope": "Required imported Case preview owner/dispatch repair with nativeREDfirst and required scope/unmount cancellation composition"
+            "scope": "Required current generated cap/legend body to accepted board part mapping, owning native RED then fix. Generator prior source frozen GREEN. Read-only plan until other author releases shared compiler."
           },
           {
             "agent": "case_local_export",
             "files": [
-              "web/src/presentation/pcb_board_reference.rs"
+              "web/src/presentation/parts.rs",
+              "web/src/presentation/parts/catalogue.rs",
+              "web/src/presentation/parts/mechanical_profile_editor.rs"
             ],
-            "scope": "Required missing-browser-blob and file-read staleowner mounted qualification; no realCoreworker claim"
+            "scope": "Retained catalogue fixture diagnosis, mechanical GREEN. Cap-pick source plan read-only until explicit next lease."
           }
         ],
-        "source_staged_before_gate": true,
-        "review_verdict": "CLEAR",
-        "gate": {
-          "pid": 2955274,
-          "log": ".scratch/dioxus-frontend-v1/evidence/case-routed-integration-20261005/gates.log",
-          "exit_file": "/tmp/case-routed-combined-gates.exit",
-          "source_hashes": "/tmp/case-routed-required-source-hashes.json",
-          "terminal_exit": 0,
-          "native_passed": 246,
-          "native_ignored": 1,
-          "headless_passed": 30,
-          "excluded": 0,
-          "incomplete": 0,
-          "headless_duration_seconds": 434.15
+        "reviewer": "preset_batch_review",
+        "review": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+        "optional_work": "stopped",
+        "finish": [
+          "Owning RED/GREEN for acceptedCasekeycaps reachingactualrendererpacket with physicalowner/currentness",
+          "Two actualRuntime open/import supersession orders with Session/Persist/IndexedDB proof plus retainedpublicvalid/malformed archive evidence",
+          "Only missing Parts catalogue loading/source-error, generator failure/stale and extraction retirement clauses",
+          "Single independentreview and grouped native/page/reachability/strict affectedWASM gate",
+          "Explicitcommit andimmutablecandidate; actualenabledCasekeycaps publicreplay",
+          "Actual initial MX Back form must initially show normalized Back geometry without input; meaningful mounted RED/GREEN and packaged replay",
+          "Desktop Parts catalogue list choices usable after CSS repair",
+          "Confirmed generated cap pick routes to correct key in Keymap and Keycaps, with owning RED/GREEN and actual packaged replay"
+        ],
+        "compiler_coordination": "Combined gate terminal0; source frozen through explicit integration commit. Immutable package permits subsequent disjoint source work.",
+        "coordinator_css_repair": {
+          "file": "web/assets/m1.css",
+          "reason": "Actual desktop Key assemblies choices clipped to about2px by flex shrinking; required comparison now retained. Open catalogue sections share available height; closed headers keep intrinsic height.",
+          "red": ".scratch/dioxus-frontend-v1/evidence/parts-desktop-visual-20261005/candidate-assembly-ancestors.json",
+          "green": "Pending immutable packaged public replay; no native CSS behavior claim.",
+          "pending_feedback": {
+            "red": ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/keycaps-candidate-pending.png",
+            "sha256": "a945604db386a58fc6cfdd2d0a2903f8f2642923ee8acb9619f6bfd9040b28a9",
+            "green": "Pending immutable capture of unobscured loading status"
+          }
         },
-        "focused_results": {
-          "native_case": "15/15; reproduced product RED first",
-          "case_attempt2": "4 passed/1 fixture numeric representation failure",
-          "case_attempt3": "1/1 corrected typed geometry assertion; no production correction",
-          "pcb_async": "2/2; real file-read admission, closed worker, no post-worker claim",
-          "owner_runner": "37/37"
-        }
+        "new_observation": "Original saved seven-pad MX fixture confirms initial Back control renders Front geometry; explicit Front\u2192ready\u2192Back corrects B.Cu/B.SilkS/pad order without Apply. Author must initialize transient normalized schema-default draft with current-owner/nonmutation guards after meaningful mounted RED.",
+        "parts_focused_failure": "Official runner packaged assets succeeded, selected9tests,5passed/4newfixturesfailed. First uncaptured panic: missing Rc<Runtime> in Parts action subtree. Static review also identifies Signal<u64> and extraction mount barrier. These are fixture failures, not product RED. Final static audit: mounted schema ignores the runner supplied package URL, so generator fetch still targets runner origin; catalogue.rs test-only route now authorized to reuse actual packaged provider. Mechanical test must wait for mounted control/pending DOM. No schema mock or production provider replacement.",
+        "required_cap_pick_repair": {
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/RECEIPT.md",
+          "state": "Owning nativeRED\u2192fullmodule12/12GREEN; twofile source+mapCLEAR; aggregate and public actualKeymap/Keycaps picks pending",
+          "scope": "Map current generated cap/legend renderer identity to accepted board part; native RED first, retain expired/wrong-owner rejection, actual packaged Keymap/Keycaps pick.",
+          "receipt": ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/keycap-pick-repair.md"
+        },
+        "generator_initial_default": {
+          "receipt": ".scratch/dioxus-frontend-v1/evidence/parts-generator-owner-20261005/generator-initial-default-receipt.md",
+          "sha256": "7a5b565ba1a56476a13c94ad788144b437660a9e1f33c85c342d84cb531cf676",
+          "red": "1 executed, expected missing initial default request",
+          "green": "4/4 final generator module",
+          "public_replay": "pending new immutable candidate"
+        },
+        "gate": {
+          "pid": 3074104,
+          "log": "/tmp/case-keycaps-parts-final-gates.log",
+          "state_file": "/tmp/case-keycaps-parts-final-gates.json",
+          "exit_file": "/tmp/case-keycaps-parts-final-gates.exit",
+          "state": "running",
+          "completed": [
+            "native247passed/1ignored",
+            "wasm32page",
+            "wasmreachability"
+          ]
+        },
+        "frozen_hashes": {
+          "scripts/wasm-test-owners.json": "35f9600506c11078b13095b0f106202402d039de6b2e9c2bad98e665f53c397e",
+          "web/assets/m1.css": "a945604db386a58fc6cfdd2d0a2903f8f2642923ee8acb9619f6bfd9040b28a9",
+          "web/src/runtime.rs": "8831fa6099e13d3f88ab7ccce435f3caa8a30eb96ee98dd4bef09e6a55a9e525",
+          "web/src/presentation/shared_viewer.rs": "5378b4f39a0bda77a6415417bdb18b892f8301b7704596bf7c8c2c949720e973",
+          "web/src/presentation/case_viewer.rs": "98014a0850b7d0316b06f70c1c2d5abd80785483706e85d433da572cf9a6a21f",
+          "web/src/presentation/parts.rs": "81d3a38f08a156804e0e2d98ffa37663b13b1f261e24300bec7177d165174e87",
+          "web/src/presentation/parts/catalogue.rs": "246ab78396ddd33a6110d9376f4c24ba3b0bd33405b45da3ddae8efc916da955",
+          "web/src/presentation/parts/generator_settings.rs": "7a5b565ba1a56476a13c94ad788144b437660a9e1f33c85c342d84cb531cf676",
+          "web/src/presentation/parts/mechanical_profile_editor.rs": "6984c0ca889462d4ac43396c757ad0e10debc8a4e209690d6edc25e1f0e06aa4",
+          "web/src/presentation/layout_viewer_source.rs": "fcaba6be9b7c6e13d1b7af9709fd927855614afe8356772e5c2afc5bd42b7bff",
+          "web/src/presentation/layout_viewer.rs": "90f8d0f9f28eea0b15416264dd085eb21de7a8d66b2e3ce12e4f2e487f11c0bf"
+        },
+        "source_paths": [
+          "scripts/wasm-test-owners.json",
+          "web/assets/m1.css",
+          "web/src/runtime.rs",
+          "web/src/presentation/shared_viewer.rs",
+          "web/src/presentation/case_viewer.rs",
+          "web/src/presentation/parts.rs",
+          "web/src/presentation/parts/catalogue.rs",
+          "web/src/presentation/parts/generator_settings.rs",
+          "web/src/presentation/parts/mechanical_profile_editor.rs",
+          "web/src/presentation/layout_viewer_source.rs",
+          "web/src/presentation/layout_viewer.rs"
+        ],
+        "review_sha256": "288cb9f86b7a67ed7b4b5a44c7634d5b2306bb7416cbedd2d0c3106004fd3301",
+        "review_verdict": "CLEAR for all settled source/config; no public closure inferred",
+        "aggregate_result": ".scratch/dioxus-frontend-v1/evidence/case-keycaps-parts-integration-20261005/final-combined-gate.json",
+        "aggregate_headless_receipt": ".scratch/dioxus-frontend-v1/evidence/case-keycaps-parts-integration-20261005/final-combined-headless-receipt.json"
       },
       "prior_source_batches": [
         {
@@ -4297,7 +4397,7 @@
           "profile_current_blocker": {
             "prior_owner_reset": "Fixed at actual iterated row key and scope-owned extraction tasks; strict66742 terminal3passed/0failed/complete",
             "remaining": "Resolved: existing DimensionField handles Bottom Z/Height. Actual mounted Escape no intent, Enter+blur exactly once, height0.05 rejected. Strict final1/1; prior numeric2/2 and profile3/3 passed.",
-            "numeric_red": "Actual Height6→7.2 Escape→blur emitted request3 ratherthanunchanged2; expected0passed1failed. PCBfixtureunapplydidnotchange3profilefiles; boundedfocusedREDonly. DimensionFieldfixnowunderGREEN.",
+            "numeric_red": "Actual Height6\u21927.2 Escape\u2192blur emitted request3 ratherthanunchanged2; expected0passed1failed. PCBfixtureunapplydidnotchange3profilefiles; boundedfocusedREDonly. DimensionFieldfixnowunderGREEN.",
             "result": ".scratch/dioxus-frontend-v1/evidence/case-custom-profile-20261005/profile-packet-result.json"
           },
           "required_lifecycle_join": {
@@ -4401,7 +4501,7 @@
           ],
           "review": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
           "originating_controls": [
-            "Case ReadKiCad→Apply selectedgeometry",
+            "Case ReadKiCad\u2192Apply selectedgeometry",
             "MountedPCB Save acrossreplacement withPersist/readback"
           ],
           "finish": [
@@ -4472,9 +4572,91 @@
           "review_verdict": "CLEAR",
           "integration_commit": "b53d53590412e427728f4313e39290e95945d6bd",
           "commit_gate_reuse": "All four exact receipts reused; integration-commit-reuse.log"
+        },
+        {
+          "id": "case-routed-preview-and-required-cancellation-20261005",
+          "state": "Committed38641 and published34823. Actual imported PCB/models now render with physical scope return; paired enabled-keycaps visual gap remains under diagnosis.",
+          "source_base": "b53d53590412e427728f4313e39290e95945d6bd",
+          "owned_files": [
+            "web/src/case_preview.rs",
+            "web/src/runtime.rs",
+            "web/src/presentation/shared_viewer.rs",
+            "web/src/presentation/case_viewer.rs",
+            "web/src/presentation/pcb_board_reference.rs",
+            "scripts/wasm-test-owners.json"
+          ],
+          "author": "migration_acceleration_review",
+          "reviewer": "preset_batch_review",
+          "originating_controls": [
+            "Case handle provisional drag",
+            "Escape/scope retirement without accepted edit",
+            "Case tab on imported routed board with no authored Case bodies"
+          ],
+          "finish": [
+            "Actual mounted CaseViewer/Runtime Session provisional preview then cancellation clears preview and leaves full accepted document/revision/history unchanged",
+            "Reuse already verified valid/invalid drag/history/live/manual outcomes and synthetic owner matrix without pretending they prove composition",
+            "Independent diff review and settled affected-module/native/page gates",
+            "Commit explicit owned paths and publish immutable committed candidate for imported Case product repair",
+            "Paired routedCase fixture must show actual imported PCB and reference pose/model placement, including selected physical scope; supported by owning native RED/GREEN and actual packaged replay",
+            "Missing blob and asyncowner retirement tests execute mountedrouted handlers; qualified boundaries and limitations explicit"
+          ],
+          "optional_work": "stopped",
+          "focused_receipt": ".scratch/dioxus-frontend-v1/evidence/case-handle-qualification-20261005/cancellation-composition-result.md",
+          "authors": [
+            {
+              "agent": "migration_acceleration_review",
+              "files": [
+                "web/src/case_preview.rs",
+                "web/src/runtime.rs",
+                "web/src/presentation/shared_viewer.rs",
+                "web/src/presentation/case_viewer.rs"
+              ],
+              "scope": "Required imported Case preview owner/dispatch repair with nativeREDfirst and required scope/unmount cancellation composition"
+            },
+            {
+              "agent": "case_local_export",
+              "files": [
+                "web/src/presentation/pcb_board_reference.rs"
+              ],
+              "scope": "Required missing-browser-blob and file-read staleowner mounted qualification; no realCoreworker claim"
+            }
+          ],
+          "source_staged_before_gate": true,
+          "review_verdict": "CLEAR",
+          "gate": {
+            "pid": 2955274,
+            "log": ".scratch/dioxus-frontend-v1/evidence/case-routed-integration-20261005/gates.log",
+            "exit_file": "/tmp/case-routed-combined-gates.exit",
+            "source_hashes": "/tmp/case-routed-required-source-hashes.json",
+            "terminal_exit": 0,
+            "native_passed": 246,
+            "native_ignored": 1,
+            "headless_passed": 30,
+            "excluded": 0,
+            "incomplete": 0,
+            "headless_duration_seconds": 434.15
+          },
+          "focused_results": {
+            "native_case": "15/15; reproduced product RED first",
+            "case_attempt2": "4 passed/1 fixture numeric representation failure",
+            "case_attempt3": "1/1 corrected typed geometry assertion; no production correction",
+            "pcb_async": "2/2; real file-read admission, closed worker, no post-worker claim",
+            "owner_runner": "37/37"
+          },
+          "integration_commit": "38641dd1353bcfb6230d52c1d5b84c7ad7908e7a",
+          "published_build": "frontend-routed-case-cancellation-20261005",
+          "commit_gate_reuse": "All four exact receipts reused; case-routed-integration-20261005/integration-commit-reuse.log",
+          "build": {
+            "pid": 2968296,
+            "terminal_exit": 0,
+            "server_pid": 2977658,
+            "duration_seconds": 136.055607,
+            "fresh_commands": 9,
+            "inherited_lineage_commands": 23
+          }
         }
       ],
-      "started_at": "2026-10-05T08:35:52.837833+00:00",
+      "started_at": "2026-10-05T10:08:36.892928+00:00",
       "review": {
         "profile": "sol-review",
         "state": "pending"
@@ -4597,6 +4779,11 @@
         "build_id": "frontend-case-extraction-lifecycle-20261005",
         "published_at": "2026-10-05T08:35:49.849314+00:00",
         "extra_candidate_reason": "Required real-Core Case profile extraction repair; replay previously failing Apply journey"
+      },
+      {
+        "build_id": "frontend-routed-case-cancellation-20261005",
+        "published_at": "2026-10-05T10:08:34.998458+00:00",
+        "extra_candidate_reason": "Required imported-board Case viewport repair after paired public failure; combined reviewed cancellation and PCB ownership batch."
       }
     ],
     "validation_scope": {

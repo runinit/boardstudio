@@ -1,0 +1,61 @@
+{
+  "candidate_source": "38641dd1353bcfb6230d52c1d5b84c7ad7908e7a",
+  "candidate_url": "http://127.0.0.1:34823/",
+  "reference_source": "5a472a9426e6e38993361da402cd4ec730feb369",
+  "left": {
+    "candidate": [
+      "        - treeitem \"▰ Left case assembly\" [expanded] [level=1] [selected]:",
+      "        - treeitem \"▰ Right case assembly\" [level=1]:",
+      "        - status: Generate a case from the saved keyboard.",
+      "        - img \"Interactive 3D Case preview. Click a visible body to select its current mapped item; use the controls to navigate and change display.\"",
+      "        - status: 3D preview updated.",
+      "        - status: Add a plate, tray, or lid to begin the case stack."
+    ],
+    "reference": [
+      "      - treeitem \"Left case assembly\" [expanded] [level=1] [selected]:",
+      "      - treeitem \"Right case assembly\" [level=1]:",
+      "      - status: Waiting to update preview",
+      "      - generic \"3D PCB assembly. Drag to orbit, scroll to zoom.\"",
+      "      - status: 90 / 90 models · 1.6 mm PCB",
+      "  - generic: 3D · mm"
+    ]
+  },
+  "right": {
+    "candidate": [
+      "        - treeitem \"▰ Left case assembly\" [level=1]:",
+      "        - treeitem \"▰ Right case assembly\" [expanded] [level=1] [selected]:",
+      "        - status: Generate a case from the saved keyboard.",
+      "        - img \"Interactive 3D Case preview. Click a visible body to select its current mapped item; use the controls to navigate and change display.\"",
+      "        - status: 3D preview updated.",
+      "        - status: Add a plate, tray, or lid to begin the case stack."
+    ],
+    "reference": [
+      "      - treeitem \"Left case assembly\" [level=1]:",
+      "      - treeitem \"Right case assembly\" [expanded] [active] [level=1] [selected]:",
+      "      - status: Waiting to update preview",
+      "      - generic \"3D PCB assembly. Drag to orbit, scroll to zoom.\"",
+      "      - status: Preparing 3D geometry…",
+      "      - status: 90 / 90 models · 1.6 mm PCB",
+      "  - generic: 3D · mm"
+    ]
+  },
+  "returned": {
+    "candidate": [
+      "        - treeitem \"▰ Left case assembly\" [expanded] [level=1] [selected]:",
+      "        - treeitem \"▰ Right case assembly\" [level=1]:",
+      "        - status: Generate a case from the saved keyboard.",
+      "        - img \"Interactive 3D Case preview. Click a visible body to select its current mapped item; use the controls to navigate and change display.\"",
+      "        - status: 3D preview updated.",
+      "        - status: Add a plate, tray, or lid to begin the case stack."
+    ],
+    "reference": [
+      "      - treeitem \"Left case assembly\" [expanded] [active] [level=1] [selected]:",
+      "      - treeitem \"Right case assembly\" [level=1]:",
+      "      - status: Waiting to update preview",
+      "      - generic \"3D PCB assembly. Drag to orbit, scroll to zoom.\"",
+      "      - status: 90 / 90 models · 1.6 mm PCB",
+      "  - generic: 3D · mm"
+    ]
+  },
+  "keycaps": "Both initial Layers showed Hide Keycaps pressed. Reference visible keycap geometry absent in candidate. Reference Hide Keycaps then isolated matching PCB/model topology; source diagnosis pending."
+}

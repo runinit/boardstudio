@@ -1,0 +1,21 @@
+{
+  "project": "Case generation export20261005",
+  "source": "38641dd1",
+  "action": "Front→ready→Back→ready, no Apply; reversible remains false",
+  "observations": [
+    "    - generic: Case generation export20261005",
+    "        - status: Unapplied generator preview",
+    "            - button \"Hide B.Cu\" [pressed]:",
+    "            - button \"Hide B.SilkS\" [pressed]:",
+    "            - button \"Hide Keycap\" [pressed]:",
+    "            - button \"Hide Drills\" [pressed]:",
+    "            - button \"Hide Pad numbers\" [pressed]:",
+    "            - button \"Hide MX switch\" [pressed]:",
+    "          - checkbox \"hotswap\" [checked]",
+    "          - checkbox \"include_keycap\" [checked]",
+    "          - checkbox \"reversible\"",
+    "            - option \"Back\" [selected]",
+    "          - checkbox \"solder\"",
+    "        - status: Current generator preview is ready to apply."
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "parent": "F8.5",
+  "reason": "Independent batch review joins actual current flipped physical-instance geometry and saved state with all retained physical setup, viewer and authored/generated/FR4 artifact criteria. Explicit joins satisfied in F5.6 then F7.7 then F8.5 order; Parts failures remain separate.",
+  "review": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+  "review_sha256": "bfcdc06427c53587ba98c6633dab3e0824328ba80868e4e9d9214eb7a5b03cc6",
+  "criteria_accounting": {
+    "source_commit": "07b4c3466b1f388073e8e1f9d619b0703223d770",
+    "coverage": "complete",
+    "verified_criteria": [
+      "F8.5-C01",
+      "F8.5-C02",
+      "F8.5-C03"
+    ]
+  },
+  "accepted_joins": [
+    "F7.2",
+    "F7.6",
+    "F7.7"
+  ]
+}

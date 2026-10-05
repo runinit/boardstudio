@@ -1,0 +1,204 @@
+{
+  "candidate": {
+    "bytes": 2243538,
+    "sha256": "c19a966252ab69396e01bb628672caa896ea184cac52883091f78ea5f44a1857",
+    "entries": {
+      "assembly.step": {
+        "bytes": 6478967,
+        "sha256": "daa3009e188db831af161c37e34b68d3ecd955c7f9171b3eb7108ecb81a95a51"
+      },
+      "parts/1-plate.step": {
+        "bytes": 1099701,
+        "sha256": "cdc836f8a0db9311951ba21102b5f4b5920b946971d07dd2f092ad0cf846d319"
+      },
+      "parts/1-plate.stl": {
+        "bytes": 84484,
+        "sha256": "1279f1e032ea726c06fe108a5605d363cab1768d88d98646054a29f3cf153ef2"
+      },
+      "outlines/1-plate.dxf": {
+        "bytes": 25968,
+        "sha256": "a363adb598efb3f4b4af96e8ac4e26a461e178dc738b39889c3b76730c332fac"
+      },
+      "outlines/1-plate.svg": {
+        "bytes": 21855,
+        "sha256": "7ca1c43ac72086a4848c69a748071a0c7f04962d331718a11ebd245c89ff1250"
+      },
+      "parts/2-bottom.step": {
+        "bytes": 1609695,
+        "sha256": "029d9b0b728e9cde7c005a416c8843ef5e2ed594f473e122ce9572cc8baa9b4f"
+      },
+      "parts/2-bottom.stl": {
+        "bytes": 120984,
+        "sha256": "cb22aa112e4021f0f25567d24bb309ce2274d7a87f2b3fc7e859448226590866"
+      },
+      "outlines/2-bottom.dxf": {
+        "bytes": 20906,
+        "sha256": "8eceee5dba0e1bcc662f5364a652628043735cd069a865385d3057c50f70811c"
+      },
+      "outlines/2-bottom.svg": {
+        "bytes": 18185,
+        "sha256": "4a9c42087244ce5fa2cc15d99439ed89252322e0c42f4a06d536afc1799ee75a"
+      },
+      "parts/3-plate-foam.step": {
+        "bytes": 2221135,
+        "sha256": "1d955ca27500ee6467596903e7a8fe6a533395e64797d4e6627f440f3a3f6af4"
+      },
+      "parts/3-plate-foam.stl": {
+        "bytes": 122084,
+        "sha256": "42ccf74634f4f02af76e8730fc2212c3fe8e27eb83ebad695f5048f416c1cd97"
+      },
+      "outlines/3-plate-foam.dxf": {
+        "bytes": 26350,
+        "sha256": "5bf31d48489de697756d5706797a6b221904e521dc5aaf52dd84552c2ce95c8a"
+      },
+      "outlines/3-plate-foam.svg": {
+        "bytes": 22562,
+        "sha256": "c8b9a913c80cb98699151872b6202938d13c08ad028794e1cb30915a7c65a8ad"
+      },
+      "parts/4-bottom-foam.step": {
+        "bytes": 925437,
+        "sha256": "9b09d08657f6b2e1b6eb732ea41588173f7ebdec3d51ed3583f9c50e1f6a0d10"
+      },
+      "parts/4-bottom-foam.stl": {
+        "bytes": 53484,
+        "sha256": "be11a45ab804fc99994ff30482a6ab45c85e401d38a9238896a4f806a47b3e2c"
+      },
+      "outlines/4-bottom-foam.dxf": {
+        "bytes": 11464,
+        "sha256": "1fa57d2468c6e965e1d41cd2abb5f76e8d1e844d653ef2e58494c70e12bacd46"
+      },
+      "outlines/4-bottom-foam.svg": {
+        "bytes": 9614,
+        "sha256": "045a99c677ef73075cc029c836b953c00fe20ffd430114e3b27889d9e83764e3"
+      },
+      "FABRICATION.md": {
+        "bytes": 18745,
+        "sha256": "fd377c3fff9ad91d11000bf7a23957845f9493006adeed4dba8704b29313b378"
+      },
+      "critical-fit.svg": {
+        "bytes": 8015,
+        "sha256": "90cf036cfc579ed42d05ce99b154afdc62d2b8ba3b7b5b5d85933f4b5b06cbea"
+      },
+      "assembly.json": {
+        "bytes": 29147,
+        "sha256": "90e09704e9c9ad532937b8a9a74fdd94f248acda762460aaabb9b65e9462cc64"
+      }
+    },
+    "revision": 5,
+    "all_step_signatures": true,
+    "zip_integrity": null
+  },
+  "reference": {
+    "bytes": 2243455,
+    "sha256": "b1124ab279fd853289625019aaff574297db7d7a3234a922fc24d7e6170815d6",
+    "entries": {
+      "assembly.step": {
+        "bytes": 6478986,
+        "sha256": "f87563eef09557c5d87c9cdcf09e2d138bb8ab0ef6c157f20d7fb1614980c382"
+      },
+      "parts/1-plate.step": {
+        "bytes": 1099703,
+        "sha256": "c9c5d1bc5d015a28e15cedbd6743db5a541a34547db2d505a02b3c21897f84a1"
+      },
+      "parts/1-plate.stl": {
+        "bytes": 84484,
+        "sha256": "86f9ad4c752ff0341b8e30540324dcff34ad79cc2b84d621f2e7dfa952b047ae"
+      },
+      "outlines/1-plate.dxf": {
+        "bytes": 25700,
+        "sha256": "8c69bcfd54aa0e79a3b17839d09a789575cf80a7a7208d580935cdfe99ada127"
+      },
+      "outlines/1-plate.svg": {
+        "bytes": 21587,
+        "sha256": "d930e4f5addb4bdd1b37e8dda364ec79cd7e4cd2afbbf6414d7e84675159d41d"
+      },
+      "parts/2-bottom.step": {
+        "bytes": 1609697,
+        "sha256": "461d45c29c065eaeb9b20a97a23d00ca993c5f025ae7766642cc75c3607790db"
+      },
+      "parts/2-bottom.stl": {
+        "bytes": 120984,
+        "sha256": "bf8239f821f7f645c3e35f725afb061c8bcf4906df2071919e3ed78abcbc5fac"
+      },
+      "outlines/2-bottom.dxf": {
+        "bytes": 20854,
+        "sha256": "499ae4e3f1d41aa36f103fbb05c6d93a6e2e59f3dfab12a0e7dd9f4d7f73c4c5"
+      },
+      "outlines/2-bottom.svg": {
+        "bytes": 18133,
+        "sha256": "34e41520bd644e0ed3e0de29cca00915e57b11e0e40b7a7ad74f4e6a30df5bbb"
+      },
+      "parts/3-plate-foam.step": {
+        "bytes": 2221139,
+        "sha256": "5a58b31eea57971f5a916958cfdab6472bc2ce01000395c933162aa16c326c20"
+      },
+      "parts/3-plate-foam.stl": {
+        "bytes": 122084,
+        "sha256": "21fdcdffc4442c5204cfec4361f34d349d7d1ad8866b213700450cf4b42701c4"
+      },
+      "outlines/3-plate-foam.dxf": {
+        "bytes": 26269,
+        "sha256": "0a70f158de8b81470c66557000ddd6b318b83a524fe0c95774ea82968cb2b972"
+      },
+      "outlines/3-plate-foam.svg": {
+        "bytes": 22481,
+        "sha256": "a76f73ee93635cd438a5c3b5a4b012958cb49f3854f0add0212dbe6e6f9b1463"
+      },
+      "parts/4-bottom-foam.step": {
+        "bytes": 925439,
+        "sha256": "c8bc8ca7a2cdfeba00badfbf0029ef173e64efa4f35a1a468235b12da5d66da2"
+      },
+      "parts/4-bottom-foam.stl": {
+        "bytes": 53484,
+        "sha256": "eb5a55ce4aca8595370ce3246392903d1a5f9153498f52aab9c04eea09eb8583"
+      },
+      "outlines/4-bottom-foam.dxf": {
+        "bytes": 11420,
+        "sha256": "2161187e4982fe77a685c5913353dceb1bdf3cc779016773d0da14df01949199"
+      },
+      "outlines/4-bottom-foam.svg": {
+        "bytes": 9570,
+        "sha256": "f9032870288929244edfadada3a07325b2a00bd87021aab4ae908f6cf956f0a4"
+      },
+      "FABRICATION.md": {
+        "bytes": 18747,
+        "sha256": "101a035d83f2655a41c7984384091e64366f681e39f9310c230ce0c86ce56626"
+      },
+      "critical-fit.svg": {
+        "bytes": 8015,
+        "sha256": "63433c14f8e55a6affcb1878d15cec52998d4bec9c2f40ec813953ac6c142b36"
+      },
+      "assembly.json": {
+        "bytes": 29139,
+        "sha256": "f8943382a268e22d7adae978d2a32e04c03b662162fee995e2393eaf375165cf"
+      }
+    },
+    "revision": 5,
+    "all_step_signatures": true,
+    "zip_integrity": null
+  },
+  "parsed_assembly_equal": true,
+  "identical_entries": [],
+  "different_entries": [
+    "assembly.step",
+    "parts/1-plate.step",
+    "parts/1-plate.stl",
+    "outlines/1-plate.dxf",
+    "outlines/1-plate.svg",
+    "parts/2-bottom.step",
+    "parts/2-bottom.stl",
+    "outlines/2-bottom.dxf",
+    "outlines/2-bottom.svg",
+    "parts/3-plate-foam.step",
+    "parts/3-plate-foam.stl",
+    "outlines/3-plate-foam.dxf",
+    "outlines/3-plate-foam.svg",
+    "parts/4-bottom-foam.step",
+    "parts/4-bottom-foam.stl",
+    "outlines/4-bottom-foam.dxf",
+    "outlines/4-bottom-foam.svg",
+    "FABRICATION.md",
+    "critical-fit.svg",
+    "assembly.json"
+  ]
+}

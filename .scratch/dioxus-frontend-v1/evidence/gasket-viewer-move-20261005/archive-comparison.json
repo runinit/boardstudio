@@ -1,0 +1,37 @@
+{
+  "input": ".scratch/dioxus-case-workspace/evidence/14-case-contextual-gasket-support-unlink/react-configured-after-redo.boardstudio",
+  "input_sha256": "df38eec77d8cbd2953a8a01449b41819ec8c79638d190fd14dfc7f47e7f6de38",
+  "input_revision": 14,
+  "results": {
+    "candidate": {
+      "sha256": "b8e74dffc699272bd41ca4ad8ee6eba27f51de2846d6249049cd185616fa7b18",
+      "diff": [
+        {
+          "path": "/hardware/instances/0/mechanical/gasketLayout/supports/0/anchor",
+          "before": 0.9220773021477032,
+          "after": 0.9270984187531344
+        },
+        {
+          "path": "/revision",
+          "before": 14,
+          "after": 15
+        }
+      ]
+    },
+    "reference": {
+      "sha256": "7e1552367453a5b9e7630df8bebc3ac46963c551ff308d4fb37536950f9b236e",
+      "diff": [
+        {
+          "path": "/hardware/instances/0/mechanical/gasketLayout/supports/0/anchor",
+          "before": 0.9220773021477032,
+          "after": 0.9256329351326864
+        },
+        {
+          "path": "/revision",
+          "before": 14,
+          "after": 15
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "candidate": [
+    {
+      "outline": "rgb(24, 35, 49) none 2.66667px",
+      "tag": "H2",
+      "text": "Setup guide"
+    },
+    {
+      "outline": "rgb(56, 88, 214) solid 2px",
+      "tag": "BUTTON",
+      "text": "Back to objects"
+    },
+    {
+      "outline": "rgb(56, 88, 214) solid 2px",
+      "tag": "BUTTON",
+      "text": "✓Project & hardware"
+    },
+    {
+      "outline": "rgb(56, 88, 214) solid 2px",
+      "tag": "BUTTON",
+      "text": "✓Layout & assemblies"
+    }
+  ],
+  "reference": [
+    {
+      "outline": "rgb(24, 35, 49) none 2.66667px",
+      "tag": "H2",
+      "text": "Setup guide"
+    },
+    {
+      "outline": "rgb(56, 88, 214) solid 2px",
+      "tag": "BUTTON",
+      "text": "Back to objects"
+    },
+    {
+      "outline": "rgb(56, 88, 214) solid 2px",
+      "tag": "BUTTON",
+      "text": "Project & hardware"
+    },
+    {
+      "outline": "rgb(56, 88, 214) solid 2px",
+      "tag": "BUTTON",
+      "text": "Layout & assemblies"
+    }
+  ]
+}

@@ -55,39 +55,25 @@
     },
     "web/src/runtime.rs": {
       "tests": [
-        "runtime::native_model_mapping_tests::delayed_old_owner_mapping_failure_cannot_report_into_replacement",
-        "runtime::native_model_mapping_tests::failed_mapping_notifier_does_not_readmit_the_same_preview",
-        "runtime::native_model_mapping_tests::new_preview_retries_after_failure_and_success_keeps_batch_pending",
-        "runtime::native_model_mapping_tests::obsolete_failure_keeps_new_owner_pending_and_emits_no_report",
-        "runtime::native_model_mapping_tests::stale_mapping_success_cannot_enter_delivery_or_replace_pending",
-        "runtime::case_preview_source_tests::imported_capture_failure_is_visible_only_to_its_current_case_owner",
-        "cad_presentation::mounted_tests::mounted_case_local_export_uses_current_exact_mechanical_scope",
-        "cad_presentation::mounted_tests::mounted_case_panel_starts_once_pauses_and_resumes_for_current_context",
-        "cad_presentation::mounted_tests::mounted_failed_current_generation_keeps_previous_geometry_and_retries_owner",
-        "cad_presentation::mounted_tests::mounted_read_model_preview_and_session_gesture_block_export_until_cancelled",
-        "presentation::case_viewer::gesture_cancellation_tests::mounted_escape_cancels_provisional_case_gesture_without_session_edit",
-        "presentation::case_viewer::gesture_cancellation_tests::mounted_scope_change_retires_provisional_case_gesture_without_session_edit",
-        "presentation::case_viewer::gesture_cancellation_tests::mounted_unmount_retires_provisional_case_gesture_without_session_edit",
-        "presentation::shared_viewer::tests::canvas_accessible_names_match_the_active_workflow_context",
-        "presentation::shared_viewer::tests::case_handle_preview_transfer_rejects_replaced_source_scope_revision_and_owner",
-        "presentation::shared_viewer::tests::case_handle_survives_published_provisional_scene_until_pointer_up",
-        "presentation::shared_viewer::tests::display_preference_aliases_match_case_display_groups",
-        "presentation::shared_viewer::tests::finding_focus_retriggers_repeats_and_rejects_stale_project_board_token_and_revision",
-        "presentation::shared_viewer::tests::generic_layout_module_projection_preserves_board_holes_and_omits_opening_voids",
-        "presentation::shared_viewer::tests::imported_case_projection_keeps_routed_contours_and_pose_in_pcb_and_case_scene_packets",
-        "presentation::shared_viewer::tests::imported_layout_projection_preserves_nonidentity_board_reference_pose_and_elevation",
-        "presentation::shared_viewer::tests::layout_module_model_normals_follow_nonuniform_core_scale",
-        "presentation::shared_viewer::tests::layout_packet_includes_module_model_mesh_at_core_stable_id_and_transform",
-        "presentation::shared_viewer::tests::mounted_case_gesture_feedback_preserves_canvas_geometry",
-        "presentation::shared_viewer::tests::physical_preview_rows_are_qualified_by_source_scope_and_token",
-        "presentation::shared_viewer::tests::pointer_completion_keeps_its_starting_projection_identity",
-        "presentation::shared_viewer::tests::pointer_event_cannot_take_reused_id_from_another_projection",
-        "presentation::shared_viewer::tests::viewer_events_reject_changed_owner_identity_and_unmount"
+        "presentation::case_viewer::keycap_consumer_tests::mounted_case_keycaps_reach_both_packets_and_reject_late_physical_owner",
+        "presentation::keycaps_fit::tests::actionable_board_target_has_react_label_and_targetless_finding_has_no_action",
+        "presentation::keycaps_fit::tests::current_case_stack_target_precedes_companion_part_target",
+        "presentation::keycaps_fit::tests::finding_marker_bounds_include_every_contour_of_the_current_board_finding",
+        "presentation::keycaps_fit::tests::findings_are_deduplicated_severity_sorted_and_grouped_like_react",
+        "presentation::keycaps_fit::tests::layout_fit_basis_keeps_react_padding_and_source_surface_aspect",
+        "presentation::keycaps_fit::tests::layout_target_bounds_include_non_keycap_matrix_companions",
+        "presentation::keycaps_fit::tests::mounted_finding_action_uses_react_label_and_emits_current_target",
+        "presentation::keycaps_fit::tests::production_navigation_admission_rejects_stale_results_and_removed_targets",
+        "presentation::keycaps_fit::tests::same_source_retry_and_failure_keep_retained_result_stale",
+        "presentation::layout_viewer::mounted_keycaps_preview_tests::finding_focus_maps_outline_and_preserves_part_ids_for_current_board",
+        "presentation::layout_viewer::mounted_keycaps_preview_tests::mounted_preview_failure_retries_and_ignores_a_late_old_owner_reply",
+        "runtime::project_open_supersession_tests::delayed_import_cannot_replace_a_newer_saved_project_open",
+        "runtime::project_open_supersession_tests::delayed_saved_open_cannot_replace_a_newer_import"
       ],
-      "coverage": "Hash-bound imported Case preview production repair: all affected Runtime model mapping and capture-error, mounted CAD, Case gesture retirement, and SharedViewer modules. Native Case capture, Layout source and model delivery are additionally covered by the required native gate. Public imported geometry, models and routed pose require packaged browser replay. Other hashes fail closed to broad selection.",
-      "requires_generator_assets": true,
-      "base_sha256": "33e568d43357bda42fdcb825d30e6ad71364aa43c405ab051939d73b08df92b6",
-      "current_sha256": "ff4e0190bf3a6d2a3fab6628332af7b792b876b93a54834026b7e42477d930c7"
+      "coverage": "Exact Runtime change: retain both real Session/BrowserStore project-open supersession tests; new mounted physical Case keycap consumer through real Core resolution and retained Runtime generation guards; existing canonical Layout preview failure/retry/stale-owner and Keycaps fit consumer regressions. Core transport and CAD mesh response are controlled in the new mounted test, not real worker execution. Other hashes fall back to direct broad selection.",
+      "requires_generator_assets": false,
+      "base_sha256": "ff4e0190bf3a6d2a3fab6628332af7b792b876b93a54834026b7e42477d930c7",
+      "current_sha256": "8831fa6099e13d3f88ab7ccce435f3caa8a30eb96ee98dd4bef09e6a55a9e525"
     },
     "web/src/case_preview.rs": {
       "tests": [
@@ -98,6 +84,51 @@
       "requires_generator_assets": true,
       "base_sha256": "b5a994f0497db0d190e0f1685c033816d5ed4a2b039b7027e9889a8a737bc0f8",
       "current_sha256": "0b45ee28e6b5aa5e24f56333cd60eb6d81814df486df48d890412576ecf72d34"
+    },
+    "web/src/presentation/parts.rs": {
+      "tests": [
+        "presentation::parts::add_object_menu_tests::mounted_parts_library_announces_catalogue_loading_then_source_error",
+        "presentation::parts::add_object_menu_tests::mounted_browse_button_preserves_search_and_pins_desktop_objects",
+        "presentation::parts::add_object_menu_tests::add_menu_uses_the_four_reference_groups_for_available_definitions",
+        "presentation::parts::add_object_menu_tests::add_menu_search_excludes_retired_and_assembly_snapshot_definitions",
+        "presentation::parts::add_object_menu_tests::key_assembly_search_hides_nonmatching_presets_without_losing_categories"
+      ],
+      "coverage": "Hash-bound test-only per-host provider seam and required mounted owner-state fixture. Full direct test module retained; unchanged child modules are outside this exact source delta. Other source/base hashes use normal broad fallback. Native/page/reachability and independent direct changed child modules remain required. Real packaged generator assets remain required for generator schema and existing desktop browse fixture.",
+      "requires_generator_assets": true,
+      "base_sha256": "4013c57f468b74ec6fbbe1e320ce0741e7620cb12adffca1e31d92da0550f09d",
+      "current_sha256": "81d3a38f08a156804e0e2d98ffa37663b13b1f261e24300bec7177d165174e87"
+    },
+    "web/src/presentation/parts/generator_settings.rs": {
+      "tests": [
+        "presentation::parts::generator_settings::tests::retained_generator_apply_merges_latest_metadata_and_rejects_deleted_owner",
+        "presentation::parts::generator_settings::tests::mounted_generator_provider_failure_is_visible_and_never_enables_apply",
+        "presentation::parts::generator_settings::tests::mounted_generator_initial_schema_default_seeds_unapplied_preview",
+        "presentation::parts::generator_settings::tests::mounted_generator_discards_superseded_edit_and_selection_results"
+      ],
+      "coverage": "Hash-bound initial schema-default production request and current-owner lifecycle repair, plus private per-host test provider seam. All four direct generator module tests execute: real packaged schema and normalizer initial Back geometry with accepted-document nonmutation; visible failure and disabled Apply; superseded edit/selection retirement; retained metadata merge and deleted-owner rejection. Optional undefined defaults are omitted rather than synthesized as null. Other source/base hashes fail closed to normal broad selection; native/page/reachability remain required.",
+      "requires_generator_assets": true,
+      "base_sha256": "de439a4675ce2dfbf8e1fc7526d1222c22171578187c5309b490f95de6507a8c",
+      "current_sha256": "7a5b565ba1a56476a13c94ad788144b437660a9e1f33c85c342d84cb531cf676"
+    },
+    "web/src/presentation/layout_viewer_source.rs": {
+      "tests": [
+        "presentation::layout_viewer::mounted_keycaps_preview_tests::finding_focus_maps_outline_and_preserves_part_ids_for_current_board",
+        "presentation::layout_viewer::mounted_keycaps_preview_tests::mounted_preview_failure_retries_and_ignores_a_late_old_owner_reply"
+      ],
+      "coverage": "Hash-bound generated cap/legend pick ownership repair. The complete native layout_viewer_source module executes in the mandatory native gate, including the real Core-resolved rendered-body/spec membership, board, lease and generation regression. Both existing canonical viewer mounted tests cover affected keycap preview failure/retry/late-owner and finding-focus integration. WASM page gate compiles the pick-to-selection wiring; actual packaged Keymap/Keycaps cap picks remain required. No synthetic signal is claimed as public GPU pick evidence; other source/base hashes fail closed.",
+      "requires_generator_assets": false,
+      "base_sha256": "a38a0ad163c7f874457ac32e1ccd8b6347fd7cd1a89f60f1519a8b0f20e9e974",
+      "current_sha256": "fcaba6be9b7c6e13d1b7af9709fd927855614afe8356772e5c2afc5bd42b7bff"
+    },
+    "web/src/presentation/layout_viewer.rs": {
+      "tests": [
+        "presentation::layout_viewer::mounted_keycaps_preview_tests::finding_focus_maps_outline_and_preserves_part_ids_for_current_board",
+        "presentation::layout_viewer::mounted_keycaps_preview_tests::mounted_preview_failure_retries_and_ignores_a_late_old_owner_reply"
+      ],
+      "coverage": "Hash-bound generated cap/legend pick ownership repair. The complete native layout_viewer_source module executes in the mandatory native gate, including the real Core-resolved rendered-body/spec membership, board, lease and generation regression. Both existing canonical viewer mounted tests cover affected keycap preview failure/retry/late-owner and finding-focus integration. WASM page gate compiles the pick-to-selection wiring; actual packaged Keymap/Keycaps cap picks remain required. No synthetic signal is claimed as public GPU pick evidence; other source/base hashes fail closed.",
+      "requires_generator_assets": false,
+      "base_sha256": "d2560df45288646b938d00dd1842d1a65948cc063b3362c19b66f34bc797e7df",
+      "current_sha256": "90f8d0f9f28eea0b15416264dd085eb21de7a8d66b2e3ce12e4f2e487f11c0bf"
     }
   }
 }

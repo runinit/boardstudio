@@ -32,6 +32,17 @@ use sha2::{Digest, Sha256};
 #[cfg(test)]
 type CaseGesturePreviewTestExecutor = dyn Fn(AcceptedSnapshot, Scope) -> Result<CadScene, String>;
 
+#[cfg(test)]
+type KeycapsPreviewTestExecutor = dyn Fn(
+    KeycapsPreviewInput,
+) -> std::pin::Pin<
+    Box<
+        dyn std::future::Future<
+                Output = Result<Vec<boardstudio_web::cad_jobs::CadBodyMesh>, String>,
+            >,
+    >,
+>;
+
 pub struct CadScene {
     pub scope: Scope,
     pub token: SnapshotToken,
@@ -64,6 +75,20 @@ pub(crate) struct KeycapsCadPreview {
 
 #[cfg(test)]
 struct ProjectNamePersistGate {
+    entered: futures_channel::oneshot::Sender<()>,
+    release: futures_channel::oneshot::Receiver<()>,
+}
+
+#[cfg(test)]
+struct ImportArchiveTestGate {
+    entered: futures_channel::oneshot::Sender<()>,
+    release: futures_channel::oneshot::Receiver<()>,
+    metadata: String,
+    buffers: Vec<Vec<u8>>,
+}
+
+#[cfg(test)]
+struct OpenSavedLoadTestGate {
     entered: futures_channel::oneshot::Sender<()>,
     release: futures_channel::oneshot::Receiver<()>,
 }
@@ -470,11 +495,21 @@ pub struct Runtime {
     #[cfg(test)]
     case_gesture_preview_test_executor: RefCell<Option<Rc<CaseGesturePreviewTestExecutor>>>,
     #[cfg(test)]
+    keycaps_preview_test_executor: RefCell<Option<Rc<KeycapsPreviewTestExecutor>>>,
+    #[cfg(test)]
     project_name_test_core: RefCell<Option<boardstudio_core::CoreEngine>>,
     #[cfg(test)]
     project_name_persist_test_behavior: RefCell<Option<ProjectNamePersistTestBehavior>>,
     #[cfg(test)]
     project_name_test_effects: RefCell<Vec<Effect>>,
+    #[cfg(test)]
+    import_archive_test_gate: RefCell<Option<ImportArchiveTestGate>>,
+    #[cfg(test)]
+    open_saved_load_test_gate: RefCell<Option<OpenSavedLoadTestGate>>,
+    #[cfg(test)]
+    import_file_test_done: RefCell<Option<futures_channel::oneshot::Sender<()>>>,
+    #[cfg(test)]
+    open_saved_test_done: RefCell<Option<futures_channel::oneshot::Sender<()>>>,
 }
 
 struct ProjectDeletionLease {
@@ -565,11 +600,21 @@ impl Runtime {
             #[cfg(test)]
             case_gesture_preview_test_executor: RefCell::new(None),
             #[cfg(test)]
+            keycaps_preview_test_executor: RefCell::new(None),
+            #[cfg(test)]
             project_name_test_core: RefCell::new(None),
             #[cfg(test)]
             project_name_persist_test_behavior: RefCell::new(None),
             #[cfg(test)]
             project_name_test_effects: RefCell::new(Vec::new()),
+            #[cfg(test)]
+            import_archive_test_gate: RefCell::new(None),
+            #[cfg(test)]
+            open_saved_load_test_gate: RefCell::new(None),
+            #[cfg(test)]
+            import_file_test_done: RefCell::new(None),
+            #[cfg(test)]
+            open_saved_test_done: RefCell::new(None),
         });
         // Reserve the startup open identity synchronously, before any explicit
         // open action can supersede restoration of the last durable project.
@@ -1487,6 +1532,28 @@ impl Runtime {
         token: SnapshotToken,
         revision: u64,
     ) -> Result<boardstudio_core::model::KeycapResolution, String> {
+        self.resolve_keycaps_preview_source(scope, token, revision, false)
+            .await
+    }
+
+    /// Case consumes the selected physical projection; Layout retains the canonical document.
+    pub(crate) async fn resolve_case_keycaps_preview(
+        &self,
+        scope: Scope,
+        token: SnapshotToken,
+        revision: u64,
+    ) -> Result<boardstudio_core::model::KeycapResolution, String> {
+        self.resolve_keycaps_preview_source(scope, token, revision, true)
+            .await
+    }
+
+    async fn resolve_keycaps_preview_source(
+        &self,
+        scope: Scope,
+        token: SnapshotToken,
+        revision: u64,
+        physical_case: bool,
+    ) -> Result<boardstudio_core::model::KeycapResolution, String> {
         let accepted = self
             .model()
             .accepted
@@ -1511,13 +1578,33 @@ impl Runtime {
             return Err("The Core worker changed before keycap fit resolution started.".into());
         }
 
+        let document = if physical_case {
+            captured_case_document(&accepted, &scope)
+                .map_err(|error| format!("Could not capture physical Case keycaps: {error:?}"))?
+        } else {
+            (*accepted.document).clone()
+        };
         let request_id = format!("keycaps-fit-{}", self.operation().0);
         let request = CoreRequest::ResolveKeycaps {
             id: request_id.clone(),
-            document: (*accepted.document).clone(),
+            document,
             board_id: scope.board_id.clone(),
             cases,
         };
+        #[cfg(test)]
+        let test_reply = self
+            .project_name_test_core
+            .borrow_mut()
+            .as_mut()
+            .map(|core| core.handle(request.clone()));
+        #[cfg(test)]
+        let reply = if let Some(reply) = test_reply {
+            Ok(reply)
+        } else {
+            core.request(&request_id, &executor_epoch.0.to_string(), &request)
+                .await
+        };
+        #[cfg(not(test))]
         let reply = core
             .request(&request_id, &executor_epoch.0.to_string(), &request)
             .await;
@@ -1614,6 +1701,22 @@ impl Runtime {
             instance_id: input.scope.instance_id.clone(),
             revision: accepted.document.revision,
         };
+        #[cfg(test)]
+        if let Some(executor) = self.keycaps_preview_test_executor.borrow().clone() {
+            let bodies = executor(input.clone()).await?;
+            self.ensure_keycaps_source_current(&accepted, &input.scope)?;
+            if self.keycaps_preview_generation.get() != generation {
+                return Err("Keycap CAD preview was cancelled or superseded.".into());
+            }
+            return Ok(KeycapsCadPreview {
+                generation,
+                scope: input.scope,
+                token: input.token,
+                revision: input.revision,
+                specs: input.specs,
+                bodies,
+            });
+        }
         let worker = Rc::new(
             CadWorker::new(&resource_url("assets/cad-worker/entry.js")?)
                 .map_err(|error| error.to_string())?,
@@ -1847,6 +1950,52 @@ impl Runtime {
     #[cfg(test)]
     pub(crate) fn set_cad_scene_test(&self, scene: Option<Rc<CadScene>>) {
         *self.cad_scene.borrow_mut() = scene;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_keycaps_preview_executor_test(
+        &self,
+        executor: Rc<KeycapsPreviewTestExecutor>,
+    ) {
+        *self.keycaps_preview_test_executor.borrow_mut() = Some(executor);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn install_case_pcb_preview_test(&self) {
+        let accepted = self.model().accepted.expect("accepted preview fixture");
+        let scope = self.scope().expect("selected physical fixture scope");
+        let generation = self.native_case_preview.borrow().generation + 1;
+        let core = self.core.borrow().clone();
+        let capture = crate::case_preview::capture_native_preview(
+            &accepted,
+            &scope,
+            generation,
+            generation,
+            self.session.borrow().core_executor_epoch().0,
+            Rc::as_ptr(&core) as usize,
+            format!("case-keycaps-test-{generation}"),
+        )
+        .expect("valid accepted Case preview input");
+        self.native_case_preview.borrow_mut().generation = generation;
+        self.set_native_preview_pending(capture.owner.clone(), capture.lease.clone());
+        let preview = crate::case_preview::accept_native_preview(
+            capture,
+            PcbPreview {
+                revision: accepted.document.revision,
+                thickness: 1.6,
+                contours: vec![],
+                surfaces: vec![],
+                holes: vec![],
+                models: vec![],
+                diagnostics: vec![],
+            },
+        )
+        .expect("controlled PCB payload preserves the accepted preview owner");
+        self.native_case_preview
+            .borrow_mut()
+            .publish(preview)
+            .unwrap();
+        self.changed();
     }
 
     #[cfg(test)]
@@ -6279,6 +6428,10 @@ impl Runtime {
             {
                 this.report(error);
             }
+            #[cfg(test)]
+            if let Some(done) = this.import_file_test_done.borrow_mut().take() {
+                let _ = done.send(());
+            }
         });
     }
     async fn import_archive_at(
@@ -6289,6 +6442,31 @@ impl Runtime {
     ) -> Result<(), String> {
         let operation = self.operation();
         let core = self.core.borrow().clone();
+        #[cfg(test)]
+        let test_gate = { self.import_archive_test_gate.borrow_mut().take() };
+        #[cfg(test)]
+        let result = if let Some(gate) = test_gate {
+            let _ = gate.entered.send(());
+            let _ = gate.release.await;
+            Ok(boardstudio_web::host::ArchiveResult {
+                metadata: gate.metadata,
+                buffers: gate
+                    .buffers
+                    .into_iter()
+                    .map(|buffer| Uint8Array::from(buffer.as_slice()))
+                    .collect(),
+            })
+        } else {
+            core.archive(
+                &format!("import-{}", operation.0),
+                "1",
+                "{\"kind\":\"unpack-project\"}",
+                vec![Uint8Array::from(bytes.as_slice())],
+            )
+            .await
+            .map_err(|e| e.to_string())
+        };
+        #[cfg(not(test))]
         let result = core
             .archive(
                 &format!("import-{}", operation.0),
@@ -6297,7 +6475,8 @@ impl Runtime {
                 vec![Uint8Array::from(bytes.as_slice())],
             )
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| e.to_string());
+        let result = result?;
         let reply: ArchiveReply =
             serde_json::from_str(&result.metadata).map_err(|e| e.to_string())?;
         let ArchiveReply::Unpacked {
@@ -6340,7 +6519,17 @@ impl Runtime {
         };
         let this = self.clone();
         spawn_local(async move {
-            match this.store.load_document(id).await {
+            let loaded = this.store.load_document(id).await;
+            #[cfg(test)]
+            let loaded = {
+                let gate = { this.open_saved_load_test_gate.borrow_mut().take() };
+                if let Some(gate) = gate {
+                    let _ = gate.entered.send(());
+                    let _ = gate.release.await;
+                }
+                loaded
+            };
+            match loaded {
                 Ok(Some(document)) if this.open_sequence.get() == sequence => {
                     let operation_id = this.operation();
                     if this.model().lifecycle == Lifecycle::RecoveryRequired {
@@ -6363,6 +6552,10 @@ impl Runtime {
                     this.report(format!("Could not open the saved keyboard: {error}"))
                 }
                 Ok(None) | Err(_) => {}
+            }
+            #[cfg(test)]
+            if let Some(done) = this.open_saved_test_done.borrow_mut().take() {
+                let _ = done.send(());
             }
         });
     }
@@ -7693,6 +7886,55 @@ pub(crate) mod project_name_test_support {
         runtime.changed();
     }
 
+    pub(crate) fn gate_import_archive(
+        runtime: &Runtime,
+        document: &ProjectDoc,
+    ) -> (
+        futures_channel::oneshot::Receiver<()>,
+        futures_channel::oneshot::Sender<()>,
+    ) {
+        let (entered, entered_rx) = futures_channel::oneshot::channel();
+        let (release, release_rx) = futures_channel::oneshot::channel();
+        let reply = ArchiveReply::Unpacked {
+            project_json: serde_json::to_string(document).expect("fixture document serializes"),
+            assets: Vec::new(),
+        };
+        *runtime.import_archive_test_gate.borrow_mut() = Some(ImportArchiveTestGate {
+            entered,
+            release: release_rx,
+            metadata: serde_json::to_string(&reply).expect("archive reply serializes"),
+            buffers: Vec::new(),
+        });
+        (entered_rx, release)
+    }
+
+    pub(crate) fn gate_open_saved_result(
+        runtime: &Runtime,
+    ) -> (
+        futures_channel::oneshot::Receiver<()>,
+        futures_channel::oneshot::Sender<()>,
+    ) {
+        let (entered, entered_rx) = futures_channel::oneshot::channel();
+        let (release, release_rx) = futures_channel::oneshot::channel();
+        *runtime.open_saved_load_test_gate.borrow_mut() = Some(OpenSavedLoadTestGate {
+            entered,
+            release: release_rx,
+        });
+        (entered_rx, release)
+    }
+
+    pub(crate) fn track_import_file(runtime: &Runtime) -> futures_channel::oneshot::Receiver<()> {
+        let (done, done_rx) = futures_channel::oneshot::channel();
+        *runtime.import_file_test_done.borrow_mut() = Some(done);
+        done_rx
+    }
+
+    pub(crate) fn track_open_saved(runtime: &Runtime) -> futures_channel::oneshot::Receiver<()> {
+        let (done, done_rx) = futures_channel::oneshot::channel();
+        *runtime.open_saved_test_done.borrow_mut() = Some(done);
+        done_rx
+    }
+
     pub(crate) fn replace_session(runtime: &Runtime, session: Session) {
         *runtime.session.borrow_mut() = session;
         runtime.changed();
@@ -8244,5 +8486,163 @@ mod cad_scene_rebind_tests {
         );
         runtime.set_definition_name_test_state(current, Some(alternate_scope));
         assert!(runtime.cad_scene().is_none());
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod project_open_supersession_tests {
+    use super::*;
+    use crate::runtime::project_name_test_support as test_support;
+    use boardstudio_core::CoreEngine;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    async fn fixture() -> (Rc<Runtime>, ProjectDoc, ProjectDoc) {
+        let runtime = test_support::new_runtime();
+        let suffix = new_project_id().expect("browser fixture id is available");
+        let (session, accepted, _) = firmware_export_test_support::opened_session();
+        let current = (*accepted.document).clone();
+        let mut stale_saved = current.clone();
+        stale_saved.id = format!("stale-saved-{suffix}");
+        stale_saved.name = "Stale saved project".into();
+        let mut newer_saved = current.clone();
+        newer_saved.id = format!("newer-saved-{suffix}");
+        newer_saved.name = "Newer saved project".into();
+        runtime
+            .store
+            .save_document(&stale_saved, &BTreeMap::new())
+            .await
+            .expect("stale saved fixture persists");
+        runtime
+            .store
+            .save_document(&newer_saved, &BTreeMap::new())
+            .await
+            .expect("newer saved fixture persists");
+        test_support::install(&runtime, session, CoreEngine::new());
+        (runtime, stale_saved, newer_saved)
+    }
+
+    fn archive_file() -> web_sys::File {
+        let bytes = Uint8Array::from(&b"controlled archive input"[..]);
+        web_sys::File::new_with_u8_array_sequence(
+            &Array::of1(&bytes.into()),
+            "controlled-import.boardstudio",
+        )
+        .expect("archive File fixture constructs")
+    }
+
+    fn imported_document(base: &ProjectDoc) -> ProjectDoc {
+        let mut document = base.clone();
+        document.id = format!(
+            "imported-{}",
+            new_project_id().expect("browser fixture id is available")
+        );
+        document.name = "Imported newer project".into();
+        document
+    }
+
+    async fn wait_until_current_is_durable(runtime: &Rc<Runtime>, expected: &ProjectDoc) {
+        for _ in 0..100 {
+            test_support::run_pending(runtime).await;
+            if runtime
+                .model()
+                .accepted
+                .as_ref()
+                .is_some_and(|accepted| accepted.document.id == expected.id)
+            {
+                assert_eq!(
+                    runtime.store.active_project_id("").unwrap(),
+                    expected.id,
+                    "the newer project is durably current"
+                );
+                assert_eq!(
+                    runtime
+                        .store
+                        .load_document(expected.id.clone())
+                        .await
+                        .unwrap(),
+                    Some(expected.clone()),
+                    "the newer project remains persisted"
+                );
+                return;
+            }
+            TimeoutFuture::new(1).await;
+        }
+        panic!("newer project did not become accepted and durable");
+    }
+
+    #[wasm_bindgen_test]
+    async fn delayed_import_cannot_replace_a_newer_saved_project_open() {
+        let (runtime, _, newer) = fixture().await;
+        let imported = imported_document(&newer);
+        let (archive_entered, release_archive) =
+            test_support::gate_import_archive(&runtime, &imported);
+        let import_done = test_support::track_import_file(&runtime);
+        runtime.import_file(archive_file());
+        archive_entered
+            .await
+            .expect("import reached unpack reply boundary");
+
+        let open_done = test_support::track_open_saved(&runtime);
+        runtime.open_saved(newer.id.clone());
+        wait_until_current_is_durable(&runtime, &newer).await;
+        open_done.await.expect("saved open route completed");
+
+        release_archive.send(()).expect("release delayed import");
+        import_done.await.expect("stale import route completed");
+        assert_eq!(
+            runtime.model().accepted.as_ref().unwrap().document.id,
+            newer.id,
+            "late archive output cannot replace the newer accepted project"
+        );
+        assert_eq!(runtime.store.active_project_id("").unwrap(), newer.id);
+        assert!(
+            runtime
+                .store
+                .load_document(imported.id)
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn delayed_saved_open_cannot_replace_a_newer_import() {
+        let (runtime, stale_saved, current) = fixture().await;
+        let imported = imported_document(&current);
+        let (open_entered, release_open) = test_support::gate_open_saved_result(&runtime);
+        let open_done = test_support::track_open_saved(&runtime);
+        runtime.open_saved(stale_saved.id.clone());
+        open_entered
+            .await
+            .expect("saved document read reached pre-admission boundary");
+
+        let (archive_entered, release_archive) =
+            test_support::gate_import_archive(&runtime, &imported);
+        let import_done = test_support::track_import_file(&runtime);
+        runtime.import_file(archive_file());
+        archive_entered
+            .await
+            .expect("import reached unpack reply boundary");
+        release_archive.send(()).expect("release newer import");
+        wait_until_current_is_durable(&runtime, &imported).await;
+        import_done.await.expect("new import route completed");
+
+        release_open.send(()).expect("release stale saved open");
+        open_done.await.expect("stale saved open route completed");
+        assert_eq!(
+            runtime.model().accepted.as_ref().unwrap().document.id,
+            imported.id,
+            "late saved-open output cannot replace the newer accepted import"
+        );
+        assert_eq!(runtime.store.active_project_id("").unwrap(), imported.id);
+        assert_eq!(
+            runtime
+                .store
+                .load_document(stale_saved.id.clone())
+                .await
+                .unwrap(),
+            Some(stale_saved),
+            "the superseded saved project remains in the library"
+        );
     }
 }

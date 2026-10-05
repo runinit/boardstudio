@@ -1,0 +1,131 @@
+{
+  "assembly.step": {
+    "cartesian_point_multisets_equal_1e8": true,
+    "point_count": [
+      19716,
+      19716
+    ]
+  },
+  "parts/1-plate.step": {
+    "cartesian_point_multisets_equal_1e8": true,
+    "point_count": [
+      3483,
+      3483
+    ]
+  },
+  "parts/1-plate.stl": {
+    "triangles": [
+      1688,
+      1688
+    ],
+    "vertices_equal_1e6": true,
+    "triangles_equal_1e6": false,
+    "surface_area_mm2": [
+      22185.88892009076,
+      22185.88892009076
+    ],
+    "signed_volume_mm3": [
+      14197.362468770334,
+      14197.362468770341
+    ]
+  },
+  "outlines/1-plate.dxf": {
+    "equal_after_10_significant_digits_and_blank_line_normalization": true
+  },
+  "outlines/1-plate.svg": {
+    "equal_after_10_significant_digits_and_blank_line_normalization": true
+  },
+  "parts/2-bottom.step": {
+    "cartesian_point_multisets_equal_1e8": true,
+    "point_count": [
+      5021,
+      5021
+    ]
+  },
+  "parts/2-bottom.stl": {
+    "triangles": [
+      2418,
+      2418
+    ],
+    "vertices_equal_1e6": true,
+    "triangles_equal_1e6": false,
+    "surface_area_mm2": [
+      39718.45691595916,
+      39718.45691595916
+    ],
+    "signed_volume_mm3": [
+      53339.34846672843,
+      53339.34846672843
+    ]
+  },
+  "outlines/2-bottom.dxf": {
+    "equal_after_10_significant_digits_and_blank_line_normalization": true
+  },
+  "outlines/2-bottom.svg": {
+    "equal_after_10_significant_digits_and_blank_line_normalization": true
+  },
+  "parts/3-plate-foam.step": {
+    "cartesian_point_multisets_equal_1e8": true,
+    "point_count": [
+      6867,
+      6867
+    ]
+  },
+  "parts/3-plate-foam.stl": {
+    "triangles": [
+      2440,
+      2440
+    ],
+    "vertices_equal_1e6": true,
+    "triangles_equal_1e6": false,
+    "surface_area_mm2": [
+      23341.102443010073,
+      23341.102443010073
+    ],
+    "signed_volume_mm3": [
+      23133.454255828954,
+      23133.454255828954
+    ]
+  },
+  "outlines/3-plate-foam.dxf": {
+    "equal_after_10_significant_digits_and_blank_line_normalization": true
+  },
+  "outlines/3-plate-foam.svg": {
+    "equal_after_10_significant_digits_and_blank_line_normalization": true
+  },
+  "parts/4-bottom-foam.step": {
+    "cartesian_point_multisets_equal_1e8": true,
+    "point_count": [
+      2871,
+      2871
+    ]
+  },
+  "parts/4-bottom-foam.stl": {
+    "triangles": [
+      1068,
+      1068
+    ],
+    "vertices_equal_1e6": true,
+    "triangles_equal_1e6": false,
+    "surface_area_mm2": [
+      29243.932674136075,
+      29243.932674136067
+    ],
+    "signed_volume_mm3": [
+      27462.91568568118,
+      27462.91568568117
+    ]
+  },
+  "outlines/4-bottom-foam.dxf": {
+    "equal_after_10_significant_digits_and_blank_line_normalization": true
+  },
+  "outlines/4-bottom-foam.svg": {
+    "equal_after_10_significant_digits_and_blank_line_normalization": true
+  },
+  "FABRICATION.md": {
+    "equal_after_10_significant_digits_and_blank_line_normalization": true
+  },
+  "critical-fit.svg": {
+    "equal_after_10_significant_digits_and_blank_line_normalization": true
+  }
+}

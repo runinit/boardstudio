@@ -1,0 +1,170 @@
+{
+  "candidate": {
+    "archive": "candidate-flipped.boardstudio",
+    "sha256": "75aacbe41b7ba62e91411ffef9b87c4bd23b94bc00d141d743217f4b3cbc6c55",
+    "revision": 7,
+    "project_id": "migration-fr4-provider-fixture-20261005",
+    "instance_id": "primary",
+    "board_id": "board",
+    "flipped": true,
+    "mounts": [
+      {
+        "id": "mount",
+        "at": {
+          "x": -4.0,
+          "y": 4.0
+        },
+        "kind": "hole",
+        "holeDiameter": 2.2,
+        "bossDiameter": 5.0
+      }
+    ],
+    "closure_mounts": [
+      {
+        "id": "auto-closure/mount-proposal-1",
+        "at": {
+          "x": -9.260869565217392,
+          "y": 1.0
+        },
+        "kind": "boss",
+        "holeDiameter": 2.2,
+        "bossDiameter": 6.0,
+        "height": 5.1
+      },
+      {
+        "id": "auto-closure/mount-proposal-21",
+        "at": {
+          "x": -37.34782608695652,
+          "y": 25.888888888888896
+        },
+        "kind": "boss",
+        "holeDiameter": 2.2,
+        "bossDiameter": 6.0,
+        "height": 5.1
+      },
+      {
+        "id": "auto-closure/mount-proposal-22",
+        "at": {
+          "x": -5.956521739130436,
+          "y": 27.44444444444445
+        },
+        "kind": "boss",
+        "holeDiameter": 2.2,
+        "bossDiameter": 6.0,
+        "height": 5.1
+      },
+      {
+        "id": "auto-closure/mount-proposal-5",
+        "at": {
+          "x": -35.69565217391305,
+          "y": 1.0
+        },
+        "kind": "boss",
+        "holeDiameter": 2.2,
+        "bossDiameter": 6.0,
+        "height": 5.1
+      }
+    ]
+  },
+  "reference": {
+    "archive": "reference-flipped.boardstudio",
+    "sha256": "5be35dcef056df31df26f191b3f2f18e8a9a12d58db15d8cfc0db6c4bb8dc94b",
+    "revision": 7,
+    "project_id": "migration-fr4-provider-fixture-20261005",
+    "instance_id": "primary",
+    "board_id": "board",
+    "flipped": true,
+    "mounts": [
+      {
+        "id": "mount",
+        "at": {
+          "x": -4,
+          "y": 4
+        },
+        "kind": "hole",
+        "holeDiameter": 2.2,
+        "bossDiameter": 5
+      }
+    ],
+    "closure_mounts": [
+      {
+        "id": "auto-closure/mount-proposal-1",
+        "at": {
+          "x": -9.260869565217392,
+          "y": 1
+        },
+        "kind": "boss",
+        "holeDiameter": 2.2,
+        "bossDiameter": 6,
+        "height": 5.1
+      },
+      {
+        "id": "auto-closure/mount-proposal-21",
+        "at": {
+          "x": -37.34782608695652,
+          "y": 25.888888888888896
+        },
+        "kind": "boss",
+        "holeDiameter": 2.2,
+        "bossDiameter": 6,
+        "height": 5.1
+      },
+      {
+        "id": "auto-closure/mount-proposal-22",
+        "at": {
+          "x": -5.956521739130436,
+          "y": 27.44444444444445
+        },
+        "kind": "boss",
+        "holeDiameter": 2.2,
+        "bossDiameter": 6,
+        "height": 5.1
+      },
+      {
+        "id": "auto-closure/mount-proposal-5",
+        "at": {
+          "x": -35.69565217391305,
+          "y": 1
+        },
+        "kind": "boss",
+        "holeDiameter": 2.2,
+        "bossDiameter": 6,
+        "height": 5.1
+      }
+    ]
+  },
+  "whole_project_differences": [
+    "/outline/1/points/4/x",
+    "/outline/1/points/5/y",
+    "/outline/1/points/6/x",
+    "/outline/1/points/7/x",
+    "/outline/1/points/9/y",
+    "/outline/1/points/10/y",
+    "/outline/1/points/12/y",
+    "/outline/1/points/13/x",
+    "/outline/1/points/20/y",
+    "/outline/1/points/22/y",
+    "/outline/1/points/23/x",
+    "/outline/1/points/23/y",
+    "/outline/1/points/29/x",
+    "/outline/1/points/30/x",
+    "/outline/1/points/31/x",
+    "/outline/1/points/31/y",
+    "/outline/1/points/33/x",
+    "/outline/1/points/34/x",
+    "/outline/1/points/35/x",
+    "/outline/1/points/39/y",
+    "/outline/1/points/41/x",
+    "/outline/1/points/51/x",
+    "/outline/1/points/53/x",
+    "/outline/1/points/57/x",
+    "/outline/1/points/57/y",
+    "/outline/1/points/58/x",
+    "/outline/1/points/59/y",
+    "/outline/1/points/60/x",
+    "/outline/1/points/62/y"
+  ],
+  "whole_project_equal": false,
+  "maximum_outline_coordinate_delta_mm": 3.552713678800501e-15,
+  "hardware_equal": true
+}

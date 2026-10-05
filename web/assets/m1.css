@@ -442,6 +442,8 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-parts-search:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 1px; }
 .m1-parts-search::placeholder { color: var(--wb-muted); opacity: 1; }
 .m1-parts-catalogue-scroll { overflow: auto; min-height: 0; margin-top: 12px; }
+.m1-parts-catalogue-scroll[open] { flex: 1 1 0; }
+.m1-parts-catalogue-scroll:not([open]) { flex: 0 0 auto; }
 .m1-parts-catalogue-scroll > summary { padding: 10px 0; color: var(--wb-ink); cursor: pointer; font-weight: 600; }
 .m1-parts-catalogue-scroll > summary small { margin-left: 6px; color: var(--wb-muted); }
 .m1-parts-category h3 { margin: 14px 0 4px; color: var(--wb-muted); font-size: var(--wb-type-label); }
@@ -1151,6 +1153,8 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-case-view-toolbar { justify-content: flex-start; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; }
 .m1-case-view-toolbar [role="group"] { display: flex; flex: none; align-items: center; gap: 4px; }
 .m1-case-view-toolbar > button, .m1-case-view-toolbar [role="group"] button, .m1-case-view-toolbar > details > summary { flex: none; min-height: 32px; padding: 5px 8px; white-space: nowrap; }
+.m1-layout-viewer-status { margin: 0; padding: 8px 12px; }
+.m1-layout-viewer-status:first-child { padding-top: 112px; }
 .m1-layout-canonical-viewer .m1-case-view { position: relative; }
 .m1-layout-canonical-viewer .m1-case-view-toolbar { position: absolute; z-index: 5; bottom: 12px; left: 12px; display: flex; align-items: center; gap: 4px; width: max-content; max-width: calc(100% - 24px); overflow: visible; padding: 3px; border: 1px solid var(--wb-rule); border-radius: 5px; background: var(--wb-panel); }
 .m1-layout-canonical-viewer .m1-case-view-settings { position: relative; }

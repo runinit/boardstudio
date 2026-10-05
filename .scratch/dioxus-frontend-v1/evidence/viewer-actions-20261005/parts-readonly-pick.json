@@ -1,0 +1,18 @@
+{
+  "before": {
+    "candidate": "Sofle v2",
+    "reference": "Sofle v2"
+  },
+  "after": {
+    "candidate": {
+      "project": "Sofle v2",
+      "mxHeading": 2,
+      "mode": "true"
+    },
+    "reference": {
+      "project": "Sofle v2",
+      "mxHeading": 2,
+      "mode": "true"
+    }
+  }
+}

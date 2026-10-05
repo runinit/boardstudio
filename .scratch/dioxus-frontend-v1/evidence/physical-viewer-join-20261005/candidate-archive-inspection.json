@@ -1,0 +1,67 @@
+{
+  "archive": "candidate-flipped.boardstudio",
+  "sha256": "75aacbe41b7ba62e91411ffef9b87c4bd23b94bc00d141d743217f4b3cbc6c55",
+  "revision": 7,
+  "project_id": "migration-fr4-provider-fixture-20261005",
+  "instance_id": "primary",
+  "board_id": "board",
+  "flipped": true,
+  "mounts": [
+    {
+      "id": "mount",
+      "at": {
+        "x": -4.0,
+        "y": 4.0
+      },
+      "kind": "hole",
+      "holeDiameter": 2.2,
+      "bossDiameter": 5.0
+    }
+  ],
+  "closure_mounts": [
+    {
+      "id": "auto-closure/mount-proposal-1",
+      "at": {
+        "x": -9.260869565217392,
+        "y": 1.0
+      },
+      "kind": "boss",
+      "holeDiameter": 2.2,
+      "bossDiameter": 6.0,
+      "height": 5.1
+    },
+    {
+      "id": "auto-closure/mount-proposal-21",
+      "at": {
+        "x": -37.34782608695652,
+        "y": 25.888888888888896
+      },
+      "kind": "boss",
+      "holeDiameter": 2.2,
+      "bossDiameter": 6.0,
+      "height": 5.1
+    },
+    {
+      "id": "auto-closure/mount-proposal-22",
+      "at": {
+        "x": -5.956521739130436,
+        "y": 27.44444444444445
+      },
+      "kind": "boss",
+      "holeDiameter": 2.2,
+      "bossDiameter": 6.0,
+      "height": 5.1
+    },
+    {
+      "id": "auto-closure/mount-proposal-5",
+      "at": {
+        "x": -35.69565217391305,
+        "y": 1.0
+      },
+      "kind": "boss",
+      "holeDiameter": 2.2,
+      "bossDiameter": 6.0,
+      "height": 5.1
+    }
+  ]
+}

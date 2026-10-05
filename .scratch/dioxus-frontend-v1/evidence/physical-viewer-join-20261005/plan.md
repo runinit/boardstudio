@@ -1,0 +1,26 @@
+# F5.6-C05: bounded physical-instance viewer join
+
+Status: public plan only; no flipped pass is claimed. No source edits, test runs or fixture mutation were performed. Reuse F5.6-C01–C04 and F7.7-C01–C05 for setup, association, stable IDs, history/reopen and independent scope; only the missing fresh flipped viewer join needs a new paired observation.
+
+## Exact input and why
+
+Use `../export-mechanical-joined-20261005/fr4-provider-fixture.boardstudio`, SHA-256 `599139ebc2760bc8836460cbcf99716802e53cba74ec73eccc7c64daed51e337`. Its companion `fr4-fixture.json` declares the existing Core mechanical-plate test basis and explicit synthetic QA status. Both actual public apps already admitted this exact input, generated current geometry and downloaded matching nineteen-entry packages; see that directory's `RECEIPT.md` and `fr4-artifact-comparison.json`. This is an established valid unflipped input, not a proposed fabrication design.
+
+The archive has one physical instance `primary` / “FR4 plate”, board `board` / “FR4 Board”, flipped=false, rigid FR4 plate, an empty 40×30 board, a circular opening centred at (20,15), and one ordinary 2.2mm hole mount at (4,4). The imported archive itself has no auto-closure rows, mounted parts, routed-board reference or battery. **Live qualification correction:** entering Case in both apps subsequently added four closure mounts. The input was valid, but the initial one-mount-only prediction was incomplete; inspect the accepted post-entry configuration, not only archive contents.
+
+## Smallest paired public journey
+
+1. Import that unchanged archive into both the next candidate and pinned TS reference. Open Case and select “FR4 plate” in Objects. In **Assembly setup**, retain **PCB design = FR4 Board**. Wait for fresh current geometry; record the baseline selected owner, unflipped checkbox and one asymmetrically located hole.
+2. Check **Turn PCB over for this half**. The board reflection changes X from [0,40] to [-40,0]. Authored mount coordinates deliberately remain fixed, so the old X=4 is temporarily outside the reflected board. Do not accept Previous geometry as the flipped result, and do not invoke Configure mechanical or Adopt suggested mounts.
+3. In **Mounting & hardware → Suspension mounts → Hole 1**, change **Position X** from 4 to **-4** and commit it; keep Y=4 and diameter=2.2. **Actual qualification now shows four auto-added closure mounts in both apps:** inspect each existing Closure screws row and reflect its actual X to −X (retain Y/dimensions), or explicitly remove incompatible closure rows if the corresponding public workflow remains valid. Do not assume they are absent. Prefer coordinate reflection to preserve the already-valid geometric relationships. Use the corresponding controls in the reference. These are explicit mechanical adjustments, not a claim that flip edits mount coordinates automatically. The exact post-entry and final archives must document the actual rows.
+4. Wait for the final accepted revision to finish generation in both apps. Require the selected `primary`/`board`, checked flip, current geometry (never Previous geometry), and visibly reflected offset hole in the shared viewer. Save/export the project archive to prove the exact final owner, board, flipped=true, mount(-4,4), and unchanged stable IDs. The actual final state is the evidence; no new ZIP or full history matrix is needed for this viewer clause.
+
+The coordinator has now imported both inputs, entered Case and accepted flip; both currently reject old positive mount coordinates, including four automatically added closure mounts. No flipped viewer pass is claimed. The final flipped state remains unverified until the corrected public journey finishes. If it fails, retain the concrete error and archive; do not weaken readiness or repeatedly recreate Sofle auto-closure.
+
+## Why other retained fixtures do not finish this join
+
+- `../export-workspace-34763-20261003/f82-c01-left-plate-mechanical-ready.boardstudio` is the valid unflipped Sofle r5 but contains adopted auto-closure mounts. The earlier accepted Left/Right flips left those coordinates outside the new envelope and produced Previous geometry. Repeating Configure mechanical on that path repeats the known blocker.
+- `../pcb-routed-folder-20261005/candidate-after.boardstudio` (r22, SHA `33eda5831497ec0f4a9271b3b3be761f8df55401f4e86dc82ef5c17c36df9e21`) is the correct independent imported-PCB/keycap consumer input. Its Left/Right instance mechanics are null. Physical flip disables the imported reference in `cad_jobs::effective_case_inputs`; it is not the smallest generated-mechanical flip proof.
+- `../pcb-clearance-scope-20261005/candidate-flipped-r8.boardstudio` proves an actual mounted-module placement flip and PCB SVG parity. That is a different owner from physical Case-instance flip; do not relabel it as this join.
+
+Source basis: `web/src/cad_jobs.rs::effective_case_inputs` reflects selected parts and contour X coordinates; `mechanical_defaults` only adds battery/stabilizer defaults and leaves explicit mounts unchanged. `mechanical_settings.rs::MountRow` exposes accepted Position X/Y changes; `case_workspace.rs` exposes the selected physical owner, PCB design and CaseFlip action. No extra implementation is proposed.

@@ -1,0 +1,26 @@
+{
+  "candidate": {
+    "bodyBackground": "rgb(247, 248, 250)",
+    "bodyColor": "rgb(24, 35, 49)",
+    "scrollWidth": 1280,
+    "selectedTheme": [
+      {
+        "label": "System",
+        "value": "system"
+      }
+    ],
+    "width": 1280
+  },
+  "reference": {
+    "bodyBackground": "rgba(0, 0, 0, 0)",
+    "bodyColor": "rgb(0, 0, 0)",
+    "scrollWidth": 1280,
+    "selectedTheme": [
+      {
+        "label": "System",
+        "value": "system"
+      }
+    ],
+    "width": 1280
+  }
+}

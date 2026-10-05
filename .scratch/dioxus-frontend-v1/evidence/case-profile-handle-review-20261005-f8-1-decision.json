@@ -1,0 +1,17 @@
+{
+  "parent": "F8.1",
+  "reason": "Independent review joins actual desktop ready/disabled Light/Dark and lower keyboard-focus comparison with retained verified output inventory, readiness and return navigation. INT.1 prerequisite is accepted; no further parent join exists.",
+  "review": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+  "review_sha256": "27cac3854e6650647c7abe602045e3a829221cfefc1d375f84feccf2a1365adb",
+  "criteria_accounting": {
+    "source_commit": "07b4c3466b1f388073e8e1f9d619b0703223d770",
+    "coverage": "complete",
+    "verified_criteria": [
+      "F8.1-C01",
+      "F8.1-C02",
+      "F8.1-C03",
+      "F8.1-C04"
+    ]
+  },
+  "accepted_joins": []
+}

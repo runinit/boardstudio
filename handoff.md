@@ -1,50 +1,43 @@
 # Handoff (generated from records)
 
-- Branch: codex/rust-v1-ui-parity-20261001 @ b53d5359
+- Branch: codex/rust-v1-ui-parity-20261001 @ 38641dd1
 - Worktree: /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001
-- Parents: 34/61 accepted, 16 implementing, 11 planned
-- Criteria: unassessed 27, missing 1, implemented 28, verified 166; 222 total
-  - functional: implemented 15, missing 1, unassessed 3, verified 162
-  - release: implemented 10, unassessed 19, verified 4
-  - visual: implemented 3, unassessed 5
+- Parents: 40/61 accepted, 11 implementing, 10 planned
+- Criteria: unassessed 24, missing 2, implemented 16, verified 180; 222 total
+  - functional: implemented 6, missing 1, unassessed 3, verified 171
+  - release: implemented 7, missing 1, unassessed 19, verified 6
+  - visual: implemented 3, unassessed 2, verified 3
 
 ## Served candidate
-- Build: frontend-case-extraction-lifecycle-20261005
-- Source commit: cc728fc644d57b985feed9128ffdb40f9c75a709
-- Root: http://127.0.0.1:34822/
-- Subpath: http://127.0.0.1:34822/boardstudio/
+- Build: frontend-routed-case-cancellation-20261005
+- Source commit: 38641dd1353bcfb6230d52c1d5b84c7ad7908e7a
+- Root: http://127.0.0.1:34823/
+- Subpath: http://127.0.0.1:34823/boardstudio/
 
 ## Functional readiness
-- Ready functional criteria: 1 investigate, 1 implement, 13 qualify (Layout 0 investigate/0 implement/0 qualify; PCB 0 investigate/1 implement/0 qualify; Keymap 0 investigate/0 implement/0 qualify; Keycaps 0 investigate/0 implement/0 qualify; Case 0 investigate/0 implement/2 qualify; Parts+Project 0 investigate/0 implement/5 qualify; Shared 1 investigate/0 implement/6 qualify)
-- Functionally verified parents awaiting formal acceptance: 7
-- Parents with unmet final joins: 11
+- Ready functional criteria: 1 investigate, 1 implement, 6 qualify (Layout 0 investigate/0 implement/0 qualify; PCB 0 investigate/1 implement/0 qualify; Keymap 0 investigate/0 implement/0 qualify; Keycaps 0 investigate/0 implement/0 qualify; Case 0 investigate/0 implement/0 qualify; Parts+Project 0 investigate/0 implement/5 qualify; Shared 1 investigate/0 implement/1 qualify)
+- Functionally verified parents awaiting formal acceptance: 4
+- Parents with unmet final joins: 8
   Layout: unassessed 0, missing 0, implemented 0, verified 27; ready investigate 0, implement 0, qualify 0
   PCB: unassessed 0, missing 1, implemented 0, verified 25; ready investigate 0, implement 1, qualify 0
     Implement: F5.7-C04
   Keymap: unassessed 0, missing 0, implemented 0, verified 7; ready investigate 0, implement 0, qualify 0
   Keycaps: unassessed 0, missing 0, implemented 0, verified 13; ready investigate 0, implement 0, qualify 0
-  Case: unassessed 0, missing 0, implemented 2, verified 37; ready investigate 0, implement 0, qualify 2
-    Qualify: F7.5-C01, F7.8-C05
+  Case: unassessed 0, missing 0, implemented 0, verified 39; ready investigate 0, implement 0, qualify 0
   Parts+Project: unassessed 0, missing 0, implemented 5, verified 34; ready investigate 0, implement 0, qualify 5
-    Qualify: F2.2-C03, F4.1-C01, F4.1-C02, F4.3-C02, F4.5-C03
-  Shared: unassessed 3, missing 0, implemented 8, verified 19; ready investigate 1, implement 0, qualify 6
+    Qualify: F2.2-C03, F4.1-C02, F4.3-C02, F4.4-C01, F4.5-C03
+  Shared: unassessed 3, missing 0, implemented 1, verified 26; ready investigate 1, implement 0, qualify 1
     Investigate: F8.6-C03
-    Qualify: F6.6-C01, F6.6-C04, F6.6-C06, F8.3-C01, F8.3-C03, F8.5-C01
+    Qualify: F6.6-C04
 Functional criteria verified; formal acceptance still outstanding:
   F2.4: visual/release F2.4-C04
-  F4.4: visual/release F4.4-C05
   F4.6: joins F4.4
-  F5.1: visual/release F5.1-C03
-  F5.6: visual/release F5.6-C05
-  F7.7: joins F5.6
-  F8.1: visual/release F8.1-C04
+  F7.8: joins F4.4; visual/release F7.8-C02, F7.8-C03, F7.8-C04
+  F8.3: joins F4.3
 Exact unmet final joins:
   F4.6 → F4.4
-  F5.8 → F7.7
-  F7.7 → F5.6
   F7.8 → F4.4
   F8.3 → F4.3
-  F8.5 → F7.7
   F8.6 → F2.2, F3.7, F4.5, F4.6, F5.8, F6.6, F7.8
   F9.2 → F2.2, F2.4, F3.7, F4.5, F4.6, F5.8, F6.6, F7.8, F8.6
   F9.3 → F9.2
@@ -52,15 +45,11 @@ Exact unmet final joins:
   F9.5 → F9.2
 
 ## Parents
-- Accepted (34): INT.1, INT.2, BND.1, BND.2, F2.1, F2.3, F3.1, F3.2, F3.3, F3.4, F3.5, F3.6, F3.8, F4.2, F5.2, F5.3, F5.4, F5.5, F6K.1, F6K.2, F6K.3, F6K.4, F6C.1, F6C.2, F6C.3, F6C.4, F6C.5, F7.1, F7.2, F7.3, F7.4, F7.6, F8.2, F8.4
+- Accepted (40): INT.1, INT.2, BND.1, BND.2, F2.1, F2.3, F3.1, F3.2, F3.3, F3.4, F3.5, F3.6, F3.8, F4.2, F5.1, F5.2, F5.3, F5.4, F5.5, F5.6, F6K.1, F6K.2, F6K.3, F6K.4, F6C.1, F6C.2, F6C.3, F6C.4, F6C.5, F7.1, F7.2, F7.3, F7.4, F7.5, F7.6, F7.7, F8.1, F8.2, F8.4, F8.5
 - Hold (0): none
 
 ## Criteria on hold or blocked
-- F5.6-C05 [implemented]: Valid unflipped Case viewer proof retained. Changed Left/Right flips accepted but current candidate generation hit auto-closure envelope errors and correctly displayed Previous geometry; this does ...
 - F5.8-C05 [unassessed]: Record both named viewer integration joins after their current provider capabilities are qualified.
-- F8.3-C03 [implemented]: Paired empty Board3 Full/Draft/SVG/DXF blocker copy and actual Review wiring→PCB preserving Board3 now recorded. Independently join retained accepted protection ordering, package-failure/retry and ...
-- F8.5-C02 [implemented]: Run paired public generated mechanical package output when F7 readiness/generation joins are satisfied.
-- F8.5-C03 [implemented]: Pair authored canonical and generated selected-instance paths, including switch during pending delivery; retain Case-local geometry entrypoint.
 - F8.6-C01 [unassessed]: Join six-workbench project-to-export journey after each required provider/consumer acceptance is ready.
 - F8.6-C02 [unassessed]: Combine existing bounded receipts with remaining authored/generated/portable outputs and per-operation snapshot proofs.
 - F8.6-C03 [unassessed]: Run focused coordinator races/failure/retry/cleanup and route return on the frozen joined candidate.
@@ -116,255 +105,4 @@ Exact unmet final joins:
 
 Last retro checkpoint: 2026-10-04T15:56:00Z
 
-## Prior session notes (historical)
-- **Primary checkout `dev` is fast-forwarded to `df2abad6`** (local only, no push). Later commits (33390d6c, tooling) exist only on `codex/rust-v1-ui-parity-20261001`; re-run the fetch + `merge --ff-only` from `/home/chris/01_Projects/ts-boardstudio2` when you want dev current (4 untracked files may collide; compare, remove identical ones first).
-- **Latest candidate:** `frontend-review-fixes-20261004` served on 34820 (`python3 scripts/serve-candidate.py <build> <port>`, detached). It has the mirrored-pair fixes and Layout fixes; later test-conversion commits are test-only except `renderer_host*.rs` (no behavior change).
-- **In flight:** one Sonnet agent was wiring `scripts/run-wasm-tests.py` + native/wasm test gates into `migration-deliver.py commit` (files: scripts/run-wasm-tests.py, test-run-wasm-tests.py, wasm-known-failures.json, migration-deliver.py, test-migration-deliver.py). Check `git status`; verify with `python3 scripts/test-migration-deliver.py` and commit the exact files if tests pass.
-- **Next work:** (1) F3.5-C05 mirrored-pair check in the browser: on a linked pair made via Add object -> Mirror existing half, the Dioxus mirror-target key already shows "Use mirrored components" on a fresh pair, so `assembliesLocal` may be true from creation; compare with the TypeScript reference (:5175) before changing anything. (2) Grouped F3.5/F3.6 Layout journey (owner tests now cover stale finding, locked/driven X/Y, zoom limits, selected-board 3D, renderer lifecycle; browser still needed for Inspector contexts, keyboard/compact drawers, 3D pick/orbit, repeated 2D/3D switching). (3) More Opus diff reviews per batch before acceptance; parent acceptance via `progress.py set-status ... --review`.
-- **Known failing/ignored:** RF-033: 4 wasm tests are known failures (3 catalogue tests need BOARDSTUDIO_TEST_LAYOUT_GENERATOR_MODULE_URL; `mounted_component_drafts_survive_unrelated_acceptance_and_blur_uses_latest_owner` fails).
-- **Traps:** run `build-m1.py` outside the sandbox as a tracked background task (wasm-pack needs a writable cache); publish a candidate BEFORE agents edit source (publish checks current source hashes); Agent `isolation: worktree` fails (no origin/main); presentation code is wasm-only so run the wasm `page` check and the headless-Chrome tests; Chrome test runs need the sandbox off; `pkill -f` matches its own shell.
-- **Token rules (see CONSTRAINTS.md):** restart sessions at ~150k context with this file; agent reports <=150 words with detail in a file; no screenshots or `innerText` dumps unless a visual check needs them; pipe build/test output through tail/grep.
-
-
-## Current continuation notes — grouped Layout completion
-- Published full candidate **frontend-layout-grouped-repairs-20261004**, source **f320e6b8**, root **http://127.0.0.1:34821/** and `/boardstudio/`. Detached serve PID 2032771; old 34820 and reference 5175 remain. Root/subpath package proof passes with no source mismatches.
-- Requested gate tooling/AGENTS batch committed in 97926b0e; preserve external 8b9f8335; root-path repair faa10f38; settled Layout and file-selected isolation repair f320e6b8. Python suites: 20 runner and 26 delivery tests pass. Enforced native/page/reachability and 267 listed wasm outcomes across 64 isolated modules completed. **Configured 13 failure exclusions are not passes; 9 external additions remain unreviewed.** RF-033 reachability baseline is now 0; assertion failures remain open.
-- Fresh mirror creation is already `assembliesLocal=true` in both frontends. Do not “fix” that shared behavior. Grouped paired receipt covers Inspector/compact keyboard, numeric drafts, actual 3D orbit/pick and repeated switching. Reproduced mirrored-key disable→Undo selection loss received a real Core/Session RED-first repair; mirrored and ordinary keys now restore selection/Fit/relation. Target Choc/diode history and reload pass without changing canonical components.
-- Independent native reviews are clear for source and scoped replay. See `.scratch/dioxus-frontend-v1/evidence/layout-grouped-20261004/RECEIPT.md` and `layout-grouped-review-20261004.md`. **Still 20/61 accepted**: F3.5/F3.6 remain open for recorded context/lifecycle/fault-observation limits and F7.3 join. Unassessed F8/F9 criteria were untouched.
-- Canonical tool is **`.scratch/dioxus-frontend-v1/progress.py`**; `scripts/progress.py` does not exist. No `.codegraph` exists in this checkout, despite stale AGENTS wording. Do not reset unrelated staged/untracked evidence. No push or branch switch was performed.
-
-
-## Current continuation notes — consolidated34822 milestone
-- Source reductions and Parts model repair committed4812d82b; successful enforcing gate recorded3a412978. Native/page/reachability/changed-headless modules passed with five library exclusions removed, eight remain. Astra xhigh review frozen; F6K.4 andF5.3 closures bring22/61accepted.
-- Published frontend-parts-library-repairs-20261004 on34822 (source3a412978), root/subpath proof verified, detachedPID2135651. Reuse this single candidate for remaining journeys. Consolidated receipt: .scratch/dioxus-frontend-v1/evidence/consolidated-34822-20261004/RECEIPT.md.
-- F2.2-C04 andF7.3-C03 nowverified from bounded attributed evidence. Paired recipe default models/UndoRedo/board150,10placement/re-editX4independence/reload pass. MatrixApply/import/parameter/identity branches remain. Selector-originated3DKeymap A andKeycapsDSA/legendQ edits pass; actual3Dmesh-pick remains unqualified.
-- Candidate library keeps Grouped journey Sofle 20261004 with recipes and a separate fresh Sofle for validCase. FreshSoflePlate+mechanicalstack reaches exactgeometry; wall2.2andphysicalscopechange observedGenerating/Previous/currentrecovery. Configured Case lacks local Export geometry, reference mounts it. Authored-only context also lacks the reference local action, so do not widen the discrepancy.
-- Native subagentcase_local_export is READ-ONLY pending user clarification: native tests cannot observe this missing wasm-onlyDOMbutton. Asyncquestion requests mountedChromeREDfirst exception; no production edit authorized under that exception until reply. Do not manufacture native failures. Proposed ownedsourcecad_presentation.rs; existing Runtime::export_mechanical must be reused with exactcurrentinstance/snapshotguards.
-- No running shellheavyjob; no push/switch. Six preexistingstaged evidence files remain unrelated. Preserve them. Native browserbinding exists; fresh tabs werecandidate8/reference7 this turn, but listtabs before relying on them.
-
-- Matrix continuation: same34822candidate nowqualifiesF4.6-C03/C04. PairedApply toselectedkeys initiallyrejectsfirstmemberX4, succeedsafterSaveX0, Undo/Redo/reloadretainsmatrixandSW2A. LaterrecipeX4editpreservesall30candidate/60referencepublickeyIDsandbindings; rawJSONinconsolidated-34822-20261004/recipe-public-identities.json. BothrejectScaleX0byretaining1. C01parameterandC02import/remainingmalformedinputcasesopen.
-- case_local_export investigationcomplete, sourceuntouched; detailin case-local-export-repair-20261004.md. Native-firstexceptionstillawaitsuser; no implicit approval.
-
-## Current continuation notes — test consolidation and mobile deferral
-- User requested mobile checks removed completely for now. CONSTRAINTS and run validation_scope record the deferral; responsive product code is unchanged. Four mobile-only tests removed, one guide test converted to desktop, three mobile CSS assertions removed. No mobile verification claim.
-- Astra follow-up review covers shared fresh generator/server setup, thin legacy wrappers and strict --all/--depth inventories. Both Python suites pass26/26; wrapper probes4/4; real selected Chrome batch21/21 in7isolatedmodules. Five generator exclusions now removed; two mobile exclusions deferred; sole remaining exclusion is mounted_component_drafts_survive_unrelated_acceptance_and_blur_uses_latest_owner.
-- Evidence: consolidation-followup-review-20261004.md and consolidation-followup-20261004/headless.log. Integration uses the required guarded commit native/page/reachability/changed-module checks. Existing34822candidate still serves unchanged product source; no new package needed for tooling/test-only changes.
-
-
-## Continuation: preset customization source batch
-
-Preset Customize 3D assembly repair is source-reviewed and native converter RED/GREEN. Combined guarded commit gates and packaged public replay remain. Paired recipe model import/save/reload/reopen passed on34822; C02 malformed-import branch remains unqualified. Sole excluded mounted component-draft test has an acceptance-fixture problem, not an established product defect; keep exclusion until corrected. Mobile validation remains deferred. Preserve six unrelated staged evidence files. New source/review/import/triage receipts are in evidence/*20261004.md.
-
-
-## Current continuation: published preset action and validation
-
-HEAD4e716156; full frontend-preset-customization-20261004 now serves root34822/subpath on detached PID2239133. All guarded native/wasm gates and full package succeeded. Reuse preflight rejected existing inline test module in included renderer_host_page_base.rs, so full build was used. Same-origin browser first served old offline shell; second navigation loaded new script hash dxh7a84b355b3d74c. New Customize action, North3member poses, defaults, Hotswap/side edits, Save/Undo/Redo/reload/reopen and empty New assembly pass. F4.6 all4criteria verified; parent stays implementing for F4.4. Model import success/empty-file rejection/real malformed STEP failure and2Dretry/recovery are recorded; no parent or arbitrary invalid-input claim.
-
-Current own uncommitted records/receipts describe this milestone; combine at next source integration. Six unrelated staged files remain untouched. draft_failure_triage now owns only the3stale native integration harness targets (matrix top+harness, Parts profile, Keycaps fit), with RED-first compile then executed GREEN; heavy slot1 assigned, no production edits/commit. recipe_import_qualification maps remaining F4.4/F7.3 owner/mounted/evidence coverage read-only. Reviewer preset_batch_review finished CLEAR. Sole component-draft exclusion remains an invalid acceptance fixture, not proven product bug. Case-local export still awaits existing user clarification; do not ask again. Mobile checks remain removed/deferred.
-
-
-## Current continuation: native fixtures and preview lifecycle
-
-Native harness repair frozen/reviewed: only Matrix harness fields/handlers/seven-input counts, Parts extraction requester stub, Keycaps props/runtime input stub, and keycaps_fit.rs wasm-only test-module cfg. Native targets26/26 passed (4+18+4), no assertions removed. Independent native-harness-drift-review CLEAR with hashes. Guarded integration must still run affected Keycaps9wasm tests. No application package is needed: served4e716156release graph unchanged.
-
-Parts preview public MX/Choc/MX selection,2D/3D andLayout/Parts unmount retains candidate current name/Revision24Saved; reference name/Saved state unchanged (no public numeric revision). Existing4e716156native/Parts-subtree gate proves lease/stale-token tests without duplicate rerun. Fresh renderer_host_page lifecycle5/5 passed. F4.4-C04 now verified; broader F7.3 and missing mounted Parts renderer-init error feedback remain open. Detailed parts-preview-lifecycle-20261004/RECEIPT.md plus coverage map. No heavy jobs or source authors remain other than current root commit gate. Six unrelated staged evidence files remain untouched.
-
-
-## Native fixture integration complete
-
-HEAD e2ec1c1e: guarded native/page/reachability/Keycaps9WASM gates passed;26native integration tests already passed. Log evidence/native-harness-drift-20261004/commit-gate.log is newly untracked, current run/handoff note uncommitted for next milestone. No heavy jobs running. Published app remains4e716156on34822, release source unchanged by maintenance. recipe_import_qualification is read-only planning the smallest mounted Parts init-failure fixture; viewer_qualification is read-only reconciling F7.3-C01/C06/C09 against actual requirements and prior source-attributable proof (avoid duplicated pick checks whenC05alreadyverified). Both update existing/own reports only. Native author/reviewer finished. Six unrelated staged files preserved.
-
-## PCB desktop qualification and next mounted fixture
-
-F5.1-C01 now verified from current served4e716156 matched input archive: Left/Right70part transforms and host outline points equal reference,23default layer states match. Light/Dark publictheme switches and160pad hide/restore pass; candidate retainsRevision9Saved. Receipt evidence/pcb-host-themes-20261004/RECEIPT.md; input archive/provenance beside it. F5.1-C03 keeps visual scope open, compact/mobile excluded. No parent accepted; records and receipt to join next coherent milestone commit. Preserve six unrelated staged files.
-
-recipe_import_qualification now authors one narrow cfg(test) SharedViewer mount failure seam plus actual Parts preview mounted error/form/2D recovery test in shared_viewer.rs, parts/preview.rs/new test subtree; owns heavy slot1 for focused strict WASM test, no commit/package. viewer_qualification prepares attributable real STL/WRL import fixtures in evidence/f73-asset-formats-20261004 only; no source edits. Root browser tabs may close between turns; current saved paired fixture PCB grouped qualification20261004 remains imported, LeftPCB selected, layer defaults restored, System theme restored. Current renderer source author edits are not packaged; served4e candidate stays frozen.
-
-## STL/WRL and consumer reconciliation
-
-F7.3-C01/C09 verified from five-consumer map and independently checked actual criteria: no extra Parts-pick obligation belongs to common-viewer/privateDTO wiring. C06verified: candidate34822 imports realWRL/STL assets, saves recipe Archived STL WRL qualification20261004 in PCB grouped qualification20261004, reloads/reopens2models, reports3Dready with fullSHA rows, independentlyhide/show, revision10Saved. Reference2/2models observed before reload failedERR_CONNECTION_REFUSED; no live pinnedserver provenance found, do not re-serve guessed app/dist. See evidence/f73-asset-formats-20261004/RECEIPT.md andassets; no portable archive claim. Existing STEP/error recovery andBND.1keycaps proofs reused.
-
-Parts initfixture author still owns2sourcefiles. Review found fixture-fixed-snapshot nonmutation weakness; now also asserts no submittedRuntimeevent. First compile E0433 enum path fixed; next runtime failure was missing3Dbutton beforeVirtualDomrender, diagnosed through exactnocapture test and fixed by boundedwait. Final strict10testmodule rerun underway; do not count aspass until terminalresult. preset_batch_review remains independentreview owner waiting finalhashes. No commit/package yet;6unrelatedstagedfiles preserved.
-
-## Active isolated reference rebuild and renderer fixture
-
-Reference recovery approved from exact pin5a472a9426e6e38993361da402cd4ec730feb369 in /home/chris/.local/share/boardstudio/tmp/reference-5a472a9-20261004, created via git archive. viewer_qualification owns heavy slot2; frozen offline dependencies installed, fresh Core build passed, CAD compiled and wasm-opt active (exec session67323); Renderer/UI not yet built. Do not reuse changed current provider binaries or serve guessed dist. Next return server5175 only after attributable output/provenance and portcheck.
-
-Parts fixture still sourceuncommitted under recipe_import_qualification, heavy slot1. Actual missing prerequisites diagnosed: no core-worker in wasm-bindgen server, then generator assets missing on2Dreturn. Local cfgtest preparedPcbPreview seed now goes after existing acceptedscope/token/capture/lease checks via capture.accept_preview; realPartsSampleViewer/SharedViewer currentness and actualinjectedrendereralert reached. Dedicated fixture becomes authoredgeneratorNone for2DSVG; finalstrictmodule pass still required. Reviewer preset_batch_review has no further sourceissues but awaits finalhashes/results. NoRuntimeAPIchange. Root added PartsLight/Dark3Dready/updated,2Dreturn, unchangedrevision10 evidence to assetreceipt; C07stillopen for broaderlifecycle. Temporary duplicateSTL/WRLassets removed after hashverification, receiptuses trackedvendorpaths; noassetcopiesneedcommitting. Sixunrelatedstagedfiles preserved; no newcommit/package.
-
-## Frozen source ready for guarded integration
-
-Final previewSHA3c57d81238b1ac228e9c01e131b7fa6259869e9432c9c6fb3bdf044f0fb5fb1f; sharedviewerSHA6d1b6bac802e9b9e8885505a9a4c685212ebecec1612b841e2a52e4bb4c6c56e. Settled strictpreviewmodule10of10passed; noauthors/heavyjobsactive. Scopedboard and validminimalKiCadfixtureincluded; nofurtheroptionaledit. C03Partsrendererfailure andF7.3C10verified from combined evidence, parentsunchanged. Rootmandatorycommitgate next.
-
-Reference rebuilt exact5a472a9 under isolatedtmp/reference-5a472a9-20261004/output, server5175PID2306232. Source/provider/outputhashes inreference-recovery-20261004.md. MatchingDOM main-CYxchQWA.js. Retainedrecipe reloads bothassetUUIDs, but referenceWebGL2startupfails0of2; notsuccessfulnewreference3Drender. Candidate34822continues3Dready. Sixunrelatedstagedfiles remain.
-
-## Integrated grouped viewer milestone
-
-HEAD7f3165b4 committed16explicitfiles after mandatorynative/page/reachability/affectedWASM gatespassed. Strictpreview10of10andindependentreviewfinalhashesmatch. Newgate log evidence/parts-renderer-init-commit-20261004.log isowneduntracked; runstateandhandoffupdateduncommitted fornextmilestone (no extra record-onlycommit). Noauthors orheavyjobsactive; reference5175PID2306232andcandidate34822PID2239133remainserved. Sixunrelatedstagedfilespreserved. Candidate release4e716156unchanged; test-onlyhooksdo notneednewpackage. F4.4C03/C04 andF7.3C01/C06/C09/C10verified, broaderlifecycle/visual/dependencyjoinsstillopen; parentacceptancenotclaimed.
-
-## Current continuation — attachment choices and desktop lifecycle batch
-
-Paired Layout follow-up reproduced seven unrelated assembly snapshots in Replace diode (candidate59/reference52); F3.5-C05 is missing until native RED/GREEN repair and packaged replay. Exact source lease: matrix_transform_operation.rs plus presentation/objects/matrix_transform_controller.rs and matrix_transform_inspector.rs (preset_customization_repair). A disjoint test-only lifecycle packet owns renderer_host_page_base.rs and pcb_module_inspector.rs plus optional pcb_module_inspector_lifecycle_tests.rs (draft_failure_triage), covering positive desktop resize/DPR and Save crossing project replacement. Slots1/2 reserved for focused checks; no full gate/package until their source edits settle. F3.6-C03/C05 verified by independent reconciliation; parent joins remain.
-
-The pinned reference at5175 rendered both retained STL/WRL models in a fresh tab and after reload; previous WebGL2 startup failure remains recorded with unknown cause. Source/config were not changed for recovery. Layout context receipt adds pointer-driven Outline→Perimeter→Done return with matching34points/Point1 coordinates; no keyboard claim. Mobile remains deferred. Six unrelated staged evidence files remain preserved; no push/switch.
-
-## Acceleration review and current integration
-
-User requested faster delivery and an Astra Max review of migration bottlenecks. Native agent migration_acceleration_review is read-only except evidence/migration-acceleration-review-20261005.md. Concrete coupling: build-m1.py requires every provenance source input committed, so unrelated same-checkout test additions can block a reviewed product package. No provenance guard bypass. Attachment repair native RED/GREEN and independent source review are CLEAR; F3.5-C05 is implemented pending packaged same-fixture menu replay. Lifecycle tests are source-frozen except minimal fixture compiler repairs and running strict modules; separate review proceeds concurrently. Slot2 latest retry handle is18173 (verify live handle, do not infer completion). Planned candidate frontend-layout-attachment-20261005; preserve all prior evidence and unrelated staged paths.
-
-Lifecycle retry18173 compiled but hung at first mounted-Save module; author interrupted it, so no passing tests. Independent review identified missing actual Persist-completion barrier. Exact two-file patch, full sources and SHA manifest are retained under evidence/lifecycle-deferred-20261005. Root reversed only that frozen patch; production source is now independent, no lifecycle work discarded and no criterion accepted. Author source lease paused until product publication. Attachment source review remains CLEAR; integration/package proceed now.
-
-
-## Current continuation — published repair and acceleration implementation
-
-Product integration **e12b6ab0** passed all required gates. Full candidate **frontend-layout-attachment-20261005** built in475.19seconds and is published at **http://127.0.0.1:34822/** and `/boardstudio/`, detachedPID2360936. Public replay confirmed newscript `boardstudio-web-dxh20d9fd77d91a53a.js`: exact52/52optionIDsets, currentdiodesnapshotretained, precisely7unrelatedsnapshotsremoved; priororder/labelsunchanged, Revision10Saved. F3.5-C05verified; canonicalcounts128/222verified and22/61parentsaccepted. Receipt/packageproof/gatelog in evidence/frontend-layout-attachment-20261005/. Recordupdatesawaitnextcoherentintegrationcommit.
-
-User explicitly assigned AstraMax to fixALLaccelerationfindings and further encounteredissues. Nativeagent migration_acceleration_review nowowns toolingimplementation and boundeddisjointauthors: explicitwasmtestownership + realmountedattachmentcoverage; inactivecfgtestproviderreuse; inputboundgatereceipts/timings; immutablesnapshotbuild/publication; functionalfrontier/evidencefootprints; staleinstructions. Sourcefreeze wasreleasedafterpublication; scripts/progress/qualification/newhelperchanges areactive. Rootownscanonicalrecords, commits, packages andpublicreplays. Sixunrelatedstagedfilesstillpreserved.
-
-Latest fix-allauthorization resolves the old CaseDOMtestlayerambiguity: case_local_export resumed singlefilecad_presentation.rs with realmountedWASMREDfirst, existingnativeexportadmission guards, and laterpackagedreplay; nevermanufactureanativefailure. Its currentREDsession58808 isauthor-owned; verifyactualhandlebeforeassumingstate. Astra coordinatesattachmenttestgraph afterCaseREDcompile; max2heavyjobs/1package. Deferredlifecyclepatch stillretained separately andunqualified.
-
-## Current required batch — delivery restructure
-
-User stopped all optional work; CONSTRAINTS now defines one bounded delivery batch, at most2authors/1reviewer, exact-input gate reuse, immutable committed package and grouped desktop public outcomes. Arbitrary daily publication quota and scheduled retrospectives removed; use existing extra-candidate reason flag if needed without waiting. Both real safeguard defects are fixed/reviewed: docs-only false drift, and broad root coverage for an exact cfg(test)-only Case helper. Hash-bound root mapping retains independent Inspector tests and falls back broad for any unmatched change.
-
-24source/tooling paths are frozen/reviewed CLEAR in evidence/acceleration-implementation-20261005/integration-paths.json and integration-path-hashes.json. Corrected gate31866 terminal0: compiler/native245/reachability/strict headless3 passed; headless79.27s. Earlier broad run76294 was deliberately stopped143 after >9min of unrelated tests; no false pass. Six unrelated staged evidence files remain outside explicit commit manifest /tmp/case-acceleration-commit-paths.json. Next: cached guarded integration commit, then frontend-case-export-20261005 --source-commit HEAD snapshot build and publish.
-
-Required paired Case fixture is in evidence/case-generation-export-20261005. Both apps imported identical clonedSofle, addedPlate/configuredMechanical; candidatee12b6 remains Revision5Saved/exact with missinglocalbutton. Reference generated actual2.24MB ZIP with assembly.step+4partSTEPs, revision5, warningsallowed. Candidate output/settings/stale-current/scope/reopen remain unqualified untilnewpackage. No optional lifecycle fixture or benchmark work.
-
-
-## Current continuation — Case and Layout integration
-
-Published baseline frontend-case-export-20261005 is source eac47f42 at http://127.0.0.1:34822/; pinned TypeScript reference 5a472a9 remains read-only at5175. Case manufacturing controls are independently CLEAR. Layout Escape/multi-selection repairs passed focused checks, but final review found Ctrl-toggle removal retaining the removed key as Inspector owner; layout_escape_repair is correcting it with RED/GREEN before preset_batch_review rereview. Combined gate session2356 stopped terminal143 after that finding; native245/page/reachability passed, headless was incomplete and is not a pass. Three unchanged camera/PCB criteria were independently cleared and recorded. Preserve six unrelated staged evidence paths. Next: corrected source CLEAR, one settled combined gate, explicit commit, immutable provider-reuse build and actual paired manufacturing/Layout replay. No optional/mobile work or push.
-
-
-## Latest active goal checkpoint — frozen combined gate
-
-All12Case/Layout source files plus empty known-failure config reviewed CLEAR; manifest evidence/layout-escape-repair-20261005/combined-source-hashes.json. Corrected RF033 fixture15/15/noexclusions and runner37/37passed. Final aggregate gate session2278 is RUNNING, log /tmp/case-layout-final-gates.log; poll handle before any restart. Source edits frozen; next lifecycle and Case-readiness patches are evidence-only and uncompiled, released only after immutable snapshot starts. Explicit commit paths /tmp/case-layout-commit-paths.json; six unrelated staged identities /tmp/case-layout-unrelated-index.json preserved. New F5.6C04 verified; F5.5C02 actual current paired archive/reload evidence in pcb-module-reopen-20261005 awaits reviewer. Current tabs35/36 are own saved module circuit fixture. Candidate34822 remains eac47f42; package frontend-case-layout-controls-20261005 does not exist yet. Next: gate terminalpass, commitexplicitpaths withCodextrailer, provider-reuse snapshotbuild, publish then manufacturing/Layout publicreplay. Never claim25oldtests allpassed: oldrun excludedRF033. TS also editsdeselectedkey; newcandidatefix isintentionalcorrectnessimprovement, publiccomparison inreference-toggle-removal.json.
-
-
-## Latest continuation — resumed gate and new public gaps
-
-HEAD remains eac47f42; frozen13source/config hashes unchanged. Gate2278 was observed TERMINAL143 with no surviving child and no headless result; preserved integration-gate-2278-terminated.log. Resumed detached tracked gate PID2679472 (child2679473), /tmp/case-layout-resumed-gates.log, terminal status will be /tmp/case-layout-resumed-gates.exit. Confirm actual PID/child or exit file before any restart. Native245/page/reachability passed; broad headless still RUNNING (10minutes elapsed at checkpoint). Exact gate manifest /tmp/case-layout-source-paths.json. Prior gate2278 must not be polled as live.
-
-F7.7-C01 independently CLEAR/verified; counts now140/222verified,1missing,54implemented,27unassessed;22/61parentsaccepted. Public same-board multi-instance fixture/evidence in case-multi-instance-20261005 preserves only alternate-instance allowance edit through history/save/reload in both apps. Shared form display limits and geometry errors are explicit; C05notverified.
-
-Public Caseprofile gap confirmed on same imported unknown-switch fixture: Configure→Assign custom geometry to THQWGD001C2-pin tactile savesr16both. TS offers Remove profile/Read KiCad layers and actually returns extracted primitives; candidate offers neither. F7.4-C01 nowmissing. Evidence case-custom-profile-20261005 includes input/provenance,pairedassignedarchives,comparison andRECEIPT. case_local_export prepares evidence-only repair patch for3mechanicalsettingsfiles; no live source or compile until currentcommit/snapshot release. Preserve its earlier F76_REQUIRED_TESTS.patch separately.
-
-Casehandle mismatch retained in case-handle-qualification-20261005. Luna diagnosis localizes rejection to move_case_mount atEnd beforecontroller but lacksactualcandidateworldpoint; notyet provenconstraint/mappingcause. Astra migration_acceleration_review now diagnoses renderercoordinate/capturepath read-only, no optionaltooling. Twofutureauthorstreams areCaseprofile andhandle; lifecycle/readinesspreparedpatchesremainunapplied.
-
-Explicit commit manifest /tmp/case-layout-commit-paths.json expanded to112ownedpaths including newbounded evidence; needs explicit restaging beforecommit. Preserve6unrelatedstaged entries from /tmp/case-layout-unrelated-index.json. Reviewer preset_batch_review reconciling latest bounded evidence only. Build frontend-case-layout-controls-20261005 stillnotstarted. Sourcefreeze remains untilgatepass→explicitguardedcommit→immutable snapshotstart. Publishedcandidate34822remainsfrontend-case-export-20261005; reference5175read-only.
-
-Latest review also clears F7.7-C05 named saved-settings/publicmulti-instance requirement; now141/222verified,53implemented,1missing,27unassessed. Shared form/preference andasyncscope remainC04. CurrentgatePID2679472 stilllive; latestchildlayout_splay_pick_view_change_tests.
-
-
-## Integration chain queued; Case drag defect confirmed
-
-DO NOT manually duplicatecommit/build: tracked detached chainPID2709186, /tmp/case-layout-integrate-and-build.state.json and .log, waits on gate2679472 exit0, checksHEAD/sourcehashes/preserved6indexentries, copiesfinalgatelog, explicitly stagesownedmanifest then guardedcommit and frontend-case-layout-controls-20261005 provider-reuse snapshotbuild. Phase/commit/buildlogs are in itsstatefile. Currentphasewaiting_for_gate. It stops onanyfailure. InspectactualPID/exit/statebeforeaction; neverrestart justforquietoutput. Paths manifest now118ownedfiles; futureprofile/gesturepatches explicitlyexcluded. Sourceunchanged/frozen.
-
-ActualCasehandlecauseisfeedbacklayout: publicbeforecanvas701px/backing1050; afterinwarddrag542.09375/backing812 because static .m1-case-edit-hint consumes158.90625pxinflexrow. prepared-constraint-analysis.json fromexactpublishedCoreprovider provesreferenceacceptedpointpassescurrentconstraint. F7.5C02nowmissing; noEndrewrite/clearancerelaxation. Astra migration_acceleration_review preparingactual2fileCSS+SharedViewer mountedgeometryregressionpatch evidence-only, no liveedits/compile.
-
-Caseprofile TS oracle nowcomplete: geometry-70Dwgs.User rectangle appliedr17, vertex1X-9.4edit/UndoRedo,Removeprofile/Undo,reloadretains-9.4,r22actualarchive. Filesin case-custom-profile-20261005. case_local_export first producedproseoutline(98lines), rootrequestedactualapplicableimplementation/testpatch in3mechanicalfiles now; no livewrites/compileuntilrelease. Do notmistakeoutlineforimplementedcode. ExistingF76/lifecyclepatchesremainpreservedunapplied.
-
-Currentcounts141verified,52implemented,2missing,27unassessed;22parentsaccepted. No newpackageyet. Browserownnewtabs holdcandidateCasehandlefixture(r18 blockedmove) andreferencecustomprofileoracle(r22); tabs mayclear atturnboundaries.
-
-## Current milestone — integrated Case/Layout; next profile and handle repairs
-
-HEAD113d76fd integrates Case manufacturing and Layout Inspector repairs. Native245passed/1ignored, wasm page/reachability passed, strict headless276passed/0failed/0excluded/0incomplete; guarded commit reused all4exact receipts. Six unrelated staged entries preserved. Prior gate2278 and queued integration chain are terminal; do not restart either. Provider reuse rejected application/tests/durable_session.rs and wasm-known-failures.json ownership, so no reuse savings claimed.
-
-Current immutable full package frontend-case-layout-controls-20261005 from113d76fd runs detachedPID2726061, /tmp/case-layout-full-build.log and .exit. Verify actual process/terminal before action. SnapshotHEAD113d while live authors change nextbatch sources. Published34822 remains frontend-case-export-20261005 until newpackage succeeds; then serve/publish and replay retained manufacturing plus Layout selection/Escape journeys. Reference5175 exact5a472a9 readonly.
-
-Handle CSS repair now actual mounted expectedRED canvas701→416.28125 then strictGREEN1/1, noexclusions, feedback-layout-result.json records hashes/rawlogs. Livefiles web/assets/m1.css and shared_viewer.rs frozen. Profile author owns only3mechanicalsettingsfiles/heavy2; concrete evidencepatch review found rawKiCad text passed where extraction adapter expectsdefinitionID. Author fixing and running separate baseline-compatible mounted missing-controlRED then correctedGREEN; reviewer preset_batch_review owns consolidated nextbatchreport. No optional/mobile work. Counts remain141/222verified,2missing,52implemented,27unassessed;22parentsaccepted.
-
-## Latest published qualification and next source batch
-
-Full candidate frontend-case-layout-controls-20261005 source113d76fd now published root34822/subpath, serverPID2738385, scriptdxh5b19dcbbdef29743. Build515.57s,23freshcommands,0inherited; both190asset routes0mismatches. Package succeeded while live nextbatchsource changed, proving snapshot concurrency. Oldserver2497748 stopped. Do notpoll/restartfullbuild2726061: terminal0. Actualpackageproof/buildloginnewcandidateevidencefolder. FirstbrowsernavigationservedoldofflineJS; secondloadednewhash.
-
-F7.4C03functionalverified after sameindependentreviewercheckedr31manufacturing andnewr67hardwarepairedarchives, histories/reload. Battery8fields, cablecoords, accessvolume/vertex, linkedhardware andcriticalfitallmatchexcludinggeneratedIDs; knownclosurefloat1.4e-14retained. Quantityunitmm→pcs assignedsmallsourcecorrection, notyetpublished. Evidencecase-manufacturing-repair-20261005/RECEIPT.md, *hardware* archives/JSON. Counts142verified/50implemented/3missing/27unassessed;22parentsaccepted.
-
-Actual113dLayoutcanvas Ctrl-toggle stilltargetsremovedkey: productionpassesKeycontext butpriorhelpertestusedComponent. Savedfailure +mixedgroupedit/UndoRedo/reload success inlayout-escape-repair-20261005/public-113d76fd.md. CandidatePerimeterEscape returnedBoardbutBODYfocus;referencefocusBoardname. Authorfixed4files(selection,outline_lifecycle,outlinebrowser,matrix_transform_inspector_tests), expectedRED0/1 andGREEN1/1each retained. SyntheticSVGcallback derivesproductionKeyprojection; notfullLayoutmount. SameindependentreviewCLEAR; packagedpublicreplay pending. F3.5C01missinguntilreplay;C04implemented.
-
-Caseprofileauthor owns3mechanicalsettingsfiles; fullrequirededitorwork nowincludes cutout/clearance polygon/vertex addremove, access/clearancevolumes, exactdefinitionIDextractionport, acceptedcontourswithoutprovenance, owner-key transientreset, guardedUpdateProfile/removal, Quantitypcs. BaselineRemoveandclearance missingactionREDs executed. ExpandedclearanceAdd/volume testGREEN1/1. CurrentfocusedRead/Apply/edit/remove retry6931 afterrawvertexonchange→oninputcorrection; verifyauthorresultbeforegate. Author mustprovidefinalhashes/reviewafterallfocusedchecks. Layout/handlefrozen. No heavyaggregate/packagecurrently.
-
-Rootpreparedfullprofile TSoracle: full-editor-input.boardstudio clonedonlyID/name fromr22savedhistory; reference-full-editor-after.boardstudio r38 hascutout-9.4, clearance-3.3, accessZ/height/X -0.5/4.5/-3.1, clearancevolume -2/6/-4.2, cutoutadd/removeUndoRedo, reload. Full-editor-reference-oracle.md; candidate pendingnewpackage. Source/evidencenextcommitdraft /tmp/case-profile-handle-layout-{source,commit}-paths.json (9sources,72paths sofar); refreshafterfreeze; nothingstaged. Sixunrelatedstaged entriesstillintact. Reviewexistingcase-profile-handle-review-20261005.md, noextra reviewer. Preserve lifecycle/F76evidencepatchesunapplied.
-
-## Current author handoff — Astra final profile and required lifecycle checks
-
-Do notresumeLuna profilewrites. case_local_export froze3files afteractualownerresetteststillfailed in scopedroot, thenAstra migration_acceleration_review tookownership. Cause: keyonstaticchilddidnotremountbecauseiteratedparentrowkeyremaineddefinition-only. Astra movesowner+definitionkeytoiteratorrow and usesDioxusscope-ownedspawnfor2extractiontasks. Final3sourcehashes settingsaceceb06ce4b6577311239a6890024d92f3a7cef12e58b0009692667d0f05bed, controllera8e94aa0d91b255e33c9397bd73ddb02f3691844b283d44db912a15f1c62336e, mount3e01a68ac5a7637d08febb5fa98feb0bd3e9c2f2052ebd78c57b5dde82248713. SameSolreviewer reviewingfinalcompletepacketwhilestrict3testsession94060runs; obtainactualterminalresult beforeaggregate. FullprofileTSoracle nowretainedr38/reload, no candidatepassclaim.
-
-Secondauthor draft_failure_triage resumed onlyREQUIRED F7.3C07 preserved2filepatch to unblockjoins; applied renderer_host_page_base.rs SHA9db63fbaacb3799e19960705a02ca1edf6bf6a490ed25fa523334169b4a57420 and pcb_module_inspector.rs SHA27d82297f2d061142f1cafad0fd5f15a2f4f15a1d11e2206c04361e5e004cc35. BothalreadyinAstra compilegraph; sourcefrozen, authorwaits94060terminal/sharedtargetreleasebeforefocusedlifecyclechecks. No mobile/optionalextraaudit. Ifstalledpreservepatchwithoutblockingindependentproductdelivery. These2filesnotyetin9sourcecommitdraftmanifest; addonlyonceexecuted/reviewedready. F76readinesspatchremainsunapplied.
-
-Goalturn progress: published113d immutablecandidate, qualifiedCasehardware/manufacturingfullC03withindependentreview→142/222verified, foundactualLayoutKeypath/focusdefects and obtainedfollow-upRED/GREEN/review, completedreferencefullprofileoracle, preserved6unrelatedstagedentriesexactly. Goalactive/incomplete; no newcommitafter113d. Next: author3tests + lifecyclefocus, finalconsolidatedCLEAR, onecombinedgate, explicitcommit theneligibleprovider-reusebuild, actualnewprofile/handledrag/Layoutpublicreplays andeligibleparentjoins.
-
-Latest handle correction: Astra94060 compiled but stopped beforeexecution because controller filter named tests instead of actual battery_patch_tests. No passingresult. Exact listedinventory selection corrected; current strict3testsession66742, unchangedsource. Lifecycleauthorstillfrozenawaitingrelease.
-
-## Current integration checkpoint — final source-sync repair
-
-HEAD113d76fd; frontend-case-layout-controls-20261005 remains published34822. Complete profile packet is frozen: strict editor/controller3/3, numeric2/2, final invalid-height1/1; actual reference Escape retainsr38 and Enter+blur producesr39 once. Details case-custom-profile-20261005/profile-packet-result.json. Same reviewer is settling final11file handshake in case-profile-handle-review-20261005.md.
-
-First combined gate2797084 TERMINAL1: required native renderer snapshot sync caught page-only lifecycle test additions. Author mirrored exact tests into renderer_host.rs and restored incidental pagebase blankline; focusednative guard1/1. No guard weakening. Current gate2801352 RUNNING /tmp/case-profile-handle-layout-final-gates.log and .exit; inspect live PID/child or terminal before any restart. Exact11source list/hashes /tmp/case-profile-handle-layout-source-{paths,hashes}.json. Six unrelated staged entries preserved via /tmp/case-layout-unrelated-index.json. Commit draft /tmp/case-profile-handle-layout-commit-paths.json; refresh owned evidence before explicit stage/guardedcommit.
-
-Required renderer6/6GREEN integrates; incomplete mountedPCB Save delta is unapplied/preserved. draft_failure_triage prepares evidence-only boundedstage diagnosis; NO liveRustwrites duringgate. WholeF7.3C07 remainsopen. Public pending mechanicalsave scopeproof: r19 Rightwall2.45 while entireLeftinstance unchanged2.4, case-pending-scope-20261005; pendingCADswitch timedout/unqualified. Newtabs47/48 useexistingbrowser; retainedprovider/scriptcheck proves candidate113d.
-
-Next: finalreview/gate terminalsuccess, guardedexplicitcommit, immutable frontend-case-profile-layout-finish-20261005 build with eligibleproviderreuse from frontend-case-layout-controls-20261005, publish then savedfixtureprofile/handle/Layoutreplays. Scopeownednextauthorwrites allowed onlyaftersnapshotstarts. No optional/mobile work or push.
-
-Final11-file independentreview CLEAR. Native245/wasmpage/reachabilitypassed; headlessrunning. Commit/build chainPID2805683 waitsactualgate2801352exit0, thenchecksHEAD/frozensources/preservedindex andcommitsownedmanifest beforeimmutableprovider-reusebuild. Do not duplicatechain. RequiredPCBSaveboundeddiagnosticprepared at lifecycle-deferred-20261005/draft/pcb-save-stage-diagnostics.patch (applyafteroriginalpatch); noexecutionclaim.
-
-
-Gate2801352 TERMINAL1; chain2805683 TERMINALfailed withoutcommit/build. Actualheadlessgroup failed two profilefixtures that passed isolated; Astraowns onlymechanical_settings.rs root-scopedfixturediagnosis/fix withfullgroupRED/GREEN. Two additionalfailclosedunmapped sources selection.rs/renderer_host.rs fixed via exactsource/basehashbound owner entries in scripts/wasm-test-owners.json;37runner testsPASS; same reviewerchecking. Preserve aggregate-profile-and-owner-red.log. Never claim priorgatepass or restarterrorsaslive. Next settledbatch12source/configpaths, newcombinedgate thennewtrackedchain.
-
-
-Settledprofilegroup fixtureisolation GREEN9/9 (expectedRED7/2), finalsettings4a85b354, final12source/configreviewCLEAR. Newgate2814676 live /tmp/case-profile-handle-layout-settled-gates.log/.exit. NewchainPID2820736 /tmp/case-profile-handle-settled-integrate-build.state.json waitsactualexit0 thenexplicitcommit/immutablebuild; oldgate/chainterminalfailed. Never duplicatechain.
-
-
-Final integration gate terminal0. Detached chain /tmp/case-profile-handle-settled-integrate-build.state.json now commits explicitownedpaths and builds immutable frontend-case-profile-layout-finish-20261005. Do not duplicate commit/build; inspect phase/log/actualPID. Sourcefreeze remains until immutable build begins.
-
-
-Integrated bda42cae; finalstrictaggregate58pass/0failure/0excluded/0incomplete, native245/page/reachabilitypass. Commitfreshchecks reran becauseindexidentitieschangedafterprepare. Nextbatches MUSTstageexplicitownedsourcepathsBEFOREprepare-gates toenableexactreuse (notaguardbypass). Sixunrelatedindexpreserved. Chain2820736 currentlybuilding immutable frontend-case-profile-layout-finish-20261005; inspectstate/log beforeanyaction. PCBtestauthorreleasedonefile/compile; CaseF76authorpreparesdisjointevidenceonlyuntilPCBfreeze. Currentpubliccandidate remains113d on34822; actualnewpublicreplayspending.
-
-## Current delivery checkpoint — extraction/lifecycle integration ready
-
-Published frontend-case-profile-layout-finish-20261005 sourcebda42cae at34822, detachedserver2835912, actualscriptdxh10c67c5354f09af9. Immutable providerreuse build141.28s,9freshcommands, retained23-commandlineage; root/subpath190assets/zero mismatches. LivePCBsource changed during snapshotbuild. Layoutactualcanvasselected-owner/history/reopen and PerimeterEscapeBoardnamefocuspassed; F3.5/F3.8/F6C.3accepted viaindependentreview.
-
-Manualfullprofile controls/history/reopen acceptedr38parsedwholeprojectequalsreference; Escape unchangedr38, Enter+bluroneeditr39alsoequalsreference. ActualReadKiCadworked butApplyrejectedcombined sourceID+kind/layer selector. Sameinputr42referenceappliesr43. Astra realCorevalidatorREDmatchedexacterror, fixedbothbyIDconstructors; fullmodule9/9. PCBSavefixture realPersist/replacement/readback1/1, fullmoduleincludednextgate. No productPCBbug: fixtureasyncsubmitsequence/lastdurableacceptedsemanticscorrected.
-
-Next2files frozen/reviewCLEAR: mechanical_settings.rs f3c07dd02aeba0c658961fedd985d2d701e8541951b91e0ea70639bd6abf7c34; pcb_module_inspector.rs06b6afff9288f8124b51c9fb945a64b1c160890f0076b93faac3ae90cfa6ec52. StagedexplicitBEFOREgate2855314: terminal0 native245/page/reachability/strictheadless12,0exclusions/incomplete. /tmp/case-extraction-lifecycle-{source-paths,source-hashes,commit-paths}.json. Sixunrelatedindexpreserved. Finalreviewcase-profile-handle-review-20261005.md. Commit/buildnext, thenactualApplysame42inputreplay. F76actualREADY.patch nowapplicable/readcheckpassed, preservedthreefileevidenceonly; pausedbehindprofilebug; no livewrites.
-
-Handlebda actualBottomview drag680,304→680,312 savedr19 withcanvas701wide/backing1050 andabsoluteoverlay. ActualUndo20parsedentiredocumentrestoresinputexceptrevision; Redo21restoresmoveddocument. Manualpreviewstale/Exportdisabledobserved. BUTUpdatepreviewonthisdownwardendpointreportsmount47hole/bossenvelopeblocked: do NOTqualifyentiregesture/constraintcriterion. RestoredoriginalwithUndo22 andclickedUpdatepreview; currenthandleC tab52generating. Nexttryknownreferencelateralgesture680,304→684,304 afterexactready, preservingdownwardadmissionlimit; theninvalid/noncommit/livepreviewbranches. Evidencecase-handle-qualification-20261005/candidate-bda-*.boardstudio/json.
-
-## Current continuation — published extraction; reviewed shared joins
-
-HEAD cc728fc644d57b985feed9128ffdb40f9c75a709. Published frontend-case-extraction-lifecycle-20261005 root34822/subpath, server PID2872710, actual JS boardstudio-web-dxhd9c1c044c4d075.js. Build202.55s,9freshcommands,23inherited-lineagecommands,0source/assetmismatches. First failed chain2862383 committed successfully then rejected reuse-derived baseline; never recommit/restart it. Successful build2867130 reused FULL frontend-case-layout-controls-20261005 and is terminal0.
-
-Actual profile Apply same r42 input now savesr43 entireparsedproject equal pinned TSreference; Undo-9.4/Redo-9.5 savesr45 entireprojectequal43exceptrevision and reopenretains-9.5. Receipt public-cc728fc6.md. Independent review accepted F7.1,F7.3,F7.4,F3.6,F6C.5. Current counts generated above. F7.5C04 verified actualmanualhistory/live/reopen. Validlateralr23 and invalidoutwardnochange archived. Actual TS downwardgesture itself savesr19 then sameboss-envelopeCADblocker; do not treat that pre-existingbackendpolicy as a newmigrationdefect or weakenconstraints.
-
-Frozen REQUIRED F76 test-only3file batch cad_presentation/runtime/presentation. Bothfocusedmountedtests1/1passed. Sources explicitlystaged BEFORE combinedgate PID2876848; /tmp/case-readiness-final-gates.log/.exit/.json. Native245/page/reachabilitypassed; broadpresentationheadlessstillRUNNING at lastactualPIDcheck. InspectlivePID/exit before any restart. Reviewer identified originalglobal #case-export-refresh lookup/newretainedroots collision risk; author case_local_export holdswrites awaitinggrouped result. If failureexpectedcrossroot, minimalrootscope/cleanup then wholecadmodule and renewedaggregate. No productdefectclaim; no source edits during activegate. Draft explicitcommitmanifest /tmp/case-readiness-milestone-commit-paths.json (25ownedpaths, refreshevidence/gatelog); preserve6unrelatedindexidentities /tmp/case-layout-unrelated-index.json. No newpackage needed for test-onlydelta unless releasebehaviorchanges; keep cc source attribution explicit.
-
-Same sole reviewer preset_batch_review consolidating remaining C04preference/sourceverdict. Actual paired cc/TS fiveconsumer scope receipt cross-consumer-cc728fc6-20261005 supportsF7.7C02/F7.8C01 (nowverified). RightWireframe resetsHybrid onLeft/Right BOTH. Distinct actualbodypref: bothimportedvalidhandle23, RightHidePlate→ShowPlate, Left→Right retainsShowPlate; Right exact, candidateLeftblocked/noPlaterow explicitlynotinvented. body-display-observations.json. F7.7C04 awaitsreview of thislastbranch; prior pendingCAD and pendingSave proofs alreadylocated, do NOTrepeatfailedCDPraces. F8.4 awaitsF8.1 visualjoin; noautomaticaccept.
-
-Secondauthor draft_failure_triage prepares EVIDENCE-ONLY required gestureprovisional/cancellationcomposition packet in shared_viewer/case_viewer after reviewing existing14/14 matrix. No livewrites/compile; do not duplicatecoveredinvalid/historychecks. F8/F9unassessed remainopenuntilprerequisites. No optional/mobilework/push. Currentbrowserbindings handleC/handleR mayclearatturndoundary; reusebrowser, createtabs asneeded.
-
-
-Superseding checkpoint: broadgate2876848 was deliberately stopped for REQUIREDfixturefix; wrapper/deliver/runner allverifiedMISSING. Incomplete headless, notpass. Minimal root-scoped Refresh and3ownedrootcleanup applied; wholeCADmodule4/4passed51.50s. Existinghashboundownerconfig nowmaps exacttest-onlypresentation/runtime toall4CADtests, independentlyapproved; runner37/37. Fourpaths stagedbefore new finalgatePID2901285 /tmp/case-readiness-settled-gates.log/.exit/.json; inspectthishandle, neverrestartoldgate. FinalcadSHA2d42e194d135e1330c89ada46a4f6d798ffd4f3f2fc203c23149cba5b00e32ef. Reviewerfinalhandshakepending; no extra package for test-onlybatch. F7.7C04 nowverified frombodypreference actualscope/revisit; parentjoinsremain.
-
-Final readiness milestone: four-file source/config independent CLEAR; settledgate2901285 TERMINAL0 native245/1ignored, page/reachability, strict4/0fail/0excluded/0incomplete56.37s. Prior2876848 deliberately stopped/incomplete. F7.6C01/C04/C05verified andparentaccepted; generatedcountsabove. Explicitmilestonecommit nowintegrates4paths andactualqualificationrecords, preserving6unrelatedindexentries. Publishedcc remainsunchangedproductioncandidate; noextra package. Next required author draft_failure_triage prepares actualevidence-onlyprovisional/Escapecompositionpatch; releaseaftercommit. No optional/mobilework.
-
-Current HEAD b53d53590412e427728f4313e39290e95945d6bd: committed34explicitownedpaths; all4exactgate receipts reused, commitPID2905698 terminal0. Sixunrelatedindexentriesverifiedintact. Publishedcc candidate remains unchangedreleaseproduction. Guardedcommitrawlog now case-readiness-required-20261005/integration-commit-reuse.log (nextmilestonerecord). Currentpendingbatch now required gesturecancellationcomposition, author draft_failure_triage LIVElease shared_viewer.rs/case_viewer.rs and onecompiler slot afterconcretefixtureplan; additionalruntime bridge lease requiresboundedreason. No otherheavyjob/buildlive. Same reviewer preset_batch_review. Continue remainingfunctionalqueues; nooptional/mobilework.
-
-## Current continuation — PCB accepted, required routed Case repair
-
-F5.4 andF8.4 accepted through same independentreview and explicitrefined acceptancejoins; F2.2-C02 additionallyverified. Exactcounts generatedabove. PCB proof pcb-clearance-scope-20261005 contains realunreviewedsyntheticservicevolume, independenthost/modulelayers, all3modulepaths, actualtrueFront/Front flip628normalizedgeometry+ancestortransforms, Board2empty→Mainboardexactrestore, r7/r8/r9actualarchives. Initialfliprejection remains rejected-flip-* r7, neverpass. Consolidatedreview case-profile-handle-review-20261005.md explicitlycorrects optionalstale-callbackmatrix and F8.1visual/startdependencyhold; visualcriteria stayopen.
-
-Realpublic2tab Projectfailure: create disposableRecoveryfixture, holdoriginalmenu, secondtabnameddeletion, originalstaleOpen shows unavailable; entireactiveVIKr9archive byteidentical inboth, thenhealthyPCBroutedlibraryopens. Evidence project-unavailable-recovery-20261005. Candidatecacheddeletedrow remains onmenureopen, TSrefreshes; documented, usable recoveryreviewCLEAR. C03supersessionstillopen.
-
-Newproductgap pcb-routed-case-viewer-20261005: paired routedfolder candidate/reference-after.boardstudio r22 enabledimportedLeftPCB/6models/nonidentitypose. CandidateCase noviewport/pending/error evenexplicitLeft andLayout3D→Case, whileTSactual90/90PCBvisible; Layout3Dworks. NativeRED exacterror Selected board uses imported-board preview owner. F5.7-C04 nowmissing, notaccepted.
-
-Activebatch case-routed-preview-and-required-cancellation-20261005. Astra migration_acceleration_review owns ONLY case_preview.rs/runtime.rs/shared_viewer.rs/case_viewer.rs: reuse existingimportedasset→PreviewBoard underCasephysicalowner, propagatepose/models, surfacecaptureerrors, owningnativeRED/GREEN, and minimalrequiredscope/unmount composition. Priorcancellationthreefiletest strict1/1/sourceCLEAR but cannotcommitoldhashmappingnowproductionchanges. RuntimeproposedfullaffectedWASMowners native_model_mapping_tests/case_preview_source_tests/cad_presentation mounted/case_viewer gesture/shared_viewer tests; exactnames/finalhashesawaitauthor/reviewer. Mandatorynativegateincludesnewcase_preview/nativeLayout/modeldelivery.
-
-Secondauthor case_local_export owns ONLY pcb_board_reference.rs: requiredmissingbrowserblob mountedactualBrowserStore and gatedrealFile.arrayBuffer stalerequestproject/board/revision admission. Workerclosedinharness, gateBEFOREworkercall; do notclaim realworker/postworker/cancellation. No Runtimelease. Bothauthorsallowedoneheavyjob each; no package/gate/coordinatorcommitstarted. SameSolreviewer preset_batch_review nowboundedF5.5-C04 evidencejoin, thenfinalsourcebatchreviewonceauthorssettle. Source currentlychanging; do notstage/gateyet. Publishcc34822 remains; HEADb53 unchanged. Sixunrelatedindexentries verifiedpreserved via /tmp/case-layout-unrelated-index.json. Commitrecordswithnextproductmilestone, no record-onlycommit. Browserbinding persists; currentpcbC/pcbRholdroutedfixtureLayout, secondaryrecoverDeleteC/Rtabswerepublicdeleteactors; listtabsbeforeuse, no rebootstrap.
-
-
-## Current continuation — frozen routed Case integration
-
-F5.5 accepted from paired unsaved placement draft retirement and retained real Save/Persist replacement proof; counts generated above. Five Rust files plus scripts/wasm-test-owners.json independently CLEAR, final source hashes /tmp/case-routed-required-source-hashes.json. Native Case15/15, Case mounted Escape/scope/unmount3/3 and owner-error1/1; typed projection correction1/1. Attempt2 is truthfully4passed/1fixturefail. PCB mounted missingblob+realFile-read staleowner2/2, no realworker/post-worker claim. Runner37/37. Sources explicitly staged before combined gatePID2955274, /tmp/case-routed-combined-gates.log/.exit/.json; inspect actual handle before restart. Six unrelated index entries preserved. New candidate/package not yet built. Next gate success→explicit guarded commit→immutable build from FULL baseline frontend-case-layout-controls-20261005→paired routedCase public geometry/models/pose/scope replay. F2.2-C03 author is evidence-only preparing deterministic Runtime import/open supersession patch; no live source edits before package snapshot. No optional/mobile work.
-
-Combined gate2955274 is now TERMINAL0: native246/1ignored; page/reachability; strictheadless30/30 no exclusions/incomplete434.15s. Source/configreviewCLEAR. F5.7C03/F7.5C02/C03verified; F7.5C01 still needs one actual gasket viewer move, not broader matrix. F4.5C01verified supportedreference profile fields/provenance. Explicit commit thenpackage/publicroutedCase replay next.
+Combined gate3074104 TERMINAL0: native247/1ignored, page/reachability, strictheadless54/0fail/0excluded/0incomplete939.96s. All11frozenhashes intact;6unrelatedstagedidentities preserved. F5.1accepted andF3.7C04verified from same consolidatedreview. F2longname/System/guide-panel focus public observations now viewer-actions shell-* receipts; reviewer checking exactclause. Source integration commit then immutablepackage next, no newpublic GREEN claimed. Corrected Layout/PCB inventory proposal evidence-only in progress; no compiler/sourcewrites.

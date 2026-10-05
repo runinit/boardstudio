@@ -236,6 +236,12 @@ pub(super) fn preferred_label(definition: &PartDefinition) -> &str {
 }
 
 async fn load_ergogen_module() -> Result<JsValue, String> {
+    #[cfg(test)]
+    let url = option_env!("BOARDSTUDIO_TEST_LAYOUT_GENERATOR_MODULE_URL")
+        .map(str::to_owned)
+        .map(Ok)
+        .unwrap_or_else(|| crate::runtime::resource_url("assets/layout-generators/src/index.js"))?;
+    #[cfg(not(test))]
     let url = crate::runtime::resource_url("assets/layout-generators/src/index.js")?;
     import_ergogen_module(&url).await
 }

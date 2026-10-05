@@ -1,0 +1,51 @@
+{
+  "candidate": {
+    "url": "http://127.0.0.1:34823/",
+    "source": "38641dd1353bcfb6230d52c1d5b84c7ad7908e7a",
+    "result": {
+      "canvasCount": 0,
+      "focus": "2D footprint",
+      "form": true,
+      "pressed": "true",
+      "status": [
+        "Changes are saved in this browser. Use Save project copy for a portable backup.",
+        "No closed courtyard is available; the outline uses physical graphics and pad extents."
+      ],
+      "svg": "switch mx footprint preview",
+      "viewport": {
+        "height": 720,
+        "width": 1280
+      }
+    }
+  },
+  "reference": {
+    "url": "http://127.0.0.1:5175/",
+    "source": "5a472a9426e6e38993361da402cd4ec730feb369",
+    "before": {
+      "canvasCount": 1,
+      "focus": "2D footprint",
+      "status": [
+        "Changes are saved in this browser. Use Save project copy for a portable backup.",
+        ""
+      ]
+    },
+    "result": {
+      "canvasCount": 0,
+      "focus": "2D footprint",
+      "form": true,
+      "pressed": "true",
+      "status": [
+        "Changes are saved in this browser. Use Save project copy for a portable backup.",
+        ""
+      ],
+      "svg": "Footprint preview",
+      "viewport": {
+        "height": 720,
+        "width": 1280
+      }
+    }
+  },
+  "definition": "ergogen:ceoloide/switch_mx",
+  "action": "Parts → 3D model; after preview ready, Shift+Tab reaches 2D footprint; Enter activates return",
+  "limits": "Existing persisted authored-case fixture, no project edit or archive assertion. This run proves desktop keyboard return; actual public context-loss and mounted initialization-error proof remain separately attributable historical evidence."
+}

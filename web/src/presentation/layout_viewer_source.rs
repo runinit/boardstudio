@@ -6,7 +6,7 @@
 
 use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
 use boardstudio_core::model::{
-    ArtifactRequest, Asset, BoardReference, Contour, ExportTarget, PcbPreview,
+    ArtifactRequest, Asset, BoardReference, Contour, ExportTarget, KeycapSpec, PcbPreview,
     PrepareExportRequest, ProjectDoc, ResolvedModule,
 };
 use std::{cell::Cell, rc::Rc};
@@ -56,6 +56,17 @@ pub(crate) struct LayoutPreviewSnapshot {
     pub(crate) path_assets: BTreeMap<String, String>,
     pub(crate) board_reference: Option<BoardReference>,
     pub(crate) preview: PcbPreview,
+}
+
+/// Keycap metadata from the exact mesh generation supplied to the current viewer.
+pub(crate) struct LayoutKeycapPickSource<'a> {
+    pub(crate) scope: &'a Scope,
+    pub(crate) snapshot_token: SnapshotToken,
+    pub(crate) revision: u64,
+    pub(crate) generation: u64,
+    pub(crate) rendered_generation: u64,
+    pub(crate) specs: &'a [KeycapSpec],
+    pub(crate) body_ids: &'a [String],
 }
 
 #[derive(Debug)]
@@ -480,6 +491,7 @@ impl LayoutPreviewSnapshot {
         scope: &Scope,
         source_generation: u64,
         model_reference: &str,
+        keycaps: Option<&LayoutKeycapPickSource<'_>>,
     ) -> Option<String> {
         if !self
             .owner
@@ -489,8 +501,46 @@ impl LayoutPreviewSnapshot {
             || Arc::as_ptr(&self.document) as usize != self.owner.accepted_document_identity
             || !Arc::ptr_eq(&self.document, &snapshot.document)
             || self.preview.revision != self.owner.accepted_revision
+            || !self.lease.matches(&self.owner)
         {
             return None;
+        }
+        if let Some(id) = model_reference
+            .strip_prefix("keycap:")
+            .or_else(|| model_reference.strip_prefix("keycap-legend:"))
+        {
+            let keycaps = keycaps?;
+            if keycaps.scope != scope
+                || keycaps.snapshot_token != snapshot.token
+                || keycaps.revision != snapshot.document.revision
+                || keycaps.generation == 0
+                || keycaps.generation != keycaps.rendered_generation
+                || keycaps
+                    .body_ids
+                    .iter()
+                    .filter(|id| id.as_str() == model_reference)
+                    .count()
+                    != 1
+            {
+                return None;
+            }
+            let mut matching_specs = keycaps.specs.iter().filter(|spec| spec.id == id);
+            let spec = matching_specs.next()?;
+            if matching_specs.next().is_some() {
+                return None;
+            }
+            let board = self
+                .document
+                .boards
+                .iter()
+                .find(|board| board.id == scope.board_id)?;
+            let mut matching_parts = self
+                .document
+                .parts
+                .iter()
+                .filter(|part| part.id == spec.id && board.part_ids.contains(&part.id));
+            let part = matching_parts.next()?;
+            return matching_parts.next().is_none().then(|| part.id.clone());
         }
         crate::case_preview::part_for_native_preview_reference(
             &self.document,
@@ -744,12 +794,12 @@ mod tests {
         both.models.push(right_model);
         let accepted_preview = capture.accept_preview(both).unwrap();
         assert_eq!(
-            accepted_preview.part_for_current_pick(&snapshot, &scope, 3, "U1"),
+            accepted_preview.part_for_current_pick(&snapshot, &scope, 3, "U1", None),
             Some("part-1".into())
         );
         assert!(
             accepted_preview
-                .part_for_current_pick(&snapshot, &scope, 3, "U2")
+                .part_for_current_pick(&snapshot, &scope, 3, "U2", None)
                 .is_none(),
             "the other board's part is absent from the selected board's scene"
         );
@@ -931,12 +981,12 @@ mod tests {
             .accept_preview(preview())
             .unwrap();
         assert_eq!(
-            accepted_preview.part_for_current_pick(&snapshot, &scope, 3, "U1"),
+            accepted_preview.part_for_current_pick(&snapshot, &scope, 3, "U1", None),
             Some("part-1".into())
         );
         assert!(
             accepted_preview
-                .part_for_current_pick(&snapshot, &scope, 4, "U1")
+                .part_for_current_pick(&snapshot, &scope, 4, "U1", None)
                 .is_none()
         );
         let stale_scene = AcceptedSnapshot {
@@ -945,19 +995,19 @@ mod tests {
         };
         assert!(
             accepted_preview
-                .part_for_current_pick(&stale_scene, &scope, 3, "U1")
+                .part_for_current_pick(&stale_scene, &scope, 3, "U1", None)
                 .is_none()
         );
         let mut other_instance = scope.clone();
         other_instance.instance_id = Some("right-half".into());
         assert!(
             accepted_preview
-                .part_for_current_pick(&snapshot, &other_instance, 3, "U1")
+                .part_for_current_pick(&snapshot, &other_instance, 3, "U1", None)
                 .is_none()
         );
         assert!(
             accepted_preview
-                .part_for_current_pick(&snapshot, &scope, 3, "U1:0")
+                .part_for_current_pick(&snapshot, &scope, 3, "U1:0", None)
                 .is_none()
         );
 
@@ -973,8 +1023,137 @@ mod tests {
         };
         assert!(
             accepted_preview
-                .part_for_current_pick(&duplicate_snapshot, &scope, 3, "U1")
+                .part_for_current_pick(&duplicate_snapshot, &scope, 3, "U1", None)
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn rendered_keycap_and_legend_picks_require_current_specs_bodies_and_board_owner() {
+        use boardstudio_core::{
+            CoreEngine,
+            model::{CoreReply, CoreRequest},
+        };
+
+        let (mut snapshot, scope) = accepted(false);
+        let mut document = snapshot.document.as_ref().clone();
+        document.definitions.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "mcu", "name": "MX", "kind": "switch", "pads": [], "courtyard": [],
+                "keycap": {"x": 18.2, "y": 18.2}
+            }))
+            .unwrap(),
+        );
+        let mut other_part = document.parts[0].clone();
+        other_part.id = "other-key".into();
+        other_part.reference = "SW2".into();
+        document.parts.push(other_part);
+        let mut other_board = document.boards[0].clone();
+        other_board.id = "right".into();
+        other_board.part_ids = vec!["other-key".into()];
+        document.boards.push(other_board);
+        document.keycaps = Some(
+            serde_json::from_value(serde_json::json!({
+                "keys": {
+                    "part-1": {"profile": "dsa", "mount": "mx", "legend": "A"},
+                    "other-key": {"profile": "dsa", "mount": "mx", "legend": "B"}
+                }
+            }))
+            .unwrap(),
+        );
+        snapshot.document = Arc::new(document);
+        let resolve = |board_id: &str| {
+            let reply = CoreEngine::new().handle(CoreRequest::ResolveKeycaps {
+                id: "pick-specs".into(),
+                document: snapshot.document.as_ref().clone(),
+                board_id: board_id.into(),
+                cases: None,
+            });
+            let CoreReply::KeycapsResolved { result, .. } = reply else {
+                panic!("Core resolves actual accepted keycap specifications");
+            };
+            assert_eq!(result.revision, snapshot.document.revision);
+            assert_eq!(result.specs.len(), 1);
+            result.specs
+        };
+        let specs = resolve("left");
+        let other_specs = resolve("right");
+        assert_eq!(specs[0].id, "part-1");
+        assert_eq!(specs[0].legend, "A");
+        let accepted_preview = source_capture(&snapshot, &scope)
+            .accept_preview(preview())
+            .unwrap();
+        let body_ids = vec!["keycap:part-1".into(), "keycap-legend:part-1".into()];
+        let mut keycaps = LayoutKeycapPickSource {
+            scope: &scope,
+            snapshot_token: snapshot.token,
+            revision: snapshot.document.revision,
+            generation: 5,
+            rendered_generation: 5,
+            specs: &specs,
+            body_ids: &body_ids,
+        };
+        let pick = |reference: &str, keycaps: &LayoutKeycapPickSource<'_>| {
+            accepted_preview.part_for_current_pick(&snapshot, &scope, 3, reference, Some(keycaps))
+        };
+        assert_eq!(
+            accepted_preview.part_for_current_pick(&snapshot, &scope, 3, "U1", None),
+            Some("part-1".into())
+        );
+        assert_eq!(pick("keycap:part-1", &keycaps), Some("part-1".into()));
+        assert_eq!(
+            pick("keycap-legend:part-1", &keycaps),
+            Some("part-1".into())
+        );
+        keycaps.body_ids = &[];
+        assert!(
+            pick("keycap:part-1", &keycaps).is_none(),
+            "a spec without a rendered mesh is not pickable"
+        );
+        keycaps.body_ids = &body_ids;
+        keycaps.specs = &[];
+        assert!(
+            pick("keycap:part-1", &keycaps).is_none(),
+            "a body without its accepted spec is not pickable"
+        );
+        keycaps.specs = &specs;
+        keycaps.rendered_generation = 4;
+        assert!(
+            pick("keycap:part-1", &keycaps).is_none(),
+            "old rendered mesh generation is retired"
+        );
+        keycaps.rendered_generation = 5;
+        keycaps.snapshot_token = SnapshotToken(snapshot.token.0 + 1);
+        assert!(pick("keycap:part-1", &keycaps).is_none());
+        keycaps.snapshot_token = snapshot.token;
+        keycaps.revision += 1;
+        assert!(pick("keycap:part-1", &keycaps).is_none());
+        keycaps.revision = snapshot.document.revision;
+        let other_body_ids = vec!["keycap:other-key".into()];
+        keycaps.specs = &other_specs;
+        keycaps.body_ids = &other_body_ids;
+        assert!(
+            pick("keycap:other-key", &keycaps).is_none(),
+            "a real spec from another board cannot select its part"
+        );
+        keycaps.specs = &specs;
+        keycaps.body_ids = &body_ids;
+        assert!(
+            accepted_preview
+                .part_for_current_pick(&snapshot, &scope, 4, "keycap:part-1", Some(&keycaps))
+                .is_none()
+        );
+        let mut other_scope = scope.clone();
+        other_scope.instance_id = Some("other-half".into());
+        assert!(
+            accepted_preview
+                .part_for_current_pick(&snapshot, &other_scope, 3, "keycap:part-1", Some(&keycaps))
+                .is_none()
+        );
+        accepted_preview.lease.invalidate();
+        assert!(
+            pick("keycap:part-1", &keycaps).is_none(),
+            "retired Layout source cannot select a part"
         );
     }
 

@@ -844,103 +844,211 @@
         {
           "path": "app/src/ui/FirmwareKeymapPanel.tsx",
           "role": "FirmwareKeymap panel",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "bb3db7db1705364c28b3f98ae3fa4c491161e5210daf89112fc2d370a609936b",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned",
+          "dioxus_owner": "web/src/presentation/pcb_wiring.rs; web/src/presentation/keymap/encoder_editor.rs",
+          "evidence": [
+            ".scratch/dioxus-keymap-layers/evidence/encoder-public-workflow/RESULTS.md",
+            ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/encoder-tests-final.log",
+            ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md",
+            ".scratch/dioxus-keymap-layers/evidence/F6K.4b-browser-20261002/RESULTS.md"
+          ],
+          "acceptance": "Functional responsibilities accepted via F6K.4. F6.6 aggregate desktop visual/release qualification remains open; this entry does not waive those joins or authorize React retirement.",
           "planning_assignment": {
             "lead_workflow": "F6",
             "shared_consumers": [
               "F5"
             ],
             "planned_dioxus_owner": "private Keymap and Keycaps presentation modules"
+          },
+          "disposition": {
+            "functional_parents": [
+              "F6K.4"
+            ],
+            "remaining": [
+              "F6.6-C04 aggregate lifecycle/history evidence join",
+              "F6.6-C05 desktop visual qualification",
+              "F9.6/F9.7 cutover and retirement gates"
+            ],
+            "reference_retained": true
           }
         },
         {
           "path": "app/src/ui/KeyBindingEditor.tsx",
           "role": "KeyBindingEditor",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "b802b651d16841ba06f61bb68b7341d090f1c0ae717c6c559b48c2095eb2dee5",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned",
+          "dioxus_owner": "web/src/presentation/keymap/binding_editor.rs; web/src/presentation/keymap/binding_controller.rs",
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/keymap-f6k2-acceptance-20261003/REVIEW.md"
+          ],
+          "acceptance": "Functional responsibilities accepted via F6K.2. F6.6 aggregate desktop visual/release qualification remains open; this entry does not waive those joins or authorize React retirement.",
           "planning_assignment": {
             "lead_workflow": "F6",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Keymap and Keycaps presentation modules"
+          },
+          "disposition": {
+            "functional_parents": [
+              "F6K.2"
+            ],
+            "remaining": [
+              "F6.6-C04 aggregate lifecycle/history evidence join",
+              "F6.6-C05 desktop visual qualification",
+              "F9.6/F9.7 cutover and retirement gates"
+            ],
+            "reference_retained": true
           }
         },
         {
           "path": "app/src/ui/KeySizeControls.tsx",
           "role": "KeySizeControls",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "4e8adbf9ecc170ea8fc58ea03bb2fe21c60042d13c25e628e6b4c3d86bdf9718",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned",
+          "dioxus_owner": "web/src/presentation/objects/keycap_size.rs; web/src/presentation/objects/keycap_size_controller.rs",
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/keycaps-size-reflow-20261003/paired-linked-resize.md",
+            ".scratch/dioxus-keycaps-workflow/evidence/size-reflow/owner-lifecycle-repair.md"
+          ],
+          "acceptance": "Functional responsibilities accepted via F6C.3. F6.6 aggregate desktop visual/release qualification remains open; this entry does not waive those joins or authorize React retirement.",
           "planning_assignment": {
             "lead_workflow": "F6",
             "shared_consumers": [
               "F3"
             ],
             "planned_dioxus_owner": "private Keymap and Keycaps presentation modules"
+          },
+          "disposition": {
+            "functional_parents": [
+              "F6C.3"
+            ],
+            "remaining": [
+              "F6.6-C04 aggregate lifecycle/history evidence join",
+              "F6.6-C05 desktop visual qualification",
+              "F9.6/F9.7 cutover and retirement gates"
+            ],
+            "reference_retained": true
           }
         },
         {
           "path": "app/src/ui/KeycapPanel.tsx",
           "role": "Keycap panel",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "f04b1f062cd77bae48696c33bf5722bde0b251160ce5feda31bca3bd9c5e0466",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned",
+          "dioxus_owner": "web/src/presentation/keycaps_settings.rs; web/src/presentation/keycaps_fit.rs; web/src/presentation/keycaps_navigation.rs",
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/keycaps-f6c2-acceptance-20261003/REVIEW.md",
+            ".scratch/dioxus-frontend-v1/evidence/keycaps-f6c4-acceptance-20261003/REVIEW.md"
+          ],
+          "acceptance": "Functional responsibilities accepted via F6C.2, F6C.4. F6.6 aggregate desktop visual/release qualification remains open; this entry does not waive those joins or authorize React retirement.",
           "planning_assignment": {
             "lead_workflow": "F6",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Keymap and Keycaps presentation modules"
+          },
+          "disposition": {
+            "functional_parents": [
+              "F6C.2",
+              "F6C.4"
+            ],
+            "remaining": [
+              "F6.6-C04 aggregate lifecycle/history evidence join",
+              "F6.6-C05 desktop visual qualification",
+              "F9.6/F9.7 cutover and retirement gates"
+            ],
+            "reference_retained": true
           }
         },
         {
           "path": "app/src/ui/KeymapLayout.tsx",
           "role": "KeymapLayout",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "66ab460465d7e26342ee54fa9e47277baadb50d18c2897be8652eed942586707",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned",
+          "dioxus_owner": "web/src/presentation/keymap/canvas.rs; web/src/presentation/keycaps_scene.rs; web/src/presentation/keycaps_workspace.rs",
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/keymap-f6k1-acceptance-20261003/DECISION.json",
+            ".scratch/dioxus-frontend-v1/evidence/keycaps-f6c1-acceptance-20261003/DECISION.json"
+          ],
+          "acceptance": "Functional responsibilities accepted via F6K.1, F6C.1. F6.6 aggregate desktop visual/release qualification remains open; this entry does not waive those joins or authorize React retirement.",
           "planning_assignment": {
             "lead_workflow": "F6",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Keymap and Keycaps presentation modules"
+          },
+          "disposition": {
+            "functional_parents": [
+              "F6K.1",
+              "F6C.1"
+            ],
+            "remaining": [
+              "F6.6-C04 aggregate lifecycle/history evidence join",
+              "F6.6-C05 desktop visual qualification",
+              "F9.6/F9.7 cutover and retirement gates"
+            ],
+            "reference_retained": true
           }
         },
         {
           "path": "app/src/ui/KeymapPanel.tsx",
           "role": "Keymap panel",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "2ddb320e7396925d715f0564457b06da1b3ca9402a1551eb83fa723c48a36de4",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned",
+          "dioxus_owner": "web/src/presentation/keymap/panel.rs; web/src/presentation/keymap/layer_controller.rs; web/src/presentation/keymap/macro_editor.rs; web/src/presentation/keymap/encoder_editor.rs",
+          "evidence": [
+            ".scratch/dioxus-keymap-layers/evidence/encoder-public-workflow/RESULTS.md",
+            ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/encoder-tests-final.log",
+            ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md",
+            ".scratch/dioxus-keymap-layers/evidence/F6K.4b-browser-20261002/RESULTS.md",
+            ".scratch/dioxus-frontend-v1/evidence/keymap-f6k1-acceptance-20261003/DECISION.json",
+            ".scratch/dioxus-frontend-v1/evidence/keymap-f6k3-acceptance-20261003/REVIEW.md"
+          ],
+          "acceptance": "Functional responsibilities accepted via F6K.1, F6K.3, F6K.4. F6.6 aggregate desktop visual/release qualification remains open; this entry does not waive those joins or authorize React retirement.",
           "planning_assignment": {
             "lead_workflow": "F6",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Keymap and Keycaps presentation modules"
+          },
+          "disposition": {
+            "functional_parents": [
+              "F6K.1",
+              "F6K.3",
+              "F6K.4"
+            ],
+            "remaining": [
+              "F6.6-C04 aggregate lifecycle/history evidence join",
+              "F6.6-C05 desktop visual qualification",
+              "F9.6/F9.7 cutover and retirement gates"
+            ],
+            "reference_retained": true
           }
         },
         {
           "path": "app/src/ui/createKeymapWorkspace.tsx",
           "role": "create Keymap workspace",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "4afc3fe232614154fdf687e8a270bc8251b7a17a770566e593d68423095015f5",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned",
+          "dioxus_owner": "web/src/presentation/keymap/view.rs; web/src/presentation/keycaps_scene.rs; web/src/presentation/keycaps_workspace.rs; web/src/presentation.rs",
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/keymap-f6k1-acceptance-20261003/DECISION.json",
+            ".scratch/dioxus-frontend-v1/evidence/keycaps-f6c1-acceptance-20261003/DECISION.json"
+          ],
+          "acceptance": "Functional responsibilities accepted via F6K.1, F6C.1. F6.6 aggregate desktop visual/release qualification remains open; this entry does not waive those joins or authorize React retirement.",
           "planning_assignment": {
             "lead_workflow": "F6",
             "shared_consumers": [],
             "planned_dioxus_owner": "private Keymap and Keycaps presentation modules"
+          },
+          "disposition": {
+            "functional_parents": [
+              "F6K.1",
+              "F6C.1"
+            ],
+            "remaining": [
+              "F6.6-C04 aggregate lifecycle/history evidence join",
+              "F6.6-C05 desktop visual qualification",
+              "F9.6/F9.7 cutover and retirement gates"
+            ],
+            "reference_retained": true
           }
         }
       ],
@@ -1348,5 +1456,11 @@
     "fully_ported_file_claims": 0,
     "evidence": "layout-layers/handoff.md"
   },
-  "planning_revision": "2026-10-02 workflow decomposition"
+  "planning_revision": "2026-10-02 workflow decomposition",
+  "f6_inventory_increment": {
+    "date": "2026-10-05",
+    "scope": "Seven F6-owned production TSX rows only. Exact implemented Rust owners and canonical accepted functional evidence; shared main/Workbench/viewer rows retain partial ownership and no whole-file completion claim.",
+    "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
+    "visual_release_state": "pending F6.6 desktop qualification; mobile excluded by user; React retained until separately approved cutover"
+  }
 }

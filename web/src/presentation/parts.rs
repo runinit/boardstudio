@@ -192,6 +192,15 @@ struct CatalogueView {
     error: Option<String>,
 }
 
+#[cfg(test)]
+type CatalogueLoadFuture =
+    std::pin::Pin<Box<dyn std::future::Future<Output = Result<Rc<Vec<CatalogEntry>>, String>>>>;
+
+/// Per-host source boundary for mounted loading/error-state tests only.
+#[cfg(test)]
+#[derive(Clone)]
+struct CatalogueLoadTestPort(Rc<dyn Fn(bool) -> CatalogueLoadFuture>);
+
 struct CachedProjectCatalogue {
     scope: Option<Scope>,
     token: SnapshotToken,
@@ -516,8 +525,12 @@ fn add_object_groups<'a>(
 #[cfg(test)]
 mod add_object_menu_tests {
     use super::*;
+    use boardstudio_application::{SessionEpoch, SnapshotToken};
     use std::{cell::RefCell, rc::Rc, sync::Arc};
     use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
     fn entry(id: &str, name: &str, kind: &str) -> CatalogEntry {
         CatalogEntry {
@@ -564,6 +577,60 @@ mod add_object_menu_tests {
         compact_open: Signal<bool>,
         panel_settings: Signal<super::super::PanelSettings>,
         generation: Signal<u64>,
+    }
+
+    #[derive(Clone)]
+    struct CatalogueMountedFixture {
+        snapshot: AcceptedSnapshot,
+        runtime: Rc<crate::runtime::Runtime>,
+    }
+
+    #[component]
+    fn PartsLibraryMountedHost() -> Element {
+        let fixture = use_context::<Rc<CatalogueMountedFixture>>();
+        let query = use_signal(String::new);
+        let selected = use_signal(|| None::<(Option<Scope>, String)>);
+        let scope_generation = use_signal(|| 1_u64);
+        let workspace = use_signal(|| "Parts");
+        let generation = use_signal(|| 1_u64);
+        let activation = use_signal(|| 0_u64);
+        let assembly = use_signal(|| None);
+        let orientation = use_signal(|| assembly_presets::SwitchOrientation::South);
+        use_context_provider(|| Signal::new(0_u64));
+        use_context_provider(|| PartsSelectionGeneration(generation));
+        use_context_provider(|| PartsPreviewActivation(activation));
+        use_context_provider(|| PartsAssemblySelection(assembly));
+        use_context_provider(|| PartsAssemblyOrientation(orientation));
+        rsx! {
+            PartsLibraryPanel {
+                snapshot: fixture.snapshot.clone(),
+                scope: None,
+                scope_generation,
+                workspace,
+                query,
+                selected,
+                on_select: EventHandler::default(),
+            }
+        }
+    }
+
+    fn catalogue_snapshot() -> AcceptedSnapshot {
+        let document = ProjectDoc::empty("catalogue-loading-error", "Catalogue states");
+        let scene: boardstudio_core::model::SceneDelta =
+            serde_json::from_value(serde_json::json!({
+                "revision": 0,
+                "transactionId": "catalogue-loading-error",
+                "changedIds": [], "transforms": [], "matrixScenes": [],
+                "contours": [], "boardContours": [], "boardReadiness": [], "findings": [],
+                "readiness": {"layout": false, "outline": false, "pcb": false, "case": false}
+            }))
+            .unwrap();
+        AcceptedSnapshot {
+            token: SnapshotToken(10),
+            session_epoch: SessionEpoch(3),
+            document: Arc::new(document),
+            scene: Arc::new(scene),
+        }
     }
 
     #[component]
@@ -679,6 +746,76 @@ mod add_object_menu_tests {
                 super::super::PanelMode::Pinned
             }
         );
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_parts_library_announces_catalogue_loading_then_source_error() {
+        let (complete, result) =
+            futures_channel::oneshot::channel::<Result<Rc<Vec<CatalogEntry>>, String>>();
+        let pending = Rc::new(RefCell::new(Some(result)));
+        let loader = CatalogueLoadTestPort(Rc::new(move |_reversible| {
+            let result = pending.borrow_mut().take().expect("one catalogue request");
+            Box::pin(async move {
+                result
+                    .await
+                    .unwrap_or_else(|_| Err("catalogue test request dropped".into()))
+            })
+        }));
+        let fixture = Rc::new(CatalogueMountedFixture {
+            snapshot: catalogue_snapshot(),
+            runtime: crate::runtime::Runtime::new()
+                .expect("browser Runtime fixture initializes"),
+        });
+        fixture
+            .runtime
+            .set_definition_name_test_state(fixture.snapshot.clone(), None);
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("parts-catalogue-source-state-test");
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(PartsLibraryMountedHost);
+        dom.provide_root_context(fixture.clone());
+        dom.provide_root_context(loader);
+        dom.provide_root_context(fixture.runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+
+        for _ in 0..100 {
+            if root
+                .text_content()
+                .unwrap_or_default()
+                .contains("Loading component catalogue…")
+            {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert!(
+            root.text_content()
+                .unwrap_or_default()
+                .contains("Loading component catalogue…")
+        );
+        complete
+            .send(Err("controlled catalogue source failure".into()))
+            .unwrap();
+        for _ in 0..100 {
+            if root
+                .query_selector("p[role='alert']")
+                .unwrap()
+                .and_then(|alert| alert.text_content())
+                .is_some_and(|text| text.contains("controlled catalogue source failure"))
+            {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        let alert = root.query_selector("p[role='alert']").unwrap().unwrap();
+        assert!(alert.text_content().unwrap().contains(
+            "Component catalogue could not be loaded: controlled catalogue source failure"
+        ));
+        root.remove();
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
@@ -1394,11 +1531,23 @@ pub(super) fn PartsPreviewWorkspace(
 fn use_catalogue(snapshot: &AcceptedSnapshot, scope: &Option<Scope>) -> CatalogueView {
     let document = snapshot.document.clone();
     let reversible_layout = reversible_layout(&document);
+    #[cfg(test)]
+    let test_loader = try_consume_context::<CatalogueLoadTestPort>();
     let catalogue = use_resource(use_reactive((scope, &reversible_layout), {
         move |(scope, reversible_layout)| {
             let scope = scope.clone();
+            #[cfg(test)]
+            let test_loader = test_loader.clone();
             async move {
-                match catalogue::load_bundled(reversible_layout).await {
+                #[cfg(test)]
+                let loaded = if let Some(test_loader) = test_loader {
+                    (test_loader.0)(reversible_layout).await
+                } else {
+                    catalogue::load_bundled(reversible_layout).await
+                };
+                #[cfg(not(test))]
+                let loaded = catalogue::load_bundled(reversible_layout).await;
+                match loaded {
                     Ok(entries) => Ok((scope, reversible_layout, entries)),
                     Err(error) => Err((scope, reversible_layout, error)),
                 }

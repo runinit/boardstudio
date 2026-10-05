@@ -510,6 +510,318 @@ fn parse_purpose(value: &str) -> Option<MechanicalPurpose> {
     }
 }
 
+#[cfg(all(test, target_arch = "wasm32"))]
+mod mounted_tests {
+    use super::*;
+    use crate::parts_mechanical_profile::ProfileDefinitionSource;
+    use boardstudio_application::{OperationId, SessionEpoch, SnapshotToken};
+    use boardstudio_core::model::{
+        MechanicalGeometryKind, MechanicalPrimitive, MechanicalProfileSource, MechanicalShape,
+        ProjectDoc, SceneDelta,
+    };
+    use futures_channel::oneshot;
+    use std::{cell::RefCell, collections::VecDeque};
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    struct ExtractionRequest {
+        complete: oneshot::Sender<Result<MechanicalExtraction, String>>,
+    }
+
+    struct Fixture {
+        snapshot: AcceptedSnapshot,
+        scope: Scope,
+        owner: ProfileEditOwner,
+        definition: PartDefinition,
+        current_scope: Rc<RefCell<Option<Scope>>>,
+        owner_current: Rc<Cell<bool>>,
+        requests: Rc<RefCell<VecDeque<ExtractionRequest>>>,
+        saved: Rc<RefCell<Option<MechanicalPartProfile>>>,
+        ports: ManualProfileEditorPorts,
+    }
+
+    #[derive(Clone, Copy)]
+    struct MountedSignals {
+        selection: Signal<Option<(Option<Scope>, String)>>,
+        selection_generation: Signal<u64>,
+        scope_generation: Signal<u64>,
+    }
+
+    #[component]
+    fn ManualProfileMountedHost() -> Element {
+        let fixture = use_context::<Rc<Fixture>>();
+        let handles = use_context::<Rc<RefCell<Option<MountedSignals>>>>();
+        let selection =
+            use_signal(|| Some((Some(fixture.scope.clone()), fixture.definition.id.clone())));
+        let selection_generation = use_signal(|| 1_u64);
+        let scope_generation = use_signal(|| 1_u64);
+        let workspace = use_signal(|| "Parts");
+        *handles.borrow_mut() = Some(MountedSignals {
+            selection,
+            selection_generation,
+            scope_generation,
+        });
+        let saved = fixture.saved.clone();
+        let on_save = EventHandler::new(move |profile| *saved.borrow_mut() = Some(profile));
+        rsx! {
+            ManualProfileEditor {
+                definition: fixture.definition.clone(),
+                initial: None,
+                owner: fixture.owner.clone(),
+                snapshot: fixture.snapshot.clone(),
+                selection,
+                selection_generation,
+                scope_generation,
+                workspace,
+                on_save,
+                on_close: EventHandler::default(),
+                ports: fixture.ports.clone(),
+            }
+        }
+    }
+
+    fn extraction() -> MechanicalExtraction {
+        MechanicalExtraction {
+            geometry: MechanicalGeometry {
+                source_name: Some("controlled delayed source".into()),
+                primitives: vec![MechanicalPrimitive {
+                    id: "stale-layer-primitive".into(),
+                    source_group_id: "stale-group".into(),
+                    kind: MechanicalGeometryKind::Polygon,
+                    layer: Some("Dwgs.User".into()),
+                    layers: vec!["Dwgs.User".into()],
+                    purpose: None,
+                    geometry: MechanicalShape::Polygon {
+                        points: vec![
+                            Vec2 { x: -1.0, y: -1.0 },
+                            Vec2 { x: 1.0, y: -1.0 },
+                            Vec2 { x: 1.0, y: 1.0 },
+                        ],
+                        width: None,
+                    },
+                }],
+            },
+            plate_cutouts: vec![vec![
+                Vec2 { x: -1.0, y: -1.0 },
+                Vec2 { x: 1.0, y: -1.0 },
+                Vec2 { x: 1.0, y: 1.0 },
+            ]],
+            clearance_envelopes: Vec::new(),
+            pcb_holes: Vec::new(),
+            source_geometry: MechanicalProfileSource {
+                text: "controlled delayed source".into(),
+                sha256: "a".repeat(64),
+                mappings: Vec::new(),
+                source_ids: vec!["stale-layer-primitive".into()],
+            },
+        }
+    }
+
+    fn fixture() -> Rc<Fixture> {
+        let definition: PartDefinition = serde_json::from_value(serde_json::json!({
+            "id": "imported:thqwgd001c",
+            "name": "THQWGD001C · 2-pin tactile · reversible",
+            "kind": "switch",
+            "kicadSource": {
+                "formatVersion": 1,
+                "source": "(footprint \"THQWGD001C\" (version 20240108) (generator \"BoardStudio\"))"
+            },
+            "courtyard": [
+                {"x": -5.0, "y": -3.0}, {"x": 5.0, "y": -3.0}, {"x": 5.0, "y": 3.0}
+            ],
+            "pads": []
+        })).unwrap();
+        let document = ProjectDoc::empty("mechanical-extraction-owner", "Extraction owner");
+        let scene: SceneDelta = serde_json::from_value(serde_json::json!({
+            "revision": 2,
+            "transactionId": "mechanical-extraction-owner",
+            "changedIds": [], "transforms": [], "matrixScenes": [],
+            "contours": [], "boardContours": [], "boardReadiness": [], "findings": [],
+            "readiness": {"layout": false, "outline": false, "pcb": false, "case": false}
+        }))
+        .unwrap();
+        let snapshot = AcceptedSnapshot {
+            token: SnapshotToken(12),
+            session_epoch: SessionEpoch(9),
+            document: std::sync::Arc::new(document),
+            scene: std::sync::Arc::new(scene),
+        };
+        let scope = Scope {
+            session_epoch: snapshot.session_epoch,
+            document_id: snapshot.document.id.clone(),
+            board_id: "left-pcb".into(),
+            instance_id: None,
+        };
+        let owner = ProfileEditOwner::new(
+            OperationId(44),
+            &snapshot,
+            Some(scope.clone()),
+            ProfileDefinitionSource::Imported,
+            &definition,
+        );
+        let requests = Rc::new(RefCell::new(VecDeque::new()));
+        let request_queue = requests.clone();
+        let request_mechanical_extraction: MechanicalExtractionRequester =
+            Rc::new(move |_source, _mappings| {
+                let (complete, result) = oneshot::channel();
+                request_queue
+                    .borrow_mut()
+                    .push_back(ExtractionRequest { complete });
+                (
+                    OperationId(45),
+                    Box::pin(async move {
+                        result
+                            .await
+                            .unwrap_or_else(|_| Err("controlled extraction retired".into()))
+                    }) as MechanicalExtractionFuture,
+                )
+            });
+        let current_scope = Rc::new(RefCell::new(Some(scope.clone())));
+        let current_scope_port = current_scope.clone();
+        let owner_current = Rc::new(Cell::new(true));
+        let owner_current_port = owner_current.clone();
+        let saved = Rc::new(RefCell::new(None));
+        Rc::new(Fixture {
+            snapshot,
+            scope,
+            owner,
+            definition,
+            current_scope,
+            owner_current,
+            requests,
+            saved,
+            ports: ManualProfileEditorPorts {
+                request_standard_profile: Rc::new(|_, _, _| {
+                    (
+                        OperationId(46),
+                        Box::pin(async { Err("unused standard request".into()) }),
+                    )
+                }),
+                request_mechanical_extraction,
+                spawn_detached: Rc::new(|future| wasm_bindgen_futures::spawn_local(future)),
+                current_scope: Rc::new(move || current_scope_port.borrow().clone()),
+                accepted_owner_is_current: Rc::new(move |_| owner_current_port.get()),
+            },
+        })
+    }
+
+    fn click_button(root: &web_sys::Element, label: &str) {
+        let buttons = root.query_selector_all("button").unwrap();
+        for index in 0..buttons.length() {
+            let Some(button) = buttons.item(index) else {
+                continue;
+            };
+            if button.text_content().unwrap_or_default().trim() == label {
+                button.dyn_into::<web_sys::HtmlElement>().unwrap().click();
+                return;
+            }
+        }
+        panic!("missing mounted profile button {label}");
+    }
+
+    async fn wait_for_text(root: &web_sys::Element, text: &str) {
+        for _ in 0..100 {
+            if root.text_content().unwrap_or_default().contains(text) {
+                return;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        panic!("timed out waiting for {text}");
+    }
+
+    async fn wait_for_button_enabled(root: &web_sys::Element, label: &str) {
+        for _ in 0..100 {
+            let buttons = root.query_selector_all("button").unwrap();
+            for index in 0..buttons.length() {
+                let Some(button) = buttons
+                    .item(index)
+                    .and_then(|node| node.dyn_into::<web_sys::Element>().ok())
+                else {
+                    continue;
+                };
+                if button.text_content().unwrap_or_default().trim() == label
+                    && !button.has_attribute("disabled")
+                {
+                    return;
+                }
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        panic!("timed out waiting for mounted {label} button to be enabled");
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_extraction_reply_cannot_mutate_profile_after_scope_and_selection_retire() {
+        let fixture = fixture();
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("parts-mechanical-extraction-owner-test");
+        document.body().unwrap().append_child(&root).unwrap();
+        let handles: Rc<RefCell<Option<MountedSignals>>> = Rc::new(RefCell::new(None));
+        let dom = VirtualDom::new(ManualProfileMountedHost);
+        dom.provide_root_context(fixture.clone());
+        dom.provide_root_context(handles.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_for_text(&root, "Read KiCad layers").await;
+        click_button(&root, "Read KiCad layers");
+        let request = {
+            let mut request = None;
+            for _ in 0..100 {
+                request = fixture.requests.borrow_mut().pop_front();
+                if request.is_some() {
+                    break;
+                }
+                gloo_timers::future::TimeoutFuture::new(10).await;
+            }
+            request.expect("Read KiCad layers starts the controlled requester")
+        };
+        wait_for_text(&root, "Reading KiCad layers…").await;
+
+        let mut mounted = handles.borrow().as_ref().copied().unwrap();
+        let mut next_scope = fixture.scope.clone();
+        next_scope.board_id = "right-pcb".into();
+        *fixture.current_scope.borrow_mut() = Some(next_scope);
+        mounted
+            .selection
+            .set(Some((None, "other-definition".into())));
+        mounted
+            .scope_generation
+            .with_mut(|generation| *generation += 1);
+        mounted
+            .selection_generation
+            .with_mut(|generation| *generation += 1);
+        fixture.owner_current.set(false);
+        request.complete.send(Ok(extraction())).unwrap();
+        wait_for_button_enabled(&root, "Read KiCad layers").await;
+        assert!(
+            root.query_selector("select[aria-label^='Purpose for']")
+                .unwrap()
+                .is_none()
+        );
+        assert!(root.query_selector("p[role='alert']").unwrap().is_none());
+        root.query_selector("button[aria-label='Save fit profile']")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        let saved = fixture
+            .saved
+            .borrow()
+            .clone()
+            .expect("save captures current draft");
+        assert!(saved.source_geometry.is_none());
+        assert!(saved.cutouts.is_empty());
+        assert!(saved.clearances.is_none());
+        root.remove();
+    }
+}
+
 fn primitive_kind(kind: boardstudio_core::model::MechanicalGeometryKind) -> &'static str {
     match kind {
         boardstudio_core::model::MechanicalGeometryKind::Line => "Line",
