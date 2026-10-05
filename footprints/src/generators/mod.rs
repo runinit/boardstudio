@@ -13,6 +13,9 @@ pub(crate) mod util;
 
 /// Every bundled generator.
 pub static SPECS: &[&GeneratorSpec] = &[
+    &ceoloide::switch_gateron_ks27_ks33::SPEC,
+    &ceoloide::switch_choc_v1_v2::SPEC,
+    &ceoloide::switch_mx::SPEC,
     &ceoloide::power_switch_smd_side::SPEC,
     &ceoloide::reset_switch_tht_top::SPEC,
     &ceoloide::reset_switch_smd_side::SPEC,
