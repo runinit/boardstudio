@@ -16,29 +16,29 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-05T13:35:07.077747+00:00",
+    "updated_at": "2026-10-05T14:06:29.558797+00:00",
     "parent_counts": {
-      "accepted": 53,
-      "implementing": 3,
+      "accepted": 54,
+      "implementing": 2,
       "planned": 4,
       "total": 60
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-layout-canvas-escape-20261005",
-      "source_commit": "6bb3d52024e898f0f4111baac9b84e307224b9e7",
-      "root_url": "http://127.0.0.1:34826/",
-      "subpath_url": "http://127.0.0.1:34826/boardstudio/",
-      "provenance": "web/target/builds/frontend-layout-canvas-escape-20261005/provenance.json",
-      "provenance_sha256": "6a82bc2e3cef53d5a4aae08fbb242afb42b50525c2800ffaac3e676d0ed7cd24",
+      "build_id": "frontend-layout-point-precision-20261005",
+      "source_commit": "4c0a2fc46074121b85c7f0e8fb0d80cd5c3f1021",
+      "root_url": "http://127.0.0.1:34827/",
+      "subpath_url": "http://127.0.0.1:34827/boardstudio/",
+      "provenance": "web/target/builds/frontend-layout-point-precision-20261005/provenance.json",
+      "provenance_sha256": "035be9178bc7d0107d50d5f89f6608f35ebdee1c83db04f75214a0c7fdbab43c",
       "fresh_commands": 9,
       "inherited_commands": 23,
       "source_inputs": 1409,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 129.222294,
+      "command_span_seconds": 128.897127,
       "package_qualification": "Combined package provenance, committed snapshot inputs and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-layout-canvas-escape-20261005/package-proof.json",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-layout-point-precision-20261005/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -48,8 +48,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "6bb3d52024e898f0f4111baac9b84e307224b9e7",
-      "state": "F9.1 and PCB accepted. F3.7 remains explicitly reopened until packaged precision replay. No-motion click repair reviewed and required gates passed; F8 composition/output qualification remains pending.",
+      "source_commit": "4c0a2fc46074121b85c7f0e8fb0d80cd5c3f1021",
+      "state": "F3.7 recovery accepted after sole independent review: immutable4c0a2fc4 at34827 preserves the exact r15 saved archive on stationary point click/Escape. All Layout leaves/join accepted. F8 joined composition, current output downloads/roundtrip/return navigation and old revision attribution remain open.",
       "packets": [
         {
           "stream": "Layout",
@@ -559,7 +559,7 @@
       {
         "stream": "Layout",
         "priority": "Functional gaps alongside other streams; exact visual parity deferred",
-        "state": "Editor-exit fix passes, but F3.7-C02 reopened for public fractional saved-point precision loss. Existing completed Layout journey remains retained; author owns required regression/repair."
+        "state": "F3.1\u2013F3.8 accepted. Required stationary point click repair independently reviewed and published; actual saved archive byte-identical to input, exact fractional geometry and revision retained. Full Layout geometry/history/reopen/camera and functional keyboard evidence retained."
       },
       {
         "stream": "PCB",
@@ -4379,12 +4379,62 @@
           ],
           "review": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
           "state": "passed; F3.7 accepted"
+        },
+        {
+          "candidate_build_id": "frontend-layout-canvas-escape-20261005",
+          "source_commit": "6bb3d52024e898f0f4111baac9b84e307224b9e7",
+          "phase": "qualifying",
+          "review": {
+            "profile": "sol-review",
+            "state": "pending"
+          },
+          "journeys": [
+            {
+              "id": "six-workbench-project-export",
+              "scope": "One paired saved project through accepted Layout edit, Parts definition use, PCB readiness, Keymap/Keycaps edits, Case generation and Export; reuse attributable unchanged snapshot/lifecycle/output proofs.",
+              "source_roots": [
+                "web",
+                "application",
+                "core",
+                "contracts",
+                "renderer",
+                "cad",
+                "kicad/src",
+                "app/src",
+                "app/public",
+                "scripts",
+                "ergogen"
+              ],
+              "source_paths": [
+                ".node-version",
+                ".npmrc",
+                "package.json",
+                "pnpm-lock.yaml",
+                "pnpm-workspace.yaml",
+                "rust-toolchain.toml"
+              ],
+              "optional_source_paths": [
+                ".cargo/config",
+                ".cargo/config.toml"
+              ],
+              "source_paths_complete": true,
+              "fixtures": [
+                {
+                  "path": ".scratch/dioxus-frontend-v1/evidence/integrated-layout-c1d3-20261005/candidate-edited.boardstudio",
+                  "sha256": "c476fcaf16a9150b11221427620047c55d4ad11d293315b7c56d45bd7f8b4cbe"
+                }
+              ],
+              "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md",
+              "state": "in_progress",
+              "receipt": ".scratch/dioxus-frontend-v1/evidence/f86-integrated-20261005/journey-checkpoints.json"
+            }
+          ]
         }
       ],
       "phase": "qualifying",
       "unmet_start_conditions": [],
-      "candidate_build_id": "frontend-layout-canvas-escape-20261005",
-      "source_commit": "6bb3d52024e898f0f4111baac9b84e307224b9e7",
+      "candidate_build_id": "frontend-layout-point-precision-20261005",
+      "source_commit": "4c0a2fc46074121b85c7f0e8fb0d80cd5c3f1021",
       "journeys": [
         {
           "id": "six-workbench-project-export",
@@ -4422,8 +4472,7 @@
             }
           ],
           "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md",
-          "state": "in_progress",
-          "receipt": ".scratch/dioxus-frontend-v1/evidence/f86-integrated-20261005/journey-checkpoints.json"
+          "state": "pending"
         }
       ],
       "authority": "Active user goal: finish required desktop migration journeys; accessibility/F9.3 and mobile qualification excluded.",
@@ -4906,14 +4955,9 @@
         "source_changes": "Withdrawn after preserving exact patch; HEAD semantics retained",
         "evidence": ".scratch/dioxus-frontend-v1/evidence/integrated-accessibility-c1d3-20261005/RECEIPT.md"
       },
-      "started_at": "2026-10-05T13:16:03.760965+00:00",
-      "review": {
-        "profile": "sol-review",
-        "state": "pending"
-      },
       "pending_source_batch": {
         "id": "layout-point-precision-20261005",
-        "state": "Source frozen and independent review CLEAR. Meaningful event-observer RED; focused GREEN1/1; full affected module13/13; combined native247/1ignored, wasm page, reachability and strict headless13/13 passed. Milestone commit/package/public exact saved-geometry replay pending.",
+        "state": "Complete: committed4c0a2fc4, required gates passed, immutable34827 published, public saved archive byte-identical to r15 input, independent recovery review CLEAR and F3.7 accepted. Resume remaining F8 joined outputs and integration qualification.",
         "source_base": "6bb3d52024e898f0f4111baac9b84e307224b9e7",
         "owned_files": [
           "web/src/presentation/outline_lifecycle.rs",
@@ -4937,7 +4981,15 @@
           "Public same-input saved-archive precision/revision preservation versus reference",
           "Restore eligible F3.7 acceptance then finish F8 same-project outputs/roundtrip/return navigation"
         ],
-        "test_limit": "Existing mock Runtime records edit events without applying accepted state; snapshot equality alone is not a nonmutation proof. New regression observes actual submitted edits; public downloaded archives own persistence proof."
+        "test_limit": "Existing mock Runtime records edit events without applying accepted state; snapshot equality alone is not a nonmutation proof. New regression observes actual submitted edits; public downloaded archives own persistence proof.",
+        "published_build": "frontend-layout-point-precision-20261005",
+        "public_evidence": ".scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/public-fixed-comparison.json",
+        "review": ".scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/public-review.md"
+      },
+      "started_at": "2026-10-05T14:02:25.921477+00:00",
+      "review": {
+        "profile": "sol-review",
+        "state": "pending"
       }
     },
     "delivery_priority": {
@@ -5077,6 +5129,11 @@
         "build_id": "frontend-layout-canvas-escape-20261005",
         "published_at": "2026-10-05T13:16:01.946865+00:00",
         "extra_candidate_reason": "Required saved-outline canvas Escape regression fix, independently reviewed with native/page/reachability and strict 12-test Chrome gate. Reuse retained completed Layout journey and replay changed cancellation only."
+      },
+      {
+        "build_id": "frontend-layout-point-precision-20261005",
+        "published_at": "2026-10-05T14:02:24.148210+00:00",
+        "extra_candidate_reason": "Required outline no-motion click geometry repair; independently reviewed with meaningful event RED/GREEN, native247, wasm page, reachability and strict headless13. Public same-input saved archive precision replay follows."
       }
     ],
     "validation_scope": {

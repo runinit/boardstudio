@@ -17,3 +17,7 @@ A second identical interaction on the already-rounded candidate produced revisio
 ## Settled source repair
 
 Owning event-observer RED and minimal no-motion pointer-up repair are recorded in [repair-receipt.md](repair-receipt.md). Independent review CLEAR; focused GREEN1/1 and complete affected module13/13. Coordinator combined gates passed native247 (1ignored), wasm page, reachability and strict headless13/13. Exact receipts are retained in combined-gates.json. Public persisted-geometry GREEN remains pending on the next immutable package.
+
+## Published persisted-geometry GREEN
+
+Published frontend-layout-point-precision-20261005, source4c0a2fc4, at34827. Repeated exact input/Outline/Editpoints/point2click/standaloneShift/Escape/ProjectSave sequence. Point input remains -8.2375, keyboard focus was actual SVG circle, editor exits to BODY with zero handles. Actual download Sofle v2(16).boardstudio is byte-identical to input SHA c476fcaf16a9150b11221427620047c55d4ad11d293315b7c56d45bd7f8b4cbe: revision15, point2X-8.2375, all assets unchanged. Public DOM receipt and raw comparison are public-fixed.json/public-fixed-comparison.json; actual saved file candidate-fixed-after-escape.boardstudio. Retained same-sequence TypeScript output also remains revision15/pointX-8.2375; its preexisting tiny serialized numeric differences are retained explicitly, not claimed byte-identical.

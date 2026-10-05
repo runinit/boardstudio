@@ -1,0 +1,51 @@
+{
+  "candidate-import-only.boardstudio": {
+    "sha256": "c476fcaf16a9150b11221427620047c55d4ad11d293315b7c56d45bd7f8b4cbe",
+    "revision": 15,
+    "point2": {
+      "x": -8.2375,
+      "y": -13.0
+    }
+  },
+  "reference-after-escape.boardstudio": {
+    "sha256": "66b3fca328d1711145961f4d1c8b79fe6567c40fc44c2f735e7ede81e5f0df45",
+    "revision": 15,
+    "point2": {
+      "x": -8.2375,
+      "y": -13
+    }
+  },
+  "candidate-fixed-after-escape.boardstudio": {
+    "sha256": "c476fcaf16a9150b11221427620047c55d4ad11d293315b7c56d45bd7f8b4cbe",
+    "revision": 15,
+    "point2": {
+      "x": -8.2375,
+      "y": -13.0
+    }
+  },
+  "candidate_document_exactly_unchanged": true,
+  "candidate_assets_exactly_unchanged": true,
+  "reference_document_equal": false,
+  "reference_raw_differences": [
+    [
+      "/parts/10/pose/at/x",
+      104.22999999999999,
+      104.23
+    ],
+    [
+      "/parts/22/pose/at/x",
+      104.22999999999999,
+      104.23
+    ],
+    [
+      "/parts/34/pose/at/x",
+      104.22999999999999,
+      104.23
+    ],
+    [
+      "/parts/46/pose/at/x",
+      104.22999999999999,
+      104.23
+    ]
+  ]
+}

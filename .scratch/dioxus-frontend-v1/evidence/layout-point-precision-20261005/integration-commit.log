@@ -1,0 +1,41 @@
+migration-deliver: 2 wasm-relevant Rust file(s) in this commit (e.g. web/src/presentation/outline_lifecycle.rs); ensuring wasm32 cargo check
+migration-deliver: passed wasm32 page check; receipt=web/target/migration-gates/wasm-page-check/e7e9058d70cdc4d50b5d3bb9bcff4f389ca26cabda5c7a406bf00f18de813cfc.json started=2026-10-05T13:58:44+00:00 ended=2026-10-05T13:58:44+00:00 duration=0.22s
+migration-deliver: ensuring native web tests passed before committing
+migration-deliver: passed native web tests (failed=0, ignored=1, passed=247); receipt=web/target/migration-gates/native-web/90dfa3e71f3f967a08e80800a0dead68827ddd8300ca31c742c4e3b9afb50dbd.json started=2026-10-05T13:58:45+00:00 ended=2026-10-05T13:58:49+00:00 duration=3.67s
+migration-deliver: ensuring scripts/check-wasm-tests.py passes for Rust files in this commit
+migration-deliver: passed wasm test reachability; receipt=web/target/migration-gates/wasm-test-reachability/9c419b6624270e90d7adf06704be45486ae3e53dd459f4c89e6a32c90a7ea5d4.json started=2026-10-05T13:58:50+00:00 ended=2026-10-05T13:58:52+00:00 duration=1.95s
+migration-deliver: ensuring wasm-bindgen tests pass in headless Chrome for changed modules
+migration-deliver: passed headless-Chrome wasm tests (excluded_failures=0, failed=0, incomplete=0, passed=13); receipt=web/target/migration-gates/wasm-headless-tests/f7d785be268933a5a2c888ec5cd867c4bafd9ddbfce506d343238c3a893617b8.json started=2026-10-05T13:58:53+00:00 ended=2026-10-05T13:59:37+00:00 duration=44.01s
+[codex/rust-v1-ui-parity-20261001 4c0a2fc4] Preserve outline geometry on stationary point clicks
+ 40 files changed, 15725 insertions(+), 341 deletions(-)
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f3-7-decision.json
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f9-1-decision.json
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/f86-integrated-20261005/archive-comparison.json
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/f86-integrated-20261005/candidate-joined.boardstudio
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/f86-integrated-20261005/journey-checkpoints.json
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/f86-integrated-20261005/reference-joined.boardstudio
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/f86-integrated-20261005/reuse-map.md
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/f86-integrated-20261005/revision-attribution.md
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/f91-inventory-20261005/RECEIPT.md
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/frontend-layout-canvas-escape-20261005/package-proof.json
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/layout-canvas-escape-public-20261005/RECEIPT.md
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/layout-canvas-escape-public-20261005/build.log
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/layout-canvas-escape-public-20261005/candidate.json
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/layout-canvas-escape-public-20261005/commit.log
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/layout-canvas-escape-public-20261005/publish.log
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/layout-canvas-escape-public-20261005/reference.json
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/RECEIPT.md
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/affected-module-results.json
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/affected-module.log
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/candidate-after-escape.boardstudio
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/candidate-import-only.boardstudio
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/candidate-repeat-after-escape.boardstudio
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/combined-gates.exit
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/combined-gates.json
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/combined-gates.log
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/f3-7-correction-decision.json
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/focused-green.log
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/focused-red.log
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/minimal-escape-comparison.json
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/reference-after-escape.boardstudio
+ create mode 100644 .scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/repair-receipt.md

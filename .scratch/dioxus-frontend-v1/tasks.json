@@ -2224,7 +2224,7 @@
         "F2.3",
         "F6C.3"
       ],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
       "shared_edit_owner": "integration coordinator",
@@ -2261,6 +2261,13 @@
           "to": "implementing",
           "reason": "New paired public downloaded documents contradict prior bounded nonmutation evidence for fractional point coordinates: candidate loses precision and creates revision; reference retains exact original. Editor-exit GREEN still stands.",
           "decision": ".scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/f3-7-correction-decision.json"
+        },
+        {
+          "at": "2026-10-05T14:06:29.553589+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Independent recovery review CLEAR: stationary point click repair passes required gates and immutable4c0a2fc4 public saved output is byte-identical to r15 input. Retained full Layout journey and refreshed C05 remain sufficient; original acceptance and correction decisions retained.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/public-review-f3-7-decision.json"
         }
       ],
       "criteria": [
@@ -2294,7 +2301,7 @@
         {
           "id": "F3.7-C02",
           "requirement": "Paired behavior agrees for accepted geometry, history/revision, save behavior, errors/cancellation, camera/view scope and service outputs.",
-          "state": "missing",
+          "state": "verified",
           "classification": "release",
           "sources": [
             "web/src/presentation.rs",
@@ -2303,13 +2310,11 @@
           ],
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/integrated-layout-c1d3-20261005/RECEIPT.md",
-            ".scratch/dioxus-frontend-v1/evidence/integrated-layout-c1d3-20261005/paired-document-comparison.json",
-            ".scratch/dioxus-frontend-v1/evidence/layout-canvas-escape-public-20261005/RECEIPT.md",
-            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
-            ".scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/minimal-escape-comparison.json"
+            ".scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/public-review.md"
           ],
           "blockers": [],
-          "next_action": "New exact public downloaded-archive regression: import-onlyr15 retains point2X-8.2375; select/edit/focus point2 thenEscape savesr16 X-8.238 without geometry command. Existing editor-exit GREEN remains true; accepted-document nonmutation now contradicted by public precision case. Author owns fractional mounted RED/fix/GREEN; F8 composition acceptance waits required repair.",
+          "next_action": "Independent recovery review CLEAR: immutable4c0a2fc4 published34827 public same-input click/Shift/Escape saved archive is byte-identical to original, revision15 and point2X-8.2375 unchanged. Source RED/GREEN and combined gates pass. Retained complete Layout geometry/history/save/reimport/camera evidence remains attributable. Original acceptance and correction history preserved.",
           "finish_condition": "Current-candidate paired receipt records agreement for every named output and state boundary across the integrated journey.",
           "owned_files": [
             "web/src/presentation.rs",
@@ -2443,8 +2448,7 @@
         "note": "Current clauses retain integrated journey, desktop visual, keyboard/focus, performance/resource recording and inventory requirements. Accessibility/axe/AT qualification removed by explicit user instruction on2026-10-05; prior wording is retained in accessibility_scope_adjustment."
       },
       "completion_evidence": {
-        "decision_record": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f3-7-decision.json",
-        "superseded_by_correction": ".scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/f3-7-correction-decision.json"
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/public-review-f3-7-decision.json"
       }
     },
     {
@@ -10023,8 +10027,8 @@
     "integration_slices": 2,
     "boundary_slices": 2,
     "status": {
-      "accepted": 53,
-      "implementing": 3,
+      "accepted": 54,
+      "implementing": 2,
       "planned": 4
     }
   },
