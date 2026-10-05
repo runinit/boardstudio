@@ -1,0 +1,6 @@
+{
+  "state": "cancelled_by_user_scope_change",
+  "reason": "User removed accessibility qualification and F9.3; stop accessibility-only source repair gate. This is not a passed gate.",
+  "pid": 3144153,
+  "time_unix": 1791205227.8143754
+}

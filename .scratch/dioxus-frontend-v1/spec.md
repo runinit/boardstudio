@@ -1,5 +1,7 @@
 # Complete Dioxus frontend port
 
+> Scope update (2026-10-05): accessibility/axe/semantic-only and assistive-technology qualification are removed by user instruction. Ordinary keyboard, focus, Escape and functional controls remain in scope. Historical results are retained without counting excluded checks as passes.
+
 **Triage:** ready-for-agent
 **Authority:** 2026-10-01 request and clarification: 100% frontend; all existing TSX, theming and UI behavior ported to Dioxus.
 **Execution:** F1/F3a are verified increments; the 2026-10-02 workflow specs originally planned F2–F9; the current 61-parent graph excludes VIK-only F4.7 with independent author/reviewer roles. See [execution plan](PLAN.md) and [ownership/dispatch](EXECUTION.md).
@@ -58,7 +60,6 @@ Keep existing domain engines and service providers underneath the frontend.
 37. As a designer, I want to return from Export to the prior workspace, so that I can continue my existing workflow in Dioxus.
 38. As a designer, I want to complete the same project-to-export workflow entirely in Dioxus, so that I can continue my existing workflow in Dioxus.
 39. As a designer, I want to reopen work offline through the existing host services, so that I can continue my existing workflow in Dioxus.
-40. As a designer, I want to use assistive technology without losing supported controls, so that I can continue my existing workflow in Dioxus.
 
 41. As a maintainer, I want every TSX component and UI hook/style dependency mapped to its replacement, so that no functionality disappears during the port.
 42. As a maintainer, I want frontend regression coverage transferred before React removal, so that the replacement retains meaningful checks.
@@ -71,7 +72,7 @@ Keep existing domain engines and service providers underneath the frontend.
 - Port React hooks/controllers that implement UI state with their screens. Retained service adapters stay documented and do not count as migrated frontend components.
 - Match fonts/icons/tokens, light/dark/system themes, responsive panels, shortcuts, focus, draft lifetimes and loading/error/recovery behavior.
 - Workspace switches preserve the application session and safely settle or retain active drafts. Case canvas lifetimes remain explicit.
-- Placeholders are temporary, clearly labeled, non-editing and accessible. Complete reference workflows replace them before frontend v1.
+- Placeholders are temporary, clearly labeled and non-editing. Complete reference workflows replace them before frontend v1.
 - Keep service API/schema/visibility and data-writer cutover decisions separate; frontend scope does not authorize changes to them.
 
 ## Testing Decisions
@@ -79,7 +80,7 @@ Keep existing domain engines and service providers underneath the frontend.
 - Reuse the accepted public session and real-browser seams, with paired React/Dioxus fixtures and captures. No private API/test hooks are required for the shell.
 - Test externally visible actions, selected state, previews/cancellation/history, menus/focus, themes, responsive layout, errors and outputs through existing providers.
 - Native/WASM checks cover affected Rust modules; browser checks cover actual Dioxus UI. Transfer useful React test cases before retiring their implementation-specific harness.
-- Retain visual, keyboard/axe/actual assistive-technology and affected performance/resource evidence. Preserve existing budgets and label blocked/unperformed checks accurately.
+- Retain visual, ordinary keyboard/focus and affected performance/resource evidence. Preserve existing budgets and label blocked/unperformed checks accurately.
 
 ## Out of Scope
 

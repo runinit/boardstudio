@@ -4,7 +4,7 @@ This is the retained quality contract, disclosed when preparing parent acceptanc
 or cutover. [CONSTRAINTS.md](../../CONSTRAINTS.md) owns execution timing and authority.
 The active canonical task rows retain their individual criteria and final dependency joins. The user removed the unfinished VIK-only parent from the first-release roadmap on 2026-10-03; its prior requirements remain in Git history.
 A requirement here applies to the affected workflow; global performance, corpus,
-accessibility and retirement qualification belong to their milestone, not author dispatch.
+retirement qualification belongs to its milestone, not author dispatch. Accessibility qualification is excluded from the frontend migration by the 2026-10-05 user instruction.
 User-authorized necessary API/design changes follow the compatibility rules below.
 
 ## Task categories and characterization
@@ -124,11 +124,11 @@ assertions or lowering a threshold to hide a failure.
 - Preserve current visual behavior unless an intentional change is documented
   with its reason and comparison evidence. Cover layout, typography, colors,
   spacing, themes, canvas geometry and loading/error feedback.
-- Accessibility must not regress. Preserve semantic controls, accessible
-  names, keyboard reachability, focus order/visibility/restoration and existing
-  assistive-technology behavior. Require zero newly introduced axe violations
-  on affected workflows, plus manual keyboard and relevant screen-reader
-  checks; automation alone does not establish accessibility parity.
+- Preserve ordinary keyboard operation, shortcuts, visible focus and focus
+  restoration as functional UI behavior. Accessibility/axe/semantic-only audits,
+  accessibility-only repairs and screen-reader/assistive-technology qualification
+  are excluded from this frontend migration by user instruction on 2026-10-05.
+  Existing controls and semantics remain; no excluded check is claimed as passed.
 - Responsive behavior must not regress. Compare current desktop and compact
   layouts, supported zoom/DPR and overflow behavior, including long content and
   dialogs. Keep required actions reachable at existing supported sizes.
@@ -167,13 +167,13 @@ assertions or lowering a threshold to hide a failure.
 For parent acceptance, retain affected formatting, strict Clippy and crate/package
 correctness checks, matching WASM/production builds, contract/boundary checks and
 paired production behavior. Include affected performance, persistence/export,
-responsive/accessibility and visual evidence; state omissions and unmet criteria.
+in-scope desktop interaction and visual evidence; state omissions and unmet criteria.
 Reuse sufficient unchanged evidence. Failed, missing or blocked applicable checks
 prevent acceptance; a successful compiler/package does not establish behavior.
 
 Before cutover or React deletion, retain full integration checks (`pnpm run check`,
 `pnpm run test:e2e:dev`, supported standalone Rust/native CAD checks, Dioxus runtime
-and parity, performance/CAD/live/soak and applicable visual/accessibility checks).
+and parity, performance/CAD/live/soak and applicable visual/keyboard checks).
 Existing CI stays enabled. Commands and feature support are read from source;
 the superseded check catalogue is historical, not a current tool inventory.
 

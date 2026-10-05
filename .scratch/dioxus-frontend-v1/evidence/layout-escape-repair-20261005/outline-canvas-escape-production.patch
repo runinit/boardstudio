@@ -1,0 +1,36 @@
+--- a/web/src/presentation/outline_lifecycle.rs
++++ b/web/src/presentation/outline_lifecycle.rs
+@@ -3301,6 +3301,10 @@
+                     let key_runtime = point_runtime.clone();
+                     let mut key_selected = point_selected;
+                     let key_action = point_action;
++                    let mut escape_editing_points = projection.editing_points;
++                    let escape_context = projection.selected_context;
++                    let escape_scope = projection.scope.clone();
++                    let escape_board_id = projection.board_id.clone();
+                     rsx! {
+                         circle {
+                             key: "{point_id}",
+@@ -3367,6 +3371,22 @@
+                                 if key.key() == "Escape" && key_drag.borrow().is_some() {
+                                     key.prevent_default(); key.stop_propagation(); key_commit(false, None, false); return;
+                                 }
++                                if key.key() == "Escape" {
++                                    key.prevent_default();
++                                    key.stop_propagation();
++                                    let Some(selected) = escape_context.read().clone() else { return; };
++                                    if selected.scope != escape_scope
++                                        || !matches!(
++                                            &selected.context,
++                                            super::objects::TreeContext::Outline { board_id }
++                                                if board_id == &escape_board_id
++                                        )
++                                    {
++                                        return;
++                                    }
++                                    escape_editing_points.set(false);
++                                    return;
++                                }
+                                 if key_drag.borrow().is_some() || !enabled { return; }
+                                 let mut points = key_points.clone();
+                                 let step_x = grid.x.max(0.1) * if key.shift_key() { 10.0 } else { 1.0 };

@@ -54,7 +54,7 @@ Start immediately on saved-fixture forms and viewer-contract feasibility; these 
 36. As a board designer, I want absent or unsupported physical-instance data to produce a clear empty/setup state, so that the UI does not fabricate a mechanical assembly.
 37. As a board designer, I want the common viewer contract consumed by Layout, Parts, Keymap, Keycaps, and Case, so that camera, layer, selection, error, and lifecycle behavior remains consistent across workflows.
 38. As a keyboard designer, I want the Case toolbar's existing construction/case iconography retained, so that supported construction concepts are recognizable without introducing a new case-choice wizard.
-39. As a board designer, I want the workspace usable in compact layouts, with keyboard-accessible form controls, visible focus, and readable error/status feedback, so that Case work remains practical at the supported viewport sizes and input modes.
+39. As a board designer, I want usable desktop form controls, ordinary keyboard operation, visible focus, and readable error/status feedback, so that Case work remains practical.
 
 ## Implementation Decisions
 
@@ -79,7 +79,7 @@ Start immediately on saved-fixture forms and viewer-contract feasibility; these 
 - Exercise the common viewer through each real consumer (Layout, Parts, Keymap, Keycaps, Case) using public actions and verify shared camera/layer/render/error/lifecycle outcomes. Do not duplicate a viewer-only fake for each feature.
 - Include saved-fixture coverage before F3/F4/F5 joins. Add explicit integration coverage for canonical-board versus physical-instance Case input, F5 handoff, scope change during pending generation, and each consumer's assembly projection once those joins are available.
 - Verify no stale asynchronous asset/CAD/generation response replaces a newer scope or revision; cancel and unmount during work; resize and context-loss/retry; preserve surrounding Case form interaction on viewer failure.
-- Preserve keyboard accessibility and compact layout checks at public UI level: tab/focus order, Escape draft rollback, Enter/blur commit, accessible control names, readable progress/errors, and no canvas-only route to critical actions.
+- Preserve ordinary desktop keyboard and focus behavior at public UI level: tab/focus order, Escape draft rollback, Enter/blur commit, usable control labels, readable progress/errors, and keyboard routes to critical actions. Mobile/compact checks are deferred; accessibility audits and assistive-technology qualification are excluded by user instruction.
 
 ## Out of Scope
 

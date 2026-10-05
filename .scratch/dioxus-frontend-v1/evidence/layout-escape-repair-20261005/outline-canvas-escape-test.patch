@@ -1,0 +1,143 @@
+--- a/web/src/presentation/outline_lifecycle_browser_tests.rs
++++ b/web/src/presentation/outline_lifecycle_browser_tests.rs
+@@ -282,8 +282,28 @@
+     let _ = version();
+     let board_projection = board_inspector.projection;
+     let board_rename = board_inspector.on_rename;
++    let point_canvas_svg = use_hook(|| Rc::new(RefCell::new(None::<web_sys::SvgElement>)));
++    let point_canvas_arbiter =
++        use_hook(super::super::canvas_interaction::CanvasInteractionArbiter::default);
+     rsx! {
+         style { {include_str!("../../assets/m1.css")} }
++        svg { id: "outline-point-canvas-test", view_box: "-20 -20 40 40",
++            if let Some(projection) = projection.clone() {
++                super::super::outline_lifecycle::OutlinePointCanvasOverlay {
++                    projection,
++                    runtime: super::super::outline_lifecycle::OutlineRuntimeHandle::new(probe.runtime.clone()),
++                    arbiter: point_canvas_arbiter.clone(),
++                    svg: point_canvas_svg.clone(),
++                    view_x: -20.0,
++                    view_y: -20.0,
++                    width: 40.0,
++                    height: 40.0,
++                    snap_settings: super::super::objects::LayoutSnapSettings::default(),
++                    pitch: Vec2 { x: 19.05, y: 19.05 },
++                    origins: vec![],
++                }
++            }
++        }
+         if let Some(projection) = projection {
+             OutlineVersionInspector { projection }
+         }
+@@ -453,6 +473,111 @@
+     root.remove();
+ }
+ 
++#[wasm_bindgen_test]
++async fn mounted_fixed_outline_canvas_point_escape_returns_to_board_without_editing() {
++    let (probe, root) = mounted_polygon_outline_inspector(true);
++    settle_dimension().await;
++    let document = web_sys::window().unwrap().document().unwrap();
++    let selected_context = *probe
++        .selected_context
++        .borrow()
++        .as_ref()
++        .expect("mounted outline lifecycle exposes its selected-context owner");
++    let accepted_before = probe
++        .runtime
++        .model()
++        .accepted
++        .expect("fixture retains the accepted fixed outline");
++    let accepted_document_before = accepted_before.document.clone();
++
++    document
++        .query_selector("#outline-points-inspector-mount button.m1-outline-action")
++        .unwrap()
++        .expect("fixed outline exposes Edit perimeter points")
++        .dyn_into::<web_sys::HtmlElement>()
++        .unwrap()
++        .click();
++    settle_dimension().await;
++
++    let point = document
++        .query_selector("#outline-point-canvas-test circle[aria-label='Outline point 2']")
++        .unwrap()
++        .expect("the production canvas overlay mounts its focusable point 2 circle")
++        .dyn_into::<web_sys::SvgElement>()
++        .unwrap();
++    point.focus().unwrap();
++    assert_eq!(
++        document
++            .active_element()
++            .and_then(|active| active.get_attribute("aria-label"))
++            .as_deref(),
++        Some("Outline point 2"),
++        "the actual canvas point circle owns keyboard focus before Escape"
++    );
++
++    let escape = web_sys::KeyboardEventInit::new();
++    escape.set_key("Escape");
++    escape.set_bubbles(true);
++    point
++        .dispatch_event(
++            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape).unwrap(),
++        )
++        .unwrap();
++    settle_dimension().await;
++
++    assert!(
++        matches!(
++            selected_context
++                .read()
++                .as_ref()
++                .map(|selected| &selected.context),
++            Some(super::super::objects::TreeContext::Outline { board_id })
++                if board_id == &probe.scope.board_id
++        ),
++        "canvas Escape closes only point editing and preserves the selected outline context"
++    );
++    assert!(
++        document
++            .query_selector("#outline-points-inspector-mount .m1-outline-point-editor")
++            .unwrap()
++            .is_none(),
++        "Escape from the canvas point exits perimeter editing"
++    );
++    assert!(
++        document
++            .query_selector("#outline-point-canvas-test circle[aria-label='Outline point 2']")
++            .unwrap()
++            .is_none(),
++        "the focused point handle unmounts after returning to the outline inspector"
++    );
++    assert!(
++        document
++            .query_selector("#outline-points-inspector-mount button.m1-outline-action")
++            .unwrap()
++            .is_some(),
++        "the normal Board outline controls remain mounted after point editing closes"
++    );
++    assert_eq!(
++        document
++            .active_element()
++            .map(|active| active.tag_name())
++            .as_deref(),
++        Some("BODY"),
++        "canvas-owned Escape leaves focus on BODY as the reference does"
++    );
++    let accepted_after = probe
++        .runtime
++        .model()
++        .accepted
++        .expect("accepted snapshot remains available after navigation");
++    assert_eq!(
++        accepted_after.document.as_ref(),
++        accepted_document_before.as_ref(),
++        "navigation Escape does not edit the accepted fixed outline"
++    );
++    root.remove();
++}
++
+ fn mounted_polygon_outline_inspector(fixed: bool) -> (InspectorProbe, web_sys::Element) {
+     mounted_polygon_outline_inspector_with_connections(fixed, vec![])
+ }

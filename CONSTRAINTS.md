@@ -35,6 +35,14 @@ active automated checks and omit mobile browser qualification for now; retain de
 checks and the responsive application behavior. Existing mobile evidence is historical,
 not a current passing gate or acceptance requirement during this deferral.
 
+Accessibility qualification was removed from the frontend migration by explicit user
+instruction on 2026-10-05. F9.3 and its prerequisite edges are removed from the
+active roadmap. Do not run or require axe audits, manual accessibility/semantic
+qualification, screen-reader/assistive-technology journeys, or accessibility-only
+repairs. Ordinary keyboard shortcuts, focus, Escape/cancellation and usable controls
+remain functional workflow requirements. Preserve existing UI semantics and historical
+evidence; excluded checks are removed scope, not passing results.
+
 ## Delivery loop
 
 The user authorized an end-to-end delivery restructure on 2026-10-05. Optimize for

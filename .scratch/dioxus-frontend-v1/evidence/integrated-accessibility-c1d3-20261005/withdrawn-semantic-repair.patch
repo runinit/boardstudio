@@ -1,0 +1,27 @@
+diff --git a/web/src/presentation.rs b/web/src/presentation.rs
+index 4d54d8d9..1a5deba7 100644
+--- a/web/src/presentation.rs
++++ b/web/src/presentation.rs
+@@ -743,6 +743,9 @@ pub fn App() -> Element {
+                     span { "Export" }
+                 }
+             }
++            if runtime.model().accepted.is_some() && workspace() != "Export" {
++                h1 { class: "m1-visually-hidden", "{project_name} — {workspace()}" }
++            }
+             if runtime.model().accepted.is_some() { Editor {} }
+             else { LibraryLanding {} }
+                 RuntimeReportBanner {}
+diff --git a/web/src/presentation/canvas_status_footer.rs b/web/src/presentation/canvas_status_footer.rs
+index 1a4f4666..06bd74d7 100644
+--- a/web/src/presentation/canvas_status_footer.rs
++++ b/web/src/presentation/canvas_status_footer.rs
+@@ -22,7 +22,7 @@ pub(in crate::presentation) fn CanvasStatusFooter(
+         .map(|position| (position.x, position.y))
+         .unwrap_or((0.0, 0.0));
+     rsx! {
+-        div { class: "m1-canvas-footer-coordinates", aria_label: "Selected part coordinates",
++        div { class: "m1-canvas-footer-coordinates", role: "group", aria_label: "Selected part coordinates",
+             span { "mm" }
+             span { "X " b { "{x:.2}" } }
+             span { "Y " b { "{y:.2}" } }

@@ -2205,7 +2205,7 @@
         "Complete the same representative project journey in React and public Dioxus UI: select, create/place matrix, transform/constrain, edit outline, navigate finding, switch 2D/3D, save/reload and Undo/redo.",
         "Paired behavior agrees for accepted geometry, history/revision, save behavior, errors/cancellation, camera/view scope and service outputs.",
         "F3a layer/keycap/footprint behavior remains covered by its existing evidence and is not reimplemented or claimed as newly missing.",
-        "Desktop and light/dark visual comparisons, keyboard/axe/manual accessibility checks and affected performance/resource checks are recorded; blocked gates remain explicit.",
+        "Desktop and light/dark visual comparisons, keyboard/focus checks and affected performance/resource checks are recorded; blocked gates remain explicit.",
         "Map each inventory responsibility and retained React test to Dioxus owner, public scenario, or reviewed disposition; no whole shared TSX file is marked ported by partial coverage."
       ],
       "boundary_status": "Public application/session and React reference exist. Paired frontend runner and Dioxus production-browser gate are project-wide enforcement gaps; build success alone cannot close parity.",
@@ -2253,16 +2253,20 @@
         {
           "id": "F3.7-C01",
           "requirement": "Complete the same representative project journey in React and public Dioxus UI: select, create/place matrix, transform/constrain, edit outline, navigate finding, switch 2D/3D, save/reload and Undo/redo.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "release",
           "sources": [
             "web/src/presentation/layout_workspace.rs",
             "web/src/presentation/layout_viewer.rs",
             "web/src/presentation/layout_findings.rs"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/integrated-layout-c1d3-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/integrated-layout-c1d3-20261005/paired-document-comparison.json",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
+          ],
           "blockers": [],
-          "next_action": "After the leaf journeys are ready, run one paired representative end-to-end Layout journey on the current frozen candidate covering every listed step.",
+          "next_action": "Completed c1d3 paired journey independently reviewed: every named action, actual revision15 downloads and public own-copy reopen; C02 Escape repair remains separately open.",
           "finish_condition": "A single representative project completes every listed step in both public UIs with recorded outcomes.",
           "owned_files": [
             "web/src/presentation/layout_workspace.rs",
@@ -2276,16 +2280,19 @@
         {
           "id": "F3.7-C02",
           "requirement": "Paired behavior agrees for accepted geometry, history/revision, save behavior, errors/cancellation, camera/view scope and service outputs.",
-          "state": "implemented",
+          "state": "missing",
           "classification": "release",
           "sources": [
             "web/src/presentation.rs",
             "web/src/presentation/layout_workspace.rs",
             "web/src/presentation/shared_viewer.rs"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/integrated-layout-c1d3-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/integrated-layout-c1d3-20261005/paired-document-comparison.json"
+          ],
           "blockers": [],
-          "next_action": "Compare the complete paired journey's accepted geometry, history/revision, persistence, errors/cancellation, camera scope and service outputs on the same fixture.",
+          "next_action": "Diagnose focused fixed-outline point key handler, obtain owning mounted RED/GREEN, then qualify only changed cancellation branch on immutable package; retain completed same-journey output/camera/history evidence.",
           "finish_condition": "Current-candidate paired receipt records agreement for every named output and state boundary across the integrated journey.",
           "owned_files": [
             "web/src/presentation.rs",
@@ -2333,7 +2340,7 @@
             ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
           ],
           "blockers": [],
-          "next_action": "Independent desktop comparison review CLEAR; retain attributable prior/current captures and deferred cosmetic/mobile scope. Remaining integrated journey, accessibility, performance and inventory criteria stay open.",
+          "next_action": "Independent desktop comparison review CLEAR; retain attributable captures and deferred cosmetic/mobile scope. The remaining functional Escape repair and its published replay stay open; accessibility qualification is excluded.",
           "finish_condition": "The integrated qualification includes desktop comparisons in light and dark themes.",
           "owned_files": [
             ".scratch/dioxus-frontend-v1/tasks.json"
@@ -2344,7 +2351,7 @@
         },
         {
           "id": "F3.7-C05",
-          "requirement": "Keyboard/axe/manual accessibility checks are recorded.",
+          "requirement": "Keyboard operation, visible focus and focus restoration checks are recorded.",
           "state": "implemented",
           "classification": "release",
           "sources": [
@@ -2352,26 +2359,30 @@
           ],
           "evidence": [],
           "blockers": [],
-          "next_action": "Run and record keyboard, axe and manual accessibility checks for the integrated Layout candidate when its workflows are ready.",
-          "finish_condition": "Keyboard, axe and manual accessibility checks are recorded with unresolved gates explicit.",
+          "next_action": "Retain ordinary keyboard/focus evidence and qualify the repaired canvas-point Escape branch; accessibility, axe and assistive-technology qualification are removed by user instruction.",
+          "finish_condition": "Required keyboard actions and focus behavior work in the integrated Layout journey.",
           "owned_files": [
             ".scratch/dioxus-frontend-v1/tasks.json"
           ],
           "capabilities": [
-            "layout-accessibility-qualification"
+            "layout-keyboard-focus-qualification"
           ]
         },
         {
           "id": "F3.7-C06",
           "requirement": "Affected performance/resource checks are recorded; blocked gates remain explicit.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "release",
           "sources": [
             ".scratch/dioxus-frontend-v1/tasks.json"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/layout-pcb-inventory-20261005/f37-c06-applicability.md",
+            ".scratch/dioxus-frontend-v1/evidence/integrated-layout-c1d3-20261005/journey-checkpoints.json",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
+          ],
           "blockers": [],
-          "next_action": "Identify affected performance/resource checks from integrated changes and record results or the reason each gate remains blocked.",
+          "next_action": "Affected check/resource attribution recorded and independently reviewed; no measured performance pass claimed. Existing budgets remain applicable; unavailable eligible Dioxus timing/memory/soak qualification stays explicit for final gates.",
           "finish_condition": "Affected performance/resource checks and any blocked gates are recorded for the integrated candidate.",
           "owned_files": [
             ".scratch/dioxus-frontend-v1/tasks.json"
@@ -2409,7 +2420,7 @@
         "source_commit": "07b4c3466b1f388073e8e1f9d619b0703223d770",
         "assessed_at": "2026-10-03T19:29:50Z",
         "coverage": "complete",
-        "note": "All five original clauses represented; the broad integrated journey and qualification checks are implemented-but-unqualified (not missing application implementation); C04 remains split into visual, accessibility and performance/release checks. C03/C05 remain unassessed pending inspection of retained evidence and inventory mappings."
+        "note": "Current clauses retain integrated journey, desktop visual, keyboard/focus, performance/resource recording and inventory requirements. Accessibility/axe/AT qualification removed by explicit user instruction on2026-10-05; prior wording is retained in accessibility_scope_adjustment."
       }
     },
     {
@@ -4703,7 +4714,7 @@
       "acceptance_after": [
         "INT.2"
       ],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
       "shared_edit_owner": "integration coordinator",
@@ -4725,6 +4736,13 @@
           "from": "planned",
           "to": "implementing",
           "reason": "Saved-assembly authoring is active and the routed-board reference Inspector is integrated at18f05311, with import/model attachment remaining. Status records implementation only; original criteria, source history and final acceptance joins remain intact."
+        },
+        {
+          "at": "2026-10-05T12:24:19.399244+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Independent final review clears actual importedPCB/model/generatedcap geometry and physicalscope, actualcap picks, and packagedc1d3 defaultopenfindings visibleviewport+keyboardscroll, joined to accepted owning gates and priorpublicworkflowproofs.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f5-7-decision.json"
         }
       ],
       "criteria": [
@@ -4810,7 +4828,7 @@
         {
           "id": "F5.7-C04",
           "requirement": "F7 viewer effect for routed references is checked at F5.8 after the actual F7 join.",
-          "state": "missing",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/board_reference_effect.rs",
@@ -4819,10 +4837,13 @@
             "renderer/src/wasm.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-frontend-v1/evidence/pcb-routed-case-viewer-20261005/RECEIPT.md"
+            ".scratch/dioxus-frontend-v1/evidence/pcb-routed-case-viewer-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+            ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-findings-bounds-20261005/headless-receipt.json"
           ],
           "blockers": [],
-          "next_action": "Current cc candidate paired r22 routed fixture shows no Case viewport/pending/error while TS shows populated90/90model PCB. ExplicitLeft and Layout3D→Case return reproduce; Layout3D itself works. Diagnose accepted canonical/physical scope capture, obtain owning RED/GREEN and fix, then qualify routed transforms; packet-only pose proof is insufficient.",
+          "next_action": "Independent final review CLEAR: attributable accepted leaves plus55790actualcaps/picks/layers/physicalscope andc1d3defaultopenfindingsviewportGREEN complete this bounded join. Accessibility qualification was removed from scope by user instruction on 2026-10-05.",
           "finish_condition": "Paired integrated viewer shows accepted reference geometry and pose matching React.",
           "owned_files": [
             "web/src/presentation/pcb_board_reference.rs",
@@ -4840,6 +4861,9 @@
         "assessed_at": "2026-10-03T19:32:35+00:00",
         "coverage": "complete",
         "note": "Split every clause of the existing parent acceptance into independent checks; states reflect source/evidence qualification, not parent acceptance. Historical baseline/prose findings are retained as context and are not newly classified as defects."
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f5-7-decision.json"
       }
     },
     {
@@ -4860,7 +4884,7 @@
       ],
       "priority": "P2",
       "effort": "L",
-      "acceptance": "Paired React/Dioxus public browser journeys cover multi-board/split wiring, locks/conflicts/protection, module overlays/selection/findings, physical instances and routed references; desktop, light/dark/system, keyboard/focus/Escape, loading/errors/recovery, save/reopen, Undo/Redo and affected axe results are recorded. Every scoped TSX/test inventory row has an owner, evidence and truthful status; independent standards/spec reviews have no unresolved actionable finding. Join F7.3 and F7.7 for routed-reference visible geometry and selected physical-instance effects.",
+      "acceptance": "Paired React/Dioxus public browser journeys cover multi-board/split wiring, locks/conflicts/protection, module overlays/selection/findings, physical instances and routed references; desktop, light/dark/system, keyboard/focus/Escape, loading/errors/recovery, save/reopen, Undo/Redo results are recorded. Every scoped TSX/test inventory row has an owner, evidence and truthful status; independent standards/spec reviews have no unresolved actionable finding. Join F7.3 and F7.7 for routed-reference visible geometry and selected physical-instance effects.",
       "boundary_status": "Acceptance/evidence slice across existing services; it joins F2/F4 at named interface seams and records F7 viewer consumption separately. No backend API/schema, new enforcement gate, production cutover or React retirement permission implied.",
       "workflow": "F5",
       "owner": "F5 workflow lead",
@@ -4879,7 +4903,7 @@
         "F7.3",
         "F7.7"
       ],
-      "status": "planned",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
       "shared_edit_owner": "integration coordinator",
@@ -4900,17 +4924,20 @@
         {
           "id": "F5.8-C01",
           "requirement": "Paired public journeys cover multi-board/split wiring, locks/conflicts/protection, module overlays/selection/findings, physical instances and routed references.",
-          "state": "unassessed",
+          "state": "verified",
           "classification": "release",
           "sources": [
             ".scratch/dioxus-frontend-v1/tasks.json"
           ],
           "evidence": [
             ".scratch/dioxus-pcb-view/evidence/pcb02-public-qualification-20261002/paired-walkthrough.md",
-            ".scratch/dioxus-pcb-view/evidence/public-pcb-qualification-20261002/paired-walkthrough.md"
+            ".scratch/dioxus-pcb-view/evidence/public-pcb-qualification-20261002/paired-walkthrough.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+            ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-findings-bounds-20261005/headless-receipt.json"
           ],
           "blockers": [],
-          "next_action": "Assemble only the missing paired journeys and preserve the existing PCB02/Apply/module slices as prior evidence.",
+          "next_action": "Independent final review CLEAR: attributable accepted leaves plus55790actualcaps/picks/layers/physicalscope andc1d3defaultopenfindingsviewportGREEN complete this bounded join. Accessibility qualification was removed from scope by user instruction on 2026-10-05.",
           "finish_condition": "Every named workflow has same-fixture React/Dioxus public evidence for current candidate build.",
           "owned_files": [
             ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
@@ -4923,16 +4950,19 @@
         },
         {
           "id": "F5.8-C02",
-          "requirement": "Desktop, Light/Dark/System, keyboard/focus/Escape, loading/errors/recovery, save/reopen, Undo/Redo and affected axe results are recorded.",
-          "state": "unassessed",
+          "requirement": "Desktop, Light/Dark/System, keyboard/focus/Escape, loading/errors/recovery, save/reopen and Undo/Redo results are recorded.",
+          "state": "verified",
           "classification": "release",
           "sources": [
             ".scratch/dioxus-frontend-v1/issues/05-pcb.md"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+            ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/RECEIPT.md"
+          ],
           "blockers": [],
-          "next_action": "Record missing viewport/theme/input/lifecycle/history/axe dimensions against the changed integrated candidate; distinguish actual AT from automated axe.",
-          "finish_condition": "Evidence matrix covers every requested dimension with candid limitations and no inferred screen-reader pass.",
+          "next_action": "Independent review CLEAR after explicit accessibility scope removal: retained desktop/theme/keyboard/focus/Escape/loading/recovery/history/reopen proofs and current integrated Case viewport proof satisfy the remaining clauses. No excluded check is claimed as passed.",
+          "finish_condition": "Evidence matrix covers the retained desktop/theme/input/lifecycle/history dimensions with candid limitations.",
           "owned_files": [
             ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
             ".scratch/dioxus-frontend-v1/tasks.json",
@@ -4941,8 +4971,7 @@
           "capabilities": [
             "responsive layout",
             "keyboard/focus handling",
-            "shared history/storage",
-            "accessible names/roles"
+            "shared history/storage"
           ]
         },
         {
@@ -4974,14 +5003,17 @@
         {
           "id": "F5.8-C04",
           "requirement": "Independent standards/spec reviews have no unresolved actionable finding.",
-          "state": "unassessed",
+          "state": "verified",
           "classification": "release",
           "sources": [
             ".scratch/dioxus-pcb-view/evidence/astra-final-review.md"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+            ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/RECEIPT.md"
+          ],
           "blockers": [],
-          "next_action": "Run/reuse final independent standards and spec reviews only after the coherent integrated candidate and inventory are ready.",
+          "next_action": "Independent review CLEAR after explicit accessibility scope removal: retained desktop/theme/keyboard/focus/Escape/loading/recovery/history/reopen proofs and current integrated Case viewport proof satisfy the remaining clauses. No excluded check is claimed as passed.",
           "finish_condition": "Independent reviews on the final candidate report no unresolved actionable finding.",
           "owned_files": [
             ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
@@ -4996,17 +5028,18 @@
         {
           "id": "F5.8-C05",
           "requirement": "Join F7.3 and F7.7 for routed-reference visible geometry and selected physical-instance effects.",
-          "state": "unassessed",
+          "state": "verified",
           "classification": "release",
           "sources": [
             ".scratch/dioxus-frontend-v1/tasks.json"
           ],
-          "evidence": [],
-          "blockers": [
-            "F7.3",
-            "F7.7"
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+            ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-findings-bounds-20261005/headless-receipt.json"
           ],
-          "next_action": "Record both named viewer integration joins after their current provider capabilities are qualified.",
+          "blockers": [],
+          "next_action": "Independent final review CLEAR: attributable accepted leaves plus55790actualcaps/picks/layers/physicalscope andc1d3defaultopenfindingsviewportGREEN complete this bounded join. Accessibility qualification was removed from scope by user instruction on 2026-10-05.",
           "finish_condition": "F7.3 and F7.7 evidence is linked and demonstrates routed-reference and selected-instance effects.",
           "owned_files": [
             ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
@@ -5024,7 +5057,19 @@
         "assessed_at": "2026-10-03T19:32:35+00:00",
         "coverage": "complete",
         "note": "Split every clause of the existing parent acceptance into independent checks; states reflect source/evidence qualification, not parent acceptance. Historical baseline/prose findings are retained as context and are not newly classified as defects."
-      }
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f5-8-decision.json"
+      },
+      "status_history": [
+        {
+          "at": "2026-10-05T13:10:38.946937+00:00",
+          "from": "planned",
+          "to": "accepted",
+          "reason": "Independent consolidated review verifies retained desktop PCB behavior, history/reopen, scoped inventory and integrated viewer joins. User removed accessibility qualification; no excluded result is credited as passed.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f5-8-decision.json"
+        }
+      ]
     },
     {
       "id": "F6K.1",
@@ -8064,7 +8109,7 @@
         "F6C.5",
         "F2.3"
       ],
-      "status": "planned",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
       "shared_edit_owner": "integration coordinator",
@@ -8115,7 +8160,7 @@
         {
           "id": "F7.8-C02",
           "requirement": "Run public paired parity flows for camera/render/layers/selection/error/retry across all consumers, not only isolated viewer fixture.",
-          "state": "missing",
+          "state": "verified",
           "classification": "release",
           "sources": [
             ".scratch/dioxus-frontend-v1/tasks.json",
@@ -8125,10 +8170,12 @@
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
             ".scratch/dioxus-shared-viewer/evidence/issue02-case-pick-next-20261003/34762-native-preview-visibility.md",
             ".scratch/dioxus-frontend-v1/evidence/f7-adoption-20261005/plan.md",
-            ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/RECEIPT.md"
+            ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-findings-bounds-20261005/headless-receipt.json"
           ],
           "blockers": [],
-          "next_action": "Confirmed published38641 generated-cap picks are dropped in Keymap and Keycaps; reference selects correct key. Hiding the cap lets the candidate select the underlying switch at the same pixel. Repair current cap/legend-to-part mapping with owning native RED/GREEN, then packaged actual two-route picks. Remaining required Casecaps replay is already in the batch. Camera/render/layer/read-only Parts actions and retained lifecycle evidence are sufficient and must not be repeated.",
+          "next_action": "Independent final review CLEAR: attributable accepted leaves plus55790actualcaps/picks/layers/physicalscope andc1d3defaultopenfindingsviewportGREEN complete this bounded join. Accessibility qualification was removed from scope by user instruction on 2026-10-05.",
           "finish_condition": "Every consumer has a paired public camera/render/layer/pick/error/retry outcome; no isolated fixture substituted for workflow.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs"
@@ -8140,7 +8187,7 @@
         {
           "id": "F7.8-C03",
           "requirement": "Run Case public workflows for authored/mechanical edits, history/draft cancel, live/manual generation, cancellation/retry/staleness/readiness, diagnostics, exact STEP and physical scope selection.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "release",
           "sources": [
             ".scratch/dioxus-frontend-v1/tasks.json",
@@ -8150,10 +8197,13 @@
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
             ".scratch/dioxus-case-workspace/evidence/issue-01-authored-case-reconciliation-20261003/public-crud-and-mismatch-receipt.md",
-            ".scratch/dioxus-case-workspace/evidence/15-mounting-controls-20261003/public-receipt.md"
+            ".scratch/dioxus-case-workspace/evidence/15-mounting-controls-20261003/public-receipt.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+            ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-findings-bounds-20261005/headless-receipt.json"
           ],
           "blockers": [],
-          "next_action": "Assemble missing Case journeys into a current candidate receipt, reusing the existing authoring/mechanical receipts; include exact STEP/cancel/stale/readiness and scope switches. This is implemented behavior pending aggregate public qualification; do not create application code solely to manufacture missing journey evidence.",
+          "next_action": "Independent final review CLEAR: attributable accepted leaves plus55790actualcaps/picks/layers/physicalscope andc1d3defaultopenfindingsviewportGREEN complete this bounded join. Accessibility qualification was removed from scope by user instruction on 2026-10-05.",
           "finish_condition": "Paired current-candidate Case flow demonstrates all listed authored/mechanical/generation/export/scope behavior.",
           "owned_files": [
             "web/src/presentation/case_workspace.rs",
@@ -8166,7 +8216,7 @@
         {
           "id": "F7.8-C04",
           "requirement": "Exercise cancellation/scope or revision change during CAD/model loads and generation, renderer failure/retry, context-loss/unmount, and form preservation.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "release",
           "sources": [
             ".scratch/dioxus-frontend-v1/tasks.json",
@@ -8175,10 +8225,13 @@
             "web/src/presentation/shared_viewer.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-shared-viewer/evidence/source-contract-reviewed-20261002/final-standards-review.md"
+            ".scratch/dioxus-shared-viewer/evidence/source-contract-reviewed-20261002/final-standards-review.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+            ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/RECEIPT.md",
+            ".scratch/dioxus-frontend-v1/evidence/case-findings-bounds-20261005/headless-receipt.json"
           ],
           "blockers": [],
-          "next_action": "Capture one public transition per async ownership path and one renderer failure path; source guards alone do not verify behavior. This is implemented behavior pending aggregate public qualification; do not create application code solely to manufacture missing journey evidence.",
+          "next_action": "Independent final review CLEAR: attributable accepted leaves plus55790actualcaps/picks/layers/physicalscope andc1d3defaultopenfindingsviewportGREEN complete this bounded join. Accessibility qualification was removed from scope by user instruction on 2026-10-05.",
           "finish_condition": "Obsolete work is canceled/suppressed, renderer failure keeps forms/2D return available, retry is shown only for supported provider/model paths.",
           "owned_files": [
             "web/src/case_generation_lifecycle.rs",
@@ -8215,7 +8268,7 @@
             "web/src/presentation/case_workspace.rs"
           ],
           "capabilities": [
-            "accessibility",
+            "keyboard-focus-and-functional-controls",
             "desktop-layout",
             "2d-fallback"
           ]
@@ -8249,7 +8302,19 @@
         "assessed_at": "2026-10-03T19:34:54Z",
         "coverage": "complete",
         "note": "Canonical F7 acceptance clauses were decomposed into independently assessable capability criteria. Source presence is implemented; verified requires an existing receipt/check. Baseline prose is not a gap; visual-only differences are deferred by CONSTRAINTS. Historical public-API approval language is not treated as a blocker. F7.2 is intentionally untouched; original parent start/acceptance joins are preserved in tasks.json and not misreported as capability blockers."
-      }
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f7-8-decision.json"
+      },
+      "status_history": [
+        {
+          "at": "2026-10-05T12:24:19.404907+00:00",
+          "from": "planned",
+          "to": "accepted",
+          "reason": "Independent final review clears actual importedPCB/model/generatedcap geometry and physicalscope, actualcap picks, and packagedc1d3 defaultopenfindings visibleviewport+keyboardscroll, joined to accepted owning gates and priorpublicworkflowproofs.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f7-8-decision.json"
+        }
+      ]
     },
     {
       "id": "F8.1",
@@ -9090,7 +9155,7 @@
       "effort": "L",
       "acceptance": {
         "red": "No Dioxus public browser journey proves the same project survives edits across Layout, Parts, PCB, Keymap, Keycaps and Case and then emits the correct current-scope exports.",
-        "green": "Run paired public journeys on the same saved project through Layout edit, Parts definition use, PCB board/wiring readiness, Keymap/Keycaps edits, Case generation and Export. Verify required output choices, readiness explanations, filenames/bytes/archive entries, snapshots, own-transaction exceptions, project round-trip where applicable, error/repeat-retry behavior, return navigation and temporary URL cleanup. Cover project/board/instance switch during pending operations; no stale artifact or protection record may appear. Include desktop themes, keyboard/focus and applicable accessibility evidence."
+        "green": "Run paired public journeys on the same saved project through Layout edit, Parts definition use, PCB board/wiring readiness, Keymap/Keycaps edits, Case generation and Export. Verify required output choices, readiness explanations, filenames/bytes/archive entries, snapshots, own-transaction exceptions, project round-trip where applicable, error/repeat-retry behavior, return navigation and temporary URL cleanup. Cover project/board/instance switch during pending operations; no stale artifact or protection record may appear. Include desktop themes and keyboard/focus evidence."
       },
       "boundary_status": "Final integration requires F2/F5/F6/F7 actual providers and F3/F4 state, beyond fixture-only F8 UI acceptance. Existing core archive/artifact/firmware/CAD tests and React exporter tests provide behavior oracles. Shared acceptance ledger/inventory edits remain coordinator-owned.",
       "workflow": "F8",
@@ -9226,7 +9291,7 @@
         },
         {
           "id": "F8.6-C04",
-          "requirement": "Include desktop themes, keyboard/focus and applicable accessibility evidence.",
+          "requirement": "Include desktop themes and keyboard/focus evidence.",
           "state": "unassessed",
           "classification": "visual",
           "sources": [
@@ -9236,15 +9301,15 @@
             ".scratch/dioxus-frontend-v1/evidence/export-workspace-34763-20261003/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Qualify the joined route in desktop and themes with keyboard/focus plus applicable accessibility evidence.",
+          "next_action": "Qualify the joined route in desktop themes with ordinary keyboard/focus behavior.",
           "finish_condition": "Paired end-to-end evidence covers the stated visual and interaction modes.",
           "owned_files": [
             "web/src/presentation/export_workspace.rs",
             "web/assets/m1.css"
           ],
           "capabilities": [
-            "Export responsive/theme states",
-            "keyboard/focus accessibility"
+            "desktop themes",
+            "keyboard/focus"
           ]
         }
       ],
@@ -9333,7 +9398,7 @@
       ],
       "priority": "P0",
       "effort": "L",
-      "acceptance": "All completed workflows pass paired UI/theme/keyboard/axe/review checks",
+      "acceptance": "All completed workflows pass paired UI/theme/keyboard/review checks",
       "boundary_status": "existing public UI seams; scenario-specific joins",
       "workflow": "F9",
       "owner": "F9 workflow lead",
@@ -9375,7 +9440,7 @@
       "criteria": [
         {
           "id": "F9.2-C01",
-          "requirement": "Every completed workflow passes paired public UI, theme, keyboard, desktop short-height/zoom, axe and source-review checks with source/fixture identity.",
+          "requirement": "Every completed workflow passes paired public UI, theme, keyboard, desktop short-height/zoom and source-review checks with source/fixture identity.",
           "state": "unassessed",
           "classification": "visual",
           "sources": [
@@ -9396,77 +9461,12 @@
             "F8.6"
           ],
           "next_action": "Complete per-workflow and aggregate paired qualification after required workflow joins; reuse only attributable unchanged evidence.",
-          "finish_condition": "Each completed required workflow has paired public UI/theme/keyboard/short/zoom/axe/review evidence with source and fixture identity.",
+          "finish_condition": "Each completed required workflow has paired public UI/theme/keyboard/short-height/zoom/review evidence with source and fixture identity.",
           "owned_files": [
             ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md"
           ],
           "capabilities": [
             "paired workflow qualification"
-          ]
-        }
-      ],
-      "criteria_accounting": {
-        "source_commit": "07b4c3466b1f388073e8e1f9d619b0703223d770",
-        "assessed_at": "2026-10-03T19:35:06Z",
-        "coverage": "complete",
-        "note": "All current acceptance clauses for this parent were split into independently decidable criteria; broad baseline RED context was excluded as a requirement. Parent remains open unless all required criteria and joins are accepted."
-      }
-    },
-    {
-      "id": "F9.3",
-      "title": "Assistive technology qualification",
-      "depends_on": [
-        "F9.2"
-      ],
-      "priority": "P0",
-      "effort": "M",
-      "acceptance": "Actual screen-reader journeys pass with named browser/OS/source",
-      "boundary_status": "external host capability unavailable; prepare script now",
-      "workflow": "F9",
-      "owner": "F9 workflow lead",
-      "start_after": [],
-      "acceptance_after": [
-        "F9.2"
-      ],
-      "status": "planned",
-      "external_gates": [
-        "actual screen-reader/browser/OS host available; test unperformed on current host"
-      ],
-      "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
-      "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
-      "agent_routing": {
-        "author_profile": "luna-medium",
-        "verifier_profile": "luna-medium",
-        "reviewer_profile": "sol-review",
-        "review_mode": "integrated_candidate_batch",
-        "contract_review_before_implementation": false,
-        "requires_dispatch_packet": true,
-        "policy": "AGENT-ROUTING.md",
-        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
-        "refactoring_handoff_required": true,
-        "author_role_note": "Evidence execution/preparation; Astra independently assesses acceptance, task external gates unchanged."
-      },
-      "criteria": [
-        {
-          "id": "F9.3-C01",
-          "requirement": "Actual screen-reader journeys pass with named screen reader, browser and OS; names, selection, announcements, focus order and recovery pass.",
-          "state": "unassessed",
-          "classification": "release",
-          "sources": [
-            ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md"
-          ],
-          "evidence": [
-            ".scratch/dioxus-frontend-v1/evidence/planning/F9-review.md"
-          ],
-          "blockers": [],
-          "next_action": "Prepare runnable scenarios now; execute with an available named screen reader/browser/OS after full workflow readiness.",
-          "finish_condition": "Actual assistive-technology user journeys cover names, selection, announcements, focus and recovery; AX tree/keyboard/speech synthesis are not substitutes.",
-          "owned_files": [
-            ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md"
-          ],
-          "capabilities": [
-            "assistive technology qualification"
           ]
         }
       ],
@@ -9697,7 +9697,6 @@
       "depends_on": [
         "F9.1",
         "F9.2",
-        "F9.3",
         "F9.4",
         "F9.5"
       ],
@@ -9710,7 +9709,6 @@
       "start_after": [
         "F9.1",
         "F9.2",
-        "F9.3",
         "F9.4",
         "F9.5"
       ],
@@ -9745,11 +9743,10 @@
           "blockers": [
             "F9.1",
             "F9.2",
-            "F9.3",
             "F9.4",
             "F9.5"
           ],
-          "next_action": "After F9.1–F9.5 and F2–F8 exits, reconcile every remaining placeholder/React island against inventory.",
+          "next_action": "After F9.1, F9.2, F9.4, F9.5 and F2–F8 exits, reconcile every remaining placeholder/React island against inventory.",
           "finish_condition": "No required UI behavior remains a placeholder or React island.",
           "owned_files": [
             ".scratch/dioxus-frontend-v1/evidence/tsx-inventory.json"
@@ -9770,7 +9767,6 @@
           "blockers": [
             "F9.1",
             "F9.2",
-            "F9.3",
             "F9.4",
             "F9.5"
           ],
@@ -9962,7 +9958,6 @@
     "F8.6",
     "F9.2",
     "F9.4",
-    "F9.3",
     "F9.5",
     "F9.6",
     "F9.7"
@@ -9974,19 +9969,18 @@
     "F7.1",
     "F9.1",
     "F9.2",
-    "F9.3",
     "F9.4",
     "F9.5"
   ],
   "counts": {
-    "total": 61,
-    "workflow_slices": 57,
+    "total": 60,
+    "workflow_slices": 56,
     "integration_slices": 2,
     "boundary_slices": 2,
     "status": {
-      "accepted": 49,
-      "implementing": 3,
-      "planned": 9
+      "accepted": 52,
+      "implementing": 2,
+      "planned": 6
     }
   },
   "agent_policy": ".scratch/dioxus-frontend-v1/agent-policy.json",
@@ -10043,6 +10037,190 @@
         "green": "Run paired public journeys on the same saved project through Layout edit, Parts definition use, PCB board/wiring readiness, Keymap/Keycaps edits, Case generation and Export. Verify required output choices, readiness explanations, filenames/bytes/archive entries, snapshots, own-transaction exceptions, project round-trip where applicable, error/repeat-retry behavior, return navigation and temporary URL cleanup. Cover project/board/instance switch during pending operations; no stale artifact or protection record may appear. Include desktop/compact themes, keyboard/focus and applicable accessibility evidence."
       },
       "F9.2": "All completed workflows pass paired UI/theme/compact/keyboard/axe/review checks"
+    }
+  },
+  "accessibility_scope_adjustment": {
+    "date": "2026-10-05",
+    "authority": "User: what Accessibility? and F9.3 — Assistive technology? we dont need that at all.. remove",
+    "scope": "Remove accessibility qualification, axe/semantic-only audits and repairs, and actual assistive-technology/screen-reader gates from the active frontend migration. Keep ordinary keyboard/focus/Escape functional behavior and existing controls. Historical evidence remains historical, not a pass.",
+    "removed_parent": {
+      "id": "F9.3",
+      "title": "Assistive technology qualification",
+      "depends_on": [
+        "F9.2"
+      ],
+      "priority": "P0",
+      "effort": "M",
+      "acceptance": "Actual screen-reader journeys pass with named browser/OS/source",
+      "boundary_status": "external host capability unavailable; prepare script now",
+      "workflow": "F9",
+      "owner": "F9 workflow lead",
+      "start_after": [],
+      "acceptance_after": [
+        "F9.2"
+      ],
+      "status": "planned",
+      "external_gates": [
+        "actual screen-reader/browser/OS host available; test unperformed on current host"
+      ],
+      "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "sol-review",
+        "review_mode": "integrated_candidate_batch",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true,
+        "author_role_note": "Evidence execution/preparation; Astra independently assesses acceptance, task external gates unchanged."
+      },
+      "criteria": [
+        {
+          "id": "F9.3-C01",
+          "requirement": "Actual screen-reader journeys pass with named screen reader, browser and OS; names, selection, announcements, focus order and recovery pass.",
+          "state": "unassessed",
+          "classification": "release",
+          "sources": [
+            ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md"
+          ],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/planning/F9-review.md"
+          ],
+          "blockers": [],
+          "next_action": "Prepare runnable scenarios now; execute with an available named screen reader/browser/OS after full workflow readiness.",
+          "finish_condition": "Actual assistive-technology user journeys cover names, selection, announcements, focus and recovery; AX tree/keyboard/speech synthesis are not substitutes.",
+          "owned_files": [
+            ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md"
+          ],
+          "capabilities": [
+            "assistive technology qualification"
+          ]
+        }
+      ],
+      "criteria_accounting": {
+        "source_commit": "07b4c3466b1f388073e8e1f9d619b0703223d770",
+        "assessed_at": "2026-10-03T19:35:06Z",
+        "coverage": "complete",
+        "note": "All current acceptance clauses for this parent were split into independently decidable criteria; broad baseline RED context was excluded as a requirement. Parent remains open unless all required criteria and joins are accepted."
+      }
+    },
+    "original_mixed_criteria": {
+      "F3.7-C05": {
+        "id": "F3.7-C05",
+        "requirement": "Keyboard/axe/manual accessibility checks are recorded.",
+        "state": "implemented",
+        "classification": "release",
+        "sources": [
+          ".scratch/dioxus-frontend-v1/tasks.json"
+        ],
+        "evidence": [],
+        "blockers": [],
+        "next_action": "Run and record keyboard, axe and manual accessibility checks for the integrated Layout candidate when its workflows are ready.",
+        "finish_condition": "Keyboard, axe and manual accessibility checks are recorded with unresolved gates explicit.",
+        "owned_files": [
+          ".scratch/dioxus-frontend-v1/tasks.json"
+        ],
+        "capabilities": [
+          "layout-accessibility-qualification"
+        ]
+      },
+      "F5.8-C02": {
+        "id": "F5.8-C02",
+        "requirement": "Desktop, Light/Dark/System, keyboard/focus/Escape, loading/errors/recovery, save/reopen, Undo/Redo and affected axe results are recorded.",
+        "state": "unassessed",
+        "classification": "release",
+        "sources": [
+          ".scratch/dioxus-frontend-v1/issues/05-pcb.md"
+        ],
+        "evidence": [],
+        "blockers": [],
+        "next_action": "Record missing viewport/theme/input/lifecycle/history/axe dimensions against the changed integrated candidate; distinguish actual AT from automated axe.",
+        "finish_condition": "Evidence matrix covers every requested dimension with candid limitations and no inferred screen-reader pass.",
+        "owned_files": [
+          ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
+          ".scratch/dioxus-frontend-v1/tasks.json",
+          ".scratch/dioxus-pcb-view"
+        ],
+        "capabilities": [
+          "responsive layout",
+          "keyboard/focus handling",
+          "shared history/storage",
+          "accessible names/roles"
+        ]
+      },
+      "F8.6-C04": {
+        "id": "F8.6-C04",
+        "requirement": "Include desktop themes, keyboard/focus and applicable accessibility evidence.",
+        "state": "unassessed",
+        "classification": "visual",
+        "sources": [
+          ".scratch/dioxus-frontend-v1/issues/08-export.md"
+        ],
+        "evidence": [
+          ".scratch/dioxus-frontend-v1/evidence/export-workspace-34763-20261003/RECEIPT.md"
+        ],
+        "blockers": [],
+        "next_action": "Qualify the joined route in desktop and themes with keyboard/focus plus applicable accessibility evidence.",
+        "finish_condition": "Paired end-to-end evidence covers the stated visual and interaction modes.",
+        "owned_files": [
+          "web/src/presentation/export_workspace.rs",
+          "web/assets/m1.css"
+        ],
+        "capabilities": [
+          "Export responsive/theme states",
+          "keyboard/focus accessibility"
+        ]
+      },
+      "F9.2-C01": {
+        "id": "F9.2-C01",
+        "requirement": "Every completed workflow passes paired public UI, theme, keyboard, desktop short-height/zoom, axe and source-review checks with source/fixture identity.",
+        "state": "unassessed",
+        "classification": "visual",
+        "sources": [
+          ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md"
+        ],
+        "evidence": [
+          ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/review.md"
+        ],
+        "blockers": [
+          "F2.2",
+          "F2.4",
+          "F3.7",
+          "F4.5",
+          "F4.6",
+          "F5.8",
+          "F6.6",
+          "F7.8",
+          "F8.6"
+        ],
+        "next_action": "Complete per-workflow and aggregate paired qualification after required workflow joins; reuse only attributable unchanged evidence.",
+        "finish_condition": "Each completed required workflow has paired public UI/theme/keyboard/short/zoom/axe/review evidence with source and fixture identity.",
+        "owned_files": [
+          ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md"
+        ],
+        "capabilities": [
+          "paired workflow qualification"
+        ]
+      }
+    },
+    "original_parent_acceptance": {
+      "F3.7": [
+        "Complete the same representative project journey in React and public Dioxus UI: select, create/place matrix, transform/constrain, edit outline, navigate finding, switch 2D/3D, save/reload and Undo/redo.",
+        "Paired behavior agrees for accepted geometry, history/revision, save behavior, errors/cancellation, camera/view scope and service outputs.",
+        "F3a layer/keycap/footprint behavior remains covered by its existing evidence and is not reimplemented or claimed as newly missing.",
+        "Desktop and light/dark visual comparisons, keyboard/axe/manual accessibility checks and affected performance/resource checks are recorded; blocked gates remain explicit.",
+        "Map each inventory responsibility and retained React test to Dioxus owner, public scenario, or reviewed disposition; no whole shared TSX file is marked ported by partial coverage."
+      ],
+      "F5.8": "Paired React/Dioxus public browser journeys cover multi-board/split wiring, locks/conflicts/protection, module overlays/selection/findings, physical instances and routed references; desktop, light/dark/system, keyboard/focus/Escape, loading/errors/recovery, save/reopen, Undo/Redo and affected axe results are recorded. Every scoped TSX/test inventory row has an owner, evidence and truthful status; independent standards/spec reviews have no unresolved actionable finding. Join F7.3 and F7.7 for routed-reference visible geometry and selected physical-instance effects.",
+      "F8.6": {
+        "red": "No Dioxus public browser journey proves the same project survives edits across Layout, Parts, PCB, Keymap, Keycaps and Case and then emits the correct current-scope exports.",
+        "green": "Run paired public journeys on the same saved project through Layout edit, Parts definition use, PCB board/wiring readiness, Keymap/Keycaps edits, Case generation and Export. Verify required output choices, readiness explanations, filenames/bytes/archive entries, snapshots, own-transaction exceptions, project round-trip where applicable, error/repeat-retry behavior, return navigation and temporary URL cleanup. Cover project/board/instance switch during pending operations; no stale artifact or protection record may appear. Include desktop themes, keyboard/focus and applicable accessibility evidence."
+      },
+      "F9.2": "All completed workflows pass paired UI/theme/keyboard/axe/review checks"
     }
   }
 }

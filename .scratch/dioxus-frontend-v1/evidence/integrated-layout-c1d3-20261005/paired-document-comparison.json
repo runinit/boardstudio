@@ -1,0 +1,12 @@
+{
+  "normalization": "Only newly allocated matrix/definition/part path identifier, constraint id and active outline version/feature identifier normalized by their recorded associations. Numeric comparison abs1e-8 rel1e-12. No existing ids or unsupported fields dropped.",
+  "replacements": {
+    "matrix-1": "NEW_MATRIX",
+    "ui-2bc70d64-ff28-475e-adfe-99bf5c52f541": "NEW_MATRIX",
+    "layout-component-constraint-35": "NEW_CONSTRAINT",
+    "ui-f61e3335-c57f-4ec3-9a71-4a458d219121": "NEW_CONSTRAINT",
+    "outline-version-42": "NEW_OUTLINE",
+    "fixed-b4daa95c-1855-4318-a3aa-7b8036cbe26d": "NEW_OUTLINE"
+  },
+  "differences": []
+}

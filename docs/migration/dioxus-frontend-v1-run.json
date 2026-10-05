@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "run": "dioxus-frontend-v1-20261001",
-  "scope": "Desktop frontend: TSX, UI state, theming and interaction behavior; mobile/compact validation excluded by explicit user instruction",
+  "scope": "Desktop frontend: TSX, UI state, theming and functional interaction behavior; mobile/compact and accessibility/assistive-technology qualification excluded by explicit user instructions",
   "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
   "branch": "codex/rust-v1-ui-parity-20261001",
   "authority": "CONSTRAINTS.md",
@@ -16,29 +16,29 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-05T12:14:21.105261+00:00",
+    "updated_at": "2026-10-05T13:10:38.952638+00:00",
     "parent_counts": {
-      "accepted": 49,
-      "implementing": 3,
-      "planned": 9,
-      "total": 61
+      "accepted": 52,
+      "implementing": 2,
+      "planned": 6,
+      "total": 60
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-case-parts-cap-selection-20261005",
-      "source_commit": "55790e0a9c30b3e53cbd9690dc418fec23021d11",
-      "root_url": "http://127.0.0.1:34824/",
-      "subpath_url": "http://127.0.0.1:34824/boardstudio/",
-      "provenance": "web/target/builds/frontend-case-parts-cap-selection-20261005/provenance.json",
-      "provenance_sha256": "a976c2c330a68a2cf76674392e572aed98711c66367f6bf41277d0d02afe374e",
+      "build_id": "frontend-case-findings-bounds-20261005",
+      "source_commit": "c1d3f13c642380c6a95ce8ae317fd99e6743c04f",
+      "root_url": "http://127.0.0.1:34825/",
+      "subpath_url": "http://127.0.0.1:34825/boardstudio/",
+      "provenance": "web/target/builds/frontend-case-findings-bounds-20261005/provenance.json",
+      "provenance_sha256": "af1185fe12e7b8f335906950cf6a99058569749cc9614ae739247202ace4c026",
       "fresh_commands": 9,
       "inherited_commands": 23,
       "source_inputs": 1409,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 135.493201,
+      "command_span_seconds": 129.749223,
       "package_qualification": "Combined package provenance, committed snapshot inputs and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-case-parts-cap-selection-20261005/package-proof.json",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-case-findings-bounds-20261005/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -47,328 +47,7 @@
     "criterion_accounting": "Criterion states, evidence, blockers and next actions are authoritative in tasks.json; progress.py derives focused queues and counts. Historical accepted parents retain their decisions.",
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
-    "integration": {
-      "source_commit": "38641dd1353bcfb6230d52c1d5b84c7ad7908e7a",
-      "state": "IndependentCLEAR; gate3111403terminal0/native247+1ignored/page/reachability/strictheadless4passed0failed0excluded0incomplete. Explicitcommit/immutablepackage/publicdefaultopenviewportGREEN next.",
-      "packets": [
-        {
-          "stream": "Layout",
-          "integrated_commit": "1a4d2044+642d5474",
-          "change": "Selected-matrix Add object context",
-          "receipt": ".scratch/dioxus-frontend-v1/evidence/f32c-selected-matrix-add-20261003/receipt.md"
-        },
-        {
-          "stream": "Parts + Project",
-          "integrated_commit": "7345cbfb",
-          "change": "VIK module-review demo",
-          "receipt": ".scratch/dioxus-frontend-tranche-1/evidence/vik-module-review-source-20261003/FIXTURE-PREP.md"
-        },
-        {
-          "stream": "Packaging support",
-          "integrated_commit": "d6380df5+b2ed62f8",
-          "change": "Explicit fixture refresh with retained provider baseline; fresh output still pending"
-        },
-        {
-          "stream": "PCB",
-          "integrated_commit": "fcf28684",
-          "change": "Matrix and mirrored-pair authoring admission"
-        },
-        {
-          "stream": "Shared shell",
-          "integrated_commit": "047a33d8",
-          "change": "Reference44px compact topbar"
-        },
-        {
-          "stream": "Parts + Project",
-          "integrated_commit": "7842edad",
-          "change": "Fifteen measured keyboard demos",
-          "receipt": ".scratch/dioxus-frontend-tranche-1/evidence/issue05-measured-demo-source-20261003.md"
-        },
-        {
-          "stream": "Layout",
-          "integrated_commit": "def206d4",
-          "change": "Linked-layout Inspector and Unlink halves"
-        },
-        {
-          "stream": "PCB",
-          "integrated_commit": "2c6c46a6",
-          "change": "Board outline and Geometry scripts routes"
-        },
-        {
-          "stream": "Shared shell",
-          "integrated_commit": "3b6dbcd7",
-          "change": "Setup-guide readiness and stage detail",
-          "receipt": ".scratch/dioxus-frontend-v1/evidence/setup-guide-readiness-20261003/receipt.md"
-        },
-        {
-          "stream": "Layout",
-          "integrated_commit": "11289ba5",
-          "change": "Mirror existing half",
-          "receipt": ".scratch/dioxus-layout-authoring/evidence/f32c-existing-half-source-20261003.md"
-        },
-        {
-          "stream": "Case",
-          "integrated_commit": "54f627b1",
-          "change": "Access-opening add/remove, vertices and dimensions",
-          "receipt": ".scratch/dioxus-case-workspace/issues/05-mechanical-enclosure-fit.md"
-        },
-        {
-          "stream": "Layout",
-          "integrated_commit": "81681302",
-          "change": "Accepted mirror-create camera reset and local assembly-copy parity",
-          "receipt": ".scratch/dioxus-layout-authoring/evidence/f32c-existing-half-source-20261003.md"
-        },
-        {
-          "stream": "Shared shell",
-          "integrated_commit": "c0adf728",
-          "change": "Typing-safe global Undo/Redo shortcuts",
-          "receipt": ".scratch/dioxus-frontend-v1/evidence/global-history-shortcuts-20261003/receipt.md"
-        },
-        {
-          "stream": "Case",
-          "integrated_commit": "d3f39f58",
-          "change": "Internal-gasket closure hardware choices",
-          "receipt": ".scratch/dioxus-case-workspace/issues/05-mechanical-enclosure-fit.md"
-        },
-        {
-          "stream": "Parts",
-          "integrated_commit": "f653b8f9",
-          "change": "Module-definition volumes/openings, model bindings and rotary fields",
-          "receipt": ".scratch/dioxus-frontend-v1/evidence/module-profile-editor-source-20261003/RECEIPT.md"
-        },
-        {
-          "stream": "Export support",
-          "integrated_commit": "113c330c",
-          "change": "Generated mechanical package consumer",
-          "receipt": ".scratch/dioxus-frontend-v1/issues/08-export-coordinator-dispatch.md"
-        },
-        {
-          "stream": "PCB",
-          "integrated_commit": "18f05311",
-          "change": "Routed-board reference pose and existing model mappings",
-          "receipt": ".scratch/dioxus-frontend-v1/issues/05-pcb.md"
-        },
-        {
-          "stream": "Layout",
-          "integrated_commit": "f7823a24+e57fd3a8",
-          "change": "Reference background dot grid",
-          "receipt": ".scratch/dioxus-layout-authoring/evidence/f33-background-grid-dots-20261003.md"
-        },
-        {
-          "stream": "Export support",
-          "integrated_commit": "97a0761f",
-          "change": "Authored Case STEP remains available with generated mechanics",
-          "receipt": ".scratch/dioxus-frontend-v1/evidence/export-workspace-20261003/authored-case-step-source-map.md"
-        },
-        {
-          "stream": "Layout",
-          "integrated_commit": "82688515",
-          "change": "Addition/cutout polygon drafts, snap/Alt, point Undo/finish/cancel",
-          "receipt": ".scratch/dioxus-layout-authoring/evidence/f34e-manual-polygon-drafts-source-20261003.md"
-        },
-        {
-          "stream": "Parts",
-          "integrated_commit": "7b7265f8",
-          "change": "Saved assembly New/select/Duplicate and member authoring",
-          "receipt": ".scratch/dioxus-frontend-v1/evidence/f46-assembly-authoring-20261003/RECEIPT.md"
-        },
-        {
-          "stream": "Shared integration",
-          "integrated_commit": "0e51d316+840131fd+4b1a44af",
-          "change": "Mirror/PCB selection captures, module-profile imports and assembly callback compiler fixes",
-          "qualification": "Source repairs; next combined compiler build pending"
-        },
-        {
-          "stream": "Case",
-          "integrated_commit": "7e0b97a4",
-          "change": "Complete closure dimensions/screw choices and Critical fits add/remove, XY points and calculated distance",
-          "receipt": ".scratch/dioxus-case-workspace/issues/05-mechanical-enclosure-fit.md"
-        },
-        {
-          "stream": "Export support",
-          "integrated_commit": "6e536dd4",
-          "change": "Generated/authored Export compiler type and capture repairs"
-        },
-        {
-          "stream": "Layout",
-          "integrated_commit": "b13983c6",
-          "change": "Retain polygon draft compiler captures and document/SVG typing repairs"
-        },
-        {
-          "stream": "Parts",
-          "integrated_commit": "fcaedd4d+02fa6ba0",
-          "change": "Shared verified model-file import/store helper; component attach/detach and transform Inspector",
-          "receipt": ".scratch/dioxus-parts-catalogue/evidence/component-model-editor-source-20261003/RECEIPT.md",
-          "preservation": "Existing untracked model draft remains intact. Incoming author draft retained in365913c3; joined only source/receipt."
-        },
-        {
-          "stream": "Layout",
-          "integrated_commit": "46cfebd7",
-          "change": "Connect/bridge drafts, saved feature selection/remove, polygon perimeter route, rectangle/connection controls",
-          "receipt": ".scratch/dioxus-layout-authoring/evidence/f34e-manual-polygon-drafts-source-20261003.md"
-        },
-        {
-          "stream": "Export support",
-          "integrated_commit": "bdcff5bd",
-          "change": "Selected-board authored readiness and aggregate outline fallback"
-        },
-        {
-          "stream": "Layout",
-          "integrated_commit": "d4b04387+0507f3b2+b9238d66",
-          "change": "Matrix/component Properties and Relations with owned target navigation",
-          "qualification": "Source integrated; behavioral qualification deferred."
-        },
-        {
-          "stream": "Case",
-          "integrated_commit": "d947d8d6",
-          "change": "Closure hardware CRUD and part/mount associations",
-          "qualification": "Source integrated; behavioral qualification deferred."
-        },
-        {
-          "stream": "PCB",
-          "integrated_commit": "2c770f25+992b12dd+eab894e0",
-          "change": "Routed KiCad import/replace, model discovery/attachments and compiler captures",
-          "qualification": "Source integrated; behavioral qualification deferred."
-        },
-        {
-          "stream": "Parts",
-          "integrated_commit": "dcab8777",
-          "change": "Generator model file parameter import/replace",
-          "qualification": "Source integrated; behavioral qualification deferred."
-        },
-        {
-          "stream": "Parts",
-          "integrated_commit": "ee917418",
-          "change": "Advanced saved assembly member/model editing and isolated 3D preview",
-          "qualification": "Source integrated; behavioral qualification deferred."
-        },
-        {
-          "stream": "Layout",
-          "integrated_commit": "76669679+6d54f61e",
-          "change": "Gap camera focus, bound editor selection signals and anchored rectangle center fields",
-          "qualification": "Source integrated; behavioral qualification deferred."
-        },
-        {
-          "stream": "Shared integration",
-          "integrated_commit": "3ec8b36f+211f960e+5bb7e67a+985f214f",
-          "change": "Joined module type/RSX/ownership fixes without new tickets or reviews",
-          "qualification": "Source integrated; behavioral qualification deferred."
-        },
-        {
-          "stream": "PCB",
-          "integrated_commit": "fc3b1d5ad624de5842c6d2c9f1f34ecb62f9cd64",
-          "author_commit": "dd5c36330bd1bc905d7913da8817aabb0f58ecbd",
-          "change": "Review conflicting manual connection names/count and release only current proposed conflicting pins before Apply",
-          "qualification": "Source integrated after34772; not yet packaged or behaviorally qualified."
-        },
-        {
-          "stream": "Layout",
-          "integrated_commit": "21f7e45b487f2d9fa0ab04910ae4d893a1e0feca",
-          "author_commit": "6f1d019c",
-          "change": "Generated connection anchor/detach and midpoint insert/remove; preserve live selected outline editor across same-context edits",
-          "receipt": ".scratch/dioxus-layout-authoring/evidence/f34e-manual-polygon-drafts-source-20261003.md",
-          "qualification": "Source integrated after34772; later compile/package and paired qualification."
-        },
-        {
-          "stream": "Shared integration",
-          "integrated_commit": "749961f5+56a0459d+d5f915b7",
-          "change": "In-place PCB/Outline compiler fixes; mechanical scoped keys, private helper visibility and unused-code warnings",
-          "qualification": "Combined source compiles; later behavioral/strict qualification remains."
-        },
-        {
-          "stream": "Parts",
-          "integrated_commit": "667846d9+25ed4ac8+6ae8e609",
-          "author_commit": "a7373cf8a3f2630a81aa3b6f4691ebd825a69d3d",
-          "change": "Ergogen model defaults, saved assembly Matrix Apply and existing Layout drag placement; coherent private workspace mount",
-          "receipt": ".scratch/dioxus-frontend-v1/evidence/f46-assembly-authoring-20261003/RECEIPT.md",
-          "qualification": "Combined source compile passes; package pending. Separate TS board X/Y action remains open."
-        },
-        {
-          "stream": "Keymap",
-          "integrated_commit": "a62d4fda+c95b3dea",
-          "change": "Effective keyed encoder editor boundaries and cloned iteration captures",
-          "receipt": ".scratch/dioxus-keymap-layers/evidence/encoder-mounted-integration/README.md",
-          "qualification": "Combined source compile only; next package/browser qualification pending."
-        },
-        {
-          "stream": "Parts + Project",
-          "integrated_commit": "af46b22b+55e7abf2+9f12d32a",
-          "author_commit": "c74138729f3fa1a7fd17690a1477b118d647a1b0",
-          "change": "Exact board-origin Assembly X/Y fields and atomic selected-board placement; accepted-only Layout/Part selection callback",
-          "receipt": ".scratch/dioxus-frontend-v1/evidence/f46-assembly-authoring-20261003/RECEIPT.md",
-          "qualification": "Combined source compiler passes; larger package and final behavioral evidence pending."
-        },
-        {
-          "stream": "Layout + shared runtime",
-          "integrated_commit": "cbce292b+2caace52+e0e89924",
-          "change": "Properties shortcut routes, missing-reference effect loop, standalone regression packaging classification, warning-only capture cleanup",
-          "receipt": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/journey.md",
-          "qualification": "Paired focused behavior passed on34775; visual/context parity findings remain."
-        },
-        {
-          "stream": "Layout",
-          "integrated_commit": "8c4c7db9",
-          "change": "Selected-column Pick origin and atomic splay-origin edit"
-        },
-        {
-          "stream": "PCB",
-          "integrated_commit": "8c4c7db9",
-          "change": "Scoped finding focus reveals owning module region through hidden layers"
-        },
-        {
-          "stream": "Parts + Project",
-          "integrated_commit": "8c4c7db9",
-          "change": "KiCad mechanical purpose mapping and profile extraction"
-        },
-        {
-          "stream": "PCB",
-          "integrated_commit": "336d17ac+b5e49eca",
-          "change": "Reuse a unique routed model file across same-basename paths and repair parent helper visibility"
-        },
-        {
-          "stream": "Case",
-          "integrated_commit": "b5e49eca",
-          "change": "Scoped provisional CAD geometry for live handle drag; accepted history stays at pointer-up"
-        },
-        {
-          "stream": "Parts + Project",
-          "integrated_commit": "b5e49eca",
-          "change": "Compact visibility-toggle Escape closes an open drawer and restores focus"
-        },
-        {
-          "stream": "Layout",
-          "integrated_commit": "9eda1b5d",
-          "change": "Inspector-focused Pick origin Escape cancellation"
-        },
-        {
-          "stream": "PCB",
-          "integrated_commit": "9eda1b5d",
-          "change": "Mounted-module Remove terminal outcome and repeat guard"
-        },
-        {
-          "stream": "Keymap",
-          "integrated_commit": "9eda1b5d",
-          "change": "Unchanged valid macro-step keycode no-op"
-        },
-        {
-          "stream": "Parts + Project",
-          "integrated_commit": "9eda1b5d",
-          "change": "Project-menu Save project copy action"
-        },
-        {
-          "stream": "Case",
-          "integrated_commit": "9dd2a412823b650d5b055733181b59ca724c68f1",
-          "change": "F7.5 accepted-source anchored preview Handle capture and current Move/End admission"
-        },
-        {
-          "stream": "Parts + Project",
-          "integrated_commit": "9dd2a412823b650d5b055733181b59ca724c68f1",
-          "change": "F2.3 pointer and keyboard desktop pane resizing with persistence"
-        }
-      ],
-      "qualification": "Published38641 routedCase repair: actualPCB/models render; enabledkeycaps gap under diagnosis. Required project supersession test-only Runtime author active. F8.3C01/C03 now verified after real incompleteDraft artifacts and blockers.",
-      "application_candidate_source": "38641dd1353bcfb6230d52c1d5b84c7ad7908e7a"
-    },
+    "integration": "Final independent review CLEAR and coordinator gate passed: native 247/1 ignored, wasm page/reachability, headless 12/12 without exclusions. Awaiting explicit milestone commit and immutable public Escape replay.",
     "journeys": [
       {
         "journey": "Compact drawers and Export selector",
@@ -559,11 +238,11 @@
       {
         "stream": "Layout",
         "priority": "Functional gaps alongside other streams; exact visual parity deferred",
-        "state": "F3.1-F3.6/F3.8 accepted; F3.7 visual and scoped inventory verified. One coherent integrated Layout journey plus affected accessibility/performance qualification remains."
+        "state": "Integrated journey and affected performance recording verified. Focused canvas-point Escape repair and retained ordinary keyboard/focus qualification remain."
       },
       {
         "stream": "PCB",
-        "state": "F5.1-F5.6 accepted. RoutedPCB/models/generatedcaps public55790GREEN afterfindingscollapse; F5.7 finishing defaultopenviewport usability repair, then F5.8 integratedjoins."
+        "state": "F5.1\u2013F5.8 accepted: retained functional desktop/theme/input/lifecycle/history and inventory/review evidence joined. Accessibility/axe/AT excluded by user."
       },
       {
         "stream": "Keymap",
@@ -575,7 +254,7 @@
       },
       {
         "stream": "Case",
-        "state": "F7.1-F7.7 accepted. Actualgeneratedcaps7u/layers/physicalscope qualified55790; F7.8 waits required defaultopenfindingsviewport repair and final consolidatedjoin."
+        "state": "F7.1\u2013F7.8 accepted. Required default-open viewer usability repaired and published; cross-workbench release joins remain separate."
       },
       {
         "stream": "Parts + Project",
@@ -583,7 +262,7 @@
       }
     ],
     "pending_join_packets": [],
-    "next_work": "Finish required2fileCasefindingsheightrepair through independentreview/affectedgates/explicitcommit/immutablepackage and actualexpandedviewportGREEN. Record reviewed Parts/F6/publicpicks closures and accepted joins. Then one coherent paired F3.7Layoutjourney plus remaining requiredPCB/accessibility/performance qualification; no mobile/optionalwork.",
+    "next_work": "Complete coordinator Escape gate, explicit milestone commit and immutable package; qualify only changed public Escape branch using retained r15 project. Then accept F3.7 if reviewed and finish F8.6 integrated export joins. F9.1 inventory accounting can proceed independently.",
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
       "cadence": {
@@ -4117,12 +3796,65 @@
               "state": "pending"
             }
           ]
+        },
+        {
+          "candidate_build_id": "frontend-case-parts-cap-selection-20261005",
+          "source_commit": "55790e0a9c30b3e53cbd9690dc418fec23021d11",
+          "phase": "qualifying",
+          "review": {
+            "profile": "sol-review",
+            "state": "pending"
+          },
+          "journeys": [
+            {
+              "id": "case-local-step-scope",
+              "scope": "Paired desktop Case journey from pinned Sofle: add Plate, configure mechanical settings, generate exact geometry, edit a setting and observe stale/current recovery, verify Export geometry readiness, download and inspect the exact-current mechanical package, change physical scope, and save/reopen. Qualify only branches actually executed; all existing criteria and warning/currentness rules remain.",
+              "source_roots": [
+                "web",
+                "application",
+                "core",
+                "contracts",
+                "renderer",
+                "cad",
+                "kicad/src",
+                "app/src",
+                "app/public",
+                "scripts",
+                "ergogen"
+              ],
+              "source_paths": [
+                ".node-version",
+                ".npmrc",
+                "package.json",
+                "pnpm-lock.yaml",
+                "pnpm-workspace.yaml",
+                "rust-toolchain.toml"
+              ],
+              "optional_source_paths": [
+                ".cargo/config",
+                ".cargo/config.toml"
+              ],
+              "source_paths_complete": true,
+              "fixtures": [
+                {
+                  "path": ".scratch/dioxus-frontend-v1/evidence/case-generation-export-20261005/input.boardstudio",
+                  "sha256": "af5b1bde73de827a699ddf01f7f7a321c6cfe8922304056a1678dbe622c9a821"
+                },
+                {
+                  "path": ".scratch/dioxus-frontend-v1/evidence/case-generation-export-20261005/input.json",
+                  "sha256": "e9aa38882a73f4faeb2ac7c32ad7ea54e38b57ecbf6b0f7991cff941bd9a5569"
+                }
+              ],
+              "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+              "state": "pending"
+            }
+          ]
         }
       ],
       "phase": "qualifying",
       "unmet_start_conditions": [],
-      "candidate_build_id": "frontend-case-parts-cap-selection-20261005",
-      "source_commit": "55790e0a9c30b3e53cbd9690dc418fec23021d11",
+      "candidate_build_id": "frontend-case-findings-bounds-20261005",
+      "source_commit": "c1d3f13c642380c6a95ce8ae317fd99e6743c04f",
       "journeys": [
         {
           "id": "case-local-step-scope",
@@ -4168,146 +3900,6 @@
         }
       ],
       "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
-      "pending_source_batch": {
-        "id": "case-keycap-consumer-and-required-parts-project-20261005",
-        "state": "Committed55790e0a published34824; immutablebuildterminal0 in142.88s, public initialPartsBack/catalogue/keymappicks/pendingfeedback GREEN. ActualCasecaps render/layers GREEN aftercollapsingfindings, but defaultopen27findings makesviewportheight0. Required2filefeedbackboundsrepair inreview; publicexpandedGREEN pending.",
-        "source_base": "38641dd1353bcfb6230d52c1d5b84c7ad7908e7a",
-        "owned_files": [
-          "web/src/runtime.rs",
-          "web/src/presentation/shared_viewer.rs",
-          "web/src/presentation/case_viewer.rs",
-          "web/src/presentation/parts/generator_settings.rs",
-          "web/src/presentation/parts/mechanical_profile_editor.rs",
-          "web/src/presentation/parts.rs",
-          "web/assets/m1.css",
-          "web/src/presentation/parts/catalogue.rs",
-          "web/src/presentation/layout_viewer_source.rs",
-          "web/src/presentation/layout_viewer.rs"
-        ],
-        "authors": [
-          {
-            "agent": "migration_acceleration_review",
-            "files": [
-              "web/src/presentation/layout_viewer_source.rs",
-              "web/src/presentation/layout_viewer.rs"
-            ],
-            "scope": "Required current generated cap/legend body to accepted board part mapping, owning native RED then fix. Generator prior source frozen GREEN. Read-only plan until other author releases shared compiler."
-          },
-          {
-            "agent": "case_local_export",
-            "files": [
-              "web/src/presentation/parts.rs",
-              "web/src/presentation/parts/catalogue.rs",
-              "web/src/presentation/parts/mechanical_profile_editor.rs"
-            ],
-            "scope": "Retained catalogue fixture diagnosis, mechanical GREEN. Cap-pick source plan read-only until explicit next lease."
-          }
-        ],
-        "reviewer": "preset_batch_review",
-        "review": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
-        "optional_work": "stopped",
-        "finish": [
-          "Owning RED/GREEN for acceptedCasekeycaps reachingactualrendererpacket with physicalowner/currentness",
-          "Two actualRuntime open/import supersession orders with Session/Persist/IndexedDB proof plus retainedpublicvalid/malformed archive evidence",
-          "Only missing Parts catalogue loading/source-error, generator failure/stale and extraction retirement clauses",
-          "Single independentreview and grouped native/page/reachability/strict affectedWASM gate",
-          "Explicitcommit andimmutablecandidate; actualenabledCasekeycaps publicreplay",
-          "Actual initial MX Back form must initially show normalized Back geometry without input; meaningful mounted RED/GREEN and packaged replay",
-          "Desktop Parts catalogue list choices usable after CSS repair",
-          "Confirmed generated cap pick routes to correct key in Keymap and Keycaps, with owning RED/GREEN and actual packaged replay"
-        ],
-        "compiler_coordination": "Combined gate terminal0; source frozen through explicit integration commit. Immutable package permits subsequent disjoint source work.",
-        "coordinator_css_repair": {
-          "file": "web/assets/m1.css",
-          "reason": "Actual desktop Key assemblies choices clipped to about2px by flex shrinking; required comparison now retained. Open catalogue sections share available height; closed headers keep intrinsic height.",
-          "red": ".scratch/dioxus-frontend-v1/evidence/parts-desktop-visual-20261005/candidate-assembly-ancestors.json",
-          "green": "Pending immutable packaged public replay; no native CSS behavior claim.",
-          "pending_feedback": {
-            "red": ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/keycaps-candidate-pending.png",
-            "sha256": "a945604db386a58fc6cfdd2d0a2903f8f2642923ee8acb9619f6bfd9040b28a9",
-            "green": "Pending immutable capture of unobscured loading status"
-          }
-        },
-        "new_observation": "Original saved seven-pad MX fixture confirms initial Back control renders Front geometry; explicit Front\u2192ready\u2192Back corrects B.Cu/B.SilkS/pad order without Apply. Author must initialize transient normalized schema-default draft with current-owner/nonmutation guards after meaningful mounted RED.",
-        "parts_focused_failure": "Official runner packaged assets succeeded, selected9tests,5passed/4newfixturesfailed. First uncaptured panic: missing Rc<Runtime> in Parts action subtree. Static review also identifies Signal<u64> and extraction mount barrier. These are fixture failures, not product RED. Final static audit: mounted schema ignores the runner supplied package URL, so generator fetch still targets runner origin; catalogue.rs test-only route now authorized to reuse actual packaged provider. Mechanical test must wait for mounted control/pending DOM. No schema mock or production provider replacement.",
-        "required_cap_pick_repair": {
-          "evidence": ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/RECEIPT.md",
-          "state": "Owning nativeRED\u2192fullmodule12/12GREEN; twofile source+mapCLEAR; aggregate and public actualKeymap/Keycaps picks pending",
-          "scope": "Map current generated cap/legend renderer identity to accepted board part; native RED first, retain expired/wrong-owner rejection, actual packaged Keymap/Keycaps pick.",
-          "receipt": ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/keycap-pick-repair.md"
-        },
-        "generator_initial_default": {
-          "receipt": ".scratch/dioxus-frontend-v1/evidence/parts-generator-owner-20261005/generator-initial-default-receipt.md",
-          "sha256": "7a5b565ba1a56476a13c94ad788144b437660a9e1f33c85c342d84cb531cf676",
-          "red": "1 executed, expected missing initial default request",
-          "green": "4/4 final generator module",
-          "public_replay": "pending new immutable candidate"
-        },
-        "gate": {
-          "pid": 3074104,
-          "log": "/tmp/case-keycaps-parts-final-gates.log",
-          "state_file": "/tmp/case-keycaps-parts-final-gates.json",
-          "exit_file": "/tmp/case-keycaps-parts-final-gates.exit",
-          "state": "running",
-          "completed": [
-            "native247passed/1ignored",
-            "wasm32page",
-            "wasmreachability"
-          ]
-        },
-        "frozen_hashes": {
-          "scripts/wasm-test-owners.json": "35f9600506c11078b13095b0f106202402d039de6b2e9c2bad98e665f53c397e",
-          "web/assets/m1.css": "a945604db386a58fc6cfdd2d0a2903f8f2642923ee8acb9619f6bfd9040b28a9",
-          "web/src/runtime.rs": "8831fa6099e13d3f88ab7ccce435f3caa8a30eb96ee98dd4bef09e6a55a9e525",
-          "web/src/presentation/shared_viewer.rs": "5378b4f39a0bda77a6415417bdb18b892f8301b7704596bf7c8c2c949720e973",
-          "web/src/presentation/case_viewer.rs": "98014a0850b7d0316b06f70c1c2d5abd80785483706e85d433da572cf9a6a21f",
-          "web/src/presentation/parts.rs": "81d3a38f08a156804e0e2d98ffa37663b13b1f261e24300bec7177d165174e87",
-          "web/src/presentation/parts/catalogue.rs": "246ab78396ddd33a6110d9376f4c24ba3b0bd33405b45da3ddae8efc916da955",
-          "web/src/presentation/parts/generator_settings.rs": "7a5b565ba1a56476a13c94ad788144b437660a9e1f33c85c342d84cb531cf676",
-          "web/src/presentation/parts/mechanical_profile_editor.rs": "6984c0ca889462d4ac43396c757ad0e10debc8a4e209690d6edc25e1f0e06aa4",
-          "web/src/presentation/layout_viewer_source.rs": "fcaba6be9b7c6e13d1b7af9709fd927855614afe8356772e5c2afc5bd42b7bff",
-          "web/src/presentation/layout_viewer.rs": "90f8d0f9f28eea0b15416264dd085eb21de7a8d66b2e3ce12e4f2e487f11c0bf"
-        },
-        "source_paths": [
-          "scripts/wasm-test-owners.json",
-          "web/assets/m1.css",
-          "web/src/runtime.rs",
-          "web/src/presentation/shared_viewer.rs",
-          "web/src/presentation/case_viewer.rs",
-          "web/src/presentation/parts.rs",
-          "web/src/presentation/parts/catalogue.rs",
-          "web/src/presentation/parts/generator_settings.rs",
-          "web/src/presentation/parts/mechanical_profile_editor.rs",
-          "web/src/presentation/layout_viewer_source.rs",
-          "web/src/presentation/layout_viewer.rs"
-        ],
-        "review_sha256": "288cb9f86b7a67ed7b4b5a44c7634d5b2306bb7416cbedd2d0c3106004fd3301",
-        "review_verdict": "CLEAR for all settled source/config; no public closure inferred",
-        "aggregate_result": ".scratch/dioxus-frontend-v1/evidence/case-keycaps-parts-integration-20261005/final-combined-gate.json",
-        "aggregate_headless_receipt": ".scratch/dioxus-frontend-v1/evidence/case-keycaps-parts-integration-20261005/final-combined-headless-receipt.json",
-        "source_commit": "55790e0a9c30b3e53cbd9690dc418fec23021d11",
-        "build": {
-          "pid": 3097898,
-          "state": "terminal",
-          "build_id": "frontend-case-parts-cap-selection-20261005",
-          "state_file": "/tmp/case-keycaps-parts-build.json",
-          "exit_code": 0,
-          "elapsed_seconds": 142.87930059432983
-        },
-        "required_followup": {
-          "reason": "Actual Case default-open findings shrinks viewer to height0",
-          "files": [
-            "web/src/presentation/case_viewer.rs",
-            "web/assets/m1.css"
-          ],
-          "red": ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/case-55790-findings-overflow.json",
-          "state": "IndependentCLEAR; gate3111403terminal0/native247+1ignored/page/reachability/strictheadless4passed0failed0excluded0incomplete. Explicitcommit/immutablepackage/publicdefaultopenviewportGREEN next.",
-          "gate": {
-            "pid": 3111403,
-            "state_file": "/tmp/case-findings-bounds-gates.json"
-          }
-        }
-      },
       "prior_source_batches": [
         {
           "id": "case-manufacturing-layout-inspector-20261005",
@@ -4731,10 +4323,205 @@
           }
         }
       ],
-      "started_at": "2026-10-05T12:00:38.610568+00:00",
+      "started_at": "2026-10-05T12:18:55.878851+00:00",
       "review": {
         "profile": "sol-review",
         "state": "pending"
+      },
+      "last_completed_source_batch": {
+        "id": "case-keycap-consumer-and-required-parts-project-20261005",
+        "state": "Completed: 55790 product fixes and c1d3 bounded findings fix published and independently reviewed; resulting F5.7/F7.8 accepted. Exact public outcomes in viewer-actions-20261005/RECEIPT.md and consolidated review.",
+        "source_base": "38641dd1353bcfb6230d52c1d5b84c7ad7908e7a",
+        "owned_files": [
+          "web/src/runtime.rs",
+          "web/src/presentation/shared_viewer.rs",
+          "web/src/presentation/case_viewer.rs",
+          "web/src/presentation/parts/generator_settings.rs",
+          "web/src/presentation/parts/mechanical_profile_editor.rs",
+          "web/src/presentation/parts.rs",
+          "web/assets/m1.css",
+          "web/src/presentation/parts/catalogue.rs",
+          "web/src/presentation/layout_viewer_source.rs",
+          "web/src/presentation/layout_viewer.rs"
+        ],
+        "authors": [
+          {
+            "agent": "migration_acceleration_review",
+            "files": [
+              "web/src/presentation/layout_viewer_source.rs",
+              "web/src/presentation/layout_viewer.rs"
+            ],
+            "scope": "Required current generated cap/legend body to accepted board part mapping, owning native RED then fix. Generator prior source frozen GREEN. Read-only plan until other author releases shared compiler."
+          },
+          {
+            "agent": "case_local_export",
+            "files": [
+              "web/src/presentation/parts.rs",
+              "web/src/presentation/parts/catalogue.rs",
+              "web/src/presentation/parts/mechanical_profile_editor.rs"
+            ],
+            "scope": "Retained catalogue fixture diagnosis, mechanical GREEN. Cap-pick source plan read-only until explicit next lease."
+          }
+        ],
+        "reviewer": "preset_batch_review",
+        "review": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+        "optional_work": "stopped",
+        "finish": [
+          "Owning RED/GREEN for acceptedCasekeycaps reachingactualrendererpacket with physicalowner/currentness",
+          "Two actualRuntime open/import supersession orders with Session/Persist/IndexedDB proof plus retainedpublicvalid/malformed archive evidence",
+          "Only missing Parts catalogue loading/source-error, generator failure/stale and extraction retirement clauses",
+          "Single independentreview and grouped native/page/reachability/strict affectedWASM gate",
+          "Explicitcommit andimmutablecandidate; actualenabledCasekeycaps publicreplay",
+          "Actual initial MX Back form must initially show normalized Back geometry without input; meaningful mounted RED/GREEN and packaged replay",
+          "Desktop Parts catalogue list choices usable after CSS repair",
+          "Confirmed generated cap pick routes to correct key in Keymap and Keycaps, with owning RED/GREEN and actual packaged replay"
+        ],
+        "compiler_coordination": "Combined gate terminal0; source frozen through explicit integration commit. Immutable package permits subsequent disjoint source work.",
+        "coordinator_css_repair": {
+          "file": "web/assets/m1.css",
+          "reason": "Actual desktop Key assemblies choices clipped to about2px by flex shrinking; required comparison now retained. Open catalogue sections share available height; closed headers keep intrinsic height.",
+          "red": ".scratch/dioxus-frontend-v1/evidence/parts-desktop-visual-20261005/candidate-assembly-ancestors.json",
+          "green": "Pending immutable packaged public replay; no native CSS behavior claim.",
+          "pending_feedback": {
+            "red": ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/keycaps-candidate-pending.png",
+            "sha256": "a945604db386a58fc6cfdd2d0a2903f8f2642923ee8acb9619f6bfd9040b28a9",
+            "green": "Pending immutable capture of unobscured loading status"
+          }
+        },
+        "new_observation": "Original saved seven-pad MX fixture confirms initial Back control renders Front geometry; explicit Front\u2192ready\u2192Back corrects B.Cu/B.SilkS/pad order without Apply. Author must initialize transient normalized schema-default draft with current-owner/nonmutation guards after meaningful mounted RED.",
+        "parts_focused_failure": "Official runner packaged assets succeeded, selected9tests,5passed/4newfixturesfailed. First uncaptured panic: missing Rc<Runtime> in Parts action subtree. Static review also identifies Signal<u64> and extraction mount barrier. These are fixture failures, not product RED. Final static audit: mounted schema ignores the runner supplied package URL, so generator fetch still targets runner origin; catalogue.rs test-only route now authorized to reuse actual packaged provider. Mechanical test must wait for mounted control/pending DOM. No schema mock or production provider replacement.",
+        "required_cap_pick_repair": {
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/RECEIPT.md",
+          "state": "Owning nativeRED\u2192fullmodule12/12GREEN; twofile source+mapCLEAR; aggregate and public actualKeymap/Keycaps picks pending",
+          "scope": "Map current generated cap/legend renderer identity to accepted board part; native RED first, retain expired/wrong-owner rejection, actual packaged Keymap/Keycaps pick.",
+          "receipt": ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/keycap-pick-repair.md"
+        },
+        "generator_initial_default": {
+          "receipt": ".scratch/dioxus-frontend-v1/evidence/parts-generator-owner-20261005/generator-initial-default-receipt.md",
+          "sha256": "7a5b565ba1a56476a13c94ad788144b437660a9e1f33c85c342d84cb531cf676",
+          "red": "1 executed, expected missing initial default request",
+          "green": "4/4 final generator module",
+          "public_replay": "pending new immutable candidate"
+        },
+        "gate": {
+          "pid": 3074104,
+          "log": "/tmp/case-keycaps-parts-final-gates.log",
+          "state_file": "/tmp/case-keycaps-parts-final-gates.json",
+          "exit_file": "/tmp/case-keycaps-parts-final-gates.exit",
+          "state": "running",
+          "completed": [
+            "native247passed/1ignored",
+            "wasm32page",
+            "wasmreachability"
+          ]
+        },
+        "frozen_hashes": {
+          "scripts/wasm-test-owners.json": "35f9600506c11078b13095b0f106202402d039de6b2e9c2bad98e665f53c397e",
+          "web/assets/m1.css": "a945604db386a58fc6cfdd2d0a2903f8f2642923ee8acb9619f6bfd9040b28a9",
+          "web/src/runtime.rs": "8831fa6099e13d3f88ab7ccce435f3caa8a30eb96ee98dd4bef09e6a55a9e525",
+          "web/src/presentation/shared_viewer.rs": "5378b4f39a0bda77a6415417bdb18b892f8301b7704596bf7c8c2c949720e973",
+          "web/src/presentation/case_viewer.rs": "98014a0850b7d0316b06f70c1c2d5abd80785483706e85d433da572cf9a6a21f",
+          "web/src/presentation/parts.rs": "81d3a38f08a156804e0e2d98ffa37663b13b1f261e24300bec7177d165174e87",
+          "web/src/presentation/parts/catalogue.rs": "246ab78396ddd33a6110d9376f4c24ba3b0bd33405b45da3ddae8efc916da955",
+          "web/src/presentation/parts/generator_settings.rs": "7a5b565ba1a56476a13c94ad788144b437660a9e1f33c85c342d84cb531cf676",
+          "web/src/presentation/parts/mechanical_profile_editor.rs": "6984c0ca889462d4ac43396c757ad0e10debc8a4e209690d6edc25e1f0e06aa4",
+          "web/src/presentation/layout_viewer_source.rs": "fcaba6be9b7c6e13d1b7af9709fd927855614afe8356772e5c2afc5bd42b7bff",
+          "web/src/presentation/layout_viewer.rs": "90f8d0f9f28eea0b15416264dd085eb21de7a8d66b2e3ce12e4f2e487f11c0bf"
+        },
+        "source_paths": [
+          "scripts/wasm-test-owners.json",
+          "web/assets/m1.css",
+          "web/src/runtime.rs",
+          "web/src/presentation/shared_viewer.rs",
+          "web/src/presentation/case_viewer.rs",
+          "web/src/presentation/parts.rs",
+          "web/src/presentation/parts/catalogue.rs",
+          "web/src/presentation/parts/generator_settings.rs",
+          "web/src/presentation/parts/mechanical_profile_editor.rs",
+          "web/src/presentation/layout_viewer_source.rs",
+          "web/src/presentation/layout_viewer.rs"
+        ],
+        "review_sha256": "288cb9f86b7a67ed7b4b5a44c7634d5b2306bb7416cbedd2d0c3106004fd3301",
+        "review_verdict": "CLEAR for all settled source/config; no public closure inferred",
+        "aggregate_result": ".scratch/dioxus-frontend-v1/evidence/case-keycaps-parts-integration-20261005/final-combined-gate.json",
+        "aggregate_headless_receipt": ".scratch/dioxus-frontend-v1/evidence/case-keycaps-parts-integration-20261005/final-combined-headless-receipt.json",
+        "source_commit": "55790e0a9c30b3e53cbd9690dc418fec23021d11",
+        "build": {
+          "pid": 3097898,
+          "state": "terminal",
+          "build_id": "frontend-case-parts-cap-selection-20261005",
+          "state_file": "/tmp/case-keycaps-parts-build.json",
+          "exit_code": 0,
+          "elapsed_seconds": 142.87930059432983
+        },
+        "required_followup": {
+          "reason": "Actual Case default-open findings shrinks viewer to height0",
+          "files": [
+            "web/src/presentation/case_viewer.rs",
+            "web/assets/m1.css"
+          ],
+          "red": ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/case-55790-findings-overflow.json",
+          "state": "Publishedc1d3root34825/subpath; defaultopen27findings180px +visibleviewer369.802px; actualkeyboardEndreachfinalwarning. PublicGREENawaitingconsolidatedacceptance.",
+          "gate": {
+            "pid": 3111403,
+            "state_file": "/tmp/case-findings-bounds-gates.json"
+          },
+          "source_commit": "c1d3f13c642380c6a95ce8ae317fd99e6743c04f",
+          "build": {
+            "pid": 3116145,
+            "state_file": "/tmp/case-findings-bounds-build.json",
+            "build_id": "frontend-case-findings-bounds-20261005",
+            "state": "terminal",
+            "exit_code": 0
+          },
+          "public_evidence": ".scratch/dioxus-frontend-v1/evidence/viewer-actions-20261005/RECEIPT.md"
+        }
+      },
+      "cancelled_accessibility_batch": {
+        "id": "layout-pcb-accessibility-semantics-20261005",
+        "reason": "Explicit user removed accessibility qualification and F9.3 on2026-10-05",
+        "gate_terminal": 143,
+        "source_changes": "Withdrawn after preserving exact patch; HEAD semantics retained",
+        "evidence": ".scratch/dioxus-frontend-v1/evidence/integrated-accessibility-c1d3-20261005/RECEIPT.md"
+      },
+      "pending_source_batch": {
+        "id": "layout-fixed-outline-escape-20261005",
+        "state": "Final independent review CLEAR and coordinator gate passed: native 247/1 ignored, wasm page/reachability, headless 12/12 without exclusions. Awaiting explicit milestone commit and immutable public Escape replay.",
+        "source_base": "c1d3f13c642380c6a95ce8ae317fd99e6743c04f",
+        "owned_files": [
+          "web/src/presentation/outline_lifecycle.rs",
+          "web/src/presentation/outline_lifecycle_browser_tests.rs"
+        ],
+        "authors": [
+          {
+            "agent": "layout_escape_repair",
+            "files": [
+              "web/src/presentation/outline_lifecycle.rs",
+              "web/src/presentation/outline_lifecycle_browser_tests.rs"
+            ]
+          }
+        ],
+        "reviewer": "preset_batch_review",
+        "review": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+        "finish": [
+          "Focused mounted RED then GREEN while preserving current outline selection and accepted document",
+          "Independent review, affected native/page/reachability/headless gates",
+          "Explicit commit and one immutable package; public changed Escape replay",
+          "Final retained Layout keyboard and PCB ordinary interaction accounting"
+        ],
+        "accessibility": "Removed by explicit user instruction; no axe/AT/semantic-only gate",
+        "optional_work": "stopped",
+        "source_hashes": {
+          "web/src/presentation/outline_lifecycle.rs": "9706e1da5e52913504b3537939dcbd88fc9b21ebdee566b2df8624674105c78d",
+          "web/src/presentation/outline_lifecycle_browser_tests.rs": "8871eeeb0377e80dc062944458e5704b5f8b462681392a429e453554cd0eb259"
+        },
+        "gate": {
+          "session": 78589,
+          "log": "/tmp/layout-canvas-escape-gates.log",
+          "exit_file": "/tmp/layout-canvas-escape-gates.exit",
+          "exit_code": 0,
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-escape-repair-20261005/outline-canvas-combined-gates.json"
+        }
       }
     },
     "delivery_priority": {
@@ -4749,7 +4536,7 @@
         "Restore reference Inspector section order/context presentation and perimeter handle sizing using the saved paired screenshots."
       ],
       "retained_functional_work": "Layout authoring, actual selection semantics, outline geometry correctness, usable snapping/grid controls and all other workbench capabilities remain in scope.",
-      "acceptance": "The active roadmap has 61 parents and 221 criteria with current statuses and prior evidence; scope changes do not imply acceptance.",
+      "acceptance": "Active portfolio and criterion counts are derived from tasks.json; explicit scope removal does not imply acceptance.",
       "previous_priority": "Layout-first closure and contextual visual parity packet."
     },
     "functional_batch": {
@@ -4864,13 +4651,19 @@
         "build_id": "frontend-case-parts-cap-selection-20261005",
         "published_at": "2026-10-05T12:00:36.831740+00:00",
         "extra_candidate_reason": "Required reviewed repairs for missing Case generated caps, ignored generated-cap picks, wrong initial Parts side geometry and clipped desktop feedback; changed journeys cannot qualify on38641."
+      },
+      {
+        "build_id": "frontend-case-findings-bounds-20261005",
+        "published_at": "2026-10-05T12:18:54.117391+00:00",
+        "extra_candidate_reason": "Required actual public regression fix: default-expanded Case keycap findings consume979px and shrink3Dviewportto0; bounded scroll must qualify on immutable sourcec1d3f13c."
       }
     ],
     "validation_scope": {
       "desktop": "active",
       "mobile": "deferred by explicit user instruction on 2026-10-04; remove active mobile checks and omit mobile browser qualification for now",
       "evidence_policy": "Retain historical mobile receipts; deferral is not a passing test or verified mobile criterion.",
-      "consolidation": "Shared generator harness and strict all-mode inventories; 21/21 affected browser tests and both 26-test Python suites pass. One real draft-state exclusion remains. Mobile tests removed/deferred; desktop coverage retained."
+      "consolidation": "Shared generator harness and strict all-mode inventories; 21/21 affected browser tests and both 26-test Python suites pass. One real draft-state exclusion remains. Mobile tests removed/deferred; desktop coverage retained.",
+      "accessibility": "Removed by explicit user instruction on 2026-10-05, including F9.3 and axe/semantic/assistive-technology qualification. Ordinary keyboard/focus/Escape remains functional scope."
     }
   }
 }

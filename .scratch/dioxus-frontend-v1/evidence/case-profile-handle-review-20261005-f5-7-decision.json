@@ -1,0 +1,19 @@
+{
+  "parent": "F5.7",
+  "reason": "Independent final review clears actual importedPCB/model/generatedcap geometry and physicalscope, actualcap picks, and packagedc1d3 defaultopenfindings visibleviewport+keyboardscroll, joined to accepted owning gates and priorpublicworkflowproofs.",
+  "review": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+  "review_sha256": "7e959f59c0d0209b2967b1d0849a87445ad5161c436d2b4644528d22421c589b",
+  "criteria_accounting": {
+    "source_commit": "07b4c3466b1f388073e8e1f9d619b0703223d770",
+    "coverage": "complete",
+    "verified_criteria": [
+      "F5.7-C01",
+      "F5.7-C02",
+      "F5.7-C03",
+      "F5.7-C04"
+    ]
+  },
+  "accepted_joins": [
+    "INT.2"
+  ]
+}

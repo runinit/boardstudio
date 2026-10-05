@@ -1,0 +1,45 @@
+{
+  "results": [
+    {
+      "workspace": "PCB",
+      "violations": [
+        {
+          "id": "page-has-heading-one",
+          "impact": "moderate",
+          "nodes": 1
+        }
+      ],
+      "incomplete": [
+        {
+          "id": "aria-prohibited-attr",
+          "nodes": 1
+        },
+        {
+          "id": "color-contrast",
+          "nodes": 101
+        }
+      ]
+    },
+    {
+      "workspace": "Layout",
+      "violations": [
+        {
+          "id": "page-has-heading-one",
+          "impact": "moderate",
+          "nodes": 1
+        }
+      ],
+      "incomplete": [
+        {
+          "id": "aria-prohibited-attr",
+          "nodes": 1
+        },
+        {
+          "id": "color-contrast",
+          "nodes": 44
+        }
+      ]
+    }
+  ],
+  "pageErrors": []
+}

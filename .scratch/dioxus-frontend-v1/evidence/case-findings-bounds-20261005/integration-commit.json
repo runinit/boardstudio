@@ -1,0 +1,10 @@
+{
+  "pid": 3115250,
+  "state": "terminal",
+  "started_unix": 1791202525.4859493,
+  "path_count": 63,
+  "exit_code": 0,
+  "elapsed_seconds": 6.206873416900635,
+  "head": "c1d3f13c642380c6a95ce8ae317fd99e6743c04f",
+  "unrelated_index_preserved": true
+}

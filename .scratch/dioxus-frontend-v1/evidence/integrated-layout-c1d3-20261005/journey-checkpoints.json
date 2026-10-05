@@ -1,0 +1,506 @@
+[
+  {
+    "name": "candidate",
+    "step": "Created 1×1 MX Solder, existing keys Column1 OffsetX=2, constrained U1 to left-keys-SW1 offset2,30 rotation0",
+    "observation": {
+      "inputs": [
+        {
+          "disabled": true,
+          "name": "X mm",
+          "value": "13.18"
+        },
+        {
+          "disabled": true,
+          "name": "Y mm",
+          "value": "-48.05"
+        },
+        {
+          "disabled": false,
+          "name": "Constraint type",
+          "selected": "Offset from part",
+          "value": "offset"
+        },
+        {
+          "disabled": false,
+          "name": "Constraint source part",
+          "selected": "left-keys-SW1",
+          "value": "matrix/left-keys/r0c0"
+        },
+        {
+          "disabled": false,
+          "name": "Offset X (mm)",
+          "value": "2"
+        },
+        {
+          "disabled": false,
+          "name": "Offset Y (mm)",
+          "value": "30"
+        },
+        {
+          "disabled": false,
+          "name": "Rotation (degrees)",
+          "value": "0"
+        }
+      ],
+      "tree": [
+        {
+          "label": "⌄Left PCB72 parts",
+          "selected": "false"
+        },
+        {
+          "label": "⌄Matrix 51 keys",
+          "selected": "false"
+        },
+        {
+          "label": "left-U1mcu nice nano · 13.2, -48.0",
+          "selected": "true"
+        }
+      ],
+      "url": "http://127.0.0.1:34825/"
+    }
+  },
+  {
+    "name": "reference",
+    "step": "Created 1×1 MX Solder, existing keys Column1 OffsetX=2, constrained U1 to left-keys-SW1 offset2,30 rotation0",
+    "observation": {
+      "inputs": [
+        {
+          "disabled": false,
+          "name": "Constraint type",
+          "selected": "Offset from part",
+          "value": "offset"
+        },
+        {
+          "disabled": false,
+          "name": "Constraint source part",
+          "selected": "left-keys-SW1",
+          "value": "matrix/left-keys/r0c0"
+        },
+        {
+          "disabled": false,
+          "name": "Offset X (mm)",
+          "value": "2"
+        },
+        {
+          "disabled": false,
+          "name": "Offset Y (mm)",
+          "value": "30"
+        },
+        {
+          "disabled": false,
+          "name": "Rotation (degrees)",
+          "value": "0"
+        }
+      ],
+      "tree": [
+        {
+          "label": "Left PCB72 parts",
+          "selected": null
+        },
+        {
+          "label": "Matrix 51 keys",
+          "selected": "false"
+        },
+        {
+          "label": "left-U1mcu nice nano · 13.2, -48.0",
+          "selected": "true"
+        }
+      ],
+      "url": "http://127.0.0.1:5175/"
+    }
+  },
+  {
+    "name": "candidate",
+    "step": "Outline point2 before nudge",
+    "controls": [
+      "      - spinbutton \"Point 2 X mm\": \"-13\"",
+      "      - spinbutton \"Point 2 Y mm\": \"-13\"",
+      "    - button \"Grid ¼u\""
+    ]
+  },
+  {
+    "name": "reference",
+    "step": "Outline point2 before nudge",
+    "controls": [
+      "    - spinbutton \"Point 2 X mm\": \"-13\"",
+      "    - spinbutton \"Point 2 Y mm\": \"-13\"",
+      "  - button \"Grid ¼u\""
+    ]
+  },
+  {
+    "name": "candidate",
+    "step": "Outline point2 after one ArrowRight",
+    "controls": [
+      "      - spinbutton \"Point 2 X mm\" [disabled]: \"-13\"",
+      "      - spinbutton \"Point 2 Y mm\" [disabled]: \"-13\"",
+      "    - button \"Grid ¼u\""
+    ]
+  },
+  {
+    "name": "reference",
+    "step": "Outline point2 after one ArrowRight",
+    "controls": [
+      "      - treeitem \"Outline Edited outline 1\" [expanded] [level=2] [selected]:",
+      "        - generic \"Edited outline 1\"",
+      "      - treeitem \"Edited outline 1 Active\" [level=3] [selected]:",
+      "        - generic \"Edited outline 1\"",
+      "    - spinbutton \"Point 2 X mm\": \"-13\"",
+      "    - spinbutton \"Point 2 Y mm\": \"-13\"",
+      "  - button \"Grid ¼u\""
+    ]
+  },
+  {
+    "name": "candidate",
+    "step": "Outline point2 settled after one ArrowRight",
+    "controls": [
+      "        - treeitem \"Outline Edited outline 1\" [level=2] [selected]:",
+      "          - button \"Outline Edited outline 1\":",
+      "            - generic: Edited outline 1",
+      "      - spinbutton \"Point 2 X mm\": \"-8.2375\"",
+      "      - spinbutton \"Point 2 Y mm\": \"-13\""
+    ]
+  },
+  {
+    "name": "reference",
+    "step": "Outline point2 settled after one ArrowRight",
+    "controls": [
+      "      - treeitem \"Outline Edited outline 1\" [expanded] [level=2] [selected]:",
+      "        - generic \"Edited outline 1\"",
+      "      - treeitem \"Edited outline 1 Active\" [level=3] [selected]:",
+      "        - generic \"Edited outline 1\"",
+      "    - spinbutton \"Point 2 X mm\": \"-8.238\"",
+      "    - spinbutton \"Point 2 Y mm\": \"-13\""
+    ]
+  },
+  {
+    "name": "candidate",
+    "step": "Single Undo restored generated outline",
+    "controls": [
+      "        - treeitem \"Outline Generated\" [level=2] [selected]:",
+      "          - button \"Outline Generated\":",
+      "      - spinbutton \"Point 2 X mm\": \"-13\"",
+      "      - spinbutton \"Point 2 Y mm\": \"-13\""
+    ]
+  },
+  {
+    "name": "reference",
+    "step": "Single Undo restored generated outline",
+    "controls": [
+      "      - treeitem \"Outline Generated\" [expanded] [level=2] [selected]:",
+      "    - spinbutton \"Point 2 X mm\": \"-13\"",
+      "    - spinbutton \"Point 2 Y mm\": \"-13\""
+    ]
+  },
+  {
+    "name": "candidate",
+    "step": "Single Redo restored fixed outline",
+    "controls": [
+      "        - treeitem \"Outline Edited outline 1\" [level=2] [selected]:",
+      "          - button \"Outline Edited outline 1\":",
+      "            - generic: Edited outline 1",
+      "      - spinbutton \"Point 2 X mm\": \"-8.2375\"",
+      "      - spinbutton \"Point 2 Y mm\": \"-13\""
+    ]
+  },
+  {
+    "name": "reference",
+    "step": "Single Redo restored fixed outline",
+    "controls": [
+      "      - treeitem \"Outline Edited outline 1\" [expanded] [level=2] [selected]:",
+      "        - generic \"Edited outline 1\"",
+      "      - treeitem \"Edited outline 1 Active\" [level=3] [selected]:",
+      "        - generic \"Edited outline 1\"",
+      "    - spinbutton \"Point 2 X mm\": \"-8.238\"",
+      "    - spinbutton \"Point 2 Y mm\": \"-13\""
+    ]
+  },
+  {
+    "name": "candidate",
+    "step": "Left PCB finding Show outline navigation",
+    "controls": [
+      "    - tab \"Layout\" [selected]:",
+      "        - option \"Left PCB\" [selected]",
+      "        - treeitem \"Outline Edited outline 1\" [level=2] [selected]:",
+      "    - button \"Inspector options\" [active]:",
+      "      - heading \"Board outline\" [level=2]",
+      "      - img \"Accepted active board outline\""
+    ],
+    "focus": {
+      "aria": "Inspector options",
+      "tag": "BUTTON",
+      "text": ""
+    }
+  },
+  {
+    "name": "reference",
+    "step": "Left PCB finding Show outline navigation",
+    "controls": [
+      "    - tab \"Layout\" [selected]:",
+      "      - option \"Left PCB\" [selected]",
+      "      - treeitem \"Outline Edited outline 1\" [expanded] [level=2] [selected]:",
+      "    - button \"Inspector options\" [active]:",
+      "    - heading \"Board outline\" [level=2]"
+    ],
+    "focus": {
+      "aria": "Inspector options",
+      "tag": "BUTTON",
+      "text": ""
+    }
+  },
+  {
+    "name": "candidate",
+    "step": "2D camera before 3D",
+    "camera": [
+      {
+        "class": "m1-canvas",
+        "transforms": [
+          "scale(1,-1)",
+          "translate(11.179999999999978,-78.048) rotate(0) ",
+          "translate(18.579999999999977,-79.548) rotate(90) scale(-1 1)",
+          "translate(28.22999999999999,-78.048) rotate(0) "
+        ],
+        "viewBox": "-24.281806569343075 -34.609503649635045 183.94361313868615 163.39267153284672"
+      }
+    ]
+  },
+  {
+    "name": "reference",
+    "step": "2D camera before 3D",
+    "camera": [
+      {
+        "class": "wb-canvas ",
+        "transforms": [
+          "scale(1,-1)",
+          "translate(-5.965000000000021 -78.048)",
+          "translate(-5.91500000000001 -59.047999999999995)",
+          "translate(-5.91500000000001 -39.848000000000006)"
+        ],
+        "viewBox": "-23.947363636363647 -33.53190545454545 183.2747272727273 162.2929309090909"
+      }
+    ]
+  },
+  {
+    "name": "candidate",
+    "step": "3D assembly route after switch",
+    "observation": [
+      {
+        "height": 543,
+        "label": "Interactive 3D Layout PCB assembly. Click a visible component to select its current Layout part; use the controls to navigate and change display.",
+        "rect": {
+          "height": 363.1666870117187,
+          "width": 725
+        },
+        "width": 1086
+      }
+    ],
+    "states": [
+      "        - button \"3D assembly\" [active] [pressed]"
+    ]
+  },
+  {
+    "name": "reference",
+    "step": "3D assembly route after switch",
+    "observation": [
+      {
+        "height": 789,
+        "label": "3D PCB assembly. Drag to orbit, scroll to zoom.",
+        "rect": {
+          "height": 526,
+          "width": 725
+        },
+        "width": 1088
+      }
+    ],
+    "states": [
+      "      - button \"3D assembly\" [active] [pressed]"
+    ]
+  },
+  {
+    "name": "candidate",
+    "step": "3D settled",
+    "states": [
+      "        - option \"Left PCB\" [selected]",
+      "        - treeitem \"Outline Edited outline 1\" [level=2] [selected]:",
+      "        - button \"3D assembly\" [active] [pressed]",
+      "      - status: 3D preview updated.",
+      "      - status: Saved"
+    ]
+  },
+  {
+    "name": "reference",
+    "step": "3D settled",
+    "states": [
+      "      - option \"Left PCB\" [selected]",
+      "      - treeitem \"Outline Edited outline 1\" [expanded] [level=2] [selected]:",
+      "      - button \"3D assembly\" [active] [pressed]",
+      "      - status: 92 / 92 models · 1.6 mm PCB"
+    ]
+  },
+  {
+    "name": "candidate",
+    "step": "2D camera restored after 3D",
+    "camera": [
+      {
+        "class": "m1-canvas",
+        "transforms": [
+          "scale(1,-1)",
+          "translate(11.179999999999978,-78.048) rotate(0) ",
+          "translate(18.579999999999977,-79.548) rotate(90) scale(-1 1)",
+          "translate(28.22999999999999,-78.048) rotate(0) "
+        ],
+        "viewBox": "-24.281806569343075 -34.609503649635045 183.94361313868615 163.39267153284672"
+      }
+    ],
+    "exactRestoration": true
+  },
+  {
+    "name": "reference",
+    "step": "2D camera restored after 3D",
+    "camera": [
+      {
+        "class": "wb-canvas ",
+        "transforms": [
+          "scale(1,-1)",
+          "translate(-5.965000000000021 -78.048)",
+          "translate(-5.91500000000001 -59.047999999999995)",
+          "translate(-5.91500000000001 -39.848000000000006)"
+        ],
+        "viewBox": "-23.947363636363647 -33.53190545454545 183.2747272727273 162.2929309090909"
+      }
+    ],
+    "exactRestoration": true
+  },
+  {
+    "name": "candidate",
+    "step": "Reopened own exported archive",
+    "controls": [
+      "  - generic \"Saved locally\"",
+      "        - option \"Right PCB\"",
+      "        - treeitem \"Left PCB 72 parts\" [expanded] [level=1]:",
+      "          - button \"Left PCB 72 parts\":",
+      "        - treeitem \"Outline Edited outline 1\" [level=2]:",
+      "          - button \"Outline Edited outline 1\":",
+      "        - treeitem \"Matrix 5 1 keys\" [expanded] [level=3]:",
+      "          - button \"Collapse Matrix 5\" [expanded]: ⌄",
+      "          - button \"Matrix 5 1 keys\":",
+      "            - generic: Matrix 5"
+    ]
+  },
+  {
+    "name": "reference",
+    "step": "Reopened own exported archive",
+    "controls": [
+      "  - generic \"Saved locally\"",
+      "      - option \"Right PCB\"",
+      "      - treeitem \"Left PCB 72 parts\" [expanded] [level=1]:",
+      "      - treeitem \"Outline Edited outline 1\" [expanded] [level=2]:",
+      "      - button \"Collapse Matrix 5\" [expanded]: ⌄",
+      "      - treeitem \"Matrix 5 1 keys\" [expanded] [level=3]:",
+      "        - generic \"Matrix 5\""
+    ]
+  },
+  {
+    "name": "candidate",
+    "step": "Reopened column transform",
+    "controls": [
+      "        - spinbutton \"Offset X\": \"2\""
+    ]
+  },
+  {
+    "name": "reference",
+    "step": "Reopened column transform",
+    "controls": [
+      "      - spinbutton \"Offset X mm\": \"2\""
+    ]
+  },
+  {
+    "name": "candidate",
+    "step": "Reopened constrained U1 position",
+    "controls": [
+      "      - heading \"left-U1\" [level=2]",
+      "      - spinbutton \"X mm\" [disabled]: \"13.18\"",
+      "      - spinbutton \"Y mm\" [disabled]: \"-48.05\"",
+      "      - generic \"Layout constraint Active\":"
+    ]
+  },
+  {
+    "name": "reference",
+    "step": "Reopened constrained U1 position",
+    "controls": [
+      "    - heading \"left-U1\" [level=2]",
+      "    - spinbutton \"X mm\": \"13.18\"",
+      "    - spinbutton \"Y mm\": \"-48.05\"",
+      "    - generic \"Layout constraint Active\":"
+    ]
+  },
+  {
+    "name": "candidate",
+    "step": "Reopened outline point2",
+    "controls": [
+      "      - spinbutton \"Point 2 X mm\": \"-8.238\"",
+      "      - spinbutton \"Point 2 Y mm\": \"-13\""
+    ]
+  },
+  {
+    "name": "reference",
+    "step": "Reopened outline point2",
+    "controls": [
+      "    - spinbutton \"Point 2 X mm\": \"-8.238\"",
+      "    - spinbutton \"Point 2 Y mm\": \"-13\""
+    ]
+  },
+  {
+    "name": "candidate",
+    "step": "Escape exits perimeter and restores board context focus",
+    "observation": {
+      "boardName": [],
+      "focus": {
+        "label": "Outline point 2",
+        "tag": "circle",
+        "value": ""
+      },
+      "pointButtons": 1
+    }
+  },
+  {
+    "name": "reference",
+    "step": "Escape exits perimeter and restores board context focus",
+    "observation": {
+      "boardName": [],
+      "focus": {
+        "label": null,
+        "tag": "BODY",
+        "value": ""
+      },
+      "pointButtons": 0
+    }
+  },
+  {
+    "name": "candidate",
+    "step": "Escape settled",
+    "controls": [
+      "          - button \"Outline point 2\" [active] [pressed]",
+      "      - button \"Done\"",
+      "      - generic: Point 2 X mm",
+      "      - spinbutton \"Point 2 X mm\": \"-8.238\""
+    ],
+    "focus": {
+      "label": "Outline point 2",
+      "tag": "circle",
+      "text": ""
+    }
+  },
+  {
+    "name": "reference",
+    "step": "Escape settled",
+    "controls": [
+      "    - heading \"Board outline\" [level=2]",
+      "    - button \"Edit perimeter points\""
+    ],
+    "focus": {
+      "label": null,
+      "tag": "BODY",
+      "text": "\n    Sofle v2Saved locallyChanges are saved in this browser. Use Save project copy for a portable ba"
+    }
+  }
+]
