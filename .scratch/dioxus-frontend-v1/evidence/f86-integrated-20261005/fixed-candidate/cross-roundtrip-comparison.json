@@ -1,0 +1,111 @@
+{
+  "candidate-joined.boardstudio": {
+    "roundtrip": "candidate-via-reference-reloaded.boardstudio",
+    "revisions": [
+      24,
+      24
+    ],
+    "assets_equal": true,
+    "asset_count": 6,
+    "raw_differences": [
+      [
+        "/hardware/instances/0/mechanical/closureMounts/0/at/y",
+        -112.01301492537313,
+        -112.01301492537311
+      ],
+      [
+        "/hardware/instances/0/mechanical/closureMounts/1/at/x",
+        -9.627062500000001,
+        -9.6270625
+      ],
+      [
+        "/hardware/instances/0/mechanical/closureMounts/2/at/x",
+        103.41131250000001,
+        103.4113125
+      ],
+      [
+        "/hardware/instances/0/mechanical/closureMounts/3/at/x",
+        23.504875000000006,
+        23.50487500000001
+      ],
+      [
+        "/hardware/sharedConstruction/closureMounts/0/at/y",
+        -112.01301492537313,
+        -112.01301492537311
+      ],
+      [
+        "/hardware/sharedConstruction/closureMounts/1/at/x",
+        -9.627062500000001,
+        -9.6270625
+      ],
+      [
+        "/hardware/sharedConstruction/closureMounts/2/at/x",
+        103.41131250000001,
+        103.4113125
+      ],
+      [
+        "/hardware/sharedConstruction/closureMounts/3/at/x",
+        23.504875000000006,
+        23.50487500000001
+      ],
+      [
+        "/parts/10/pose/at/x",
+        104.22999999999999,
+        104.23
+      ],
+      [
+        "/parts/22/pose/at/x",
+        104.22999999999999,
+        104.23
+      ],
+      [
+        "/parts/34/pose/at/x",
+        104.22999999999999,
+        104.23
+      ],
+      [
+        "/parts/46/pose/at/x",
+        104.22999999999999,
+        104.23
+      ],
+      [
+        "/parts/143/pose/at/y",
+        -112.01301492537313,
+        -112.01301492537311
+      ],
+      [
+        "/parts/144/pose/at/x",
+        -9.627062500000001,
+        -9.6270625
+      ],
+      [
+        "/parts/145/pose/at/x",
+        103.41131250000001,
+        103.4113125
+      ],
+      [
+        "/parts/146/pose/at/x",
+        23.504875000000006,
+        23.50487500000001
+      ]
+    ],
+    "sha256": {
+      "candidate-joined.boardstudio": "00b0d66e2adba13c6e9372764675e71b39da3da9b6e54d22728f4f62d82d60b2",
+      "candidate-via-reference-reloaded.boardstudio": "eade8a70475029dae69959223d6f76b30b2424e0896e41fd0dc2471a0d6a3aa4"
+    }
+  },
+  "reference-joined.boardstudio": {
+    "roundtrip": "reference-via-candidate-reloaded.boardstudio",
+    "revisions": [
+      23,
+      23
+    ],
+    "assets_equal": true,
+    "asset_count": 6,
+    "raw_differences": [],
+    "sha256": {
+      "reference-joined.boardstudio": "58c0d6303c08dafe4f2259b297d78c619f8c9469163575ff4dcea53c95cf2342",
+      "reference-via-candidate-reloaded.boardstudio": "d3402881fcda6c7eac680597e8cdc0f66fec01e430544a7c43c784f0553358e2"
+    }
+  }
+}

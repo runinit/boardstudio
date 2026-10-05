@@ -1,11 +1,11 @@
 # Handoff (generated from records)
 
-- Branch: codex/rust-v1-ui-parity-20261001 @ 4c0a2fc4
+- Branch: codex/rust-v1-ui-parity-20261001 @ 71a9a599
 - Worktree: /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001
-- Parents: 54/60 accepted, 2 implementing, 4 planned
-- Criteria: unassessed 15, missing 0, implemented 1, verified 205; 221 total
+- Parents: 53/60 accepted, 3 implementing, 4 planned
+- Criteria: unassessed 15, missing 1, implemented 1, verified 204; 221 total
   - functional: unassessed 3, verified 178
-  - release: implemented 1, unassessed 10, verified 21
+  - release: implemented 1, missing 1, unassessed 10, verified 20
   - visual: unassessed 2, verified 6
 
 ## Served candidate
@@ -15,32 +15,33 @@
 - Subpath: http://127.0.0.1:34827/boardstudio/
 
 ## Functional readiness
-- Ready functional criteria: 3 investigate, 0 implement, 0 qualify (Layout 0 investigate/0 implement/0 qualify; PCB 0 investigate/0 implement/0 qualify; Keymap 0 investigate/0 implement/0 qualify; Keycaps 0 investigate/0 implement/0 qualify; Case 0 investigate/0 implement/0 qualify; Parts+Project 0 investigate/0 implement/0 qualify; Shared 3 investigate/0 implement/0 qualify)
+- Ready functional criteria: 2 investigate, 0 implement, 0 qualify (Layout 0 investigate/0 implement/0 qualify; PCB 0 investigate/0 implement/0 qualify; Keymap 0 investigate/0 implement/0 qualify; Keycaps 0 investigate/0 implement/0 qualify; Case 0 investigate/0 implement/0 qualify; Parts+Project 0 investigate/0 implement/0 qualify; Shared 2 investigate/0 implement/0 qualify)
 - Functionally verified parents awaiting formal acceptance: 0
-- Parents with unmet final joins: 3
+- Parents with unmet final joins: 4
   Layout: unassessed 0, missing 0, implemented 0, verified 27; ready investigate 0, implement 0, qualify 0
   PCB: unassessed 0, missing 0, implemented 0, verified 26; ready investigate 0, implement 0, qualify 0
   Keymap: unassessed 0, missing 0, implemented 0, verified 7; ready investigate 0, implement 0, qualify 0
   Keycaps: unassessed 0, missing 0, implemented 0, verified 13; ready investigate 0, implement 0, qualify 0
   Case: unassessed 0, missing 0, implemented 0, verified 39; ready investigate 0, implement 0, qualify 0
   Parts+Project: unassessed 0, missing 0, implemented 0, verified 39; ready investigate 0, implement 0, qualify 0
-  Shared: unassessed 3, missing 0, implemented 0, verified 27; ready investigate 3, implement 0, qualify 0
-    Investigate: F8.6-C01, F8.6-C02, F8.6-C03
+  Shared: unassessed 3, missing 0, implemented 0, verified 27; ready investigate 2, implement 0, qualify 0
+    Investigate: F8.6-C02, F8.6-C03
 Functional criteria verified; formal acceptance still outstanding:
   none
 Exact unmet final joins:
-  F9.2 → F8.6
+  F8.6 → F3.7
+  F9.2 → F3.7, F8.6
   F9.4 → F8.6
   F9.5 → F9.2
 
 ## Parents
-- Accepted (54): INT.1, INT.2, BND.1, BND.2, F2.1, F2.2, F2.3, F2.4, F3.1, F3.2, F3.3, F3.4, F3.5, F3.6, F3.7, F3.8, F4.1, F4.2, F4.3, F4.4, F4.5, F4.6, F5.1, F5.2, F5.3, F5.4, F5.5, F5.6, F5.7, F5.8, F6K.1, F6K.2, F6K.3, F6K.4, F6C.1, F6C.2, F6C.3, F6C.4, F6C.5, F6.6, F7.1, F7.2, F7.3, F7.4, F7.5, F7.6, F7.7, F7.8, F8.1, F8.2, F8.3, F8.4, F8.5, F9.1
+- Accepted (53): INT.1, INT.2, BND.1, BND.2, F2.1, F2.2, F2.3, F2.4, F3.1, F3.2, F3.3, F3.4, F3.5, F3.6, F3.8, F4.1, F4.2, F4.3, F4.4, F4.5, F4.6, F5.1, F5.2, F5.3, F5.4, F5.5, F5.6, F5.7, F5.8, F6K.1, F6K.2, F6K.3, F6K.4, F6C.1, F6C.2, F6C.3, F6C.4, F6C.5, F6.6, F7.1, F7.2, F7.3, F7.4, F7.5, F7.6, F7.7, F7.8, F8.1, F8.2, F8.3, F8.4, F8.5, F9.1
 - Hold (0): none
 
 ## Criteria on hold or blocked
-- F8.6-C01 [unassessed]: Join six-workbench project-to-export journey after each required provider/consumer acceptance is ready.
-- F8.6-C02 [unassessed]: Combine existing bounded receipts with remaining authored/generated/portable outputs and per-operation snapshot proofs.
-- F8.6-C03 [unassessed]: Run focused coordinator races/failure/retry/cleanup and route return on the frozen joined candidate.
+- F8.6-C01 [unassessed]: Review retained fresh fixed-candidate six-workbench/output/roundtrip/return evidence and unchanged owner/theme/keyboard proofs; acceptance waits newly demonstrated coordinate history repair and reo...
+- F8.6-C02 [unassessed]: Review retained fresh fixed-candidate six-workbench/output/roundtrip/return evidence and unchanged owner/theme/keyboard proofs; acceptance waits newly demonstrated coordinate history repair and reo...
+- F8.6-C03 [unassessed]: Review retained fresh fixed-candidate six-workbench/output/roundtrip/return evidence and unchanged owner/theme/keyboard proofs; acceptance waits newly demonstrated coordinate history repair and reo...
 - F9.2-C01 [unassessed]: Complete per-workflow and aggregate paired qualification after required workflow joins; reuse only attributable unchanged evidence.
 - F9.4-C01 [unassessed]: Run cross-frontend archive round-trip and actual storage-write checks on final routes.
 - F9.5-C01 [unassessed]: Map each existing budget to eligible current evidence; preserve ineligible/failed baselines for applicability review.
@@ -93,7 +94,15 @@ Exact unmet final joins:
 
 Last retro checkpoint: 2026-10-04T15:56:00Z
 
-2026-10-05 current checkpoint: source milestone4c0a2fc46074121b85c7f0e8fb0d80cd5c3f1021 repairs stationary outline point clicks. Candidate frontend-layout-point-precision-20261005 at http://127.0.0.1:34827/ and /boardstudio/, detached server3257059; keep previous34826/34825 alive. Package128.90s,1409sources/0mismatch,190assets eachroute/0mismatch,9fresh/23inherited commands,0warnings. Donor frontend-case-layout-controls-20261005 is full valid reuse source.
+Latest active correction: required rapid coordinate Enter→Blur duplicatehistory repair. Actual source4c0a public candidate current34827 with exact same r17 J1 placement input: rapidX60Enter→Y-40Enter savesr20 vsTSr19; candidate twoUndo actualarchive stillX60/r22 vsTSX66.675/r21; thirdUndo restoresX. Owning mounted rawRED proves threeEdit events X60,X60,Y-40. Author layout_escape_repair fixed only inspector/layout_component_inspector.rs + layout_component_inspector_tests.rs; explicit Enter retry remains, matching followingBlur suppressed. Source hashes inspector6792aeb06e6f2feb8bcf7ed1b7e00b1a02997847140828a5995c36cf98147c76/tests12871c23ebebadf92ed7084a34c3b89cece04e9433b179be3311303a0010f0a4. Same reviewer preset_batch_review CLEAR. Combinednative247/1ignored,page,reachability,headless17passed; source stagedBEFOREgate to preserve receipts. Author/sourceleasesreleased. Commit/package/public rapidXY/twoUndo replay pending; do not repeat wholeF8journey. Explicitmanifest /tmp/layout-coordinate-commit-paths.json. Six unrelatedindexentries remain snapshot /tmp/case-layout-unrelated-index.json.
+
+F8 fresh six-workbench journey COMPLETED at4c0a/34827 vsTS5175: evidence/f86-integrated-20261005/fixed-candidate contains allperworkbenchcheckpoints,currentpairedportablecopies r24/r23,actual20-entrymechanicalZIPsboth,candidateauthoredSTEP,exact ownrevisionmanifestproof,fullgeometryartifactcomparison,ExportBacktoCasecurrentboth,publiccrossfrontendimport/reload/savearchiveswith6assetbytespreserved. Reference→candidateProjectDoc exact; candidate→reference only16~1e-14floats. Fullnormalizedjoineddocdiff19 includes16tinyfloats,knownorphanpla/materialfielddifference,{}vsmissinggeneratorparameters,andrequiredphantomrevisionbug. Source-ownermapUNCHANGEDexport/runtime/session6bb→4c. Sole reviewer explicitlyretainallcompletedF8outputs/roundtrip/reuseC03failure/URL/scope/theme/keyboardownerproof; ONLY coordinatehistoryrepairbranchremains. F3.7explicitlyreopenedwithnewcoordinate/f3-7-correction-decision.json; originalprioroutlineprecisionrecoveryremainsvalid. RestoreF3thenacceptF8fromsamefinalreviewafterpublicGREEN.
+
+Next release prerequisites map evidence/release-join-remaining-20261005.md fromread-onlyauthor: F9.4 root/subpathofflineupdate/stale/lazyassetrecovery and saved-writeattribution; F9.5 applicablepointercaps33/50/100ms p95 for30/100/200keys,5serialsessions10warmups/100samples,existingpointerdriver; sourcefreshness/applicability mustbeassessed, do notinventnewcaps orfaultmatrix. Thismapispreparation,unassesseduntiljoinsaccepted. Actualcrossimport/reload/savefreshF8proofnowexists; do notblindlyrepeatdurabilityproof justbecausemaplabelsUI Save separately—compareexactclause andprioracceptedownerproof. F9.2 aggregatepairedworkflow/theme/keyboard/desktopshortheight/zoomreview stillpending. F9.6 concretecutoverrollbackpatch andF9.7approvalrequiredlast. Accessibility/F9.3,mobile/compact,optionalworkexcluded.
+
+Browserpersistentbrowserbindingvalid, f86Fixedtab89/current34827 andf86RefNowtab90/5175 maydisappearafteragentcompletion; browser.tabs.list/new only,no rebootstrap. f86FreshDir is absolute.../f86-integrated-20261005/fixed-candidate; exactprobe-01-placement.boardstudio r17 input. Candidate nonmutatingpartselection ObjectsExpandkeys→buttonJ1; referenceSVGbuttonJ1pressEnter (notpointerclick). RapidX/Ycontrolsactualspinbuttons X mm,Y mm. Filechoosers catchtimeout; downloadsnormalclick withbefore/newfilesystemnames notwaitForEventdownload. Helpers takingmutablependingstate MUSTacceptit asargument; Nodeclosure maycaptureoldtop-levelbinding afterreassignment. ReferencelegendEntercommitsonblur; waitcorrectacceptedrevision. ReferencePartsPlacecomponentauto-switchesLayout; clickingLayoutagain cancelsplacement. ExistingnormalbrowserstatecurrentafterUndo, inputarchivesretained; do notinferfromstaletabs.
+
+Prior checkpoint (historical notes follow; current correction above supersedes F3status and F8unfinishedclaims):  source milestone4c0a2fc46074121b85c7f0e8fb0d80cd5c3f1021 repairs stationary outline point clicks. Candidate frontend-layout-point-precision-20261005 at http://127.0.0.1:34827/ and /boardstudio/, detached server3257059; keep previous34826/34825 alive. Package128.90s,1409sources/0mismatch,190assets eachroute/0mismatch,9fresh/23inherited commands,0warnings. Donor frontend-case-layout-controls-20261005 is full valid reuse source.
 
 F3.7 recovered/accepted after independent reviewer preset_batch_review. Original acceptance and explicit correction decision remain historical. New recoverydecision precision/public-review-f3-7-decision.json. Source meaningful event RED is a clearly labeled transcription, GREEN1/1/full13/13; native247/1ignored,page,reachability,strictheadless13 allpassed. Fixture Runtime records events without applying state; mounted snapshot equality is not nonmutation proof; synthetic pointer capture shim only. Actual public sameinput outlinepoint2click→standaloneShift→Escape→Save now byteidentical input c476fcaf16a9150b11221427620047c55d4ad11d293315b7c56d45bd7f8b4cbe,r15,X-8.2375. DOMcirclefocus→BODY/0handles. Actual download Sofle v2(16).boardstudio copied precision/candidate-fixed-after-escape.boardstudio. Reference unchangedr15/exactpoint; four1e-14pose serialization deltas retained. Precision/RECEIPT,public-fixed.json,public-fixed-comparison.json,public-review.md own result. Source lease released; no compilers/authors running. Same sole reviewer retained.
 

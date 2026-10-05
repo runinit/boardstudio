@@ -92,6 +92,30 @@ pub enum ComponentPositionAxis {
     Y,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PositionCommitTrigger {
+    Enter,
+    Blur,
+}
+
+#[derive(Clone)]
+struct PositionEnterCommit {
+    owner: LayoutComponentInspectorOwner,
+    axis: ComponentPositionAxis,
+    value: f64,
+}
+
+fn same_position_commit_owner(
+    left: &LayoutComponentInspectorOwner,
+    right: &LayoutComponentInspectorOwner,
+) -> bool {
+    left.scope == right.scope
+        && left.context_generation == right.context_generation
+        && left.scope_generation == right.scope_generation
+        && left.part_id == right.part_id
+        && left.selected_part_ids == right.selected_part_ids
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum LayoutComponentInspectorAction {
     SetPosition {
@@ -379,14 +403,17 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         }
     };
 
-    let commit_position: Rc<dyn Fn(ComponentPositionAxis)> = {
+    let last_enter_commit = use_hook(|| Rc::new(RefCell::new(None::<PositionEnterCommit>)));
+    let commit_position: Rc<dyn Fn(ComponentPositionAxis, PositionCommitTrigger)> = {
         let latest_capture = latest_capture;
         let position = projection.position;
         let locked = position_unavailable(&projection);
         let action = props.on_action;
         let error = error;
-        Rc::new(move |axis| {
+        let last_enter_commit = last_enter_commit.clone();
+        Rc::new(move |axis, trigger| {
             if position_input_disabled(locked) {
+                last_enter_commit.borrow_mut().take();
                 return;
             }
             let mut error = error;
@@ -395,13 +422,34 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                 ComponentPositionAxis::Y => (y(), position.y),
             };
             let Some(value) = position_commit_value(&draft, locked) else {
+                last_enter_commit.borrow_mut().take();
                 error.set(Some("Enter a finite position coordinate.".to_owned()));
                 return;
             };
             error.set(None);
+            let owner = latest_capture();
+            if trigger == PositionCommitTrigger::Blur {
+                let duplicate_enter = last_enter_commit.borrow_mut().take().is_some_and(|stamp| {
+                    stamp.axis == axis
+                        && stamp.value == value
+                        && same_position_commit_owner(&stamp.owner, &owner)
+                });
+                if duplicate_enter {
+                    return;
+                }
+            } else {
+                // Enter remains an explicit retry after a rejected action. The
+                // following blur alone is suppressed when it carries this same
+                // axis/value for the same selected Inspector owner.
+                *last_enter_commit.borrow_mut() = Some(PositionEnterCommit {
+                    owner: owner.clone(),
+                    axis,
+                    value,
+                });
+            }
             if value != current {
                 action.call(LayoutComponentInspectorAction::SetPosition {
-                    owner: latest_capture(),
+                    owner,
                     axis,
                     value,
                 });
@@ -548,11 +596,11 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                     label { "X (mm)" input {
                         r#type: "number", step: "0.1", value: "{x}", aria_label: "X mm",
                         disabled: position_input_disabled(position_unavailable(&projection)),
-                        oninput: move |event| x.set(event.value()),
-                        onblur: { let commit = commit_position.clone(); move |_| commit(ComponentPositionAxis::X) },
+                        oninput: { let last_enter_commit = last_enter_commit.clone(); move |event| { last_enter_commit.borrow_mut().take(); x.set(event.value()); } },
+                        onblur: { let commit = commit_position.clone(); move |_| commit(ComponentPositionAxis::X, PositionCommitTrigger::Blur) },
                         onkeydown: { let commit = commit_position.clone(); move |event: KeyboardEvent| {
                             match event.data().key().to_string().as_str() {
-                                "Enter" => { event.prevent_default(); commit(ComponentPositionAxis::X); }
+                                "Enter" => { event.prevent_default(); commit(ComponentPositionAxis::X, PositionCommitTrigger::Enter); }
                                 "Escape" => { x.set(format!("{:.2}", position.x)); error.set(None); }
                                 _ => {}
                             }
@@ -561,11 +609,11 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                     label { "Y (mm)" input {
                         r#type: "number", step: "0.1", value: "{y}", aria_label: "Y mm",
                         disabled: position_input_disabled(position_unavailable(&projection)),
-                        oninput: move |event| y.set(event.value()),
-                        onblur: { let commit = commit_position.clone(); move |_| commit(ComponentPositionAxis::Y) },
+                        oninput: { let last_enter_commit = last_enter_commit.clone(); move |event| { last_enter_commit.borrow_mut().take(); y.set(event.value()); } },
+                        onblur: { let commit = commit_position.clone(); move |_| commit(ComponentPositionAxis::Y, PositionCommitTrigger::Blur) },
                         onkeydown: { let commit = commit_position.clone(); move |event: KeyboardEvent| {
                             match event.data().key().to_string().as_str() {
-                                "Enter" => { event.prevent_default(); commit(ComponentPositionAxis::Y); }
+                                "Enter" => { event.prevent_default(); commit(ComponentPositionAxis::Y, PositionCommitTrigger::Enter); }
                                 "Escape" => { y.set(format!("{:.2}", position.y)); error.set(None); }
                                 _ => {}
                             }

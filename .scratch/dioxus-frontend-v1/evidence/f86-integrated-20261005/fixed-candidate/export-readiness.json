@@ -1,0 +1,36 @@
+{
+  "candidate": [
+    "  - button \"Project\":",
+    "  - button \"Export\" [active] [pressed]:",
+    "        - button \"Back to Case\"",
+    "        - button \"KiCad board needs work\" [disabled]: Needs work",
+    "        - button \"Export Draft KiCad board\": Export",
+    "        - button \"Export ZMK firmware\" [disabled]: Needs work",
+    "        - button \"Export KiCad footprints\": Export",
+    "        - button \"Export SVG board outline\": Export",
+    "        - button \"Export DXF board outline\": Export",
+    "        - button \"Export Authored Case STEP\": Export",
+    "        - button \"Export Generated mechanical package\": Export",
+    "        - button \"Review wiring\"",
+    "        - button \"Review case\"",
+    "          - checkbox \"Embed used models\" [checked]",
+    "          - button \"Save .boardstudio project\""
+  ],
+  "reference": [
+    "  - button \"Project\":",
+    "  - button \"Export\" [active] [pressed]:",
+    "    - button \"Back to Case\":",
+    "    - button \"Export KiCad board\" [disabled]: Needs work",
+    "    - button \"Export Draft KiCad board\": Export",
+    "    - button \"Export ZMK firmware\" [disabled]: Needs work",
+    "    - button \"Export KiCad footprints\": Export",
+    "    - button \"Export SVG board outline\": Export",
+    "    - button \"Export DXF board outline\": Export",
+    "    - button \"Export Authored Case STEP\" [disabled]: Needs work",
+    "    - button \"Export\"",
+    "    - button \"Review wiring\"",
+    "    - button \"Review case\"",
+    "    - checkbox \"Embed used models\" [checked]",
+    "    - button \"Save .boardstudio project\":"
+  ]
+}

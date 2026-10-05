@@ -16,10 +16,10 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-05T14:06:29.558797+00:00",
+    "updated_at": "2026-10-05T14:29:49.890161+00:00",
     "parent_counts": {
-      "accepted": 54,
-      "implementing": 2,
+      "accepted": 53,
+      "implementing": 3,
       "planned": 4,
       "total": 60
     },
@@ -49,7 +49,7 @@
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
       "source_commit": "4c0a2fc46074121b85c7f0e8fb0d80cd5c3f1021",
-      "state": "F3.7 recovery accepted after sole independent review: immutable4c0a2fc4 at34827 preserves the exact r15 saved archive on stationary point click/Escape. All Layout leaves/join accepted. F8 joined composition, current output downloads/roundtrip/return navigation and old revision attribution remain open.",
+      "state": "Completed fresh paired six-workbench journey, current generated/authored/portable downloads and cross-frontend import/reload/save. Extra revision localized to real consecutive-coordinate phantom Undo entry; F3.7 reopened with preserved decision history. Bounded inspector repair active; completed F8 branches retained.",
       "packets": [
         {
           "stream": "Layout",
@@ -559,7 +559,7 @@
       {
         "stream": "Layout",
         "priority": "Functional gaps alongside other streams; exact visual parity deferred",
-        "state": "F3.1\u2013F3.8 accepted. Required stationary point click repair independently reviewed and published; actual saved archive byte-identical to input, exact fractional geometry and revision retained. Full Layout geometry/history/reopen/camera and functional keyboard evidence retained."
+        "state": "Required consecutive coordinate history repair active: actual second Undo leaves X changed in candidate while reference restores it. Outline precision recovery remains valid; F3.7-C02 explicitly reopened."
       },
       {
         "stream": "PCB",
@@ -4956,41 +4956,69 @@
         "evidence": ".scratch/dioxus-frontend-v1/evidence/integrated-accessibility-c1d3-20261005/RECEIPT.md"
       },
       "pending_source_batch": {
-        "id": "layout-point-precision-20261005",
-        "state": "Complete: committed4c0a2fc4, required gates passed, immutable34827 published, public saved archive byte-identical to r15 input, independent recovery review CLEAR and F3.7 accepted. Resume remaining F8 joined outputs and integration qualification.",
-        "source_base": "6bb3d52024e898f0f4111baac9b84e307224b9e7",
+        "id": "layout-coordinate-commit-20261005",
+        "state": "Frozen source independently reviewed CLEAR; raw meaningful mounted RED, focused GREEN1/1, combined native247/1ignored/page/reachability/strictheadless17 passed. Source staged before gates for exact commit reuse. Immutable package and public rapid XY/two-Undo saved-state replay next.",
+        "source_base": "71a9a599",
         "owned_files": [
-          "web/src/presentation/outline_lifecycle.rs",
-          "web/src/presentation/outline_lifecycle_browser_tests.rs"
+          "web/src/presentation/inspector/layout_component_inspector.rs",
+          "web/src/presentation/layout_component_inspector_tests.rs"
         ],
         "authors": [
           {
             "agent": "layout_escape_repair",
             "files": [
-              "web/src/presentation/outline_lifecycle.rs",
-              "web/src/presentation/outline_lifecycle_browser_tests.rs"
+              "web/src/presentation/inspector/layout_component_inspector.rs",
+              "web/src/presentation/layout_component_inspector_tests.rs"
             ]
           }
         ],
         "reviewer": "preset_batch_review",
-        "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/RECEIPT.md",
+        "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/RECEIPT.md",
         "finish": [
-          "Expected fractional owning RED then minimal fix/GREEN and affected module",
-          "Same independent review and required combined source gate",
-          "Explicit milestone commit and immutable package",
-          "Public same-input saved-archive precision/revision preservation versus reference",
-          "Restore eligible F3.7 acceptance then finish F8 same-project outputs/roundtrip/return navigation"
-        ],
-        "test_limit": "Existing mock Runtime records edit events without applying accepted state; snapshot equality alone is not a nonmutation proof. New regression observes actual submitted edits; public downloaded archives own persistence proof.",
-        "published_build": "frontend-layout-point-precision-20261005",
-        "public_evidence": ".scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/public-fixed-comparison.json",
-        "review": ".scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/public-review.md"
+          "Meaningful duplicate submission RED and minimal fix/GREEN",
+          "Same independent review; stage explicit source before combined required gates",
+          "One source commit/package and actual consecutive coordinate Undo replay",
+          "Restore F3.7 and join retained completed F8 outputs/roundtrip/reuse evidence"
+        ]
       },
       "started_at": "2026-10-05T14:02:25.921477+00:00",
       "review": {
         "profile": "sol-review",
         "state": "pending"
-      }
+      },
+      "completed_source_batches": [
+        {
+          "id": "layout-point-precision-20261005",
+          "state": "Complete: committed4c0a2fc4, required gates passed, immutable34827 published, public saved archive byte-identical to r15 input, independent recovery review CLEAR and F3.7 accepted. Resume remaining F8 joined outputs and integration qualification.",
+          "source_base": "6bb3d52024e898f0f4111baac9b84e307224b9e7",
+          "owned_files": [
+            "web/src/presentation/outline_lifecycle.rs",
+            "web/src/presentation/outline_lifecycle_browser_tests.rs"
+          ],
+          "authors": [
+            {
+              "agent": "layout_escape_repair",
+              "files": [
+                "web/src/presentation/outline_lifecycle.rs",
+                "web/src/presentation/outline_lifecycle_browser_tests.rs"
+              ]
+            }
+          ],
+          "reviewer": "preset_batch_review",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/RECEIPT.md",
+          "finish": [
+            "Expected fractional owning RED then minimal fix/GREEN and affected module",
+            "Same independent review and required combined source gate",
+            "Explicit milestone commit and immutable package",
+            "Public same-input saved-archive precision/revision preservation versus reference",
+            "Restore eligible F3.7 acceptance then finish F8 same-project outputs/roundtrip/return navigation"
+          ],
+          "test_limit": "Existing mock Runtime records edit events without applying accepted state; snapshot equality alone is not a nonmutation proof. New regression observes actual submitted edits; public downloaded archives own persistence proof.",
+          "published_build": "frontend-layout-point-precision-20261005",
+          "public_evidence": ".scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/public-fixed-comparison.json",
+          "review": ".scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/public-review.md"
+        }
+      ]
     },
     "delivery_priority": {
       "authority": "User on 2026-10-03: make the app work; layout parity last; improve UI along the way because the design will change.",

@@ -1,0 +1,35 @@
+{
+  "input": "probe-01-placement.boardstudio",
+  "inputRevision": 17,
+  "consecutiveCandidateArchive": "probe-04-consecutive-xy.boardstudio",
+  "consecutiveCandidateRevision": 20,
+  "consecutiveReferenceRevision": 19,
+  "undoOnce": {
+    "candidate": [
+      "      - spinbutton \"X mm\": \"60.00\"",
+      "      - spinbutton \"Y mm\": \"-47.62\""
+    ],
+    "reference": [
+      "    - spinbutton \"X mm\": \"60.00\"",
+      "    - spinbutton \"Y mm\": \"-47.63\""
+    ],
+    "refRevision": "20"
+  },
+  "undoTwice": {
+    "candidate": [
+      "      - spinbutton \"X mm\": \"60.00\"",
+      "      - spinbutton \"Y mm\": \"-47.62\""
+    ],
+    "reference": [
+      "    - spinbutton \"X mm\": \"66.67\"",
+      "    - spinbutton \"Y mm\": \"-47.63\""
+    ],
+    "refRevision": "21"
+  },
+  "candidateAfterTwoUndosArchive": "probe-05-two-undos.boardstudio",
+  "referenceAfterTwoUndosArchive": "reference-two-undos.boardstudio",
+  "candidateThirdUndo": [
+    "      - spinbutton \"X mm\": \"66.67\"",
+    "      - spinbutton \"Y mm\": \"-47.62\""
+  ]
+}

@@ -1,0 +1,12 @@
+Command:
+python3 scripts/migration-deliver.py focused-test -- wasm-pack test --headless --chrome --mode no-install web --no-default-features --features page --bin boardstudio-web -- mounted_rapid_xy_enter_and_focus_change_submit_one_edit_per_axis
+
+Observed terminal result (tool session 1026):
+    Running unittests src/main.rs (target/wasm32-unknown-unknown/debug/deps/boardstudio_web-ade5ef492b9e030c.wasm)
+    Running headless tests in Chrome
+    running 1 test
+    test presentation::layout_component_inspector_tests::mounted_rapid_xy_enter_and_focus_change_submit_one_edit_per_axis ... ok
+    test result: ok. 1 passed; 0 failed; 0 ignored; 336 filtered out
+    migration-deliver: focused-test status=passed passed=1 started=2026-10-05T14:34:56+00:00 ended=2026-10-05T14:36:12+00:00 duration=76.64s
+
+This is a concise retained transcription of the successful terminal output; it is not a byte-for-byte complete shell log. The mounted observer validates submitted Edit commands, not persistence. Public candidate/reference archive and Undo comparisons are retained in coordinate-undo-probe.json and the archives cited in RECEIPT.md.

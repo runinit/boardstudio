@@ -1,0 +1,185 @@
+{
+  "source": "4c0a2fc46074121b85c7f0e8fb0d80cd5c3f1021",
+  "identifier_maps": [
+    {
+      "ui-a69abe73-f709-4f1c-9bfe-2be8f357ee7c": "joined-part-J1",
+      "case-body-67": "joined-authored-plate"
+    },
+    {
+      "ui-9b971849-8d2f-450d-8e3a-590541814f46": "joined-part-J1",
+      "ui-cb317f57-ffbe-4ac3-9211-f359ec81e6a3": "joined-authored-plate"
+    }
+  ],
+  "revisions": [
+    24,
+    23
+  ],
+  "point2": [
+    {
+      "x": -8.2375,
+      "y": -13.0
+    },
+    {
+      "x": -8.2375,
+      "y": -13
+    }
+  ],
+  "new_part_pose": [
+    {
+      "at": {
+        "x": 60.0,
+        "y": -40.0
+      },
+      "rotation": 0.0
+    },
+    {
+      "at": {
+        "x": 60,
+        "y": -40
+      },
+      "rotation": 0
+    }
+  ],
+  "keymap_main": [
+    {
+      "id": "base",
+      "name": "Main",
+      "bindings": {
+        "matrix/left-keys/r0c0": {
+          "kind": "key-press",
+          "keycode": "A"
+        }
+      },
+      "sensors": {}
+    },
+    {
+      "id": "base",
+      "name": "Main",
+      "bindings": {
+        "matrix/left-keys/r0c0": {
+          "kind": "key-press",
+          "keycode": "A"
+        }
+      },
+      "sensors": {}
+    }
+  ],
+  "assets_equal": true,
+  "raw_differences": [
+    {
+      "path": "/caseBodies/0/materialId",
+      "candidate": "<missing>",
+      "reference": "pla",
+      "within_geometry_tolerance": false
+    },
+    {
+      "path": "/hardware/instances/0/mechanical/closureMounts/0/at/y",
+      "candidate": -112.01301492537313,
+      "reference": -112.01301492537311,
+      "within_geometry_tolerance": true
+    },
+    {
+      "path": "/hardware/instances/0/mechanical/closureMounts/1/at/x",
+      "candidate": -9.627062500000001,
+      "reference": -9.6270625,
+      "within_geometry_tolerance": true
+    },
+    {
+      "path": "/hardware/instances/0/mechanical/closureMounts/2/at/x",
+      "candidate": 103.41131250000001,
+      "reference": 103.4113125,
+      "within_geometry_tolerance": true
+    },
+    {
+      "path": "/hardware/instances/0/mechanical/closureMounts/3/at/x",
+      "candidate": 23.504875000000006,
+      "reference": 23.50487500000001,
+      "within_geometry_tolerance": true
+    },
+    {
+      "path": "/hardware/sharedConstruction/closureMounts/0/at/y",
+      "candidate": -112.01301492537313,
+      "reference": -112.01301492537311,
+      "within_geometry_tolerance": true
+    },
+    {
+      "path": "/hardware/sharedConstruction/closureMounts/1/at/x",
+      "candidate": -9.627062500000001,
+      "reference": -9.6270625,
+      "within_geometry_tolerance": true
+    },
+    {
+      "path": "/hardware/sharedConstruction/closureMounts/2/at/x",
+      "candidate": 103.41131250000001,
+      "reference": 103.4113125,
+      "within_geometry_tolerance": true
+    },
+    {
+      "path": "/hardware/sharedConstruction/closureMounts/3/at/x",
+      "candidate": 23.504875000000006,
+      "reference": 23.50487500000001,
+      "within_geometry_tolerance": true
+    },
+    {
+      "path": "/parts/10/pose/at/x",
+      "candidate": 104.22999999999999,
+      "reference": 104.23,
+      "within_geometry_tolerance": true
+    },
+    {
+      "path": "/parts/22/pose/at/x",
+      "candidate": 104.22999999999999,
+      "reference": 104.23,
+      "within_geometry_tolerance": true
+    },
+    {
+      "path": "/parts/34/pose/at/x",
+      "candidate": 104.22999999999999,
+      "reference": 104.23,
+      "within_geometry_tolerance": true
+    },
+    {
+      "path": "/parts/46/pose/at/x",
+      "candidate": 104.22999999999999,
+      "reference": 104.23,
+      "within_geometry_tolerance": true
+    },
+    {
+      "path": "/parts/142/generatorParameters",
+      "candidate": {},
+      "reference": "<missing>",
+      "within_geometry_tolerance": false
+    },
+    {
+      "path": "/parts/143/pose/at/y",
+      "candidate": -112.01301492537313,
+      "reference": -112.01301492537311,
+      "within_geometry_tolerance": true
+    },
+    {
+      "path": "/parts/144/pose/at/x",
+      "candidate": -9.627062500000001,
+      "reference": -9.6270625,
+      "within_geometry_tolerance": true
+    },
+    {
+      "path": "/parts/145/pose/at/x",
+      "candidate": 103.41131250000001,
+      "reference": 103.4113125,
+      "within_geometry_tolerance": true
+    },
+    {
+      "path": "/parts/146/pose/at/x",
+      "candidate": 23.504875000000006,
+      "reference": 23.50487500000001,
+      "within_geometry_tolerance": true
+    },
+    {
+      "path": "/revision",
+      "candidate": 24,
+      "reference": 23,
+      "within_geometry_tolerance": false
+    }
+  ],
+  "limits": "Association-preserving normalization only of uniquely added J1 and authored plate IDs. All raw differences retained; revision contradiction traced to required coordinate history repair, empty generatorParameters means no explicit override, orphan reference pla material vs missing candidate material remains reviewed F8.5 readiness difference."
+}

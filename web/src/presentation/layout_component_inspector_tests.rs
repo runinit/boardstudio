@@ -1216,6 +1216,72 @@ async fn mounted_editable_component_position_commits_so_the_unavailable_cases_ar
 }
 
 #[wasm_bindgen_test]
+async fn mounted_rapid_xy_enter_and_focus_change_submit_one_edit_per_axis() {
+    let (probe, root) = mounted_probe_configured(
+        "layout-component-position-rapid-xy-test-root",
+        |document| {
+            let part = document
+                .parts
+                .iter_mut()
+                .find(|part| part.id == "selected-part")
+                .unwrap();
+            part.reference = "J1".into();
+            part.pose.at = Vec2 {
+                x: 66.675,
+                y: -47.625,
+            };
+        },
+    );
+    settle_component_inspector().await;
+    let x = position_input(probe.root_id, "X mm");
+    let y = position_input(probe.root_id, "Y mm");
+    let bubbling = web_sys::EventInit::new();
+    bubbling.set_bubbles(true);
+    let enter = web_sys::KeyboardEventInit::new();
+    enter.set_key("Enter");
+    enter.set_bubbles(true);
+
+    x.focus().unwrap();
+    x.set_value("60");
+    x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
+        .unwrap();
+    x.dispatch_event(
+        &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
+    )
+    .unwrap();
+
+    // Moving focus to Y causes the native X blur after Enter. It must not submit
+    // the same still-visible X draft a second time.
+    y.focus().unwrap();
+    y.set_value("-40");
+    y.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
+        .unwrap();
+    y.dispatch_event(
+        &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
+    )
+    .unwrap();
+
+    settle_component_inspector().await;
+    let events = probe.runtime.take_layout_component_inspector_test_events();
+    assert_eq!(
+        events.len(),
+        2,
+        "rapid X Enter followed by X blur and Y Enter must submit exactly one edit per axis; got {events:?}"
+    );
+    assert!(matches!(
+        events.as_slice(),
+        [
+            boardstudio_application::Event::Edit { command: x_command, .. },
+            boardstudio_application::Event::Edit { command: y_command, .. }
+        ] if matches!(&x_command.operation, boardstudio_core::model::EditOperation::MoveParts { positions }
+                if positions.len() == 1 && positions[0].at.x == 60.0)
+            && matches!(&y_command.operation, boardstudio_core::model::EditOperation::MoveParts { positions }
+                if positions.len() == 1 && positions[0].at.y == -40.0)
+    ), "expected ordered X=60 and Y=-40 edits, got {events:?}");
+    root.remove();
+}
+
+#[wasm_bindgen_test]
 async fn mounted_group_position_blur_moves_all_selected_parts_from_first_anchor() {
     let (probe, root) = mounted_group_probe("layout-component-group-position-test-root");
     settle_component_inspector().await;

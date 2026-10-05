@@ -2224,7 +2224,7 @@
         "F2.3",
         "F6C.3"
       ],
-      "status": "accepted",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
       "shared_edit_owner": "integration coordinator",
@@ -2268,6 +2268,13 @@
           "to": "accepted",
           "reason": "Independent recovery review CLEAR: stationary point click repair passes required gates and immutable4c0a2fc4 public saved output is byte-identical to r15 input. Retained full Layout journey and refreshed C05 remain sufficient; original acceptance and correction decisions retained.",
           "decision": ".scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/public-review-f3-7-decision.json"
+        },
+        {
+          "at": "2026-10-05T14:29:38.753242+00:00",
+          "from": "accepted",
+          "to": "implementing",
+          "reason": "Reopen accepted history/revision qualification after demonstrated duplicate coordinate Undo entry",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/f3-7-correction-decision.json"
         }
       ],
       "criteria": [
@@ -2301,7 +2308,7 @@
         {
           "id": "F3.7-C02",
           "requirement": "Paired behavior agrees for accepted geometry, history/revision, save behavior, errors/cancellation, camera/view scope and service outputs.",
-          "state": "verified",
+          "state": "missing",
           "classification": "release",
           "sources": [
             "web/src/presentation.rs",
@@ -2311,10 +2318,11 @@
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/integrated-layout-c1d3-20261005/RECEIPT.md",
             ".scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/RECEIPT.md",
-            ".scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/public-review.md"
+            ".scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/public-review.md",
+            ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Independent recovery review CLEAR: immutable4c0a2fc4 published34827 public same-input click/Shift/Escape saved archive is byte-identical to original, revision15 and point2X-8.2375 unchanged. Source RED/GREEN and combined gates pass. Retained complete Layout geometry/history/save/reimport/camera evidence remains attributable. Original acceptance and correction history preserved.",
+          "next_action": "Repair the demonstrated duplicate coordinate history entry; reuse completed exact geometry/save/reimport/camera and outline precision evidence. F8 outputs and portable roundtrip retained with original identities.",
           "finish_condition": "Current-candidate paired receipt records agreement for every named output and state boundary across the integrated journey.",
           "owned_files": [
             "web/src/presentation.rs",
@@ -2448,7 +2456,8 @@
         "note": "Current clauses retain integrated journey, desktop visual, keyboard/focus, performance/resource recording and inventory requirements. Accessibility/axe/AT qualification removed by explicit user instruction on2026-10-05; prior wording is retained in accessibility_scope_adjustment."
       },
       "completion_evidence": {
-        "decision_record": ".scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/public-review-f3-7-decision.json"
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/layout-point-precision-20261005/public-review-f3-7-decision.json",
+        "superseded_by_correction": ".scratch/dioxus-frontend-v1/evidence/layout-coordinate-commit-20261005/f3-7-correction-decision.json"
       }
     },
     {
@@ -9245,7 +9254,7 @@
             "F6.6",
             "F7.8"
           ],
-          "next_action": "Join six-workbench project-to-export journey after each required provider/consumer acceptance is ready.",
+          "next_action": "Review retained fresh fixed-candidate six-workbench/output/roundtrip/return evidence and unchanged owner/theme/keyboard proofs; acceptance waits newly demonstrated coordinate history repair and reopened F3.7 prerequisite.",
           "finish_condition": "Same saved project completes all six workbench edits and Export in paired public Dioxus/React journeys.",
           "owned_files": [
             "web/src/presentation.rs",
@@ -9276,7 +9285,7 @@
             "F8.5",
             "F2.2"
           ],
-          "next_action": "Combine existing bounded receipts with remaining authored/generated/portable outputs and per-operation snapshot proofs.",
+          "next_action": "Review retained fresh fixed-candidate six-workbench/output/roundtrip/return evidence and unchanged owner/theme/keyboard proofs; acceptance waits newly demonstrated coordinate history repair and reopened F3.7 prerequisite.",
           "finish_condition": "Each required output and own-transaction case is paired and archive round-trip preserves supported content.",
           "owned_files": [
             "web/src/runtime.rs",
@@ -9306,7 +9315,7 @@
             "F8.2-C03",
             "F8.2-C04"
           ],
-          "next_action": "Run focused coordinator races/failure/retry/cleanup and route return on the frozen joined candidate.",
+          "next_action": "Review retained fresh fixed-candidate six-workbench/output/roundtrip/return evidence and unchanged owner/theme/keyboard proofs; acceptance waits newly demonstrated coordinate history repair and reopened F3.7 prerequisite.",
           "finish_condition": "Errors permit same-action retry, URLs are released, navigation returns correctly, and pending scope changes cause no stale file/protection.",
           "owned_files": [
             "web/src/runtime.rs",
@@ -9329,7 +9338,7 @@
             ".scratch/dioxus-frontend-v1/evidence/export-workspace-34763-20261003/RECEIPT.md"
           ],
           "blockers": [],
-          "next_action": "Qualify the joined route in desktop themes with ordinary keyboard/focus behavior.",
+          "next_action": "Review retained fresh fixed-candidate six-workbench/output/roundtrip/return evidence and unchanged owner/theme/keyboard proofs; acceptance waits newly demonstrated coordinate history repair and reopened F3.7 prerequisite.",
           "finish_condition": "Paired end-to-end evidence covers the stated visual and interaction modes.",
           "owned_files": [
             "web/src/presentation/export_workspace.rs",
@@ -10027,8 +10036,8 @@
     "integration_slices": 2,
     "boundary_slices": 2,
     "status": {
-      "accepted": 54,
-      "implementing": 2,
+      "accepted": 53,
+      "implementing": 3,
       "planned": 4
     }
   },
