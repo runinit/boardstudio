@@ -3288,14 +3288,12 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
                                         value: purposes().iter().find(|mapping| mapping.source_id.as_deref() == Some(primitive.id.as_str())).map_or("plate-cutout", |mapping| purpose_id(mapping.purpose)),
                                         onchange: {
                                             let id = primitive.id.clone();
-                                            let layer = primitive.layer.clone();
-                                            let kind = primitive.kind;
                                             let mut purposes = purposes;
                                             move |event: FormEvent| {
                                                 let Some(purpose) = parse_purpose(&event.value()) else { return; };
                                                 let mut entries = purposes().clone();
                                                 entries.retain(|mapping| mapping.source_id.as_deref() != Some(id.as_str()));
-                                                entries.push(MechanicalPurposeMapping { source_id: Some(id.clone()), kind: Some(kind), layer: layer.clone(), purpose });
+                                                entries.push(MechanicalPurposeMapping { source_id: Some(id.clone()), kind: None, layer: None, purpose });
                                                 purposes.set(entries);
                                             }
                                         },
@@ -3327,7 +3325,7 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
                                     let ids = selected().clone();
                                     let mappings = geometry_state().as_ref().into_iter().flat_map(|geometry| geometry.primitives.iter()).filter(|primitive| ids.contains(&primitive.id)).map(|primitive| {
                                         let purpose = purposes().iter().find(|mapping| mapping.source_id.as_deref() == Some(primitive.id.as_str())).map_or(MechanicalPurpose::PlateCutout, |mapping| mapping.purpose);
-                                        MechanicalPurposeMapping { source_id: Some(primitive.id.clone()), kind: Some(primitive.kind), layer: primitive.layer.clone(), purpose }
+                                        MechanicalPurposeMapping { source_id: Some(primitive.id.clone()), kind: None, layer: None, purpose }
                                     }).collect::<Vec<_>>();
                                     busy.set(true);
                                     error.set(String::new());
@@ -4715,6 +4713,10 @@ mod contextual_layer_tests {
         root.remove();
     }
 
+    const CUSTOM_PROFILE_FOOTPRINT: &str = r#"(footprint "Custom tactile switch"
+        (fp_rect (start -9.5 9.5) (end 9.5 -9.5)
+            (stroke (width 0.1) (type solid)) (fill none) (layer "Dwgs.User")))"#;
+
     fn custom_profile_choice() -> MechanicalProfileChoice {
         MechanicalProfileChoice {
             definition_id: "custom-part".into(),
@@ -4737,7 +4739,7 @@ mod contextual_layer_tests {
                 cutouts: vec![],
                 plate_to_pcb: 3.5,
             },
-            kicad_source: Some("(footprint \"Custom tactile switch\")".into()),
+            kicad_source: Some(CUSTOM_PROFILE_FOOTPRINT.into()),
         }
     }
 
@@ -4769,47 +4771,27 @@ mod contextual_layer_tests {
                 let mut extracted_definition_ids = extracted_definition_ids;
                 extracted_definition_ids.with_mut(|ids| ids.push(definition_id.clone()));
                 Box::pin(async move {
-                    let geometry = boardstudio_core::model::MechanicalGeometry {
-                        source_name: Some("Custom tactile switch".into()),
-                        primitives: vec![boardstudio_core::model::MechanicalPrimitive {
-                            id: "geometry-70".into(),
-                            source_group_id: "rect-70".into(),
-                            kind: boardstudio_core::model::MechanicalGeometryKind::Rectangle,
-                            layer: Some("Dwgs.User".into()),
-                            layers: vec!["Dwgs.User".into()],
-                            purpose: None,
-                            geometry: boardstudio_core::model::MechanicalShape::Rectangle {
-                                start: Vec2 { x: -9.5, y: -9.5 },
-                                end: Vec2 { x: 9.5, y: 9.5 },
-                                width: None,
-                            },
-                        }],
+                    let request = boardstudio_core::model::ArtifactRequest::ExtractMechanical {
+                        id: "profile-extraction-test".to_owned(),
+                        source: CUSTOM_PROFILE_FOOTPRINT.to_owned(),
+                        mappings,
+                        max_deviation_mm: 0.005,
                     };
-                    let source_geometry = boardstudio_core::model::MechanicalProfileSource {
-                        text: "(footprint \"Custom tactile switch\")".into(),
-                        sha256: "fixture-sha256".into(),
-                        mappings: mappings.clone(),
-                        source_ids: mappings
-                            .iter()
-                            .filter_map(|mapping| mapping.source_id.clone())
-                            .collect(),
-                    };
-                    Ok(boardstudio_core::model::MechanicalExtraction {
-                        geometry,
-                        plate_cutouts: if mappings.is_empty() {
-                            vec![]
-                        } else {
-                            vec![vec![
-                                Vec2 { x: -9.5, y: 9.5 },
-                                Vec2 { x: 9.5, y: 9.5 },
-                                Vec2 { x: 9.5, y: -9.5 },
-                                Vec2 { x: -9.5, y: -9.5 },
-                            ]]
-                        },
-                        clearance_envelopes: vec![],
-                        pcb_holes: vec![],
-                        source_geometry,
-                    })
+                    let reply = boardstudio_core::artifact_request(
+                        &serde_json::to_string(&request).unwrap(),
+                    );
+                    match serde_json::from_str::<boardstudio_core::model::ArtifactReply>(&reply)
+                        .unwrap()
+                    {
+                        boardstudio_core::model::ArtifactReply::ExtractMechanical {
+                            result,
+                            ..
+                        } => Ok(result),
+                        boardstudio_core::model::ArtifactReply::Error { error, .. } => {
+                            Err(error.message)
+                        }
+                        reply => panic!("unexpected mechanical extraction reply: {reply:?}"),
+                    }
                 })
             }));
         let extracted_ids_label = extracted_definition_ids().join(",");
@@ -4903,8 +4885,29 @@ mod contextual_layer_tests {
             element("input[type='checkbox']").dyn_into().unwrap();
         checkbox.click();
         rendered().await;
+        let request_count = || {
+            element("#case-custom-profile-request-count")
+                .text_content()
+                .unwrap()
+                .parse::<u64>()
+                .unwrap()
+        };
+        let before_apply = request_count();
         element("button[aria-label='Apply selected geometry']").click();
         rendered().await;
+        let extraction_error = root
+            .query_selector(".m1-mechanical-geometry-picker [role='alert']")
+            .unwrap()
+            .and_then(|alert| alert.text_content());
+        assert!(
+            extraction_error.is_none(),
+            "real Core rejected the UI mapping: {extraction_error:?}"
+        );
+        assert_eq!(
+            request_count(),
+            before_apply + 1,
+            "Apply must submit one newly extracted profile"
+        );
         assert_eq!(
             element("#case-custom-profile-extracted-definition-ids")
                 .text_content()
@@ -4927,6 +4930,11 @@ mod contextual_layer_tests {
             element("input[aria-label='Plate cutout geometry contour 1 vertex 1 X']")
                 .dyn_into()
                 .unwrap();
+        assert_eq!(
+            cutout_x.value(),
+            "-9.5",
+            "Apply must replace the accepted contour with the real extraction"
+        );
         cutout_x.set_value("-9.4");
         cutout_x
             .dispatch_event(

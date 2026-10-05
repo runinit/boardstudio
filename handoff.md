@@ -1,26 +1,25 @@
 # Handoff (generated from records)
 
-- Branch: codex/rust-v1-ui-parity-20261001 @ 113d76fd
+- Branch: codex/rust-v1-ui-parity-20261001 @ bda42cae
 - Worktree: /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001
-- Parents: 22/61 accepted, 28 implementing, 11 planned
-- Criteria: unassessed 27, missing 3, implemented 50, verified 142; 222 total
-  - functional: implemented 37, missing 3, unassessed 3, verified 138
+- Parents: 25/61 accepted, 25 implementing, 11 planned
+- Criteria: unassessed 27, missing 2, implemented 49, verified 144; 222 total
+  - functional: implemented 36, missing 2, unassessed 3, verified 140
   - release: implemented 10, unassessed 19, verified 4
   - visual: implemented 3, unassessed 5
 
 ## Served candidate
-- Build: frontend-case-layout-controls-20261005
-- Source commit: 113d76fd43d2c2a25660af4e3ff51032c7082f08
+- Build: frontend-case-profile-layout-finish-20261005
+- Source commit: bda42cae76b342147330f971c108711b80549038
 - Root: http://127.0.0.1:34822/
 - Subpath: http://127.0.0.1:34822/boardstudio/
 
 ## Functional readiness
-- Ready functional criteria: 1 investigate, 3 implement, 34 qualify (Layout 0 investigate/1 implement/2 qualify; PCB 0 investigate/0 implement/7 qualify; Keymap 0 investigate/0 implement/0 qualify; Keycaps 0 investigate/0 implement/0 qualify; Case 0 investigate/2 implement/12 qualify; Parts+Project 0 investigate/0 implement/7 qualify; Shared 1 investigate/0 implement/6 qualify)
-- Functionally verified parents awaiting formal acceptance: 10
-- Parents with unmet final joins: 19
-  Layout: unassessed 0, missing 1, implemented 2, verified 24; ready investigate 0, implement 1, qualify 2
-    Implement: F3.5-C01
-    Qualify: F3.5-C04, F3.6-C04
+- Ready functional criteria: 1 investigate, 2 implement, 33 qualify (Layout 0 investigate/0 implement/1 qualify; PCB 0 investigate/0 implement/7 qualify; Keymap 0 investigate/0 implement/0 qualify; Keycaps 0 investigate/0 implement/0 qualify; Case 0 investigate/2 implement/12 qualify; Parts+Project 0 investigate/0 implement/7 qualify; Shared 1 investigate/0 implement/6 qualify)
+- Functionally verified parents awaiting formal acceptance: 8
+- Parents with unmet final joins: 16
+  Layout: unassessed 0, missing 0, implemented 1, verified 26; ready investigate 0, implement 0, qualify 1
+    Qualify: F3.6-C04
   PCB: unassessed 0, missing 0, implemented 8, verified 18; ready investigate 0, implement 0, qualify 7
     Qualify: F5.4-C01, F5.4-C02, F5.4-C03, F5.4-C04, F5.5-C01, F5.5-C04, F5.7-C03
   Keymap: unassessed 0, missing 0, implemented 0, verified 7; ready investigate 0, implement 0, qualify 0
@@ -35,23 +34,18 @@
     Qualify: F6.6-C01, F6.6-C04, F6.6-C06, F8.3-C01, F8.3-C03, F8.5-C01
 Functional criteria verified; formal acceptance still outstanding:
   F2.4: visual/release F2.4-C04
-  F3.8: joins F3.5
   F4.4: joins F7.3; visual/release F4.4-C05
   F4.6: joins F4.4
   F5.1: visual/release F5.1-C03
   F5.6: visual/release F5.6-C05
-  F6C.3: joins F3.5
   F6C.5: joins F7.3
   F8.1: visual/release F8.1-C04
   F8.4: joins F6C.5
 Exact unmet final joins:
   F3.6 → F7.3
-  F3.7 → F6C.3
-  F3.8 → F3.5
   F4.4 → F7.3
   F4.6 → F4.4
   F5.8 → F7.3, F7.7
-  F6C.3 → F3.5
   F6C.5 → F7.3
   F6.6 → F7.6
   F7.7 → F5.6
@@ -66,7 +60,7 @@ Exact unmet final joins:
   F9.5 → F9.2
 
 ## Parents
-- Accepted (22): INT.1, INT.2, BND.1, BND.2, F2.1, F2.3, F3.1, F3.2, F3.3, F3.4, F4.2, F5.2, F5.3, F6K.1, F6K.2, F6K.3, F6K.4, F6C.1, F6C.2, F6C.4, F7.2, F8.2
+- Accepted (25): INT.1, INT.2, BND.1, BND.2, F2.1, F2.3, F3.1, F3.2, F3.3, F3.4, F3.5, F3.8, F4.2, F5.2, F5.3, F6K.1, F6K.2, F6K.3, F6K.4, F6C.1, F6C.2, F6C.3, F6C.4, F7.2, F8.2
 - Hold (0): none
 
 ## Criteria on hold or blocked
@@ -332,3 +326,16 @@ Settledprofilegroup fixtureisolation GREEN9/9 (expectedRED7/2), finalsettings4a8
 
 
 Final integration gate terminal0. Detached chain /tmp/case-profile-handle-settled-integrate-build.state.json now commits explicitownedpaths and builds immutable frontend-case-profile-layout-finish-20261005. Do not duplicate commit/build; inspect phase/log/actualPID. Sourcefreeze remains until immutable build begins.
+
+
+Integrated bda42cae; finalstrictaggregate58pass/0failure/0excluded/0incomplete, native245/page/reachabilitypass. Commitfreshchecks reran becauseindexidentitieschangedafterprepare. Nextbatches MUSTstageexplicitownedsourcepathsBEFOREprepare-gates toenableexactreuse (notaguardbypass). Sixunrelatedindexpreserved. Chain2820736 currentlybuilding immutable frontend-case-profile-layout-finish-20261005; inspectstate/log beforeanyaction. PCBtestauthorreleasedonefile/compile; CaseF76authorpreparesdisjointevidenceonlyuntilPCBfreeze. Currentpubliccandidate remains113d on34822; actualnewpublicreplayspending.
+
+## Current delivery checkpoint — extraction/lifecycle integration ready
+
+Published frontend-case-profile-layout-finish-20261005 sourcebda42cae at34822, detachedserver2835912, actualscriptdxh10c67c5354f09af9. Immutable providerreuse build141.28s,9freshcommands, retained23-commandlineage; root/subpath190assets/zero mismatches. LivePCBsource changed during snapshotbuild. Layoutactualcanvasselected-owner/history/reopen and PerimeterEscapeBoardnamefocuspassed; F3.5/F3.8/F6C.3accepted viaindependentreview.
+
+Manualfullprofile controls/history/reopen acceptedr38parsedwholeprojectequalsreference; Escape unchangedr38, Enter+bluroneeditr39alsoequalsreference. ActualReadKiCadworked butApplyrejectedcombined sourceID+kind/layer selector. Sameinputr42referenceappliesr43. Astra realCorevalidatorREDmatchedexacterror, fixedbothbyIDconstructors; fullmodule9/9. PCBSavefixture realPersist/replacement/readback1/1, fullmoduleincludednextgate. No productPCBbug: fixtureasyncsubmitsequence/lastdurableacceptedsemanticscorrected.
+
+Next2files frozen/reviewCLEAR: mechanical_settings.rs f3c07dd02aeba0c658961fedd985d2d701e8541951b91e0ea70639bd6abf7c34; pcb_module_inspector.rs06b6afff9288f8124b51c9fb945a64b1c160890f0076b93faac3ae90cfa6ec52. StagedexplicitBEFOREgate2855314: terminal0 native245/page/reachability/strictheadless12,0exclusions/incomplete. /tmp/case-extraction-lifecycle-{source-paths,source-hashes,commit-paths}.json. Sixunrelatedindexpreserved. Finalreviewcase-profile-handle-review-20261005.md. Commit/buildnext, thenactualApplysame42inputreplay. F76actualREADY.patch nowapplicable/readcheckpassed, preservedthreefileevidenceonly; pausedbehindprofilebug; no livewrites.
+
+Handlebda actualBottomview drag680,304→680,312 savedr19 withcanvas701wide/backing1050 andabsoluteoverlay. ActualUndo20parsedentiredocumentrestoresinputexceptrevision; Redo21restoresmoveddocument. Manualpreviewstale/Exportdisabledobserved. BUTUpdatepreviewonthisdownwardendpointreportsmount47hole/bossenvelopeblocked: do NOTqualifyentiregesture/constraintcriterion. RestoredoriginalwithUndo22 andclickedUpdatepreview; currenthandleC tab52generating. Nexttryknownreferencelateralgesture680,304→684,304 afterexactready, preservingdownwardadmissionlimit; theninvalid/noncommit/livepreviewbranches. Evidencecase-handle-qualification-20261005/candidate-bda-*.boardstudio/json.

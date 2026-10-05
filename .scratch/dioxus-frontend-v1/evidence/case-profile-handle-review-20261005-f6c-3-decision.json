@@ -1,0 +1,23 @@
+{
+  "parent": "F6C.3",
+  "reason": "Published bda42cae actual canvas selection/edit/history/reopen and Perimeter keyboard focus complete desktop Inspector criteria; independent review reconciles retained contexts, scripts and key-size evidence and eligible joins. Mobile remains deferred.",
+  "review": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+  "review_sha256": "46a1867b72b41f9ffaacf67b31235385a3a879fd9130ecb94d482730f87841e3",
+  "criteria_accounting": {
+    "source_commit": "07b4c3466b1f388073e8e1f9d619b0703223d770",
+    "coverage": "complete",
+    "verified_criteria": [
+      "F6C.3-C01",
+      "F6C.3-C02",
+      "F6C.3-C03",
+      "F6C.3-C04",
+      "F6C.3-C05",
+      "F6C.3-C06",
+      "F6C.3-C07"
+    ]
+  },
+  "accepted_joins": [
+    "F3.2",
+    "F3.5"
+  ]
+}

@@ -1,0 +1,27 @@
+--- a/web/src/presentation/mechanical_settings.rs
++++ b/web/src/presentation/mechanical_settings.rs
+@@ -3288,14 +3288,12 @@
+                                         value: purposes().iter().find(|mapping| mapping.source_id.as_deref() == Some(primitive.id.as_str())).map_or("plate-cutout", |mapping| purpose_id(mapping.purpose)),
+                                         onchange: {
+                                             let id = primitive.id.clone();
+-                                            let layer = primitive.layer.clone();
+-                                            let kind = primitive.kind;
+                                             let mut purposes = purposes;
+                                             move |event: FormEvent| {
+                                                 let Some(purpose) = parse_purpose(&event.value()) else { return; };
+                                                 let mut entries = purposes().clone();
+                                                 entries.retain(|mapping| mapping.source_id.as_deref() != Some(id.as_str()));
+-                                                entries.push(MechanicalPurposeMapping { source_id: Some(id.clone()), kind: Some(kind), layer: layer.clone(), purpose });
++                                                entries.push(MechanicalPurposeMapping { source_id: Some(id.clone()), kind: None, layer: None, purpose });
+                                                 purposes.set(entries);
+                                             }
+                                         },
+@@ -3327,7 +3325,7 @@
+                                     let ids = selected().clone();
+                                     let mappings = geometry_state().as_ref().into_iter().flat_map(|geometry| geometry.primitives.iter()).filter(|primitive| ids.contains(&primitive.id)).map(|primitive| {
+                                         let purpose = purposes().iter().find(|mapping| mapping.source_id.as_deref() == Some(primitive.id.as_str())).map_or(MechanicalPurpose::PlateCutout, |mapping| mapping.purpose);
+-                                        MechanicalPurposeMapping { source_id: Some(primitive.id.clone()), kind: Some(primitive.kind), layer: primitive.layer.clone(), purpose }
++                                        MechanicalPurposeMapping { source_id: Some(primitive.id.clone()), kind: None, layer: None, purpose }
+                                     }).collect::<Vec<_>>();
+                                     busy.set(true);
+                                     error.set(String::new());

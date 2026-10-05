@@ -1,0 +1,9 @@
+# Published Layout follow-up, bda42cae
+
+Candidate frontend-case-profile-layout-finish-20261005 on34822, actualscript boardstudio-web-dxh10c67c5354f09af9.js. Imported same retained case-manufacturing-repair-20261005/input.boardstudio (r18); selected Right PCB through Board combo. Used actual SVG canvas g[data-part-id] nodes matrix/right-keys/r0c0 and r0c1 in default Select:Key mode, not a synthetic fixture or Objects row.
+
+Click firstkey, Ctrlclicksecond shows2keysselected; Ctrlclicksecondagain shows1keyselected with heading keys·Key1.1. LocalX0→1Enter produces actual revision19 download candidate-bda-toggle-after.boardstudio. Remaining r0c0 X212.77→213.77 and its attached diode moves+1; deselectedr0c1 remainsX231.77/localoffset0. Parsed document diff is retained in candidate-bda-toggle-after.json. It also exposes routine matrix rematerialization (edgeGap/variant defaults and sub-ulp floats); no claim that literally every other JSON field is unchanged. Relevant targetcell alone changeslocaloffset0→1. Previous reference-toggle-removal.json retains TS’s unsafe removed-key behavior; this is the reviewed intentional correctness improvement.
+
+OneUndo restores remainingkeyLocalX0; Redo restores1. Full reload→selectRight→clickremainingkey showsKey1.1/LocalX1. Earlier public-113d76fd.md mixedSW1/U1 group edit/history/reload branch is reused: its Component-mode path is unchanged by the Key-context predicate correction.
+
+OutlineGenerated→Editperimeterpoints→Done.press(Escape) returns RightPCB Inspector; aftermount activeElement is INPUT, aria-label Boardname. This matches the retained pinned-reference result in public-113d76fd.md, correcting its previous BODY focus. Earlier Inspector tabs/contexts/numeric-localEscape branches and other verified C02/C03/C05 evidence remain attributable separately. No compact/mobile check or whole-parent acceptance is asserted by this receipt.

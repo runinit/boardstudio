@@ -1,0 +1,79 @@
+{
+  "revision": 43,
+  "sha256": "0ec35948d8ab0b6f9e694aa5764f0ba3cf33bda0e93f3281dc93ea0650cf3e0d",
+  "profile": {
+    "pcbHoles": [],
+    "clearanceVolumes": [
+      {
+        "points": [
+          {
+            "x": -4.2,
+            "y": -2.5
+          },
+          {
+            "x": 2.5,
+            "y": -2.5
+          },
+          {
+            "x": 2.5,
+            "y": 2.5
+          },
+          {
+            "x": -2.5,
+            "y": 2.5
+          }
+        ],
+        "z": -2,
+        "height": 6
+      }
+    ],
+    "openings": [
+      {
+        "points": [
+          {
+            "x": -3.1,
+            "y": -2.5
+          },
+          {
+            "x": 2.5,
+            "y": -2.5
+          },
+          {
+            "x": 2.5,
+            "y": 2.5
+          },
+          {
+            "x": -2.5,
+            "y": 2.5
+          }
+        ],
+        "z": -0.5,
+        "height": 4.5
+      }
+    ],
+    "clearances": [],
+    "definitionId": "thqwgd001:c-2pin-reversible",
+    "source": "KiCad THQWGD001C \u00b7 2-pin tactile \u00b7 reversible",
+    "cutouts": [
+      [
+        {
+          "x": -9.5,
+          "y": 9.5
+        },
+        {
+          "x": 9.5,
+          "y": 9.5
+        },
+        {
+          "x": 9.5,
+          "y": -9.5
+        },
+        {
+          "x": -9.5,
+          "y": -9.5
+        }
+      ]
+    ],
+    "plateToPcb": 3.5
+  }
+}
