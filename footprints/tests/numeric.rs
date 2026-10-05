@@ -91,3 +91,17 @@ fn uri_component_encoding_matches_v8() {
     assert_eq!(decode_uri_component("%E0%A4%A"), None);
     assert_eq!(decode_uri_component("%FF"), None);
 }
+
+#[test]
+fn to_fixed_matches_v8() {
+    let vectors = read_json("numeric_vectors.json");
+    for entry in vectors["toFixed"].as_array().unwrap() {
+        let value = entry[0].as_f64().unwrap();
+        let digits = entry[1].as_u64().unwrap() as usize;
+        assert_eq!(
+            js_to_fixed(value, digits),
+            entry[2].as_str().unwrap(),
+            "{value:e} toFixed({digits})"
+        );
+    }
+}

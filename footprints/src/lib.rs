@@ -10,6 +10,7 @@ pub mod context;
 pub mod definition;
 pub mod error;
 pub mod export;
+pub mod generators;
 pub mod geometry;
 pub mod models;
 pub mod nets;
@@ -20,4 +21,5 @@ pub mod sexpr;
 pub mod types;
 
 pub use error::{GeneratorError, Result};
+pub use generators::bundled;
 pub use sexpr::Expr;

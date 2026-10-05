@@ -20,6 +20,10 @@ pub fn generator_fixtures() -> Vec<Value> {
     let mut paths: Vec<_> = fs::read_dir(golden_dir().join("generators"))
         .expect("golden generators directory")
         .map(|entry| entry.expect("directory entry").path())
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "json")
+        })
         .collect();
     paths.sort();
     paths

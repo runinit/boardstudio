@@ -125,6 +125,24 @@ impl RenderContext<'_> {
         }
     }
 
+    /// An optional vector parameter: a list of three numbers, or an empty list
+    /// (or nothing) for "automatic".
+    pub fn vec3(&self, name: &str) -> Result<Option<[f64; 3]>> {
+        let items = self.list(name);
+        if items.is_empty() {
+            return Ok(None);
+        }
+        let numbers: Option<Vec<f64>> = items.iter().map(Value::as_f64).collect();
+        match numbers.as_deref() {
+            Some(&[x, y, z]) => Ok(Some([x, y, z])),
+            _ => Err(GeneratorError::InvalidParameter {
+                generator: self.generator.to_owned(),
+                parameter: name.to_owned(),
+                expected: "a list of three numbers",
+            }),
+        }
+    }
+
     /// The layer the body renders on (`F` or `B`).
     pub fn side(&self) -> &str {
         self.text("side")

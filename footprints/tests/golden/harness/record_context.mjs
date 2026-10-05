@@ -29,6 +29,10 @@ const parsed = ['0', '1', ' 12 ', '', ' ', '1e3', '1E3', '.5', '5.', '+5', '-5',
   '1e-3', '00012', '-0', '9007199254740993', '1e400', '-1e400', '0x', '0xg', '\u0000abc'];
 const degrees = [0, 90, 180, 270, 360, 37, -37, 23, 45, 60, 30, 15, 12.5, 359.9, 0.1, 89.999, 135, 225, 315, 720, 1, 2, 3, 5, 10, 20,
   40, 50, 70, 80, 100, 110, 120, 150, 170, 190, 200, 250, 300, 330, 17.5, 22.5, 67.5, 123.456, -90, -180, -45, 1e-9];
+const fixedValues = [0, -0, 0.5, 1, 2.501231, -2.50123, 0.0078125, -0.0078125, 2.5e-7, 5e-7, 1.0000005, 1.0000015, 0.0000005, -0.0000005,
+  1e-10, -1e-10, 123456.1234565, 1.005, 2.675, 4.35, 17.5, 9.5, 0.1 + 0.2, 1 / 3, -1 / 3, 99999.9999995, 999999.9999995, 1e20, 1e21, 1.5e21,
+  -1e21, 0.9999995, 0.99999949999, 12.3456785, 7.109999999999999, 1.7e-6, 123456789.123456789, Math.PI, -Math.PI, 5.5, 6.5, 0.045];
+const fixedDigits = [6, 2, 0, 3];
 const hypots = [[0.01, 0.02], [0.03, 0], [0.02, 0.0224], [1, 1], [3, 4], [1e-9, 1e-9], [0.0299999, 0], [0.3, 0.4]];
 const encoded = ['a b', 'é', '', 'part-1', 'matrix/left-keys/r0c0', "!~*'()", '${KIPRJMOD}/models/x.step', 'custom://x.step', '日本', '😀', '%', 'a&b=c'];
 writeFileSync(`${out}numeric_vectors.json`, `${JSON.stringify({
@@ -38,6 +42,7 @@ writeFileSync(`${out}numeric_vectors.json`, `${JSON.stringify({
     const angle = degree * Math.PI / 180;
     return { degrees: degree, cos: Math.cos(angle), sin: Math.sin(angle), cosText: String(Math.cos(angle)), sinText: String(Math.sin(angle)) };
   }),
+  toFixed: fixedDigits.flatMap((digits) => fixedValues.map((value) => [value, digits, value.toFixed(digits)])),
   hypot: hypots.map(([x, y]) => [x, y, Math.hypot(x, y)]),
   encodeURIComponent: encoded.map((text) => [text, encodeURIComponent(text)]),
 }, null, 1)}\n`);

@@ -53,6 +53,48 @@ pub fn js_number(value: f64) -> String {
     out
 }
 
+/// `value.toFixed(digits)`: round half up on the exact decimal expansion, keep
+/// the sign of any negative value (so `-1e-10` gives `-0.000000`).
+pub fn js_to_fixed(value: f64, digits: usize) -> String {
+    if !value.is_finite() || value.abs() >= 1e21 {
+        return js_number(value);
+    }
+    let expansion = format!("{:.60}", value.abs());
+    let (integer, fraction) = expansion.split_once('.').expect("fixed output has a point");
+    let mut kept: Vec<u8> = integer
+        .bytes()
+        .chain(fraction.bytes().take(digits))
+        .collect();
+    if fraction.as_bytes()[digits] >= b'5' {
+        let mut index = kept.len();
+        loop {
+            if index == 0 {
+                kept.insert(0, b'1');
+                break;
+            }
+            index -= 1;
+            if kept[index] == b'9' {
+                kept[index] = b'0';
+            } else {
+                kept[index] += 1;
+                break;
+            }
+        }
+    }
+    let split = kept.len() - digits;
+    let (whole, part) = kept.split_at(split);
+    let mut out = String::new();
+    if value < 0.0 {
+        out.push('-');
+    }
+    out.push_str(std::str::from_utf8(whole).expect("ascii digits"));
+    if digits > 0 {
+        out.push('.');
+        out.push_str(std::str::from_utf8(part).expect("ascii digits"));
+    }
+    out
+}
+
 fn is_js_space(c: char) -> bool {
     matches!(
         c,
