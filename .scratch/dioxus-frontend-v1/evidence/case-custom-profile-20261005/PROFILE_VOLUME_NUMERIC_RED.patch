@@ -1,0 +1,129 @@
+--- a/web/src/presentation/mechanical_settings.rs
++++ b/web/src/presentation/mechanical_settings.rs
+@@ -4697,6 +4697,7 @@
+ 
+     fn custom_profile_test_page() -> Element {
+         let request_sequence = use_signal(|| 0_u64);
++        let mut request_count = use_signal(|| 0_u64);
+         let mut last_request = use_signal(String::new);
+         let mut profile = use_signal(custom_profile_choice);
+         let mut saved_profile = use_signal(|| {
+@@ -4780,6 +4781,7 @@
+                     request_sequence,
+                     extract_profile: Some(extraction),
+                     on_request: move |request: MechanicalSettingsRequest| {
++                        request_count += 1;
+                         if let MechanicalSettingsPatch::UpdateProfile(updated) = request.patch.clone() {
+                             if updated.definition_id == "custom-part" {
+                                 let mut choice = profile();
+@@ -4795,6 +4797,7 @@
+                     },
+                 }
+                 p { id: "case-custom-profile-last-request", "{last_request}" }
++                p { id: "case-custom-profile-request-count", "{request_count}" }
+                 p { id: "case-custom-profile-extracted-definition-ids", "{extracted_ids_label}" }
+                 button { id: "case-profile-switch-owner", onclick: move |_| owner_key.set("test-owner-b".to_owned()), "Switch Case owner" }
+             }
+@@ -4902,6 +4905,102 @@
+     }
+ 
+     #[wasm_bindgen_test]
++    async fn profile_volume_height_escape_discards_and_enter_blur_commits_once() {
++        let document = web_sys::window().unwrap().document().unwrap();
++        let root = document.create_element("div").unwrap();
++        root.set_id("case-profile-volume-draft-test-host");
++        document.body().unwrap().append_child(&root).unwrap();
++        dioxus_web::launch::launch_virtual_dom(
++            VirtualDom::new(custom_profile_test_page),
++            dioxus_web::Config::new().rootnode(root.clone().into()),
++        );
++        rendered().await;
++        let query = |selector: &str| root.query_selector(selector).unwrap().unwrap();
++        query("button[aria-label='Add volume to Clearance volumes']")
++            .dyn_into::<web_sys::HtmlElement>()
++            .unwrap()
++            .click();
++        rendered().await;
++        let input = query("input[aria-label='Clearance volumes volume 1 Height']")
++            .dyn_into::<web_sys::HtmlInputElement>()
++            .unwrap();
++        let dispatch_input = |value: &str| {
++            input.set_value(value);
++            let init = web_sys::EventInit::new();
++            init.set_bubbles(true);
++            input
++                .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap())
++                .unwrap();
++        };
++        let dispatch_key = |key: &str| {
++            let init = web_sys::KeyboardEventInit::new();
++            init.set_key(key);
++            init.set_bubbles(true);
++            input
++                .dispatch_event(
++                    &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
++                        .unwrap(),
++                )
++                .unwrap();
++        };
++        let dispatch_change = || {
++            let init = web_sys::EventInit::new();
++            init.set_bubbles(true);
++            input
++                .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &init).unwrap())
++                .unwrap();
++        };
++        let count = || {
++            query("#case-custom-profile-request-count")
++                .text_content()
++                .unwrap()
++                .parse::<u64>()
++                .unwrap()
++        };
++
++        // Establish the accepted 6 mm height in the retained reference journey.
++        input.focus().unwrap();
++        dispatch_input("6");
++        input.blur().unwrap();
++        dispatch_change();
++        rendered().await;
++        assert_eq!(input.value(), "6");
++        let before = count();
++        assert_eq!(before, 2, "one Add volume and one accepted height edit");
++
++        input.focus().unwrap();
++        dispatch_input("7.2");
++        dispatch_key("Escape");
++        input.blur().unwrap();
++        dispatch_change();
++        rendered().await;
++        assert_eq!(
++            count(),
++            before,
++            "Escape then blur must not submit the abandoned profile height"
++        );
++        assert_eq!(
++            input.value(),
++            "6",
++            "Escape must restore the accepted height"
++        );
++
++        input.focus().unwrap();
++        dispatch_input("6.5");
++        dispatch_key("Enter");
++        input.blur().unwrap();
++        dispatch_change();
++        rendered().await;
++        assert_eq!(
++            count(),
++            before + 1,
++            "Enter followed by blur/change must submit exactly once"
++        );
++        assert_eq!(input.value(), "6.5");
++        root.remove();
++    }
++
++    #[wasm_bindgen_test]
+     async fn assigned_profile_adds_component_clearance_polygon_without_extraction() {
+         let document = web_sys::window().unwrap().document().unwrap();
+         let root = document.create_element("div").unwrap();

@@ -1,0 +1,3 @@
+run-wasm-tests: [1/2] presentation::mechanical_settings::contextual_layer_tests::profile_volume_height_escape_discards_and_enter_blur_commits_once
+run-wasm-tests: [2/2] presentation::mechanical_settings::contextual_layer_tests::process_thickness_draft_escape_enter_and_blur_follow_numeric_field_semantics
+{'executed': 2, 'failed': [], 'problems': []}

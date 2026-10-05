@@ -1,0 +1,11 @@
+Previous HEAD position was eac47f42 Connect Case export and bound migration delivery to reviewed inputs
+HEAD is now at 113d76fd Complete Case manufacturing controls and Layout Inspector interactions
+Scope: all 6 workspace projects
+✓ Lockfile passes supply-chain policies (verified 8d ago)
+Lockfile is up to date, resolution step is skipped
+Done in 44ms using pnpm v12.6.0
+usage: build-m1.py [-h] [--source-commit REVISION]
+                   [--reuse-providers-from FULL_BUILD_ID |
+                   --refresh-fixtures-from FULL_BUILD_ID]
+                   build_id
+build-m1.py: error: changed inputs are outside page/test-only ownership: ['application/tests/durable_session.rs', 'scripts/wasm-known-failures.json']

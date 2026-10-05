@@ -1,0 +1,395 @@
+Running headless tests in Chrome on `http://127.0.0.1:39705/`
+Try find `webdriver.json` for configure browser's capabilities:
+Ok
+Loading Wasm module...
+
+running 9 tests
+test presentation::mechanical_settings::contextual_layer_tests::unassigned_profile_guidance_shows_saved_plate_to_pcb_gap ... ok
+test presentation::mechanical_settings::contextual_layer_tests::selected_plate_uses_contextual_inspector_and_returns_to_assembly_settings ... ok
+test presentation::mechanical_settings::contextual_layer_tests::profile_volume_height_escape_discards_and_enter_blur_commits_once ... ok
+test presentation::mechanical_settings::contextual_layer_tests::process_thickness_draft_escape_enter_and_blur_follow_numeric_field_semantics ... ok
+test presentation::mechanical_settings::contextual_layer_tests::previous_generated_layer_context_stays_visible_and_is_labeled ... ok
+test presentation::mechanical_settings::contextual_layer_tests::custom_profile_geometry_controls_read_apply_edit_and_remove_assigned_profile ... ok
+test presentation::mechanical_settings::contextual_layer_tests::battery_controls_match_wired_and_wireless_modes_and_dispatch_toggle ... ok
+test presentation::mechanical_settings::contextual_layer_tests::assigned_profile_exposes_case_local_remove_control ... ok
+test presentation::mechanical_settings::contextual_layer_tests::assigned_profile_adds_component_clearance_polygon_without_extraction ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 307 filtered out; finished in 2.57s
+
+
+warning: unused import: `ProjectDoc`
+ --> src/presentation/case_controller.rs:9:82
+  |
+9 |     CaseBody, CaseKind, EditCommand, EditOperation, EditPhase, Mount, MountKind, ProjectDoc, Vec2,
+  |                                                                                  ^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `wasm_bindgen_futures::spawn_local`
+  --> src/presentation/mechanical_settings.rs:20:5
+   |
+20 | use wasm_bindgen_futures::spawn_local;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `SessionEpoch` and `SnapshotToken`
+    --> src/presentation/pcb_wiring.rs:1111:35
+     |
+1111 |     use boardstudio_application::{SessionEpoch, SnapshotToken};
+     |                                   ^^^^^^^^^^^^  ^^^^^^^^^^^^^
+
+warning: use of deprecated unit struct `presentation::mechanical_settings::ManufacturingControls::{closure#2}::_::Warning`: Keys are only allowed on the first node in the block.
+    --> src/presentation/mechanical_settings.rs:2754:38
+     |
+2754 | ...                   key: "process-thickness:{target.part_id}",
+     |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(deprecated)]` on by default
+
+warning: variable does not need to be mutable
+   --> src/presentation/objects/matrix_transform_inspector_tests.rs:693:9
+    |
+693 |     let mut dom = VirtualDom::new(matrix_transform_host);
+    |         ----^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:3212:9
+     |
+3212 |     let mut geometry_state = use_signal(|| None::<MechanicalGeometry>);
+     |         ----^^^^^^^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:3213:9
+     |
+3213 |     let mut selected = use_signal(|| Vec::<String>::new());
+     |         ----^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:3214:9
+     |
+3214 |     let mut purposes = use_signal(|| Vec::<MechanicalPurposeMapping>::new());
+     |         ----^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:3215:9
+     |
+3215 |     let mut busy = use_signal(|| false);
+     |         ----^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:3216:9
+     |
+3216 |     let mut error = use_signal(String::new);
+     |         ----^^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:3322:37
+     |
+3322 | ...                   let mut sequence = props.request_sequence;
+     |                           ----^^^^^^^^
+     |                           |
+     |                           help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:4765:13
+     |
+4765 |         let mut extracted_definition_ids = use_signal(Vec::<String>::new);
+     |             ----^^^^^^^^^^^^^^^^^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/parts/preview.rs:1120:13
+     |
+1120 |         let mut selection = use_signal(|| None::<(Option<Scope>, String)>);
+     |             ----^^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: struct `ModuleGroup` is never constructed
+  --> src/presentation/parts/modules_catalogue.rs:32:19
+   |
+32 | pub(super) struct ModuleGroup {
+   |                   ^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `matches` is never used
+  --> src/presentation/parts/modules_catalogue.rs:39:12
+   |
+38 | impl ModuleGroup {
+   | ---------------- method in this implementation
+39 |     pub fn matches(&self, query: &str) -> bool {
+   |            ^^^^^^^
+
+warning: function `group_choices` is never used
+   --> src/presentation/parts/modules_catalogue.rs:328:15
+    |
+328 | pub(super) fn group_choices(entries: &[ModuleEntry]) -> Vec<ModuleGroup> {
+    |               ^^^^^^^^^^^^^
+
+warning: unused `std::result::Result` that must be used
+   --> src/presentation/layout_component_inspector_tests.rs:964:5
+    |
+964 |     x.blur();
+    |     ^^^^^^^^
+    |
+    = note: this `Result` may be an `Err` variant, which should be handled
+    = note: `#[warn(unused_must_use)]` (part of `#[warn(unused)]`) on by default
+help: use `let _ = ...` to ignore the resulting value
+    |
+964 |     let _ = x.blur();
+    |     +++++++
+
+warning: unused `std::result::Result` that must be used
+    --> src/presentation/mechanical_settings.rs:5462:9
+     |
+5462 |         input.blur();
+     |         ^^^^^^^^^^^^
+     |
+     = note: this `Result` may be an `Err` variant, which should be handled
+help: use `let _ = ...` to ignore the resulting value
+     |
+5462 |         let _ = input.blur();
+     |         +++++++
+
+warning: unused `std::result::Result` that must be used
+    --> src/presentation/mechanical_settings.rs:5481:9
+     |
+5481 |         input.blur();
+     |         ^^^^^^^^^^^^
+     |
+     = note: this `Result` may be an `Err` variant, which should be handled
+help: use `let _ = ...` to ignore the resulting value
+     |
+5481 |         let _ = input.blur();
+     |         +++++++
+
+warning: unused `std::result::Result` that must be used
+    --> src/presentation/mechanical_settings.rs:5498:9
+     |
+5498 |         input.blur();
+     |         ^^^^^^^^^^^^
+     |
+     = note: this `Result` may be an `Err` variant, which should be handled
+help: use `let _ = ...` to ignore the resulting value
+     |
+5498 |         let _ = input.blur();
+     |         +++++++
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:3212:9
+     |
+3212 |     let mut geometry_state = use_signal(|| None::<MechanicalGeometry>);
+     |         ----^^^^^^^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `standard_profile_reply_matches` is never used
+   --> src/presentation/parts/mechanical_profile.rs:148:15
+    |
+148 | pub(crate) fn standard_profile_reply_matches(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `ModuleGroup` is never constructed
+  --> src/presentation/parts/modules_catalogue.rs:32:19
+   |
+32 | pub(super) struct ModuleGroup {
+   |                   ^^^^^^^^^^^
+
+warning: `boardstudio-web` (bin "boardstudio-web" test) generated 20 warnings (run `cargo fix --bin "boardstudio-web" -p boardstudio-web --tests` to apply 12 suggestions)
+warning: `boardstudio-web` (bin "boardstudio-web") generated 13 warnings (10 duplicates) (run `cargo fix --bin "boardstudio-web" -p boardstudio-web` to apply 1 suggestion)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.12s
+warning: unused import: `ProjectDoc`
+ --> src/presentation/case_controller.rs:9:82
+  |
+9 |     CaseBody, CaseKind, EditCommand, EditOperation, EditPhase, Mount, MountKind, ProjectDoc, Vec2,
+  |                                                                                  ^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `wasm_bindgen_futures::spawn_local`
+  --> src/presentation/mechanical_settings.rs:20:5
+   |
+20 | use wasm_bindgen_futures::spawn_local;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `SessionEpoch` and `SnapshotToken`
+    --> src/presentation/pcb_wiring.rs:1111:35
+     |
+1111 |     use boardstudio_application::{SessionEpoch, SnapshotToken};
+     |                                   ^^^^^^^^^^^^  ^^^^^^^^^^^^^
+
+warning: use of deprecated unit struct `presentation::mechanical_settings::ManufacturingControls::{closure#2}::_::Warning`: Keys are only allowed on the first node in the block.
+    --> src/presentation/mechanical_settings.rs:2754:38
+     |
+2754 | ...                   key: "process-thickness:{target.part_id}",
+     |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(deprecated)]` on by default
+
+warning: variable does not need to be mutable
+   --> src/presentation/objects/matrix_transform_inspector_tests.rs:693:9
+    |
+693 |     let mut dom = VirtualDom::new(matrix_transform_host);
+    |         ----^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:3212:9
+     |
+3212 |     let mut geometry_state = use_signal(|| None::<MechanicalGeometry>);
+     |         ----^^^^^^^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:3213:9
+     |
+3213 |     let mut selected = use_signal(|| Vec::<String>::new());
+     |         ----^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:3214:9
+     |
+3214 |     let mut purposes = use_signal(|| Vec::<MechanicalPurposeMapping>::new());
+     |         ----^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:3215:9
+     |
+3215 |     let mut busy = use_signal(|| false);
+     |         ----^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:3216:9
+     |
+3216 |     let mut error = use_signal(String::new);
+     |         ----^^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:3322:37
+     |
+3322 | ...                   let mut sequence = props.request_sequence;
+     |                           ----^^^^^^^^
+     |                           |
+     |                           help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:4765:13
+     |
+4765 |         let mut extracted_definition_ids = use_signal(Vec::<String>::new);
+     |             ----^^^^^^^^^^^^^^^^^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/parts/preview.rs:1120:13
+     |
+1120 |         let mut selection = use_signal(|| None::<(Option<Scope>, String)>);
+     |             ----^^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: struct `ModuleGroup` is never constructed
+  --> src/presentation/parts/modules_catalogue.rs:32:19
+   |
+32 | pub(super) struct ModuleGroup {
+   |                   ^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `matches` is never used
+  --> src/presentation/parts/modules_catalogue.rs:39:12
+   |
+38 | impl ModuleGroup {
+   | ---------------- method in this implementation
+39 |     pub fn matches(&self, query: &str) -> bool {
+   |            ^^^^^^^
+
+warning: function `group_choices` is never used
+   --> src/presentation/parts/modules_catalogue.rs:328:15
+    |
+328 | pub(super) fn group_choices(entries: &[ModuleEntry]) -> Vec<ModuleGroup> {
+    |               ^^^^^^^^^^^^^
+
+warning: unused `std::result::Result` that must be used
+   --> src/presentation/layout_component_inspector_tests.rs:964:5
+    |
+964 |     x.blur();
+    |     ^^^^^^^^
+    |
+    = note: this `Result` may be an `Err` variant, which should be handled
+    = note: `#[warn(unused_must_use)]` (part of `#[warn(unused)]`) on by default
+help: use `let _ = ...` to ignore the resulting value
+    |
+964 |     let _ = x.blur();
+    |     +++++++
+
+warning: unused `std::result::Result` that must be used
+    --> src/presentation/mechanical_settings.rs:5462:9
+     |
+5462 |         input.blur();
+     |         ^^^^^^^^^^^^
+     |
+     = note: this `Result` may be an `Err` variant, which should be handled
+help: use `let _ = ...` to ignore the resulting value
+     |
+5462 |         let _ = input.blur();
+     |         +++++++
+
+warning: unused `std::result::Result` that must be used
+    --> src/presentation/mechanical_settings.rs:5481:9
+     |
+5481 |         input.blur();
+     |         ^^^^^^^^^^^^
+     |
+     = note: this `Result` may be an `Err` variant, which should be handled
+help: use `let _ = ...` to ignore the resulting value
+     |
+5481 |         let _ = input.blur();
+     |         +++++++
+
+warning: unused `std::result::Result` that must be used
+    --> src/presentation/mechanical_settings.rs:5498:9
+     |
+5498 |         input.blur();
+     |         ^^^^^^^^^^^^
+     |
+     = note: this `Result` may be an `Err` variant, which should be handled
+help: use `let _ = ...` to ignore the resulting value
+     |
+5498 |         let _ = input.blur();
+     |         +++++++
+
+warning: `boardstudio-web` (bin "boardstudio-web" test) generated 20 warnings (run `cargo fix --bin "boardstudio-web" -p boardstudio-web --tests` to apply 12 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+     Running unittests src/main.rs (target/wasm32-unknown-unknown/debug/deps/boardstudio_web-ade5ef492b9e030c.wasm)

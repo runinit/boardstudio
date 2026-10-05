@@ -1,0 +1,75 @@
+{
+  "build": "frontend-case-layout-controls-20261005",
+  "source_commit": "113d76fd43d2c2a25660af4e3ff51032c7082f08",
+  "script": "boardstudio-web-dxh5b19dcbbdef29743.js",
+  "steps": [
+    {
+      "step": "component-override-edited",
+      "dom": [
+        {
+          "heading": "plate",
+          "values": [
+            "cnc",
+            "Aluminium",
+            "1.8"
+          ]
+        },
+        {
+          "heading": "plate foam",
+          "values": [
+            "EVA",
+            "3.4"
+          ]
+        },
+        {
+          "heading": "bottom foam",
+          "values": [
+            "EVA",
+            "2.2"
+          ]
+        },
+        {
+          "heading": "bottom",
+          "values": [
+            "cut-sheet",
+            "Acrylic",
+            "3.6"
+          ]
+        },
+        {
+          "heading": "left-keys-SW1 · switch mx",
+          "values": [
+            "printed",
+            "ABS",
+            "2.1"
+          ]
+        }
+      ]
+    },
+    {
+      "step": "remove-undo-restores",
+      "dom": [
+        {
+          "heading": "left-keys-SW1 · switch mx",
+          "values": [
+            "printed",
+            "ABS",
+            "2.1"
+          ]
+        }
+      ]
+    },
+    {
+      "step": "remove-redo-clears",
+      "dom": [
+        {
+          "buttons": [
+            "Add process override"
+          ],
+          "heading": "left-keys-SW1 · switch mx"
+        }
+      ]
+    }
+  ],
+  "final_revision": 31
+}

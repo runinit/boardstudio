@@ -1,0 +1,43 @@
+run-wasm-tests: [1/1] presentation::shared_viewer::tests::mounted_case_gesture_feedback_preserves_canvas_geometry
+{'executed': 1, 'failed': ['presentation::shared_viewer::tests::mounted_case_gesture_feedback_preserves_canvas_geometry'], 'problems': []}
+--- presentation::shared_viewer::tests::mounted_case_gesture_feedback_preserves_canvas_geometry ---
+4458 |         let _ = input.blur();
+     |         +++++++
+
+warning: unused `std::result::Result` that must be used
+    --> src/presentation/mechanical_settings.rs:4477:9
+     |
+4477 |         input.blur();
+     |         ^^^^^^^^^^^^
+     |
+     = note: this `Result` may be an `Err` variant, which should be handled
+help: use `let _ = ...` to ignore the resulting value
+     |
+4477 |         let _ = input.blur();
+     |         +++++++
+
+warning: unused `std::result::Result` that must be used
+    --> src/presentation/mechanical_settings.rs:4494:9
+     |
+4494 |         input.blur();
+     |         ^^^^^^^^^^^^
+     |
+     = note: this `Result` may be an `Err` variant, which should be handled
+help: use `let _ = ...` to ignore the resulting value
+     |
+4494 |         let _ = input.blur();
+     |         +++++++
+
+warning: `boardstudio-web` (bin "boardstudio-web" test) generated 12 warnings (run `cargo fix --bin "boardstudio-web" -p boardstudio-web --tests` to apply 4 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.18s
+     Running unittests src/main.rs (target/wasm32-unknown-unknown/debug/deps/boardstudio_web-ade5ef492b9e030c.wasm)
+Error: some tests failed
+error: test failed, to rerun pass `--bin boardstudio-web`
+
+Caused by:
+  process didn't exit successfully: `/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-ade5ef492b9e030c.wasm 'presentation::shared_viewer::tests::mounted_case_gesture_feedback_preserves_canvas_geometry'` (exit status: 1)
+note: test exited abnormally; to see the full output pass --no-capture to the harness.
+Error: Running Wasm tests with wasm-bindgen-test failed
+Caused by: Running Wasm tests with wasm-bindgen-test failed
+Caused by: failed to execute `cargo test`: exited with exit status: 1
+  full command: cd "web" && CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER="/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner" CHROMEDRIVER="/usr/bin/chromedriver" WASM_BINDGEN_TEST_ONLY_WEB="1" "cargo" "test" "--target" "wasm32-unknown-unknown" "--no-default-features" "--features" "page" "--bin" "boardstudio-web" "--" "presentation::shared_viewer::tests::mounted_case_gesture_feedback_preserves_canvas_geometry"

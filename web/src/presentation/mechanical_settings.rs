@@ -6,15 +6,18 @@ pub(crate) use crate::mechanical_feedback::{
 use boardstudio_core::model::{
     CaseOpening, GasketPlacement, HardwareTransport, InsertInstallation, InternalClosureHardware,
     MechanicalBattery, MechanicalBottomStyle, MechanicalBuiltinProfile, MechanicalCriticalFit,
-    MechanicalGasketAnchor, MechanicalHardwareSpecification, MechanicalMount,
-    MechanicalPartProcess, MechanicalStabilizerKind, MechanicalStabilizerOverride,
-    MechanicalSwitchFamily, Mount, MountKind, PlateMethod, ScrewDrive, ScrewHeadProfile,
-    ScrewLengthDatum, Severity, Vec2,
+    MechanicalExtraction, MechanicalGasketAnchor, MechanicalGeometry,
+    MechanicalHardwareSpecification, MechanicalMount, MechanicalPartProcess, MechanicalPartProfile,
+    MechanicalPurpose, MechanicalPurposeMapping, MechanicalStabilizerKind,
+    MechanicalStabilizerOverride, MechanicalSwitchFamily, Mount, MountKind, PlateMethod,
+    ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Severity, Vec2,
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::rc::Rc;
+use std::{future::Future, pin::Pin};
 use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::spawn_local;
 use web_sys::HtmlInputElement;
 
 /// Narrow accepted values used by this control group; it is not an editable
@@ -58,6 +61,23 @@ pub(crate) struct MechanicalProfileChoice {
     pub(crate) supported_thickness: Option<Vec2>,
     /// True only for a placed switch definition selected by the accepted parent projection.
     pub(crate) switch_family_selectable: bool,
+    pub(crate) profile: MechanicalPartProfile,
+    pub(crate) kicad_source: Option<String>,
+}
+
+/// The first argument is the assigned PartDefinition ID; the mount resolves its accepted KiCad source.
+pub(crate) type ExtractionFuture =
+    Pin<Box<dyn Future<Output = Result<MechanicalExtraction, String>>>>;
+
+#[derive(Clone)]
+pub(crate) struct MechanicalProfileExtractionPort(
+    pub(crate) Rc<dyn Fn(String, Vec<MechanicalPurposeMapping>) -> ExtractionFuture>,
+);
+
+impl PartialEq for MechanicalProfileExtractionPort {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -554,6 +574,10 @@ pub(crate) enum MechanicalSettingsPatch {
     AssignImportedGeometryProfile {
         definition_id: String,
     },
+    UpdateProfile(MechanicalPartProfile),
+    RemoveProfile {
+        definition_id: String,
+    },
     SetSwitchFamily {
         definition_id: String,
         family: MechanicalSwitchFamily,
@@ -704,6 +728,8 @@ impl MechanicalSettingsPatch {
             Self::AssignImportedGeometryProfile { definition_id } => {
                 format!("assign-imported-profile:{definition_id}")
             }
+            Self::UpdateProfile(profile) => format!("profile:{}:update", profile.definition_id),
+            Self::RemoveProfile { definition_id } => format!("profile:{definition_id}:remove"),
             Self::SetSwitchFamily { definition_id, .. } => {
                 format!("switch-family:{definition_id}")
             }
@@ -742,6 +768,8 @@ pub(crate) struct MechanicalSettingsProps {
     pub(crate) request_sequence: Signal<u64>,
     pub(crate) values: Option<MechanicalSettingsValues>,
     pub(crate) profiles: Rc<[MechanicalProfileChoice]>,
+    #[props(default)]
+    pub(crate) extract_profile: Option<MechanicalProfileExtractionPort>,
     pub(crate) profile_targets: Rc<[MechanicalProfileTargetChoice]>,
     pub(crate) process_targets: Rc<[MechanicalProcessTarget]>,
     pub(crate) stabilizer_fits: Rc<[MechanicalStabilizerFit]>,
@@ -968,7 +996,10 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                 }
                 ProfileGuidance {
                     identity: props.identity.clone(),
+                    owner_key: owner_key.clone(),
+                    feedback: props.feedback.clone(),
                     profiles: props.profiles.clone(),
+                    extract_profile: props.extract_profile.clone(),
                     targets: props.profile_targets.clone(),
                     plate_thickness: values.plate_thickness,
                     plate_to_pcb: values.plate_to_pcb,
@@ -2934,7 +2965,13 @@ fn ConstructionControls(props: ConstructionControlsProps) -> Element {
 #[derive(Props, Clone, PartialEq)]
 struct ProfileGuidanceProps {
     identity: MechanicalSettingsIdentity,
+    #[props(default)]
+    owner_key: String,
+    #[props(default)]
+    feedback: Rc<[MechanicalSettingsFeedback]>,
     profiles: Rc<[MechanicalProfileChoice]>,
+    #[props(default)]
+    extract_profile: Option<MechanicalProfileExtractionPort>,
     targets: Rc<[MechanicalProfileTargetChoice]>,
     plate_thickness: f64,
     plate_to_pcb: f64,
@@ -2955,7 +2992,7 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                 p { "Plate underside to PCB top: {props.plate_to_pcb:.2} mm · current configured gap." }
             }
             for profile in props.profiles.iter() {
-                div { class: "m1-mechanical-profile", key: "{profile.definition_id}",
+                div { class: "m1-mechanical-profile", key: "{props.owner_key}:{profile.definition_id}",
                     strong { "{profile.name}" }
                     if let Some(source) = profile.source.as_deref() { p { "Profile source: {source}." } }
                     if profile.switch_family_selectable {
@@ -2991,6 +3028,29 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                         p { "Supported plate thickness: {range.x:.2}–{range.y:.2} mm" }
                     } else {
                         p { role: "status", "Supplier review needed for the supported thickness range." }
+                    }
+                    button {
+                        r#type: "button",
+                        aria_label: "Remove profile {profile.name}",
+                        class: "m1-mechanical-quiet",
+                        disabled: !props.editable,
+                        onclick: {
+                            let identity = props.identity.clone();
+                            let definition_id = profile.definition_id.clone();
+                            let mut sequence = props.request_sequence;
+                            let on_request = props.on_request;
+                            move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::RemoveProfile { definition_id: definition_id.clone() })
+                        },
+                        "Remove profile"
+                    }
+                    ProfileGeometryEditor {
+                        identity: props.identity.clone(),
+                        feedback: props.feedback.clone(),
+                        profile: profile.profile.clone(),
+                        editable: props.editable,
+                        request_sequence: props.request_sequence,
+                        on_request: props.on_request,
+                        extract_profile: if profile.kicad_source.is_some() { props.extract_profile.clone() } else { None },
                     }
                 }
             }
@@ -3137,6 +3197,454 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
 }
 
 #[derive(Props, Clone, PartialEq)]
+struct ProfileGeometryEditorProps {
+    identity: MechanicalSettingsIdentity,
+    feedback: Rc<[MechanicalSettingsFeedback]>,
+    profile: MechanicalPartProfile,
+    editable: bool,
+    request_sequence: Signal<u64>,
+    on_request: EventHandler<MechanicalSettingsRequest>,
+    extract_profile: Option<MechanicalProfileExtractionPort>,
+}
+
+#[component]
+fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
+    let mut geometry_state = use_signal(|| None::<MechanicalGeometry>);
+    let mut selected = use_signal(|| Vec::<String>::new());
+    let mut purposes = use_signal(|| Vec::<MechanicalPurposeMapping>::new());
+    let mut busy = use_signal(|| false);
+    let mut error = use_signal(String::new);
+    let extraction_port = props.extract_profile.clone();
+    rsx! {
+        section { class: "m1-mechanical-profile-editor", aria_label: "Profile geometry",
+            if let Some(port) = extraction_port.clone() {
+                section { class: "m1-mechanical-geometry-picker", aria_label: "Custom KiCad geometry",
+                    div { class: "m1-mechanical-geometry-head",
+                        strong { "Custom geometry layers" }
+                        button {
+                            r#type: "button",
+                            aria_label: "Read KiCad layers",
+                            disabled: !props.editable || busy(),
+                            onclick: {
+                                let definition_id = props.profile.definition_id.clone();
+                                let port = port.clone();
+                                let mut geometry_state = geometry_state;
+                                let mut selected = selected;
+                                let mut purposes = purposes;
+                                let profile_source_geometry = props.profile.source_geometry.clone();
+                                let mut busy = busy;
+                                let mut error = error;
+                                move |_| {
+                                    busy.set(true);
+                                    error.set(String::new());
+                                    let definition_id = definition_id.clone();
+                                    let port = port.clone();
+                                    let existing_source_geometry = profile_source_geometry.clone();
+                                    dioxus::prelude::spawn(async move {
+                                        match (port.0)(definition_id, Vec::new()).await {
+                                            Ok(result) => {
+                                                selected.set(existing_source_geometry.as_ref().map_or_else(Vec::new, |source| source.source_ids.clone()));
+                                                purposes.set(existing_source_geometry.as_ref().map_or_else(|| result.source_geometry.mappings.clone(), |source| source.mappings.clone()));
+                                                geometry_state.set(Some(result.geometry));
+                                            }
+                                            Err(message) => error.set(message),
+                                        }
+                                        busy.set(false);
+                                    });
+                                }
+                            },
+                            if geometry_state().is_some() { "Reload layers" } else { "Read KiCad layers" }
+                        }
+                    }
+                    if let Some(loaded_geometry) = geometry_state() {
+                        p { class: "m1-mechanical-help", "Select exact primitives for plate cutouts, PCB holes, clearances or drawing guides, then apply the selected geometry." }
+                        for primitive in loaded_geometry.primitives.iter() {
+                            div { class: "m1-mechanical-geometry-row", key: "{primitive.id}",
+                                label {
+                                    input {
+                                        r#type: "checkbox",
+                                        checked: selected().contains(&primitive.id),
+                                        aria_label: "Select geometry {primitive.id}",
+                                        disabled: !props.editable || busy(),
+                                        onchange: {
+                                            let id = primitive.id.clone();
+                                            let mut selected = selected;
+                                            move |event: FormEvent| {
+                                                let mut ids = selected().clone();
+                                                if event.checked() {
+                                                    if !ids.contains(&id) { ids.push(id.clone()); }
+                                                } else { ids.retain(|entry| entry != &id); }
+                                                selected.set(ids);
+                                            }
+                                        }
+                                    }
+                                    span { strong { "{primitive.layer.as_deref().unwrap_or(\"geometry\")}" } small { "{primitive.kind:?} · {primitive.source_group_id}" } }
+                                }
+                                label {
+                                    span { "Purpose" }
+                                    select {
+                                        aria_label: "Purpose for {primitive.layer.as_deref().unwrap_or(\"geometry\")}",
+                                        disabled: !props.editable || busy(),
+                                        value: purposes().iter().find(|mapping| mapping.source_id.as_deref() == Some(primitive.id.as_str())).map_or("plate-cutout", |mapping| purpose_id(mapping.purpose)),
+                                        onchange: {
+                                            let id = primitive.id.clone();
+                                            let layer = primitive.layer.clone();
+                                            let kind = primitive.kind;
+                                            let mut purposes = purposes;
+                                            move |event: FormEvent| {
+                                                let Some(purpose) = parse_purpose(&event.value()) else { return; };
+                                                let mut entries = purposes().clone();
+                                                entries.retain(|mapping| mapping.source_id.as_deref() != Some(id.as_str()));
+                                                entries.push(MechanicalPurposeMapping { source_id: Some(id.clone()), kind: Some(kind), layer: layer.clone(), purpose });
+                                                purposes.set(entries);
+                                            }
+                                        },
+                                        option { value: "plate-cutout", "Plate cutout" }
+                                        option { value: "electrical-pcb-mounting-hole", "PCB mounting hole" }
+                                        option { value: "clearance-envelope", "Clearance envelope" }
+                                        option { value: "drawing-guide", "Drawing guide" }
+                                    }
+                                }
+                            }
+                        }
+                        button {
+                            r#type: "button",
+                            aria_label: "Apply selected geometry",
+                            disabled: !props.editable || busy() || selected().is_empty(),
+                            onclick: {
+                                let definition_id = props.profile.definition_id.clone();
+                                let port = port.clone();
+                                let geometry_state = geometry_state;
+                                let purposes = purposes;
+                                let selected = selected;
+                                let profile = props.profile.clone();
+                                let identity = props.identity.clone();
+                                let mut sequence = props.request_sequence;
+                                let on_request = props.on_request;
+                                let mut busy = busy;
+                                let mut error = error;
+                                move |_| {
+                                    let ids = selected().clone();
+                                    let mappings = geometry_state().as_ref().into_iter().flat_map(|geometry| geometry.primitives.iter()).filter(|primitive| ids.contains(&primitive.id)).map(|primitive| {
+                                        let purpose = purposes().iter().find(|mapping| mapping.source_id.as_deref() == Some(primitive.id.as_str())).map_or(MechanicalPurpose::PlateCutout, |mapping| mapping.purpose);
+                                        MechanicalPurposeMapping { source_id: Some(primitive.id.clone()), kind: Some(primitive.kind), layer: primitive.layer.clone(), purpose }
+                                    }).collect::<Vec<_>>();
+                                    busy.set(true);
+                                    error.set(String::new());
+                                    let definition_id = definition_id.clone();
+                                    let port = port.clone();
+                                    let mut sequence = sequence;
+                                    let profile = profile.clone();
+                                    let identity = identity.clone();
+                                    dioxus::prelude::spawn(async move {
+                                        match (port.0)(definition_id, mappings).await {
+                                            Ok(result) => {
+                                                let mut next = profile;
+                                                next.cutouts = result.plate_cutouts;
+                                                next.clearances = Some(result.clearance_envelopes);
+                                                next.pcb_holes = Some(result.pcb_holes);
+                                                next.source_geometry = Some(result.source_geometry);
+                                                send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::UpdateProfile(next));
+                                            }
+                                            Err(message) => error.set(message),
+                                        }
+                                        busy.set(false);
+                                    });
+                                }
+                            },
+                            "Apply selected geometry"
+                        }
+                    }
+                    if !error().is_empty() { p { role: "alert", "{error()}" } }
+                }
+            }
+            ProfilePolygonListEditor {
+                title: "Plate cutout geometry", polygons: props.profile.cutouts.clone(), editable: props.editable,
+                on_change: {
+                    let profile = props.profile.clone(); let identity = props.identity.clone();
+                    let mut sequence = props.request_sequence; let on_request = props.on_request;
+                    move |cutouts| { let mut next = profile.clone(); next.cutouts = cutouts;
+                        send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::UpdateProfile(next)); }
+                },
+            }
+            ProfilePolygonListEditor {
+                title: "Component clearance zones", polygons: props.profile.clearances.clone().unwrap_or_default(), editable: props.editable,
+                on_change: {
+                    let profile = props.profile.clone(); let identity = props.identity.clone();
+                    let mut sequence = props.request_sequence; let on_request = props.on_request;
+                    move |clearances| { let mut next = profile.clone(); next.clearances = Some(clearances);
+                        send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::UpdateProfile(next)); }
+                },
+            }
+            ProfileOpeningListEditor {
+                identity: props.identity.clone(), profile: props.profile.clone(),
+                request_sequence: props.request_sequence, on_request: props.on_request,
+                feedback: props.feedback.clone(), clearance_volume: false,
+                title: "Access openings", openings: props.profile.openings.clone().unwrap_or_default(), editable: props.editable,
+                on_change: {
+                    let profile = props.profile.clone(); let identity = props.identity.clone();
+                    let mut sequence = props.request_sequence; let on_request = props.on_request;
+                    move |openings| { let mut next = profile.clone(); next.openings = Some(openings);
+                        send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::UpdateProfile(next)); }
+                },
+            }
+            ProfileOpeningListEditor {
+                identity: props.identity.clone(), profile: props.profile.clone(),
+                request_sequence: props.request_sequence, on_request: props.on_request,
+                feedback: props.feedback.clone(), clearance_volume: true,
+                title: "Clearance volumes", openings: props.profile.clearance_volumes.clone().unwrap_or_default(), editable: props.editable,
+                on_change: {
+                    let profile = props.profile.clone(); let identity = props.identity.clone();
+                    let mut sequence = props.request_sequence; let on_request = props.on_request;
+                    move |clearance_volumes| { let mut next = profile.clone(); next.clearance_volumes = Some(clearance_volumes);
+                        send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::UpdateProfile(next)); }
+                },
+            }
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct ProfilePolygonListEditorProps {
+    title: &'static str,
+    polygons: Vec<Vec<Vec2>>,
+    editable: bool,
+    on_change: EventHandler<Vec<Vec<Vec2>>>,
+}
+
+#[component]
+fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
+    rsx! {
+        section { class: "m1-mechanical-profile-points", aria_label: "{props.title}",
+            header {
+                strong { "{props.title}" }
+                button {
+                    r#type: "button", class: "m1-mechanical-quiet",
+                    aria_label: "Add polygon to {props.title}", disabled: !props.editable,
+                    onclick: {
+                        let mut polygons = props.polygons.clone();
+                        let on_change = props.on_change;
+                        move |_| {
+                            polygons.push(vec![
+                                Vec2 { x: -2.5, y: -2.5 }, Vec2 { x: 2.5, y: -2.5 },
+                                Vec2 { x: 2.5, y: 2.5 }, Vec2 { x: -2.5, y: 2.5 },
+                            ]);
+                            on_change.call(polygons.clone());
+                        }
+                    },
+                    "Add polygon"
+                }
+            }
+            if props.polygons.is_empty() { p { class: "m1-mechanical-help", "No contours assigned." } }
+            for (polygon_index, polygon) in props.polygons.iter().enumerate() {
+                fieldset { class: "m1-mechanical-profile-polygon", key: "{props.title}:{polygon_index}", disabled: !props.editable,
+                    div { class: "m1-mechanical-opening-title",
+                        strong { "Contour {polygon_index + 1}" }
+                        button {
+                            r#type: "button", class: "m1-mechanical-quiet",
+                            aria_label: "Remove contour {polygon_index + 1} from {props.title}", disabled: !props.editable,
+                            onclick: {
+                                let mut polygons = props.polygons.clone();
+                                let on_change = props.on_change;
+                                move |_| { polygons.remove(polygon_index); on_change.call(polygons.clone()); }
+                            },
+                            "Remove"
+                        }
+                    }
+                    for (point_index, point) in polygon.iter().enumerate() {
+                        div { class: "m1-mechanical-profile-point", key: "{polygon_index}:{point_index}",
+                            span { "V{point_index + 1}" }
+                            input {
+                                r#type: "number", step: "0.1", value: "{point.x}", disabled: !props.editable,
+                                aria_label: "{props.title} contour {polygon_index + 1} vertex {point_index + 1} X",
+                                oninput: {
+                                    let mut polygons = props.polygons.clone(); let on_change = props.on_change;
+                                    move |event: FormEvent| if let Ok(value) = event.value().parse::<f64>() {
+                                        polygons[polygon_index][point_index].x = value; on_change.call(polygons.clone());
+                                    }
+                                }
+                            }
+                            input {
+                                r#type: "number", step: "0.1", value: "{point.y}", disabled: !props.editable,
+                                aria_label: "{props.title} contour {polygon_index + 1} vertex {point_index + 1} Y",
+                                oninput: {
+                                    let mut polygons = props.polygons.clone(); let on_change = props.on_change;
+                                    move |event: FormEvent| if let Ok(value) = event.value().parse::<f64>() {
+                                        polygons[polygon_index][point_index].y = value; on_change.call(polygons.clone());
+                                    }
+                                }
+                            }
+                            button {
+                                r#type: "button", class: "m1-mechanical-quiet",
+                                aria_label: "Remove {props.title} vertex {point_index + 1}",
+                                disabled: !props.editable || polygon.len() <= 3,
+                                onclick: {
+                                    let mut polygons = props.polygons.clone(); let on_change = props.on_change;
+                                    move |_| { polygons[polygon_index].remove(point_index); on_change.call(polygons.clone()); }
+                                },
+                                "×"
+                            }
+                        }
+                    }
+                    button {
+                        r#type: "button", class: "m1-mechanical-quiet", disabled: !props.editable,
+                        aria_label: "Add vertex to {props.title} contour {polygon_index + 1}",
+                        onclick: {
+                            let mut polygons = props.polygons.clone(); let on_change = props.on_change;
+                            move |_| { polygons[polygon_index].push(Vec2 { x: 0.0, y: 0.0 }); on_change.call(polygons.clone()); }
+                        },
+                        "Add vertex"
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct ProfileOpeningListEditorProps {
+    identity: MechanicalSettingsIdentity,
+    profile: MechanicalPartProfile,
+    request_sequence: Signal<u64>,
+    on_request: EventHandler<MechanicalSettingsRequest>,
+    feedback: Rc<[MechanicalSettingsFeedback]>,
+    clearance_volume: bool,
+    title: &'static str,
+    openings: Vec<CaseOpening>,
+    editable: bool,
+    on_change: EventHandler<Vec<CaseOpening>>,
+}
+
+#[component]
+fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
+    rsx! {
+        section { class: "m1-mechanical-profile-points", aria_label: "{props.title}",
+            header {
+                strong { "{props.title}" }
+                button {
+                    r#type: "button", class: "m1-mechanical-quiet",
+                    aria_label: "Add volume to {props.title}", disabled: !props.editable,
+                    onclick: {
+                        let mut openings = props.openings.clone(); let on_change = props.on_change;
+                        move |_| {
+                            openings.push(CaseOpening { points: vec![
+                                Vec2 { x: -2.5, y: -2.5 }, Vec2 { x: 2.5, y: -2.5 },
+                                Vec2 { x: 2.5, y: 2.5 }, Vec2 { x: -2.5, y: 2.5 },
+                            ], z: 0.0, height: 10.0 });
+                            on_change.call(openings.clone());
+                        }
+                    },
+                    "Add volume"
+                }
+            }
+            if props.openings.is_empty() { p { class: "m1-mechanical-help", "No volumes configured." } }
+            for (opening_index, opening) in props.openings.iter().enumerate() {
+                fieldset { class: "m1-mechanical-opening", key: "{props.title}:{opening_index}", disabled: !props.editable,
+                    div { class: "m1-mechanical-opening-title",
+                        strong { "Volume {opening_index + 1}" }
+                        button {
+                            r#type: "button", class: "m1-mechanical-quiet",
+                            aria_label: "Remove {props.title} volume {opening_index + 1}", disabled: !props.editable,
+                            onclick: {
+                                let mut openings = props.openings.clone(); let on_change = props.on_change;
+                                move |_| { openings.remove(opening_index); on_change.call(openings.clone()); }
+                            },
+                            "Remove"
+                        }
+                    }
+                    DimensionField {
+                        identity: props.identity.clone(), request_sequence: props.request_sequence,
+                        on_request: props.on_request, feedback: props.feedback.clone(),
+                        field: MechanicalDimension::OpeningBottomZ, label: "Bottom Z", value: opening.z,
+                        editable: props.editable,
+                        accessible_label: format!("{} volume {} Bottom Z", props.title, opening_index + 1),
+                        profile_volume_target: ProfileVolumeDimensionTarget {
+                            profile: props.profile.clone(), opening_index,
+                            clearance_volume: props.clearance_volume,
+                        },
+                    }
+                    DimensionField {
+                        identity: props.identity.clone(), request_sequence: props.request_sequence,
+                        on_request: props.on_request, feedback: props.feedback.clone(),
+                        field: MechanicalDimension::OpeningHeight, label: "Height", value: opening.height,
+                        editable: props.editable,
+                        accessible_label: format!("{} volume {} Height", props.title, opening_index + 1),
+                        profile_volume_target: ProfileVolumeDimensionTarget {
+                            profile: props.profile.clone(), opening_index,
+                            clearance_volume: props.clearance_volume,
+                        },
+                    }
+                    h4 { "XY footprint" }
+                    for (point_index, point) in opening.points.iter().enumerate() {
+                        div { class: "m1-mechanical-opening-vertex", key: "{opening_index}:{point_index}",
+                            span { "V{point_index + 1}" }
+                            input {
+                                r#type: "number", step: "0.1", value: "{point.x}", disabled: !props.editable,
+                                aria_label: "{props.title} volume {opening_index + 1} vertex {point_index + 1} X",
+                                oninput: {
+                                    let mut openings = props.openings.clone(); let on_change = props.on_change;
+                                    move |event: FormEvent| if let Ok(value) = event.value().parse::<f64>() {
+                                        openings[opening_index].points[point_index].x = value; on_change.call(openings.clone());
+                                    }
+                                }
+                            }
+                            input {
+                                r#type: "number", step: "0.1", value: "{point.y}", disabled: !props.editable,
+                                aria_label: "{props.title} volume {opening_index + 1} vertex {point_index + 1} Y",
+                                oninput: {
+                                    let mut openings = props.openings.clone(); let on_change = props.on_change;
+                                    move |event: FormEvent| if let Ok(value) = event.value().parse::<f64>() {
+                                        openings[opening_index].points[point_index].y = value; on_change.call(openings.clone());
+                                    }
+                                }
+                            }
+                            button {
+                                r#type: "button", class: "m1-mechanical-quiet",
+                                aria_label: "Remove {props.title} vertex {point_index + 1}",
+                                disabled: !props.editable || opening.points.len() <= 3,
+                                onclick: {
+                                    let mut openings = props.openings.clone(); let on_change = props.on_change;
+                                    move |_| { openings[opening_index].points.remove(point_index); on_change.call(openings.clone()); }
+                                },
+                                "×"
+                            }
+                        }
+                    }
+                    button {
+                        r#type: "button", class: "m1-mechanical-quiet", disabled: !props.editable,
+                        aria_label: "Add vertex to {props.title} volume {opening_index + 1}",
+                        onclick: {
+                            let mut openings = props.openings.clone(); let on_change = props.on_change;
+                            move |_| { openings[opening_index].points.push(Vec2 { x: 0.0, y: 0.0 }); on_change.call(openings.clone()); }
+                        },
+                        "Add vertex"
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn parse_purpose(value: &str) -> Option<MechanicalPurpose> {
+    match value {
+        "plate-cutout" => Some(MechanicalPurpose::PlateCutout),
+        "electrical-pcb-mounting-hole" => Some(MechanicalPurpose::ElectricalPcbMountingHole),
+        "clearance-envelope" => Some(MechanicalPurpose::ClearanceEnvelope),
+        "drawing-guide" => Some(MechanicalPurpose::DrawingGuide),
+        _ => None,
+    }
+}
+
+fn purpose_id(purpose: MechanicalPurpose) -> &'static str {
+    match purpose {
+        MechanicalPurpose::PlateCutout => "plate-cutout",
+        MechanicalPurpose::ElectricalPcbMountingHole => "electrical-pcb-mounting-hole",
+        MechanicalPurpose::ClearanceEnvelope => "clearance-envelope",
+        MechanicalPurpose::DrawingGuide => "drawing-guide",
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
 struct DimensionControlsProps {
     identity: MechanicalSettingsIdentity,
     values: MechanicalSettingsValues,
@@ -3233,6 +3741,8 @@ struct DimensionFieldProps {
     #[props(default)]
     opening_target: Option<OpeningDimensionTarget>,
     #[props(default)]
+    profile_volume_target: Option<ProfileVolumeDimensionTarget>,
+    #[props(default)]
     accessible_label: Option<String>,
     #[props(default)]
     critical_fit_target: Option<CriticalFitDimensionTarget>,
@@ -3258,6 +3768,13 @@ struct MountDimensionTarget {
 struct OpeningDimensionTarget {
     opening_index: usize,
     point_index: Option<usize>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct ProfileVolumeDimensionTarget {
+    profile: MechanicalPartProfile,
+    opening_index: usize,
+    clearance_volume: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -3350,6 +3867,7 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
         let support_target = props.support_target.clone();
         let mount_target = props.mount_target.clone();
         let opening_target = props.opening_target.clone();
+        let profile_volume_target = props.profile_volume_target.clone();
         let critical_fit_target = props.critical_fit_target.clone();
         let hardware_target = props.hardware_target.clone();
         let process_target = props.process_target.clone();
@@ -3405,6 +3923,26 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                     field,
                     value,
                 }
+            } else if let Some(mut target) = profile_volume_target.clone() {
+                let openings = if target.clearance_volume {
+                    target.profile.clearance_volumes.as_mut()
+                } else {
+                    target.profile.openings.as_mut()
+                };
+                let Some(opening) =
+                    openings.and_then(|openings| openings.get_mut(target.opening_index))
+                else {
+                    error.set(Some(
+                        "This profile volume is no longer available.".to_owned(),
+                    ));
+                    return;
+                };
+                match field {
+                    MechanicalDimension::OpeningBottomZ => opening.z = value,
+                    MechanicalDimension::OpeningHeight => opening.height = value,
+                    _ => return,
+                }
+                MechanicalSettingsPatch::UpdateProfile(target.profile)
             } else if let Some(target) = opening_target.clone() {
                 MechanicalSettingsPatch::SetOpeningDimension {
                     opening_index: target.opening_index,
@@ -3504,7 +4042,11 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                         }
                     }
                 }
-                small { "mm" }
+                if props.field == MechanicalDimension::HardwareQuantity {
+                    small { "pcs" }
+                } else {
+                    small { "mm" }
+                }
             }
             if let Some(error) = error_text.as_deref() { small { role: "alert", "{error}" } }
             if let Some(status) = status_text { small { role: "status", "{status}" } }
@@ -4118,6 +4660,468 @@ mod contextual_layer_tests {
                 on_request: move |_| {},
             }
         }
+    }
+
+    fn assigned_profile_guidance_test_page() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        rsx! {
+            ProfileGuidance {
+                identity: test_identity(),
+                profiles: Rc::from([MechanicalProfileChoice {
+                    definition_id: "assigned-custom".into(),
+                    name: "Custom tactile switch".into(),
+                    source: Some("KiCad Custom tactile switch".into()),
+                    family: None,
+                    plate_to_pcb: Some(3.5),
+                    supported_thickness: None,
+                    switch_family_selectable: false,
+                    profile: custom_profile_choice().profile,
+                    kicad_source: Some("(footprint custom)".into()),
+                }]),
+                targets: Rc::from([]),
+                plate_thickness: 1.6,
+                plate_to_pcb: 3.5,
+                editable: true,
+                request_sequence,
+                on_request: move |_| {},
+            }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn assigned_profile_exposes_case_local_remove_control() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("case-profile-remove-red-root");
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(assigned_profile_guidance_test_page),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        rendered().await;
+        let buttons = document
+            .query_selector_all("#case-profile-remove-red-root button")
+            .unwrap();
+        let has_remove = (0..buttons.length()).any(|index| {
+            buttons
+                .item(index)
+                .and_then(|button| button.text_content())
+                .is_some_and(|text| text.trim() == "Remove profile")
+        });
+        assert!(
+            has_remove,
+            "assigned Case profile must expose its local Remove profile action"
+        );
+        root.remove();
+    }
+
+    fn custom_profile_choice() -> MechanicalProfileChoice {
+        MechanicalProfileChoice {
+            definition_id: "custom-part".into(),
+            name: "Custom tactile switch".into(),
+            source: Some("KiCad Custom tactile switch".into()),
+            family: None,
+            plate_to_pcb: Some(3.5),
+            supported_thickness: None,
+            switch_family_selectable: false,
+            profile: MechanicalPartProfile {
+                source_geometry: None,
+                pcb_holes: None,
+                clearance_volumes: None,
+                openings: None,
+                clearances: None,
+                supported_thickness: None,
+                switch_family: None,
+                definition_id: "custom-part".into(),
+                source: "KiCad Custom tactile switch".into(),
+                cutouts: vec![],
+                plate_to_pcb: 3.5,
+            },
+            kicad_source: Some("(footprint \"Custom tactile switch\")".into()),
+        }
+    }
+
+    fn custom_profile_test_page() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut request_count = use_signal(|| 0_u64);
+        let mut last_request = use_signal(String::new);
+        let mut profile = use_signal(custom_profile_choice);
+        let mut saved_profile = use_signal(|| {
+            let mut choice = custom_profile_choice();
+            choice.definition_id = "saved-part".into();
+            choice.name = "Saved profile without extraction state".into();
+            choice.source = Some("Authored profile".into());
+            choice.kicad_source = None;
+            choice.profile.definition_id = "saved-part".into();
+            choice.profile.source = "Authored profile".into();
+            choice.profile.cutouts = vec![vec![
+                Vec2 { x: -9.5, y: 9.5 },
+                Vec2 { x: 9.5, y: 9.5 },
+                Vec2 { x: 9.5, y: -9.5 },
+                Vec2 { x: -9.5, y: -9.5 },
+            ]];
+            choice
+        });
+        let mut extracted_definition_ids = use_signal(Vec::<String>::new);
+        let mut owner_key = use_signal(|| "test-owner-a".to_owned());
+        let extraction =
+            MechanicalProfileExtractionPort(Rc::new(move |definition_id, mappings| {
+                let mut extracted_definition_ids = extracted_definition_ids;
+                extracted_definition_ids.with_mut(|ids| ids.push(definition_id.clone()));
+                Box::pin(async move {
+                    let geometry = boardstudio_core::model::MechanicalGeometry {
+                        source_name: Some("Custom tactile switch".into()),
+                        primitives: vec![boardstudio_core::model::MechanicalPrimitive {
+                            id: "geometry-70".into(),
+                            source_group_id: "rect-70".into(),
+                            kind: boardstudio_core::model::MechanicalGeometryKind::Rectangle,
+                            layer: Some("Dwgs.User".into()),
+                            layers: vec!["Dwgs.User".into()],
+                            purpose: None,
+                            geometry: boardstudio_core::model::MechanicalShape::Rectangle {
+                                start: Vec2 { x: -9.5, y: -9.5 },
+                                end: Vec2 { x: 9.5, y: 9.5 },
+                                width: None,
+                            },
+                        }],
+                    };
+                    let source_geometry = boardstudio_core::model::MechanicalProfileSource {
+                        text: "(footprint \"Custom tactile switch\")".into(),
+                        sha256: "fixture-sha256".into(),
+                        mappings: mappings.clone(),
+                        source_ids: mappings
+                            .iter()
+                            .filter_map(|mapping| mapping.source_id.clone())
+                            .collect(),
+                    };
+                    Ok(boardstudio_core::model::MechanicalExtraction {
+                        geometry,
+                        plate_cutouts: if mappings.is_empty() {
+                            vec![]
+                        } else {
+                            vec![vec![
+                                Vec2 { x: -9.5, y: 9.5 },
+                                Vec2 { x: 9.5, y: 9.5 },
+                                Vec2 { x: 9.5, y: -9.5 },
+                                Vec2 { x: -9.5, y: -9.5 },
+                            ]]
+                        },
+                        clearance_envelopes: vec![],
+                        pcb_holes: vec![],
+                        source_geometry,
+                    })
+                })
+            }));
+        let extracted_ids_label = extracted_definition_ids().join(",");
+        let owner_key_value = owner_key();
+        rsx! {
+            div { id: "case-custom-profile-test-root",
+                ProfileGuidance {
+                    identity: test_identity(),
+                    owner_key: owner_key_value,
+                    profiles: Rc::from([profile(), saved_profile()]),
+                    targets: Rc::from([]),
+                    plate_thickness: 1.6,
+                    plate_to_pcb: 3.5,
+                    editable: true,
+                    request_sequence,
+                    extract_profile: Some(extraction),
+                    on_request: move |request: MechanicalSettingsRequest| {
+                        request_count += 1;
+                        if let MechanicalSettingsPatch::UpdateProfile(updated) = request.patch.clone() {
+                            if updated.definition_id == "custom-part" {
+                                let mut choice = profile();
+                                choice.profile = updated;
+                                profile.set(choice);
+                            } else {
+                                let mut choice = saved_profile();
+                                choice.profile = updated;
+                                saved_profile.set(choice);
+                            }
+                        }
+                        last_request.set(format!("{:?}", request.patch));
+                    },
+                }
+                p { id: "case-custom-profile-last-request", "{last_request}" }
+                p { id: "case-custom-profile-request-count", "{request_count}" }
+                p { id: "case-custom-profile-extracted-definition-ids", "{extracted_ids_label}" }
+                button { id: "case-profile-switch-owner", onclick: move |_| owner_key.set("test-owner-b".to_owned()), "Switch Case owner" }
+            }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn custom_profile_geometry_controls_read_apply_edit_and_remove_assigned_profile() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("case-custom-profile-test-host");
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(custom_profile_test_page),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        rendered().await;
+        let element = |selector: &str| {
+            root.query_selector(selector)
+                .unwrap()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlElement>()
+                .unwrap()
+        };
+        let saved_contour: web_sys::HtmlInputElement =
+            element("input[aria-label='Plate cutout geometry contour 1 vertex 1 X']")
+                .dyn_into()
+                .unwrap();
+        saved_contour.set_value("-9.4");
+        let input_event = web_sys::EventInit::new();
+        input_event.set_bubbles(true);
+        saved_contour
+            .dispatch_event(
+                &web_sys::Event::new_with_event_init_dict("input", &input_event).unwrap(),
+            )
+            .unwrap();
+        rendered().await;
+        assert!(
+            element("#case-custom-profile-last-request")
+                .text_content()
+                .unwrap()
+                .contains("-9.4")
+        );
+        assert!(
+            element("button[aria-label='Remove profile Custom tactile switch']").is_connected()
+        );
+        element("button[aria-label='Read KiCad layers']").click();
+        rendered().await;
+        assert_eq!(
+            element("#case-custom-profile-extracted-definition-ids")
+                .text_content()
+                .unwrap(),
+            "custom-part"
+        );
+        assert!(element("select[aria-label='Purpose for Dwgs.User']").is_connected());
+        let checkbox: web_sys::HtmlInputElement =
+            element("input[type='checkbox']").dyn_into().unwrap();
+        checkbox.click();
+        rendered().await;
+        element("button[aria-label='Apply selected geometry']").click();
+        rendered().await;
+        assert_eq!(
+            element("#case-custom-profile-extracted-definition-ids")
+                .text_content()
+                .unwrap(),
+            "custom-part,custom-part"
+        );
+        assert!(
+            element("#case-custom-profile-last-request")
+                .text_content()
+                .unwrap()
+                .contains("UpdateProfile")
+        );
+        assert!(
+            element("#case-custom-profile-last-request")
+                .text_content()
+                .unwrap()
+                .contains("-9.5")
+        );
+        let cutout_x: web_sys::HtmlInputElement =
+            element("input[aria-label='Plate cutout geometry contour 1 vertex 1 X']")
+                .dyn_into()
+                .unwrap();
+        cutout_x.set_value("-9.4");
+        cutout_x
+            .dispatch_event(
+                &web_sys::Event::new_with_event_init_dict("input", &input_event).unwrap(),
+            )
+            .unwrap();
+        rendered().await;
+        assert!(
+            element("#case-custom-profile-last-request")
+                .text_content()
+                .unwrap()
+                .contains("-9.4")
+        );
+        element("button[aria-label='Remove profile Custom tactile switch']").click();
+        rendered().await;
+        assert!(
+            element("#case-custom-profile-last-request")
+                .text_content()
+                .unwrap()
+                .contains("RemoveProfile")
+        );
+        element("button#case-profile-switch-owner").click();
+        rendered().await;
+        assert!(
+            root.query_selector("select[aria-label='Purpose for Dwgs.User']")
+                .unwrap()
+                .is_none()
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn profile_volume_height_escape_discards_and_enter_blur_commits_once() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("case-profile-volume-draft-test-host");
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(custom_profile_test_page),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        rendered().await;
+        let query = |selector: &str| root.query_selector(selector).unwrap().unwrap();
+        query("button[aria-label='Add volume to Clearance volumes']")
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        rendered().await;
+        let input = query("input[aria-label='Clearance volumes volume 1 Height']")
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap();
+        let dispatch_input = |value: &str| {
+            input.set_value(value);
+            let init = web_sys::EventInit::new();
+            init.set_bubbles(true);
+            input
+                .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap())
+                .unwrap();
+        };
+        let dispatch_key = |key: &str| {
+            let init = web_sys::KeyboardEventInit::new();
+            init.set_key(key);
+            init.set_bubbles(true);
+            input
+                .dispatch_event(
+                    &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+                        .unwrap(),
+                )
+                .unwrap();
+        };
+        let dispatch_change = || {
+            let init = web_sys::EventInit::new();
+            init.set_bubbles(true);
+            input
+                .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &init).unwrap())
+                .unwrap();
+        };
+        let count = || {
+            query("#case-custom-profile-request-count")
+                .text_content()
+                .unwrap()
+                .parse::<u64>()
+                .unwrap()
+        };
+
+        // Establish the accepted 6 mm height in the retained reference journey.
+        input.focus().unwrap();
+        dispatch_input("6");
+        input.blur().unwrap();
+        dispatch_change();
+        rendered().await;
+        assert_eq!(input.value(), "6");
+        let before = count();
+        assert_eq!(before, 2, "one Add volume and one accepted height edit");
+
+        input.focus().unwrap();
+        dispatch_input("7.2");
+        dispatch_key("Escape");
+        input.blur().unwrap();
+        dispatch_change();
+        rendered().await;
+        assert_eq!(
+            count(),
+            before,
+            "Escape then blur must not submit the abandoned profile height"
+        );
+        assert_eq!(
+            input.value(),
+            "6",
+            "Escape must restore the accepted height"
+        );
+
+        input.focus().unwrap();
+        dispatch_input("6.5");
+        dispatch_key("Enter");
+        input.blur().unwrap();
+        dispatch_change();
+        rendered().await;
+        assert_eq!(
+            count(),
+            before + 1,
+            "Enter followed by blur/change must submit exactly once"
+        );
+        assert_eq!(input.value(), "6.5");
+
+        input.focus().unwrap();
+        dispatch_input("0.05");
+        input.blur().unwrap();
+        dispatch_change();
+        rendered().await;
+        assert_eq!(
+            count(),
+            before + 1,
+            "invalid height below 0.1 mm must not submit"
+        );
+        input.focus().unwrap();
+        dispatch_key("Escape");
+        rendered().await;
+        assert_eq!(
+            input.value(),
+            "6.5",
+            "invalid input must leave the accepted height unchanged"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn assigned_profile_adds_component_clearance_polygon_without_extraction() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("case-profile-clearance-test-host");
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(custom_profile_test_page),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        rendered().await;
+        let element = |selector: &str| {
+            root.query_selector(selector)
+                .unwrap()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlElement>()
+                .unwrap()
+        };
+
+        element("button[aria-label='Add polygon to Component clearance zones']").click();
+        rendered().await;
+
+        let request = element("#case-custom-profile-last-request")
+            .text_content()
+            .unwrap();
+        assert!(request.contains("UpdateProfile"));
+        assert!(request.contains("clearances: Some"));
+        assert!(request.contains("x: -2.5"));
+        element("button[aria-label='Add volume to Access openings']").click();
+        rendered().await;
+        let request = element("#case-custom-profile-last-request")
+            .text_content()
+            .unwrap();
+        assert!(request.contains("openings: Some"));
+        assert!(request.contains("height: 10.0"));
+        element("button[aria-label='Add volume to Clearance volumes']").click();
+        rendered().await;
+        let request = element("#case-custom-profile-last-request")
+            .text_content()
+            .unwrap();
+        assert!(request.contains("clearance_volumes: Some"));
+        assert!(request.contains("height: 10.0"));
+        assert_eq!(
+            element("#case-custom-profile-extracted-definition-ids")
+                .text_content()
+                .unwrap(),
+            ""
+        );
+        root.remove();
     }
 
     #[component]

@@ -1,0 +1,36 @@
+{
+  "build_id": "frontend-case-layout-controls-20261005",
+  "source_commit": "113d76fd43d2c2a25660af4e3ff51032c7082f08",
+  "provenance": "web/target/builds/frontend-case-layout-controls-20261005/provenance.json",
+  "provenance_sha256": "84b6e583e788d8e4b7d7a07f198767fbf881208bda0c0d42926d3e7261b5d0d5",
+  "source_count": 1409,
+  "source_mismatches": [],
+  "routes": {
+    "root": {
+      "http": 200,
+      "headers": {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp"
+      },
+      "asset_count": 190,
+      "mismatches": []
+    },
+    "subpath": {
+      "http": 200,
+      "headers": {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp"
+      },
+      "asset_count": 190,
+      "mismatches": []
+    }
+  },
+  "fresh_commands": 23,
+  "inherited_commands": 0,
+  "duration_seconds": 515.567722,
+  "release_warnings": {
+    "root": 0,
+    "subpath": 0
+  },
+  "qualification": "Combined package provenance, committed snapshot inputs and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate."
+}

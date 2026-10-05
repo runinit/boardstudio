@@ -1,31 +1,33 @@
 # Handoff (generated from records)
 
-- Branch: codex/rust-v1-ui-parity-20261001 @ eac47f42
+- Branch: codex/rust-v1-ui-parity-20261001 @ 113d76fd
 - Worktree: /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001
 - Parents: 22/61 accepted, 28 implementing, 11 planned
-- Criteria: unassessed 27, missing 0, implemented 57, verified 138; 222 total
-  - functional: implemented 44, unassessed 3, verified 134
+- Criteria: unassessed 27, missing 3, implemented 50, verified 142; 222 total
+  - functional: implemented 37, missing 3, unassessed 3, verified 138
   - release: implemented 10, unassessed 19, verified 4
   - visual: implemented 3, unassessed 5
 
 ## Served candidate
-- Build: frontend-case-export-20261005
-- Source commit: eac47f42fec27816d09eec0530fb09e074c6685e
+- Build: frontend-case-layout-controls-20261005
+- Source commit: 113d76fd43d2c2a25660af4e3ff51032c7082f08
 - Root: http://127.0.0.1:34822/
 - Subpath: http://127.0.0.1:34822/boardstudio/
 
 ## Functional readiness
-- Ready functional criteria: 1 investigate, 0 implement, 41 qualify (Layout 0 investigate/0 implement/3 qualify; PCB 0 investigate/0 implement/8 qualify; Keymap 0 investigate/0 implement/0 qualify; Keycaps 0 investigate/0 implement/0 qualify; Case 0 investigate/0 implement/17 qualify; Parts+Project 0 investigate/0 implement/7 qualify; Shared 1 investigate/0 implement/6 qualify)
+- Ready functional criteria: 1 investigate, 3 implement, 34 qualify (Layout 0 investigate/1 implement/2 qualify; PCB 0 investigate/0 implement/7 qualify; Keymap 0 investigate/0 implement/0 qualify; Keycaps 0 investigate/0 implement/0 qualify; Case 0 investigate/2 implement/12 qualify; Parts+Project 0 investigate/0 implement/7 qualify; Shared 1 investigate/0 implement/6 qualify)
 - Functionally verified parents awaiting formal acceptance: 10
 - Parents with unmet final joins: 19
-  Layout: unassessed 0, missing 0, implemented 3, verified 24; ready investigate 0, implement 0, qualify 3
-    Qualify: F3.5-C01, F3.5-C04, F3.6-C04
-  PCB: unassessed 0, missing 0, implemented 9, verified 17; ready investigate 0, implement 0, qualify 8
-    Qualify: F5.4-C01, F5.4-C02, F5.4-C03, F5.4-C04, F5.5-C01, F5.5-C02, F5.5-C04, F5.7-C03
+  Layout: unassessed 0, missing 1, implemented 2, verified 24; ready investigate 0, implement 1, qualify 2
+    Implement: F3.5-C01
+    Qualify: F3.5-C04, F3.6-C04
+  PCB: unassessed 0, missing 0, implemented 8, verified 18; ready investigate 0, implement 0, qualify 7
+    Qualify: F5.4-C01, F5.4-C02, F5.4-C03, F5.4-C04, F5.5-C01, F5.5-C04, F5.7-C03
   Keymap: unassessed 0, missing 0, implemented 0, verified 7; ready investigate 0, implement 0, qualify 0
   Keycaps: unassessed 0, missing 0, implemented 0, verified 13; ready investigate 0, implement 0, qualify 0
-  Case: unassessed 0, missing 0, implemented 17, verified 22; ready investigate 0, implement 0, qualify 17
-    Qualify: F7.1-C04, F7.3-C07, F7.4-C01, F7.4-C03, F7.5-C01, F7.5-C02, F7.5-C03, F7.5-C04, F7.6-C01, F7.6-C04, F7.6-C05, F7.7-C01, F7.7-C02, F7.7-C04, F7.7-C05, F7.8-C01, F7.8-C05
+  Case: unassessed 0, missing 2, implemented 12, verified 25; ready investigate 0, implement 2, qualify 12
+    Implement: F7.4-C01, F7.5-C02
+    Qualify: F7.1-C04, F7.3-C07, F7.5-C01, F7.5-C03, F7.5-C04, F7.6-C01, F7.6-C04, F7.6-C05, F7.7-C02, F7.7-C04, F7.8-C01, F7.8-C05
   Parts+Project: unassessed 0, missing 0, implemented 7, verified 32; ready investigate 0, implement 0, qualify 7
     Qualify: F2.2-C02, F2.2-C03, F4.1-C01, F4.1-C02, F4.3-C02, F4.5-C01, F4.5-C03
   Shared: unassessed 3, missing 0, implemented 8, verified 19; ready investigate 1, implement 0, qualify 6
@@ -279,3 +281,54 @@ ActualCasehandlecauseisfeedbacklayout: publicbeforecanvas701px/backing1050; afte
 Caseprofile TS oracle nowcomplete: geometry-70Dwgs.User rectangle appliedr17, vertex1X-9.4edit/UndoRedo,Removeprofile/Undo,reloadretains-9.4,r22actualarchive. Filesin case-custom-profile-20261005. case_local_export first producedproseoutline(98lines), rootrequestedactualapplicableimplementation/testpatch in3mechanicalfiles now; no livewrites/compileuntilrelease. Do notmistakeoutlineforimplementedcode. ExistingF76/lifecyclepatchesremainpreservedunapplied.
 
 Currentcounts141verified,52implemented,2missing,27unassessed;22parentsaccepted. No newpackageyet. Browserownnewtabs holdcandidateCasehandlefixture(r18 blockedmove) andreferencecustomprofileoracle(r22); tabs mayclear atturnboundaries.
+
+## Current milestone — integrated Case/Layout; next profile and handle repairs
+
+HEAD113d76fd integrates Case manufacturing and Layout Inspector repairs. Native245passed/1ignored, wasm page/reachability passed, strict headless276passed/0failed/0excluded/0incomplete; guarded commit reused all4exact receipts. Six unrelated staged entries preserved. Prior gate2278 and queued integration chain are terminal; do not restart either. Provider reuse rejected application/tests/durable_session.rs and wasm-known-failures.json ownership, so no reuse savings claimed.
+
+Current immutable full package frontend-case-layout-controls-20261005 from113d76fd runs detachedPID2726061, /tmp/case-layout-full-build.log and .exit. Verify actual process/terminal before action. SnapshotHEAD113d while live authors change nextbatch sources. Published34822 remains frontend-case-export-20261005 until newpackage succeeds; then serve/publish and replay retained manufacturing plus Layout selection/Escape journeys. Reference5175 exact5a472a9 readonly.
+
+Handle CSS repair now actual mounted expectedRED canvas701→416.28125 then strictGREEN1/1, noexclusions, feedback-layout-result.json records hashes/rawlogs. Livefiles web/assets/m1.css and shared_viewer.rs frozen. Profile author owns only3mechanicalsettingsfiles/heavy2; concrete evidencepatch review found rawKiCad text passed where extraction adapter expectsdefinitionID. Author fixing and running separate baseline-compatible mounted missing-controlRED then correctedGREEN; reviewer preset_batch_review owns consolidated nextbatchreport. No optional/mobile work. Counts remain141/222verified,2missing,52implemented,27unassessed;22parentsaccepted.
+
+## Latest published qualification and next source batch
+
+Full candidate frontend-case-layout-controls-20261005 source113d76fd now published root34822/subpath, serverPID2738385, scriptdxh5b19dcbbdef29743. Build515.57s,23freshcommands,0inherited; both190asset routes0mismatches. Package succeeded while live nextbatchsource changed, proving snapshot concurrency. Oldserver2497748 stopped. Do notpoll/restartfullbuild2726061: terminal0. Actualpackageproof/buildloginnewcandidateevidencefolder. FirstbrowsernavigationservedoldofflineJS; secondloadednewhash.
+
+F7.4C03functionalverified after sameindependentreviewercheckedr31manufacturing andnewr67hardwarepairedarchives, histories/reload. Battery8fields, cablecoords, accessvolume/vertex, linkedhardware andcriticalfitallmatchexcludinggeneratedIDs; knownclosurefloat1.4e-14retained. Quantityunitmm→pcs assignedsmallsourcecorrection, notyetpublished. Evidencecase-manufacturing-repair-20261005/RECEIPT.md, *hardware* archives/JSON. Counts142verified/50implemented/3missing/27unassessed;22parentsaccepted.
+
+Actual113dLayoutcanvas Ctrl-toggle stilltargetsremovedkey: productionpassesKeycontext butpriorhelpertestusedComponent. Savedfailure +mixedgroupedit/UndoRedo/reload success inlayout-escape-repair-20261005/public-113d76fd.md. CandidatePerimeterEscape returnedBoardbutBODYfocus;referencefocusBoardname. Authorfixed4files(selection,outline_lifecycle,outlinebrowser,matrix_transform_inspector_tests), expectedRED0/1 andGREEN1/1each retained. SyntheticSVGcallback derivesproductionKeyprojection; notfullLayoutmount. SameindependentreviewCLEAR; packagedpublicreplay pending. F3.5C01missinguntilreplay;C04implemented.
+
+Caseprofileauthor owns3mechanicalsettingsfiles; fullrequirededitorwork nowincludes cutout/clearance polygon/vertex addremove, access/clearancevolumes, exactdefinitionIDextractionport, acceptedcontourswithoutprovenance, owner-key transientreset, guardedUpdateProfile/removal, Quantitypcs. BaselineRemoveandclearance missingactionREDs executed. ExpandedclearanceAdd/volume testGREEN1/1. CurrentfocusedRead/Apply/edit/remove retry6931 afterrawvertexonchange→oninputcorrection; verifyauthorresultbeforegate. Author mustprovidefinalhashes/reviewafterallfocusedchecks. Layout/handlefrozen. No heavyaggregate/packagecurrently.
+
+Rootpreparedfullprofile TSoracle: full-editor-input.boardstudio clonedonlyID/name fromr22savedhistory; reference-full-editor-after.boardstudio r38 hascutout-9.4, clearance-3.3, accessZ/height/X -0.5/4.5/-3.1, clearancevolume -2/6/-4.2, cutoutadd/removeUndoRedo, reload. Full-editor-reference-oracle.md; candidate pendingnewpackage. Source/evidencenextcommitdraft /tmp/case-profile-handle-layout-{source,commit}-paths.json (9sources,72paths sofar); refreshafterfreeze; nothingstaged. Sixunrelatedstaged entriesstillintact. Reviewexistingcase-profile-handle-review-20261005.md, noextra reviewer. Preserve lifecycle/F76evidencepatchesunapplied.
+
+## Current author handoff — Astra final profile and required lifecycle checks
+
+Do notresumeLuna profilewrites. case_local_export froze3files afteractualownerresetteststillfailed in scopedroot, thenAstra migration_acceleration_review tookownership. Cause: keyonstaticchilddidnotremountbecauseiteratedparentrowkeyremaineddefinition-only. Astra movesowner+definitionkeytoiteratorrow and usesDioxusscope-ownedspawnfor2extractiontasks. Final3sourcehashes settingsaceceb06ce4b6577311239a6890024d92f3a7cef12e58b0009692667d0f05bed, controllera8e94aa0d91b255e33c9397bd73ddb02f3691844b283d44db912a15f1c62336e, mount3e01a68ac5a7637d08febb5fa98feb0bd3e9c2f2052ebd78c57b5dde82248713. SameSolreviewer reviewingfinalcompletepacketwhilestrict3testsession94060runs; obtainactualterminalresult beforeaggregate. FullprofileTSoracle nowretainedr38/reload, no candidatepassclaim.
+
+Secondauthor draft_failure_triage resumed onlyREQUIRED F7.3C07 preserved2filepatch to unblockjoins; applied renderer_host_page_base.rs SHA9db63fbaacb3799e19960705a02ca1edf6bf6a490ed25fa523334169b4a57420 and pcb_module_inspector.rs SHA27d82297f2d061142f1cafad0fd5f15a2f4f15a1d11e2206c04361e5e004cc35. BothalreadyinAstra compilegraph; sourcefrozen, authorwaits94060terminal/sharedtargetreleasebeforefocusedlifecyclechecks. No mobile/optionalextraaudit. Ifstalledpreservepatchwithoutblockingindependentproductdelivery. These2filesnotyetin9sourcecommitdraftmanifest; addonlyonceexecuted/reviewedready. F76readinesspatchremainsunapplied.
+
+Goalturn progress: published113d immutablecandidate, qualifiedCasehardware/manufacturingfullC03withindependentreview→142/222verified, foundactualLayoutKeypath/focusdefects and obtainedfollow-upRED/GREEN/review, completedreferencefullprofileoracle, preserved6unrelatedstagedentriesexactly. Goalactive/incomplete; no newcommitafter113d. Next: author3tests + lifecyclefocus, finalconsolidatedCLEAR, onecombinedgate, explicitcommit theneligibleprovider-reusebuild, actualnewprofile/handledrag/Layoutpublicreplays andeligibleparentjoins.
+
+Latest handle correction: Astra94060 compiled but stopped beforeexecution because controller filter named tests instead of actual battery_patch_tests. No passingresult. Exact listedinventory selection corrected; current strict3testsession66742, unchangedsource. Lifecycleauthorstillfrozenawaitingrelease.
+
+## Current integration checkpoint — final source-sync repair
+
+HEAD113d76fd; frontend-case-layout-controls-20261005 remains published34822. Complete profile packet is frozen: strict editor/controller3/3, numeric2/2, final invalid-height1/1; actual reference Escape retainsr38 and Enter+blur producesr39 once. Details case-custom-profile-20261005/profile-packet-result.json. Same reviewer is settling final11file handshake in case-profile-handle-review-20261005.md.
+
+First combined gate2797084 TERMINAL1: required native renderer snapshot sync caught page-only lifecycle test additions. Author mirrored exact tests into renderer_host.rs and restored incidental pagebase blankline; focusednative guard1/1. No guard weakening. Current gate2801352 RUNNING /tmp/case-profile-handle-layout-final-gates.log and .exit; inspect live PID/child or terminal before any restart. Exact11source list/hashes /tmp/case-profile-handle-layout-source-{paths,hashes}.json. Six unrelated staged entries preserved via /tmp/case-layout-unrelated-index.json. Commit draft /tmp/case-profile-handle-layout-commit-paths.json; refresh owned evidence before explicit stage/guardedcommit.
+
+Required renderer6/6GREEN integrates; incomplete mountedPCB Save delta is unapplied/preserved. draft_failure_triage prepares evidence-only boundedstage diagnosis; NO liveRustwrites duringgate. WholeF7.3C07 remainsopen. Public pending mechanicalsave scopeproof: r19 Rightwall2.45 while entireLeftinstance unchanged2.4, case-pending-scope-20261005; pendingCADswitch timedout/unqualified. Newtabs47/48 useexistingbrowser; retainedprovider/scriptcheck proves candidate113d.
+
+Next: finalreview/gate terminalsuccess, guardedexplicitcommit, immutable frontend-case-profile-layout-finish-20261005 build with eligibleproviderreuse from frontend-case-layout-controls-20261005, publish then savedfixtureprofile/handle/Layoutreplays. Scopeownednextauthorwrites allowed onlyaftersnapshotstarts. No optional/mobile work or push.
+
+Final11-file independentreview CLEAR. Native245/wasmpage/reachabilitypassed; headlessrunning. Commit/build chainPID2805683 waitsactualgate2801352exit0, thenchecksHEAD/frozensources/preservedindex andcommitsownedmanifest beforeimmutableprovider-reusebuild. Do not duplicatechain. RequiredPCBSaveboundeddiagnosticprepared at lifecycle-deferred-20261005/draft/pcb-save-stage-diagnostics.patch (applyafteroriginalpatch); noexecutionclaim.
+
+
+Gate2801352 TERMINAL1; chain2805683 TERMINALfailed withoutcommit/build. Actualheadlessgroup failed two profilefixtures that passed isolated; Astraowns onlymechanical_settings.rs root-scopedfixturediagnosis/fix withfullgroupRED/GREEN. Two additionalfailclosedunmapped sources selection.rs/renderer_host.rs fixed via exactsource/basehashbound owner entries in scripts/wasm-test-owners.json;37runner testsPASS; same reviewerchecking. Preserve aggregate-profile-and-owner-red.log. Never claim priorgatepass or restarterrorsaslive. Next settledbatch12source/configpaths, newcombinedgate thennewtrackedchain.
+
+
+Settledprofilegroup fixtureisolation GREEN9/9 (expectedRED7/2), finalsettings4a85b354, final12source/configreviewCLEAR. Newgate2814676 live /tmp/case-profile-handle-layout-settled-gates.log/.exit. NewchainPID2820736 /tmp/case-profile-handle-settled-integrate-build.state.json waitsactualexit0 thenexplicitcommit/immutablebuild; oldgate/chainterminalfailed. Never duplicatechain.
+
+
+Final integration gate terminal0. Detached chain /tmp/case-profile-handle-settled-integrate-build.state.json now commits explicitownedpaths and builds immutable frontend-case-profile-layout-finish-20261005. Do not duplicate commit/build; inspect phase/log/actualPID. Sourcefreeze remains until immutable build begins.

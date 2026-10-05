@@ -1,0 +1,14 @@
+{
+  "web/assets/m1.css": "5546a2b20c7c7f93c3190e147dfb432ca246737e67bdab6c902c9097dca8127d",
+  "web/src/presentation/shared_viewer.rs": "6b7e92bc91b4571e26856772aa3093f4822b95ceaf452aa3db7e8ed9f54ba605",
+  "web/src/presentation/mechanical_settings.rs": "4a85b354922c836cf049437e6b3bc1671a550dfe182f8b9e20d57e1a630c9dba",
+  "web/src/presentation/mechanical_settings_controller.rs": "a8e94aa0d91b255e33c9397bd73ddb02f3691844b283d44db912a15f1c62336e",
+  "web/src/presentation/mechanical_settings_mount.rs": "3e01a68ac5a7637d08febb5fa98feb0bd3e9c2f2052ebd78c57b5dde82248713",
+  "web/src/presentation/selection.rs": "d9fa7e811e5995e139aced87fbdf51d5114309ab3b21f291d3a8e6b57ea16206",
+  "web/src/presentation/outline_lifecycle.rs": "575ca1eb54a74d3ce8caa1c30bc48b38ba76d9918cb9d74ad49f751136dc4a48",
+  "web/src/presentation/outline_lifecycle_browser_tests.rs": "80687d0b8451e84890f629bc106fba637faf71c7e5584e306df0add338feac3b",
+  "web/src/presentation/objects/matrix_transform_inspector_tests.rs": "5eb8453a6ac9869c5cbe9687abf775abd0c692018761cdf22396f59b4ac7072d",
+  "web/src/renderer_host_page_base.rs": "b7131cfa9f51d27e52aea8a38730eaf9508b92d7b49775f2eb2a1ec9db1692f4",
+  "web/src/renderer_host.rs": "5d4454ead1b6a375b00e11aedb82ce5ed18c324e5caf1c6cbbaee5e7b0489576",
+  "scripts/wasm-test-owners.json": "e9da93520b1a82239b5056afba49b5936971cddd67beaa0d4287925c4e8dff19"
+}

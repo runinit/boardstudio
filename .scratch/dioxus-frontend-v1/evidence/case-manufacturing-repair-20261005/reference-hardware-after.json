@@ -1,0 +1,75 @@
+{
+  "revision": 67,
+  "sha256": "8a77143288201ddc086819c50779d63db14cedc90809debb4c86df9a18b80ed0",
+  "mechanical": {
+    "battery": {
+      "cableWidth": 2.4,
+      "size": {
+        "x": 28,
+        "y": 18,
+        "z": 5
+      },
+      "at": {
+        "x": 250,
+        "y": -45
+      },
+      "cableExit": {
+        "x": 264,
+        "y": -45
+      }
+    },
+    "openings": [
+      {
+        "points": [
+          {
+            "x": -3.2,
+            "y": -2.6
+          },
+          {
+            "x": 2.5,
+            "y": -2.5
+          },
+          {
+            "x": 2.5,
+            "y": 2.5
+          },
+          {
+            "x": -2.5,
+            "y": 2.5
+          }
+        ],
+        "z": -1,
+        "height": 8.5
+      }
+    ],
+    "hardware": [
+      {
+        "id": "1fb6f591-981a-454d-9b0c-c08ab6a208b1",
+        "partId": "plate",
+        "featureId": "auto-closure/mount-proposal-47",
+        "designation": "M2 socket screw",
+        "thread": "M2x0.4",
+        "length": 8,
+        "quantity": 6,
+        "notes": "Hardware qualification",
+        "tolerance": "0.2 mm"
+      }
+    ],
+    "criticalFits": [
+      {
+        "id": "cfd317c1-d084-4837-897c-d00e06f06246",
+        "partId": "bottom",
+        "label": "Closure span",
+        "from": {
+          "x": 200,
+          "y": -45
+        },
+        "to": {
+          "x": 210,
+          "y": -43
+        },
+        "tolerance": "\u00b10.15 mm"
+      }
+    ]
+  }
+}

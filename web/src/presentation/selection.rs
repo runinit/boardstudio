@@ -377,10 +377,9 @@ pub(super) fn submit_matrix_cell_selection(
 }
 
 /// An additive canvas selection is shown through the context for the resulting
-/// selection. Keeping the clicked singleton Component context here made the
-/// Inspector disappear as soon as a second part was selected. Same-matrix key
-/// groups retain the clicked Key context; mixed groups keep the first part as
-/// their generic component-position anchor.
+/// selection. Canvas key hits use `Key` contexts in Key mode and singleton
+/// `Component` contexts in Part mode, so both routes must derive Inspector
+/// ownership from the resulting selection after additive changes.
 fn additive_inspector_context(
     model: &boardstudio_application::ReadModel,
     requested: &TreeContext,
@@ -388,14 +387,16 @@ fn additive_inspector_context(
     mode: SelectionMode,
     hit_context: Option<&TreeContext>,
 ) -> TreeContext {
-    if !matches!(
-        requested,
-        TreeContext::Component {
-            part_id: Some(_),
-            matrix_id: None,
-            ..
-        }
-    ) || !matches!(mode, SelectionMode::Add | SelectionMode::Toggle)
+    if !matches!(mode, SelectionMode::Add | SelectionMode::Toggle)
+        || !matches!(
+            requested,
+            TreeContext::Key { .. }
+                | TreeContext::Component {
+                    part_id: Some(_),
+                    matrix_id: None,
+                    ..
+                }
+        )
     {
         return requested.clone();
     }

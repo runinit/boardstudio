@@ -1,0 +1,68 @@
+migration-deliver: 9 wasm-relevant Rust file(s) in this commit (e.g. web/src/presentation/mechanical_settings.rs); ensuring wasm32 cargo check
+migration-deliver: passed wasm32 page check; receipt=web/target/migration-gates/wasm-page-check/c408ed6e41e51feb74def8752f128e9af393ee5fb14e4fb4fc1f0e894d84c472.json started=2026-10-05T07:32:18+00:00 ended=2026-10-05T07:32:24+00:00 duration=6.60s
+migration-deliver: ensuring native web tests passed before committing
+migration-deliver: passed native web tests (failed=0, ignored=1, passed=245); receipt=web/target/migration-gates/native-web/4b23f4ca1c968c51db562df94f0539bc19fe574f63cf858e874425041665d896.json started=2026-10-05T07:32:25+00:00 ended=2026-10-05T07:32:29+00:00 duration=3.50s
+migration-deliver: ensuring scripts/check-wasm-tests.py passes for Rust files in this commit
+migration-deliver: passed wasm test reachability; receipt=web/target/migration-gates/wasm-test-reachability/7a1e4be7d748b298fc7916e0a0485e3ae6b5c609797c31e24cd9ec6087ac445e.json started=2026-10-05T07:32:30+00:00 ended=2026-10-05T07:32:32+00:00 duration=1.86s
+migration-deliver: ensuring wasm-bindgen tests pass in headless Chrome for changed modules
+migration-deliver: headless-Chrome wasm tests failed, were incomplete, or reported known exclusions (see scripts/run-wasm-tests.py; known failures live in scripts/wasm-known-failures.json):
+  FAILED presentation::mechanical_settings::contextual_layer_tests::assigned_profile_adds_component_clearance_polygon_without_extraction
+  FAILED presentation::mechanical_settings::contextual_layer_tests::custom_profile_geometry_controls_read_apply_edit_and_remove_assigned_profile
+
+run-wasm-tests: selection: web/src/presentation/mechanical_settings.rs -> direct module prefix 'presentation::mechanical_settings::': presentation::mechanical_settings::contextual_layer_tests::
+run-wasm-tests: selection: web/src/presentation/mechanical_settings_controller.rs -> direct module prefix 'presentation::mechanical_settings_controller::': presentation::mechanical_settings_controller::battery_patch_tests::
+run-wasm-tests: selection: web/src/presentation/mechanical_settings_mount.rs -> direct module prefix 'presentation::mechanical_settings_mount::': presentation::mechanical_settings_mount::tests::
+run-wasm-tests: selection: web/src/presentation/objects/matrix_transform_inspector_tests.rs -> direct module prefix 'presentation::objects::matrix_transform_inspector::mounted_tests::': presentation::objects::matrix_transform_inspector::mounted_tests::
+run-wasm-tests: selection: web/src/presentation/outline_lifecycle_browser_tests.rs -> direct module prefix 'presentation::outline_lifecycle::browser_tests::': presentation::outline_lifecycle::browser_tests::
+run-wasm-tests: selection: web/src/presentation/selection.rs -> no direct module or reviewed owner mapping; fail closed
+run-wasm-tests: selection: web/src/presentation/shared_viewer.rs -> direct module prefix 'presentation::shared_viewer::': presentation::shared_viewer::tests::
+run-wasm-tests: selection: web/src/renderer_host.rs -> no direct module or reviewed owner mapping; fail closed
+run-wasm-tests: [1/6] presentation::mechanical_settings::contextual_layer_tests::
+run-wasm-tests: [2/6] presentation::mechanical_settings_controller::battery_patch_tests::
+run-wasm-tests: [3/6] presentation::mechanical_settings_mount::tests::
+run-wasm-tests: [4/6] presentation::objects::matrix_transform_inspector::mounted_tests::
+run-wasm-tests: [5/6] presentation::outline_lifecycle::browser_tests::
+run-wasm-tests: [6/6] presentation::shared_viewer::tests::
+run-wasm-tests: zero tests executed for filter presentation::selection::; no matching module appeared in the wasm test list
+run-wasm-tests: zero tests executed for filter renderer_host::; no matching module appeared in the wasm test list
+--- presentation::mechanical_settings::contextual_layer_tests:: ---
+5445 |         let _ = input.blur();
+     |         +++++++
+
+warning: unused `std::result::Result` that must be used
+    --> src/presentation/mechanical_settings.rs:5464:9
+     |
+5464 |         input.blur();
+     |         ^^^^^^^^^^^^
+     |
+     = note: this `Result` may be an `Err` variant, which should be handled
+help: use `let _ = ...` to ignore the resulting value
+     |
+5464 |         let _ = input.blur();
+     |         +++++++
+
+warning: unused `std::result::Result` that must be used
+    --> src/presentation/mechanical_settings.rs:5481:9
+     |
+5481 |         input.blur();
+     |         ^^^^^^^^^^^^
+     |
+     = note: this `Result` may be an `Err` variant, which should be handled
+help: use `let _ = ...` to ignore the resulting value
+     |
+5481 |         let _ = input.blur();
+     |         +++++++
+
+warning: `boardstudio-web` (bin "boardstudio-web" test) generated 20 warnings (run `cargo fix --bin "boardstudio-web" -p boardstudio-web --tests` to apply 12 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+     Running unittests src/main.rs (target/wasm32-unknown-unknown/debug/deps/boardstudio_web-ade5ef492b9e030c.wasm)
+Error: some tests failed
+error: test failed, to rerun pass `--bin boardstudio-web`
+
+Caused by:
+  process didn't exit successfully: `/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-ade5ef492b9e030c.wasm 'presentation::mechanical_settings::contextual_layer_tests::'` (exit status: 1)
+note: test exited abnormally; to see the full output pass --no-capture to the harness.
+Error: Running Wasm tests with wasm-bindgen-test failed
+Caused by: Running Wasm tests with wasm-bindgen-test failed
+Caused by: failed to execute `cargo test`: exited with exit status: 1
+  full command: cd "web" && CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER="/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner" CHROMEDRIVER="/usr/bin/chromedriver" WASM_BINDGEN_TEST_ONLY_WEB="1" "cargo" "test" "--target" "wasm32-unknown-unknown" "--no-default-features" "--features" "page" "--bin" "boardstudio-web" "--" "presentation::mechanical_settings::contextual_layer_tests::"

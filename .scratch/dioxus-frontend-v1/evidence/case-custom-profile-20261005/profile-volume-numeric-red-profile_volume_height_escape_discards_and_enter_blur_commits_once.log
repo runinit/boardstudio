@@ -1,0 +1,463 @@
+Running headless tests in Chrome on `http://127.0.0.1:40639/`
+Try find `webdriver.json` for configure browser's capabilities:
+Ok
+Loading Wasm module...
+
+running 1 test
+test presentation::mechanical_settings::contextual_layer_tests::profile_volume_height_escape_discards_and_enter_blur_commits_once ... FAIL
+
+failures:
+
+---- presentation::mechanical_settings::contextual_layer_tests::profile_volume_height_escape_discards_and_enter_blur_commits_once output ----
+    error output:
+        panicked at src/presentation/mechanical_settings.rs:4977:9:
+        assertion `left == right` failed: Escape then blur must not submit the abandoned profile height
+          left: 3
+         right: 2
+        
+        Stack:
+        
+        Error
+            at http://127.0.0.1:41397/wasm-bindgen-test:1717:25
+            at logError (http://127.0.0.1:41397/wasm-bindgen-test:2935:18)
+            at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:41397/wasm-bindgen-test:1716:57)
+            at boardstudio_web-ade5ef492b9e030c.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:41397/wasm-bindgen-test_bg.wasm:wasm-function[208663]:0x26b3c2f)
+            at boardstudio_web-ade5ef492b9e030c.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:41397/wasm-bindgen-test_bg.wasm:wasm-function[118975]:0x22e9b34)
+            at boardstudio_web-ade5ef492b9e030c.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:41397/wasm-bindgen-test_bg.wasm:wasm-function[38979]:0x19e571b)
+            at boardstudio_web-ade5ef492b9e030c.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:41397/wasm-bindgen-test_bg.wasm:wasm-function[125069]:0x2346e61)
+            at boardstudio_web-ade5ef492b9e030c.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:41397/wasm-bindgen-test_bg.wasm:wasm-function[32991]:0x1897749)
+            at boardstudio_web-ade5ef492b9e030c.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:41397/wasm-bindgen-test_bg.wasm:wasm-function[69315]:0x1e9b2e5)
+            at boardstudio_web-ade5ef492b9e030c.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:41397/wasm-bindgen-test_bg.wasm:wasm-function[211529]:0x26bc5f2)
+        
+        
+    
+    JS exception that was thrown:
+        RuntimeError: unreachable
+            at boardstudio_web-ade5ef492b9e030c.wasm.__rustc[4b1ee1ef74718a7b]::__rust_abort (http://127.0.0.1:41397/wasm-bindgen-test_bg.wasm:wasm-function[212159]:0x26bd8c6)
+            at boardstudio_web-ade5ef492b9e030c.wasm.__rustc[4b1ee1ef74718a7b]::__rust_start_panic (http://127.0.0.1:41397/wasm-bindgen-test_bg.wasm:wasm-function[212058]:0x26bd701)
+            at boardstudio_web-ade5ef492b9e030c.wasm.__rustc[4b1ee1ef74718a7b]::rust_panic (http://127.0.0.1:41397/wasm-bindgen-test_bg.wasm:wasm-function[209439]:0x26b6503)
+            at boardstudio_web-ade5ef492b9e030c.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:41397/wasm-bindgen-test_bg.wasm:wasm-function[32991]:0x18977bc)
+            at boardstudio_web-ade5ef492b9e030c.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:41397/wasm-bindgen-test_bg.wasm:wasm-function[69315]:0x1e9b2e5)
+            at boardstudio_web-ade5ef492b9e030c.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:41397/wasm-bindgen-test_bg.wasm:wasm-function[211529]:0x26bc5f2)
+            at boardstudio_web-ade5ef492b9e030c.wasm.__rustc[4b1ee1ef74718a7b]::rust_begin_unwind (http://127.0.0.1:41397/wasm-bindgen-test_bg.wasm:wasm-function[162441]:0x2521119)
+            at boardstudio_web-ade5ef492b9e030c.wasm.core[f0fd674eaa06beef]::panicking::panic_fmt (http://127.0.0.1:41397/wasm-bindgen-test_bg.wasm:wasm-function[122731]:0x2323ef2)
+            at boardstudio_web-ade5ef492b9e030c.wasm.core[f0fd674eaa06beef]::panicking::assert_failed_inner (http://127.0.0.1:41397/wasm-bindgen-test_bg.wasm:wasm-function[28694]:0x177f12d)
+            at boardstudio_web-ade5ef492b9e030c.wasm.core[f0fd674eaa06beef]::panicking::assert_failed::<u64, u64> (http://127.0.0.1:41397/wasm-bindgen-test_bg.wasm:wasm-function[131508]:0x23a1ef9)
+
+failures:
+
+    presentation::mechanical_settings::contextual_layer_tests::profile_volume_height_escape_discards_and_enter_blur_commits_once
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 315 filtered out; finished in 0.30s
+
+console output:
+    using deprecated parameters for the initialization function; pass a single object instead
+    Invoking test: presentation::mechanical_settings::contextual_layer_tests::profile_volume_height_escape_discards_and_enter_blur_commits_once
+    panicked at src/presentation/mechanical_settings.rs:4977:9:
+    assertion `left == right` failed: Escape then blur must not submit the abandoned profile height
+      left: 3
+     right: 2
+    
+    Stack:
+    
+    Error
+        at http://127.0.0.1:41397/wasm-bindgen-test:1717:25
+        at logError (http://127.0.0.1:41397/wasm-bindgen-test:2935:18)
+        at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:41397/wasm-bindgen-test:1716:57)
+        at boardstudio_web-ade5ef492b9e030c.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:41397/wasm-bindgen-test_bg.wasm:wasm-function[208663]:0x26b3c2f)
+        at boardstudio_web-ade5ef492b9e030c.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:41397/wasm-bindgen-test_bg.wasm:wasm-function[118975]:0x22e9b34)
+        at boardstudio_web-ade5ef492b9e030c.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:41397/wasm-bindgen-test_bg.wasm:wasm-function[38979]:0x19e571b)
+        at boardstudio_web-ade5ef492b9e030c.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:41397/wasm-bindgen-test_bg.wasm:wasm-function[125069]:0x2346e61)
+        at boardstudio_web-ade5ef492b9e030c.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:41397/wasm-bindgen-test_bg.wasm:wasm-function[32991]:0x1897749)
+        at boardstudio_web-ade5ef492b9e030c.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:41397/wasm-bindgen-test_bg.wasm:wasm-function[69315]:0x1e9b2e5)
+        at boardstudio_web-ade5ef492b9e030c.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:41397/wasm-bindgen-test_bg.wasm:wasm-function[211529]:0x26bc5f2)
+    
+    
+
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web)
+warning: unused import: `ProjectDoc`
+ --> src/presentation/case_controller.rs:9:82
+  |
+9 |     CaseBody, CaseKind, EditCommand, EditOperation, EditPhase, Mount, MountKind, ProjectDoc, Vec2,
+  |                                                                                  ^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `wasm_bindgen_futures::spawn_local`
+  --> src/presentation/mechanical_settings.rs:20:5
+   |
+20 | use wasm_bindgen_futures::spawn_local;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `SessionEpoch` and `SnapshotToken`
+    --> src/presentation/pcb_wiring.rs:1111:35
+     |
+1111 |     use boardstudio_application::{SessionEpoch, SnapshotToken};
+     |                                   ^^^^^^^^^^^^  ^^^^^^^^^^^^^
+
+warning: use of deprecated unit struct `presentation::mechanical_settings::ManufacturingControls::{closure#2}::_::Warning`: Keys are only allowed on the first node in the block.
+    --> src/presentation/mechanical_settings.rs:2753:38
+     |
+2753 | ...                   key: "process-thickness:{target.part_id}",
+     |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(deprecated)]` on by default
+
+warning: variable does not need to be mutable
+   --> src/presentation/objects/matrix_transform_inspector_tests.rs:693:9
+    |
+693 |     let mut dom = VirtualDom::new(matrix_transform_host);
+    |         ----^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:3207:9
+     |
+3207 |     let mut geometry_state = use_signal(|| None::<MechanicalGeometry>);
+     |         ----^^^^^^^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:3208:9
+     |
+3208 |     let mut selected = use_signal(|| Vec::<String>::new());
+     |         ----^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:3209:9
+     |
+3209 |     let mut purposes = use_signal(|| Vec::<MechanicalPurposeMapping>::new());
+     |         ----^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:3210:9
+     |
+3210 |     let mut busy = use_signal(|| false);
+     |         ----^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:3211:9
+     |
+3211 |     let mut error = use_signal(String::new);
+     |         ----^^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:3317:37
+     |
+3317 | ...                   let mut sequence = props.request_sequence;
+     |                           ----^^^^^^^^
+     |                           |
+     |                           help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:4719:13
+     |
+4719 |         let mut extracted_definition_ids = use_signal(Vec::<String>::new);
+     |             ----^^^^^^^^^^^^^^^^^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/parts/preview.rs:1120:13
+     |
+1120 |         let mut selection = use_signal(|| None::<(Option<Scope>, String)>);
+     |             ----^^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: struct `ModuleGroup` is never constructed
+  --> src/presentation/parts/modules_catalogue.rs:32:19
+   |
+32 | pub(super) struct ModuleGroup {
+   |                   ^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `matches` is never used
+  --> src/presentation/parts/modules_catalogue.rs:39:12
+   |
+38 | impl ModuleGroup {
+   | ---------------- method in this implementation
+39 |     pub fn matches(&self, query: &str) -> bool {
+   |            ^^^^^^^
+
+warning: function `group_choices` is never used
+   --> src/presentation/parts/modules_catalogue.rs:328:15
+    |
+328 | pub(super) fn group_choices(entries: &[ModuleEntry]) -> Vec<ModuleGroup> {
+    |               ^^^^^^^^^^^^^
+
+warning: unused `std::result::Result` that must be used
+   --> src/presentation/layout_component_inspector_tests.rs:964:5
+    |
+964 |     x.blur();
+    |     ^^^^^^^^
+    |
+    = note: this `Result` may be an `Err` variant, which should be handled
+    = note: `#[warn(unused_must_use)]` (part of `#[warn(unused)]`) on by default
+help: use `let _ = ...` to ignore the resulting value
+    |
+964 |     let _ = x.blur();
+    |     +++++++
+
+warning: unused `std::result::Result` that must be used
+    --> src/presentation/mechanical_settings.rs:5381:9
+     |
+5381 |         input.blur();
+     |         ^^^^^^^^^^^^
+     |
+     = note: this `Result` may be an `Err` variant, which should be handled
+help: use `let _ = ...` to ignore the resulting value
+     |
+5381 |         let _ = input.blur();
+     |         +++++++
+
+warning: unused `std::result::Result` that must be used
+    --> src/presentation/mechanical_settings.rs:5400:9
+     |
+5400 |         input.blur();
+     |         ^^^^^^^^^^^^
+     |
+     = note: this `Result` may be an `Err` variant, which should be handled
+help: use `let _ = ...` to ignore the resulting value
+     |
+5400 |         let _ = input.blur();
+     |         +++++++
+
+warning: unused `std::result::Result` that must be used
+    --> src/presentation/mechanical_settings.rs:5417:9
+     |
+5417 |         input.blur();
+     |         ^^^^^^^^^^^^
+     |
+     = note: this `Result` may be an `Err` variant, which should be handled
+help: use `let _ = ...` to ignore the resulting value
+     |
+5417 |         let _ = input.blur();
+     |         +++++++
+
+warning: `boardstudio-web` (bin "boardstudio-web" test) generated 20 warnings (run `cargo fix --bin "boardstudio-web" -p boardstudio-web --tests` to apply 12 suggestions)
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:3207:9
+     |
+3207 |     let mut geometry_state = use_signal(|| None::<MechanicalGeometry>);
+     |         ----^^^^^^^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `standard_profile_reply_matches` is never used
+   --> src/presentation/parts/mechanical_profile.rs:148:15
+    |
+148 | pub(crate) fn standard_profile_reply_matches(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `ModuleGroup` is never constructed
+  --> src/presentation/parts/modules_catalogue.rs:32:19
+   |
+32 | pub(super) struct ModuleGroup {
+   |                   ^^^^^^^^^^^
+
+warning: `boardstudio-web` (bin "boardstudio-web") generated 13 warnings (10 duplicates) (run `cargo fix --bin "boardstudio-web" -p boardstudio-web` to apply 1 suggestion)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 10.39s
+warning: unused import: `ProjectDoc`
+ --> src/presentation/case_controller.rs:9:82
+  |
+9 |     CaseBody, CaseKind, EditCommand, EditOperation, EditPhase, Mount, MountKind, ProjectDoc, Vec2,
+  |                                                                                  ^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `wasm_bindgen_futures::spawn_local`
+  --> src/presentation/mechanical_settings.rs:20:5
+   |
+20 | use wasm_bindgen_futures::spawn_local;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `SessionEpoch` and `SnapshotToken`
+    --> src/presentation/pcb_wiring.rs:1111:35
+     |
+1111 |     use boardstudio_application::{SessionEpoch, SnapshotToken};
+     |                                   ^^^^^^^^^^^^  ^^^^^^^^^^^^^
+
+warning: use of deprecated unit struct `presentation::mechanical_settings::ManufacturingControls::{closure#2}::_::Warning`: Keys are only allowed on the first node in the block.
+    --> src/presentation/mechanical_settings.rs:2753:38
+     |
+2753 | ...                   key: "process-thickness:{target.part_id}",
+     |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(deprecated)]` on by default
+
+warning: variable does not need to be mutable
+   --> src/presentation/objects/matrix_transform_inspector_tests.rs:693:9
+    |
+693 |     let mut dom = VirtualDom::new(matrix_transform_host);
+    |         ----^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:3207:9
+     |
+3207 |     let mut geometry_state = use_signal(|| None::<MechanicalGeometry>);
+     |         ----^^^^^^^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:3208:9
+     |
+3208 |     let mut selected = use_signal(|| Vec::<String>::new());
+     |         ----^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:3209:9
+     |
+3209 |     let mut purposes = use_signal(|| Vec::<MechanicalPurposeMapping>::new());
+     |         ----^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:3210:9
+     |
+3210 |     let mut busy = use_signal(|| false);
+     |         ----^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:3211:9
+     |
+3211 |     let mut error = use_signal(String::new);
+     |         ----^^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:3317:37
+     |
+3317 | ...                   let mut sequence = props.request_sequence;
+     |                           ----^^^^^^^^
+     |                           |
+     |                           help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:4719:13
+     |
+4719 |         let mut extracted_definition_ids = use_signal(Vec::<String>::new);
+     |             ----^^^^^^^^^^^^^^^^^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/presentation/parts/preview.rs:1120:13
+     |
+1120 |         let mut selection = use_signal(|| None::<(Option<Scope>, String)>);
+     |             ----^^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: struct `ModuleGroup` is never constructed
+  --> src/presentation/parts/modules_catalogue.rs:32:19
+   |
+32 | pub(super) struct ModuleGroup {
+   |                   ^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `matches` is never used
+  --> src/presentation/parts/modules_catalogue.rs:39:12
+   |
+38 | impl ModuleGroup {
+   | ---------------- method in this implementation
+39 |     pub fn matches(&self, query: &str) -> bool {
+   |            ^^^^^^^
+
+warning: function `group_choices` is never used
+   --> src/presentation/parts/modules_catalogue.rs:328:15
+    |
+328 | pub(super) fn group_choices(entries: &[ModuleEntry]) -> Vec<ModuleGroup> {
+    |               ^^^^^^^^^^^^^
+
+warning: unused `std::result::Result` that must be used
+   --> src/presentation/layout_component_inspector_tests.rs:964:5
+    |
+964 |     x.blur();
+    |     ^^^^^^^^
+    |
+    = note: this `Result` may be an `Err` variant, which should be handled
+    = note: `#[warn(unused_must_use)]` (part of `#[warn(unused)]`) on by default
+help: use `let _ = ...` to ignore the resulting value
+    |
+964 |     let _ = x.blur();
+    |     +++++++
+
+warning: unused `std::result::Result` that must be used
+    --> src/presentation/mechanical_settings.rs:5381:9
+     |
+5381 |         input.blur();
+     |         ^^^^^^^^^^^^
+     |
+     = note: this `Result` may be an `Err` variant, which should be handled
+help: use `let _ = ...` to ignore the resulting value
+     |
+5381 |         let _ = input.blur();
+     |         +++++++
+
+warning: unused `std::result::Result` that must be used
+    --> src/presentation/mechanical_settings.rs:5400:9
+     |
+5400 |         input.blur();
+     |         ^^^^^^^^^^^^
+     |
+     = note: this `Result` may be an `Err` variant, which should be handled
+help: use `let _ = ...` to ignore the resulting value
+     |
+5400 |         let _ = input.blur();
+     |         +++++++
+
+warning: unused `std::result::Result` that must be used
+    --> src/presentation/mechanical_settings.rs:5417:9
+     |
+5417 |         input.blur();
+     |         ^^^^^^^^^^^^
+     |
+     = note: this `Result` may be an `Err` variant, which should be handled
+help: use `let _ = ...` to ignore the resulting value
+     |
+5417 |         let _ = input.blur();
+     |         +++++++
+
+warning: `boardstudio-web` (bin "boardstudio-web" test) generated 20 warnings (run `cargo fix --bin "boardstudio-web" -p boardstudio-web --tests` to apply 12 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.25s
+     Running unittests src/main.rs (target/wasm32-unknown-unknown/debug/deps/boardstudio_web-ade5ef492b9e030c.wasm)
+Error: some tests failed
+error: test failed, to rerun pass `--bin boardstudio-web`
+
+Caused by:
+  process didn't exit successfully: `/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-ade5ef492b9e030c.wasm 'presentation::mechanical_settings::contextual_layer_tests::profile_volume_height_escape_discards_and_enter_blur_commits_once'` (exit status: 1)
+note: test exited abnormally; to see the full output pass --no-capture to the harness.
+Error: Running Wasm tests with wasm-bindgen-test failed
+Caused by: Running Wasm tests with wasm-bindgen-test failed
+Caused by: failed to execute `cargo test`: exited with exit status: 1
+  full command: cd "web" && CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER="/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner" CHROMEDRIVER="/usr/bin/chromedriver" WASM_BINDGEN_TEST_ONLY_WEB="1" "cargo" "test" "--target" "wasm32-unknown-unknown" "--no-default-features" "--features" "page" "--bin" "boardstudio-web" "--" "presentation::mechanical_settings::contextual_layer_tests::profile_volume_height_escape_discards_and_enter_blur_commits_once"

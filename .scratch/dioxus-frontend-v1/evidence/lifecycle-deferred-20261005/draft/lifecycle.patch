@@ -1,0 +1,504 @@
+--- a/web/src/renderer_host_page_base.rs
++++ b/web/src/renderer_host_page_base.rs
+@@ -124,7 +124,6 @@
+         Ok(Self { inner })
+     }
+ 
+-
+     pub fn orbit(&self, delta_x: f64, delta_y: f64) -> Result<(), String> {
+         self.camera("orbit", &[delta_x.into(), delta_y.into()])
+     }
+@@ -492,9 +491,10 @@
+     fn scripted_renderer(fail: &str) -> JsValue {
+         Function::new_with_args(
+             "fail",
+-            "const calls = { setScene: 0, fit: 0, resize: 0, render: 0, dispose: 0, free: 0, zoom: 0 };
++            "const calls = { setScene: 0, fit: 0, resize: 0, render: 0, dispose: 0, free: 0, zoom: 0, args: {} };
+              const hook = (name) => function () {
+                calls[name] += 1;
++               (calls.args[name] ||= []).push(Array.from(arguments));
+                if (fail === name) { throw new Error(name + ' failed'); }
+              };
+              return { calls, setScene: hook('setScene'), fit: hook('fit'), resize: hook('resize'),
+@@ -513,6 +513,41 @@
+             .unwrap() as u32
+     }
+ 
++    fn resize_args(renderer: &JsValue, index: u32) -> (u32, u32) {
++        let calls = Reflect::get(renderer, &JsValue::from_str("calls")).unwrap();
++        let args = Reflect::get(&calls, &JsValue::from_str("args")).unwrap();
++        let resizes = Reflect::get(&args, &JsValue::from_str("resize"))
++            .unwrap()
++            .dyn_into::<Array>()
++            .unwrap();
++        let call = resizes.get(index).dyn_into::<Array>().unwrap();
++        (
++            call.get(0).as_f64().unwrap() as u32,
++            call.get(1).as_f64().unwrap() as u32,
++        )
++    }
++
++    fn controlled_dpr(value: f64) -> JsValue {
++        Function::new_with_args(
++            "value",
++            "const descriptor = Object.getOwnPropertyDescriptor(window, 'devicePixelRatio');
++             Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value });
++             return descriptor || null;",
++        )
++        .call1(&JsValue::NULL, &JsValue::from_f64(value))
++        .unwrap()
++    }
++
++    fn restore_dpr(descriptor: &JsValue) {
++        Function::new_with_args(
++            "descriptor",
++            "if (descriptor) { Object.defineProperty(window, 'devicePixelRatio', descriptor); }
++             else { delete window.devicePixelRatio; }",
++        )
++        .call1(&JsValue::NULL, descriptor)
++        .unwrap();
++    }
++
+     /// Count live (target, type, callback) registrations for the listener types the
+     /// host installs, plus ResizeObserver observe/disconnect balance.
+     struct ListenerSpy;
+@@ -521,12 +556,13 @@
+         fn install() -> Self {
+             Function::new_no_args(
+                 "if (window.__rendererSpy) { return; }
+-                 const spy = { entries: [], observers: 0, original: {} };
++                 const spy = { entries: [], observers: 0, queries: [], original: {} };
+                  const watched = ['resize', 'change', 'webglcontextlost'];
+                  const proto = EventTarget.prototype;
+                  spy.original.add = proto.addEventListener;
+                  spy.original.remove = proto.removeEventListener;
+                  proto.addEventListener = function (type, callback, options) {
++                   if (type === 'change' && typeof this.media === 'string') { spy.queries.push(this); }
+                    if (watched.includes(type) && !spy.entries.some((e) => e.t === this && e.type === type && e.cb === callback)) {
+                      spy.entries.push({ t: this, type, cb: callback });
+                    }
+@@ -555,6 +591,33 @@
+                 .unwrap() as u32
+         }
+ 
++        fn query_count(&self) -> u32 {
++            Function::new_no_args("return window.__rendererSpy.queries.length")
++                .call0(&JsValue::NULL)
++                .unwrap()
++                .as_f64()
++                .unwrap() as u32
++        }
++
++        fn query(&self, index: u32) -> MediaQueryList {
++            Function::new_with_args("index", "return window.__rendererSpy.queries[index]")
++                .call1(&JsValue::NULL, &JsValue::from_f64(index as f64))
++                .unwrap()
++                .dyn_into::<MediaQueryList>()
++                .unwrap()
++        }
++
++        fn has_live_change_listener(&self, query: &MediaQueryList) -> bool {
++            Function::new_with_args(
++                "query",
++                "return window.__rendererSpy.entries.some((entry) => entry.t === query && entry.type === 'change')",
++            )
++            .call1(&JsValue::NULL, query.as_ref())
++            .unwrap()
++            .as_bool()
++            .unwrap()
++        }
++
+         fn live_observers(&self) -> i32 {
+             Function::new_no_args("return window.__rendererSpy.observers")
+                 .call0(&JsValue::NULL)
+@@ -618,6 +681,64 @@
+ 
+     fn state(canvas: &HtmlCanvasElement) -> Option<String> {
+         canvas.get_attribute("data-renderer-state")
++    }
++
++    #[wasm_bindgen_test]
++    async fn resize_and_dpr_changes_update_backing_size_and_rearm_listener() {
++        let spy = ListenerSpy::install();
++        let baseline = spy.live_listeners();
++        let descriptor = controlled_dpr(1.0);
++        let renderer = scripted_renderer("");
++        let canvas = make_canvas();
++        let (status, _) = status_log();
++        let host = attach(&renderer, &canvas, status).expect("scripted renderer attaches");
++        assert_eq!((canvas.width(), canvas.height()), (200, 100));
++        assert_eq!(resize_args(&renderer, 0), (200, 100));
++        assert_eq!(canvas.get_attribute("data-dpr").as_deref(), Some("1"));
++        assert_eq!(spy.query_count(), 1);
++        let old_query = spy.query(0);
++        assert!(spy.has_live_change_listener(&old_query));
++
++        canvas
++            .set_attribute("style", "width:240px;height:120px")
++            .unwrap();
++        web_sys::window()
++            .unwrap()
++            .dispatch_event(&web_sys::Event::new("resize").unwrap())
++            .unwrap();
++        assert_eq!((canvas.width(), canvas.height()), (240, 120));
++        assert_eq!(resize_args(&renderer, 1), (240, 120));
++
++        let _ = controlled_dpr(2.0);
++        old_query
++            .dispatch_event(&web_sys::Event::new("change").unwrap())
++            .unwrap();
++        assert_eq!((canvas.width(), canvas.height()), (480, 240));
++        assert_eq!(resize_args(&renderer, 2), (480, 240));
++        assert_eq!(canvas.get_attribute("data-dpr").as_deref(), Some("2"));
++        assert_eq!(
++            spy.query_count(),
++            2,
++            "DPR listener is re-armed for the new scale"
++        );
++        assert!(
++            !spy.has_live_change_listener(&old_query),
++            "old media query listener is removed"
++        );
++        let new_query = spy.query(1);
++        assert!(spy.has_live_change_listener(&new_query));
++
++        drop(host);
++        assert_eq!(calls(&renderer, "dispose"), 1);
++        assert_eq!(calls(&renderer, "free"), 1);
++        assert_eq!(
++            spy.live_listeners(),
++            baseline,
++            "resize/DPR listeners are disposed"
++        );
++        assert_eq!(spy.live_observers(), 0);
++        restore_dpr(&descriptor);
++        canvas.remove();
+     }
+ 
+     #[wasm_bindgen_test]
+--- a/web/src/presentation/pcb_module_inspector.rs
++++ b/web/src/presentation/pcb_module_inspector.rs
+@@ -1067,3 +1067,323 @@
+         );
+     }
+ }
++
++#[cfg(all(test, target_arch = "wasm32"))]
++mod mounted_save_replacement_tests {
++    use super::*;
++    use boardstudio_application::{
++        Completion, Effect, OperationId, SaveResult, Scope as AppScope, Session,
++    };
++    use boardstudio_core::{CoreEngine, model::*};
++    use dioxus::prelude::*;
++    use gloo_timers::future::TimeoutFuture;
++    use std::{collections::VecDeque, rc::Rc};
++    use wasm_bindgen::JsCast;
++    use wasm_bindgen_test::wasm_bindgen_test;
++    use web_sys::HtmlInputElement;
++
++    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
++
++    struct Probe {
++        runtime: Rc<Runtime>,
++        initial_scope: AppScope,
++        module_id: String,
++    }
++
++    fn mounted_editor_host() -> dioxus::prelude::Element {
++        let probe = use_context::<Rc<Probe>>();
++        let version = use_signal(|| 0_u64);
++        use_hook(|| {
++            probe.runtime.subscribe(Rc::new(move || {
++                let mut version = version;
++                version.set(version() + 1);
++            }));
++        });
++        let _ = version();
++        let selected_context = use_signal(|| {
++            Some(super::super::objects::ScopedTreeContext {
++                scope: probe.initial_scope.clone(),
++                context: super::super::objects::TreeContext::MountedModule {
++                    board_id: probe.initial_scope.board_id.clone(),
++                    module_id: probe.module_id.clone(),
++                },
++            })
++        });
++        let model = probe.runtime.model();
++        let Some(snapshot) = model.accepted else {
++            return rsx! { p { "No accepted project" } };
++        };
++        let Some(scope) = probe.runtime.scope() else {
++            return rsx! { p { "No current project scope" } };
++        };
++        if scope != probe.initial_scope {
++            return rsx! {
++                p { id: "replacement-project", "{snapshot.document.name}" }
++            };
++        }
++        super::inspector(InspectorInput {
++            runtime: probe.runtime.clone(),
++            snapshot,
++            scope,
++            module_id: probe.module_id.clone(),
++            selected_context,
++            on_place_component: EventHandler::default(),
++        })
++    }
++
++    fn module_document(id: &str, name: &str, x: f64) -> ProjectDoc {
++        let mut document = ProjectDoc::empty(id, name);
++        document.boards.push(Board {
++            id: "board-collision".into(),
++            name: "Main board".into(),
++            outline_ids: Vec::new(),
++            part_ids: Vec::new(),
++            net_ids: Vec::new(),
++            thickness: 1.6,
++            traces: Vec::new(),
++            vias: Vec::new(),
++        });
++        document.module_definitions.push(ModuleDefinition {
++            id: "definition-collision".into(),
++            catalogue_row: None,
++            name: "Test module".into(),
++            family: "test".into(),
++            variant: "test".into(),
++            source: HardwareSource {
++                repository: "test".into(),
++                revision: "1".into(),
++                path: "test.module.json".into(),
++                license: "test".into(),
++                sha256: None,
++                upstream_status: None,
++            },
++            board: ModuleBoard {
++                contours: Vec::new(),
++                holes: Vec::new(),
++                thickness: Some(1.6),
++            },
++            mounts: Vec::new(),
++            volumes: Vec::new(),
++            openings: Vec::new(),
++            models: Vec::new(),
++            candidate_models: Vec::new(),
++            gates: Vec::new(),
++            interfaces: Vec::new(),
++            electrical: ModuleElectrical {
++                protocol: ModuleProtocol::Nonstandard,
++                required_signals: Vec::new(),
++                logic_voltage: None,
++                current_ma: None,
++                i2c_address: None,
++                pullup_ohms: None,
++                driver: None,
++                rotary_profile: None,
++            },
++            constituents: Vec::new(),
++            circuit: None,
++        });
++        document.modules.push(MountedModule {
++            id: "placement-collision".into(),
++            definition_id: "definition-collision".into(),
++            host_board_id: "board-collision".into(),
++            host_instance_id: None,
++            host_face: Side::Front,
++            facing_face: Side::Front,
++            at: Vec2 { x, y: 2.0 },
++            rotation: 0.0,
++            gap: 1.0,
++            attachment: ModuleAttachment::Board,
++            detached: false,
++            connection: None,
++            service_clearance: 0.0,
++            mount_supports: Vec::new(),
++        });
++        document
++    }
++
++    fn accepted(document: ProjectDoc) -> (Session, CoreEngine) {
++        let mut session = Session::new();
++        let mut core = CoreEngine::new();
++        let effects = session.submit(boardstudio_application::Event::Open {
++            operation_id: OperationId(1),
++            document,
++        });
++        let mut effects = VecDeque::from(effects);
++        while let Some(effect) = effects.pop_front() {
++            match effect {
++                Effect::Core {
++                    request_id,
++                    executor_epoch,
++                    request,
++                    ..
++                } => effects.extend(session.complete(Completion::Core {
++                    request_id,
++                    executor_epoch,
++                    reply: Box::new(core.handle(*request)),
++                })),
++                Effect::Persist {
++                    save_attempt_id, ..
++                } => {
++                    effects.extend(session.complete(Completion::Persist {
++                        save_attempt_id,
++                        result: SaveResult::Committed,
++                    }));
++                }
++                _ => {}
++            }
++        }
++        assert!(session.read_model().accepted.is_some());
++        (session, core)
++    }
++
++    async fn settle() {
++        TimeoutFuture::new(80).await;
++    }
++
++    async fn wait_for_persisted_module_x(
++        runtime: &Runtime,
++        expected_revision: u64,
++        expected_x: f64,
++    ) -> ProjectDoc {
++        for _ in 0..100 {
++            if let Some(document) = runtime
++                .store
++                .load_document("old-module-project".into())
++                .await
++                .expect("read old project from IndexedDB")
++                && document.revision == expected_revision
++                && document.modules[0].at.x == expected_x
++            {
++                return document;
++            }
++            TimeoutFuture::new(10).await;
++        }
++        panic!(
++            "old-project IndexedDB save did not reach revision {expected_revision} with X={expected_x}"
++        );
++    }
++
++    #[wasm_bindgen_test]
++    async fn mounted_save_persist_settlement_cannot_cross_replacement_with_colliding_ids() {
++        let (session, core) = accepted(module_document("old-module-project", "Old project", 1.0));
++        let runtime = crate::runtime::project_name_test_support::new_runtime();
++        crate::runtime::project_name_test_support::install(&runtime, session, core);
++        let initial = runtime.model().accepted.expect("old project accepted");
++        runtime
++            .store
++            .save_document(&initial.document, &std::collections::BTreeMap::new())
++            .await
++            .expect("seed the old project's durable baseline");
++        let initial_scope = runtime.scope().expect("old project has scope");
++        let probe = Rc::new(Probe {
++            runtime: runtime.clone(),
++            initial_scope,
++            module_id: "placement-collision".into(),
++        });
++        let document = web_sys::window().unwrap().document().unwrap();
++        let root = document.create_element("div").unwrap();
++        root.set_id("mounted-module-save-replacement-test-root");
++        document.body().unwrap().append_child(&root).unwrap();
++        let dom = VirtualDom::new(mounted_editor_host);
++        dom.provide_root_context(probe);
++        dioxus_web::launch::launch_virtual_dom(
++            dom,
++            dioxus_web::Config::new().rootnode(root.clone().into()),
++        );
++        settle().await;
++
++        let (entered, release) =
++            crate::runtime::project_name_test_support::gate_next_persist(&runtime);
++        let operation = crate::runtime::project_name_test_support::observe_next(&runtime);
++        let x = root
++            .query_selector("input[type='number']")
++            .unwrap()
++            .expect("mounted placement X input exists")
++            .dyn_into::<HtmlInputElement>()
++            .unwrap();
++        x.set_value("7.25");
++        let input = web_sys::EventInit::new();
++        input.set_bubbles(true);
++        x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &input).unwrap())
++            .unwrap();
++        root.query_selector("button.m1-primary-button")
++            .unwrap()
++            .expect("Save placement button exists")
++            .dyn_into::<web_sys::HtmlElement>()
++            .unwrap()
++            .click();
++        crate::runtime::project_name_test_support::drive_pending(&runtime);
++        entered
++            .await
++            .expect("the mounted Save reaches the actual Session Persist effect");
++
++        let saving = runtime.model();
++        let saving_snapshot = saving
++            .accepted
++            .expect("old project remains accepted while saving");
++        assert_eq!(saving.lifecycle, Lifecycle::Saving);
++        assert_eq!(saving_snapshot.document.id, "old-module-project");
++        assert_eq!(
++            saving_snapshot.document.modules[0].at.x, 7.25,
++            "the mounted Save was applied to the old accepted project before persistence"
++        );
++        let saved_revision = saving_snapshot.document.revision;
++
++        let (replacement, _replacement_core) = accepted(module_document(
++            "new-module-project",
++            "Replacement project",
++            4.0,
++        ));
++        crate::runtime::project_name_test_support::replace_session(&runtime, replacement);
++        settle().await;
++        assert_eq!(
++            root.query_selector("#replacement-project")
++                .unwrap()
++                .expect("replacement owner retires the old mounted editor")
++                .text_content()
++                .as_deref(),
++            Some("Replacement project")
++        );
++        assert!(
++            root.query_selector(".m1-pcb-module-inspector")
++                .unwrap()
++                .is_none(),
++            "old placement feedback/editor is absent in the replacement owner"
++        );
++        let replacement_before = runtime.model().accepted.expect("replacement accepted");
++        assert_eq!(replacement_before.document.id, "new-module-project");
++        assert_eq!(replacement_before.document.modules[0].at.x, 4.0);
++        let revision = replacement_before.document.revision;
++
++        release
++            .send(())
++            .expect("release the old project persistence");
++        let persisted = wait_for_persisted_module_x(&runtime, saved_revision, 7.25).await;
++        assert_eq!(persisted.id, "old-module-project");
++        assert_eq!(persisted.revision, saved_revision);
++        assert_eq!(persisted.modules[0].at.x, 7.25);
++        let replacement_after = runtime
++            .model()
++            .accepted
++            .expect("replacement remains accepted");
++        assert_eq!(replacement_after.document.id, "new-module-project");
++        assert_eq!(replacement_after.document.revision, revision);
++        assert_eq!(replacement_after.document.modules[0].at.x, 4.0);
++        assert!(
++            operation.borrow().is_none(),
++            "after the old IndexedDB write completes, the replacement Session has no old-operation feedback"
++        );
++        assert!(
++            !root
++                .text_content()
++                .unwrap_or_default()
++                .contains("Placement saved.")
++        );
++        let _ = runtime
++            .store
++            .delete_project("old-module-project".into())
++            .await;
++        let _ = document.body().unwrap().remove_child(&root);
++        runtime.unsubscribe();
++    }
++}

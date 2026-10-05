@@ -499,9 +499,10 @@ mod lifecycle_tests {
     fn scripted_renderer(fail: &str) -> JsValue {
         Function::new_with_args(
             "fail",
-            "const calls = { setScene: 0, fit: 0, resize: 0, render: 0, dispose: 0, free: 0, zoom: 0 };
+            "const calls = { setScene: 0, fit: 0, resize: 0, render: 0, dispose: 0, free: 0, zoom: 0, args: {} };
              const hook = (name) => function () {
                calls[name] += 1;
+               (calls.args[name] ||= []).push(Array.from(arguments));
                if (fail === name) { throw new Error(name + ' failed'); }
              };
              return { calls, setScene: hook('setScene'), fit: hook('fit'), resize: hook('resize'),
@@ -520,6 +521,41 @@ mod lifecycle_tests {
             .unwrap() as u32
     }
 
+    fn resize_args(renderer: &JsValue, index: u32) -> (u32, u32) {
+        let calls = Reflect::get(renderer, &JsValue::from_str("calls")).unwrap();
+        let args = Reflect::get(&calls, &JsValue::from_str("args")).unwrap();
+        let resizes = Reflect::get(&args, &JsValue::from_str("resize"))
+            .unwrap()
+            .dyn_into::<Array>()
+            .unwrap();
+        let call = resizes.get(index).dyn_into::<Array>().unwrap();
+        (
+            call.get(0).as_f64().unwrap() as u32,
+            call.get(1).as_f64().unwrap() as u32,
+        )
+    }
+
+    fn controlled_dpr(value: f64) -> JsValue {
+        Function::new_with_args(
+            "value",
+            "const descriptor = Object.getOwnPropertyDescriptor(window, 'devicePixelRatio');
+             Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value });
+             return descriptor || null;",
+        )
+        .call1(&JsValue::NULL, &JsValue::from_f64(value))
+        .unwrap()
+    }
+
+    fn restore_dpr(descriptor: &JsValue) {
+        Function::new_with_args(
+            "descriptor",
+            "if (descriptor) { Object.defineProperty(window, 'devicePixelRatio', descriptor); }
+             else { delete window.devicePixelRatio; }",
+        )
+        .call1(&JsValue::NULL, descriptor)
+        .unwrap();
+    }
+
     /// Count live (target, type, callback) registrations for the listener types the
     /// host installs, plus ResizeObserver observe/disconnect balance.
     struct ListenerSpy;
@@ -528,12 +564,13 @@ mod lifecycle_tests {
         fn install() -> Self {
             Function::new_no_args(
                 "if (window.__rendererSpy) { return; }
-                 const spy = { entries: [], observers: 0, original: {} };
+                 const spy = { entries: [], observers: 0, queries: [], original: {} };
                  const watched = ['resize', 'change', 'webglcontextlost'];
                  const proto = EventTarget.prototype;
                  spy.original.add = proto.addEventListener;
                  spy.original.remove = proto.removeEventListener;
                  proto.addEventListener = function (type, callback, options) {
+                   if (type === 'change' && typeof this.media === 'string') { spy.queries.push(this); }
                    if (watched.includes(type) && !spy.entries.some((e) => e.t === this && e.type === type && e.cb === callback)) {
                      spy.entries.push({ t: this, type, cb: callback });
                    }
@@ -560,6 +597,33 @@ mod lifecycle_tests {
                 .unwrap()
                 .as_f64()
                 .unwrap() as u32
+        }
+
+        fn query_count(&self) -> u32 {
+            Function::new_no_args("return window.__rendererSpy.queries.length")
+                .call0(&JsValue::NULL)
+                .unwrap()
+                .as_f64()
+                .unwrap() as u32
+        }
+
+        fn query(&self, index: u32) -> MediaQueryList {
+            Function::new_with_args("index", "return window.__rendererSpy.queries[index]")
+                .call1(&JsValue::NULL, &JsValue::from_f64(index as f64))
+                .unwrap()
+                .dyn_into::<MediaQueryList>()
+                .unwrap()
+        }
+
+        fn has_live_change_listener(&self, query: &MediaQueryList) -> bool {
+            Function::new_with_args(
+                "query",
+                "return window.__rendererSpy.entries.some((entry) => entry.t === query && entry.type === 'change')",
+            )
+            .call1(&JsValue::NULL, query.as_ref())
+            .unwrap()
+            .as_bool()
+            .unwrap()
         }
 
         fn live_observers(&self) -> i32 {
@@ -625,6 +689,64 @@ mod lifecycle_tests {
 
     fn state(canvas: &HtmlCanvasElement) -> Option<String> {
         canvas.get_attribute("data-renderer-state")
+    }
+
+    #[wasm_bindgen_test]
+    async fn resize_and_dpr_changes_update_backing_size_and_rearm_listener() {
+        let spy = ListenerSpy::install();
+        let baseline = spy.live_listeners();
+        let descriptor = controlled_dpr(1.0);
+        let renderer = scripted_renderer("");
+        let canvas = make_canvas();
+        let (status, _) = status_log();
+        let host = attach(&renderer, &canvas, status).expect("scripted renderer attaches");
+        assert_eq!((canvas.width(), canvas.height()), (200, 100));
+        assert_eq!(resize_args(&renderer, 0), (200, 100));
+        assert_eq!(canvas.get_attribute("data-dpr").as_deref(), Some("1"));
+        assert_eq!(spy.query_count(), 1);
+        let old_query = spy.query(0);
+        assert!(spy.has_live_change_listener(&old_query));
+
+        canvas
+            .set_attribute("style", "width:240px;height:120px")
+            .unwrap();
+        web_sys::window()
+            .unwrap()
+            .dispatch_event(&web_sys::Event::new("resize").unwrap())
+            .unwrap();
+        assert_eq!((canvas.width(), canvas.height()), (240, 120));
+        assert_eq!(resize_args(&renderer, 1), (240, 120));
+
+        let _ = controlled_dpr(2.0);
+        old_query
+            .dispatch_event(&web_sys::Event::new("change").unwrap())
+            .unwrap();
+        assert_eq!((canvas.width(), canvas.height()), (480, 240));
+        assert_eq!(resize_args(&renderer, 2), (480, 240));
+        assert_eq!(canvas.get_attribute("data-dpr").as_deref(), Some("2"));
+        assert_eq!(
+            spy.query_count(),
+            2,
+            "DPR listener is re-armed for the new scale"
+        );
+        assert!(
+            !spy.has_live_change_listener(&old_query),
+            "old media query listener is removed"
+        );
+        let new_query = spy.query(1);
+        assert!(spy.has_live_change_listener(&new_query));
+
+        drop(host);
+        assert_eq!(calls(&renderer, "dispose"), 1);
+        assert_eq!(calls(&renderer, "free"), 1);
+        assert_eq!(
+            spy.live_listeners(),
+            baseline,
+            "resize/DPR listeners are disposed"
+        );
+        assert_eq!(spy.live_observers(), 0);
+        restore_dpr(&descriptor);
+        canvas.remove();
     }
 
     #[wasm_bindgen_test]

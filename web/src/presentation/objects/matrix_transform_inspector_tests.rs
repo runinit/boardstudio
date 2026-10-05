@@ -11,6 +11,7 @@ use boardstudio_core::model::{
     Board, EditOperation, Matrix, MatrixAssembly, MatrixCell, MatrixScene, MatrixSceneCell, Part,
     PartDefinition, PartKind, Pose2, ProjectDoc, Readiness, SceneDelta, Side, Vec2,
 };
+use dioxus_web::WebEventExt;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::wasm_bindgen_test;
@@ -50,7 +51,63 @@ fn matrix_transform_host() -> Element {
         splay_affect,
         "Layout",
     );
+    let matrix_id = "matrix".to_owned();
+    let canvas_adapter = probe.adapter.borrow().as_ref().unwrap().clone();
+    let canvas_runtime = probe.runtime.clone();
+    let canvas_scope = probe.selected.scope.clone();
     rsx! {
+        svg { id: "{probe.root_id}-matrix-canvas",
+            for column in 0..3u32 {
+                {
+                    let target_part_id = format!("matrix/matrix/r0c{column}");
+                    let target_matrix = matrix_id.clone();
+                    let scope = canvas_scope.clone();
+                    let adapter = canvas_adapter.clone();
+                    let runtime = canvas_runtime.clone();
+                    rsx! {
+                        g {
+                            "data-part-id": "{target_part_id}",
+                            onpointerdown: move |event: PointerEvent| {
+                                let Some(pointer) = event.data().try_as_web_event() else { return; };
+                                let model = runtime.model();
+                                let hit_context = TreeContext::Key {
+                                    matrix_id: target_matrix.clone(),
+                                    row: 0,
+                                    column,
+                                };
+                                let Some(projection) = crate::presentation::objects::context_for_selection_kind(
+                                    &model,
+                                    &hit_context,
+                                    crate::presentation::objects::LayoutSelectionKind::Key,
+                                    None,
+                                ) else { return; };
+                                let mode = if pointer.shift_key() {
+                                    SelectionMode::Range
+                                } else if pointer.ctrl_key() || pointer.meta_key() {
+                                    SelectionMode::Toggle
+                                } else {
+                                    SelectionMode::Replace
+                                };
+                                crate::presentation::selection::submit_matrix_cell_selection(
+                                    &runtime,
+                                    &adapter,
+                                    &scope,
+                                    (adapter.generation)(),
+                                    crate::presentation::selection::MatrixCellSelection {
+                                        matrix_id: target_matrix.clone(),
+                                        target_part_id: target_part_id.clone(),
+                                        hit_context: &hit_context,
+                                        context: projection.context,
+                                        mode,
+                                    },
+                                );
+                            },
+                            rect { width: "18", height: "18" }
+                        }
+                    }
+                }
+            }
+        }
         MatrixTransformInspector { mount, on_pick_splay_origin: |_| {} }
     }
 }
@@ -491,42 +548,37 @@ async fn toggle_removal_keeps_the_inspector_and_commands_aimed_at_remaining_keys
     let (mut model, selected) = three_key_fixture();
     let (probe, root) = mount_selection_probe(model.clone(), selected.clone());
     settle().await;
-    let adapter = probe.adapter.borrow().as_ref().unwrap().clone();
-    let submit_toggle = |row: u32, column: u32, context: TreeContext| {
-        let hit_context = TreeContext::Key {
-            matrix_id: "matrix".into(),
-            row,
-            column,
-        };
-        crate::presentation::selection::submit_matrix_cell_selection(
-            &probe.runtime,
-            &adapter,
-            &selected.scope,
-            1,
-            crate::presentation::selection::MatrixCellSelection {
-                matrix_id: "matrix".into(),
-                target_part_id: format!("matrix/matrix/r{row}c{column}"),
-                hit_context: &hit_context,
-                context,
-                mode: SelectionMode::Toggle,
-            },
-        )
-        .expect("live matrix key toggles selection");
-    };
-    let component_context = |column| TreeContext::Component {
-        part_id: Some(format!("matrix/matrix/r0c{column}")),
-        matrix_id: None,
-        row: None,
-        column: None,
-        assembly_id: None,
+    let ctrl_click = |column: u32| {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let target = document
+            .query_selector(&format!(
+                "#matrix-transform-multiselect-mounted-test-matrix-canvas g[data-part-id='matrix/matrix/r0c{column}']"
+            ))
+            .unwrap()
+            .expect("mounted matrix canvas contains the key hit target");
+        let constructor = js_sys::Reflect::get(&js_sys::global(), &"PointerEvent".into())
+            .unwrap()
+            .dyn_into::<js_sys::Function>()
+            .unwrap();
+        let arguments = js_sys::Array::new();
+        arguments.push(&"pointerdown".into());
+        let init = js_sys::Object::new();
+        js_sys::Reflect::set(init.as_ref(), &"bubbles".into(), &true.into()).unwrap();
+        js_sys::Reflect::set(init.as_ref(), &"ctrlKey".into(), &true.into()).unwrap();
+        arguments.push(init.as_ref());
+        let pointer = js_sys::Reflect::construct(&constructor, &arguments)
+            .unwrap()
+            .dyn_into::<web_sys::PointerEvent>()
+            .unwrap();
+        target.dispatch_event(&pointer).unwrap();
     };
 
-    submit_toggle(0, 1, component_context(1));
+    ctrl_click(1);
     model.selected_part_ids = vec!["matrix/matrix/r0c0".into(), "matrix/matrix/r0c1".into()];
     probe
         .runtime
         .set_layout_component_inspector_test_state(model.clone(), Some(selected.scope.clone()));
-    submit_toggle(0, 2, component_context(2));
+    ctrl_click(2);
     model.selected_part_ids.push("matrix/matrix/r0c2".into());
     probe
         .runtime
@@ -534,7 +586,7 @@ async fn toggle_removal_keeps_the_inspector_and_commands_aimed_at_remaining_keys
 
     // Removing C leaves A and B selected; C is still a live key, so the Inspector
     // must be re-anchored to a member that remains selected.
-    submit_toggle(0, 2, component_context(2));
+    ctrl_click(2);
     model.selected_part_ids.pop();
     probe
         .runtime
@@ -557,7 +609,7 @@ async fn toggle_removal_keeps_the_inspector_and_commands_aimed_at_remaining_keys
 
     // Removing B leaves A. Keep the key-specific Inspector and verify its edit
     // command changes A's cell rather than the deselected B cell.
-    submit_toggle(0, 1, component_context(1));
+    ctrl_click(1);
     model.selected_part_ids.pop();
     probe
         .runtime

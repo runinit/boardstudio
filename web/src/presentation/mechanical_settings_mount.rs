@@ -7,9 +7,9 @@ use super::case_viewer::CaseSelection;
 use super::mechanical_settings::{
     MechanicalBoardMismatch, MechanicalFindingRow, MechanicalFitPart, MechanicalGasketSupportRow,
     MechanicalHardwareMount, MechanicalLayerRow, MechanicalProcessTarget, MechanicalProfileChoice,
-    MechanicalProfileTargetChoice, MechanicalSettingsFeedback, MechanicalSettingsFeedbackState,
-    MechanicalSettingsIdentity, MechanicalSettingsProps, MechanicalSettingsValues,
-    MechanicalStabilizerFit,
+    MechanicalProfileExtractionPort, MechanicalProfileTargetChoice, MechanicalSettingsFeedback,
+    MechanicalSettingsFeedbackState, MechanicalSettingsIdentity, MechanicalSettingsProps,
+    MechanicalSettingsValues, MechanicalStabilizerFit,
 };
 use super::mechanical_settings_controller::{
     LoadSwitchProfilePort, MechanicalResolution, MechanicalSettingsController,
@@ -683,6 +683,39 @@ pub(crate) fn use_mechanical_settings_mount(
                 }
             }
         });
+        let extract_profile = {
+            let runtime = runtime.clone();
+            let alive = alive.clone();
+            let current_reader = current_reader.clone();
+            MechanicalProfileExtractionPort(Rc::new(move |definition_id: String, mappings: Vec<boardstudio_core::model::MechanicalPurposeMapping>| -> LocalFuture<Result<boardstudio_core::model::MechanicalExtraction, String>> {
+                let Some(before) = current_reader() else {
+                    return Box::pin(async { Err("The accepted Case profile scope is no longer available.".into()) });
+                };
+                let Some(definition) = before.accepted.document.definitions.iter().find(|definition| definition.id == definition_id) else {
+                    return Box::pin(async { Err("The selected KiCad part definition is no longer available.".into()) });
+                };
+                let Some(source) = definition.kicad_source.as_ref().map(|source| source.source.clone()) else {
+                    return Box::pin(async { Err("The selected part has no KiCad source geometry.".into()) });
+                };
+                let identity = before.identity.clone();
+                let operation_id = runtime.operation().0;
+                let request_id = format!("case-profile-extract-{operation_id}");
+                let runtime = runtime.clone();
+                let alive = alive.clone();
+                let current_reader = current_reader.clone();
+                Box::pin(async move {
+                    let result = runtime.extract_mechanical_profile(request_id, source, mappings, 0.005).await?;
+                    let still_current = alive.get() && current_reader().is_some_and(|current| {
+                        current.identity == identity
+                            && current.configuration.as_ref().is_some_and(|configuration| configuration.profiles.iter().any(|profile| profile.definition_id == definition_id))
+                    });
+                    if !still_current {
+                        return Err("The Case scope or selected profile changed while reading KiCad geometry.".into());
+                    }
+                    Ok(result)
+                })
+            }))
+        };
         let transport = current
             .accepted
             .document
@@ -695,6 +728,7 @@ pub(crate) fn use_mechanical_settings_mount(
             values: configuration
                 .map(|configuration| settings_values(configuration.as_ref(), transport)),
             profiles,
+            extract_profile: Some(extract_profile),
             profile_targets: Rc::from(profile_targets),
             process_targets: Rc::from(process_targets),
             stabilizer_fits: Rc::from(stabilizer_fits),
@@ -1513,6 +1547,13 @@ fn profile_choices(
                 plate_to_pcb: Some(profile.plate_to_pcb),
                 supported_thickness: profile.supported_thickness,
                 switch_family_selectable: placed_switch,
+                profile: profile.clone(),
+                kicad_source: definition.and_then(|definition| {
+                    definition
+                        .kicad_source
+                        .as_ref()
+                        .map(|source| source.source.clone())
+                }),
             }
         })
         .collect()

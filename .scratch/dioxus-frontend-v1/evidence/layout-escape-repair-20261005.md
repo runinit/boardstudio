@@ -9,14 +9,16 @@ Deselection review regression: `toggle_removal_keeps_the_inspector_and_commands_
 SHA-256 of final packet files:
 
 - `outline_lifecycle.rs` `24e80e1475d9e9e44b73d0b0fdcfc629de249d4e2246a69db2337dea7ba1d1ec`
-- `outline_lifecycle_browser_tests.rs` `59acbc4788759fd949afb71a57eb5b934a16649aa8e46f25c1b7146666420942`
+- `outline_lifecycle_browser_tests.rs` `80687d0b8451e84890f629bc106fba637faf71c7e5584e306df0add338feac3b`
 - `selection.rs` `2f567500f058f690043815bc765cc61cea45297eabbe6a5e05ac722b71ab8378`
-- `matrix_transform_inspector_tests.rs` `e06d6630eb76ef05b4bf39b6c394b8d0477306e0107d915e59d2ce2cd742c189`
+- `matrix_transform_inspector_tests.rs` `5eb8453a6ac9869c5cbe9687abf775abd0c692018761cdf22396f59b4ac7072d`
 - `layout_component_inspector.rs` `6a9c3988589438ad868c1d616c556a8b3ea47582cb83947a83baf0e309ad107f`
 - `layout_component_inspector_tests.rs` `7ee263b0db8a48a2b87a8c938819715779d391bebacb447c5679fc52f250acd9`
 - `layout_workspace.rs` `ae8fcd59fb7a9ac78c95fcca936a13614d74103c82553a08a361f93fb95f02fd`
 - `presentation.rs` `fae911b0f35c6d935c6ce512319b2ef8b83b70e8e5a3a34c3a63f7defacc7b5c`
 - `durable_session.rs` `79c1dc8226cf4b652fbfda820a10c4da6dbe23641526bc95c9903afa8f7c37b3`
+
+Public replay follow-up: matrix additive routing now admits the production Key context and chooses a remaining selected key after toggle removal. A mounted SVG hit-target callback derives `LayoutSelectionKind::Key` and passed the toggle-add/remove + edit-target regression. Board Escape now focuses the Board name field after validating that the same Board context remains current; the mounted outline test renders the real Board Inspector and asserts activeElement. Focused RED/GREEN logs are `perimeter-board-focus-{red,green}.log` and `toggle-removal-key-context-{red,green}.log` in `layout-escape-repair-20261005/`; each GREEN ran 1/1 and each RED 0/1. This uses a synthetic SVG callback wired to production projection/selection helpers, not the full Layout app canvas; the public replay itself has not been rerun after the fix. `rustfmt` and `git diff --check` passed.
 
 ## Public reference comparison — intentional correction
 

@@ -1,0 +1,8 @@
+{
+  "input": ".scratch/dioxus-frontend-v1/evidence/case-pending-scope-20261005/input.boardstudio",
+  "sha256": "b399993a10947f1c6924780c01ed9b70c24f902ad93b82c9493eb80c7d54684d",
+  "source": ".scratch/dioxus-frontend-v1/evidence/case-handle-qualification-20261005/input.boardstudio",
+  "source_sha256": "5b4453dc1415540163369d5c053c3e577abfdbd972a6b66d12e9712368472e3a",
+  "project_id": "f442d623-3da7-4dd8-80ef-33efbed9d795",
+  "mutation": "Only projectID/name changed; accepted r18 geometry/settings unchanged"
+}

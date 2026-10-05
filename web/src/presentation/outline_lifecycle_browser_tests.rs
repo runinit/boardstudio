@@ -267,6 +267,12 @@ fn mounted_outline_inspector_host() -> Element {
     *probe.selected_context.borrow_mut() = Some(selected);
     let (projection, _) =
         use_outline_lifecycle(probe.runtime.clone(), selected, workspace, generation);
+    let board_inspector = super::super::board_inspector::use_board_inspector(
+        probe.runtime.clone(),
+        selected,
+        workspace,
+        generation,
+    );
     if let Some(projection) = projection.as_ref() {
         *probe.connection_action.borrow_mut() = Some((
             projection.action_context.clone(),
@@ -274,10 +280,18 @@ fn mounted_outline_inspector_host() -> Element {
         ));
     }
     let _ = version();
+    let board_projection = board_inspector.projection;
+    let board_rename = board_inspector.on_rename;
     rsx! {
         style { {include_str!("../../assets/m1.css")} }
         if let Some(projection) = projection {
             OutlineVersionInspector { projection }
+        }
+        if let Some(projection) = board_projection {
+            super::super::board_inspector::BoardInspector {
+                projection,
+                on_rename: board_rename,
+            }
         }
     }
 }
@@ -423,6 +437,19 @@ async fn mounted_outline_perimeter_escape_returns_to_board_inspector() {
             .is_none(),
         "the nested Perimeter inspector is no longer mounted after returning to Board"
     );
+    let board_name = document
+        .query_selector("#outline-points-inspector-mount input[aria-label='Board name']")
+        .unwrap()
+        .expect("the returned Board Inspector exposes its name field");
+    assert_eq!(
+        document
+            .active_element()
+            .and_then(|active| active.get_attribute("aria-label"))
+            .as_deref(),
+        Some("Board name"),
+        "Escape transfers focus into the newly mounted Board Inspector"
+    );
+    drop(board_name);
     root.remove();
 }
 

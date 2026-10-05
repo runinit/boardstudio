@@ -24,6 +24,31 @@
       "requires_generator_assets": false,
       "base_sha256": "9c47231afa66375defd2493f73acf500a2e277053135027a1e506437d5314ec4",
       "current_sha256": "f81f0ee22c0e6d0c851cf0b91c3d1953fb9ca41c31e56bf3ec0293fa0efbff0a"
+    },
+    "web/src/presentation/selection.rs": {
+      "tests": [
+        "presentation::objects::matrix_transform_inspector::mounted_tests::additive_canvas_selection_keeps_key_properties_for_same_matrix_keys",
+        "presentation::objects::matrix_transform_inspector::mounted_tests::additive_mixed_component_selection_keeps_first_part_group_context",
+        "presentation::objects::matrix_transform_inspector::mounted_tests::toggle_removal_keeps_the_inspector_and_commands_aimed_at_remaining_keys"
+      ],
+      "coverage": "Hash-bound additive Inspector context correction only: actual selection adapter tests cover same-matrix key groups, mixed component groups and Key-mode Ctrl-toggle removal with command ownership. Unchanged selection routes are outside this bounded mapping; any different source/base fails closed.",
+      "requires_generator_assets": true,
+      "base_sha256": "2f567500f058f690043815bc765cc61cea45297eabbe6a5e05ac722b71ab8378",
+      "current_sha256": "d9fa7e811e5995e139aced87fbdf51d5114309ab3b21f291d3a8e6b57ea16206"
+    },
+    "web/src/renderer_host.rs": {
+      "tests": [
+        "renderer_host_page::lifecycle_tests::cancelled_or_failed_initialization_releases_partial_resources",
+        "renderer_host_page::lifecycle_tests::context_loss_settles_callers_stops_rendering_and_unmount_releases_everything",
+        "renderer_host_page::lifecycle_tests::dispose_is_idempotent_and_drop_after_dispose_does_not_free_twice",
+        "renderer_host_page::lifecycle_tests::render_submission_error_marks_the_host_failed_and_settles_callers",
+        "renderer_host_page::lifecycle_tests::repeated_mount_and_unmount_does_not_accumulate_listeners_or_observers",
+        "renderer_host_page::lifecycle_tests::resize_and_dpr_changes_update_backing_size_and_rearm_listener"
+      ],
+      "coverage": "Hash-bound test-only library mirror of the private page host lifecycle module. Native renderer_host_source_sync enforces exact documented normalized equality; the six actual page-host tests exercise the same implementation, including new desktop resize/DPR and cleanup. No production renderer delta is admitted by this mapping.",
+      "requires_generator_assets": false,
+      "base_sha256": "c1072aff079454475e9c492cbc6dbe7b73754dd3f35c1a4b2aa226146eb176d4",
+      "current_sha256": "5d4454ead1b6a375b00e11aedb82ce5ed18c324e5caf1c6cbbaee5e7b0489576"
     }
   }
 }

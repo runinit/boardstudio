@@ -2181,6 +2181,35 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
                                 scope: scope.clone(),
                                 context: super::objects::TreeContext::Board { board_id: board_id.clone() },
                             }));
+                            let focus_context = selected_context;
+                            let focus_scope = scope.clone();
+                            let focus_board_id = board_id.clone();
+                            wasm_bindgen_futures::spawn_local(async move {
+                                gloo_timers::future::TimeoutFuture::new(0).await;
+                                if !focus_context.read().as_ref().is_some_and(|selected| {
+                                    selected.scope == focus_scope
+                                        && matches!(
+                                            &selected.context,
+                                            super::objects::TreeContext::Board { board_id }
+                                                if board_id == &focus_board_id
+                                        )
+                                }) {
+                                    return;
+                                }
+                                let Some(input) = web_sys::window()
+                                    .and_then(|window| window.document())
+                                    .and_then(|document| {
+                                        document
+                                            .query_selector("input[aria-label='Board name']")
+                                            .ok()
+                                            .flatten()
+                                    })
+                                    .and_then(|input| input.dyn_into::<web_sys::HtmlElement>().ok())
+                                else {
+                                    return;
+                                };
+                                let _ = input.focus();
+                            });
                         }
                     },
                     div { class: "m1-outline-inspector-heading",

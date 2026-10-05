@@ -1,0 +1,74 @@
+{
+  "candidate": "frontend-case-layout-controls-20261005",
+  "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
+  "before": [
+    {
+      "id": "matrix/right-keys/r0c0",
+      "selected": true,
+      "transform": "translate(212.77,-71.548) rotate(0) "
+    },
+    {
+      "id": "right/U1",
+      "selected": true,
+      "transform": "translate(192.27,-21.158) rotate(0) "
+    }
+  ],
+  "after": [
+    {
+      "id": "matrix/right-keys/r0c0",
+      "selected": true,
+      "transform": "translate(213.77,-71.548) rotate(0) "
+    },
+    {
+      "id": "right/U1",
+      "selected": true,
+      "transform": "translate(193.27,-21.158) rotate(0) "
+    }
+  ],
+  "undo": [
+    {
+      "id": "matrix/right-keys/r0c0",
+      "selected": true,
+      "transform": "translate(212.77,-71.548) rotate(0) "
+    },
+    {
+      "id": "right/U1",
+      "selected": true,
+      "transform": "translate(192.27,-21.158) rotate(0) "
+    }
+  ],
+  "redo": [
+    {
+      "id": "matrix/right-keys/r0c0",
+      "selected": true,
+      "transform": "translate(213.77,-71.548) rotate(0) "
+    },
+    {
+      "id": "right/U1",
+      "selected": true,
+      "transform": "translate(193.27,-21.158) rotate(0) "
+    }
+  ],
+  "referenceAfter": [
+    {
+      "label": "right-keys-SW1, switch mx, X 213.77 Y -71.548",
+      "selected": "true",
+      "transform": "translate(213.77 -71.548) rotate(0)"
+    },
+    {
+      "label": "right-U1, mcu nice nano, X 193.27 Y -21.158",
+      "selected": "true",
+      "transform": "translate(193.27 -21.158) rotate(0)"
+    }
+  ],
+  "reload": [
+    {
+      "id": "matrix/right-keys/r0c0",
+      "transform": "translate(213.77,-71.548) rotate(0) "
+    },
+    {
+      "id": "right/U1",
+      "transform": "translate(193.27,-21.158) rotate(0) "
+    }
+  ]
+}

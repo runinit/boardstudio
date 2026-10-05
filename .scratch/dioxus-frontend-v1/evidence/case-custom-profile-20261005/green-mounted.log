@@ -1,0 +1,102 @@
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web)
+error: expected one of `,`, `:`, or `}`, found `{`
+    --> src/presentation/mechanical_settings.rs:3260:39
+     |
+3259 | ...                   div { class: "m1-mechanical-geometry-row", key: "{primitive.id}",
+     |                       --- while parsing this struct
+3260 | ...                       label {
+     |                           ----- ^ expected one of `,`, `:`, or `}`
+     |                           |
+     |                           while parsing this struct field
+     |
+help: try naming a field
+     |
+3260 |                                 label: label {
+     |                                 ++++++
+
+error[E0422]: cannot find struct, variant or union type `div` in this scope
+    --> src/presentation/mechanical_settings.rs:3259:29
+     |
+3259 | ...                   div { class: "m1-mechanical-geometry-row", key: "{primitive.id}",
+     |                       ^^^ not found in this scope
+
+warning: unused import: `ProjectDoc`
+ --> src/presentation/case_controller.rs:9:82
+  |
+9 |     CaseBody, CaseKind, EditCommand, EditOperation, EditPhase, Mount, MountKind, ProjectDoc, Vec2,
+  |                                                                                  ^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused imports: `SessionEpoch` and `SnapshotToken`
+    --> src/presentation/pcb_wiring.rs:1111:35
+     |
+1111 |     use boardstudio_application::{SessionEpoch, SnapshotToken};
+     |                                   ^^^^^^^^^^^^  ^^^^^^^^^^^^^
+
+warning: use of deprecated unit struct `presentation::mechanical_settings::ManufacturingControls::{closure#2}::_::Warning`: Keys are only allowed on the first node in the block.
+    --> src/presentation/mechanical_settings.rs:2753:38
+     |
+2753 | ...                   key: "process-thickness:{target.part_id}",
+     |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(deprecated)]` on by default
+
+warning: variable does not need to be mutable
+   --> src/presentation/objects/matrix_transform_inspector_tests.rs:641:9
+    |
+641 |     let mut dom = VirtualDom::new(matrix_transform_host);
+    |         ----^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+error[E0618]: expected function, found `MechanicalGeometry`
+    --> src/presentation/mechanical_settings.rs:3326:52
+     |
+3315 | ...   let geometry = geometry;
+     |           -------- `geometry` has type `MechanicalGeometry`
+...
+3326 | ...       let mappings = geometry().as_ref().into_iter().flat_map(|geometry| geometry.primitives.iter()).filter(|primitive| ids.co...
+     |                          ^^^^^^^^--
+     |                          |
+     |                          call expression requires function
+
+error[E0596]: cannot borrow `extracted_definition_ids` as mutable, as it is a captured variable in a `Fn` closure
+    --> src/presentation/mechanical_settings.rs:4513:17
+     |
+4512 |             MechanicalProfileExtractionPort(Rc::new(move |definition_id, mappings| {
+     |                                                     ------------------------------ in this closure
+4513 |                 extracted_definition_ids.with_mut(|ids| ids.push(definition_id.clone()));
+     |                 ^^^^^^^^^^^^^^^^^^^^^^^^ cannot borrow as mutable
+
+warning: variable does not need to be mutable
+    --> src/presentation/mechanical_settings.rs:4509:13
+     |
+4509 |         let mut extracted_definition_ids = use_signal(Vec::<String>::new);
+     |             ----^^^^^^^^^^^^^^^^^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+
+Some errors have detailed explanations: E0422, E0618.
+For more information about an error, try `rustc --explain E0422`.
+warning: `boardstudio-web` (bin "boardstudio-web") generated 2 warnings
+error: could not compile `boardstudio-web` (bin "boardstudio-web") due to 3 previous errors; 2 warnings emitted
+warning: build failed, waiting for other jobs to finish...
+warning: variable does not need to be mutable
+    --> src/presentation/parts/preview.rs:1120:13
+     |
+1120 |         let mut selection = use_signal(|| None::<(Option<Scope>, String)>);
+     |             ----^^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+
+Some errors have detailed explanations: E0422, E0596, E0618.
+warning: `boardstudio-web` (bin "boardstudio-web" test) generated 6 warnings (2 duplicates)
+error: could not compile `boardstudio-web` (bin "boardstudio-web" test) due to 4 previous errors; 6 warnings emitted
+Error: Compilation of your program failed
+Caused by: Compilation of your program failed
+Caused by: failed to execute `cargo build`: exited with exit status: 101
+  full command: cd "web" && CARGO_BUILD_TARGET="wasm32-unknown-unknown" "cargo" "build" "--tests" "--no-default-features" "--features" "page" "--bin" "boardstudio-web"
+migration-deliver: focused-test status=failed command_exit=1 started=2026-10-05T06:44:26+00:00 ended=2026-10-05T06:44:49+00:00 duration=23.09s

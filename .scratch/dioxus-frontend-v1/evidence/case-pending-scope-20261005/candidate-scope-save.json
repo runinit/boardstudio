@@ -1,0 +1,15 @@
+{
+  "revision": 19,
+  "sha256": "754a23c83a859a1cf6eed37b27e9ab8eae2542dbf507ab38bf6cbbf4e4fb7582",
+  "left_instance_unchanged": true,
+  "walls": {
+    "left": {
+      "before": 2.4,
+      "after": 2.4
+    },
+    "right": {
+      "before": 2.4,
+      "after": 2.45
+    }
+  }
+}

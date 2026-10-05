@@ -1,0 +1,61 @@
+--- a/web/src/presentation/pcb_module_inspector.rs
++++ b/web/src/presentation/pcb_module_inspector.rs
+@@ -1240,17 +1240,37 @@
+         TimeoutFuture::new(80).await;
+     }
+ 
++    async fn with_stage_timeout<T>(
++        future: impl std::future::Future<Output = T>,
++        stage: &str,
++    ) -> T {
++        let mut future = Box::pin(future);
++        let mut timeout = Box::pin(TimeoutFuture::new(5_000));
++        let completed = std::future::poll_fn(|context| {
++            if let std::task::Poll::Ready(value) = future.as_mut().poll(context) {
++                return std::task::Poll::Ready(Some(value));
++            }
++            if let std::task::Poll::Ready(()) = timeout.as_mut().poll(context) {
++                return std::task::Poll::Ready(None);
++            }
++            std::task::Poll::Pending
++        })
++        .await;
++        completed.unwrap_or_else(|| panic!("timed out during mounted Save stage: {stage}"))
++    }
++
+     async fn wait_for_persisted_module_x(
+         runtime: &Runtime,
+         expected_revision: u64,
+         expected_x: f64,
+     ) -> ProjectDoc {
+         for _ in 0..100 {
+-            if let Some(document) = runtime
+-                .store
+-                .load_document("old-module-project".into())
+-                .await
+-                .expect("read old project from IndexedDB")
++            if let Some(document) = with_stage_timeout(
++                runtime.store.load_document("old-module-project".into()),
++                "IndexedDB read request/transaction completion",
++            )
++            .await
++            .expect("read old project from IndexedDB")
+                 && document.revision == expected_revision
+                 && document.modules[0].at.x == expected_x
+             {
+@@ -1313,9 +1333,12 @@
+             .unwrap()
+             .click();
+         crate::runtime::project_name_test_support::drive_pending(&runtime);
+-        entered
+-            .await
+-            .expect("the mounted Save reaches the actual Session Persist effect");
++        with_stage_timeout(
++            entered,
++            "mounted Save click dispatched but actual Persist gate was not entered",
++        )
++        .await
++        .expect("the mounted Save reaches the actual Session Persist effect");
+ 
+         let saving = runtime.model();
+         let saving_snapshot = saving

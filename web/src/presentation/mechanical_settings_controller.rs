@@ -1639,6 +1639,87 @@ fn apply_patch(
                 "Profile assignment must be prepared from the current accepted Case scope.".into(),
             );
         }
+        MechanicalSettingsPatch::UpdateProfile(next) => {
+            if configuration.board_id != board_id {
+                return Err("The mechanical configuration belongs to another board.".into());
+            }
+            let Some(profile) = configuration
+                .profiles
+                .iter_mut()
+                .find(|profile| profile.definition_id == next.definition_id)
+            else {
+                return Err("The selected mechanical profile is no longer assigned.".into());
+            };
+            let extraction_changed = profile.source_geometry != next.source_geometry;
+            if extraction_changed {
+                let definition = document
+                    .definitions
+                    .iter()
+                    .find(|definition| definition.id == next.definition_id)
+                    .ok_or_else(|| {
+                        "The selected mechanical profile is no longer available.".to_owned()
+                    })?;
+                if definition.kicad_source.as_ref().is_none_or(|source| {
+                    next.source_geometry
+                        .as_ref()
+                        .is_none_or(|geometry| geometry.text != source.source)
+                }) {
+                    return Err(
+                        "Extracted geometry must come from the assigned KiCad source.".into(),
+                    );
+                }
+            } else if profile.pcb_holes != next.pcb_holes {
+                return Err("PCB mounting holes can only be changed by extracting the assigned KiCad geometry.".into());
+            }
+            if profile.switch_family != next.switch_family
+                || profile.supported_thickness != next.supported_thickness
+                || profile.plate_to_pcb != next.plate_to_pcb
+                || profile.source != next.source
+            {
+                return Err(
+                    "Only extracted geometry for the assigned KiCad profile can be updated here."
+                        .into(),
+                );
+            }
+            if !valid_profile_polygons(&next.cutouts)
+                || next
+                    .clearances
+                    .as_deref()
+                    .is_some_and(|polygons| !valid_profile_polygons(polygons))
+                || next.pcb_holes.iter().flatten().any(|hole| {
+                    !hole.at.x.is_finite()
+                        || !hole.at.y.is_finite()
+                        || !hole.diameter.is_finite()
+                        || hole.diameter <= 0.0
+                })
+            {
+                return Err(
+                    "Profile polygons and mounting holes must contain valid finite coordinates."
+                        .into(),
+                );
+            }
+            validate_profile_openings(
+                next.openings.as_deref().unwrap_or_default(),
+                "Access opening",
+            )?;
+            validate_profile_openings(
+                next.clearance_volumes.as_deref().unwrap_or_default(),
+                "Clearance volume",
+            )?;
+            *profile = next.clone();
+        }
+        MechanicalSettingsPatch::RemoveProfile { definition_id } => {
+            if configuration.board_id != board_id {
+                return Err("The mechanical configuration belongs to another board.".into());
+            }
+            let previous_len = configuration.profiles.len();
+            configuration
+                .profiles
+                .retain(|profile| profile.definition_id != *definition_id);
+            if configuration.profiles.len() == previous_len {
+                return Err("The selected mechanical profile is no longer assigned.".into());
+            }
+        }
         MechanicalSettingsPatch::SetSwitchFamily {
             definition_id,
             family,
@@ -1890,33 +1971,48 @@ fn validate_mounts(mounts: &[Mount]) -> Result<(), String> {
     Ok(())
 }
 
-fn validate_openings(openings: &[CaseOpening]) -> Result<(), String> {
+fn valid_profile_polygons(polygons: &[Vec<Vec2>]) -> bool {
+    polygons.iter().all(|polygon| {
+        polygon.len() >= 3
+            && polygon
+                .iter()
+                .all(|point| point.x.is_finite() && point.y.is_finite())
+    })
+}
+
+fn validate_profile_openings(openings: &[CaseOpening], label: &str) -> Result<(), String> {
     for (index, opening) in openings.iter().enumerate() {
-        if opening.points.iter().any(|point| {
-            !point.x.is_finite()
-                || !point.y.is_finite()
-                || point.x < -1_000_000.0
-                || point.y < -1_000_000.0
-        }) {
+        if opening.points.len() < 3
+            || opening.points.iter().any(|point| {
+                !point.x.is_finite()
+                    || !point.y.is_finite()
+                    || point.x < -1_000_000.0
+                    || point.y < -1_000_000.0
+            })
+        {
             return Err(format!(
-                "Access opening {} vertices must be finite coordinates no smaller than −1,000,000 mm.",
+                "{label} {} needs at least three vertices with finite coordinates no smaller than −1,000,000 mm.",
                 index + 1
             ));
         }
         if !opening.z.is_finite() || opening.z < -1_000_000.0 {
             return Err(format!(
-                "Access opening {} bottom Z must be a finite coordinate no smaller than −1,000,000 mm.",
+                "{label} {} bottom Z must be a finite coordinate no smaller than −1,000,000 mm.",
                 index + 1
             ));
         }
         if !opening.height.is_finite() || opening.height < 0.1 {
             return Err(format!(
-                "Access opening {} height must be at least 0.1 mm.",
+                "{label} {} height must be at least 0.1 mm.",
                 index + 1
             ));
         }
     }
     Ok(())
+}
+
+fn validate_openings(openings: &[CaseOpening]) -> Result<(), String> {
+    validate_profile_openings(openings, "Access opening")
 }
 
 fn validate_mount_positive(value: f64, label: &str) -> Result<(), String> {
@@ -2755,6 +2851,137 @@ mod battery_patch_tests {
                 ProfileTargetKind::Stabilizer,
             )
             .is_ok()
+        );
+    }
+
+    #[wasm_bindgen_test]
+    fn assigned_custom_profile_updates_geometry_and_removes_by_current_definition() {
+        use boardstudio_core::model::{KicadSource, MechanicalProfileSource};
+
+        let mut document = placed_custom_stabilizer_document();
+        document.definitions[0].kicad_source = Some(KicadSource {
+            format_version: 1,
+            source: "(footprint \"custom\")".into(),
+        });
+        let mut configuration = configuration();
+        configuration.profiles.push(MechanicalPartProfile {
+            source_geometry: None,
+            pcb_holes: None,
+            clearance_volumes: None,
+            openings: None,
+            clearances: None,
+            supported_thickness: None,
+            switch_family: None,
+            definition_id: "stab-mx-2u".into(),
+            source: "KiCad STAB_MX_2u".into(),
+            cutouts: vec![],
+            plate_to_pcb: 3.5,
+        });
+        let unrelated_profile = MechanicalPartProfile {
+            source_geometry: None,
+            pcb_holes: None,
+            clearance_volumes: None,
+            openings: None,
+            clearances: None,
+            supported_thickness: None,
+            switch_family: Some(MechanicalSwitchFamily::Mx),
+            definition_id: "library-switch".into(),
+            source: "Library MX fit".into(),
+            cutouts: vec![],
+            plate_to_pcb: 3.5,
+        };
+        configuration.profiles.push(unrelated_profile.clone());
+        let mut updated = configuration.profiles[0].clone();
+        updated.cutouts = vec![vec![
+            Vec2 { x: -9.4, y: 9.5 },
+            Vec2 { x: 9.5, y: 9.5 },
+            Vec2 { x: 9.5, y: -9.5 },
+        ]];
+        updated.source_geometry = Some(MechanicalProfileSource {
+            text: "(footprint \"custom\")".into(),
+            sha256: "sha".into(),
+            mappings: vec![],
+            source_ids: vec!["geometry-70".into()],
+        });
+        apply_patch(
+            &mut configuration,
+            &MechanicalSettingsPatch::UpdateProfile(updated.clone()),
+            &document,
+            "board",
+        )
+        .unwrap();
+        assert_eq!(configuration.profiles[0], updated);
+        let mut edited_without_extraction = unrelated_profile.clone();
+        edited_without_extraction.cutouts = vec![vec![
+            Vec2 { x: -2.0, y: 2.0 },
+            Vec2 { x: 2.0, y: 2.0 },
+            Vec2 { x: 2.0, y: -2.0 },
+        ]];
+        edited_without_extraction.clearances = Some(vec![vec![
+            Vec2 { x: -3.0, y: 3.0 },
+            Vec2 { x: 3.0, y: 3.0 },
+            Vec2 { x: 3.0, y: -3.0 },
+        ]]);
+        edited_without_extraction.openings = Some(vec![CaseOpening {
+            points: vec![
+                Vec2 { x: -1.0, y: 1.0 },
+                Vec2 { x: 1.0, y: 1.0 },
+                Vec2 { x: 1.0, y: -1.0 },
+            ],
+            z: 0.5,
+            height: 5.0,
+        }]);
+        edited_without_extraction.clearance_volumes = Some(vec![CaseOpening {
+            points: vec![
+                Vec2 { x: -4.0, y: 4.0 },
+                Vec2 { x: 4.0, y: 4.0 },
+                Vec2 { x: 4.0, y: -4.0 },
+            ],
+            z: -2.0,
+            height: 12.0,
+        }]);
+        apply_patch(
+            &mut configuration,
+            &MechanicalSettingsPatch::UpdateProfile(edited_without_extraction.clone()),
+            &document,
+            "board",
+        )
+        .unwrap();
+        assert_eq!(configuration.profiles[1], edited_without_extraction);
+        apply_patch(
+            &mut configuration,
+            &MechanicalSettingsPatch::RemoveProfile {
+                definition_id: "stab-mx-2u".into(),
+            },
+            &document,
+            "board",
+        )
+        .unwrap();
+        assert_eq!(
+            configuration.profiles,
+            vec![edited_without_extraction.clone()]
+        );
+        apply_patch(
+            &mut configuration,
+            &MechanicalSettingsPatch::RemoveProfile {
+                definition_id: "library-switch".into(),
+            },
+            &document,
+            "board",
+        )
+        .unwrap();
+        assert!(configuration.profiles.is_empty());
+        assert!(
+            apply_patch(
+                &mut configuration,
+                &MechanicalSettingsPatch::RemoveProfile {
+                    definition_id: "stab-mx-2u".into(),
+                },
+                &document,
+                "board",
+            )
+            .unwrap_err()
+            .contains("no longer assigned")
         );
     }
 

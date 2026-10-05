@@ -1,0 +1,2 @@
+run-wasm-tests: [1/1] presentation::shared_viewer::tests::mounted_case_gesture_feedback_preserves_canvas_geometry
+{'executed': 1, 'failed': [], 'problems': []}
