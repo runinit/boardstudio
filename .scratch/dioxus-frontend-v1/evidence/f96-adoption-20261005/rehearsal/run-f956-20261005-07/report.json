@@ -1,0 +1,827 @@
+{
+  "candidate": "http://127.0.0.1:34830/",
+  "candidate_build": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-pointer-cache-20261005",
+  "candidate_source_commit": "f956c0dfe9ec942cb79b9905565e9c404fb96732",
+  "direct_indexeddb_migration": "not supplied; archive import is the compatibility boundary",
+  "error": "RuntimeError('agent-browser command failed: (\\'wait\\', \\'--fn\\', \"document.querySelector(\\'.wb-save-status\\')?.textContent?.toLowerCase().includes(\\'saved\\') || document.querySelector(\\'.wb-root\\')\", \\'--timeout\\', \\'20000\\'):  {\\'success\\': False, \\'data\\': None, \\'error\\': \\'CDP error (Runtime.evaluate): Object reference chain is too long\\'}')",
+  "failure_browser_errors": {
+    "errors": [],
+    "lifecycle": {
+      "effectiveLaunch": {
+        "browserLaunched": true,
+        "engine": "chrome",
+        "launchHash": 11677035664275010974
+      },
+      "launched": false,
+      "relaunchedBrowser": false,
+      "restartedBackground": false,
+      "restoreStatus": "not_configured",
+      "reused": true,
+      "saveStatus": "not_attempted"
+    }
+  },
+  "failure_browser_network": {
+    "lifecycle": {
+      "effectiveLaunch": {
+        "browserLaunched": true,
+        "engine": "chrome",
+        "launchHash": 11677035664275010974
+      },
+      "launched": false,
+      "relaunchedBrowser": false,
+      "restartedBackground": false,
+      "restoreStatus": "not_configured",
+      "reused": true,
+      "saveStatus": "not_attempted"
+    },
+    "requests": [
+      {
+        "headers": {
+          "Accept-Language": "en-US,en;q=0.9",
+          "Upgrade-Insecure-Requests": "1",
+          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+          "sec-ch-ua": "\"Not A(Brand\";v=\"99\", \"Chromium\";v=\"154\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Linux\""
+        },
+        "method": "GET",
+        "mimeType": "text/html",
+        "requestId": "6569D8B2CEAA3AC20CF2C27BE7D28C62",
+        "resourceType": "Document",
+        "responseHeaders": {
+          "Cache-Control": "no-cache",
+          "Connection": "close",
+          "Content-Length": "2519",
+          "Content-Type": "text/html",
+          "Date": "Mon, 05 Oct 2026 16:44:52 GMT\nMon, 05 Oct 2026 16:44:52 GMT",
+          "Etag": "W/\"9d7-TdTOcJQOWsLC84lPHGm+nDHCL9k\"",
+          "Server": "BaseHTTP/0.6 Python/3.14.7"
+        },
+        "status": 200,
+        "timestamp": 1791218692814,
+        "url": "http://127.0.0.1:34831/"
+      },
+      {
+        "headers": {
+          "Accept-Language": "en-US,en;q=0.9",
+          "Origin": "http://127.0.0.1:34831",
+          "Referer": "http://127.0.0.1:34831/",
+          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+          "sec-ch-ua": "\"Not A(Brand\";v=\"99\", \"Chromium\";v=\"154\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Linux\""
+        },
+        "method": "GET",
+        "mimeType": "font/woff2",
+        "requestId": "3446457.2",
+        "resourceType": "Font",
+        "responseHeaders": {
+          "Cache-Control": "no-cache",
+          "Connection": "close",
+          "Content-Length": "170188",
+          "Content-Type": "font/woff2",
+          "Date": "Mon, 05 Oct 2026 16:44:52 GMT, Mon, 05 Oct 2026 16:44:52 GMT",
+          "ETag": "W/\"170188-1791160318601\"",
+          "Last-Modified": "Mon, 05 Oct 2026 00:31:58 GMT",
+          "Server": "BaseHTTP/0.6 Python/3.14.7"
+        },
+        "status": 200,
+        "timestamp": 1791218692814,
+        "url": "http://127.0.0.1:34831/assets/source-sans-3-upright-BsWL4Kly.woff2"
+      },
+      {
+        "headers": {
+          "Accept-Language": "en-US,en;q=0.9",
+          "Origin": "http://127.0.0.1:34831",
+          "Referer": "http://127.0.0.1:34831/",
+          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+          "sec-ch-ua": "\"Not A(Brand\";v=\"99\", \"Chromium\";v=\"154\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Linux\""
+        },
+        "method": "GET",
+        "mimeType": "text/javascript",
+        "requestId": "3446457.3",
+        "resourceType": "Script",
+        "responseHeaders": {
+          "Cache-Control": "no-cache",
+          "Connection": "close",
+          "Content-Length": "74772",
+          "Content-Type": "text/javascript",
+          "Date": "Mon, 05 Oct 2026 16:44:52 GMT, Mon, 05 Oct 2026 16:44:52 GMT",
+          "ETag": "W/\"74772-1791160318578\"",
+          "Last-Modified": "Mon, 05 Oct 2026 00:31:58 GMT",
+          "Server": "BaseHTTP/0.6 Python/3.14.7"
+        },
+        "status": 200,
+        "timestamp": 1791218692814,
+        "url": "http://127.0.0.1:34831/assets/main-CYxchQWA.js"
+      },
+      {
+        "headers": {
+          "Accept-Language": "en-US,en;q=0.9",
+          "Origin": "http://127.0.0.1:34831",
+          "Referer": "http://127.0.0.1:34831/",
+          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+          "sec-ch-ua": "\"Not A(Brand\";v=\"99\", \"Chromium\";v=\"154\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Linux\""
+        },
+        "method": "GET",
+        "mimeType": "text/javascript",
+        "requestId": "3446457.4",
+        "resourceType": "Script",
+        "responseHeaders": {
+          "Cache-Control": "no-cache",
+          "Connection": "close",
+          "Content-Length": "280980",
+          "Content-Type": "text/javascript",
+          "Date": "Mon, 05 Oct 2026 16:44:52 GMT, Mon, 05 Oct 2026 16:44:52 GMT",
+          "ETag": "W/\"280980-1791160318580\"",
+          "Last-Modified": "Mon, 05 Oct 2026 00:31:58 GMT",
+          "Server": "BaseHTTP/0.6 Python/3.14.7"
+        },
+        "status": 200,
+        "timestamp": 1791218692814,
+        "url": "http://127.0.0.1:34831/assets/src-COpmSzR1.js"
+      },
+      {
+        "headers": {
+          "Accept-Language": "en-US,en;q=0.9",
+          "Origin": "http://127.0.0.1:34831",
+          "Referer": "http://127.0.0.1:34831/",
+          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+          "sec-ch-ua": "\"Not A(Brand\";v=\"99\", \"Chromium\";v=\"154\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Linux\""
+        },
+        "method": "GET",
+        "mimeType": "text/javascript",
+        "requestId": "3446457.5",
+        "resourceType": "Script",
+        "responseHeaders": {
+          "Cache-Control": "no-cache",
+          "Connection": "close",
+          "Content-Length": "28952",
+          "Content-Type": "text/javascript",
+          "Date": "Mon, 05 Oct 2026 16:44:52 GMT, Mon, 05 Oct 2026 16:44:52 GMT",
+          "ETag": "W/\"28952-1791160318580\"",
+          "Last-Modified": "Mon, 05 Oct 2026 00:31:58 GMT",
+          "Server": "BaseHTTP/0.6 Python/3.14.7"
+        },
+        "status": 200,
+        "timestamp": 1791218692814,
+        "url": "http://127.0.0.1:34831/assets/jsx-runtime-BguMC-xa.js"
+      },
+      {
+        "headers": {
+          "Accept-Language": "en-US,en;q=0.9",
+          "Origin": "http://127.0.0.1:34831",
+          "Referer": "http://127.0.0.1:34831/",
+          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+          "sec-ch-ua": "\"Not A(Brand\";v=\"99\", \"Chromium\";v=\"154\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Linux\""
+        },
+        "method": "GET",
+        "mimeType": "text/javascript",
+        "requestId": "3446457.6",
+        "resourceType": "Script",
+        "responseHeaders": {
+          "Cache-Control": "no-cache",
+          "Connection": "close",
+          "Content-Length": "670",
+          "Content-Type": "text/javascript",
+          "Date": "Mon, 05 Oct 2026 16:44:52 GMT, Mon, 05 Oct 2026 16:44:52 GMT",
+          "ETag": "W/\"670-1791160318580\"",
+          "Last-Modified": "Mon, 05 Oct 2026 00:31:58 GMT",
+          "Server": "BaseHTTP/0.6 Python/3.14.7"
+        },
+        "status": 200,
+        "timestamp": 1791218692814,
+        "url": "http://127.0.0.1:34831/assets/modulepreload-polyfill-P2Xu9kJm.js"
+      },
+      {
+        "headers": {
+          "Accept-Language": "en-US,en;q=0.9",
+          "Origin": "http://127.0.0.1:34831",
+          "Referer": "http://127.0.0.1:34831/",
+          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+          "sec-ch-ua": "\"Not A(Brand\";v=\"99\", \"Chromium\";v=\"154\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Linux\""
+        },
+        "method": "GET",
+        "mimeType": "text/javascript",
+        "requestId": "3446457.7",
+        "resourceType": "Script",
+        "responseHeaders": {
+          "Cache-Control": "no-cache",
+          "Connection": "close",
+          "Content-Length": "1233",
+          "Content-Type": "text/javascript",
+          "Date": "Mon, 05 Oct 2026 16:44:52 GMT, Mon, 05 Oct 2026 16:44:52 GMT",
+          "ETag": "W/\"1233-1791160318580\"",
+          "Last-Modified": "Mon, 05 Oct 2026 00:31:58 GMT",
+          "Server": "BaseHTTP/0.6 Python/3.14.7"
+        },
+        "status": 200,
+        "timestamp": 1791218692814,
+        "url": "http://127.0.0.1:34831/assets/preload-helper-uBIymjUX.js"
+      },
+      {
+        "headers": {
+          "Accept-Language": "en-US,en;q=0.9",
+          "Origin": "http://127.0.0.1:34831",
+          "Referer": "http://127.0.0.1:34831/",
+          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+          "sec-ch-ua": "\"Not A(Brand\";v=\"99\", \"Chromium\";v=\"154\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Linux\""
+        },
+        "method": "GET",
+        "mimeType": "text/javascript",
+        "requestId": "3446457.8",
+        "resourceType": "Script",
+        "responseHeaders": {
+          "Cache-Control": "no-cache",
+          "Connection": "close",
+          "Content-Length": "271",
+          "Content-Type": "text/javascript",
+          "Date": "Mon, 05 Oct 2026 16:44:52 GMT, Mon, 05 Oct 2026 16:44:52 GMT",
+          "ETag": "W/\"271-1791160318580\"",
+          "Last-Modified": "Mon, 05 Oct 2026 00:31:58 GMT",
+          "Server": "BaseHTTP/0.6 Python/3.14.7"
+        },
+        "status": 200,
+        "timestamp": 1791218692814,
+        "url": "http://127.0.0.1:34831/assets/src-C1Ecu6uT.js"
+      },
+      {
+        "headers": {
+          "Accept-Language": "en-US,en;q=0.9",
+          "Origin": "http://127.0.0.1:34831",
+          "Referer": "http://127.0.0.1:34831/",
+          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+          "sec-ch-ua": "\"Not A(Brand\";v=\"99\", \"Chromium\";v=\"154\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Linux\""
+        },
+        "method": "GET",
+        "mimeType": "text/javascript",
+        "requestId": "3446457.9",
+        "resourceType": "Script",
+        "responseHeaders": {
+          "Cache-Control": "no-cache",
+          "Connection": "close",
+          "Content-Length": "4615",
+          "Content-Type": "text/javascript",
+          "Date": "Mon, 05 Oct 2026 16:44:52 GMT, Mon, 05 Oct 2026 16:44:52 GMT",
+          "ETag": "W/\"4615-1791160318580\"",
+          "Last-Modified": "Mon, 05 Oct 2026 00:31:58 GMT",
+          "Server": "BaseHTTP/0.6 Python/3.14.7"
+        },
+        "status": 200,
+        "timestamp": 1791218692814,
+        "url": "http://127.0.0.1:34831/assets/sampleAssembly-BiD767Ck.js"
+      },
+      {
+        "headers": {
+          "Accept-Language": "en-US,en;q=0.9",
+          "Origin": "http://127.0.0.1:34831",
+          "Referer": "http://127.0.0.1:34831/",
+          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+          "sec-ch-ua": "\"Not A(Brand\";v=\"99\", \"Chromium\";v=\"154\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Linux\""
+        },
+        "method": "GET",
+        "mimeType": "text/javascript",
+        "requestId": "3446457.10",
+        "resourceType": "Script",
+        "responseHeaders": {
+          "Cache-Control": "no-cache",
+          "Connection": "close",
+          "Content-Length": "242755",
+          "Content-Type": "text/javascript",
+          "Date": "Mon, 05 Oct 2026 16:44:52 GMT, Mon, 05 Oct 2026 16:44:52 GMT",
+          "ETag": "W/\"242755-1791160318579\"",
+          "Last-Modified": "Mon, 05 Oct 2026 00:31:58 GMT",
+          "Server": "BaseHTTP/0.6 Python/3.14.7"
+        },
+        "status": 200,
+        "timestamp": 1791218692814,
+        "url": "http://127.0.0.1:34831/assets/hostConnector-Cjul-5sD.js"
+      },
+      {
+        "headers": {
+          "Accept-Language": "en-US,en;q=0.9",
+          "Origin": "http://127.0.0.1:34831",
+          "Referer": "http://127.0.0.1:34831/",
+          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+          "sec-ch-ua": "\"Not A(Brand\";v=\"99\", \"Chromium\";v=\"154\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Linux\""
+        },
+        "method": "GET",
+        "mimeType": "text/javascript",
+        "requestId": "3446457.11",
+        "resourceType": "Script",
+        "responseHeaders": {
+          "Cache-Control": "no-cache",
+          "Connection": "close",
+          "Content-Length": "8308",
+          "Content-Type": "text/javascript",
+          "Date": "Mon, 05 Oct 2026 16:44:52 GMT, Mon, 05 Oct 2026 16:44:52 GMT",
+          "ETag": "W/\"8308-1791160318578\"",
+          "Last-Modified": "Mon, 05 Oct 2026 00:31:58 GMT",
+          "Server": "BaseHTTP/0.6 Python/3.14.7"
+        },
+        "status": 200,
+        "timestamp": 1791218692814,
+        "url": "http://127.0.0.1:34831/assets/CanvasLayers--Itn3X1r.js"
+      },
+      {
+        "headers": {
+          "Accept-Language": "en-US,en;q=0.9",
+          "Origin": "http://127.0.0.1:34831",
+          "Referer": "http://127.0.0.1:34831/",
+          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+          "sec-ch-ua": "\"Not A(Brand\";v=\"99\", \"Chromium\";v=\"154\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Linux\""
+        },
+        "method": "GET",
+        "mimeType": "text/javascript",
+        "requestId": "3446457.12",
+        "resourceType": "Script",
+        "responseHeaders": {
+          "Cache-Control": "no-cache",
+          "Connection": "close",
+          "Content-Length": "689790",
+          "Content-Type": "text/javascript",
+          "Date": "Mon, 05 Oct 2026 16:44:52 GMT, Mon, 05 Oct 2026 16:44:52 GMT",
+          "ETag": "W/\"689790-1791160318578\"",
+          "Last-Modified": "Mon, 05 Oct 2026 00:31:58 GMT",
+          "Server": "BaseHTTP/0.6 Python/3.14.7"
+        },
+        "status": 200,
+        "timestamp": 1791218692814,
+        "url": "http://127.0.0.1:34831/assets/Workbench-xoGTVe0a.js"
+      },
+      {
+        "headers": {
+          "Accept-Language": "en-US,en;q=0.9",
+          "Origin": "http://127.0.0.1:34831",
+          "Referer": "http://127.0.0.1:34831/",
+          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+          "sec-ch-ua": "\"Not A(Brand\";v=\"99\", \"Chromium\";v=\"154\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Linux\""
+        },
+        "method": "GET",
+        "mimeType": "text/javascript",
+        "requestId": "3446457.13",
+        "resourceType": "Script",
+        "responseHeaders": {
+          "Cache-Control": "no-cache",
+          "Connection": "close",
+          "Content-Length": "6175",
+          "Content-Type": "text/javascript",
+          "Date": "Mon, 05 Oct 2026 16:44:52 GMT, Mon, 05 Oct 2026 16:44:52 GMT",
+          "ETag": "W/\"6175-1791160318578\"",
+          "Last-Modified": "Mon, 05 Oct 2026 00:31:58 GMT",
+          "Server": "BaseHTTP/0.6 Python/3.14.7"
+        },
+        "status": 200,
+        "timestamp": 1791218692814,
+        "url": "http://127.0.0.1:34831/assets/CaseClient-Co3k0IHw.js"
+      },
+      {
+        "headers": {
+          "Accept-Language": "en-US,en;q=0.9",
+          "Origin": "http://127.0.0.1:34831",
+          "Referer": "http://127.0.0.1:34831/",
+          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+          "sec-ch-ua": "\"Not A(Brand\";v=\"99\", \"Chromium\";v=\"154\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Linux\""
+        },
+        "method": "GET",
+        "mimeType": "text/javascript",
+        "requestId": "3446457.14",
+        "resourceType": "Script",
+        "responseHeaders": {
+          "Cache-Control": "no-cache",
+          "Connection": "close",
+          "Content-Length": "2559",
+          "Content-Type": "text/javascript",
+          "Date": "Mon, 05 Oct 2026 16:44:52 GMT, Mon, 05 Oct 2026 16:44:52 GMT",
+          "ETag": "W/\"2559-1791160318578\"",
+          "Last-Modified": "Mon, 05 Oct 2026 00:31:58 GMT",
+          "Server": "BaseHTTP/0.6 Python/3.14.7"
+        },
+        "status": 200,
+        "timestamp": 1791218692814,
+        "url": "http://127.0.0.1:34831/assets/ExportClient-B53tp6vI.js"
+      },
+      {
+        "headers": {
+          "Accept-Language": "en-US,en;q=0.9",
+          "Origin": "http://127.0.0.1:34831",
+          "Referer": "http://127.0.0.1:34831/",
+          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+          "sec-ch-ua": "\"Not A(Brand\";v=\"99\", \"Chromium\";v=\"154\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Linux\""
+        },
+        "method": "GET",
+        "mimeType": "text/javascript",
+        "requestId": "3446457.15",
+        "resourceType": "Script",
+        "responseHeaders": {
+          "Cache-Control": "no-cache",
+          "Connection": "close",
+          "Content-Length": "579",
+          "Content-Type": "text/javascript",
+          "Date": "Mon, 05 Oct 2026 16:44:52 GMT, Mon, 05 Oct 2026 16:44:52 GMT",
+          "ETag": "W/\"579-1791160318580\"",
+          "Last-Modified": "Mon, 05 Oct 2026 00:31:58 GMT",
+          "Server": "BaseHTTP/0.6 Python/3.14.7"
+        },
+        "status": 200,
+        "timestamp": 1791218692814,
+        "url": "http://127.0.0.1:34831/assets/prepareCase-CxlyYaE0.js"
+      },
+      {
+        "headers": {
+          "Accept-Language": "en-US,en;q=0.9",
+          "Origin": "http://127.0.0.1:34831",
+          "Referer": "http://127.0.0.1:34831/",
+          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+          "sec-ch-ua": "\"Not A(Brand\";v=\"99\", \"Chromium\";v=\"154\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Linux\""
+        },
+        "method": "GET",
+        "mimeType": "text/javascript",
+        "requestId": "3446457.16",
+        "resourceType": "Script",
+        "responseHeaders": {
+          "Cache-Control": "no-cache",
+          "Connection": "close",
+          "Content-Length": "1534",
+          "Content-Type": "text/javascript",
+          "Date": "Mon, 05 Oct 2026 16:44:52 GMT, Mon, 05 Oct 2026 16:44:52 GMT",
+          "ETag": "W/\"1534-1791160318578\"",
+          "Last-Modified": "Mon, 05 Oct 2026 00:31:58 GMT",
+          "Server": "BaseHTTP/0.6 Python/3.14.7"
+        },
+        "status": 200,
+        "timestamp": 1791218692814,
+        "url": "http://127.0.0.1:34831/assets/CoreClient-CeXF5gf3.js"
+      },
+      {
+        "headers": {
+          "Accept-Language": "en-US,en;q=0.9",
+          "Origin": "http://127.0.0.1:34831",
+          "Referer": "http://127.0.0.1:34831/",
+          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+          "sec-ch-ua": "\"Not A(Brand\";v=\"99\", \"Chromium\";v=\"154\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Linux\""
+        },
+        "method": "GET",
+        "mimeType": "text/css",
+        "requestId": "3446457.17",
+        "resourceType": "Stylesheet",
+        "responseHeaders": {
+          "Cache-Control": "no-cache",
+          "Connection": "close",
+          "Content-Length": "3829",
+          "Content-Type": "text/css",
+          "Date": "Mon, 05 Oct 2026 16:44:52 GMT, Mon, 05 Oct 2026 16:44:52 GMT",
+          "ETag": "W/\"3829-1791160318582\"",
+          "Last-Modified": "Mon, 05 Oct 2026 00:31:58 GMT",
+          "Server": "BaseHTTP/0.6 Python/3.14.7"
+        },
+        "status": 200,
+        "timestamp": 1791218692814,
+        "url": "http://127.0.0.1:34831/assets/CanvasLayers-CsdRsyON.css"
+      },
+      {
+        "headers": {
+          "Accept-Language": "en-US,en;q=0.9",
+          "Origin": "http://127.0.0.1:34831",
+          "Referer": "http://127.0.0.1:34831/",
+          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+          "sec-ch-ua": "\"Not A(Brand\";v=\"99\", \"Chromium\";v=\"154\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Linux\""
+        },
+        "method": "GET",
+        "mimeType": "text/css",
+        "requestId": "3446457.18",
+        "resourceType": "Stylesheet",
+        "responseHeaders": {
+          "Cache-Control": "no-cache",
+          "Connection": "close",
+          "Content-Length": "162218",
+          "Content-Type": "text/css",
+          "Date": "Mon, 05 Oct 2026 16:44:52 GMT, Mon, 05 Oct 2026 16:44:52 GMT",
+          "ETag": "W/\"162218-1791160318597\"",
+          "Last-Modified": "Mon, 05 Oct 2026 00:31:58 GMT",
+          "Server": "BaseHTTP/0.6 Python/3.14.7"
+        },
+        "status": 200,
+        "timestamp": 1791218692814,
+        "url": "http://127.0.0.1:34831/assets/Workbench-CY_zLo-_.css"
+      },
+      {
+        "headers": {
+          "Accept-Language": "en-US,en;q=0.9",
+          "Origin": "http://127.0.0.1:34831",
+          "Referer": "http://127.0.0.1:34831/",
+          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+          "sec-ch-ua": "\"Not A(Brand\";v=\"99\", \"Chromium\";v=\"154\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Linux\""
+        },
+        "method": "GET",
+        "mimeType": "text/css",
+        "requestId": "3446457.19",
+        "resourceType": "Stylesheet",
+        "responseHeaders": {
+          "Cache-Control": "no-cache",
+          "Connection": "close",
+          "Content-Length": "2418",
+          "Content-Type": "text/css",
+          "Date": "Mon, 05 Oct 2026 16:44:52 GMT, Mon, 05 Oct 2026 16:44:52 GMT",
+          "ETag": "W/\"2418-1791160318599\"",
+          "Last-Modified": "Mon, 05 Oct 2026 00:31:58 GMT",
+          "Server": "BaseHTTP/0.6 Python/3.14.7"
+        },
+        "status": 200,
+        "timestamp": 1791218692814,
+        "url": "http://127.0.0.1:34831/assets/main-lCS5As1o.css"
+      },
+      {
+        "headers": {
+          "Accept-Language": "en-US,en;q=0.9",
+          "Referer": "http://127.0.0.1:34831/",
+          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+          "sec-ch-ua": "\"Not A(Brand\";v=\"99\", \"Chromium\";v=\"154\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Linux\""
+        },
+        "method": "GET",
+        "mimeType": "application/manifest+json",
+        "requestId": "3446457.38",
+        "resourceType": "Manifest",
+        "responseHeaders": {
+          "Cache-Control": "no-cache",
+          "Connection": "close",
+          "Content-Length": "187",
+          "Content-Type": "application/manifest+json",
+          "Date": "Mon, 05 Oct 2026 16:44:52 GMT, Mon, 05 Oct 2026 16:44:52 GMT",
+          "ETag": "W/\"187-1791160317930\"",
+          "Last-Modified": "Mon, 05 Oct 2026 00:31:57 GMT",
+          "Server": "BaseHTTP/0.6 Python/3.14.7"
+        },
+        "status": 200,
+        "timestamp": 1791218692814,
+        "url": "http://127.0.0.1:34831/manifest.webmanifest"
+      },
+      {
+        "headers": {
+          "Accept": "*/*"
+        },
+        "method": "GET",
+        "requestId": "6013BA4575312E5D445B372F130B0F59",
+        "resourceType": "Script",
+        "timestamp": 1791218692815,
+        "url": "http://127.0.0.1:34831/assets/core.worker-DYzqb7x2.js"
+      },
+      {
+        "headers": {
+          "Accept-Language": "en-US,en;q=0.9",
+          "Referer": "http://127.0.0.1:34831/",
+          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+          "sec-ch-ua": "\"Not A(Brand\";v=\"99\", \"Chromium\";v=\"154\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Linux\""
+        },
+        "method": "GET",
+        "mimeType": "text/plain",
+        "requestId": "3446457.41",
+        "resourceType": "Other",
+        "responseHeaders": {
+          "Connection": "close",
+          "Content-Length": "0",
+          "Date": "Mon, 05 Oct 2026 16:44:52 GMT, Mon, 05 Oct 2026 16:44:52 GMT",
+          "Server": "BaseHTTP/0.6 Python/3.14.7"
+        },
+        "status": 404,
+        "timestamp": 1791218692815,
+        "url": "http://127.0.0.1:34831/favicon.ico"
+      },
+      {
+        "headers": {
+          "Accept": "*/*"
+        },
+        "method": "GET",
+        "requestId": "1B9A431A12B030DCC88BED167FFE58CA",
+        "resourceType": "Script",
+        "timestamp": 1791218693588,
+        "url": "http://127.0.0.1:34831/assets/export.worker-lNP_mi_9.js"
+      }
+    ]
+  },
+  "failure_dom": {
+    "controller": "http://127.0.0.1:34831/sw.js",
+    "knownControls": [
+      {
+        "className": "wb-open-project",
+        "tag": "BUTTON"
+      }
+    ],
+    "loadedScripts": [
+      "http://127.0.0.1:34831/assets/main-CYxchQWA.js"
+    ],
+    "mainClasses": [
+      "wb-root wb-unified wb-project-start"
+    ],
+    "readyState": "complete",
+    "registrations": [
+      "http://127.0.0.1:34831/sw.js"
+    ],
+    "resources": [
+      {
+        "duration": 11,
+        "name": "http://127.0.0.1:34831/assets/source-sans-3-upright-BsWL4Kly.woff2",
+        "size": 170488,
+        "type": "link"
+      },
+      {
+        "duration": 8.399999976158142,
+        "name": "http://127.0.0.1:34831/assets/main-CYxchQWA.js",
+        "size": 75072,
+        "type": "script"
+      },
+      {
+        "duration": 11.199999988079071,
+        "name": "http://127.0.0.1:34831/assets/src-COpmSzR1.js",
+        "size": 281280,
+        "type": "other"
+      },
+      {
+        "duration": 9.800000011920929,
+        "name": "http://127.0.0.1:34831/assets/jsx-runtime-BguMC-xa.js",
+        "size": 29252,
+        "type": "other"
+      },
+      {
+        "duration": 9.300000011920929,
+        "name": "http://127.0.0.1:34831/assets/preload-helper-uBIymjUX.js",
+        "size": 1533,
+        "type": "other"
+      },
+      {
+        "duration": 9.900000005960464,
+        "name": "http://127.0.0.1:34831/assets/modulepreload-polyfill-P2Xu9kJm.js",
+        "size": 970,
+        "type": "other"
+      },
+      {
+        "duration": 15.699999988079071,
+        "name": "http://127.0.0.1:34831/assets/src-C1Ecu6uT.js",
+        "size": 571,
+        "type": "other"
+      },
+      {
+        "duration": 14.099999994039536,
+        "name": "http://127.0.0.1:34831/assets/sampleAssembly-BiD767Ck.js",
+        "size": 4915,
+        "type": "other"
+      },
+      {
+        "duration": 15.199999988079071,
+        "name": "http://127.0.0.1:34831/assets/CanvasLayers--Itn3X1r.js",
+        "size": 8608,
+        "type": "other"
+      },
+      {
+        "duration": 16.5,
+        "name": "http://127.0.0.1:34831/assets/hostConnector-Cjul-5sD.js",
+        "size": 243055,
+        "type": "other"
+      },
+      {
+        "duration": 22.69999998807907,
+        "name": "http://127.0.0.1:34831/assets/Workbench-xoGTVe0a.js",
+        "size": 690090,
+        "type": "other"
+      },
+      {
+        "duration": 20.200000017881393,
+        "name": "http://127.0.0.1:34831/assets/ExportClient-B53tp6vI.js",
+        "size": 2859,
+        "type": "other"
+      },
+      {
+        "duration": 21.200000017881393,
+        "name": "http://127.0.0.1:34831/assets/CaseClient-Co3k0IHw.js",
+        "size": 6475,
+        "type": "other"
+      },
+      {
+        "duration": 20.5,
+        "name": "http://127.0.0.1:34831/assets/prepareCase-CxlyYaE0.js",
+        "size": 879,
+        "type": "other"
+      },
+      {
+        "duration": 20.5,
+        "name": "http://127.0.0.1:34831/assets/CoreClient-CeXF5gf3.js",
+        "size": 1834,
+        "type": "other"
+      },
+      {
+        "duration": 10.699999988079071,
+        "name": "http://127.0.0.1:34831/assets/CanvasLayers-CsdRsyON.css",
+        "size": 4129,
+        "type": "link"
+      },
+      {
+        "duration": 14.400000005960464,
+        "name": "http://127.0.0.1:34831/assets/Workbench-CY_zLo-_.css",
+        "size": 162518,
+        "type": "link"
+      },
+      {
+        "duration": 13,
+        "name": "http://127.0.0.1:34831/assets/main-lCS5As1o.css",
+        "size": 2718,
+        "type": "link"
+      },
+      {
+        "duration": 15.600000023841858,
+        "name": "http://127.0.0.1:34831/manifest.webmanifest",
+        "size": 487,
+        "type": "link"
+      },
+      {
+        "duration": 3.0999999940395355,
+        "name": "http://127.0.0.1:34831/favicon.ico",
+        "size": 300,
+        "type": "other"
+      },
+      {
+        "duration": -34.69999998807907,
+        "name": "http://127.0.0.1:34831/assets/core.worker-DYzqb7x2.js",
+        "size": 4751,
+        "type": "other"
+      },
+      {
+        "duration": -2.2999999821186066,
+        "name": "http://127.0.0.1:34831/assets/export.worker-lNP_mi_9.js",
+        "size": 0,
+        "type": "other"
+      }
+    ],
+    "title": "Board Studio v2",
+    "url": "http://127.0.0.1:34831/"
+  },
+  "input_archive": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/reference-joined-input.boardstudio",
+  "input_document": {
+    "format": "boardstudio/v2",
+    "id": "m1-sofle-v2-copy",
+    "name": "Sofle v2",
+    "revision": 23
+  },
+  "input_sha256": "58c0d6303c08dafe4f2259b297d78c619f8c9469163575ff4dcea53c95cf2342",
+  "origin": "http://127.0.0.1:34831",
+  "proxy_modes": [
+    "reference"
+  ],
+  "proxy_requests": 163,
+  "reference": "http://127.0.0.1:5175/",
+  "reference_initial": {
+    "controller": "http://127.0.0.1:34831/sw.js",
+    "databases": [
+      {
+        "name": "boardstudio-v2",
+        "version": 1
+      }
+    ],
+    "localStorageKeys": [],
+    "registrations": [
+      "http://127.0.0.1:34831/sw.js"
+    ],
+    "shell": "wb-root wb-unified wb-project-start",
+    "url": "http://127.0.0.1:34831/"
+  },
+  "session": "f96-cutover-164452-3446306",
+  "status": "setup-or-public-journey-failed",
+  "storage_policy": "fresh isolated browser session; no localStorage/IndexedDB/CacheStorage clearing; no service-worker unregister"
+}

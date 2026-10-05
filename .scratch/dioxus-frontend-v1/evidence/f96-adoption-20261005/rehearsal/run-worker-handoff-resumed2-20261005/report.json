@@ -1,0 +1,79 @@
+{
+  "browser_session_closed": false,
+  "candidate_archive": {
+    "asset_count": 6,
+    "asset_hashes": {
+      "assets/31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b": "31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b",
+      "assets/42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3": "42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3",
+      "assets/54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e": "54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e",
+      "assets/77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f": "77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f",
+      "assets/abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722": "abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722",
+      "assets/ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4": "ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4"
+    },
+    "bytes": 1587455,
+    "document": {
+      "format": "boardstudio/v2",
+      "id": "m1-sofle-v2-copy",
+      "name": "Sofle v2",
+      "revision": 23
+    },
+    "entries": [
+      "archive.json",
+      "assets/31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b",
+      "assets/42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3",
+      "assets/54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e",
+      "assets/77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f",
+      "assets/abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722",
+      "assets/ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4",
+      "project.json"
+    ],
+    "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-worker-handoff-final-20261005/candidate-copy-from-reference.boardstudio",
+    "sha256": "d3402881fcda6c7eac680597e8cdc0f66fec01e430544a7c43c784f0553358e2"
+  },
+  "candidate_upstream": "http://127.0.0.1:34834/",
+  "conditional_worker_probe": {
+    "bytes": 1198,
+    "cache_control": "no-store",
+    "etag": null,
+    "last_modified": null,
+    "path": "/service-worker.js",
+    "sha256": "a8607a7281c3ef0a6d15f27582395e75668e94f331c0402ffec82ccf17cd55d3",
+    "status": 200
+  },
+  "direct_indexeddb_migration": "not supplied; public .boardstudio import is the compatibility boundary",
+  "error": "<HTTPError 304: 'Not Modified'>",
+  "failure_state": {
+    "cacheNames": [
+      "boardstudio-v2-1b6b10523d1a",
+      "boardstudio-m1-offline-path-2f-frontend-worker-activation-20261005-root"
+    ],
+    "controller": "http://127.0.0.1:34836/service-worker.js",
+    "databases": [
+      "boardstudio-m1-root",
+      "boardstudio-v2"
+    ],
+    "m1Active": "m1-sofle-v2-copy",
+    "reactActive": "m1-sofle-v2-copy",
+    "readyState": "complete",
+    "registrations": [
+      {
+        "active": "http://127.0.0.1:34836/service-worker.js",
+        "installing": null,
+        "scope": "http://127.0.0.1:34836/",
+        "waiting": null
+      }
+    ],
+    "title": "dioxus | \u26fa",
+    "url": "http://127.0.0.1:34836/"
+  },
+  "origin": "http://127.0.0.1:34836/",
+  "phases": [],
+  "previous_forward_report": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-worker-handoff-final-20261005/report.json",
+  "previous_forward_status": "stopped-at-first-failed-boundary",
+  "proxy_requests": 2,
+  "reference_upstream": "http://127.0.0.1:34835/",
+  "resumed_from": "live M1-controlled profile after successful reference-to-candidate public import/save/reload",
+  "same_origin_policy": "same profile, origin, worker registrations, databases and caches; no clearing/unregister",
+  "session": "f96-cutover-final-172055-3488104",
+  "status": "stopped-at-first-failed-boundary"
+}

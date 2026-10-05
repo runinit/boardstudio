@@ -9846,7 +9846,7 @@
         "F9.5"
       ],
       "acceptance_after": [],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
       "shared_edit_owner": "integration coordinator",
@@ -9890,7 +9890,7 @@
         {
           "id": "F9.6-C02",
           "requirement": "Exact build/check/review provenance and cutover/rollback dry-run using copied data are reviewed.",
-          "state": "missing",
+          "state": "verified",
           "classification": "release",
           "sources": [
             ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md"
@@ -9900,10 +9900,16 @@
             ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-f956-20261005-08/proxy-requests.jsonl",
             ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-worker-handoff-20261005/report.json",
             ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-worker-handoff-20261005/read-only-diagnosis.json",
-            ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-activation-red.log"
+            ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-activation-red.log",
+            ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/joined-cutover-receipt.md",
+            ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-worker-handoff-finish-20261005/completion-observations.json",
+            ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rollback-activation-publication.json",
+            ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/accepted-source-freshness.json",
+            ".scratch/dioxus-frontend-v1/evidence/frontend-worker-activation-20261005/package-proof.json",
+            ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
           ],
           "blockers": [],
-          "next_action": "Finish bounded worker activation correction, independently review and publish it, then prove same-origin forward/rollback/forward with copied project readback. Legacy worker handoff is present in 3d2a33f4, but its first real transition stalled because activation waits on navigation; revised lifecycle regression reproduces the dependency. Preserve failed profile and both data stores.",
+          "next_action": "Complete: sole independent review CLEAR for exact 82207f75 package provenance and same-origin copied-data forward/rollback/re-adoption. All project fields/six asset hashes preserved, ordinary final worker controls retained profile, stores/caches intact. Four mutable URLs used explicit fresh/no-store staging policy; production Pages untested. Finished default-entrypoint patch remains unapplied pending F9.7 approval.",
           "finish_condition": "Reviewed patch names exact provenance and demonstrates recoverable copied-data cutover/rollback.",
           "owned_files": [
             ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md"
@@ -9951,8 +9957,18 @@
           "from": "planned",
           "to": "implementing",
           "reason": "All release qualification prerequisites accepted; concrete production entrypoint proposal and actual63-row reconciliation prepared. Required copied-data cutover/rollback rehearsal and final RF review remain."
+        },
+        {
+          "at": "2026-10-05T17:49:07.599173+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Exact immutable package and same-profile copied-data cutover/rollback/re-adoption independently CLEAR; complete project fields/assets and retained storage/worker control verified under explicit staging HTTP freshness policy. Finished adoption patch remains unapplied pending separate approval.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f9-6-decision.json"
         }
-      ]
+      ],
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005-f9-6-decision.json"
+      }
     },
     {
       "id": "F9.7",
@@ -10120,8 +10136,7 @@
     "integration_slices": 2,
     "boundary_slices": 2,
     "status": {
-      "accepted": 58,
-      "implementing": 1,
+      "accepted": 59,
       "planned": 1
     }
   },

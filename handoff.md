@@ -1,18 +1,18 @@
 # Handoff (generated from records)
 
-- Branch: codex/rust-v1-ui-parity-20261001 @ 3d2a33f4
+- Branch: codex/rust-v1-ui-parity-20261001 @ 82207f75
 - Worktree: /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001
-- Parents: 58/60 accepted, 1 implementing, 1 planned
-- Criteria: unassessed 2, missing 1, implemented 0, verified 218; 221 total
+- Parents: 59/60 accepted, 0 implementing, 1 planned
+- Criteria: unassessed 2, missing 0, implemented 0, verified 219; 221 total
   - functional: verified 181
-  - release: missing 1, unassessed 2, verified 29
+  - release: unassessed 2, verified 30
   - visual: verified 8
 
 ## Served candidate
-- Build: frontend-worker-handoff-20261005
-- Source commit: 3d2a33f4008fe22e6ba04883bb6f11a152f8e9a1
-- Root: http://127.0.0.1:34832/
-- Subpath: http://127.0.0.1:34832/boardstudio/
+- Build: frontend-worker-activation-20261005
+- Source commit: 82207f752e93d889877bab72c6e86b2d248620ce
+- Root: http://127.0.0.1:34834/
+- Subpath: http://127.0.0.1:34834/boardstudio/
 
 ## Functional readiness
 - Ready functional criteria: 0 investigate, 0 implement, 0 qualify (Layout 0 investigate/0 implement/0 qualify; PCB 0 investigate/0 implement/0 qualify; Keymap 0 investigate/0 implement/0 qualify; Keycaps 0 investigate/0 implement/0 qualify; Case 0 investigate/0 implement/0 qualify; Parts+Project 0 investigate/0 implement/0 qualify; Shared 0 investigate/0 implement/0 qualify)
@@ -31,7 +31,7 @@ Exact unmet final joins:
   none
 
 ## Parents
-- Accepted (58): INT.1, INT.2, BND.1, BND.2, F2.1, F2.2, F2.3, F2.4, F3.1, F3.2, F3.3, F3.4, F3.5, F3.6, F3.7, F3.8, F4.1, F4.2, F4.3, F4.4, F4.5, F4.6, F5.1, F5.2, F5.3, F5.4, F5.5, F5.6, F5.7, F5.8, F6K.1, F6K.2, F6K.3, F6K.4, F6C.1, F6C.2, F6C.3, F6C.4, F6C.5, F6.6, F7.1, F7.2, F7.3, F7.4, F7.5, F7.6, F7.7, F7.8, F8.1, F8.2, F8.3, F8.4, F8.5, F8.6, F9.1, F9.2, F9.4, F9.5
+- Accepted (59): INT.1, INT.2, BND.1, BND.2, F2.1, F2.2, F2.3, F2.4, F3.1, F3.2, F3.3, F3.4, F3.5, F3.6, F3.7, F3.8, F4.1, F4.2, F4.3, F4.4, F4.5, F4.6, F5.1, F5.2, F5.3, F5.4, F5.5, F5.6, F5.7, F5.8, F6K.1, F6K.2, F6K.3, F6K.4, F6C.1, F6C.2, F6C.3, F6C.4, F6C.5, F6.6, F7.1, F7.2, F7.3, F7.4, F7.5, F7.6, F7.7, F7.8, F8.1, F8.2, F8.3, F8.4, F8.5, F8.6, F9.1, F9.2, F9.4, F9.5, F9.6
 - Hold (0): none
 
 ## Criteria on hold or blocked
@@ -75,16 +75,12 @@ Exact unmet final joins:
 - RF-034: Frontend artifact switches leave the prior service worker controlling the shell
 
 ## Qualification scope
-- Scope: f86-integrated-project-export-20261005 - Paired six-workbench project-to-export journey
-- Journeys: six-workbench-project-export
-- State: qualifying
+- Scope: f96-same-origin-release-rehearsal-20261005 - Copied-data cutover, rollback and re-adoption
+- Journeys: same-origin-copied-data-cutover-rollback
+- State: qualified
 
 Last retro checkpoint: 2026-10-04T15:56:00Z
 
-Current work: published candidate frontend-worker-handoff-20261005, source3d2a33f4, root34832/subpath34832/boardstudio. Existing accepted performance and functional source remains unchanged; copied React rollback at34833 has143 exact original assets plus handoff overlay. Package passed1412 source hashes/191 route assets each;9 fresh/23 inherited commands,127.36seconds. Original reference5175 and earlier candidate34830 remain available.
+Current execution: F9.6 accepted after sole independent review CLEAR. Joined same-profile copied-data forward/rollback/re-adoption succeeded with exact project fields and six asset hashes, final ordinary worker, retained cache/database families. QA proxy HTTP freshness explicitly covers /, /index.html, /sw.js, /service-worker.js; stopped attempts retained. Production Pages untested; no direct browser-store migration. Candidate82207f75 remains served at34834, copied React rollback34835; staging proxy34836 released, profile preserved.
 
-Actual release blocker RF-034: run08 oldReact /sw.js404 prevents shell transition. Initial handoff repair3d2a33f4 now returns200/304 but actual same-origin reload retains React target and stalls Runtime CDP. Chromium lifecycle source plus meaningful pending-navigation RED identifies activate.waitUntil awaiting client.navigate completion as a dependency cycle. No candidate import or project data mutation occurred. Direct metadata confirms same React target; ServiceWorker.enable on browser target unavailable, so no observed ACTIVATING-state claim.
-
-Source author migration_acceleration_review correcting only service-worker-handoff.js and its existing test; retain scoped claim/enumeration and initiate navigations without waiting for completion. Sole reviewer preset_batch_review handles corrected delta; reuse unchanged41/41 build-reuse proof. Root commits/publishes next immutable candidate after settled hashes/review. case_local_export owns continuation harness and preserved browser session f96-cutover-164703-3448630/proxy34831(PID3474981). Failed profile stays untouched; if normal navigation cannot recover it, create a fresh isolated copied-data reference start using proven helpers, no cache/registration clearing.
-
-Tracker: all in-scope functional workflows accepted. Remaining F9.6-C02 actual release rehearsal and F9.7-C01/C02 approved default launch/covered entrypoint retirement. Undo/Redo qualification and repairs, mobile and accessibility excluded. Default package/Pages patch is reviewed but unapplied; production approval stays separate. Preserve six unrelated staged entries recorded in /tmp/case-layout-unrelated-index.json. No push or branch switch.
+Only F9.7 remains: reviewed two-file default-entrypoint.patch is unapplied. Request explicit approval for local default start/build/Pages configuration and adopted-launch qualification; no push, hosted deployment or React source deletion. Read f96-adoption-20261005/README.md and joined-cutover-receipt.md. All authors/reviewer settled. No build/browser work active. Preserve six unrelated staged entries in /tmp/case-layout-unrelated-index.json.

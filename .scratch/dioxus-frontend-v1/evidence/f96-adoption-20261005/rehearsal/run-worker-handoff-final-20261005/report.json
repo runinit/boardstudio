@@ -1,0 +1,221 @@
+{
+  "browser_session_closed": false,
+  "candidate_upstream": "http://127.0.0.1:34834/",
+  "direct_indexeddb_migration": "not supplied; public .boardstudio archive import is the compatibility boundary",
+  "error": "RuntimeError(\"agent-browser wait failed: {'success': False, 'data': None, 'error': 'Wait timed out after 120000ms'} \")",
+  "failure_state": {
+    "cacheNames": [
+      "boardstudio-v2-1b6b10523d1a",
+      "boardstudio-m1-offline-path-2f-frontend-worker-activation-20261005-root"
+    ],
+    "controller": "http://127.0.0.1:34836/service-worker.js",
+    "databases": [
+      "boardstudio-m1-root",
+      "boardstudio-v2"
+    ],
+    "knownControls": [
+      {
+        "className": "m1-project-menu",
+        "tag": "DETAILS"
+      },
+      {
+        "className": {},
+        "tag": "svg"
+      }
+    ],
+    "m1Active": "m1-sofle-v2-copy",
+    "mainClasses": [
+      "m1-workbench"
+    ],
+    "reactActive": "m1-sofle-v2-copy",
+    "readyState": "complete",
+    "registrations": [
+      {
+        "active": "http://127.0.0.1:34836/service-worker.js",
+        "scope": "http://127.0.0.1:34836/",
+        "waiting": null
+      }
+    ],
+    "title": "BoardStudio",
+    "url": "http://127.0.0.1:34836/"
+  },
+  "input_archive": {
+    "asset_count": 6,
+    "asset_hashes": {
+      "assets/31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b": "31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b",
+      "assets/42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3": "42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3",
+      "assets/54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e": "54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e",
+      "assets/77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f": "77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f",
+      "assets/abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722": "abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722",
+      "assets/ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4": "ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4"
+    },
+    "bytes": 1587402,
+    "document": {
+      "format": "boardstudio/v2",
+      "id": "m1-sofle-v2-copy",
+      "name": "Sofle v2",
+      "revision": 23
+    },
+    "entries": [
+      "archive.json",
+      "assets/31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b",
+      "assets/42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3",
+      "assets/54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e",
+      "assets/77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f",
+      "assets/abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722",
+      "assets/ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4",
+      "project.json"
+    ],
+    "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/bootstrap-reference-final-20261005/reference-resaved.boardstudio",
+    "sha256": "58c0d6303c08dafe4f2259b297d78c619f8c9469163575ff4dcea53c95cf2342"
+  },
+  "origin": "http://127.0.0.1:34836/",
+  "phases": [
+    {
+      "expected_shell_predicate": "Boolean(document.querySelector('.m1-canvas') || document.querySelector('.m1-library-landing'))",
+      "expected_worker_path": "/service-worker.js",
+      "observed": {
+        "cacheNames": [
+          "boardstudio-v2-1b6b10523d1a",
+          "boardstudio-m1-offline-path-2f-frontend-worker-activation-20261005-root"
+        ],
+        "controller": "http://127.0.0.1:34836/service-worker.js",
+        "databases": [
+          "boardstudio-m1-root",
+          "boardstudio-v2"
+        ],
+        "m1": true,
+        "m1Active": null,
+        "react": false,
+        "reactActive": "m1-sofle-v2-copy",
+        "registrations": [
+          {
+            "active": "http://127.0.0.1:34836/service-worker.js",
+            "installing": null,
+            "scope": "http://127.0.0.1:34836/",
+            "waiting": null
+          }
+        ],
+        "url": "http://127.0.0.1:34836/"
+      },
+      "reload": "reference-to-candidate",
+      "worker_active_no_waiting": true
+    },
+    {
+      "archive_comparison_to_input": "candidate-copy-from-reference",
+      "comparison": {
+        "actual_asset_hashes": {
+          "assets/31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b": "31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b",
+          "assets/42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3": "42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3",
+          "assets/54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e": "54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e",
+          "assets/77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f": "77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f",
+          "assets/abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722": "abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722",
+          "assets/ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4": "ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4"
+        },
+        "asset_hashes_equal": true,
+        "asset_paths_equal": true,
+        "expected_asset_hashes": {
+          "assets/31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b": "31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b",
+          "assets/42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3": "42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3",
+          "assets/54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e": "54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e",
+          "assets/77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f": "77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f",
+          "assets/abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722": "abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722",
+          "assets/ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4": "ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4"
+        },
+        "numeric_tolerance": {
+          "absolute": 1e-08,
+          "relative": 1e-12
+        },
+        "project_document_differences": [],
+        "project_document_within_accepted_numeric_tolerance": true
+      }
+    },
+    {
+      "archive": {
+        "asset_count": 6,
+        "asset_hashes": {
+          "assets/31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b": "31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b",
+          "assets/42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3": "42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3",
+          "assets/54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e": "54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e",
+          "assets/77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f": "77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f",
+          "assets/abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722": "abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722",
+          "assets/ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4": "ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4"
+        },
+        "bytes": 1587455,
+        "document": {
+          "format": "boardstudio/v2",
+          "id": "m1-sofle-v2-copy",
+          "name": "Sofle v2",
+          "revision": 23
+        },
+        "entries": [
+          "archive.json",
+          "assets/31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b",
+          "assets/42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3",
+          "assets/54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e",
+          "assets/77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f",
+          "assets/abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722",
+          "assets/ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4",
+          "project.json"
+        ],
+        "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-worker-handoff-final-20261005/candidate-copy-from-reference.boardstudio",
+        "sha256": "d3402881fcda6c7eac680597e8cdc0f66fec01e430544a7c43c784f0553358e2"
+      },
+      "public_import_and_save": "candidate-copy-from-reference"
+    },
+    {
+      "observed": {
+        "cacheNames": [
+          "boardstudio-v2-1b6b10523d1a",
+          "boardstudio-m1-offline-path-2f-frontend-worker-activation-20261005-root"
+        ],
+        "databases": [
+          "boardstudio-m1-root",
+          "boardstudio-v2"
+        ],
+        "m1": true,
+        "m1Active": "m1-sofle-v2-copy",
+        "m1Name": "Sofle v2",
+        "react": false,
+        "reactActive": "m1-sofle-v2-copy",
+        "reactName": null,
+        "url": "http://127.0.0.1:34836/"
+      },
+      "reload_readback": "candidate-copy-from-reference"
+    },
+    {
+      "switch": {
+        "mode": "reference"
+      }
+    }
+  ],
+  "preserved_profile_before": {
+    "active": "m1-sofle-v2-copy",
+    "cacheNames": [
+      "boardstudio-v2-1b6b10523d1a"
+    ],
+    "controller": "http://127.0.0.1:34836/sw.js",
+    "databases": [
+      "boardstudio-v2"
+    ],
+    "registrations": [
+      {
+        "active": "http://127.0.0.1:34836/sw.js",
+        "installing": null,
+        "scope": "http://127.0.0.1:34836/",
+        "waiting": null
+      }
+    ],
+    "url": "http://127.0.0.1:34836/"
+  },
+  "proxy_owner_waits_for_release_file": true,
+  "proxy_requests": 196,
+  "proxy_upstreams_seen": [
+    "http://127.0.0.1:34834/",
+    "http://127.0.0.1:34835/"
+  ],
+  "reference_upstream": "http://127.0.0.1:34835/",
+  "same_origin_policy": "fixed origin and root scope; no cache/storage clearing or worker unregister",
+  "session": "f96-cutover-final-172055-3488104",
+  "status": "stopped-at-first-failed-boundary"
+}

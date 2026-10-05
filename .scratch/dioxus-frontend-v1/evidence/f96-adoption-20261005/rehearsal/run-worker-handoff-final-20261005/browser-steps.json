@@ -1,0 +1,288 @@
+[
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f96-cutover-final-172055-3488104",
+      "eval",
+      "(async()=>JSON.stringify(await (({url:location.href,controller:navigator.serviceWorker.controller?.scriptURL??null,registrations:(await navigator.serviceWorker.getRegistrations()).map(r=>({scope:r.scope,active:r.active?.scriptURL??null,waiting:r.waiting?.scriptURL??null,installing:r.installing?.scriptURL??null})),active:localStorage.getItem('boardstudio-v2-active-project'),databases:(await indexedDB.databases()).map(x=>x.name),cacheNames:await caches.keys()}))))()",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"origin\":\"http://127.0.0.1:34836/\",\"result\":\"{\\\"url\\\":\\\"http://127.0.0.1:34836/\\\",\\\"controller\\\":\\\"http://127.0.0.1:34836/sw.js\\\",\\\"registrations\\\":[{\\\"scope\\\":\\\"http://127.0.0.1:34836/\\\",\\\"active\\\":\\\"http://127.0.0.1:34836/sw.js\\\",\\\"waiting\\\":null,\\\"installing\\\":null}],\\\"active\\\":\\\"m1-sofle-v2-copy\\\",\\\"databases\\\":[\\\"boardstudio-v2\\\"],\\\"cacheNames\\\":[\\\"boardstudio-v2-1b6b10523d1a\\\"]}\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T17:21:35.499286+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f96-cutover-final-172055-3488104",
+      "reload",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"url\":\"http://127.0.0.1:34836/\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T17:21:35.600338+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f96-cutover-final-172055-3488104",
+      "wait",
+      "--fn",
+      "Boolean(document.querySelector('.m1-canvas') || document.querySelector('.m1-library-landing'))",
+      "--timeout",
+      "120000",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"result\":true},\"error\":null}\n",
+    "time_utc": "2026-10-05T17:21:38.616244+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f96-cutover-final-172055-3488104",
+      "wait",
+      "--fn",
+      "Boolean(navigator.serviceWorker.controller && new URL(navigator.serviceWorker.controller.scriptURL).pathname.replace(/\\/$/, '') === \"/service-worker.js\")",
+      "--timeout",
+      "120000",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"result\":true},\"error\":null}\n",
+    "time_utc": "2026-10-05T17:21:39.365565+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f96-cutover-final-172055-3488104",
+      "eval",
+      "(async()=>JSON.stringify(await ((async()=>{const regs=await navigator.serviceWorker.getRegistrations();const root=regs.find(r=>r.scope===\"http://127.0.0.1:34836/\");return root?{scope:root.scope,active:root.active?.scriptURL??null,waiting:root.waiting?.scriptURL??null,installing:root.installing?.scriptURL??null}:null})())))()",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"origin\":\"http://127.0.0.1:34836/\",\"result\":\"{\\\"scope\\\":\\\"http://127.0.0.1:34836/\\\",\\\"active\\\":\\\"http://127.0.0.1:34836/service-worker.js\\\",\\\"waiting\\\":null,\\\"installing\\\":null}\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T17:21:39.368930+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f96-cutover-final-172055-3488104",
+      "eval",
+      "(async()=>JSON.stringify(await (({url:location.href,m1:!!document.querySelector('.m1-canvas,.m1-library-landing'),react:!!document.querySelector('.wb-project-trigger,.wb-open-project'),controller:navigator.serviceWorker.controller?.scriptURL??null,registrations:(await navigator.serviceWorker.getRegistrations()).map(r=>({scope:r.scope,active:r.active?.scriptURL??null,waiting:r.waiting?.scriptURL??null,installing:r.installing?.scriptURL??null})),databases:(await indexedDB.databases()).map(x=>x.name),cacheNames:await caches.keys(),reactActive:localStorage.getItem('boardstudio-v2-active-project'),m1Active:localStorage.getItem('boardstudio-m1-active-project:boardstudio-m1-root')}))))()",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"origin\":\"http://127.0.0.1:34836/\",\"result\":\"{\\\"url\\\":\\\"http://127.0.0.1:34836/\\\",\\\"m1\\\":true,\\\"react\\\":false,\\\"controller\\\":\\\"http://127.0.0.1:34836/service-worker.js\\\",\\\"registrations\\\":[{\\\"scope\\\":\\\"http://127.0.0.1:34836/\\\",\\\"active\\\":\\\"http://127.0.0.1:34836/service-worker.js\\\",\\\"waiting\\\":null,\\\"installing\\\":null}],\\\"databases\\\":[\\\"boardstudio-m1-root\\\",\\\"boardstudio-v2\\\"],\\\"cacheNames\\\":[\\\"boardstudio-v2-1b6b10523d1a\\\",\\\"boardstudio-m1-offline-path-2f-frontend-worker-activation-20261005-root\\\"],\\\"reactActive\\\":\\\"m1-sofle-v2-copy\\\",\\\"m1Active\\\":null}\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T17:21:39.372922+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f96-cutover-final-172055-3488104",
+      "eval",
+      "(async()=>JSON.stringify(await (Boolean(document.querySelector('.m1-library-landing input[type=file][accept=\".boardstudio\"]')))))()",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"origin\":\"http://127.0.0.1:34836/\",\"result\":\"true\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T17:21:39.375189+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f96-cutover-final-172055-3488104",
+      "upload",
+      "input[type='file'][accept='.boardstudio']",
+      "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/bootstrap-reference-final-20261005/reference-resaved.boardstudio",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"selector\":\"input[type='file'][accept='.boardstudio']\",\"uploaded\":1},\"error\":null}\n",
+    "time_utc": "2026-10-05T17:21:39.380632+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f96-cutover-final-172055-3488104",
+      "wait",
+      "--fn",
+      "Boolean(document.querySelector('.m1-project-menu') && localStorage.getItem('boardstudio-m1-active-project:boardstudio-m1-root') === \"m1-sofle-v2-copy\")",
+      "--timeout",
+      "120000",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"result\":true},\"error\":null}\n",
+    "time_utc": "2026-10-05T17:21:39.992100+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f96-cutover-final-172055-3488104",
+      "wait",
+      "--fn",
+      "Boolean(document.querySelector('.m1-save-state[data-state=\"saved\"]'))",
+      "--timeout",
+      "120000",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"result\":true},\"error\":null}\n",
+    "time_utc": "2026-10-05T17:21:40.085003+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f96-cutover-final-172055-3488104",
+      "click",
+      "details.m1-project-menu > summary",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"clicked\":\"details.m1-project-menu > summary\",\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"}},\"error\":null}\n",
+    "time_utc": "2026-10-05T17:21:40.096780+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f96-cutover-final-172055-3488104",
+      "download",
+      "button.m1-project-copy-action",
+      "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-worker-handoff-final-20261005/candidate-copy-from-reference.boardstudio",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"path\":\"/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-worker-handoff-final-20261005/candidate-copy-from-reference.boardstudio\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T17:21:40.363329+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f96-cutover-final-172055-3488104",
+      "wait",
+      "--fn",
+      "Boolean(document.querySelector('.m1-save-state[data-state=\"saved\"]'))",
+      "--timeout",
+      "120000",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"result\":true},\"error\":null}\n",
+    "time_utc": "2026-10-05T17:21:40.420052+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f96-cutover-final-172055-3488104",
+      "reload",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"url\":\"http://127.0.0.1:34836/\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T17:21:40.438993+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f96-cutover-final-172055-3488104",
+      "wait",
+      "--fn",
+      "Boolean(document.querySelector('.m1-project-menu') && document.querySelector('.m1-save-state[data-state=\"saved\"]') && localStorage.getItem('boardstudio-m1-active-project:boardstudio-m1-root') === \"m1-sofle-v2-copy\")",
+      "--timeout",
+      "120000",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"result\":true},\"error\":null}\n",
+    "time_utc": "2026-10-05T17:21:40.813617+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f96-cutover-final-172055-3488104",
+      "eval",
+      "(async()=>JSON.stringify(await (({url:location.href,react:!!document.querySelector('.wb-project-trigger'),m1:!!document.querySelector('.m1-project-menu'),reactName:document.querySelector('.wb-project-name')?.textContent??null,m1Name:document.querySelector('.m1-project-name')?.textContent??null,reactActive:localStorage.getItem('boardstudio-v2-active-project'),m1Active:localStorage.getItem('boardstudio-m1-active-project:boardstudio-m1-root'),databases:(await indexedDB.databases()).map(x=>x.name),cacheNames:await caches.keys()}))))()",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"origin\":\"http://127.0.0.1:34836/\",\"result\":\"{\\\"url\\\":\\\"http://127.0.0.1:34836/\\\",\\\"react\\\":false,\\\"m1\\\":true,\\\"reactName\\\":null,\\\"m1Name\\\":\\\"Sofle v2\\\",\\\"reactActive\\\":\\\"m1-sofle-v2-copy\\\",\\\"m1Active\\\":\\\"m1-sofle-v2-copy\\\",\\\"databases\\\":[\\\"boardstudio-m1-root\\\",\\\"boardstudio-v2\\\"],\\\"cacheNames\\\":[\\\"boardstudio-v2-1b6b10523d1a\\\",\\\"boardstudio-m1-offline-path-2f-frontend-worker-activation-20261005-root\\\"]}\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T17:21:40.828673+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f96-cutover-final-172055-3488104",
+      "reload",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"url\":\"http://127.0.0.1:34836/\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T17:21:40.890364+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f96-cutover-final-172055-3488104",
+      "wait",
+      "--fn",
+      "Boolean(document.querySelector('.wb-project-trigger') || document.querySelector('.wb-open-project'))",
+      "--timeout",
+      "120000",
+      "--json"
+    ],
+    "exit": 1,
+    "stderr": "",
+    "stdout": "{\"success\":false,\"data\":null,\"error\":\"Wait timed out after 120000ms\"}\n",
+    "time_utc": "2026-10-05T17:23:40.977045+00:00"
+  },
+  {
+    "argv": [
+      "agent-browser",
+      "--session",
+      "f96-cutover-final-172055-3488104",
+      "eval",
+      "(async()=>JSON.stringify(await (({url:location.href,title:document.title,readyState:document.readyState,mainClasses:[...document.querySelectorAll('main')].map(e=>e.className),knownControls:[...document.querySelectorAll('.wb-project-trigger,.wb-open-project,.m1-project-menu,.m1-canvas,.m1-library-landing')].map(e=>({tag:e.tagName,className:e.className})),controller:navigator.serviceWorker.controller?.scriptURL??null,registrations:(await navigator.serviceWorker.getRegistrations()).map(r=>({scope:r.scope,active:r.active?.scriptURL??null,waiting:r.waiting?.scriptURL??null})),databases:(await indexedDB.databases()).map(x=>x.name),cacheNames:await caches.keys(),reactActive:localStorage.getItem('boardstudio-v2-active-project'),m1Active:localStorage.getItem('boardstudio-m1-active-project:boardstudio-m1-root')}))))()",
+      "--json"
+    ],
+    "exit": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":11677035664275010974},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"origin\":\"http://127.0.0.1:34836/\",\"result\":\"{\\\"url\\\":\\\"http://127.0.0.1:34836/\\\",\\\"title\\\":\\\"BoardStudio\\\",\\\"readyState\\\":\\\"complete\\\",\\\"mainClasses\\\":[\\\"m1-workbench\\\"],\\\"knownControls\\\":[{\\\"tag\\\":\\\"DETAILS\\\",\\\"className\\\":\\\"m1-project-menu\\\"},{\\\"tag\\\":\\\"svg\\\",\\\"className\\\":{}}],\\\"controller\\\":\\\"http://127.0.0.1:34836/service-worker.js\\\",\\\"registrations\\\":[{\\\"scope\\\":\\\"http://127.0.0.1:34836/\\\",\\\"active\\\":\\\"http://127.0.0.1:34836/service-worker.js\\\",\\\"waiting\\\":null}],\\\"databases\\\":[\\\"boardstudio-m1-root\\\",\\\"boardstudio-v2\\\"],\\\"cacheNames\\\":[\\\"boardstudio-v2-1b6b10523d1a\\\",\\\"boardstudio-m1-offline-path-2f-frontend-worker-activation-20261005-root\\\"],\\\"reactActive\\\":\\\"m1-sofle-v2-copy\\\",\\\"m1Active\\\":\\\"m1-sofle-v2-copy\\\"}\"},\"error\":null}\n",
+    "time_utc": "2026-10-05T17:23:40.983961+00:00"
+  }
+]

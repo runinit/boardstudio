@@ -16,29 +16,28 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-05T17:16:59.060309+00:00",
+    "updated_at": "2026-10-05T17:49:07.604684+00:00",
     "parent_counts": {
-      "accepted": 58,
-      "implementing": 1,
+      "accepted": 59,
       "planned": 1,
       "total": 60
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-worker-handoff-20261005",
-      "source_commit": "3d2a33f4008fe22e6ba04883bb6f11a152f8e9a1",
-      "root_url": "http://127.0.0.1:34832/",
-      "subpath_url": "http://127.0.0.1:34832/boardstudio/",
-      "provenance": "web/target/builds/frontend-worker-handoff-20261005/provenance.json",
-      "provenance_sha256": "b393a8fedade15cfaad6f0963fd41690dd120869b94ecc5f79b005ab2681a281",
+      "build_id": "frontend-worker-activation-20261005",
+      "source_commit": "82207f752e93d889877bab72c6e86b2d248620ce",
+      "root_url": "http://127.0.0.1:34834/",
+      "subpath_url": "http://127.0.0.1:34834/boardstudio/",
+      "provenance": "web/target/builds/frontend-worker-activation-20261005/provenance.json",
+      "provenance_sha256": "df4bacf0c19f479d5b8d3beecba7ca373f7582c65c977c6f9db44648e48d034d",
       "fresh_commands": 9,
       "inherited_commands": 23,
       "source_inputs": 1412,
       "source_mismatches": 0,
       "assets_per_route": 191,
-      "command_span_seconds": 127.359599,
+      "command_span_seconds": 119.355406,
       "package_qualification": "Combined package provenance, committed snapshot inputs and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-worker-handoff-20261005/package-proof.json",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-worker-activation-20261005/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -48,8 +47,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "f956c0dfe9ec942cb79b9905565e9c404fb96732",
-      "state": "All F2–F8 workflows and F9.2/F9.4/F9.5 qualification accepted. Repaired pointer performance meets all unchanged caps in five paired sessions; exact source gates, public output/compatibility/offline and desktop proofs retained. F9.6 release preparation and F9.7 approved adoption remain.",
+      "source_commit": "82207f752e93d889877bab72c6e86b2d248620ce",
+      "state": "All required application and release qualification complete through F9.6; F9.7 approved default-entrypoint adoption remains.",
       "packets": [
         {
           "stream": "Layout",
@@ -366,7 +365,7 @@
           "change": "F2.3 pointer and keyboard desktop pane resizing with persistence"
         }
       ],
-      "qualification": "Final f956 paired performance all30 scenarios pass33/50/100ms caps with matched identities; source-fresh resources/ancillary observations independently reviewed. No automatic legacy IndexedDB migration claimed; copied-archive same-origin cutover/rollback rehearsal is next.",
+      "qualification": "Same-profile copied-archive cutover/rollback/re-adoption independently CLEAR; exact ProjectDoc/six-asset preservation and ordinary worker control. Mutable shell/worker HTTP freshness explicit; production Pages untested. Accepted application/performance sources unchanged from f956; original evidence attribution retained.",
       "application_candidate_source": "f956c0dfe9ec942cb79b9905565e9c404fb96732"
     },
     "journeys": [
@@ -520,10 +519,12 @@
     },
     "execution_policy": "docs/agents/issue-tracker.md#frontend-delivery-records",
     "candidate_review": {
-      "candidate": "frontend-dynamic-selects-20261004",
-      "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261004/frontend-dynamic-selects-df22f1cc-review-sol-20261004.md",
-      "review_sha256": "4b873f5652bd41a23b6e6e07940e6e45c24242692735041b3362aa2fa4465dbd",
-      "state": "Scoped review held the candidate on two Case profile-assignment defects. Export ordering and dynamic-select repairs passed; BND.2 was accepted independently. F8.2-C02/C03 are verified and C01 remains open for Case outputs. The Case author owns one combined repair packet."
+      "candidate": "frontend-worker-activation-20261005",
+      "profile": "sol-review",
+      "state": "completed",
+      "verdict": "CLEAR",
+      "review": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+      "review_sha256": "498c320829517af2d1560874a22ca8192a2ba72c04b7f5ac17c11c5db09aefd1"
     },
     "parent_acceptances": [
       {
@@ -583,7 +584,7 @@
       }
     ],
     "pending_join_packets": [],
-    "next_work": "Finish required same-origin worker handoff repair and copied-data cutover/rollback rehearsal, then obtain concrete adoption approval for F9.7.",
+    "next_work": "Request explicit approval for reviewed two-file default-entrypoint patch; apply only approved changes and verify adopted local launch/critical journey for F9.7. No push or hosted deployment.",
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
       "cadence": {
@@ -746,55 +747,26 @@
     "qualification": {
       "trigger": "functional_scope",
       "active_scope": {
-        "id": "f86-integrated-project-export-20261005",
-        "label": "Paired six-workbench project-to-export journey",
-        "source_commit": "6bb3d52024e898f0f4111baac9b84e307224b9e7",
+        "id": "f96-same-origin-release-rehearsal-20261005",
+        "label": "Copied-data cutover, rollback and re-adoption",
+        "source_commit": "82207f752e93d889877bab72c6e86b2d248620ce",
         "streams": [
-          "Layout",
-          "Parts",
-          "PCB",
-          "Keymap",
-          "Keycaps",
-          "Case",
-          "Export"
+          "Release"
         ],
         "journeys": [
           {
-            "id": "six-workbench-project-export",
-            "scope": "One paired saved project through accepted Layout edit, Parts definition use, PCB readiness, Keymap/Keycaps edits, Case generation and Export; reuse attributable unchanged snapshot/lifecycle/output proofs.",
-            "source_roots": [
-              "web",
-              "application",
-              "core",
-              "contracts",
-              "renderer",
-              "cad",
-              "kicad/src",
-              "app/src",
-              "app/public",
-              "scripts",
-              "ergogen"
-            ],
-            "source_paths": [
-              ".node-version",
-              ".npmrc",
-              "package.json",
-              "pnpm-lock.yaml",
-              "pnpm-workspace.yaml",
-              "rust-toolchain.toml"
-            ],
-            "optional_source_paths": [
-              ".cargo/config",
-              ".cargo/config.toml"
-            ],
-            "source_paths_complete": true,
+            "id": "same-origin-copied-data-cutover-rollback",
+            "scope": "One preserved browser profile and origin through React bootstrap, Dioxus cutover, React rollback and Dioxus re-adoption; saved archive import/export and reload readback.",
+            "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
+            "state": "passed",
+            "evidence": ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/joined-cutover-receipt.md",
             "fixtures": [
               {
-                "path": ".scratch/dioxus-frontend-v1/evidence/integrated-layout-c1d3-20261005/candidate-edited.boardstudio",
-                "sha256": "c476fcaf16a9150b11221427620047c55d4ad11d293315b7c56d45bd7f8b4cbe"
+                "path": ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/reference-joined-input.boardstudio",
+                "sha256": "58c0d6303c08dafe4f2259b297d78c619f8c9469163575ff4dcea53c95cf2342"
               }
             ],
-            "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md"
+            "limitations": "QA proxy fresh/no-store policy on four mutable shell/worker paths; stopped attempts retained separately; no production Pages test or direct legacy IndexedDB migration."
           }
         ]
       },
@@ -4630,50 +4602,171 @@
               "state": "pending"
             }
           ]
+        },
+        {
+          "candidate_build_id": "frontend-worker-handoff-20261005",
+          "source_commit": "3d2a33f4008fe22e6ba04883bb6f11a152f8e9a1",
+          "phase": "qualifying",
+          "review": {
+            "profile": "sol-review",
+            "state": "pending"
+          },
+          "journeys": [
+            {
+              "id": "six-workbench-project-export",
+              "scope": "One paired saved project through accepted Layout edit, Parts definition use, PCB readiness, Keymap/Keycaps edits, Case generation and Export; reuse attributable unchanged snapshot/lifecycle/output proofs.",
+              "source_roots": [
+                "web",
+                "application",
+                "core",
+                "contracts",
+                "renderer",
+                "cad",
+                "kicad/src",
+                "app/src",
+                "app/public",
+                "scripts",
+                "ergogen"
+              ],
+              "source_paths": [
+                ".node-version",
+                ".npmrc",
+                "package.json",
+                "pnpm-lock.yaml",
+                "pnpm-workspace.yaml",
+                "rust-toolchain.toml"
+              ],
+              "optional_source_paths": [
+                ".cargo/config",
+                ".cargo/config.toml"
+              ],
+              "source_paths_complete": true,
+              "fixtures": [
+                {
+                  "path": ".scratch/dioxus-frontend-v1/evidence/integrated-layout-c1d3-20261005/candidate-edited.boardstudio",
+                  "sha256": "c476fcaf16a9150b11221427620047c55d4ad11d293315b7c56d45bd7f8b4cbe"
+                }
+              ],
+              "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md",
+              "state": "pending"
+            }
+          ]
+        },
+        {
+          "record_note": "Prior active-scope bookkeeping retained with original source/fixture attribution; F8.6 acceptance and its final public evidence are authoritative in tasks.json. These fields do not claim a fresh current-source replay.",
+          "active_scope": {
+            "id": "f86-integrated-project-export-20261005",
+            "label": "Paired six-workbench project-to-export journey",
+            "source_commit": "6bb3d52024e898f0f4111baac9b84e307224b9e7",
+            "streams": [
+              "Layout",
+              "Parts",
+              "PCB",
+              "Keymap",
+              "Keycaps",
+              "Case",
+              "Export"
+            ],
+            "journeys": [
+              {
+                "id": "six-workbench-project-export",
+                "scope": "One paired saved project through accepted Layout edit, Parts definition use, PCB readiness, Keymap/Keycaps edits, Case generation and Export; reuse attributable unchanged snapshot/lifecycle/output proofs.",
+                "source_roots": [
+                  "web",
+                  "application",
+                  "core",
+                  "contracts",
+                  "renderer",
+                  "cad",
+                  "kicad/src",
+                  "app/src",
+                  "app/public",
+                  "scripts",
+                  "ergogen"
+                ],
+                "source_paths": [
+                  ".node-version",
+                  ".npmrc",
+                  "package.json",
+                  "pnpm-lock.yaml",
+                  "pnpm-workspace.yaml",
+                  "rust-toolchain.toml"
+                ],
+                "optional_source_paths": [
+                  ".cargo/config",
+                  ".cargo/config.toml"
+                ],
+                "source_paths_complete": true,
+                "fixtures": [
+                  {
+                    "path": ".scratch/dioxus-frontend-v1/evidence/integrated-layout-c1d3-20261005/candidate-edited.boardstudio",
+                    "sha256": "c476fcaf16a9150b11221427620047c55d4ad11d293315b7c56d45bd7f8b4cbe"
+                  }
+                ],
+                "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md"
+              }
+            ]
+          },
+          "journeys": [
+            {
+              "id": "six-workbench-project-export",
+              "scope": "One paired saved project through accepted Layout edit, Parts definition use, PCB readiness, Keymap/Keycaps edits, Case generation and Export; reuse attributable unchanged snapshot/lifecycle/output proofs.",
+              "source_roots": [
+                "web",
+                "application",
+                "core",
+                "contracts",
+                "renderer",
+                "cad",
+                "kicad/src",
+                "app/src",
+                "app/public",
+                "scripts",
+                "ergogen"
+              ],
+              "source_paths": [
+                ".node-version",
+                ".npmrc",
+                "package.json",
+                "pnpm-lock.yaml",
+                "pnpm-workspace.yaml",
+                "rust-toolchain.toml"
+              ],
+              "optional_source_paths": [
+                ".cargo/config",
+                ".cargo/config.toml"
+              ],
+              "source_paths_complete": true,
+              "fixtures": [
+                {
+                  "path": ".scratch/dioxus-frontend-v1/evidence/integrated-layout-c1d3-20261005/candidate-edited.boardstudio",
+                  "sha256": "c476fcaf16a9150b11221427620047c55d4ad11d293315b7c56d45bd7f8b4cbe"
+                }
+              ],
+              "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md",
+              "state": "pending"
+            }
+          ]
         }
       ],
-      "phase": "qualifying",
+      "phase": "qualified",
       "unmet_start_conditions": [],
-      "candidate_build_id": "frontend-worker-handoff-20261005",
-      "source_commit": "3d2a33f4008fe22e6ba04883bb6f11a152f8e9a1",
+      "candidate_build_id": "frontend-worker-activation-20261005",
+      "source_commit": "82207f752e93d889877bab72c6e86b2d248620ce",
       "journeys": [
         {
-          "id": "six-workbench-project-export",
-          "scope": "One paired saved project through accepted Layout edit, Parts definition use, PCB readiness, Keymap/Keycaps edits, Case generation and Export; reuse attributable unchanged snapshot/lifecycle/output proofs.",
-          "source_roots": [
-            "web",
-            "application",
-            "core",
-            "contracts",
-            "renderer",
-            "cad",
-            "kicad/src",
-            "app/src",
-            "app/public",
-            "scripts",
-            "ergogen"
-          ],
-          "source_paths": [
-            ".node-version",
-            ".npmrc",
-            "package.json",
-            "pnpm-lock.yaml",
-            "pnpm-workspace.yaml",
-            "rust-toolchain.toml"
-          ],
-          "optional_source_paths": [
-            ".cargo/config",
-            ".cargo/config.toml"
-          ],
-          "source_paths_complete": true,
+          "id": "same-origin-copied-data-cutover-rollback",
+          "scope": "One preserved browser profile and origin through React bootstrap, Dioxus cutover, React rollback and Dioxus re-adoption; saved archive import/export and reload readback.",
+          "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
+          "state": "passed",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/joined-cutover-receipt.md",
           "fixtures": [
             {
-              "path": ".scratch/dioxus-frontend-v1/evidence/integrated-layout-c1d3-20261005/candidate-edited.boardstudio",
-              "sha256": "c476fcaf16a9150b11221427620047c55d4ad11d293315b7c56d45bd7f8b4cbe"
+              "path": ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/reference-joined-input.boardstudio",
+              "sha256": "58c0d6303c08dafe4f2259b297d78c619f8c9469163575ff4dcea53c95cf2342"
             }
           ],
-          "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md",
-          "state": "pending"
+          "limitations": "QA proxy fresh/no-store policy on four mutable shell/worker paths; stopped attempts retained separately; no production Pages test or direct legacy IndexedDB migration."
         }
       ],
       "authority": "Active user goal: finish required desktop migration journeys; accessibility/F9.3 and mobile qualification excluded.",
@@ -5101,48 +5194,60 @@
         }
       ],
       "last_completed_source_batch": {
-        "id": "layout-pointer-performance-20261005",
-        "state": "completed: repaired immutable f956 public five-session paired performance accepted under sole independent review",
-        "source_base": "caa06c1941fa10340102452b5817adce81ad877c",
-        "published_before_edits": "frontend-layout-untouched-coordinate-20261005",
-        "owned_files": [
-          "web/src/presentation.rs",
-          "web/src/matrix_transform_lifecycle.rs",
-          ".scratch/m1-production/evidence/performance/measure-candidate-pointer.mjs",
-          "scripts/wasm-test-owners.json"
-        ],
+        "id": "same-origin-worker-handoff-20261005",
+        "state": "Complete: exact immutable package and same-profile copied-data cutover/rollback/re-adoption independently CLEAR",
+        "source_base": "8fffe72c",
+        "published_before_edits": "frontend-layout-pointer-cache-20261005",
         "authors": [
           {
             "agent": "migration_acceleration_review",
             "files": [
-              "web/src/presentation.rs",
-              "web/src/matrix_transform_lifecycle.rs",
-              ".scratch/m1-production/evidence/performance/measure-candidate-pointer.mjs"
+              "scripts/web/embed-worker-wasm.mjs",
+              "scripts/web/service-worker-handoff.js",
+              "scripts/web/stage-rollback.mjs",
+              "scripts/web/test-service-worker-handoff.mjs",
+              "scripts/build-m1.py",
+              "scripts/test-build-m1-reuse.py"
             ]
           }
         ],
         "reviewer": "preset_batch_review",
-        "evidence": ".scratch/dioxus-frontend-v1/evidence/f95-final-20261005/paired-df6b04b9-final/stopped-summary.json",
-        "finish": [
-          "Fix reproduced page-thread drag bottleneck; regression at actual owning seam, no new history work",
-          "Fix independently observed import-readiness driver race without changing thresholds or sample semantics",
-          "Same independent review and one combined native/page/reachability/affected-headless gate; explicit staged paths before gates",
-          "Commit and publish immutable repaired source; final five paired sessions within existing33/50/100ms caps, source-bound startup/resource evidence",
-          "Reuse unaffected accepted workflow evidence; final adoption packet/rehearsal/approval remains separate"
+        "owned_files": [
+          "scripts/web/embed-worker-wasm.mjs",
+          "scripts/web/service-worker-handoff.js",
+          "scripts/web/stage-rollback.mjs",
+          "scripts/web/test-service-worker-handoff.mjs",
+          "scripts/build-m1.py",
+          "scripts/test-build-m1-reuse.py"
         ],
-        "cause": "Runtime notifications repeat App eligible_live_ids -> context_for_part, rebuilding board-part HashSets once per part.100-key fixture has300parts; membership recomputation is quadratic pergesture update. Preserve eachnotification selection/currentness, cache only membership under accepted-source/token/board/instance identity.",
+        "evidence": ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-f956-20261005-08/report.json",
+        "finish": [
+          "Provide compatible worker handoff at the former frontend worker URL without clearing browser stores or editing the pinned reference",
+          "Meaningful packaging RED/GREEN and one sole independent diff review; required affected gates only",
+          "Commit explicit settled source and publish attributable candidate while old candidate remains served",
+          "Actual same-origin copied-data cutover, save/reload/archive transfer and rollback; reuse unchanged workflow/performance evidence",
+          "Reconcile RF-034 and F9.6; explicit concrete production cutover approval remains separate"
+        ],
         "frozen_source_hashes": {
-          "web/src/presentation.rs": "0eec0ed1720c617d543379feff15e8d2c949cf0d81ad637e1d73aed7ccc081e5",
-          "web/src/matrix_transform_lifecycle.rs": "b346b1ca4738897fe66fd92acea0533bfcf725762c5e324fe203d308f807f989",
-          ".scratch/m1-production/evidence/performance/measure-candidate-pointer.mjs": "abf17e9b80f49b10b1056fcdcad225547bbb1b6d216b871b54d9cf762bd31f2a",
-          "scripts/wasm-test-owners.json": "1a5d6a601da5f7ad25427cb0d460c7ccd793700bcb399a87eda0a7b2918bc955"
+          "scripts/build-m1.py": "7fa8d20757b7fc720cd35ca153416db164701fea01c788678626f19743fa854a",
+          "scripts/test-build-m1-reuse.py": "d193955e6bb5b02449774c23f2ea65905868eef01201f6bf95ca6768c401b5de",
+          "scripts/web/embed-worker-wasm.mjs": "79d891ff442da4d6b3c5a1408edf5b0643a3706ea48b834cbd2a01026fadfccb",
+          "scripts/web/service-worker-handoff.js": "a8607a7281c3ef0a6d15f27582395e75668e94f331c0402ffec82ccf17cd55d3",
+          "scripts/web/stage-rollback.mjs": "6371680d4e761d42d64e7460da1d4f47e970e082a678444fe45af3f3f4bde1e3",
+          "scripts/web/test-service-worker-handoff.mjs": "b75a038ece98fdf0c3cd7899400d4718b7c0d350a2b50a8d57aa9653fda57728"
         },
+        "focused_proof": ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-repair.md",
+        "gate_log": ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-integration-gates.log",
         "review": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
-        "focused_proof": ".scratch/dioxus-frontend-v1/evidence/f95-final-20261005/performance-diagnosis.md",
-        "gate_log": ".scratch/dioxus-frontend-v1/evidence/f95-final-20261005/integration-gates.log",
-        "source_commit": "f956c0dfe9ec942cb79b9905565e9c404fb96732",
-        "candidate_build_id": "frontend-layout-pointer-cache-20261005",
-        "public_receipt": ".scratch/dioxus-frontend-v1/evidence/f95-final-20261005/RECEIPT.md"
+        "source_commit": "82207f752e93d889877bab72c6e86b2d248620ce",
+        "candidate_build_id": "frontend-worker-activation-20261005",
+        "rollback_publication": ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rollback-activation-publication.json",
+        "initial_source_commit": "3d2a33f4008fe22e6ba04883bb6f11a152f8e9a1",
+        "initial_candidate_build_id": "frontend-worker-handoff-20261005",
+        "public_attempt": ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-worker-handoff-20261005/report.json",
+        "activation_correction": ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-activation-diagnosis.md",
+        "public_receipt": ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/joined-cutover-receipt.md",
+        "review_verdict": "CLEAR"
       },
       "cancelled_accessibility_batch": {
         "id": "layout-pcb-accessibility-semantics-20261005",
@@ -5252,66 +5357,71 @@
           "source_commit": "f956c0dfe9ec942cb79b9905565e9c404fb96732",
           "candidate_build_id": "frontend-layout-pointer-cache-20261005",
           "public_receipt": ".scratch/dioxus-frontend-v1/evidence/f95-final-20261005/RECEIPT.md"
+        },
+        {
+          "id": "same-origin-worker-handoff-20261005",
+          "state": "Complete: exact immutable package and same-profile copied-data cutover/rollback/re-adoption independently CLEAR",
+          "source_base": "8fffe72c",
+          "published_before_edits": "frontend-layout-pointer-cache-20261005",
+          "authors": [
+            {
+              "agent": "migration_acceleration_review",
+              "files": [
+                "scripts/web/embed-worker-wasm.mjs",
+                "scripts/web/service-worker-handoff.js",
+                "scripts/web/stage-rollback.mjs",
+                "scripts/web/test-service-worker-handoff.mjs",
+                "scripts/build-m1.py",
+                "scripts/test-build-m1-reuse.py"
+              ]
+            }
+          ],
+          "reviewer": "preset_batch_review",
+          "owned_files": [
+            "scripts/web/embed-worker-wasm.mjs",
+            "scripts/web/service-worker-handoff.js",
+            "scripts/web/stage-rollback.mjs",
+            "scripts/web/test-service-worker-handoff.mjs",
+            "scripts/build-m1.py",
+            "scripts/test-build-m1-reuse.py"
+          ],
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-f956-20261005-08/report.json",
+          "finish": [
+            "Provide compatible worker handoff at the former frontend worker URL without clearing browser stores or editing the pinned reference",
+            "Meaningful packaging RED/GREEN and one sole independent diff review; required affected gates only",
+            "Commit explicit settled source and publish attributable candidate while old candidate remains served",
+            "Actual same-origin copied-data cutover, save/reload/archive transfer and rollback; reuse unchanged workflow/performance evidence",
+            "Reconcile RF-034 and F9.6; explicit concrete production cutover approval remains separate"
+          ],
+          "frozen_source_hashes": {
+            "scripts/build-m1.py": "7fa8d20757b7fc720cd35ca153416db164701fea01c788678626f19743fa854a",
+            "scripts/test-build-m1-reuse.py": "d193955e6bb5b02449774c23f2ea65905868eef01201f6bf95ca6768c401b5de",
+            "scripts/web/embed-worker-wasm.mjs": "79d891ff442da4d6b3c5a1408edf5b0643a3706ea48b834cbd2a01026fadfccb",
+            "scripts/web/service-worker-handoff.js": "a8607a7281c3ef0a6d15f27582395e75668e94f331c0402ffec82ccf17cd55d3",
+            "scripts/web/stage-rollback.mjs": "6371680d4e761d42d64e7460da1d4f47e970e082a678444fe45af3f3f4bde1e3",
+            "scripts/web/test-service-worker-handoff.mjs": "b75a038ece98fdf0c3cd7899400d4718b7c0d350a2b50a8d57aa9653fda57728"
+          },
+          "focused_proof": ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-repair.md",
+          "gate_log": ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-integration-gates.log",
+          "review": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+          "source_commit": "82207f752e93d889877bab72c6e86b2d248620ce",
+          "candidate_build_id": "frontend-worker-activation-20261005",
+          "rollback_publication": ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rollback-activation-publication.json",
+          "initial_source_commit": "3d2a33f4008fe22e6ba04883bb6f11a152f8e9a1",
+          "initial_candidate_build_id": "frontend-worker-handoff-20261005",
+          "public_attempt": ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-worker-handoff-20261005/report.json",
+          "activation_correction": ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-activation-diagnosis.md",
+          "public_receipt": ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/joined-cutover-receipt.md",
+          "review_verdict": "CLEAR"
         }
       ],
-      "pending_source_batch": {
-        "id": "same-origin-worker-handoff-20261005",
-        "state": "activation correction independently CLEAR; committed package/rehearsal pending",
-        "source_base": "8fffe72c",
-        "published_before_edits": "frontend-layout-pointer-cache-20261005",
-        "authors": [
-          {
-            "agent": "migration_acceleration_review",
-            "files": [
-              "scripts/web/embed-worker-wasm.mjs",
-              "scripts/web/service-worker-handoff.js",
-              "scripts/web/stage-rollback.mjs",
-              "scripts/web/test-service-worker-handoff.mjs",
-              "scripts/build-m1.py",
-              "scripts/test-build-m1-reuse.py"
-            ]
-          }
-        ],
-        "reviewer": "preset_batch_review",
-        "owned_files": [
-          "scripts/web/embed-worker-wasm.mjs",
-          "scripts/web/service-worker-handoff.js",
-          "scripts/web/stage-rollback.mjs",
-          "scripts/web/test-service-worker-handoff.mjs",
-          "scripts/build-m1.py",
-          "scripts/test-build-m1-reuse.py"
-        ],
-        "evidence": ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-f956-20261005-08/report.json",
-        "finish": [
-          "Provide compatible worker handoff at the former frontend worker URL without clearing browser stores or editing the pinned reference",
-          "Meaningful packaging RED/GREEN and one sole independent diff review; required affected gates only",
-          "Commit explicit settled source and publish attributable candidate while old candidate remains served",
-          "Actual same-origin copied-data cutover, save/reload/archive transfer and rollback; reuse unchanged workflow/performance evidence",
-          "Reconcile RF-034 and F9.6; explicit concrete production cutover approval remains separate"
-        ],
-        "frozen_source_hashes": {
-          "scripts/build-m1.py": "7fa8d20757b7fc720cd35ca153416db164701fea01c788678626f19743fa854a",
-          "scripts/test-build-m1-reuse.py": "d193955e6bb5b02449774c23f2ea65905868eef01201f6bf95ca6768c401b5de",
-          "scripts/web/embed-worker-wasm.mjs": "79d891ff442da4d6b3c5a1408edf5b0643a3706ea48b834cbd2a01026fadfccb",
-          "scripts/web/service-worker-handoff.js": "a8607a7281c3ef0a6d15f27582395e75668e94f331c0402ffec82ccf17cd55d3",
-          "scripts/web/stage-rollback.mjs": "6371680d4e761d42d64e7460da1d4f47e970e082a678444fe45af3f3f4bde1e3",
-          "scripts/web/test-service-worker-handoff.mjs": "b75a038ece98fdf0c3cd7899400d4718b7c0d350a2b50a8d57aa9653fda57728"
-        },
-        "focused_proof": ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-repair.md",
-        "gate_log": ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-integration-gates.log",
-        "review": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
-        "source_commit": "3d2a33f4008fe22e6ba04883bb6f11a152f8e9a1",
-        "candidate_build_id": "frontend-worker-handoff-20261005",
-        "rollback_publication": ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rollback-publication.json",
-        "initial_source_commit": "3d2a33f4008fe22e6ba04883bb6f11a152f8e9a1",
-        "initial_candidate_build_id": "frontend-worker-handoff-20261005",
-        "public_attempt": ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-worker-handoff-20261005/report.json",
-        "activation_correction": ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-activation-diagnosis.md"
-      },
-      "started_at": "2026-10-05T17:08:02.445366+00:00",
+      "started_at": "2026-10-05T17:20:18.513652+00:00",
       "review": {
         "profile": "sol-review",
-        "state": "pending"
+        "state": "completed",
+        "verdict": "CLEAR",
+        "review": ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+        "review_sha256": "498c320829517af2d1560874a22ca8192a2ba72c04b7f5ac17c11c5db09aefd1"
       }
     },
     "delivery_priority": {
@@ -5476,6 +5586,11 @@
         "build_id": "frontend-worker-handoff-20261005",
         "published_at": "2026-10-05T17:08:00.542277+00:00",
         "extra_candidate_reason": "Required repair for reproduced same-origin cached React worker cutover failure RF-034"
+      },
+      {
+        "build_id": "frontend-worker-activation-20261005",
+        "published_at": "2026-10-05T17:20:16.517247+00:00",
+        "extra_candidate_reason": "Correct reproduced worker activation/navigation dependency in required cutover rehearsal RF-034"
       }
     ],
     "validation_scope": {

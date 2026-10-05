@@ -3176,21 +3176,21 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 ## RF-034: Frontend artifact switches leave the prior service worker controlling the shell
 
-**Status:** Bounded activation/navigation correction independently reviewed with meaningful lifecycle RED/GREEN; corrected package and same-origin public rehearsal pending
+**Status:** Bounded release repair complete and independently CLEAR: exact package and copied-data cutover/rollback/re-adoption; future deployment ownership retained
 
 **Confidence:** confirmed in same-origin copied-data browser rehearsal
 
 **Observation:** On one isolated same-origin profile, React /sw.js controlled the saved/reloaded copied project. Switching the server to exact candidate bytes and reloading retained the cached React shell. Candidate /sw.js returned 404; /service-worker.js was not requested. No storage/cache clearing or unregister was performed. Candidate import and reverse rollback were not reached.
 
-**Impact:** Existing users cannot reach the new frontend through a normal artifact switch; reversing the two worker URLs may similarly need an explicit handoff, which remains to be tested.
+**Impact:** Prior frontend workers could retain an obsolete shell after artifact switches. The bounded bridge and copied rollback overlay now completed public transitions in both directions under explicit fresh mutable-entrypoint staging HTTP policy; production Pages behavior remains untested.
 
-**Current mitigation:** Provide the smallest attributable deployment handoff for the previous worker URL, preserve separate browser stores and cached data, then perform the actual copied-archive cutover/rollback rehearsal. Do not treat successful cross-origin archive exchange as a same-origin rollout result.
+**Current mitigation:** Committed bridge correction at 82207f75, independently reviewed lifecycle RED/GREEN and exact published package. Same retained browser profile completed public import/save/export/reload through forward, rollback and final forward; both database/cache families remain intact. Archive transfer is the compatibility boundary.
 
 **Later proposal:** Keep deployment worker URL/version ownership and frontend retirement as an explicit release compatibility contract. No general storage migration framework is proposed.
 
-**Validation:** Owning packaging regression plus controlled real browser transition from an active classic React worker to the candidate, actual copied-data save/reload/export and reverse transition/readback. Preserve both IndexedDB stores; archive import remains the compatibility boundary.
+**Validation:** Completed owning 3/3 lifecycle/packaging and 41/41 provider-reuse checks plus copied-data browser rehearsal; final independent review CLEAR. Actual default launch qualification remains F9.7 after explicit approval; future hosted deployment must verify shell/worker HTTP freshness at its actual origin.
 
-**Evidence:** `.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-f956-20261005-08/report.json`; `.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-f956-20261005-08/proxy-requests.jsonl`; `.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-repair.md`; `.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-source-manifest.json`; `.scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md`; `.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-activation-diagnosis.md`
+**Evidence:** `.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-f956-20261005-08/report.json`; `.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-f956-20261005-08/proxy-requests.jsonl`; `.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-repair.md`; `.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-source-manifest.json`; `.scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md`; `.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-activation-diagnosis.md`; `.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/joined-cutover-receipt.md`; `.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-worker-handoff-finish-20261005/completion-observations.json`; `.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-http-validation.md`; `.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rollback-activation-publication.json`
 
 **Additional recorded details:**
 
@@ -3204,7 +3204,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
     "F9.6",
     "F9.7"
   ],
-  "decision": "Required evidenced release repair; source author and sole independent reviewer assigned. No production deployment or retirement approval inferred.",
+  "decision": "Required release defect repaired and same-origin copied-data rehearsal independently CLEAR. Keep release worker URL/HTTP freshness ownership explicit. No production deployment, default-entrypoint application, direct IndexedDB migration or React source deletion inferred.",
   "follow_up_owner": "Migration release integration; deployment/offline worker ownership",
   "linked_tasks": [
     "F9.6",
@@ -3219,6 +3219,15 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
       "evidence": [
         ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-worker-handoff-20261005/report.json",
         ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-activation-red.log"
+      ]
+    },
+    {
+      "date": "2026-10-05",
+      "source": "82207f752e93d889877bab72c6e86b2d248620ce",
+      "observation": "Same browser session/origin completed React to Dioxus, React rollback, and final Dioxus re-adoption; saved project and all six assets preserved through public archives and reload. Ordinary final worker active without installing/waiting workers; both cache/database families retained.",
+      "limits": "Joined successful phases retain separate stopped HTTP304/menu automation attempts. QA proxy fresh/no-store policy covers /, /index.html, /sw.js, /service-worker.js. Production Pages untested; no storage clearing/unregister or direct browser-store migration.",
+      "evidence": [
+        ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/joined-cutover-receipt.md"
       ]
     }
   ]

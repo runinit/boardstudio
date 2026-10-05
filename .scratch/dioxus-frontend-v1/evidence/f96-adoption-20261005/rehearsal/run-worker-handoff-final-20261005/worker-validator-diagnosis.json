@@ -1,0 +1,29 @@
+{
+  "observation": "The browser proxy log records upstream, path, status, byte count, and time, but not forwarded request headers. Exact Chromium If-Modified-Since / If-None-Match values are therefore unavailable retrospectively.",
+  "direct_artifact_reads": {
+    "candidate": {
+      "url": "http://127.0.0.1:34834/service-worker.js",
+      "status": 200,
+      "bytes": 99940,
+      "last_modified": "Mon, 05 Oct 2026 17:18:27 GMT",
+      "etag": null,
+      "sha256": "a1c22e469d7b02fa7d036702e370d0fd6f0ee09d5607b2d71c8b9edc88d9ae53"
+    },
+    "rollback": {
+      "url": "http://127.0.0.1:34835/service-worker.js",
+      "status": 200,
+      "bytes": 1198,
+      "last_modified": "Mon, 05 Oct 2026 17:17:47 GMT",
+      "etag": null,
+      "sha256": "a8607a7281c3ef0a6d15f27582395e75668e94f331c0402ffec82ccf17cd55d3"
+    }
+  },
+  "same_origin_proxy_observations": [
+    {"upstream": "http://127.0.0.1:34835/", "path": "/service-worker.js", "status": 304, "time_utc": "2026-10-05T17:21:43.839945+00:00"},
+    {"upstream": "http://127.0.0.1:34835/", "path": "/service-worker.js", "status": 304, "time_utc": "2026-10-05T17:21:43.842974+00:00"},
+    {"upstream": "http://127.0.0.1:34835/", "path": "/service-worker.js", "status": 304, "time_utc": "2026-10-05T17:22:12.102968+00:00"},
+    {"upstream": "http://127.0.0.1:34835/", "path": "/boardstudio_offline_worker.js", "status": 404, "time_utc": "2026-10-05T17:22:12.105848+00:00"}
+  ],
+  "classification": "The older rollback Last-Modified combined with a 304 is strongly consistent with the conditional-date validator collision expected from the static staging server, but the missing request headers prevent proving which validator caused it. This is a staging artifact transition failure, not evidence of archive loss or a confirmed application data migration failure.",
+  "browser_profile": "preserved; candidate service worker still controls http://127.0.0.1:34836/; no storage/cache clearing or worker unregister performed"
+}
