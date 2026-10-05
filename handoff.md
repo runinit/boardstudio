@@ -1,6 +1,6 @@
 # Handoff (generated from records)
 
-- Branch: codex/rust-v1-ui-parity-20261001 @ c1d3f13c
+- Branch: codex/rust-v1-ui-parity-20261001 @ af915dfc
 - Worktree: /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001
 - Parents: 52/60 accepted, 2 implementing, 6 planned
 - Criteria: unassessed 16, missing 1, implemented 2, verified 202; 221 total
@@ -94,4 +94,4 @@ Exact unmet final joins:
 
 Last retro checkpoint: 2026-10-04T15:56:00Z
 
-2026-10-05 integration: reviewer cleared final canvas Escape source and executed RED/GREEN/module12. Root combined gate terminal0: native247/1ignored, wasm page/reachability, headless12/12 with no exclusions. Commit only /tmp/layout-canvas-escape-commit-paths.json; six unrelated staged entries preserved in /tmp/case-layout-unrelated-index.json. F5.8 accepted after retained-evidence review; F3.7 still awaits immutable changed Escape replay. Current package34825 remains live; next package donor FULL frontend-case-layout-controls-20261005. Accessibility/F9.3 excluded; no semantic/axe/AT work. Independent inventory stream case_local_export owns only tsx-inventory.json and f91-inventory-20261005 evidence; sole reviewer preset_batch_review. Do not include inventory author files before source freeze/review.
+2026-10-05: af915dfc contains reviewed saved-outline canvas Escape repair and qualification milestone. Root gate terminal0: native247/1ignored, wasm page/reachability, headless12/12 without exclusions. Current34825c1d3 remains live; build next immutable candidate from committed HEAD using FULL donor frontend-case-layout-controls-20261005, then replay changed Escape branch with retained integrated-layout-c1d3 r15 archive. F5.8 accepted, F3.7 pending public Escape GREEN/review. Six unrelated staged entries preserved in /tmp/case-layout-unrelated-index.json. Accessibility/F9.3 excluded; no axe/AT/semantic-only work. Parallel case_local_export owns tsx-inventory.json and f91-inventory-20261005 evidence; sole reviewer preset_batch_review. Root retains integration/commit/browser/build ownership.

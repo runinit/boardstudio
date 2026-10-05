@@ -47,7 +47,328 @@
     "criterion_accounting": "Criterion states, evidence, blockers and next actions are authoritative in tasks.json; progress.py derives focused queues and counts. Historical accepted parents retain their decisions.",
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
-    "integration": "Final independent review CLEAR and coordinator gate passed: native 247/1 ignored, wasm page/reachability, headless 12/12 without exclusions. Awaiting explicit milestone commit and immutable public Escape replay.",
+    "integration": {
+      "source_commit": "af915dfc6b6b546aca32641dcb5f462c34191186",
+      "state": "Final independent review CLEAR and coordinator gate passed: native 247/1 ignored, wasm page/reachability, headless 12/12 without exclusions. Awaiting explicit milestone commit and immutable public Escape replay.",
+      "packets": [
+        {
+          "stream": "Layout",
+          "integrated_commit": "1a4d2044+642d5474",
+          "change": "Selected-matrix Add object context",
+          "receipt": ".scratch/dioxus-frontend-v1/evidence/f32c-selected-matrix-add-20261003/receipt.md"
+        },
+        {
+          "stream": "Parts + Project",
+          "integrated_commit": "7345cbfb",
+          "change": "VIK module-review demo",
+          "receipt": ".scratch/dioxus-frontend-tranche-1/evidence/vik-module-review-source-20261003/FIXTURE-PREP.md"
+        },
+        {
+          "stream": "Packaging support",
+          "integrated_commit": "d6380df5+b2ed62f8",
+          "change": "Explicit fixture refresh with retained provider baseline; fresh output still pending"
+        },
+        {
+          "stream": "PCB",
+          "integrated_commit": "fcf28684",
+          "change": "Matrix and mirrored-pair authoring admission"
+        },
+        {
+          "stream": "Shared shell",
+          "integrated_commit": "047a33d8",
+          "change": "Reference44px compact topbar"
+        },
+        {
+          "stream": "Parts + Project",
+          "integrated_commit": "7842edad",
+          "change": "Fifteen measured keyboard demos",
+          "receipt": ".scratch/dioxus-frontend-tranche-1/evidence/issue05-measured-demo-source-20261003.md"
+        },
+        {
+          "stream": "Layout",
+          "integrated_commit": "def206d4",
+          "change": "Linked-layout Inspector and Unlink halves"
+        },
+        {
+          "stream": "PCB",
+          "integrated_commit": "2c6c46a6",
+          "change": "Board outline and Geometry scripts routes"
+        },
+        {
+          "stream": "Shared shell",
+          "integrated_commit": "3b6dbcd7",
+          "change": "Setup-guide readiness and stage detail",
+          "receipt": ".scratch/dioxus-frontend-v1/evidence/setup-guide-readiness-20261003/receipt.md"
+        },
+        {
+          "stream": "Layout",
+          "integrated_commit": "11289ba5",
+          "change": "Mirror existing half",
+          "receipt": ".scratch/dioxus-layout-authoring/evidence/f32c-existing-half-source-20261003.md"
+        },
+        {
+          "stream": "Case",
+          "integrated_commit": "54f627b1",
+          "change": "Access-opening add/remove, vertices and dimensions",
+          "receipt": ".scratch/dioxus-case-workspace/issues/05-mechanical-enclosure-fit.md"
+        },
+        {
+          "stream": "Layout",
+          "integrated_commit": "81681302",
+          "change": "Accepted mirror-create camera reset and local assembly-copy parity",
+          "receipt": ".scratch/dioxus-layout-authoring/evidence/f32c-existing-half-source-20261003.md"
+        },
+        {
+          "stream": "Shared shell",
+          "integrated_commit": "c0adf728",
+          "change": "Typing-safe global Undo/Redo shortcuts",
+          "receipt": ".scratch/dioxus-frontend-v1/evidence/global-history-shortcuts-20261003/receipt.md"
+        },
+        {
+          "stream": "Case",
+          "integrated_commit": "d3f39f58",
+          "change": "Internal-gasket closure hardware choices",
+          "receipt": ".scratch/dioxus-case-workspace/issues/05-mechanical-enclosure-fit.md"
+        },
+        {
+          "stream": "Parts",
+          "integrated_commit": "f653b8f9",
+          "change": "Module-definition volumes/openings, model bindings and rotary fields",
+          "receipt": ".scratch/dioxus-frontend-v1/evidence/module-profile-editor-source-20261003/RECEIPT.md"
+        },
+        {
+          "stream": "Export support",
+          "integrated_commit": "113c330c",
+          "change": "Generated mechanical package consumer",
+          "receipt": ".scratch/dioxus-frontend-v1/issues/08-export-coordinator-dispatch.md"
+        },
+        {
+          "stream": "PCB",
+          "integrated_commit": "18f05311",
+          "change": "Routed-board reference pose and existing model mappings",
+          "receipt": ".scratch/dioxus-frontend-v1/issues/05-pcb.md"
+        },
+        {
+          "stream": "Layout",
+          "integrated_commit": "f7823a24+e57fd3a8",
+          "change": "Reference background dot grid",
+          "receipt": ".scratch/dioxus-layout-authoring/evidence/f33-background-grid-dots-20261003.md"
+        },
+        {
+          "stream": "Export support",
+          "integrated_commit": "97a0761f",
+          "change": "Authored Case STEP remains available with generated mechanics",
+          "receipt": ".scratch/dioxus-frontend-v1/evidence/export-workspace-20261003/authored-case-step-source-map.md"
+        },
+        {
+          "stream": "Layout",
+          "integrated_commit": "82688515",
+          "change": "Addition/cutout polygon drafts, snap/Alt, point Undo/finish/cancel",
+          "receipt": ".scratch/dioxus-layout-authoring/evidence/f34e-manual-polygon-drafts-source-20261003.md"
+        },
+        {
+          "stream": "Parts",
+          "integrated_commit": "7b7265f8",
+          "change": "Saved assembly New/select/Duplicate and member authoring",
+          "receipt": ".scratch/dioxus-frontend-v1/evidence/f46-assembly-authoring-20261003/RECEIPT.md"
+        },
+        {
+          "stream": "Shared integration",
+          "integrated_commit": "0e51d316+840131fd+4b1a44af",
+          "change": "Mirror/PCB selection captures, module-profile imports and assembly callback compiler fixes",
+          "qualification": "Source repairs; next combined compiler build pending"
+        },
+        {
+          "stream": "Case",
+          "integrated_commit": "7e0b97a4",
+          "change": "Complete closure dimensions/screw choices and Critical fits add/remove, XY points and calculated distance",
+          "receipt": ".scratch/dioxus-case-workspace/issues/05-mechanical-enclosure-fit.md"
+        },
+        {
+          "stream": "Export support",
+          "integrated_commit": "6e536dd4",
+          "change": "Generated/authored Export compiler type and capture repairs"
+        },
+        {
+          "stream": "Layout",
+          "integrated_commit": "b13983c6",
+          "change": "Retain polygon draft compiler captures and document/SVG typing repairs"
+        },
+        {
+          "stream": "Parts",
+          "integrated_commit": "fcaedd4d+02fa6ba0",
+          "change": "Shared verified model-file import/store helper; component attach/detach and transform Inspector",
+          "receipt": ".scratch/dioxus-parts-catalogue/evidence/component-model-editor-source-20261003/RECEIPT.md",
+          "preservation": "Existing untracked model draft remains intact. Incoming author draft retained in365913c3; joined only source/receipt."
+        },
+        {
+          "stream": "Layout",
+          "integrated_commit": "46cfebd7",
+          "change": "Connect/bridge drafts, saved feature selection/remove, polygon perimeter route, rectangle/connection controls",
+          "receipt": ".scratch/dioxus-layout-authoring/evidence/f34e-manual-polygon-drafts-source-20261003.md"
+        },
+        {
+          "stream": "Export support",
+          "integrated_commit": "bdcff5bd",
+          "change": "Selected-board authored readiness and aggregate outline fallback"
+        },
+        {
+          "stream": "Layout",
+          "integrated_commit": "d4b04387+0507f3b2+b9238d66",
+          "change": "Matrix/component Properties and Relations with owned target navigation",
+          "qualification": "Source integrated; behavioral qualification deferred."
+        },
+        {
+          "stream": "Case",
+          "integrated_commit": "d947d8d6",
+          "change": "Closure hardware CRUD and part/mount associations",
+          "qualification": "Source integrated; behavioral qualification deferred."
+        },
+        {
+          "stream": "PCB",
+          "integrated_commit": "2c770f25+992b12dd+eab894e0",
+          "change": "Routed KiCad import/replace, model discovery/attachments and compiler captures",
+          "qualification": "Source integrated; behavioral qualification deferred."
+        },
+        {
+          "stream": "Parts",
+          "integrated_commit": "dcab8777",
+          "change": "Generator model file parameter import/replace",
+          "qualification": "Source integrated; behavioral qualification deferred."
+        },
+        {
+          "stream": "Parts",
+          "integrated_commit": "ee917418",
+          "change": "Advanced saved assembly member/model editing and isolated 3D preview",
+          "qualification": "Source integrated; behavioral qualification deferred."
+        },
+        {
+          "stream": "Layout",
+          "integrated_commit": "76669679+6d54f61e",
+          "change": "Gap camera focus, bound editor selection signals and anchored rectangle center fields",
+          "qualification": "Source integrated; behavioral qualification deferred."
+        },
+        {
+          "stream": "Shared integration",
+          "integrated_commit": "3ec8b36f+211f960e+5bb7e67a+985f214f",
+          "change": "Joined module type/RSX/ownership fixes without new tickets or reviews",
+          "qualification": "Source integrated; behavioral qualification deferred."
+        },
+        {
+          "stream": "PCB",
+          "integrated_commit": "fc3b1d5ad624de5842c6d2c9f1f34ecb62f9cd64",
+          "author_commit": "dd5c36330bd1bc905d7913da8817aabb0f58ecbd",
+          "change": "Review conflicting manual connection names/count and release only current proposed conflicting pins before Apply",
+          "qualification": "Source integrated after34772; not yet packaged or behaviorally qualified."
+        },
+        {
+          "stream": "Layout",
+          "integrated_commit": "21f7e45b487f2d9fa0ab04910ae4d893a1e0feca",
+          "author_commit": "6f1d019c",
+          "change": "Generated connection anchor/detach and midpoint insert/remove; preserve live selected outline editor across same-context edits",
+          "receipt": ".scratch/dioxus-layout-authoring/evidence/f34e-manual-polygon-drafts-source-20261003.md",
+          "qualification": "Source integrated after34772; later compile/package and paired qualification."
+        },
+        {
+          "stream": "Shared integration",
+          "integrated_commit": "749961f5+56a0459d+d5f915b7",
+          "change": "In-place PCB/Outline compiler fixes; mechanical scoped keys, private helper visibility and unused-code warnings",
+          "qualification": "Combined source compiles; later behavioral/strict qualification remains."
+        },
+        {
+          "stream": "Parts",
+          "integrated_commit": "667846d9+25ed4ac8+6ae8e609",
+          "author_commit": "a7373cf8a3f2630a81aa3b6f4691ebd825a69d3d",
+          "change": "Ergogen model defaults, saved assembly Matrix Apply and existing Layout drag placement; coherent private workspace mount",
+          "receipt": ".scratch/dioxus-frontend-v1/evidence/f46-assembly-authoring-20261003/RECEIPT.md",
+          "qualification": "Combined source compile passes; package pending. Separate TS board X/Y action remains open."
+        },
+        {
+          "stream": "Keymap",
+          "integrated_commit": "a62d4fda+c95b3dea",
+          "change": "Effective keyed encoder editor boundaries and cloned iteration captures",
+          "receipt": ".scratch/dioxus-keymap-layers/evidence/encoder-mounted-integration/README.md",
+          "qualification": "Combined source compile only; next package/browser qualification pending."
+        },
+        {
+          "stream": "Parts + Project",
+          "integrated_commit": "af46b22b+55e7abf2+9f12d32a",
+          "author_commit": "c74138729f3fa1a7fd17690a1477b118d647a1b0",
+          "change": "Exact board-origin Assembly X/Y fields and atomic selected-board placement; accepted-only Layout/Part selection callback",
+          "receipt": ".scratch/dioxus-frontend-v1/evidence/f46-assembly-authoring-20261003/RECEIPT.md",
+          "qualification": "Combined source compiler passes; larger package and final behavioral evidence pending."
+        },
+        {
+          "stream": "Layout + shared runtime",
+          "integrated_commit": "cbce292b+2caace52+e0e89924",
+          "change": "Properties shortcut routes, missing-reference effect loop, standalone regression packaging classification, warning-only capture cleanup",
+          "receipt": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/journey.md",
+          "qualification": "Paired focused behavior passed on34775; visual/context parity findings remain."
+        },
+        {
+          "stream": "Layout",
+          "integrated_commit": "8c4c7db9",
+          "change": "Selected-column Pick origin and atomic splay-origin edit"
+        },
+        {
+          "stream": "PCB",
+          "integrated_commit": "8c4c7db9",
+          "change": "Scoped finding focus reveals owning module region through hidden layers"
+        },
+        {
+          "stream": "Parts + Project",
+          "integrated_commit": "8c4c7db9",
+          "change": "KiCad mechanical purpose mapping and profile extraction"
+        },
+        {
+          "stream": "PCB",
+          "integrated_commit": "336d17ac+b5e49eca",
+          "change": "Reuse a unique routed model file across same-basename paths and repair parent helper visibility"
+        },
+        {
+          "stream": "Case",
+          "integrated_commit": "b5e49eca",
+          "change": "Scoped provisional CAD geometry for live handle drag; accepted history stays at pointer-up"
+        },
+        {
+          "stream": "Parts + Project",
+          "integrated_commit": "b5e49eca",
+          "change": "Compact visibility-toggle Escape closes an open drawer and restores focus"
+        },
+        {
+          "stream": "Layout",
+          "integrated_commit": "9eda1b5d",
+          "change": "Inspector-focused Pick origin Escape cancellation"
+        },
+        {
+          "stream": "PCB",
+          "integrated_commit": "9eda1b5d",
+          "change": "Mounted-module Remove terminal outcome and repeat guard"
+        },
+        {
+          "stream": "Keymap",
+          "integrated_commit": "9eda1b5d",
+          "change": "Unchanged valid macro-step keycode no-op"
+        },
+        {
+          "stream": "Parts + Project",
+          "integrated_commit": "9eda1b5d",
+          "change": "Project-menu Save project copy action"
+        },
+        {
+          "stream": "Case",
+          "integrated_commit": "9dd2a412823b650d5b055733181b59ca724c68f1",
+          "change": "F7.5 accepted-source anchored preview Handle capture and current Move/End admission"
+        },
+        {
+          "stream": "Parts + Project",
+          "integrated_commit": "9dd2a412823b650d5b055733181b59ca724c68f1",
+          "change": "F2.3 pointer and keyboard desktop pane resizing with persistence"
+        }
+      ],
+      "qualification": "Published c1d3 retained while committed focused Escape repair awaits immutable build and public replay. F5.8 accepted; F3.7 C02/C05 pending.",
+      "application_candidate_source": "c1d3f13c642380c6a95ce8ae317fd99e6743c04f"
+    },
     "journeys": [
       {
         "journey": "Compact drawers and Export selector",
