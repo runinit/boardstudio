@@ -37,6 +37,11 @@ pub(crate) fn xyz(vector: [f64; 3]) -> String {
     )
 }
 
+/// JSON text of a string, as `JSON.stringify` writes it.
+pub(crate) fn json_string(text: &str) -> String {
+    serde_json::to_string(text).expect("strings serialize")
+}
+
 pub(crate) fn yes_no(flag: bool) -> &'static str {
     if flag { "yes" } else { "no" }
 }

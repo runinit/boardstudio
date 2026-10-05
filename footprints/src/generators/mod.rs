@@ -13,6 +13,11 @@ pub(crate) mod util;
 
 /// Every bundled generator.
 pub static SPECS: &[&GeneratorSpec] = &[
+    &ceoloide::power_switch_smd_side::SPEC,
+    &ceoloide::reset_switch_tht_top::SPEC,
+    &ceoloide::reset_switch_smd_side::SPEC,
+    &ceoloide::led_sk6812mini_e::SPEC,
+    &ceoloide::diode_tht_sod123::SPEC,
     &ceoloide::mounting_hole_npth::SPEC,
     &ceoloide::mounting_hole_plated::SPEC,
     &ceoloide::utility_filled_zone::SPEC,

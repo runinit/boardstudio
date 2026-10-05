@@ -143,6 +143,14 @@ impl RenderContext<'_> {
         }
     }
 
+    /// One component of a list parameter, `NaN` when it is not a number.
+    pub fn component(&self, name: &str, index: usize) -> f64 {
+        self.list(name)
+            .get(index)
+            .and_then(Value::as_f64)
+            .unwrap_or(f64::NAN)
+    }
+
     /// The layer the body renders on (`F` or `B`).
     pub fn side(&self) -> &str {
         self.text("side")
