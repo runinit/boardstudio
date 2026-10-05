@@ -1,6 +1,6 @@
 # F9.6 adoption proposal (unapplied)
 
-**Status:** proposal only, unapplied. F9.5 is accepted on immutable candidate frontend-layout-pointer-cache-20261005, source f956c0dfe9ec942cb79b9905565e9c404fb96732. F9.6-C01 inventory and C03 register are independently reviewed and verified. C02 copied-data rehearsal is pending; F9.6/F9.7 are not accepted and no cutover or deployment is approved.
+**Status:** proposal only, unapplied. F9.5 is accepted on immutable candidate frontend-layout-pointer-cache-20261005, source f956c0dfe9ec942cb79b9905565e9c404fb96732. F9.6-C01 inventory and C03 register are independently reviewed and verified. The repaired release candidate is frontend-worker-handoff-20261005, source 3d2a33f4008fe22e6ba04883bb6f11a152f8e9a1, at http://127.0.0.1:34832/. C02 copied-data rehearsal is running; F9.6/F9.7 are not accepted and no cutover or deployment is approved.
 
 ## Proposed production and development entry points
 
@@ -20,4 +20,17 @@ The exact unapplied patch is [default-entrypoint.patch](default-entrypoint.patch
 
 Use the accepted immutable candidate and its exact committed provenance; all F9.6 prerequisite parents are accepted. In isolated staging, use a copied browser profile and copied `.boardstudio` archives, never a live user profile. Exercise the accepted save/edit workflow, reload/read back, and export a portable copy. Roll back to the React artifact and import/read back the Dioxus-produced copy, then check the reverse direction using existing F9.4 round-trip conventions. Leave original copies untouched and record both source/package identities and results.
 
-Rollback restores the prior Pages workflow (`pnpm run build`, `app/dist`) and React root production scripts (`start`/`build`), then deploys the reviewed React commit. Preserve React sources/tests and the previous Pages artifact. Rollback does not rewrite user data. The same-origin rehearsal is running against the pinned reference and immutable candidate. Their IndexedDB stores are separate: portable archive import is the compatibility boundary; automatic legacy browser-store migration is not supplied. Both stores and service-worker registrations/caches must be retained during rehearsal. This packet leaves C02 and F9.7 pending, including explicit approval of the concrete cutover.
+Rollback restores the prior production entrypoints and serves an explicitly staged copy of the pinned React artifact with the compatible `service-worker.js` handoff. Serving the original artifact alone is insufficient once the Dioxus worker controls the origin. Run `node scripts/web/stage-rollback.mjs <pinned-react-site> <new-output-site>`; an existing output is rejected, every original asset stays byte-identical, and `rollback-provenance.json` records the overlay. Retain React sources/tests and the original Pages artifact. Transfer projects using saved `.boardstudio` copies; both browser stores remain intact. The same-origin rehearsal is running against the pinned reference and immutable candidate. Their IndexedDB stores are separate: portable archive import is the compatibility boundary; automatic legacy browser-store migration is not supplied. Both stores and service-worker registrations/caches must be retained during rehearsal. This packet leaves C02 and F9.7 pending, including explicit approval of the concrete cutover.
+
+## Current package and required approval
+
+The handoff repair passed independent source review, 3 packaging/lifecycle/rollback tests and all 41 provider-reuse tests. Package proof for source `3d2a33f4` verifies 1,412 committed source inputs and 191 served assets at each root/subpath route with no mismatches or release warnings. The build performed 9 fresh commands, reused 23 verified commands, and took 127.36 seconds. The Rust page/application/provider source remains unchanged from the accepted performance and desktop workflow candidate; no new performance claim is inferred from packaging.
+
+- Candidate proof: `../frontend-worker-handoff-20261005/package-proof.json`.
+- Reviewed repair and exact source hashes: `handoff-repair.md`, `handoff-source-manifest.json`.
+- Rollback artifact: `rollback-publication.json`; http://127.0.0.1:34833/ serves all 143 pinned reference files plus the declared handoff worker.
+- Actual cutover RED and subsequent continuation: `rehearsal/RECEIPT.md` and its linked raw records. Public GREEN is not claimed until the continuation finishes and is independently reviewed.
+
+The bridge intentionally reloads controlled pages once to load the deployed shell. Rehearsal and deployment use saved/exported projects; unsaved transient UI drafts are not a preservation claim.
+
+After C02 is reviewed, the concrete approval is to apply `default-entrypoint.patch` to `package.json` and `.github/workflows/pages.yaml`, commit the approved default build/start/Pages configuration, and validate the local adopted launch. No push, hosted deployment, React source deletion, or removal of fallback/reference artifacts is included. The operating contract retains a separate approval for production cutover.

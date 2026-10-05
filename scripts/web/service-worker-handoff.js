@@ -13,7 +13,10 @@ self.addEventListener("activate", (event) => {
     // Default includeUncontrolled=false excludes clients of other registrations,
     // including a more specific application scope on the same origin.
     const clients = await self.clients.matchAll({ type: "window" });
-    await Promise.allSettled(clients.filter((client) => {
+    // Chromium's document loader waits for activation before proceeding even
+    // without a fetch handler. Start each navigation, but never make activation
+    // wait for its completion. allSettled still handles closed/replaced clients.
+    void Promise.allSettled(clients.filter((client) => {
       const url = new URL(client.url);
       return url.origin === scope.origin && url.pathname.startsWith(scope.pathname);
     }).map((client) => client.navigate(client.url)));

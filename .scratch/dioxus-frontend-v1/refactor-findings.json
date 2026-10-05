@@ -2914,7 +2914,7 @@
       "category": "release / service-worker handoff",
       "confidence": "confirmed in same-origin copied-data browser rehearsal",
       "impact_priority": "high",
-      "status": "Narrow candidate/rollback worker handoff implemented and independently reviewed; packaging regressions pass, actual repaired same-origin rehearsal pending",
+      "status": "Bounded activation/navigation correction independently reviewed with meaningful lifecycle RED/GREEN; corrected package and same-origin public rehearsal pending",
       "discovered": "2026-10-05",
       "baseline": "candidate f956c0dfe9ec942cb79b9905565e9c404fb96732; reference 5a472a9426e6e38993361da402cd4ec730feb369",
       "workflows": [
@@ -2926,7 +2926,8 @@
         ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-f956-20261005-08/proxy-requests.jsonl",
         ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-repair.md",
         ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-source-manifest.json",
-        ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md"
+        ".scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md",
+        ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-activation-diagnosis.md"
       ],
       "observation": "On one isolated same-origin profile, React /sw.js controlled the saved/reloaded copied project. Switching the server to exact candidate bytes and reloading retained the cached React shell. Candidate /sw.js returned 404; /service-worker.js was not requested. No storage/cache clearing or unregister was performed. Candidate import and reverse rollback were not reached.",
       "impact": "Existing users cannot reach the new frontend through a normal artifact switch; reversing the two worker URLs may similarly need an explicit handoff, which remains to be tested.",
@@ -2938,6 +2939,18 @@
       "linked_tasks": [
         "F9.6",
         "F9.7"
+      ],
+      "continuations": [
+        {
+          "date": "2026-10-05",
+          "source": "3d2a33f4008fe22e6ba04883bb6f11a152f8e9a1",
+          "observation": "The first real repaired-package attempt obtained bridge sw.js200/304 but retained the React target and no new HTML/module request; Runtime CDP operations timed out. Chromium source waits for activation before navigation network fallback. Revised owning regression with navigation pending until activation settles fails all three packaging/lifecycle checks. Correct navigation initiation must not keep activation waiting for its completion.",
+          "limits": "No project import occurred in this attempt. Timeout alone does not establish live worker ACTIVATING status; direct lifecycle metadata remains separate.",
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-worker-handoff-20261005/report.json",
+            ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-activation-red.log"
+          ]
+        }
       ]
     }
   ]

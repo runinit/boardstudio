@@ -9897,10 +9897,13 @@
           ],
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-f956-20261005-08/report.json",
-            ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-f956-20261005-08/proxy-requests.jsonl"
+            ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-f956-20261005-08/proxy-requests.jsonl",
+            ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-worker-handoff-20261005/report.json",
+            ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-worker-handoff-20261005/read-only-diagnosis.json",
+            ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-activation-red.log"
           ],
           "blockers": [],
-          "next_action": "Repair demonstrated same-origin worker handoff: existing React /sw.js remains cache-first controlling after switch; candidate has no legacy worker update URL. Preserve both stores/caches and prove staged cutover plus rollback using copied archives. Candidate import not attempted while old shell remained.",
+          "next_action": "Finish bounded worker activation correction, independently review and publish it, then prove same-origin forward/rollback/forward with copied project readback. Legacy worker handoff is present in 3d2a33f4, but its first real transition stalled because activation waits on navigation; revised lifecycle regression reproduces the dependency. Preserve failed profile and both data stores.",
           "finish_condition": "Reviewed patch names exact provenance and demonstrates recoverable copied-data cutover/rollback.",
           "owned_files": [
             ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md"

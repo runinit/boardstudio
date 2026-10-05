@@ -17,14 +17,23 @@ async function temporary(t) {
   return directory;
 }
 
-async function assertHandoff(source, scope) {
+async function assertHandoff(source, scope, rejectNavigation = false) {
   const handlers = new Map();
   const calls = [];
   let claimed = false;
   const inside = `${scope}?project=saved#layout`;
   const outside = "https://other.test/boardstudio/";
   const sibling = scope.endsWith("/boardstudio/") ? "https://example.test/boardstudio-other/" : outside;
-  const client = (url) => ({ url, navigate: async (to) => { calls.push(["navigate", to]); return {}; } });
+  // Chromium's navigation loader waits for ACTIVATED even without a fetch
+  // handler. Navigation completion therefore cannot extend activate.waitUntil.
+  let finishNavigation;
+  const navigation = new Promise((resolve) => { finishNavigation = resolve; });
+  const client = (url) => ({ url, navigate: async (to) => {
+    calls.push(["navigate", to]);
+    await navigation;
+    if (rejectNavigation) throw new Error("window closed after enumeration");
+    return {};
+  } });
   const context = vm.createContext({
     URL,
     self: {
@@ -51,7 +60,21 @@ async function assertHandoff(source, scope) {
     let work;
     handlers.get(type)({ waitUntil: (promise) => { work = promise; } });
     assert.ok(work, `${type} must retain its async work`);
-    await work;
+    if (type === "install") await work;
+    else {
+      let timeout;
+      try {
+        const settled = await Promise.race([
+          Promise.resolve(work).then(() => true),
+          new Promise((resolve) => { timeout = setTimeout(() => resolve(false), 100); }),
+        ]);
+        assert.ok(settled, "activation must settle while navigation is pending; awaiting navigation deadlocks Chromium's activation-gated document loader");
+      } finally {
+        clearTimeout(timeout);
+        finishNavigation();
+        await work;
+      }
+    }
   }
   assert.deepEqual(calls, [["skipWaiting"], ["claim"], ["navigate", inside]]);
   // The same handoff must parse for both the old classic registration and the
@@ -106,7 +129,7 @@ test("rollback staging preserves reference bytes and adds only the reverse hando
   assert.deepEqual(receipt.overlayFiles, {
     "service-worker.js": createHash("sha256").update(handoff).digest("hex"),
   });
-  await assertHandoff(handoff, "https://example.test/boardstudio/");
+  await assertHandoff(handoff, "https://example.test/boardstudio/", true);
 
   for (const target of [destination, path.join(directory, "empty-existing"), path.join(source, "nested")]) {
     if (target.endsWith("empty-existing")) await mkdir(target);

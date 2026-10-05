@@ -3176,7 +3176,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 ## RF-034: Frontend artifact switches leave the prior service worker controlling the shell
 
-**Status:** Narrow candidate/rollback worker handoff implemented and independently reviewed; packaging regressions pass, actual repaired same-origin rehearsal pending
+**Status:** Bounded activation/navigation correction independently reviewed with meaningful lifecycle RED/GREEN; corrected package and same-origin public rehearsal pending
 
 **Confidence:** confirmed in same-origin copied-data browser rehearsal
 
@@ -3190,7 +3190,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Validation:** Owning packaging regression plus controlled real browser transition from an active classic React worker to the candidate, actual copied-data save/reload/export and reverse transition/readback. Preserve both IndexedDB stores; archive import remains the compatibility boundary.
 
-**Evidence:** `.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-f956-20261005-08/report.json`; `.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-f956-20261005-08/proxy-requests.jsonl`; `.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-repair.md`; `.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-source-manifest.json`; `.scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md`
+**Evidence:** `.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-f956-20261005-08/report.json`; `.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-f956-20261005-08/proxy-requests.jsonl`; `.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-repair.md`; `.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-source-manifest.json`; `.scratch/dioxus-frontend-v1/evidence/case-profile-handle-review-20261005.md`; `.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-activation-diagnosis.md`
 
 **Additional recorded details:**
 
@@ -3209,6 +3209,18 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
   "linked_tasks": [
     "F9.6",
     "F9.7"
+  ],
+  "continuations": [
+    {
+      "date": "2026-10-05",
+      "source": "3d2a33f4008fe22e6ba04883bb6f11a152f8e9a1",
+      "observation": "The first real repaired-package attempt obtained bridge sw.js200/304 but retained the React target and no new HTML/module request; Runtime CDP operations timed out. Chromium source waits for activation before navigation network fallback. Revised owning regression with navigation pending until activation settles fails all three packaging/lifecycle checks. Correct navigation initiation must not keep activation waiting for its completion.",
+      "limits": "No project import occurred in this attempt. Timeout alone does not establish live worker ACTIVATING status; direct lifecycle metadata remains separate.",
+      "evidence": [
+        ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/rehearsal/run-worker-handoff-20261005/report.json",
+        ".scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/handoff-activation-red.log"
+      ]
+    }
   ]
 }
 ```

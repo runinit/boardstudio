@@ -1,6 +1,6 @@
 # Handoff (generated from records)
 
-- Branch: codex/rust-v1-ui-parity-20261001 @ 8fffe72c
+- Branch: codex/rust-v1-ui-parity-20261001 @ 3d2a33f4
 - Worktree: /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001
 - Parents: 58/60 accepted, 1 implementing, 1 planned
 - Criteria: unassessed 2, missing 1, implemented 0, verified 218; 221 total
@@ -9,10 +9,10 @@
   - visual: verified 8
 
 ## Served candidate
-- Build: frontend-layout-pointer-cache-20261005
-- Source commit: f956c0dfe9ec942cb79b9905565e9c404fb96732
-- Root: http://127.0.0.1:34830/
-- Subpath: http://127.0.0.1:34830/boardstudio/
+- Build: frontend-worker-handoff-20261005
+- Source commit: 3d2a33f4008fe22e6ba04883bb6f11a152f8e9a1
+- Root: http://127.0.0.1:34832/
+- Subpath: http://127.0.0.1:34832/boardstudio/
 
 ## Functional readiness
 - Ready functional criteria: 0 investigate, 0 implement, 0 qualify (Layout 0 investigate/0 implement/0 qualify; PCB 0 investigate/0 implement/0 qualify; Keymap 0 investigate/0 implement/0 qualify; Keycaps 0 investigate/0 implement/0 qualify; Case 0 investigate/0 implement/0 qualify; Parts+Project 0 investigate/0 implement/0 qualify; Shared 0 investigate/0 implement/0 qualify)
@@ -81,10 +81,10 @@ Exact unmet final joins:
 
 Last retro checkpoint: 2026-10-04T15:56:00Z
 
-Latest milestone: 8fffe72c commits F9.5 performance acceptance, current 63-row inventory and reviewed RF reconciliation. Candidate remains immutable f956c0df at34830. All functional workflows are accepted; Undo/Redo qualification/repairs, mobile and accessibility remain excluded. Unrelated six staged entries in /tmp/case-layout-unrelated-index.json preserved.
+Current work: published candidate frontend-worker-handoff-20261005, source3d2a33f4, root34832/subpath34832/boardstudio. Existing accepted performance and functional source remains unchanged; copied React rollback at34833 has143 exact original assets plus handoff overlay. Package passed1412 source hashes/191 route assets each;9 fresh/23 inherited commands,127.36seconds. Original reference5175 and earlier candidate34830 remain available.
 
-F9.6-C02 now has a real same-origin release failure: run-f956-20261005-08 imported/saved/reloaded copied React project successfully, then artifact switch left old cache-first /sw.js controlling the React shell. Candidate /sw.js404; no /service-worker.js request. No candidate import or rollback attempted. RF-034 and pending_source_batch record the required repair. F9.6-C01/C03 verified; F9.7 remains separately approved adoption, not yet applied.
+Actual release blocker RF-034: run08 oldReact /sw.js404 prevents shell transition. Initial handoff repair3d2a33f4 now returns200/304 but actual same-origin reload retains React target and stalls Runtime CDP. Chromium lifecycle source plus meaningful pending-navigation RED identifies activate.waitUntil awaiting client.navigate completion as a dependency cycle. No candidate import or project data mutation occurred. Direct metadata confirms same React target; ServiceWorker.enable on browser target unavailable, so no observed ACTIVATING-state claim.
 
-Source author migration_acceleration_review leases scripts/web/embed-worker-wasm.mjs, new service-worker-handoff.js, stage-rollback.mjs, test-service-worker-handoff.mjs, plus build-m1.py and affected test-build-m1-reuse.py manifest fixtures. Minimal candidate legacy-classic-worker handoff plus copied React rollback overlay; no store/cache clearing or original reference changes. Sole reviewer preset_batch_review confirmed minimum remedy and awaits settled diff. Root owns integration/package/publication.
+Source author migration_acceleration_review correcting only service-worker-handoff.js and its existing test; retain scoped claim/enumeration and initiate navigations without waiting for completion. Sole reviewer preset_batch_review handles corrected delta; reuse unchanged41/41 build-reuse proof. Root commits/publishes next immutable candidate after settled hashes/review. case_local_export owns continuation harness and preserved browser session f96-cutover-164703-3448630/proxy34831(PID3474981). Failed profile stays untouched; if normal navigation cannot recover it, create a fresh isolated copied-data reference start using proven helpers, no cache/registration clearing.
 
-case_local_export owns rehearsal folder/continuation only. Existing isolated browser session f96-cutover-164703-3448630 remains alive; old proxy34831 owner Python3448630 was SIGKILLed after identity check without browser cleanup, freeing34831. Author verified the original browser controller/store/cache/project remain intact. Continuation will bind the same origin to new package/rollback endpoints, then actual forward→rollback→forward after publication. No new browser transitions before repair. Source candidate34830 and read-only reference5175 stay available.
+Tracker: all in-scope functional workflows accepted. Remaining F9.6-C02 actual release rehearsal and F9.7-C01/C02 approved default launch/covered entrypoint retirement. Undo/Redo qualification and repairs, mobile and accessibility excluded. Default package/Pages patch is reviewed but unapplied; production approval stays separate. Preserve six unrelated staged entries recorded in /tmp/case-layout-unrelated-index.json. No push or branch switch.

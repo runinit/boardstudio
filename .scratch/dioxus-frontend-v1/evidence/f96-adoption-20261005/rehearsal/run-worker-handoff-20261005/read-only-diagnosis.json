@@ -1,0 +1,69 @@
+{
+  "classification": "candidate shell was not reached; browser Runtime.evaluate became unavailable after one reload",
+  "browser": {
+    "version": "Chrome/154.0.8037.92",
+    "protocol": "1.3",
+    "same_session": "f96-cutover-164703-3448630",
+    "same_origin": "http://127.0.0.1:34831/",
+    "page_target": {
+      "id": "92A555F4EDC6F7662D255B8B8894656E",
+      "type": "page",
+      "title": "Board Studio v2",
+      "url": "http://127.0.0.1:34831/",
+      "attached": true
+    },
+    "worker_targets": [
+      {
+        "id": "C6BE9DE551115865FB4D4785E5824D6D",
+        "type": "service_worker",
+        "title": "Service Worker http://127.0.0.1:34831/sw.js",
+        "url": "http://127.0.0.1:34831/sw.js",
+        "attached": true
+      },
+      {
+        "id": "E293697A6E2031815E0AA1E94204E1F9",
+        "type": "worker",
+        "title": "http://127.0.0.1:34831/assets/core.worker-DYzqb7x2.js",
+        "url": "http://127.0.0.1:34831/assets/core.worker-DYzqb7x2.js",
+        "attached": true
+      }
+    ],
+    "status_query": {
+      "method": "ServiceWorker.enable over browser-target WebSocket",
+      "result": "unavailable",
+      "protocol_error": "-32601: 'ServiceWorker.enable' wasn't found"
+    }
+  },
+  "browser_command_observations": {
+    "reload": "success; reported same staging URL",
+    "wait": "CDP command timed out: Runtime.evaluate",
+    "diagnostic_eval": "CDP command timed out: Runtime.evaluate",
+    "read_only_get_title": "client command hung; that client was interrupted without closing the browser",
+    "no_navigation_or_storage_mutation_after_failure": true
+  },
+  "proxy_lifecycle": [
+    {
+      "upstream": "http://127.0.0.1:34832/",
+      "path": "/sw.js",
+      "status": 200,
+      "time_utc": "2026-10-05T17:08:29.810348+00:00"
+    },
+    {
+      "upstream": "http://127.0.0.1:34832/",
+      "path": "/sw.js",
+      "status": 304,
+      "time_utc": "2026-10-05T17:08:59.320078+00:00"
+    }
+  ],
+  "limits": [
+    "The service-worker version runningStatus/status and worker-error events were not available: ServiceWorker.enable was not exposed on the browser target, and page Runtime.evaluate is timing out.",
+    "The page target still identifies the React shell at the same origin; this cannot distinguish a stuck navigation from a renderer/automation command stall.",
+    "No candidate import, archive save, rollback, cache deletion, storage clearing, unregister, or browser close was performed."
+  ],
+  "retained_owner": {
+    "pid": 3474981,
+    "proxy_origin": "http://127.0.0.1:34831/",
+    "release_file": "release-session",
+    "browser_session_closed": false
+  }
+}

@@ -1,0 +1,11 @@
+✔ candidate packaging supplies a classic handoff for / (62.218226ms)
+✔ candidate packaging supplies a classic handoff for /boardstudio/ (50.279371ms)
+✔ rollback staging preserves reference bytes and adds only the reverse handoff (206.198673ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 368.994556
