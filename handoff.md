@@ -1,8 +1,8 @@
 # Handoff (generated from records)
 
-- Branch: codex/rust-v1-ui-parity-20261001 @ 82207f75
+- Branch: codex/rust-v1-ui-parity-20261001 @ 12a4cd03
 - Worktree: /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001
-- Parents: 59/60 accepted, 0 implementing, 1 planned
+- Parents: 59/60 accepted, 1 implementing, 0 planned
 - Criteria: unassessed 2, missing 0, implemented 0, verified 219; 221 total
   - functional: verified 181
   - release: unassessed 2, verified 30
@@ -81,6 +81,4 @@ Exact unmet final joins:
 
 Last retro checkpoint: 2026-10-04T15:56:00Z
 
-Current execution: F9.6 accepted after sole independent review CLEAR. Joined same-profile copied-data forward/rollback/re-adoption succeeded with exact project fields and six asset hashes, final ordinary worker, retained cache/database families. QA proxy HTTP freshness explicitly covers /, /index.html, /sw.js, /service-worker.js; stopped attempts retained. Production Pages untested; no direct browser-store migration. Candidate82207f75 remains served at34834, copied React rollback34835; staging proxy34836 released, profile preserved.
-
-Only F9.7 remains: reviewed two-file default-entrypoint.patch is unapplied. Request explicit approval for local default start/build/Pages configuration and adopted-launch qualification; no push, hosted deployment or React source deletion. Read f96-adoption-20261005/README.md and joined-cutover-receipt.md. All authors/reviewer settled. No build/browser work active. Preserve six unrelated staged entries in /tmp/case-layout-unrelated-index.json.
+User approved cutover/new frontend and React decommission on2026-10-05. F9.7 implementing. Default package/start/dev and production Pages switch applied; default React-only verification retired into explicit :react commands. Shared helpers/reference/rollback preserved. Sole reviewer checking final bootstrap correction. Exact wasm-pack normal-mode locked test listing passed, tooling gates pass; repo-check suite7/7 but pre-existing unchanged generator export/archive-link diagnostics remain. Next guarded commit then actual pnpm start full build at4173 and case agent adopted browser journey. No push. Preserve six unrelated staged entries from /tmp/case-layout-unrelated-index.json.

@@ -30,15 +30,17 @@ jobs:
           sudo apt-get install --yes --no-install-recommends kicad
           kicad-cli version | grep '^10\.'
       - run: rustup target add wasm32-unknown-unknown
-      - name: Compile Dioxus frontend source
-        run: cargo check --manifest-path web/Cargo.toml --locked --target wasm32-unknown-unknown --no-default-features --features page --bin boardstudio-web
       - run: cargo install wasm-pack --locked --version 0.15.0
-      - run: pnpm --dir app exec playwright install --with-deps chromium
+      - run: python3 -c 'import sys, tomllib; assert sys.version_info >= (3, 11), sys.version'
+      - run: cargo install dioxus-cli --locked --version 0.7.10
+      - name: Verify headless Chrome tools
+        run: |
+          google-chrome --version
+          chromedriver --version
       - run: pnpm run check
-      - run: pnpm run test:e2e:dev
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
           name: browser-failure-node-${{ matrix.node }}
-          path: app/test-results
+          path: web/target/migration-gates
           retention-days: 7

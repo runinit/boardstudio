@@ -42,44 +42,47 @@ linked to the installed catalogue; imported local assets remain embedded.
 
 ## Run and validate
 
-Install Node 24+, pnpm 11.26.0, Rust with `wasm32-unknown-unknown`,
-`wasm-pack` 0.15.0, and KiCad CLI 10. Then run:
+Dioxus is the default frontend. Install Node 24+, the pnpm version pinned in
+`package.json`, Rust with `wasm32-unknown-unknown`, `wasm-pack` 0.15.0,
+Dioxus CLI 0.7.10, Python 3.11+, and KiCad CLI 10. Then run:
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm dev
-pnpm check
-pnpm test:perf
+pnpm start
 ```
 
-`dev` builds the Rust WASM core and starts Vite. `check` runs repository hygiene, native core,
-KiCad and CAD tests, app unit tests, generated-output and Rust-boundary checks,
-type checking, the app build, and functional Chromium browser tests. Timing-only
-scenarios run separately through `test:perf`. `precommit` prepares WASM and runs
-app and CAD type checks; it is not a substitute for `check`.
-`check:repo` checks authored module reachability, unused exports and runtime
-dependencies, and local documentation links. Its entrypoint exceptions and
-limitations are recorded in [`docs/repository-cleanup.md`](docs/repository-cleanup.md).
-Install Playwright Chromium with `pnpm --dir app exec playwright install
-chromium` if needed. `pnpm test:e2e:pages` checks the production build under
-`/boardstudio/` (also included in `check`). Run the development-server CAD
-regression with
-`pnpm --dir app test:e2e:dev`. Set `BOARDSTUDIO_CHROMIUM=/usr/bin/chromium` to use a local
-Chromium binary.
+`start` builds the complete Dioxus package and serves it at
+`http://127.0.0.1:4173/`. `dev` is an alias for this same launch. These commands
+require committed maintained inputs; they do not provide dirty-tree hot reload.
+`pnpm build` produces an immutable package with root and `/boardstudio/` routes,
+including Core/CAD/renderer workers and offline assets.
 
-`test:perf` rebuilds WASM and the app before five serial, same-host
-Chromium sessions, then runs pointer, matrix, and outline latency scenarios.
-It compares the median session p95 against the captured mounted-workbench baseline. The fixture, limits, and results are in
-[`docs/performance-baseline.md`](docs/performance-baseline.md).
-It also records live case numeric edits, Undo, and mount/gasket releases as
-diagnostics. Chrome versions are recorded without pinning a particular version.
-See the [live-preview review and remaining performance work](docs/live-preview-ui-review.md)
-for measurements and the exact-refinement target that remains unmet.
+`pnpm check` runs repository/contracts checks, native Core/renderer/frontend tests,
+shared generator/KiCad/CAD tests, frontend/CAD type checks, the complete build,
+boundary checks and the mounted Dioxus headless-Chrome suite. Chrome and matching
+ChromeDriver must be on PATH for `pnpm test:browser`; its prepare step installs
+the locked wasm-bindgen runner when needed and lists the suite before execution.
+Mounted browser tests do not
+replace a public application save/export/reopen journey. `precommit` is a smaller
+source check, not a substitute for `check`.
 
-The browser benchmark lives at `/bench.html`. It measures a worker preview
-request through a painted 2D outline frame for 100 and 200 key fixtures. It
-warms ten samples and reports the next hundred. The browser test gates the
-95th percentile at 100 ms and 200 ms respectively.
+React is retired from default launch, production builds and frontend CI. Its
+read-only reference, source, tests and shared provider helpers remain recoverable.
+Use `dev:react`, `start:react`, `build:react`, `typecheck:react`, `test:react`,
+`test:e2e:react`, `test:e2e:dev:react`, `test:e2e:pages:react`, or `test:perf:react`
+only for explicit fallback/reference work. Build React with `build:react` before
+running its production E2E tests. Historical React performance evidence is in
+[the performance baseline](docs/performance-baseline.md).
+
+Before switching deployments, save/export projects as `.boardstudio` copies.
+React and Dioxus use separate browser stores: import the portable copy into the
+new frontend. Automatic legacy IndexedDB migration is not provided. Keep the
+pinned React artifact and stage rollback with
+`node scripts/web/stage-rollback.mjs <pinned-react-site> <new-output-site>`;
+the overlay lets an existing Dioxus worker hand control back without clearing
+project stores or caches. Mutable shell/worker URLs must return fresh bytes on
+artifact changes. The reviewed local rehearsal does not establish hosted Pages
+cache behavior. See the [adoption evidence](.scratch/dioxus-frontend-v1/evidence/f96-adoption-20261005/README.md).
 
 ## Automatic outlines
 
@@ -225,6 +228,7 @@ When deliberately updating a bundled source, review the upstream change and
 licenses, update the relevant source provenance, and update the corresponding
 entry in `ergogen/library-integrity.json`. Never refresh hashes to hide drift.
 
-GitHub Pages builds `app/dist` on main pushes or manual dispatch. Relative asset
-URLs support the repository subpath; the build requires Rust/WASM and wasm-pack
-in addition to Node and pnpm. Deployment is performed only by the Pages workflow.
+GitHub Pages builds the complete Dioxus package on main pushes or manual dispatch
+and publishes `web/target/builds/pages-<commit>/site-subpath/boardstudio`. The build
+requires the same pinned tools as local Dioxus packaging. Deployment is performed
+only by the Pages workflow.
