@@ -1309,4 +1309,76 @@ mod tests {
         let output = patch_footprint(rich, &with_managed).expect("append managed model");
         assert!(output.contains("${KIPRJMOD}/models/managed.step"));
     }
+
+    /// Arc forms in `source`, whitespace-normalised, in document order.
+    fn arcs(source: &str) -> Vec<String> {
+        fn visit(raw: &str, node: &Node, out: &mut Vec<String>) {
+            if matches!(sexpr::head(node), Some("fp_arc" | "gr_arc")) {
+                let span = sexpr::span(node);
+                let text = raw[span.start..span.end]
+                    .split_whitespace()
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                out.push(text.replace("( ", "(").replace(" )", ")"));
+            }
+            for child in sexpr::items(node).into_iter().flatten() {
+                visit(raw, child, out);
+            }
+        }
+        let document = kiutils_sexpr::parse_one(source).unwrap();
+        let mut out = Vec::new();
+        for node in &document.nodes {
+            visit(source, node, &mut out);
+        }
+        out
+    }
+
+    // The footprint generators moved from JavaScript to Rust (see
+    // docs/investigations/footprint-generators-rust.md). The old worker upgraded
+    // legacy arcs before export; this checks Core's upgrade produces the same arcs
+    // from the recorded generator output, so the Rust port can leave arcs to Core.
+    #[test]
+    fn upgrade_legacy_arcs_matches_the_recorded_javascript_export() {
+        let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../footprints/tests/golden/generators");
+        let mut compared = 0;
+        for entry in std::fs::read_dir(directory).unwrap() {
+            let fixture: serde_json::Value =
+                serde_json::from_str(&std::fs::read_to_string(entry.unwrap().path()).unwrap())
+                    .unwrap();
+            for case in fixture["cases"].as_array().unwrap() {
+                let (Some(forms), Some(export)) = (
+                    case["output"]["forms"]["ok"]["forms"].as_array(),
+                    case["output"]["export"]["ok"].as_object(),
+                ) else {
+                    continue;
+                };
+                let mut before = Vec::new();
+                for form in forms
+                    .iter()
+                    .map(|form| form.as_str().unwrap())
+                    .filter(|form| form.contains("(angle "))
+                {
+                    before.extend(arcs(&upgrade_legacy_arcs(form).unwrap()));
+                }
+                if before.is_empty() {
+                    continue;
+                }
+                let mut recorded = Vec::new();
+                for text in export["footprints"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .chain(export["objects"].as_array().unwrap())
+                {
+                    recorded.extend(arcs(text.as_str().unwrap()));
+                }
+                before.sort();
+                recorded.sort();
+                assert_eq!(before, recorded, "{} {}", fixture["source"], case["id"]);
+                compared += 1;
+            }
+        }
+        assert!(compared >= 20, "only {compared} cases with legacy arcs");
+    }
 }

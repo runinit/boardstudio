@@ -14,6 +14,7 @@ they implement generator/CAD providers, data preparation and development tooling
 | `renderer/` | GPU scene rendering, picking and camera behavior |
 | `cad/` | CAD provider bindings and the Cadrum/OCCT WASM kernel |
 | `contracts/` | Shared generated Rust/TypeScript boundary types |
+| `footprints/` | Footprint generator framework (parameters, render context, geometry, normalization, model references); not yet used by production |
 | `ergogen/`, `kicad/` | Generator catalogue, footprint production and PCB output providers |
 | `catalogue/`, `content/` | Component definitions, source assets and bundled examples |
 | `tooling/demo-projects/` | Build-time preparation of bundled project archives |

@@ -16,8 +16,10 @@ one-off rewrite script, never by re-recording.
 | `generators/<namespace>__<name>.json` | One file per generator: `source`, `parameters` (provider `parameters()`), `catalogue` (its `catalogue()` definition) and `cases`, one JSON object per line |
 | `provider.json` | Provider-level behavior: `isErgogen`, unknown generator / unsupported version / missing generator errors, `parseForms` inputs and results, `modelAssetIdsForPaths` |
 | `worker.json` | 28 preview-worker request/reply pairs: net allocation, unresolved model paths, job failures, and every envelope validation message |
+| `numeric_vectors.json` | JavaScript number formatting and parsing, `Math.sin`/`cos`/`hypot` and `encodeURIComponent` results recorded from V8 |
+| `context_vectors.json` | The render context (`p.at`, `isxy`, `esxy`, nets, local nets, side, parameter merging) recorded through a synthetic generator |
 | `manifest.json` | Counts per generator and family, demo-project coverage, source hashes, Node version |
-| `harness/` | The temporary recorder (`record.mjs`), its demo-project builder and module hooks |
+| `harness/` | The temporary recorders (`record.mjs`, `record_context.mjs`), the demo-project builder and module hooks |
 
 ## Case record
 
@@ -73,6 +75,8 @@ first rotated instance of each are kept.
 cargo build --manifest-path core/Cargo.toml --example core_request
 node --no-warnings --import ./footprints/tests/golden/harness/register.mjs \
   footprints/tests/golden/harness/record.mjs
+node --no-warnings --import ./footprints/tests/golden/harness/register.mjs \
+  footprints/tests/golden/harness/record_context.mjs
 ```
 
 Node 24 or later strips the TypeScript types; no `pnpm install` is needed.

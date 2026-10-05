@@ -1,0 +1,20 @@
+[package]
+name = "boardstudio-footprints"
+version = "0.1.0"
+edition = "2024"
+publish = false
+# The crate will hold ported generators under MIT and CC-BY-NC-SA-4.0; each
+# module records its own SPDX identifier (see src/lib.rs).
+license = "MIT OR Apache-2.0"
+
+[lib]
+name = "boardstudio_footprints"
+path = "src/lib.rs"
+
+[dependencies]
+boardstudio-contracts = { path = "../contracts/rust" }
+libm = "0.2.16"
+serde = { version = "1", features = ["derive"] }
+# float_roundtrip: parameter values and fixtures must parse to the exact nearest
+# double, as JavaScript does; the default parser can be one ulp off.
+serde_json = { version = "1", features = ["float_roundtrip"] }

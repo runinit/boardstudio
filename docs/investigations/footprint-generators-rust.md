@@ -1,7 +1,7 @@
 # Footprint generators in Rust
 
 Planned: 2026-10-05. Inspected revision: `3cdeb2ac2`.
-Status: agreed plan; step 1 complete (`80b8e460e`, findings folded in below).
+Status: agreed plan; steps 1 and 2 complete (`80b8e460e`; framework in `footprints/`).
 
 This plan covers items 1 and 2 of the
 [TypeScript and Node removal assessment](typescript-node-removal.md): the
@@ -99,15 +99,29 @@ equivalent), the JavaScript worker, then Core `FinishPreview`.
    only through the part pose, because no generator declares an anchor
    parameter. The fixtures cannot be regenerated after deletion; step 5 rewrites
    them mechanically for the renames.
-2. **Provider framework.** Implement form handling, the render context,
-   geometry and courtyard joining, normalization, terminal discovery, model IDs
-   and bindings, model-path rewriting, net allocation, the generator registry and
-   typed errors. Verify against golden render text, independently of generator
-   ports, by running a test generator module against the recorded cases and by
-   feeding recorded forms through parsing, geometry, normalization and export.
-   Of the 28 worker goldens, those for net allocation, repeated reserved names,
-   job-failure propagation, unresolved model paths and the 32-bit net limit carry
-   over; about 20 envelope-validation scenarios retire with the worker.
+2. **Provider framework.** Complete. The `footprints` crate implements form
+   handling, the render context, geometry and courtyard joining, normalization,
+   terminal discovery, model IDs and bindings, model-path rewriting, net
+   allocation, the generator registry and typed errors. It is verified without
+   any generator port: the recorded render text runs through parsing, geometry,
+   model references and export and matches the goldens (803 geometry cases, 783
+   export cases), the render context matches 40 recorded cases, and JavaScript
+   number formatting, `Math.sin`/`cos`/`hypot` and parsing match V8 bit for bit
+   (`libm`; `serde_json` needs `float_roundtrip`). Of the 28 worker goldens,
+   those for net allocation, repeated reserved names and the 32-bit net limit
+   carry over; about 20 envelope-validation scenarios retire with the worker.
+   Findings:
+   - The crate cannot depend on `core` (which depends on it), so it defines the
+     wire types it needs (`Pad`, `ModelBinding`, `PartKind`, ...) with the same
+     serialized form as `core::model`. At cutover core re-exports them.
+   - Arcs stay in Core: `upgrade_legacy_arcs` reproduces the old worker's arcs
+     on all 20 recorded cases (`core/src/artifact/source.rs` test), so the crate
+     does not upgrade arcs and Core applies its function to exported text.
+   - `core` library tests do not compile in a fresh checkout: a test
+     `include_str!`s `cad/bench/fixtures/internal-gasket-v1/rectangle.json`,
+     which is not tracked. Unrelated; worked around locally for the arc test.
+   - The page WASM size change is not measured yet; the crate is not linked into
+     production. Measure it at step 4.
 3. **Generator ports.** Port in batches: utilities and mounting holes; diode,
    LED, reset and power switches; MX, Choc and KS27/KS33 switches; controllers,
    displays, encoder and connectors; infused-kim. Each batch must match goldens

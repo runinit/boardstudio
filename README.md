@@ -68,6 +68,7 @@ before executing tests.
 | `core/` | Document engine, geometry, artifacts and archives |
 | `renderer/`, `cad/` | Rendering and CAD providers |
 | `contracts/` | Generated Rust/TypeScript contracts |
+| `footprints/` | Rust footprint generator framework; generators are being ported from `ergogen/` |
 | `ergogen/`, `kicad/` | Trusted generators and PCB providers |
 | `catalogue/`, `content/` | Components, models, licences and bundled examples |
 | `tooling/demo-projects/` | Build-time project preparation; no React UI |
