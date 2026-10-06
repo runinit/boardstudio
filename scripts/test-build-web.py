@@ -18,7 +18,7 @@ class BuildWebTests(unittest.TestCase):
         joined = "\n".join(commands)
         for retained in (
             "wasm-pack build core", "--features core-worker", "--features cad-worker",
-            "pnpm --dir cad run build:wasm",
+            "cad/scripts/build-cadrum-wasm.py",
             "--example prepare_demo_projects", "stage-ergogen-models.py",
         ):
             self.assertIn(retained, joined)

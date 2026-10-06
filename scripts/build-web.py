@@ -38,7 +38,7 @@ def provider_commands() -> list[tuple[list[str], Path]]:
           "--no-default-features", "--features", "cad-worker"], ROOT),
         (["wasm-pack", "build", "renderer", "--target", "web", "--out-dir", "pkg",
           "--out-name", "boardstudio_renderer_wasm", "--release", "--locked"], ROOT),
-        (["pnpm", "--dir", "cad", "run", "build:wasm"], ROOT),
+        ([sys.executable, "cad/scripts/build-cadrum-wasm.py"], ROOT),
         (["cargo", "run", "--manifest-path", "core/Cargo.toml", "--locked", "--release",
           "--example", "prepare_demo_projects", "--", "web/assets/fixtures"], ROOT),
         ([sys.executable, "scripts/stage-ergogen-models.py", "--source-root",

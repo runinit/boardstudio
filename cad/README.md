@@ -29,3 +29,15 @@ SHA-256 digests before extraction. The WASM build requires Podman or Docker;
 the native fixture validation uses the verified Linux x86_64 archive. The
 toolchain pins and integration evidence are recorded in the
 [Cadrum assessment](../docs/cadrum-assessment.md).
+
+CAD orchestration uses Python 3.11+ and the standard library. Direct commands:
+
+```sh
+python3 cad/scripts/prepare-cadrum-occt.py native
+python3 cad/scripts/build-cadrum-wasm.py
+python3 cad/scripts/test-cadrum.py
+```
+
+Run these from the repository root. `test-cadrum.py` builds the Core preparation driver, runs native bridge tests
+and builds WASM; the independent JavaScript integration oracle remains in
+`pnpm --dir cad test` until its separate migration.

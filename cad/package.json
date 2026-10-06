@@ -12,8 +12,8 @@
     "typescript": "7.0.2"
   },
   "scripts": {
-    "build:wasm": "node scripts/build-cadrum-wasm.mjs",
+    "build:wasm": "python3 scripts/build-cadrum-wasm.py",
     "check": "pnpm run build:wasm && tsc --noEmit -p tsconfig.json",
-    "test": "cargo build --manifest-path ../core/Cargo.toml --target-dir ../core/target --example prepare_case --locked && node scripts/test-cadrum.mjs && node --test test/*.test.mjs"
+    "test": "python3 scripts/test-cadrum.py && node --test test/*.test.mjs"
   }
 }
