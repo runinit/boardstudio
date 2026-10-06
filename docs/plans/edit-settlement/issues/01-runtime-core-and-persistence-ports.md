@@ -1,6 +1,6 @@
 # 01: Runtime Core and persistence ports with an in-process test adapter
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: None (can start immediately)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
@@ -116,3 +116,52 @@ README and the existing test-owner files under `scripts/`.
 - Don't change the worker request-ID format (`m1-<n>`). Session checks it.
 - Preserve the order of effects in `run`: the persistence branch must still remove
   committed asset bytes only after a successful save.
+
+## Outcome
+
+Commits: aa67565bc (claim), a62b6a530 (ports + adapter), a3c1d00d2 (review fixes).
+
+- **Core executor port.** `CoreExecutor` (request, archive, artifact, ready, close) lives in
+  `web/crates/host/src/host/core_client.rs` beside `CoreWorker` and is implemented by it via
+  delegation; Runtime stores `Rc<dyn CoreExecutor>` so `Rc::ptr_eq` and
+  `core_executor_identity` capture checks keep working. `RestartCoreExecutor` builds the
+  replacement through an injected factory (production: same worker URL and error strings).
+  The firmware export executor trait was folded in (step 6): firmware paths use
+  `Rc<dyn CoreExecutor>`, and the test `ControlledExecutor` implements the full port.
+- **Persistence port.** `DocumentPersistence` (runtime.rs) covers only the save a Session
+  `Persist` effect performs; implemented for `BrowserStore`. Loading, listing, deleting and
+  the active-project preference stay on `BrowserStore`. The Persist branch keeps asset
+  filtering before the save and committed-asset removal after success.
+- **In-process test adapter** (`in_process_support.rs`, `test-support`-gated): `InProcessCore`
+  serves requests via `CoreEngine::handle` and archives/artifacts via the Core crate
+  functions the worker uses, mirroring the worker's reply-id checks; `TestPersistence` saves
+  through the production store port by default or into memory (documents + assets). Either
+  port accepts a one-shot gate that holds or fails the next reply/save.
+- **Project-name test support migrated.** `project_name_test_core`,
+  `project_name_persist_test_behavior` and their branches in `submit`/`run` are gone;
+  `project_name_test_effects` became a general `held_effects`. The support module's helper
+  names still work (`install` routes Core through the adapter and attaches the gated
+  persistence port; `fail_next_persist`/`gate_next_persist` unchanged). New helpers:
+  `install_memory_persistence`, `gate_next_core_reply`, `fail_next_core_reply`,
+  `saved_document`, `in_process_core`.
+- **Interpretation note.** `install` keeps saving through the production browser-store port
+  (behind the gate decorator that replaced `project_name_persist_test_behavior`) so the
+  library/pcb/runtime tests that assert durable browser storage and the active-project
+  preference pass unchanged in behaviour; memory saves are opt-in via
+  `install_memory_persistence`. The new acceptance tests use the opt-in and cover every
+  memory-saves criterion.
+
+Checks (all pass): `python3 scripts/check.py typecheck`; `wasm-pack test --headless
+--chrome web/crates/runtime --locked --lib` — 33 passed (28 existing + 5 new adapter tests:
+edit accepted + saved copy in memory; gate save → `Durability::Saving` → released → `Saved`;
+fail save → `PersistenceFailed` + `RecoveryRequired` with accepted value kept; gate Core
+reply → edit pending until release; restart → fresh engine, old executor closed, stale
+old-epoch reply ignored); `wasm-pack test` suites for library (11), pcb (31), case (52);
+`python3 scripts/run-wasm-tests.py --files web/src/presentation/zmk_firmware_export.rs` — 5
+passed; `cargo test -p boardstudio-application --locked` — 18 passed;
+`cargo test -p boardstudio-web-runtime --locked` — 91 passed; `python3
+scripts/check-wasm-tests.py`; `python3 scripts/check-doc-links.py`.
+
+Follow-ups: `TestPersistence::saved_assets` is exposed but unused until ticket 05's mounted
+tests need saved assets; the `OneShotBehavior` gate type can grow reply-kind filtering if a
+later ticket needs it.

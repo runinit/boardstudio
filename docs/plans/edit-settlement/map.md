@@ -39,6 +39,9 @@ which remaining whole-document replacements become typed Core edits.
 
 <!-- one line per resolved build ticket -->
 
+- 01 Runtime Core and persistence ports with an in-process test adapter landed; Core and
+  saves go through ports, gates hold/fail replies and saves: [issues/01-runtime-core-and-persistence-ports.md](issues/01-runtime-core-and-persistence-ports.md).
+
 ## Not yet specified
 
 Nothing. The cluster migrations are now tickets, sliced from the
