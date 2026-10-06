@@ -23,9 +23,21 @@ RUN git clone --depth 1 --recurse-submodules --shallow-submodules \
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- \
       -y --default-toolchain 1.98.0 --profile minimal
 ENV PATH=/opt/wasi-sdk/bin:/root/.cargo/bin:$PATH
+# Prebuilt release binaries, pinned by SHA-256, instead of compiling them with cargo install.
 RUN rustup target add wasm32-unknown-unknown \
-    && cargo install wasm-pack --locked --version 0.15.0 \
-    && cargo install wasm-bindgen-cli --locked --version 0.2.129
+    && curl --proto '=https' --tlsv1.2 -sSfL -o /tmp/wasm-pack.tar.gz \
+      https://github.com/wasm-bindgen/wasm-pack/releases/download/v0.15.0/wasm-pack-v0.15.0-x86_64-unknown-linux-musl.tar.gz \
+    && echo "c09f971ecaed9a2efc80fdcea7a00ef6b53c7fadc8c57d1f61b53a6aa66b668a  /tmp/wasm-pack.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/wasm-pack.tar.gz -C /root/.cargo/bin --strip-components=1 \
+      wasm-pack-v0.15.0-x86_64-unknown-linux-musl/wasm-pack \
+    && curl --proto '=https' --tlsv1.2 -sSfL -o /tmp/wasm-bindgen.tar.gz \
+      https://github.com/wasm-bindgen/wasm-bindgen/releases/download/0.2.129/wasm-bindgen-0.2.129-x86_64-unknown-linux-musl.tar.gz \
+    && echo "82d12bb940e2d4e72e0d5605387fc1b8ca179044e012b620f0ce4e7440e8320e  /tmp/wasm-bindgen.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/wasm-bindgen.tar.gz -C /root/.cargo/bin --strip-components=1 \
+      wasm-bindgen-0.2.129-x86_64-unknown-linux-musl/wasm-bindgen \
+      wasm-bindgen-0.2.129-x86_64-unknown-linux-musl/wasm-bindgen-test-runner \
+    && rm /tmp/wasm-pack.tar.gz /tmp/wasm-bindgen.tar.gz \
+    && wasm-pack --version && wasm-bindgen --version
 
 ENV SYSROOT=/opt/wasi-sdk/share/wasi-sysroot \
     CC_wasm32_unknown_unknown=clang \

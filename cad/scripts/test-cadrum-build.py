@@ -66,12 +66,18 @@ class CadrumBuildTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "unexpected layout"):
             build.prepare("native")
 
+    def wasm_sources(self):
+        (self.root / "wasm/src").mkdir(parents=True)
+        (self.root / "wasm/src/lib.rs").write_text("// provider")
+        (self.root / "wasm/Containerfile").write_text("FROM scratch")
+
     def test_container_override_preserves_mounts_and_build_failure_stops_run(self):
+        self.wasm_sources()
         pkg = self.root / "wasm/pkg"
         pkg.mkdir(parents=True)
         (pkg / "package.json").write_text("generated")
         (pkg / "provider.wasm").write_bytes(b"keep")
-        with patch.dict(build.os.environ, {"CADRUM_CONTAINER_RUNTIME": "podman"}), patch.object(build, "prepare", return_value=self.root / ".cache/cadrum/wasm/occt"), patch.object(build, "run") as run:
+        with patch.dict(build.os.environ, {"CADRUM_CONTAINER_RUNTIME": "podman", "CADRUM_BUILD_IMAGE": "1"}), patch.object(build, "prepare", return_value=self.root / ".cache/cadrum/wasm/occt"), patch.object(build, "run") as run:
             build.build_wasm()
         commands = [call.args[0] for call in run.call_args_list]
         self.assertEqual(commands[0][:2], ["podman", "build"])
@@ -81,20 +87,59 @@ class CadrumBuildTests(unittest.TestCase):
         self.assertIn(f"{self.root}/.cache/cargo-registry:/root/.cargo/registry:Z", commands[1])
         self.assertFalse((pkg / "package.json").exists())
         self.assertEqual((pkg / "provider.wasm").read_bytes(), b"keep")
-        with patch.dict(build.os.environ, {"CADRUM_CONTAINER_RUNTIME": "docker"}), patch.object(build, "prepare", return_value=self.root / ".cache/cadrum/wasm/occt"), patch.object(build, "run", side_effect=subprocess.CalledProcessError(1, "docker")) as run:
+        with patch.dict(build.os.environ, {"CADRUM_CONTAINER_RUNTIME": "docker", "CADRUM_BUILD_IMAGE": "1"}), patch.object(build, "prepare", return_value=self.root / ".cache/cadrum/wasm/occt"), patch.object(build, "run", side_effect=subprocess.CalledProcessError(1, "docker")) as run:
             with self.assertRaises(subprocess.CalledProcessError):
                 build.build_wasm()
         run.assert_called_once()
 
-    def test_prebuilt_image_skips_only_the_image_build(self):
-        environment = {"CADRUM_CONTAINER_RUNTIME": "docker", "CADRUM_IMAGE_READY": "1"}
-        with patch.dict(build.os.environ, environment), patch.object(build, "prepare", return_value=self.root / ".cache/cadrum/wasm/occt"), patch.object(build, "run") as run:
+    def test_published_image_is_pulled_by_containerfile_digest_with_local_fallback(self):
+        self.wasm_sources()
+        environment = {"CADRUM_CONTAINER_RUNTIME": "docker", "CADRUM_BUILD_IMAGE": ""}
+        tag = build.registry_image()
+        self.assertRegex(tag, r"^ghcr\.io/runinit/boardstudio-cadrum-wasm:containerfile-[0-9a-f]{16}$")
+        with patch.dict(build.os.environ, environment), patch.object(build, "prepare", return_value=self.root / "occt"), \
+                patch.object(build, "succeeds", return_value=True) as pull, patch.object(build, "run") as run:
             build.build_wasm()
+        pull.assert_called_once_with(["docker", "pull", tag])
+        commands = [call.args[0] for call in run.call_args_list]
+        self.assertEqual(commands[0], ["docker", "tag", tag, build.IMAGE])
+        self.assertNotIn("build", [command[1] for command in commands])
+        (self.root / ".cache/cadrum/wasm-build.sha256").unlink()
+        with patch.dict(build.os.environ, environment), patch.object(build, "prepare", return_value=self.root / "occt"), \
+                patch.object(build, "succeeds", return_value=False), patch.object(build, "run") as run, \
+                contextlib.redirect_stdout(io.StringIO()):
+            build.build_wasm()
+        self.assertEqual(run.call_args_list[0].args[0][:2], ["docker", "build"])
+
+    def test_unchanged_provider_inputs_skip_the_container(self):
+        self.wasm_sources()
+        environment = {"CADRUM_CONTAINER_RUNTIME": "docker", "CADRUM_BUILD_IMAGE": "1"}
+        output = self.root / "wasm/pkg/boardstudio_cadrum_wasm_bg.wasm"
+        with patch.dict(build.os.environ, environment), patch.object(build, "prepare", return_value=self.root / "occt"), \
+                patch.object(build, "run", side_effect=lambda *a, **k: output.parent.mkdir(parents=True, exist_ok=True) or output.write_bytes(b"wasm")):
+            build.build_wasm()
+        with patch.dict(build.os.environ, environment), patch.object(build, "run") as run, \
+                contextlib.redirect_stdout(io.StringIO()):
+            build.build_wasm()
+        run.assert_not_called()
+        (self.root / "wasm/src/lib.rs").write_text("// changed provider")
+        with patch.dict(build.os.environ, environment), patch.object(build, "prepare", return_value=self.root / "occt"), \
+                patch.object(build, "run") as run:
+            build.build_wasm()
+        self.assertEqual(run.call_args_list[0].args[0][:2], ["docker", "build"])
+
+    def test_prebuilt_image_skips_only_the_image_build(self):
+        self.wasm_sources()
+        environment = {"CADRUM_CONTAINER_RUNTIME": "docker", "CADRUM_IMAGE_READY": "1"}
+        with patch.dict(build.os.environ, environment), patch.object(build, "prepare", return_value=self.root / ".cache/cadrum/wasm/occt"), \
+                patch.object(build, "succeeds") as pull, patch.object(build, "run") as run:
+            build.build_wasm()
+        pull.assert_not_called()
         commands = [call.args[0] for call in run.call_args_list]
         self.assertEqual([command[:2] for command in commands], [["docker", "run"]])
         self.assertIn(build.IMAGE, commands[0])
 
-    def test_native_failure_prevents_wasm_build(self):
+    def test_native_failure_is_raised(self):
         with patch.object(build, "prepare", return_value=self.extracted), patch.object(build, "run", side_effect=[None, None, subprocess.CalledProcessError(1, "cargo")]), patch.object(build, "build_wasm") as wasm:
             with self.assertRaises(subprocess.CalledProcessError):
                 build.test_cadrum()
@@ -110,7 +155,8 @@ class CadrumBuildTests(unittest.TestCase):
         self.assertIn("--locked", oracle_command)
         self.assertEqual(oracle_env["OCCT_ROOT"], str(self.extracted))
         self.assertEqual(oracle_env["CARGO_TARGET_DIR"], str(self.root / "step-oracle/target"))
-        wasm.assert_called_once()
+        # The `build` step already produced the WASM provider; tests must not rebuild it.
+        wasm.assert_not_called()
 
     def test_oracle_build_failure_stops_native_tests(self):
         with patch.object(build, "prepare", return_value=self.extracted), patch.object(build, "run", side_effect=[None, subprocess.CalledProcessError(1, "cargo")]) as run, patch.object(build, "build_wasm") as wasm:
