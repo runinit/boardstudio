@@ -38,7 +38,8 @@ jobs:
         with:
           path: |
             cad/.cache/cadrum/*/*.tar.gz
-            cad/.cache/cargo
+            cad/.cache/cargo-registry
+            cad/.cache/cargo-git
           key: cadrum-wasm-${{ hashFiles('cad/scripts/cadrum_build.py', 'cad/wasm/Cargo.lock') }}
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         continue-on-error: true
