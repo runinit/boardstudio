@@ -129,7 +129,7 @@ fn pcb_export_rejects_different_nets_on_repeated_physical_pad_numbers() {
     let part_id = doc.parts[0].id.clone();
     doc.nets=serde_json::from_value(json!([{ "id":"a","name":"A","pins":[{"partId":part_id,"padId":"A"}]},{"id":"b","name":"B","pins":[{"partId":part_id,"padId":"C"}]}])).unwrap();
     doc.boards[0].net_ids = vec!["a".into(), "b".into()];
-    let reply:serde_json::Value=serde_json::from_str(&boardstudio_core::artifact::request(&json!({"id":"unsafe","kind":"prepare-export","request":{"snapshotToken":"committed","expectedRevision":0,"document":doc,"target":{"kind":"board","boardId":"board"},"contours":[{"hole":false,"points":[{"x":-10,"y":-10},{"x":10,"y":-10},{"x":10,"y":10},{"x":-10,"y":10}]}],"modelPaths":{}}}).to_string())).unwrap();
+    let reply:serde_json::Value=serde_json::from_str(&boardstudio_core::artifact::request(&json!({"id":"unsafe","kind":"export-pcb","request":{"snapshotToken":"committed","expectedRevision":0,"document":doc,"target":{"kind":"board","boardId":"board"},"contours":[{"hole":false,"points":[{"x":-10,"y":-10},{"x":10,"y":-10},{"x":10,"y":10},{"x":-10,"y":10}]}],"modelPaths":{}}}).to_string())).unwrap();
     assert_eq!(
         reply["kind"], "error",
         "A stateless export must enforce repeated-terminal net consistency"

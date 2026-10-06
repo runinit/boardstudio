@@ -19,6 +19,7 @@ name = "dump_firmware"
 
 [dependencies]
 boardstudio-contracts = { path = "../contracts/rust" }
+boardstudio-footprints = { path = "../footprints" }
 i_overlay = "9.0.0"
 kiutils_sexpr = "=0.1.1"
 serde = { version = "1", features = ["derive"] }

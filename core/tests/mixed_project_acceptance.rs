@@ -245,7 +245,7 @@ fn mixed_host_project_keeps_module_ownership_and_public_export_gates_together() 
         "modelPaths":{"ergogen:model:thqwgd001/THQWGD001C [2pin] #1.stp":"models/thq-tactile.step"}
     });
     let fabrication: Value = serde_json::from_str(&artifact_request(
-        &json!({"id":"host-fabrication","kind":"prepare-export","request":export_request})
+        &json!({"id":"host-fabrication","kind":"export-pcb","request":export_request})
             .to_string(),
     ))
     .unwrap();
@@ -256,12 +256,14 @@ fn mixed_host_project_keeps_module_ownership_and_public_export_gates_together() 
             .unwrap()
             .contains("Physical encoder part identity")
     );
-    let export = serde_json::from_str::<Value>(&artifact_request(
-        &json!({"id":"host-preview","kind":"prepare-preview","request":export_request}).to_string(),
-    ))
+    // Preview planning captures only host-owned and embedded footprints.
+    let plan = serde_json::to_value(
+        boardstudio_core::artifact::kicad::prepare_preview(
+            serde_json::from_value(export_request.clone()).unwrap(),
+        )
+        .expect("preview plan"),
+    )
     .unwrap();
-    assert_eq!(export["kind"], "prepare-preview", "{export}");
-    let plan = export["result"].clone();
     assert_eq!(plan["target"]["boardId"], "host");
     assert!(
         plan["capturedDocument"]["parts"]
@@ -284,7 +286,7 @@ fn mixed_host_project_keeps_module_ownership_and_public_export_gates_together() 
             .any(|part| part["reference"] == "TEST1")
     );
     let preview: Value = serde_json::from_str(&artifact_request(
-        &json!({"id":"host-preview-finish","kind":"finish-preview","request":{"plan":plan,"results":[]}}).to_string(),
+        &json!({"id":"host-preview-finish","kind":"preview-pcb","request":export_request}).to_string(),
     )).unwrap();
     assert_eq!(preview["kind"], "preview-board", "{preview}");
     assert!(preview["result"]["diagnostics"].as_array().is_some());

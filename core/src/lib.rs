@@ -7,6 +7,7 @@ pub mod electrical_jumpers;
 pub mod electrical_peripherals;
 pub mod electrical_profiles;
 pub mod firmware;
+pub mod generators;
 mod geometry;
 mod hardware;
 mod inputs;

@@ -134,26 +134,12 @@ fn handle(request: ArtifactRequest) -> ArtifactReply {
             },
             Err(error) => ArtifactReply::Error { id, error },
         },
-        ArtifactRequest::PreparePreview { id, request } => match kicad::prepare_preview(request) {
-            Ok(result) => ArtifactReply::PreparePreview {
-                id,
-                result: Box::new(result),
-            },
-            Err(error) => ArtifactReply::Error { id, error },
-        },
-        ArtifactRequest::FinishPreview { id, request } => match kicad::finish_preview(request) {
+        ArtifactRequest::PreviewPcb { id, request } => match kicad::preview(request) {
             Ok(result) => ArtifactReply::PreviewBoard { id, result },
             Err(error) => ArtifactReply::Error { id, error },
         },
-        ArtifactRequest::PrepareExport { id, request } => match kicad::prepare_export(request) {
-            Ok(result) => ArtifactReply::PrepareExport {
-                id,
-                result: Box::new(result),
-            },
-            Err(error) => ArtifactReply::Error { id, error },
-        },
-        ArtifactRequest::FinishExport { id, request } => match kicad::finish_export(request) {
-            Ok(result) => ArtifactReply::FinishExport { id, result },
+        ArtifactRequest::ExportPcb { id, request } => match kicad::export(request) {
+            Ok(result) => ArtifactReply::ExportPcb { id, result },
             Err(error) => ArtifactReply::Error { id, error },
         },
         ArtifactRequest::ExportOutline { id, request } => match outline::export_outline(request) {

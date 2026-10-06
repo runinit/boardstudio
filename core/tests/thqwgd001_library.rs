@@ -21,7 +21,7 @@ fn unqualified_thqwgd001_cannot_be_exported_as_a_fabrication_ready_footprint() {
         .definitions
         .push(serde_json::from_value(definition).unwrap());
     let reply: Value = serde_json::from_str(&artifact::request(&json!({
-        "id":"unqualified", "kind":"prepare-export", "request":{
+        "id":"unqualified", "kind":"export-pcb", "request":{
             "snapshotToken":"committed", "expectedRevision":0,
             "document":document,
             "target":{"kind":"standalone-footprints","definitionIds":["thqwgd001:c-4pin-reversible"]},
@@ -95,7 +95,7 @@ fn routed_and_drilled_helpers_keep_distinct_public_export_gates() {
             .push(serde_json::from_value(definition).unwrap());
         let reply: Value = serde_json::from_str(&artifact::request(
             &json!({
-                "id":id, "kind":"prepare-export", "request":{
+                "id":id, "kind":"export-pcb", "request":{
                     "snapshotToken":"helper-gate", "expectedRevision":0,
                     "document":document,
                     "target":{"kind":"standalone-footprints","definitionIds":[id]},
@@ -514,14 +514,8 @@ fn nominal_preview_keeps_unqualified_models_visible_without_enabling_fabrication
         .asset_id
         .clone();
     let request = json!({"snapshotToken":"nominal","expectedRevision":0,"document":document,"target":{"kind":"board","boardId":"board"},"contours":[{"hole":false,"points":[{"x":-30,"y":-30},{"x":55,"y":-30},{"x":55,"y":30},{"x":-30,"y":30}]}],"modelPaths":{asset_id:"models/encoder.stp"}});
-    let prepared: Value = serde_json::from_str(&artifact::request(
-        &json!({"id":"nominal","kind":"prepare-preview","request":request}).to_string(),
-    ))
-    .unwrap();
-    assert_eq!(prepared["kind"], "prepare-preview", "{prepared}");
-    let finish = json!({"plan":prepared["result"],"results":[]});
     let preview: Value = serde_json::from_str(&artifact::request(
-        &json!({"id":"preview","kind":"finish-preview","request":finish}).to_string(),
+        &json!({"id":"preview","kind":"preview-pcb","request":request}).to_string(),
     ))
     .unwrap();
     assert_eq!(preview["kind"], "preview-board", "{preview}");
@@ -534,7 +528,7 @@ fn nominal_preview_keeps_unqualified_models_visible_without_enabling_fabrication
             .all(|m| m["path"] == "${KIPRJMOD}/models/encoder.stp")
     );
     let exported: Value = serde_json::from_str(&artifact::request(
-        &json!({"id":"cannot-bypass","kind":"finish-export","request":finish}).to_string(),
+        &json!({"id":"cannot-bypass","kind":"export-pcb","request":request}).to_string(),
     ))
     .unwrap();
     assert_eq!(

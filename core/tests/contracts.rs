@@ -102,32 +102,20 @@ fn boxed_public_payloads_keep_their_existing_json_shape() {
     assert_eq!(reply["document"]["id"], "boxed-contract");
     assert!(reply.get("scene").is_some());
 
-    let artifact_reply = ArtifactReply::PrepareExport {
+    let artifact_reply = ArtifactReply::ExportPcb {
         id: "boxed-export".into(),
-        result: Box::new(ExportPlan {
+        result: ExportArtifact {
             snapshot_token: "snapshot".into(),
-            fingerprint: "fingerprint".into(),
             revision: 0,
-            target: ExportTarget::Board {
-                board_id: "board".into(),
-            },
-            jobs: vec![],
-            reserved_nets: vec![],
-            next_net_index: 1,
-            contours: vec![],
-            captured_document: ProjectDoc::empty("captured", "Captured"),
-            model_paths: Default::default(),
-        }),
+            files: vec![],
+            skipped_utilities: vec![],
+        },
     };
     let artifact_reply = serde_json::to_value(artifact_reply).unwrap();
-    assert_eq!(artifact_reply["kind"], "prepare-export");
+    assert_eq!(artifact_reply["kind"], "export-pcb");
     assert_eq!(artifact_reply["id"], "boxed-export");
     assert_eq!(artifact_reply["result"]["snapshotToken"], "snapshot");
-    assert_eq!(artifact_reply["result"]["target"]["kind"], "board");
-    assert_eq!(
-        artifact_reply["result"]["capturedDocument"]["format"],
-        "boardstudio/v2"
-    );
+    assert_eq!(artifact_reply["result"]["files"], json!([]));
 }
 
 #[test]

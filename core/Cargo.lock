@@ -45,10 +45,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "boardstudio-footprints"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-contracts",
+ "libm",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "boardstudio_core"
 version = "0.1.0"
 dependencies = [
  "boardstudio-contracts",
+ "boardstudio-footprints",
  "i_overlay",
  "js-sys",
  "kiutils_sexpr",

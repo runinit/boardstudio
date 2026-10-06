@@ -4,7 +4,7 @@ pub fn prepare_export(request: PrepareExportRequest) -> Result<ExportPlan, Artif
     prepare(request, true)
 }
 
-pub(in crate::artifact) fn prepare_preview(
+pub fn prepare_preview(
     request: PrepareExportRequest,
 ) -> Result<ExportPlan, ArtifactError> {
     prepare(request, false)

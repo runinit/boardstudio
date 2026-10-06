@@ -1975,21 +1975,15 @@ pub enum ArtifactRequest {
         definition_id: String,
         source: String,
     },
-    PreparePreview {
+    /// Plan, render and assemble the PCB preview of one board.
+    PreviewPcb {
         id: String,
         request: PrepareExportRequest,
     },
-    FinishPreview {
-        id: String,
-        request: FinishExportRequest,
-    },
-    PrepareExport {
+    /// Plan, render and assemble KiCad files for a board or standalone footprints.
+    ExportPcb {
         id: String,
         request: PrepareExportRequest,
-    },
-    FinishExport {
-        id: String,
-        request: FinishExportRequest,
     },
     ExportOutline {
         id: String,
@@ -2026,15 +2020,7 @@ pub enum ArtifactReply {
         id: String,
         result: Box<CompiledFootprint>,
     },
-    PreparePreview {
-        id: String,
-        result: Box<ExportPlan>,
-    },
-    PrepareExport {
-        id: String,
-        result: Box<ExportPlan>,
-    },
-    FinishExport {
+    ExportPcb {
         id: String,
         result: ExportArtifact,
     },

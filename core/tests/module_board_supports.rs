@@ -496,16 +496,15 @@ fn partial_board_mount_configuration_blocks_pcb_fabrication() {
     assert!(error.message.contains("Every source mount"), "{error:?}");
 }
 
+/// Plans without generator jobs need no rendering before the preview is assembled.
 fn finish_board_preview(plan: &ExportPlan) -> Value {
-    serde_json::from_str(&artifact::request(
-        &json!({
-            "id":"finish-preview",
-            "kind":"finish-preview",
-            "request":{"plan":plan,"results":[]}
-        })
-        .to_string(),
-    ))
-    .unwrap()
+    match artifact::kicad::finish_preview(FinishExportRequest {
+        plan: plan.clone(),
+        results: vec![],
+    }) {
+        Ok(result) => json!({ "kind": "preview-board", "result": result }),
+        Err(error) => json!({ "kind": "error", "error": error }),
+    }
 }
 
 #[test]

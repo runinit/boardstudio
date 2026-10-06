@@ -1,10 +1,10 @@
+mod generation;
 mod output;
 mod planning;
 
-pub use output::finish_export;
-pub(super) use output::finish_preview;
-pub use planning::prepare_export;
-pub(super) use planning::prepare_preview;
+pub use generation::{export, preview};
+pub use output::{finish_export, finish_preview};
+pub use planning::{prepare_export, prepare_preview};
 
 use super::{ArtifactError, ArtifactErrorCode, sexpr};
 use crate::artifact::{compile, source};

@@ -172,7 +172,7 @@ fn remove_text_render_caches(source: &str) -> Result<String, ArtifactError> {
     })
 }
 
-fn upgrade_legacy_arcs(source: &str) -> Result<String, ArtifactError> {
+pub(crate) fn upgrade_legacy_arcs(source: &str) -> Result<String, ArtifactError> {
     fn visit(node: &Node, edits: &mut Vec<(Span, String)>) -> Result<(), ArtifactError> {
         let Some(items) = sexpr::items(node) else {
             return Ok(());
@@ -1342,10 +1342,13 @@ mod tests {
         let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../footprints/tests/golden/generators");
         let mut compared = 0;
-        for entry in std::fs::read_dir(directory).unwrap() {
+        for path in std::fs::read_dir(directory)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| path.extension().is_some_and(|extension| extension == "json"))
+        {
             let fixture: serde_json::Value =
-                serde_json::from_str(&std::fs::read_to_string(entry.unwrap().path()).unwrap())
-                    .unwrap();
+                serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
             for case in fixture["cases"].as_array().unwrap() {
                 let (Some(forms), Some(export)) = (
                     case["output"]["forms"]["ok"]["forms"].as_array(),
