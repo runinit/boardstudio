@@ -14,7 +14,7 @@ use dioxus::prelude::*;
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
-pub(super) enum KeycapEditField {
+pub enum KeycapEditField {
     BoardColor,
     BoardLegendColor,
     BoardClearance,
@@ -32,7 +32,7 @@ pub(super) enum KeycapEditField {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) enum KeycapEditChange {
+pub enum KeycapEditChange {
     BoardColor(String),
     BoardLegendColor(String),
     BoardClearance(f64),
@@ -73,28 +73,28 @@ impl KeycapEditChange {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
-pub(super) enum KeycapsEditTarget {
+pub enum KeycapsEditTarget {
     Board,
     Matrix(String),
     Key(String),
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) enum KeycapsEditBaseline {
+pub enum KeycapsEditBaseline {
     Board(KeycapBoardSettings),
     Matrix(KeycapMatrixSettings),
     Key(KeycapKeySettings),
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct KeycapsEditSource {
+pub struct KeycapsEditSource {
     pub scope: Scope,
     pub token: SnapshotToken,
     pub revision: u64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct KeycapsEditRequest {
+pub struct KeycapsEditRequest {
     pub scope: Scope,
     pub scope_generation: u64,
     pub selection_generation: u64,
@@ -108,7 +108,7 @@ pub(super) struct KeycapsEditRequest {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) enum KeycapsEditStatus {
+pub enum KeycapsEditStatus {
     Pending,
     Blocked(String),
     Saved,
@@ -116,7 +116,7 @@ pub(super) enum KeycapsEditStatus {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct KeycapsEditFeedback {
+pub struct KeycapsEditFeedback {
     pub editor_instance_id: u64,
     pub operation_id: Option<OperationId>,
     pub scope: Scope,
@@ -128,7 +128,7 @@ pub(super) struct KeycapsEditFeedback {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct KeycapsRetryDraft {
+pub struct KeycapsRetryDraft {
     pub editor_instance_id: u64,
     pub scope: Scope,
     pub scope_generation: u64,
@@ -141,7 +141,7 @@ pub(super) struct KeycapsRetryDraft {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct KeycapsRetryIdentity {
+pub struct KeycapsRetryIdentity {
     pub editor_instance_id: u64,
     pub scope: Scope,
     pub scope_generation: u64,
@@ -152,7 +152,7 @@ pub(super) struct KeycapsRetryIdentity {
 }
 
 #[derive(Props, Clone, PartialEq)]
-pub(super) struct KeycapsSettingsActions {
+pub struct KeycapsSettingsActions {
     pub editor_instance_id: u64,
     pub scope: Scope,
     pub scope_generation: u64,
@@ -213,7 +213,7 @@ impl OwnerTracker {
 
 /// Owns keycap edit admission for the Editor lifetime, including while the Keycaps workspace is
 /// hidden. Root calls this unconditionally and mounts the returned view actions in its Inspector.
-pub(super) fn use_keycaps_settings_actions(
+pub fn use_keycaps_settings_actions(
     runtime: Rc<Runtime>,
     source: Option<KeycapsEditSource>,
     workspace: Signal<&'static str>,
@@ -1350,13 +1350,13 @@ fn submit_keycap_edit(
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct SelectedKeySettings {
+pub struct SelectedKeySettings {
     pub key: KeycapsKey,
     pub settings: KeycapKeySettings,
     pub board_color: String,
 }
 
-pub(super) fn project_selected_key(
+pub fn project_selected_key(
     document: &ProjectDoc,
     view: &KeycapsView,
     selected_key_id: Option<&str>,
@@ -1414,13 +1414,13 @@ fn emit_settings_change(
 }
 
 #[derive(Props, Clone, PartialEq)]
-pub(super) struct KeycapsBoardSettingsEditorProps {
+pub struct KeycapsBoardSettingsEditorProps {
     pub settings: KeycapBoardSettings,
     pub actions: KeycapsSettingsActions,
 }
 
 #[component]
-pub(super) fn KeycapsBoardSettingsEditor(props: KeycapsBoardSettingsEditorProps) -> Element {
+pub fn KeycapsBoardSettingsEditor(props: KeycapsBoardSettingsEditorProps) -> Element {
     let settings = props.settings;
     let actions = props.actions;
     let target = KeycapsEditTarget::Board;
@@ -1464,7 +1464,7 @@ pub(super) fn KeycapsBoardSettingsEditor(props: KeycapsBoardSettingsEditorProps)
 }
 
 #[derive(Props, Clone, PartialEq)]
-pub(super) struct KeycapsMatrixSettingsEditorProps {
+pub struct KeycapsMatrixSettingsEditorProps {
     pub matrix_id: String,
     pub matrix_name: String,
     pub settings: KeycapMatrixSettings,
@@ -1472,7 +1472,7 @@ pub(super) struct KeycapsMatrixSettingsEditorProps {
 }
 
 #[component]
-pub(super) fn KeycapsMatrixSettingsEditor(props: KeycapsMatrixSettingsEditorProps) -> Element {
+pub fn KeycapsMatrixSettingsEditor(props: KeycapsMatrixSettingsEditorProps) -> Element {
     let target = KeycapsEditTarget::Matrix(props.matrix_id);
     let settings = props.settings;
     let actions = props.actions;
@@ -1561,13 +1561,13 @@ fn settings_feedback(
 }
 
 #[derive(Props, Clone, PartialEq)]
-pub(super) struct KeycapsSettingsEditorProps {
+pub struct KeycapsSettingsEditorProps {
     pub selected: SelectedKeySettings,
     pub actions: KeycapsSettingsActions,
 }
 
 #[component]
-pub(super) fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
+pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
     let selected = props.selected;
     let actions = props.actions;
     let settings = selected.settings;

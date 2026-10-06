@@ -10,7 +10,7 @@ use std::{cell::Cell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct KeycapsFitSource {
+pub struct KeycapsFitSource {
     pub scope: Scope,
     pub token: SnapshotToken,
     pub revision: u64,
@@ -32,7 +32,7 @@ struct AcceptedFit {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct KeycapsFitState {
+pub struct KeycapsFitState {
     source: KeycapsFitSource,
     accepted: Option<AcceptedFit>,
     refreshing: bool,
@@ -40,7 +40,7 @@ pub(crate) struct KeycapsFitState {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum FindingNavigationTarget {
+pub enum FindingNavigationTarget {
     MechanicalLayer { board_id: String, layer_id: String },
     Outline { board_id: String },
     Part { board_id: String, part_id: String },
@@ -50,20 +50,20 @@ pub(super) enum FindingNavigationTarget {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct FindingNavigationRequest {
+pub struct FindingNavigationRequest {
     pub source: KeycapsFitSource,
     pub finding: Finding,
     pub target: FindingNavigationTarget,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct CameraBasis {
+pub struct CameraBasis {
     pub bounds: (f64, f64, f64, f64),
     pub surface: (f64, f64),
 }
 
 #[derive(Clone)]
-pub(super) struct KeycapsFitActions {
+pub struct KeycapsFitActions {
     pub state: Option<KeycapsFitState>,
     pub on_retry: EventHandler<()>,
 }
@@ -114,7 +114,7 @@ impl KeycapsFitState {
                 .is_some_and(|accepted| accepted.source == self.source)
     }
 
-    pub(crate) fn current_preview_input(&self) -> Option<crate::runtime::KeycapsPreviewInput> {
+    pub fn current_preview_input(&self) -> Option<crate::runtime::KeycapsPreviewInput> {
         let accepted = self.accepted.as_ref()?;
         (self.is_current()
             && accepted.result.revision == self.source.revision
@@ -132,7 +132,7 @@ impl KeycapsFitState {
         })
     }
 
-    pub(super) fn accepts_navigation(
+    pub fn accepts_navigation(
         &self,
         request: &FindingNavigationRequest,
         document: &ProjectDoc,
@@ -146,7 +146,7 @@ impl KeycapsFitState {
             })
     }
 
-    pub(crate) fn preview_blocker_message(&self) -> Option<String> {
+    pub fn preview_blocker_message(&self) -> Option<String> {
         if self.refreshing {
             return Some("Checking keycap fit…".into());
         }
@@ -172,7 +172,7 @@ impl KeycapsFitState {
 
 /// Keep one accepted result per active board while a newer immutable snapshot is being checked.
 /// The root calls this unconditionally so Keymap-originated legend edits also refresh the result.
-pub(super) fn use_keycaps_fit(
+pub fn use_keycaps_fit(
     runtime: Rc<Runtime>,
     source: Option<KeycapsFitSource>,
 ) -> KeycapsFitActions {
@@ -233,7 +233,7 @@ pub(super) fn use_keycaps_fit(
 }
 
 #[component]
-pub(super) fn KeycapsFitInspector(
+pub fn KeycapsFitInspector(
     document: Rc<ProjectDoc>,
     state: Option<KeycapsFitState>,
     mechanical_layer_ids: Rc<[String]>,
@@ -388,14 +388,14 @@ fn KeycapsFitFinding(
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct FindingGroup {
-    pub(super) label: String,
-    pub(super) findings: Vec<Finding>,
+pub struct FindingGroup {
+    pub label: String,
+    pub findings: Vec<Finding>,
 }
 
 /// Mirror the established React FindingList oracle: collapse duplicate feature wrappers,
 /// severity-sort the stable result, and group by the first resolved target label.
-pub(super) fn grouped_findings(findings: &[Finding], document: &ProjectDoc) -> Vec<FindingGroup> {
+pub fn grouped_findings(findings: &[Finding], document: &ProjectDoc) -> Vec<FindingGroup> {
     let findings = presented_findings(findings, document);
     let mut groups: Vec<FindingGroup> = Vec::new();
     for finding in findings {
@@ -413,7 +413,7 @@ pub(super) fn grouped_findings(findings: &[Finding], document: &ProjectDoc) -> V
     groups
 }
 
-pub(super) fn presented_findings(findings: &[Finding], document: &ProjectDoc) -> Vec<Finding> {
+pub fn presented_findings(findings: &[Finding], document: &ProjectDoc) -> Vec<Finding> {
     let board_ids: std::collections::HashSet<&str> = document
         .boards
         .iter()
@@ -479,7 +479,7 @@ fn scope_title(scope: &FindingScope) -> &'static str {
     }
 }
 
-pub(super) fn finding_target_label(finding: &Finding, document: &ProjectDoc) -> Option<String> {
+pub fn finding_target_label(finding: &Finding, document: &ProjectDoc) -> Option<String> {
     let active_outline = document.board_outlines.iter().find_map(|owner| {
         owner
             .versions
@@ -545,7 +545,7 @@ pub(super) fn finding_target_label(finding: &Finding, document: &ProjectDoc) -> 
         .or_else(|| board.map(|board| board.name.clone()))
 }
 
-pub(super) fn finding_navigation_target(
+pub fn finding_navigation_target(
     finding: &Finding,
     document: &ProjectDoc,
 ) -> Option<FindingNavigationTarget> {
@@ -648,7 +648,7 @@ pub(super) fn finding_navigation_target(
 /// Match the pinned workbench's current mechanical-layer precedence before the
 /// document target resolver. The assembly is supplied only by the root after
 /// its accepted scope/token/revision check.
-pub(super) fn finding_navigation_target_with_layers(
+pub fn finding_navigation_target_with_layers(
     finding: &Finding,
     document: &ProjectDoc,
     board_id: &str,
@@ -666,7 +666,7 @@ pub(super) fn finding_navigation_target_with_layers(
     finding_navigation_target(finding, document)
 }
 
-pub(super) fn accepted_navigation_target(
+pub fn accepted_navigation_target(
     state: &KeycapsFitState,
     request: &FindingNavigationRequest,
     document: &ProjectDoc,
@@ -684,7 +684,7 @@ pub(super) fn accepted_navigation_target(
     (target_board_id(&target) == request.source.scope.board_id).then_some(target)
 }
 
-pub(super) fn layout_navigation_bounds(
+pub fn layout_navigation_bounds(
     document: &ProjectDoc,
     scene: &SceneDelta,
     target: &FindingNavigationTarget,
@@ -729,7 +729,7 @@ pub(super) fn layout_navigation_bounds(
 
 /// Bounds the selected board parts with the same accepted transform, courtyard and keycap
 /// geometry used by the shared Layout viewer. Camera fit adds its viewport padding separately.
-pub(super) fn selected_part_bounds(
+pub fn selected_part_bounds(
     document: &ProjectDoc,
     scene: &SceneDelta,
     board_id: &str,
@@ -748,7 +748,7 @@ pub(super) fn selected_part_bounds(
 /// React fits a finding's complete Core marker contours after fitting the primary
 /// target. Reuse the accepted scene projection rather than reconstructing finding
 /// geometry from its target IDs or message.
-pub(super) fn finding_marker_bounds(
+pub fn finding_marker_bounds(
     scene: &SceneDelta,
     finding_id: &str,
     board_id: &str,
@@ -776,7 +776,7 @@ pub(super) fn finding_marker_bounds(
     Some((min_x - 12.0, max_x + 12.0, min_y - 12.0, max_y + 12.0))
 }
 
-pub(super) fn finding_navigation_bounds(
+pub fn finding_navigation_bounds(
     document: &ProjectDoc,
     scene: &SceneDelta,
     finding_id: &str,
@@ -789,7 +789,7 @@ pub(super) fn finding_navigation_bounds(
 /// React's `getBounds` canvas basis for Design/Keycaps: visible board outlines, visible part
 /// selection outlines, and enabled empty matrix cells, with twelve millimetres of breathing room.
 /// This is presentation geometry for camera behavior; Core remains authoritative for CAD bounds.
-pub(super) fn layout_canvas_bounds(
+pub fn layout_canvas_bounds(
     document: &ProjectDoc,
     scene: &SceneDelta,
     board_id: &str,
@@ -923,10 +923,7 @@ pub(super) fn layout_canvas_bounds(
 }
 
 /// Match React `aspectBounds`: expand, never crop, the camera basis to the current SVG ratio.
-pub(super) fn aspect_bounds(
-    bounds: (f64, f64, f64, f64),
-    surface: (f64, f64),
-) -> (f64, f64, f64, f64) {
+pub fn aspect_bounds(bounds: (f64, f64, f64, f64), surface: (f64, f64)) -> (f64, f64, f64, f64) {
     let (min_x, max_x, min_y, max_y) = bounds;
     let (width, height) = surface;
     let ratio = width.max(1.0) / height.max(1.0);
@@ -942,7 +939,7 @@ pub(super) fn aspect_bounds(
     )
 }
 
-pub(super) fn layout_camera_basis(
+pub fn layout_camera_basis(
     document: &ProjectDoc,
     scene: &SceneDelta,
     board_id: &str,
@@ -1124,7 +1121,7 @@ fn finding_action_label(
         })
 }
 
-pub(super) fn target_board_id(target: &FindingNavigationTarget) -> &str {
+pub fn target_board_id(target: &FindingNavigationTarget) -> &str {
     match target {
         FindingNavigationTarget::Outline { board_id }
         | FindingNavigationTarget::MechanicalLayer { board_id, .. }
@@ -1136,8 +1133,7 @@ pub(super) fn target_board_id(target: &FindingNavigationTarget) -> &str {
 }
 
 #[cfg(test)]
-pub(super) fn browser_navigation_fixture() -> (FindingNavigationRequest, KeycapsFitState, ProjectDoc)
-{
+pub fn browser_navigation_fixture() -> (FindingNavigationRequest, KeycapsFitState, ProjectDoc) {
     use boardstudio_application::SessionEpoch;
     use boardstudio_core::model::{Board, KeycapResolution};
 
@@ -1188,8 +1184,8 @@ pub(super) fn browser_navigation_fixture() -> (FindingNavigationRequest, Keycaps
     (request, state, document)
 }
 
-#[cfg(test)]
-pub(super) fn cad_preview_fixture(board_id: &str, token: u64, revision: u64) -> KeycapsFitState {
+#[cfg(any(test, feature = "test-support"))]
+pub fn cad_preview_fixture(board_id: &str, token: u64, revision: u64) -> KeycapsFitState {
     use boardstudio_application::SessionEpoch;
     use boardstudio_core::model::{KeycapMount, KeycapProfile, KeycapResolution, KeycapSpec};
 

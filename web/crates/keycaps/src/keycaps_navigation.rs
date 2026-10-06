@@ -11,14 +11,14 @@ use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum Destination {
+pub enum Destination {
     Layout(objects::TreeContext),
     CaseLayer(String),
     CaseBody(String),
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct RouteEffects {
+pub struct RouteEffects {
     pub destination: Destination,
     pub scope: Scope,
     pub generation: u64,
@@ -33,7 +33,7 @@ pub(super) struct RouteEffects {
 /// Accepted authority passed by the root at request time. This keeps the shared admission seam
 /// explicit without transferring snapshot or workspace ownership out of the root.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct AcceptedNavigationSource {
+pub struct AcceptedNavigationSource {
     pub scope: Scope,
     pub session_epoch: SessionEpoch,
     pub token: SnapshotToken,
@@ -42,7 +42,7 @@ pub(super) struct AcceptedNavigationSource {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct AdmittedNavigation {
+pub struct AdmittedNavigation {
     pub target: keycaps_fit::FindingNavigationTarget,
     pub effects: RouteEffects,
     pub owner: NavigationOwner,
@@ -51,7 +51,7 @@ pub(super) struct AdmittedNavigation {
 /// Publish a finding identity only for a route that was admitted to the Layout workspace.
 /// Editor and the mounted navigation probe use this shared projection so marker state follows
 /// the same accepted request that owns selection and destination fitting.
-pub(super) fn focused_finding_for_admitted_route(
+pub fn focused_finding_for_admitted_route(
     request: &keycaps_fit::FindingNavigationRequest,
     admitted: &AdmittedNavigation,
 ) -> Option<super::keycaps_finding_marker::FocusedFinding> {
@@ -66,7 +66,7 @@ pub(super) fn focused_finding_for_admitted_route(
     })
 }
 
-pub(super) struct NavigationAdmission<'a> {
+pub struct NavigationAdmission<'a> {
     pub current_workspace: &'a str,
     pub owner: OwnerIdentity<'a>,
     pub live_scope: Option<&'a Scope>,
@@ -81,7 +81,7 @@ pub(super) struct NavigationAdmission<'a> {
 /// selection can be replaced without changing either, so the intended destination is part of
 /// the owner as well.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct NavigationOwner {
+pub struct NavigationOwner {
     pub workspace: &'static str,
     pub scope: Scope,
     pub generation: u64,
@@ -91,7 +91,7 @@ pub(super) struct NavigationOwner {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct LiveNavigationOwner {
+pub struct LiveNavigationOwner {
     pub workspace: &'static str,
     pub scope: Option<Scope>,
     pub generation: u64,
@@ -101,7 +101,7 @@ pub(super) struct LiveNavigationOwner {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct PendingLayoutFit {
+pub struct PendingLayoutFit {
     pub request: keycaps_fit::FindingNavigationRequest,
     pub owner: NavigationOwner,
     /// Camera basis captured by the Keycaps owner before routing. React's finding handler
@@ -111,7 +111,7 @@ pub(super) struct PendingLayoutFit {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct DestinationFitGeometry {
+pub struct DestinationFitGeometry {
     pub base: (f64, f64, f64, f64),
     pub target: (f64, f64, f64, f64),
     pub surface: (f64, f64),
@@ -119,7 +119,7 @@ pub(super) struct DestinationFitGeometry {
 
 /// Shared reactive owner for the post-route destination fit. Editor and the mounted production
 /// probe use this same hook, including pending-request settlement and owner revalidation.
-pub(super) fn use_pending_layout_fit<T>(
+pub fn use_pending_layout_fit<T>(
     mut pending: Signal<Option<PendingLayoutFit>>,
     observed_owner: T,
     alive: Rc<Cell<bool>>,
@@ -165,7 +165,7 @@ pub(super) fn use_pending_layout_fit<T>(
     ));
 }
 
-pub(super) fn owner_for_request(
+pub fn owner_for_request(
     request: &keycaps_fit::FindingNavigationRequest,
     destination: Destination,
     generation: u64,
@@ -184,10 +184,7 @@ pub(super) fn owner_for_request(
     }
 }
 
-pub(super) fn navigation_owner_is_current(
-    expected: &NavigationOwner,
-    live: &LiveNavigationOwner,
-) -> bool {
+pub fn navigation_owner_is_current(expected: &NavigationOwner, live: &LiveNavigationOwner) -> bool {
     live.workspace == expected.workspace
         && live.scope.as_ref() == Some(&expected.scope)
         && live.generation == expected.generation
@@ -196,7 +193,7 @@ pub(super) fn navigation_owner_is_current(
         && live.destinations.contains(&expected.destination)
 }
 
-pub(super) fn active_case_destination(
+pub fn active_case_destination(
     selected_layer_id: &str,
     selected_body_id: Option<&str>,
 ) -> Option<Destination> {
@@ -208,7 +205,7 @@ pub(super) fn active_case_destination(
 }
 
 /// Owner lifetime shared by the production Editor and the mounted lifecycle probe.
-pub(super) fn use_navigation_lifetime() -> Rc<Cell<bool>> {
+pub fn use_navigation_lifetime() -> Rc<Cell<bool>> {
     let alive = use_hook(|| Rc::new(Cell::new(true)));
     use_drop({
         let alive = alive.clone();
@@ -219,7 +216,7 @@ pub(super) fn use_navigation_lifetime() -> Rc<Cell<bool>> {
 
 /// Schedule an owner-checked focus operation. The lifetime check deliberately precedes the
 /// live-owner closure, since that closure can read scoped Dioxus Signals.
-pub(super) fn queue_owner_focus(
+pub fn queue_owner_focus(
     alive: Rc<Cell<bool>>,
     expected: NavigationOwner,
     current_owner: impl Fn() -> LiveNavigationOwner + 'static,
@@ -237,7 +234,7 @@ pub(super) fn queue_owner_focus(
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) enum RouteAction {
+pub enum RouteAction {
     SetWorkspace(&'static str),
     SelectTree {
         scope: Scope,
@@ -260,12 +257,12 @@ pub(super) enum RouteAction {
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct OwnerIdentity<'a> {
+pub struct OwnerIdentity<'a> {
     pub scope: &'a Scope,
     pub generation: u64,
 }
 
-pub(super) fn request_owner_is_current(
+pub fn request_owner_is_current(
     workspace: &str,
     owner: OwnerIdentity<'_>,
     live_scope: Option<&Scope>,
@@ -280,7 +277,7 @@ pub(super) fn request_owner_is_current(
 
 /// Compute effects only for the live request admitted by the root's accepted-source checks.
 /// Mechanical-layer navigation intentionally follows React's early return and does not pin.
-pub(super) fn route_effects(
+pub fn route_effects(
     request: &keycaps_fit::FindingNavigationRequest,
     target: &keycaps_fit::FindingNavigationTarget,
     part_context: Option<objects::TreeContext>,
@@ -331,7 +328,7 @@ pub(super) fn route_effects(
 /// Admit a Keycaps finding against the root's live scope and accepted snapshot, then resolve its
 /// route through the same production path used by the Editor. The caller supplies the already
 /// resolved part context because the root's selection adapter owns that projection.
-pub(super) fn admit_accepted_request(
+pub fn admit_accepted_request(
     request: &keycaps_fit::FindingNavigationRequest,
     admission: NavigationAdmission<'_>,
     part_context_for_target: impl FnOnce(
@@ -436,7 +433,7 @@ fn target_exists(
 }
 
 #[cfg(test)]
-pub(super) fn dispatch_route(
+pub fn dispatch_route(
     effects: RouteEffects,
     request: &keycaps_fit::FindingNavigationRequest,
     perform: impl FnMut(RouteAction),
@@ -444,7 +441,7 @@ pub(super) fn dispatch_route(
     dispatch_route_with_camera_basis(effects, request, None, perform);
 }
 
-pub(super) fn dispatch_route_with_camera_basis(
+pub fn dispatch_route_with_camera_basis(
     effects: RouteEffects,
     request: &keycaps_fit::FindingNavigationRequest,
     source_basis: Option<keycaps_fit::CameraBasis>,
@@ -497,13 +494,13 @@ pub(super) fn dispatch_route_with_camera_basis(
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct CameraFit {
+pub struct CameraFit {
     pub center: Vec2,
     pub zoom: f64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) enum FitAction {
+pub enum FitAction {
     SetCamera(CameraFit),
     FocusInspector,
 }
@@ -511,7 +508,7 @@ pub(super) enum FitAction {
 /// Compute a camera update from destination-workbench geometry after the Layout render.
 /// A stale request returns no effects, so the caller cannot accidentally move the new owner's
 /// camera or focus its Inspector.
-pub(super) fn destination_camera_fit(
+pub fn destination_camera_fit(
     expected: &NavigationOwner,
     live: &LiveNavigationOwner,
     base: (f64, f64, f64, f64),
@@ -545,7 +542,7 @@ pub(super) fn destination_camera_fit(
     Some(CameraFit { center, zoom })
 }
 
-pub(super) fn finish_destination_fit(
+pub fn finish_destination_fit(
     expected: &NavigationOwner,
     live: &LiveNavigationOwner,
     base: (f64, f64, f64, f64),

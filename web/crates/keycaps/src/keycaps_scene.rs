@@ -11,7 +11,7 @@ use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct KeycapsView {
+pub struct KeycapsView {
     pub board_id: Rc<str>,
     pub board_settings: KeycapBoardSettings,
     pub keys: Vec<KeycapsKey>,
@@ -20,7 +20,7 @@ pub(super) struct KeycapsView {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct KeycapsKey {
+pub struct KeycapsKey {
     pub id: Rc<str>,
     pub reference: Rc<str>,
     pub pose: Pose2,
@@ -33,20 +33,20 @@ pub(super) struct KeycapsKey {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum LegendSource {
+pub enum LegendSource {
     Binding,
     Explicit,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct KeycapsMatrix {
+pub struct KeycapsMatrix {
     pub id: Rc<str>,
     pub name: Rc<str>,
     pub settings: KeycapMatrixSettings,
 }
 
 /// Build the physical Keycaps view from one accepted snapshot and its active board scope.
-pub(super) fn project(
+pub fn project(
     snapshot: &AcceptedSnapshot,
     scope: &Scope,
     active_board_id: &str,
@@ -271,7 +271,7 @@ fn key_binding_label(document: &ProjectDoc, board_id: &str, key_id: &str) -> Str
 
 /// Render physical keycaps into the active board SVG coordinate system.
 #[component]
-pub(super) fn KeycapsCanvas(
+pub fn KeycapsCanvas(
     view: Rc<KeycapsView>,
     contours: Rc<[Contour]>,
     selected_ids: BTreeSet<String>,
@@ -365,7 +365,7 @@ fn contour_points(points: &[Vec2]) -> String {
 }
 
 #[component]
-pub(super) fn KeycapsKeyList(
+pub fn KeycapsKeyList(
     view: Rc<KeycapsView>,
     selected_key_id: Option<String>,
     on_select_key: EventHandler<String>,

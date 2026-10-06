@@ -19,7 +19,7 @@ required-features = ["page"]
 
 [features]
 default = ["page", "core-worker"]
-page = ["boardstudio-web-host/page", "dep:boardstudio-web-runtime", "dep:boardstudio-web-ui-model", "dep:boardstudio-web-ui-shared", "dep:boardstudio-application", "dep:boardstudio_core", "dep:dioxus", "dep:dioxus-web", "dep:gloo-timers", "dep:serde_json", "dep:sha2"]
+page = ["boardstudio-web-host/page", "dep:boardstudio-web-runtime", "dep:boardstudio-web-ui-model", "dep:boardstudio-web-ui-shared", "dep:boardstudio-web-keycaps", "dep:boardstudio-application", "dep:boardstudio_core", "dep:dioxus", "dep:dioxus-web", "dep:gloo-timers", "dep:serde_json", "dep:sha2"]
 core-worker = ["dep:boardstudio_core", "dep:serde_json"]
 cad-worker = ["boardstudio-web-host/cad-worker", "dep:boardstudio_core", "dep:serde_json", "dep:sha2"]
 service-worker = []
@@ -32,6 +32,7 @@ boardstudio-web-host = { path = "crates/host" }
 boardstudio-web-runtime = { path = "crates/runtime", optional = true }
 boardstudio-web-ui-model = { path = "crates/ui-model", optional = true }
 boardstudio-web-ui-shared = { path = "crates/ui-shared", optional = true }
+boardstudio-web-keycaps = { path = "crates/keycaps", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"], optional = true }
 sha2 = { version = "=0.11.0", default-features = false, optional = true }
@@ -39,6 +40,7 @@ sha2 = { version = "=0.11.0", default-features = false, optional = true }
 [dev-dependencies]
 boardstudio-web-runtime = { path = "crates/runtime", features = ["test-support"] }
 boardstudio-web-ui-model = { path = "crates/ui-model", features = ["test-support"] }
+boardstudio-web-keycaps = { path = "crates/keycaps", features = ["test-support"] }
 dioxus = { version = "=0.7.10", default-features = false, features = ["minimal"] }
 tokio = { version = "=1.53.1", features = ["macros", "rt", "time"] }
 

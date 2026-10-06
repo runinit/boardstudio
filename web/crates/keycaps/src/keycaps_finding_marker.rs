@@ -6,7 +6,7 @@ use dioxus::prelude::*;
 use std::rc::Rc;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct FocusedFinding {
+pub struct FocusedFinding {
     pub scope: Scope,
     pub token: SnapshotToken,
     pub revision: u64,
@@ -14,14 +14,14 @@ pub(super) struct FocusedFinding {
     pub navigation_id: u64,
 }
 
-pub(super) fn next_navigation_id(current: Option<&FocusedFinding>) -> u64 {
+pub fn next_navigation_id(current: Option<&FocusedFinding>) -> u64 {
     current.map_or(0, |focused| focused.navigation_id.wrapping_add(1))
 }
 
 /// Retire marker state when its accepted Layout owner is no longer current. The Editor and the
 /// mounted navigation probe share this effect so a route cannot leave a hidden, stale finding
 /// identity behind when switching workspaces or accepted documents.
-pub(super) fn use_retire_stale_finding(
+pub fn use_retire_stale_finding(
     mut finding: Signal<Option<FocusedFinding>>,
     workspace: &'static str,
     scope: Option<Scope>,
@@ -50,7 +50,7 @@ pub(super) fn use_retire_stale_finding(
 }
 
 #[component]
-pub(super) fn FocusedFindingMarker(
+pub fn FocusedFindingMarker(
     workspace: String,
     scope: Option<Scope>,
     token: Option<SnapshotToken>,
@@ -89,7 +89,7 @@ pub(super) fn FocusedFindingMarker(
     }
 }
 
-pub(super) fn is_current_finding(
+pub fn is_current_finding(
     finding: &FocusedFinding,
     workspace: &str,
     scope: Option<&Scope>,
