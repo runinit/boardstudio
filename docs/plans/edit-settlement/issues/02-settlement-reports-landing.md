@@ -1,6 +1,6 @@
 # 02: Settlements report where an edit landed
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: None (can start immediately)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
@@ -75,3 +75,38 @@ Runtime is wasm-only, so the typecheck step is required to prove that its
 
 - Queued-edit resolution (ticket 03) and the web edit ticket (ticket 04).
 - Changing any controller to use landings.
+
+## Outcome
+
+Commits: d6f10a08d (claim), 12d533d15 (implementation), 60cc4939d (review fixes).
+
+- `Landing { revision, token }` is public in `application`; `Effect::Settled` carries
+  `landing: Option<Landing>`. `TerminalOutcome`, `OutcomeSlot` and every existing caller
+  are unchanged; the ~25 `Effect::Settled` matches take `..`.
+- Session captures the landing where it installs the accepted snapshot in
+  `persist_completed`'s Committed branch — the single accepted-snapshot install — so Open,
+  Edit commit, Undo, Redo, GestureCommit, ExportCommit, ReviewElectricalRemap and
+  RecoverWithDocument all report it. A retried save re-reports the original operation with
+  the same landing once the retry commits (`settle_landed` updates the settled set without
+  suppressing the report; the earlier `PersistenceFailed` report carries no landing).
+  Everything else settles with `landing: None`, including Close's `Completed`.
+- Web: `OperationOutcomes` pairs the outcome and landing slots per operation, so
+  `observe_with_landing` works whichever way round the two observation calls happen; plain
+  `observe`/`OutcomeSlot` behave exactly as before. Runtime's `Effect::Settled` arm forwards
+  the landing via `settle_with_landing`.
+- Native tests (application/tests/durable_session.rs, real `CoreEngine`): open/edit/undo/redo
+  each land at their installed snapshot with a fresh token; retry-after-abort settles the
+  retry and the original with the same landing while the failure report has none;
+  selection/navigation/camera/job-cancellation complete with no landing; a rejected retry
+  and a close carry no landing. Preview, generation and export-start completions settle
+  through the same plain `settle` path (no landing by construction; only
+  `persist_completed`'s Committed branch attaches one).
+- Known behavioural delta: the retried original's re-report passes Runtime's Settled arm a
+  second time, re-running its generic "Saved locally." status text and `changed()` for the
+  original operation — benign (identical text; the edit did land), noted for ticket 04's
+  edit-ticket work.
+
+Checks (all pass): `cargo test -p boardstudio-application --locked` — 22 passed (4 new);
+`cargo test -p boardstudio-web-runtime --locked` — 92 passed (1 new observer test);
+`python3 scripts/check.py typecheck`; `wasm-pack test --headless --chrome
+web/crates/runtime --locked --lib` — 33 passed. Touched files are rustfmt-clean.

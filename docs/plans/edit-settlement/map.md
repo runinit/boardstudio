@@ -41,6 +41,8 @@ which remaining whole-document replacements become typed Core edits.
 
 - 01 Runtime Core and persistence ports with an in-process test adapter landed; Core and
   saves go through ports, gates hold/fail replies and saves: [issues/01-runtime-core-and-persistence-ports.md](issues/01-runtime-core-and-persistence-ports.md).
+- 02 Settlements report where an edit landed; `Effect::Settled` carries a `Landing`, retried
+  saves re-report the original: [issues/02-settlement-reports-landing.md](issues/02-settlement-reports-landing.md).
 
 ## Not yet specified
 
