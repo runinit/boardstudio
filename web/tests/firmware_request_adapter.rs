@@ -1,4 +1,4 @@
-#[path = "../src/firmware_request_adapter.rs"]
+#[path = "../crates/runtime/src/firmware_request_adapter.rs"]
 mod firmware_request_adapter;
 
 use boardstudio_core::{

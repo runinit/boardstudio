@@ -1,6 +1,6 @@
 #![cfg(all(feature = "page", not(target_arch = "wasm32")))]
 
-#[path = "../src/operation_outcomes.rs"]
+#[path = "../crates/runtime/src/operation_outcomes.rs"]
 mod operation_outcomes;
 #[path = "../src/presentation/parts/mechanical_profile.rs"]
 mod parts_mechanical_profile;

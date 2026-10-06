@@ -1,70 +1,85 @@
 //! Presentation drafts and DOM input are separate from the durable session state.
-mod board_inspector;
-mod board_reference_effect;
-mod canvas_interaction;
-mod canvas_layers;
+pub(crate) use boardstudio_web_layout::board_inspector;
+pub(crate) use boardstudio_web_ui_shared::canvas_layers;
 mod canvas_status_footer;
-mod case_assembly_layers;
-mod case_bodies;
-mod case_controller;
-mod case_display;
-mod case_viewer;
+pub(crate) use boardstudio_web_case::case_controller;
+pub(crate) use boardstudio_web_case::case_display;
+pub(crate) use boardstudio_web_case::case_viewer;
 mod case_workspace;
 mod context_summary;
 mod empty_board_canvas;
 mod export_workspace;
-mod firmware_positions;
-mod geometry_scripts;
+pub(crate) use boardstudio_web_pcb::firmware_positions;
+pub(crate) use boardstudio_web_ui_shared::geometry_scripts;
 mod inspector;
-mod instance_selection;
-mod keycaps_finding_marker;
-mod keycaps_fit;
-mod keycaps_navigation;
-mod keycaps_scene;
-mod keycaps_settings;
+pub(crate) use boardstudio_web_keycaps::keycaps_finding_marker;
+pub(crate) use boardstudio_web_keycaps::keycaps_fit;
+pub(crate) use boardstudio_web_keycaps::keycaps_navigation;
+pub(crate) use boardstudio_web_keycaps::keycaps_scene;
+pub(crate) use boardstudio_web_keycaps::keycaps_settings;
 mod keycaps_workspace;
-mod keymap;
+pub(crate) use boardstudio_web_keymap::keymap;
 mod keymap_workspace;
-mod layout_camera;
+pub(crate) use boardstudio_web_ui_shared::layout_camera;
 #[cfg(test)]
 mod layout_component_inspector_tests;
-mod layout_findings;
-mod layout_viewer;
-pub(crate) mod layout_viewer_source;
+pub(crate) use boardstudio_web_layout::layout_findings;
+pub(crate) use boardstudio_web_layout::layout_viewer;
+// Shared UI vocabulary lives in `boardstudio-web-ui-model`; re-export it here so
+// presentation modules keep addressing it as `super::selection`, `super::InstanceSelection`
+// and so on.
+#[allow(unused_imports)]
+#[cfg(test)]
+pub(crate) use boardstudio_web_case::test_contexts::{
+    use_case_generation_readiness_test_bridge, use_case_viewer_test_contexts,
+};
+pub(crate) use boardstudio_web_ui_model::selection::{
+    active_board_scope_matches, current_layout_owner, layout_owner_is_current,
+};
+#[cfg(test)]
+pub(crate) use boardstudio_web_ui_model::state::use_empty_test_instance_selection;
+#[allow(unused_imports)]
+pub(crate) use boardstudio_web_ui_model::state::{
+    CaseGenerationState, CompactPanelState, Drag, InstanceSelection, LayerVisibility,
+    LayoutOwnerIdentity, ProjectMenuPage, ResolvedTheme, WorkspaceState,
+};
+pub(crate) use boardstudio_web_ui_model::state::{PreferenceStorageWarning, ThemeState};
+pub(crate) use boardstudio_web_ui_model::svg_coordinates::{
+    PointerLocation, coordinates, coordinates_at, pointer_location,
+};
+pub(crate) use boardstudio_web_ui_model::{canvas_interaction, instance_selection, selection};
+pub(crate) use boardstudio_web_ui_shared::panels::browse_parts_workspace;
+pub(crate) use boardstudio_web_ui_shared::project_menu::close_project_menu;
 mod layout_workspace;
-mod library;
-mod mechanical_settings;
-mod mechanical_settings_controller;
-mod mechanical_settings_mount;
-pub(crate) mod model_asset_import;
-pub(crate) mod model_delivery;
-mod objects;
-mod outline_lifecycle;
-mod outline_snapping;
-mod panels;
-mod part_placement;
-mod parts;
-mod parts_import_footprint;
+pub(crate) use boardstudio_web_case::mechanical_settings;
+pub(crate) use boardstudio_web_case::mechanical_settings_mount;
+pub(crate) use boardstudio_web_layout::objects;
+pub(crate) use boardstudio_web_layout::outline_lifecycle;
+pub(crate) use boardstudio_web_layout::outline_snapping;
+pub(crate) use boardstudio_web_layout::part_placement;
+pub(crate) use boardstudio_web_library::library;
+pub(crate) use boardstudio_web_parts::parts;
+pub(crate) use boardstudio_web_ui_shared::panels;
+use part_placement::{LayoutPlacementCancellation, layout_view_mode_handler};
 mod parts_workspace;
-mod pcb_board_reference;
-mod pcb_layers;
-mod pcb_module_footprints;
-mod pcb_module_inspector;
-mod pcb_physical_setup;
-mod pcb_scene;
-mod pcb_wiring;
+pub(crate) use boardstudio_web_pcb::pcb_board_reference;
+pub(crate) use boardstudio_web_pcb::pcb_layers;
+pub(crate) use boardstudio_web_pcb::pcb_module_footprints;
+pub(crate) use boardstudio_web_pcb::pcb_module_inspector;
+pub(crate) use boardstudio_web_pcb::pcb_physical_setup;
+pub(crate) use boardstudio_web_pcb::pcb_scene;
+pub(crate) use boardstudio_web_pcb::pcb_wiring;
 mod pcb_workspace;
-mod selection;
-mod setup_guide;
-mod shared_viewer;
+pub(crate) use boardstudio_web_case::shared_viewer;
+pub(crate) use boardstudio_web_layout::setup_guide;
 mod workbench_shortcuts;
 mod workspace_composition;
 mod zmk_firmware_export;
 
 use crate::case_generation_lifecycle::AutomaticCaseGeneration;
+pub(crate) use boardstudio_web_ui_shared::footprint_graphics;
 use canvas_interaction::{CanvasInteractionArbiter, CanvasInteractionOwner};
 use canvas_layers::CanvasLayers;
-pub(crate) use case_viewer::{CasePreviewViewer, CaseViewer};
 use library::Library;
 pub(crate) use mechanical_settings::{MechanicalSettings, MechanicalSettingsProps};
 pub(crate) use mechanical_settings_mount::MechanicalSettingsMount;
@@ -77,11 +92,12 @@ use setup_guide::{PendingNewKeyboard, SetupGuidePreferences, SetupGuideRequest, 
 use zmk_firmware_export::use_export_panel_input;
 #[cfg(test)]
 use zmk_firmware_export::{ZmkFirmwareExportPanelInput, ZmkFirmwareExportRow};
-mod footprint_graphics;
 
 use crate::runtime::Runtime;
+#[cfg(test)]
+use boardstudio_application::SnapshotToken;
 use boardstudio_application::{
-    AcceptedSnapshot, Durability, Event, Lifecycle, ReadModel, Scope, SelectionMode, SnapshotToken,
+    AcceptedSnapshot, Durability, Event, Lifecycle, ReadModel, Scope, SelectionMode,
     TerminalOutcome,
 };
 use boardstudio_core::model::{
@@ -98,30 +114,6 @@ use std::{
 };
 use wasm_bindgen::{JsCast, closure::Closure};
 use web_sys::{HtmlElement, SvgElement};
-
-#[derive(Clone)]
-struct Drag {
-    pointer: i64,
-    scope: Scope,
-    generation: u64,
-    gesture_generation: Option<u64>,
-    origin: Vec2,
-    client_x: f64,
-    client_y: f64,
-    positions: Vec<Position>,
-    active: bool,
-    pan: bool,
-    camera: Vec2,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct LayoutOwnerIdentity {
-    scope: Option<Scope>,
-    token: Option<SnapshotToken>,
-    revision: Option<u64>,
-    generation: u64,
-    workspace: &'static str,
-}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct LayoutFindingReturnTarget {
@@ -186,128 +178,7 @@ struct OwnedTreeCellAnchor {
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct WorkspaceState(pub(super) Signal<&'static str>);
-#[derive(Clone, Copy)]
 pub(super) struct ExportReturnWorkspace(pub(super) Signal<&'static str>);
-#[derive(Clone, Copy)]
-struct CompactPanelState {
-    objects_open: Signal<bool>,
-    inspector_open: Signal<bool>,
-}
-/// The explicit UI preference is separate from Session's effective instance.
-#[derive(Clone, Copy)]
-pub(crate) struct InstanceSelection(Signal<Option<instance_selection::Preference>>);
-
-#[derive(Clone, Copy)]
-pub(crate) struct CaseGenerationState {
-    pub(crate) live_preview: Signal<bool>,
-    pub(crate) automatic: Signal<AutomaticCaseGeneration>,
-}
-
-impl InstanceSelection {
-    pub(crate) fn is_current(self, model: &boardstudio_application::ReadModel) -> bool {
-        instance_selection::is_current(model, self.0.read().as_ref())
-    }
-
-    pub(crate) fn reconcile(
-        mut self,
-        session_epoch: boardstudio_application::SessionEpoch,
-        document_id: String,
-        explicit_id: String,
-    ) {
-        self.0.set(Some(instance_selection::Preference {
-            session_epoch,
-            document_id,
-            explicit_id,
-        }));
-    }
-}
-
-#[cfg(all(test, target_arch = "wasm32"))]
-pub(crate) fn use_empty_test_instance_selection() {
-    let preference = use_signal(|| None);
-    use_context_provider(|| InstanceSelection(preference));
-}
-
-#[cfg(all(test, target_arch = "wasm32"))]
-pub(crate) fn use_case_viewer_test_contexts() {
-    let workspace = use_signal(|| "Case");
-    use_context_provider(|| WorkspaceState(workspace));
-
-    let selected_context = use_signal(|| None::<objects::ScopedTreeContext>);
-    let anchor_scope = use_signal(|| None::<Scope>);
-    let scope_generation = use_signal(|| 0u64);
-    let adapter =
-        use_hook(|| SelectionAdapter::new(selected_context, anchor_scope, scope_generation));
-    use_context_provider(|| adapter);
-
-    let case_selection = case_viewer::CaseSelection {
-        body: use_signal(|| None::<case_viewer::BodySelection>),
-        layer: use_signal(|| None::<case_viewer::LayerSelection>),
-        display: use_signal(std::collections::BTreeMap::new),
-        body_edit_portal: case_viewer::CaseBodyEditPortal {
-            dispatch: use_signal(|| None::<case_viewer::CaseBodyEditDispatch>),
-            editable: use_signal(|| false),
-        },
-    };
-    use_context_provider(|| case_selection);
-
-    let theme = use_memo(|| "light");
-    use_context_provider(|| ResolvedTheme(theme));
-}
-
-// Assemble the real mechanical owner hook's contexts for mounted Case tests.
-// The readiness predicate remains owned by mechanical_settings_mount.
-#[cfg(all(test, target_arch = "wasm32"))]
-pub(crate) fn use_case_generation_readiness_test_bridge(runtime: Rc<Runtime>) -> bool {
-    let adapter = use_context::<SelectionAdapter>();
-    let WorkspaceState(workspace) = use_context::<WorkspaceState>();
-    let instance_selection = use_context::<InstanceSelection>();
-    let case_selection = use_context::<case_viewer::CaseSelection>();
-    mechanical_settings_mount::use_mechanical_settings_mount(
-        runtime,
-        adapter.generation,
-        workspace,
-        instance_selection,
-        case_selection,
-        EventHandler::new(|_| {}),
-    )
-    .generation_ready
-}
-
-#[cfg(all(test, target_arch = "wasm32"))]
-pub(crate) fn use_test_case_generation_state() {
-    let live_preview = use_signal(|| true);
-    let automatic = use_signal(AutomaticCaseGeneration::new);
-    use_context_provider(|| CaseGenerationState {
-        live_preview,
-        automatic,
-    });
-}
-
-#[derive(Clone, Copy)]
-struct ThemeState(Signal<&'static str>);
-#[derive(Clone, Copy)]
-struct PreferenceStorageWarning(Signal<bool>);
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) enum ProjectMenuPage {
-    Project,
-    Settings,
-}
-#[derive(Clone, Copy)]
-struct ResolvedTheme(Memo<&'static str>);
-#[derive(Clone, Copy)]
-struct LayerVisibility {
-    hidden: Signal<BTreeSet<String>>,
-    modules_hidden: Signal<BTreeSet<String>>,
-    footprints: Signal<bool>,
-}
-
-struct PointerLocation {
-    world: Vec2,
-    x_fraction: f64,
-    y_fraction: f64,
-}
 
 #[derive(Clone, Copy)]
 struct WorkspaceCallbackSlots {
@@ -493,18 +364,19 @@ pub fn App() -> Element {
                 }
                 if let Some(scope) = next_scope.as_ref() {
                     let current = runtime.model();
-                    let membership = selection_membership.borrow_mut().project(&current, |model| {
-                        crate::matrix_transform_lifecycle::SelectionMembership {
-                            eligible: selection::eligible_live_ids(model),
-                            live: selection::live_board_ids(model),
-                        }
-                    });
+                    let membership = selection_membership
+                        .borrow_mut()
+                        .project(&current, |model| {
+                            crate::matrix_transform_lifecycle::SelectionMembership {
+                                eligible: selection::eligible_live_ids(model),
+                                live: selection::live_board_ids(model),
+                            }
+                        });
                     if (adapter.anchor_scope)().as_ref() == Some(scope)
-                        && current.selection_anchor_id.as_ref().is_none_or(|anchor| {
-                            !membership.eligible
-                                .iter()
-                                .any(|id| id == anchor)
-                        })
+                        && current
+                            .selection_anchor_id
+                            .as_ref()
+                            .is_none_or(|anchor| !membership.eligible.iter().any(|id| id == anchor))
                     {
                         anchor_scope.set(None);
                     }
@@ -793,28 +665,6 @@ fn RuntimeReportBanner() -> Element {
     }
 }
 
-fn close_project_menu() {
-    let Some(document) = web_sys::window().and_then(|window| window.document()) else {
-        return;
-    };
-    let Some(menu) = document
-        .query_selector("details.m1-project-menu")
-        .ok()
-        .flatten()
-    else {
-        return;
-    };
-    let _ = menu.remove_attribute("open");
-    if let Some(summary) = menu
-        .query_selector("summary")
-        .ok()
-        .flatten()
-        .and_then(|element| element.dyn_into::<HtmlElement>().ok())
-    {
-        let _ = summary.focus();
-    }
-}
-
 fn read_system_theme() -> &'static str {
     if web_sys::window()
         .and_then(|window| {
@@ -829,23 +679,6 @@ fn read_system_theme() -> &'static str {
     } else {
         "light"
     }
-}
-
-#[component]
-pub(super) fn ThemePicker() -> Element {
-    let mut theme = use_context::<ThemeState>().0;
-    let preference_warning = use_context::<PreferenceStorageWarning>().0;
-    rsx! { label { class: "m1-theme-picker", "Appearance"
-        select { "aria-label": "Color theme", value: "{theme()}", onchange: move |event: FormEvent| {
-            let preference = match event.value().as_str() { "light" => "light", "dark" => "dark", _ => "system" };
-            panels::write_theme_preference(preference_warning, preference);
-            theme.set(preference);
-        },
-            option { value: "system", "System" }
-            option { value: "light", "Light" }
-            option { value: "dark", "Dark" }
-        }
-    } }
 }
 
 #[component]
@@ -953,15 +786,6 @@ fn ExportPanel(#[props(default)] zmk_firmware: Option<ZmkFirmwareExportPanelInpu
             }
             p { role: "status", "aria-live": "polite", "{runtime.status()}" }
         }
-    }
-}
-
-fn durability_label(durability: &Durability) -> &'static str {
-    match durability {
-        Durability::Saved { .. } => "Saved",
-        Durability::Saving { .. } => "Saving…",
-        Durability::Failed { .. } => "Save failed",
-        _ => "Pending",
     }
 }
 
@@ -1123,49 +947,6 @@ fn pcb_bounds(snapshot: &AcceptedSnapshot, scope: &Scope) -> Option<(f64, f64, f
         include(pose.at.x, pose.at.y);
     }
     bounds
-}
-
-fn active_board_scope_matches(model: &boardstudio_application::ReadModel, scope: &Scope) -> bool {
-    model.active_board_id == scope.board_id
-        && model.active_instance_id == scope.instance_id
-        && model.accepted.as_ref().is_some_and(|snapshot| {
-            snapshot.session_epoch == scope.session_epoch
-                && snapshot.document.id == scope.document_id
-        })
-}
-
-fn current_layout_owner(
-    runtime: &Runtime,
-    workspace: Signal<&'static str>,
-    adapter: &SelectionAdapter,
-) -> LayoutOwnerIdentity {
-    let model = runtime.model();
-    LayoutOwnerIdentity {
-        scope: runtime.scope(),
-        token: model.accepted.as_ref().map(|snapshot| snapshot.token),
-        revision: model
-            .accepted
-            .as_ref()
-            .map(|snapshot| snapshot.document.revision),
-        generation: (adapter.generation)(),
-        workspace: workspace(),
-    }
-}
-
-fn layout_owner_is_current(
-    runtime: &Runtime,
-    workspace: Signal<&'static str>,
-    adapter: &SelectionAdapter,
-    owner: &LayoutOwnerIdentity,
-) -> bool {
-    if current_layout_owner(runtime, workspace, adapter) != *owner || owner.workspace != "Layout" {
-        return false;
-    }
-    let model = runtime.model();
-    owner
-        .scope
-        .as_ref()
-        .is_some_and(|scope| active_board_scope_matches(&model, scope))
 }
 
 fn apply_pending_splay_origin_pick(
@@ -1951,229 +1732,6 @@ fn pcb_add_outline_select_handler(
     })
 }
 
-fn board_reference_owner_is_current(
-    runtime: &Rc<Runtime>,
-    workspace: Signal<&'static str>,
-    adapter: &SelectionAdapter,
-    owner: &LayoutOwnerIdentity,
-) -> bool {
-    if !matches!(owner.workspace, "Layout" | "Case")
-        || current_layout_owner(runtime, workspace, adapter) != *owner
-    {
-        return false;
-    }
-    let model = runtime.model();
-    let Some(scope) = owner.scope.as_ref() else {
-        return false;
-    };
-    let (Some(token), Some(revision)) = (owner.token, owner.revision) else {
-        return false;
-    };
-    if !active_board_scope_matches(&model, scope)
-        || model.lifecycle != Lifecycle::Ready
-        || model.durability != (Durability::Saved { revision })
-        || model.display_preview.is_some()
-        || model.gesture.is_some()
-    {
-        return false;
-    }
-    model
-        .accepted
-        .as_ref()
-        .is_some_and(|accepted| accepted.token == token && accepted.document.revision == revision)
-}
-
-fn board_reference_target_is_current(
-    runtime: &Rc<Runtime>,
-    workspace: Signal<&'static str>,
-    adapter: &SelectionAdapter,
-    owner: &LayoutOwnerIdentity,
-    reference_id: &str,
-    source_asset_id: &str,
-) -> bool {
-    if !board_reference_owner_lineage_is_current(runtime, workspace, adapter, owner) {
-        return false;
-    }
-    let model = runtime.model();
-    let Some(scope) = owner.scope.as_ref() else {
-        return false;
-    };
-    active_board_scope_matches(&model, scope)
-        && model.accepted.as_ref().is_some_and(|accepted| {
-            accepted.document.board_references.iter().any(|reference| {
-                reference.id == reference_id
-                    && reference.board_id == scope.board_id
-                    && reference.asset_id == source_asset_id
-            })
-        })
-}
-
-fn board_reference_owner_lineage_is_current(
-    runtime: &Rc<Runtime>,
-    workspace: Signal<&'static str>,
-    adapter: &SelectionAdapter,
-    owner: &LayoutOwnerIdentity,
-) -> bool {
-    if !matches!(owner.workspace, "Layout" | "Case")
-        || workspace() != owner.workspace
-        || (adapter.generation)() != owner.generation
-        || runtime.scope() != owner.scope
-    {
-        return false;
-    }
-    let model = runtime.model();
-    owner
-        .scope
-        .as_ref()
-        .is_some_and(|scope| active_board_scope_matches(&model, scope))
-}
-
-fn submit_board_reference_document(
-    runtime: &Rc<Runtime>,
-    workspace: Signal<&'static str>,
-    adapter: &SelectionAdapter,
-    owner: &LayoutOwnerIdentity,
-    proposed: boardstudio_core::model::ProjectDoc,
-    transaction_label: &str,
-) -> Result<Option<crate::operation_outcomes::OutcomeSlot>, String> {
-    if !board_reference_owner_is_current(runtime, workspace, adapter, owner) {
-        return Err("The active project or board changed. Retry with the current board.".into());
-    }
-    let model = runtime.model();
-    let Some(scope) = owner.scope.as_ref() else {
-        return Err("The active board is unavailable.".into());
-    };
-    let (Some(token), Some(revision)) = (owner.token, owner.revision) else {
-        return Err("The accepted board identity is unavailable.".into());
-    };
-    let Some(accepted) = model
-        .accepted
-        .as_ref()
-        .filter(|accepted| accepted.token == token && accepted.document.revision == revision)
-    else {
-        return Err("The accepted board changed. Reopen the reference panel and retry.".into());
-    };
-    if proposed.id != accepted.document.id
-        || !proposed
-            .boards
-            .iter()
-            .any(|board| board.id == scope.board_id)
-    {
-        return Err("The routed-board edit no longer matches the accepted project.".into());
-    }
-    if proposed == *accepted.document {
-        return Ok(None);
-    }
-    let operation_id = runtime.operation();
-    let outcome = runtime.observe_operation(operation_id);
-    runtime.submit(Event::Edit {
-        operation_id,
-        command: EditCommand {
-            base_revision: revision,
-            transaction_id: format!("{transaction_label}-{}", operation_id.0),
-            phase: EditPhase::Commit,
-            target_ids: vec![scope.board_id.clone()],
-            operation: EditOperation::ReplaceDocument {
-                document: Box::new(proposed),
-            },
-        },
-    });
-    Ok(Some(outcome))
-}
-
-fn dispatch_board_reference_action(
-    runtime: &Rc<Runtime>,
-    workspace: Signal<&'static str>,
-    adapter: &SelectionAdapter,
-    owner: &LayoutOwnerIdentity,
-    reference_id: &str,
-    action: pcb_board_reference::Action,
-) {
-    if !board_reference_owner_is_current(runtime, workspace, adapter, owner) {
-        return;
-    }
-    let model = runtime.model();
-    let Some(scope) = owner.scope.as_ref() else {
-        return;
-    };
-    let (Some(token), Some(revision)) = (owner.token, owner.revision) else {
-        return;
-    };
-    let Some(accepted) = model
-        .accepted
-        .as_ref()
-        .filter(|accepted| accepted.token == token && accepted.document.revision == revision)
-    else {
-        return;
-    };
-    let mut proposed = accepted.document.as_ref().clone();
-    if matches!(&action, pcb_board_reference::Action::Remove) {
-        let count = proposed.board_references.len();
-        proposed.board_references.retain(|reference| {
-            reference.id != reference_id || reference.board_id != scope.board_id
-        });
-        if proposed.board_references.len() == count {
-            return;
-        }
-    } else {
-        let Some(reference) = proposed
-            .board_references
-            .iter_mut()
-            .find(|reference| reference.id == reference_id && reference.board_id == scope.board_id)
-        else {
-            return;
-        };
-        match action {
-            pcb_board_reference::Action::SetEnabled(enabled) => reference.enabled = enabled,
-            pcb_board_reference::Action::SetPositionX(value) if value.is_finite() => {
-                reference.pose.at.x = value;
-            }
-            pcb_board_reference::Action::SetPositionY(value) if value.is_finite() => {
-                reference.pose.at.y = value;
-            }
-            pcb_board_reference::Action::SetRotation(value) if value.is_finite() => {
-                reference.pose.rotation = value;
-            }
-            pcb_board_reference::Action::SetElevation(value) if value.is_finite() => {
-                reference.elevation = value;
-            }
-            pcb_board_reference::Action::SetModelAsset { path, asset_id } => {
-                if asset_id.as_ref().is_some_and(|asset_id| {
-                    !proposed.assets.iter().any(|asset| {
-                        asset.id == *asset_id
-                            && [".step", ".stp", ".stl", ".wrl"].iter().any(|extension| {
-                                asset.name.to_ascii_lowercase().ends_with(extension)
-                            })
-                    })
-                }) {
-                    return;
-                }
-                if let Some(asset_id) = asset_id {
-                    reference.model_assets.insert(path, asset_id);
-                } else {
-                    reference.model_assets.remove(&path);
-                }
-            }
-            pcb_board_reference::Action::Remove
-            | pcb_board_reference::Action::SetPositionX(_)
-            | pcb_board_reference::Action::SetPositionY(_)
-            | pcb_board_reference::Action::SetRotation(_)
-            | pcb_board_reference::Action::SetElevation(_) => return,
-        }
-    }
-    if proposed == *accepted.document {
-        return;
-    }
-    let _ = submit_board_reference_document(
-        runtime,
-        workspace,
-        adapter,
-        owner,
-        proposed,
-        &format!("board-reference-{reference_id}"),
-    );
-}
-
 fn canvas_owner_is_current(
     runtime: &Runtime,
     workspace: Signal<&'static str>,
@@ -2819,58 +2377,6 @@ fn dispatch_layout_component_inspector_action(
     }
 }
 
-struct LayoutPlacementCancellation {
-    parts: part_placement::PartPlacementMount,
-    matrices: objects::MatrixPlacementMount,
-    interactions: CanvasInteractionArbiter,
-}
-
-fn layout_view_mode_handler(
-    is_owner_current: impl Fn() -> bool + 'static,
-    is_assembly_3d: Signal<bool>,
-    mut set_assembly_3d: impl FnMut(bool) + 'static,
-    placements: LayoutPlacementCancellation,
-    before_placement_cancel: impl Fn() + 'static,
-    mut after_placement_cancel: impl FnMut() + 'static,
-) -> EventHandler<bool> {
-    EventHandler::new(move |assembly_3d| {
-        if !is_owner_current() {
-            return;
-        }
-        if assembly_3d && !is_assembly_3d() {
-            before_placement_cancel();
-            if placements.parts.busy || placements.parts.projection.is_some() {
-                placements.parts.on_cancel.call(());
-            }
-            after_placement_cancel();
-            match placements.interactions.current() {
-                Some(CanvasInteractionOwner::PartPlacement) => {
-                    placements
-                        .interactions
-                        .release(CanvasInteractionOwner::PartPlacement);
-                }
-                Some(CanvasInteractionOwner::OutlinePerimeter) => {
-                    placements
-                        .interactions
-                        .release(CanvasInteractionOwner::OutlinePerimeter);
-                }
-                Some(CanvasInteractionOwner::MatrixPlacement) => {
-                    if let Some(owner) = placements.matrices.cancel_owner.clone() {
-                        placements.matrices.on_cancel.call(owner);
-                    }
-                }
-                Some(CanvasInteractionOwner::MatrixTransform) => {
-                    placements
-                        .interactions
-                        .release(CanvasInteractionOwner::MatrixTransform);
-                }
-                Some(CanvasInteractionOwner::MirroredPair) | None => {}
-            }
-        }
-        set_assembly_3d(assembly_3d);
-    })
-}
-
 fn pending_splay_origin_pick_after_view_change<T>(
     from_3d: bool,
     to_3d: bool,
@@ -3102,24 +2608,6 @@ fn is_compact_viewport() -> bool {
     web_sys::window()
         .and_then(|window| window.match_media("(max-width: 760px)").ok().flatten())
         .is_some_and(|query| query.matches())
-}
-
-fn browse_parts_workspace(
-    mut workspace: Signal<&'static str>,
-    mut compact_open: Signal<bool>,
-    mut settings: Signal<PanelSettings>,
-    compact: bool,
-) {
-    workspace.set("Parts");
-    if compact {
-        compact_open.set(true);
-        return;
-    }
-    let mut current = settings();
-    if current.mode != PanelMode::Pinned {
-        current.mode = PanelMode::Pinned;
-        settings.set(current);
-    }
 }
 
 fn focus_first_inspector_control_on_next_frame(
@@ -4379,7 +3867,7 @@ fn Editor() -> Element {
                 &runtime.model(),
                 Some(&request.context),
             );
-            selection::submit_context(&runtime, &adapter, request);
+            selection::submit_context(&runtime, &adapter, request.into());
             if (adapter.generation)() != generation || runtime.scope().as_ref() != Some(&scope) {
                 return;
             }
@@ -4452,7 +3940,8 @@ fn Editor() -> Element {
                     context: projection.context,
                     mode: SelectionMode::Replace,
                     outline_action: None,
-                },
+                }
+                .into(),
             );
             if layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
                 pin_inspector_on_desktop(inspector_panel_settings);
@@ -4543,7 +4032,8 @@ fn Editor() -> Element {
                     context: projection.context,
                     mode: SelectionMode::Replace,
                     outline_action: None,
-                },
+                }
+                .into(),
             );
             if pcb_owner_is_current(&runtime, workspace, &adapter, &owner) {
                 pin_inspector_on_desktop(inspector_panel_settings);
@@ -9450,70 +8940,6 @@ fn polygon_points(points: &[Vec2]) -> String {
         .map(|p| format!("{},{}", p.x, p.y))
         .collect::<Vec<_>>()
         .join(" ")
-}
-fn coordinates(
-    svg: &Rc<RefCell<Option<SvgElement>>>,
-    pointer: &web_sys::PointerEvent,
-    x: f64,
-    y: f64,
-    width: f64,
-    height: f64,
-) -> Option<Vec2> {
-    coordinates_at(
-        svg,
-        pointer.client_x(),
-        pointer.client_y(),
-        x,
-        y,
-        width,
-        height,
-    )
-}
-
-fn coordinates_at(
-    svg: &Rc<RefCell<Option<SvgElement>>>,
-    client_x: i32,
-    client_y: i32,
-    x: f64,
-    y: f64,
-    width: f64,
-    height: f64,
-) -> Option<Vec2> {
-    let surface = svg.borrow();
-    let rect = surface.as_ref()?.get_bounding_client_rect();
-    pointer_location(&rect, client_x, client_y, x, y, width, height).map(|location| location.world)
-}
-
-fn pointer_location(
-    rect: &web_sys::DomRect,
-    client_x: i32,
-    client_y: i32,
-    view_x: f64,
-    view_y: f64,
-    width: f64,
-    height: f64,
-) -> Option<PointerLocation> {
-    if rect.width() <= 0.0 || rect.height() <= 0.0 || width <= 0.0 || height <= 0.0 {
-        return None;
-    }
-    let scale = (rect.width() / width).min(rect.height() / height);
-    if !scale.is_finite() || scale <= 0.0 {
-        return None;
-    }
-    let content_width = width * scale;
-    let content_height = height * scale;
-    let left = rect.left() + (rect.width() - content_width) * 0.5;
-    let top = rect.top() + (rect.height() - content_height) * 0.5;
-    let x_fraction = (f64::from(client_x) - left) / content_width;
-    let y_fraction = (f64::from(client_y) - top) / content_height;
-    Some(PointerLocation {
-        world: Vec2 {
-            x: view_x + x_fraction * width,
-            y: -(view_y + y_fraction * height),
-        },
-        x_fraction,
-        y_fraction,
-    })
 }
 
 fn zoom_center_at(

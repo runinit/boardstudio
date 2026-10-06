@@ -235,6 +235,18 @@ name = "boardstudio-web"
 version = "0.1.0"
 dependencies = [
  "boardstudio-application",
+ "boardstudio-web-case",
+ "boardstudio-web-catalogue",
+ "boardstudio-web-host",
+ "boardstudio-web-keycaps",
+ "boardstudio-web-keymap",
+ "boardstudio-web-layout",
+ "boardstudio-web-library",
+ "boardstudio-web-parts",
+ "boardstudio-web-pcb",
+ "boardstudio-web-runtime",
+ "boardstudio-web-ui-model",
+ "boardstudio-web-ui-shared",
  "boardstudio_core",
  "dioxus",
  "dioxus-web",
@@ -246,6 +258,269 @@ dependencies = [
  "serde_json",
  "sha2",
  "tokio",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+ "web-sys",
+]
+
+[[package]]
+name = "boardstudio-web-case"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-application",
+ "boardstudio-web-catalogue",
+ "boardstudio-web-host",
+ "boardstudio-web-keycaps",
+ "boardstudio-web-runtime",
+ "boardstudio-web-ui-model",
+ "boardstudio-web-ui-shared",
+ "boardstudio_core",
+ "dioxus",
+ "dioxus-web",
+ "futures-channel",
+ "gloo-timers",
+ "js-sys",
+ "serde",
+ "serde_json",
+ "sha2",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+ "web-sys",
+]
+
+[[package]]
+name = "boardstudio-web-catalogue"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-application",
+ "boardstudio-web-host",
+ "boardstudio_core",
+ "serde",
+ "serde_json",
+ "sha2",
+ "wasm-bindgen-test",
+]
+
+[[package]]
+name = "boardstudio-web-host"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-application",
+ "boardstudio_core",
+ "futures-channel",
+ "gloo-timers",
+ "js-sys",
+ "serde",
+ "serde-wasm-bindgen",
+ "serde_json",
+ "sha2",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+ "web-sys",
+]
+
+[[package]]
+name = "boardstudio-web-keycaps"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-application",
+ "boardstudio-web-host",
+ "boardstudio-web-runtime",
+ "boardstudio-web-ui-model",
+ "boardstudio-web-ui-shared",
+ "boardstudio_core",
+ "dioxus",
+ "dioxus-web",
+ "gloo-timers",
+ "js-sys",
+ "serde",
+ "serde_json",
+ "sha2",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+ "web-sys",
+]
+
+[[package]]
+name = "boardstudio-web-keymap"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-application",
+ "boardstudio-web-host",
+ "boardstudio-web-runtime",
+ "boardstudio-web-ui-model",
+ "boardstudio-web-ui-shared",
+ "boardstudio_core",
+ "dioxus",
+ "dioxus-web",
+ "gloo-timers",
+ "js-sys",
+ "serde",
+ "serde_json",
+ "sha2",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+ "web-sys",
+]
+
+[[package]]
+name = "boardstudio-web-layout"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-application",
+ "boardstudio-web-case",
+ "boardstudio-web-catalogue",
+ "boardstudio-web-host",
+ "boardstudio-web-keycaps",
+ "boardstudio-web-parts",
+ "boardstudio-web-runtime",
+ "boardstudio-web-ui-model",
+ "boardstudio-web-ui-shared",
+ "boardstudio_core",
+ "dioxus",
+ "dioxus-web",
+ "futures-channel",
+ "gloo-timers",
+ "js-sys",
+ "serde",
+ "serde_json",
+ "sha2",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+ "web-sys",
+]
+
+[[package]]
+name = "boardstudio-web-library"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-application",
+ "boardstudio-web-host",
+ "boardstudio-web-runtime",
+ "boardstudio-web-ui-model",
+ "boardstudio-web-ui-shared",
+ "boardstudio_core",
+ "dioxus",
+ "dioxus-web",
+ "gloo-timers",
+ "js-sys",
+ "serde",
+ "serde_json",
+ "sha2",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+ "web-sys",
+]
+
+[[package]]
+name = "boardstudio-web-parts"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-application",
+ "boardstudio-web-case",
+ "boardstudio-web-catalogue",
+ "boardstudio-web-host",
+ "boardstudio-web-runtime",
+ "boardstudio-web-ui-model",
+ "boardstudio-web-ui-shared",
+ "boardstudio_core",
+ "dioxus",
+ "dioxus-web",
+ "futures-channel",
+ "gloo-timers",
+ "js-sys",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+ "web-sys",
+]
+
+[[package]]
+name = "boardstudio-web-pcb"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-application",
+ "boardstudio-web-catalogue",
+ "boardstudio-web-host",
+ "boardstudio-web-parts",
+ "boardstudio-web-runtime",
+ "boardstudio-web-ui-model",
+ "boardstudio-web-ui-shared",
+ "boardstudio_core",
+ "dioxus",
+ "dioxus-web",
+ "futures-channel",
+ "gloo-timers",
+ "js-sys",
+ "serde",
+ "serde_json",
+ "sha2",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+ "web-sys",
+]
+
+[[package]]
+name = "boardstudio-web-runtime"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-application",
+ "boardstudio-web-host",
+ "boardstudio_core",
+ "futures-channel",
+ "gloo-timers",
+ "js-sys",
+ "serde",
+ "serde-wasm-bindgen",
+ "serde_json",
+ "sha2",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+ "web-sys",
+]
+
+[[package]]
+name = "boardstudio-web-ui-model"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-application",
+ "boardstudio-web-runtime",
+ "boardstudio_core",
+ "dioxus",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-test",
+ "web-sys",
+]
+
+[[package]]
+name = "boardstudio-web-ui-shared"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-application",
+ "boardstudio-web-host",
+ "boardstudio-web-runtime",
+ "boardstudio-web-ui-model",
+ "boardstudio_core",
+ "dioxus",
+ "dioxus-web",
+ "gloo-timers",
+ "js-sys",
+ "serde_json",
+ "sha2",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",

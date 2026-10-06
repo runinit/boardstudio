@@ -16,7 +16,7 @@ use std::{
     task::{Context, Poll, Waker},
 };
 
-#[path = "../src/operation_outcomes.rs"]
+#[path = "../crates/runtime/src/operation_outcomes.rs"]
 mod operation_outcomes;
 #[path = "support/outline_presentation.rs"]
 mod presentation;

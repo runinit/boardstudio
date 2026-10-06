@@ -39,7 +39,7 @@ TOOLING_TESTS = (
     "scripts/test-import-kicad-parts.py",
 )
 WASM_PAGE = ["--no-default-features", "--features", "page"]
-ISOLATED = ("presentation::case_workspace::", "presentation::setup_guide::", "presentation::panels::")
+ISOLATED = ("presentation::case_workspace::",)
 
 Command = list[str]
 
@@ -54,7 +54,24 @@ def browser() -> list[Command]:
     return [
         [PY, "scripts/check-wasm-tests.py"],
         [PY, "cad/scripts/test-cadrum-browser.py"],
-        [*wasm_pack, "--lib", "--", "host::storage::"],
+        ["wasm-pack", "test", "--headless", "--chrome", "web/crates/host", "--locked", "--features", "page",
+         "--lib", "--", "host::storage::"],
+        ["wasm-pack", "test", "--headless", "--chrome", "web/crates/runtime", "--locked", "--lib"],
+        ["wasm-pack", "test", "--headless", "--chrome", "web/crates/ui-model", "--locked", "--lib"],
+        # Panel tests run on their own, as they did in the page suite.
+        ["wasm-pack", "test", "--headless", "--chrome", "web/crates/ui-shared", "--locked", "--lib", "--", "--skip", "panels::"],
+        ["wasm-pack", "test", "--headless", "--chrome", "web/crates/ui-shared", "--locked", "--lib", "--", "panels::"],
+        ["wasm-pack", "test", "--headless", "--chrome", "web/crates/keycaps", "--locked", "--lib"],
+        ["wasm-pack", "test", "--headless", "--chrome", "web/crates/library", "--locked", "--lib"],
+        ["wasm-pack", "test", "--headless", "--chrome", "web/crates/keymap", "--locked", "--lib"],
+        ["wasm-pack", "test", "--headless", "--chrome", "web/crates/catalogue", "--locked", "--lib"],
+        ["wasm-pack", "test", "--headless", "--chrome", "web/crates/case", "--locked", "--lib"],
+        ["wasm-pack", "test", "--headless", "--chrome", "web/crates/parts", "--locked", "--lib"],
+        ["wasm-pack", "test", "--headless", "--chrome", "web/crates/pcb", "--locked", "--lib"],
+        # The setup guide test runs on its own, as it did in the page suite; web/crates/layout/
+        # webdriver.json gives it the desktop viewport it needs.
+        ["wasm-pack", "test", "--headless", "--chrome", "web/crates/layout", "--locked", "--lib", "--", "--skip", "setup_guide::"],
+        ["wasm-pack", "test", "--headless", "--chrome", "web/crates/layout", "--locked", "--lib", "--", "setup_guide::"],
         [*wasm_pack, "--bin", "boardstudio-web", "--", "--list"],
         [PY, "scripts/run-wasm-tests.py", "--all", "--depth", "1", *[f"--isolate={name}" for name in ISOLATED],
          "--result-json", "web/target/test-results/browser.json"],

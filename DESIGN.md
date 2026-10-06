@@ -306,7 +306,7 @@ sidecar together when the implementation's palette changes.
 
 **The Geometry Role Rule.** Keep canvas, board, key, pad, and selection roles separate from shell surfaces and status roles.
 
-[The shared viewer](web/src/presentation/shared_viewer.rs) uses a transparent WebGL background
+[The shared viewer](web/crates/case/src/shared_viewer.rs) uses a transparent WebGL background
 over the shared canvas token, with board, key, and part geometry colors on
 its materials. Lighting remains specific to the 3D scene, so shaded materials
 are not flat swatches of those colors.

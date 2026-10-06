@@ -5,7 +5,7 @@
 VIK remains a deferred hardware program. The Dioxus Parts catalogue filters VIK
 definitions out of new choices while retaining imported definitions for document
 resolution; see `is_vik_part` in the
-[catalogue module](../../web/src/presentation/parts/catalogue.rs).
+[catalogue module](../../web/crates/catalogue/src/catalogue.rs).
 
 ## Retained qualification evidence
 

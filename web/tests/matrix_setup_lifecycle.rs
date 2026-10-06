@@ -18,7 +18,7 @@ use std::{
 
 #[path = "../src/matrix_setup_operation.rs"]
 mod matrix_setup_operation;
-#[path = "../src/operation_outcomes.rs"]
+#[path = "../crates/runtime/src/operation_outcomes.rs"]
 mod operation_outcomes;
 #[path = "support/matrix_setup_presentation.rs"]
 mod presentation;

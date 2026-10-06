@@ -1,0 +1,1554 @@
+//! Private canonical Layout preview source capture and pick mapping.
+//!
+//! This module deliberately does not own async jobs, asset storage, model decoding,
+//! or a renderer. Runtime and the shared viewer supply those owners and recheck this
+//! captured identity after each asynchronous boundary.
+
+use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
+use boardstudio_core::model::{
+    ArtifactRequest, Asset, BoardReference, Contour, ExportTarget, KeycapSpec, PcbPreview,
+    PrepareExportRequest, ProjectDoc, ResolvedModule,
+};
+use std::{cell::Cell, rc::Rc};
+use std::{collections::BTreeMap, sync::Arc};
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LayoutSourceIdentity {
+    /// Keep the complete active scope, including a retained physical instance.
+    /// The instance participates in freshness only; it never projects geometry.
+    pub scope: Scope,
+    pub snapshot_token: SnapshotToken,
+    pub accepted_revision: u64,
+    pub accepted_document_identity: usize,
+    pub accepted_scene_identity: usize,
+    pub source_generation: u64,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum LayoutPreviewRequest {
+    Authored(Box<PrepareExportRequest>),
+    Imported {
+        reference: BoardReference,
+        asset: Asset,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct LayoutSourceCapture {
+    pub owner: LayoutSourceIdentity,
+    pub lease: Rc<LayoutSourceLease>,
+    pub document: Arc<ProjectDoc>,
+    /// Current resolved modules from the same accepted SceneDelta as this capture.
+    pub module_scenes: Vec<ResolvedModule>,
+    pub contours: Vec<Contour>,
+    pub path_assets: BTreeMap<String, String>,
+    pub request: LayoutPreviewRequest,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct LayoutPreviewSnapshot {
+    pub owner: LayoutSourceIdentity,
+    pub lease: Rc<LayoutSourceLease>,
+    pub document: Arc<ProjectDoc>,
+    /// Board-scoped resolved modules captured with the accepted Layout source.
+    pub module_scenes: Vec<ResolvedModule>,
+    pub contours: Vec<Contour>,
+    pub path_assets: BTreeMap<String, String>,
+    pub board_reference: Option<BoardReference>,
+    pub preview: PcbPreview,
+}
+
+/// Keycap metadata from the exact mesh generation supplied to the current viewer.
+pub struct LayoutKeycapPickSource<'a> {
+    pub scope: &'a Scope,
+    pub snapshot_token: SnapshotToken,
+    pub revision: u64,
+    pub generation: u64,
+    pub rendered_generation: u64,
+    pub specs: &'a [KeycapSpec],
+    pub body_ids: &'a [String],
+}
+
+#[derive(Debug)]
+pub struct LayoutSourceLease {
+    active: Cell<bool>,
+    identity: LayoutSourceIdentity,
+}
+
+impl LayoutSourceLease {
+    fn new(identity: LayoutSourceIdentity) -> Rc<Self> {
+        Rc::new(Self {
+            active: Cell::new(true),
+            identity,
+        })
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.active.get()
+    }
+
+    pub fn matches(&self, identity: &LayoutSourceIdentity) -> bool {
+        self.is_active() && self.identity == *identity
+    }
+
+    pub fn invalidate(&self) {
+        self.active.set(false);
+    }
+}
+
+impl PartialEq for LayoutSourceLease {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self, other)
+    }
+}
+
+#[derive(Default)]
+pub struct LayoutPreviewState {
+    pub published: Option<Rc<LayoutPreviewSnapshot>>,
+    pub pending: Option<(LayoutSourceIdentity, Rc<LayoutSourceLease>)>,
+    pub error: Option<(LayoutSourceIdentity, String)>,
+    source_generation: u64,
+}
+
+impl LayoutPreviewState {
+    pub fn next_generation(&mut self) -> Result<u64, String> {
+        self.retire();
+        let generation = self
+            .source_generation
+            .checked_add(1)
+            .ok_or_else(|| "Layout source generation exhausted".to_owned())?;
+        self.source_generation = generation;
+        Ok(generation)
+    }
+
+    pub fn begin(&mut self, capture: &LayoutSourceCapture) {
+        self.retire();
+        self.pending = Some((capture.owner.clone(), capture.lease.clone()));
+    }
+
+    pub fn owns(&self, owner: &LayoutSourceIdentity) -> bool {
+        self.published
+            .as_ref()
+            .is_some_and(|source| source.lease.matches(owner))
+            || self
+                .pending
+                .as_ref()
+                .is_some_and(|(pending, lease)| pending == owner && lease.matches(owner))
+    }
+
+    pub fn publish(&mut self, source: LayoutPreviewSnapshot) -> Result<(), String> {
+        if !self.owns(&source.owner)
+            || !self.pending.as_ref().is_some_and(|(owner, lease)| {
+                owner == &source.owner && Rc::ptr_eq(lease, &source.lease)
+            })
+        {
+            source.lease.invalidate();
+            return Err("Layout source owner changed before preview publication".into());
+        }
+        self.pending.take();
+        self.error.take();
+        self.published = Some(Rc::new(source));
+        Ok(())
+    }
+
+    pub fn retire_generation(&mut self, generation: u64) -> bool {
+        if generation == self.source_generation {
+            self.retire();
+            self.source_generation = self.source_generation.saturating_add(1);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn retire_unless_request_matches(
+        &mut self,
+        expected: Option<(&Scope, SnapshotToken, u64)>,
+    ) -> bool {
+        let current = self
+            .published
+            .as_ref()
+            .map(|source| &source.owner)
+            .or_else(|| self.pending.as_ref().map(|(owner, _)| owner))
+            .or_else(|| self.error.as_ref().map(|(owner, _)| owner));
+        let Some(current) = current else {
+            return false;
+        };
+        if expected.is_some_and(|(scope, token, revision)| {
+            current.scope == *scope
+                && current.snapshot_token == token
+                && current.accepted_revision == revision
+        }) {
+            return false;
+        }
+        self.retire_generation(current.source_generation)
+    }
+
+    pub fn fail(&mut self, owner: LayoutSourceIdentity, error: String) {
+        let is_current_pending = self
+            .pending
+            .as_ref()
+            .is_some_and(|(pending, lease)| pending == &owner && lease.matches(&owner));
+        if is_current_pending {
+            if let Some((_, lease)) = self.pending.take() {
+                lease.invalidate();
+            }
+            self.error = Some((owner, error));
+        }
+    }
+
+    pub fn fail_before_begin(&mut self, owner: LayoutSourceIdentity, error: String) {
+        self.retire();
+        self.error = Some((owner, error));
+    }
+
+    fn retire(&mut self) {
+        if let Some(source) = self.published.take() {
+            source.lease.invalidate();
+        }
+        if let Some((_, lease)) = self.pending.take() {
+            lease.invalidate();
+        }
+        self.error.take();
+    }
+}
+
+impl LayoutSourceIdentity {
+    pub fn from_accepted(
+        snapshot: &AcceptedSnapshot,
+        scope: &Scope,
+        source_generation: u64,
+    ) -> Self {
+        Self {
+            scope: scope.clone(),
+            snapshot_token: snapshot.token,
+            accepted_revision: snapshot.document.revision,
+            accepted_document_identity: Arc::as_ptr(&snapshot.document) as usize,
+            accepted_scene_identity: Arc::as_ptr(&snapshot.scene) as usize,
+            source_generation,
+        }
+    }
+
+    pub fn matches_current(
+        &self,
+        snapshot: &AcceptedSnapshot,
+        scope: &Scope,
+        source_generation: u64,
+    ) -> bool {
+        self.scope == *scope
+            && self.source_generation == source_generation
+            && snapshot.token == self.snapshot_token
+            && snapshot.session_epoch == self.scope.session_epoch
+            && snapshot.session_epoch == scope.session_epoch
+            && snapshot.document.id == self.scope.document_id
+            && snapshot.document.id == scope.document_id
+            && snapshot.document.revision == self.accepted_revision
+            && Arc::as_ptr(&snapshot.document) as usize == self.accepted_document_identity
+            && snapshot.scene.revision == self.accepted_revision
+            && Arc::as_ptr(&snapshot.scene) as usize == self.accepted_scene_identity
+            && self.accepted_revision == snapshot.document.revision
+    }
+}
+
+impl LayoutSourceCapture {
+    /// Build the canonical selected-board request from the accepted source.
+    /// `model_paths` comes from the existing bundled/document model path owner.
+    pub fn capture(
+        snapshot: &AcceptedSnapshot,
+        scope: &Scope,
+        source_generation: u64,
+        request_token: String,
+        model_paths: BTreeMap<String, String>,
+    ) -> Result<Self, String> {
+        if request_token.is_empty() {
+            return Err("Layout preview request token must not be empty".into());
+        }
+        if source_generation == 0 {
+            return Err("Layout source generation must be nonzero".into());
+        }
+        if snapshot.session_epoch != scope.session_epoch
+            || snapshot.document.id != scope.document_id
+            || snapshot.scene.revision != snapshot.document.revision
+        {
+            return Err("Layout preview scope does not match its accepted source".into());
+        }
+        let mut boards = snapshot
+            .document
+            .boards
+            .iter()
+            .filter(|board| board.id == scope.board_id);
+        let board = boards.next().ok_or_else(|| {
+            "Selected board is unavailable in the accepted Layout document".to_owned()
+        })?;
+        if boards.next().is_some() {
+            return Err(
+                "Selected board identity is ambiguous in the accepted Layout document".into(),
+            );
+        }
+        let mut board_contours = snapshot
+            .scene
+            .board_contours
+            .iter()
+            .filter(|entry| entry.board_id == scope.board_id);
+        let contours = board_contours
+            .next()
+            .ok_or_else(|| {
+                "Selected board contours are unavailable in the accepted Layout scene".to_owned()
+            })?
+            .contours
+            .clone();
+        if board_contours.next().is_some() {
+            return Err(
+                "Selected board contours are ambiguous in the accepted Layout scene".into(),
+            );
+        }
+
+        let mut references = snapshot
+            .document
+            .board_references
+            .iter()
+            .filter(|reference| reference.board_id == scope.board_id && reference.enabled);
+        let request = if let Some(reference) = references.next() {
+            if references.next().is_some() {
+                return Err("Selected board has multiple enabled imported-board sources".into());
+            }
+            let mut assets = snapshot
+                .document
+                .assets
+                .iter()
+                .filter(|asset| asset.id == reference.asset_id);
+            let asset = assets
+                .next()
+                .filter(|asset| !asset.sha256.is_empty())
+                .cloned()
+                .ok_or_else(|| {
+                    "Imported board asset is unavailable in the accepted document".to_owned()
+                })?;
+            if assets.next().is_some() {
+                return Err(
+                    "Imported board asset identity is ambiguous in the accepted document".into(),
+                );
+            }
+            LayoutPreviewRequest::Imported {
+                reference: reference.clone(),
+                asset,
+            }
+        } else {
+            LayoutPreviewRequest::Authored(Box::new(PrepareExportRequest {
+                snapshot_token: request_token,
+                expected_revision: snapshot.document.revision,
+                document: snapshot.document.as_ref().clone(),
+                target: ExportTarget::Board {
+                    board_id: board.id.clone(),
+                },
+                contours: contours.clone(),
+                model_paths: model_paths.clone(),
+            }))
+        };
+
+        let owner = LayoutSourceIdentity::from_accepted(snapshot, scope, source_generation);
+        let module_scenes = snapshot
+            .scene
+            .module_scenes
+            .iter()
+            .filter(|resolved| {
+                snapshot.document.modules.iter().any(|module| {
+                    module.id == resolved.id && module.host_board_id == scope.board_id
+                })
+            })
+            .cloned()
+            .collect();
+        Ok(Self {
+            lease: LayoutSourceLease::new(owner.clone()),
+            owner,
+            document: snapshot.document.clone(),
+            module_scenes,
+            contours,
+            path_assets: model_paths,
+            request,
+        })
+    }
+
+    /// Convert the captured producer choice to the existing Core artifact request.
+    /// Imported bytes are resolved by Runtime from this exact accepted asset SHA.
+    pub fn artifact_request(
+        &self,
+        id: String,
+        imported_source: Option<String>,
+    ) -> Result<ArtifactRequest, String> {
+        if id.is_empty() {
+            return Err("Layout preview artifact request ID must not be empty".into());
+        }
+        match (&self.request, imported_source) {
+            (LayoutPreviewRequest::Authored(request), None) => {
+                Ok(ArtifactRequest::PreviewPcb {
+                    id,
+                    request: request.as_ref().clone(),
+                })
+            }
+            (LayoutPreviewRequest::Imported { .. }, Some(source)) if !source.is_empty() => {
+                Ok(ArtifactRequest::PreviewBoard {
+                    id,
+                    source,
+                    revision: self.owner.accepted_revision,
+                })
+            }
+            (LayoutPreviewRequest::Imported { .. }, _) => {
+                Err("Imported Layout preview requires its verified accepted asset bytes".into())
+            }
+            (LayoutPreviewRequest::Authored(_), Some(_)) => {
+                Err("Authored Layout preview cannot consume imported-board bytes".into())
+            }
+        }
+    }
+
+    /// Accept only a preview for this accepted revision. Core reply/request IDs are
+    /// checked by Runtime before this method is called.
+    pub fn accept_preview(
+        &self,
+        preview: PcbPreview,
+    ) -> Result<LayoutPreviewSnapshot, String> {
+        if preview.revision != self.owner.accepted_revision
+            || self.document.revision != self.owner.accepted_revision
+        {
+            return Err("Core returned a Layout board preview for another revision".into());
+        }
+        Ok(LayoutPreviewSnapshot {
+            owner: self.owner.clone(),
+            lease: self.lease.clone(),
+            document: self.document.clone(),
+            module_scenes: self.module_scenes.clone(),
+            contours: self.contours.clone(),
+            path_assets: self.path_assets.clone(),
+            board_reference: match &self.request {
+                LayoutPreviewRequest::Imported { reference, .. } => Some(reference.clone()),
+                LayoutPreviewRequest::Authored(_) => None,
+            },
+            preview,
+        })
+    }
+}
+
+impl LayoutPreviewSnapshot {
+    pub fn same_live_source(&self, expected: &Self) -> bool {
+        self.owner == expected.owner
+            && Rc::ptr_eq(&self.lease, &expected.lease)
+            && self.lease.matches(&self.owner)
+    }
+
+    /// Resolve a private Layout renderer ID to the mounted placement represented
+    /// by this accepted scene, rejecting stale or cross-board pick events.
+    pub fn module_for_current_pick(
+        &self,
+        snapshot: &AcceptedSnapshot,
+        scope: &Scope,
+        source_generation: u64,
+        renderer_id: &str,
+    ) -> Option<String> {
+        let module_id = self.module_scenes.iter().find_map(|module| {
+            if let Some(body) = renderer_id.strip_prefix(&format!("module:{}:", module.id)) {
+                return ["pcb:", "volume:", "standoff:"]
+                    .iter()
+                    .any(|kind| body.starts_with(kind))
+                    .then_some(module.id.as_str());
+            }
+            let model_index = renderer_id
+                .strip_prefix("module-model/")?
+                .strip_prefix(&format!("{}/", module.id))?
+                .parse::<usize>()
+                .ok()?;
+            module.models.get(model_index).map(|_| module.id.as_str())
+        })?;
+        if !self
+            .owner
+            .matches_current(snapshot, scope, source_generation)
+            || self.document.id != scope.document_id
+            || self.document.revision != self.owner.accepted_revision
+            || Arc::as_ptr(&self.document) as usize != self.owner.accepted_document_identity
+            || !Arc::ptr_eq(&self.document, &snapshot.document)
+            || self.preview.revision != self.owner.accepted_revision
+            || !self.lease.matches(&self.owner)
+            || !self
+                .module_scenes
+                .iter()
+                .any(|module| module.id == module_id)
+            || !self
+                .document
+                .modules
+                .iter()
+                .any(|module| module.id == module_id && module.host_board_id == scope.board_id)
+        {
+            return None;
+        }
+        Some(module_id.to_owned())
+    }
+
+    /// A renderer reference selects only a unique Part on this captured board and
+    /// only while the full accepted scope and source generation still match.
+    pub fn part_for_current_pick(
+        &self,
+        snapshot: &AcceptedSnapshot,
+        scope: &Scope,
+        source_generation: u64,
+        model_reference: &str,
+        keycaps: Option<&LayoutKeycapPickSource<'_>>,
+    ) -> Option<String> {
+        if !self
+            .owner
+            .matches_current(snapshot, scope, source_generation)
+            || self.document.id != scope.document_id
+            || self.document.revision != self.owner.accepted_revision
+            || Arc::as_ptr(&self.document) as usize != self.owner.accepted_document_identity
+            || !Arc::ptr_eq(&self.document, &snapshot.document)
+            || self.preview.revision != self.owner.accepted_revision
+            || !self.lease.matches(&self.owner)
+        {
+            return None;
+        }
+        if let Some(id) = model_reference
+            .strip_prefix("keycap:")
+            .or_else(|| model_reference.strip_prefix("keycap-legend:"))
+        {
+            let keycaps = keycaps?;
+            if keycaps.scope != scope
+                || keycaps.snapshot_token != snapshot.token
+                || keycaps.revision != snapshot.document.revision
+                || keycaps.generation == 0
+                || keycaps.generation != keycaps.rendered_generation
+                || keycaps
+                    .body_ids
+                    .iter()
+                    .filter(|id| id.as_str() == model_reference)
+                    .count()
+                    != 1
+            {
+                return None;
+            }
+            let mut matching_specs = keycaps.specs.iter().filter(|spec| spec.id == id);
+            let spec = matching_specs.next()?;
+            if matching_specs.next().is_some() {
+                return None;
+            }
+            let board = self
+                .document
+                .boards
+                .iter()
+                .find(|board| board.id == scope.board_id)?;
+            let mut matching_parts = self
+                .document
+                .parts
+                .iter()
+                .filter(|part| part.id == spec.id && board.part_ids.contains(&part.id));
+            let part = matching_parts.next()?;
+            return matching_parts.next().is_none().then(|| part.id.clone());
+        }
+        crate::case_preview::part_for_native_preview_reference(
+            &self.document,
+            &scope.board_id,
+            &self.preview,
+            model_reference,
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use boardstudio_application::SessionEpoch;
+    use boardstudio_core::model::{
+        Board, BoardContours, CaseOpening, Contour, ModuleAttachment, ModuleSupportGeometry,
+        MountedModule, Part, PcbModel, Pose2, Readiness, ResolvedModule, SceneDelta, Side, Vec2,
+        Vec3,
+    };
+
+    fn accepted(imported: bool) -> (AcceptedSnapshot, Scope) {
+        let mut document = ProjectDoc::empty("doc", "Split board");
+        document.revision = 7;
+        document.boards.push(Board {
+            id: "left".into(),
+            name: "Left".into(),
+            outline_ids: vec![],
+            part_ids: vec!["part-1".into()],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        document.parts.push(Part {
+            keycap: None,
+            outline: None,
+            id: "part-1".into(),
+            definition_id: "mcu".into(),
+            reference: "U1".into(),
+            pose: Pose2 {
+                at: Vec2 { x: 2.0, y: 3.0 },
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            locked: None,
+            properties: None,
+            generator_parameters: None,
+        });
+        if imported {
+            document.assets.push(Asset {
+                id: "board-source".into(),
+                name: "board.kicad_pcb".into(),
+                media_type: "application/vnd.kicad.pcb".into(),
+                sha256: "abc123".into(),
+                license: None,
+                source: None,
+            });
+            document.board_references.push(BoardReference {
+                id: "left-reference".into(),
+                board_id: "left".into(),
+                asset_id: "board-source".into(),
+                enabled: true,
+                pose: Pose2 {
+                    at: Vec2 {
+                        x: 500.0,
+                        y: -300.0,
+                    },
+                    rotation: 180.0,
+                },
+                elevation: 9.0,
+                model_assets: BTreeMap::new(),
+            });
+        }
+        let scope = Scope {
+            session_epoch: SessionEpoch(2),
+            document_id: "doc".into(),
+            board_id: "left".into(),
+            instance_id: Some("flipped-left".into()),
+        };
+        let snapshot = AcceptedSnapshot {
+            token: SnapshotToken(11),
+            session_epoch: scope.session_epoch,
+            document: Arc::new(document),
+            scene: Arc::new(SceneDelta {
+                module_scenes: vec![],
+                revision: 7,
+                transaction_id: "accepted".into(),
+                changed_ids: vec![],
+                transforms: vec![],
+                matrix_scenes: vec![],
+                contours: vec![],
+                board_contours: vec![BoardContours {
+                    board_id: "left".into(),
+                    contours: vec![Contour {
+                        points: vec![
+                            Vec2 { x: 1.0, y: 2.0 },
+                            Vec2 { x: 4.0, y: 2.0 },
+                            Vec2 { x: 4.0, y: 5.0 },
+                        ],
+                        hole: false,
+                    }],
+                }],
+                board_readiness: vec![],
+                board_outline_scenes: vec![],
+                finding_markers: vec![],
+                findings: vec![],
+                readiness: Readiness {
+                    layout: true,
+                    outline: true,
+                    pcb: true,
+                    case_ready: false,
+                },
+            }),
+        };
+        (snapshot, scope)
+    }
+
+    fn source_capture(snapshot: &AcceptedSnapshot, scope: &Scope) -> LayoutSourceCapture {
+        LayoutSourceCapture::capture(
+            snapshot,
+            scope,
+            3,
+            "layout-preview-11".into(),
+            BTreeMap::new(),
+        )
+        .unwrap()
+    }
+
+    fn preview() -> PcbPreview {
+        PcbPreview {
+            revision: 7,
+            thickness: 1.6,
+            contours: vec![],
+            surfaces: vec![],
+            holes: vec![],
+            models: vec![PcbModel {
+                id: "U1:0".into(),
+                reference: "U1".into(),
+                path: "models/mcu.step".into(),
+                pose: Pose2 {
+                    at: Vec2 { x: 2.0, y: 3.0 },
+                    rotation: 0.0,
+                },
+                side: Side::Front,
+                offset: Vec3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                rotation: Vec3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                scale: Vec3 {
+                    x: 1.0,
+                    y: 1.0,
+                    z: 1.0,
+                },
+            }],
+            diagnostics: vec![],
+        }
+    }
+
+    #[test]
+    fn authored_capture_uses_canonical_document_and_board_contours_independent_of_instance() {
+        let (snapshot, scope) = accepted(false);
+        let capture = source_capture(&snapshot, &scope);
+        let mut another_instance = scope.clone();
+        another_instance.instance_id = Some("other-physical-half".into());
+        let other = source_capture(&snapshot, &another_instance);
+
+        assert_eq!(capture.document.as_ref(), snapshot.document.as_ref());
+        assert_eq!(capture.contours, snapshot.scene.board_contours[0].contours);
+        assert_eq!(capture.contours, other.contours);
+        assert_ne!(capture.owner, other.owner);
+        let LayoutPreviewRequest::Authored(request) = capture.request else {
+            panic!("authored board should use PreviewPcb");
+        };
+        assert_eq!(request.document.parts[0].pose.at.x, 2.0);
+        assert_eq!(request.contours, snapshot.scene.board_contours[0].contours);
+        assert_eq!(
+            request.target,
+            ExportTarget::Board {
+                board_id: "left".into()
+            }
+        );
+    }
+
+    #[test]
+    fn layout_3d_capture_projects_only_the_selected_boards_scene() {
+        // Two boards in one accepted document; the active scope selects "left".
+        let (snapshot, scope) = accepted(false);
+        let mut document = snapshot.document.as_ref().clone();
+        document.boards.push(Board {
+            id: "right".into(),
+            name: "Right".into(),
+            outline_ids: vec![],
+            part_ids: vec!["part-2".into()],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        document.parts.push(Part {
+            id: "part-2".into(),
+            reference: "U2".into(),
+            ..document.parts[0].clone()
+        });
+        let right_contour = Contour {
+            points: vec![
+                Vec2 { x: 100.0, y: 0.0 },
+                Vec2 { x: 140.0, y: 0.0 },
+                Vec2 { x: 140.0, y: 30.0 },
+            ],
+            hole: false,
+        };
+        let mut scene = snapshot.scene.as_ref().clone();
+        scene.board_contours.push(BoardContours {
+            board_id: "right".into(),
+            contours: vec![right_contour.clone()],
+        });
+        let snapshot = AcceptedSnapshot {
+            document: Arc::new(document),
+            scene: Arc::new(scene),
+            ..snapshot
+        };
+
+        let capture = source_capture(&snapshot, &scope);
+        // Only the selected board's outline feeds the 3D scene.
+        assert_eq!(capture.contours, snapshot.scene.board_contours[0].contours);
+        assert!(!capture.contours.contains(&right_contour));
+        let LayoutPreviewRequest::Authored(request) = &capture.request else {
+            panic!("authored board should use PreviewPcb");
+        };
+        assert_eq!(
+            request.target,
+            ExportTarget::Board {
+                board_id: "left".into()
+            },
+            "the producer builds exactly the selected board"
+        );
+        assert_eq!(request.contours, capture.contours);
+
+        // Even if the producer returned models for both boards, only the selected
+        // board's part can ever be resolved from the 3D scene.
+        let mut both = preview();
+        let mut right_model = both.models[0].clone();
+        right_model.id = "U2:0".into();
+        right_model.reference = "U2".into();
+        both.models.push(right_model);
+        let accepted_preview = capture.accept_preview(both).unwrap();
+        assert_eq!(
+            accepted_preview.part_for_current_pick(&snapshot, &scope, 3, "U1", None),
+            Some("part-1".into())
+        );
+        assert!(
+            accepted_preview
+                .part_for_current_pick(&snapshot, &scope, 3, "U2", None)
+                .is_none(),
+            "the other board's part is absent from the selected board's scene"
+        );
+
+        // Selecting the other board swaps the whole captured scene.
+        let mut right_scope = scope.clone();
+        right_scope.board_id = "right".into();
+        let right = source_capture(&snapshot, &right_scope);
+        assert_eq!(right.contours, vec![right_contour]);
+        assert!(matches!(
+            &right.request,
+            LayoutPreviewRequest::Authored(request)
+                if request.target == ExportTarget::Board { board_id: "right".into() }
+        ));
+        assert_ne!(right.owner, accepted_preview.owner);
+    }
+
+    #[test]
+    fn imported_capture_selects_matching_accepted_asset_and_existing_preview_operation() {
+        let (snapshot, scope) = accepted(true);
+        let capture = source_capture(&snapshot, &scope);
+        let LayoutPreviewRequest::Imported { reference, asset } = &capture.request else {
+            panic!("enabled BoardReference should use PreviewBoard");
+        };
+        assert_eq!(reference.pose.at.x, 500.0);
+        assert_eq!(asset.sha256, "abc123");
+        assert!(matches!(
+            capture.artifact_request("layout-imported".into(), Some("verified source".into())),
+            Ok(ArtifactRequest::PreviewBoard { id, source, revision: 7 })
+                if id == "layout-imported" && source == "verified source"
+        ));
+        assert!(
+            capture
+                .artifact_request("layout-imported".into(), None)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn imported_layout_component_model_flows_through_existing_asset_and_mesh_delivery_route() {
+        #[cfg(not(target_arch = "wasm32"))]
+        use crate::model_delivery::{
+            AssetSelection, MeshArrays, ModelAssetSource, ModelBatchIdentity, ModelDeliveryAdapter,
+            ModelDeliveryPorts, ModelOwnerIdentity, ResolvedModelAsset, VerifiedModelBytes,
+            native_model_path_assets, resolve_preview_assets,
+        };
+        #[cfg(target_arch = "wasm32")]
+        use crate::model_delivery::{
+            AssetSelection, MeshArrays, ModelAssetSource, ModelBatchIdentity, ModelDeliveryAdapter,
+            ModelDeliveryPorts, ModelOwnerIdentity, ResolvedModelAsset, VerifiedModelBytes,
+            native_model_path_assets, resolve_preview_assets,
+        };
+        use sha2::{Digest, Sha256};
+        use std::{future::Future, task::Waker};
+
+        let (snapshot, scope) = accepted(true);
+        let model_bytes = b"accepted-layout-component-model".to_vec();
+        let model_sha = Sha256::digest(&model_bytes)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        let mut document = snapshot.document.as_ref().clone();
+        document.assets.push(Asset {
+            id: "component-model".into(),
+            name: "mcu.step".into(),
+            media_type: "model/step".into(),
+            sha256: model_sha.clone(),
+            license: None,
+            source: None,
+        });
+        document.board_references[0]
+            .model_assets
+            .insert("models/mcu.step".into(), "component-model".into());
+        let snapshot = AcceptedSnapshot {
+            document: Arc::new(document),
+            ..snapshot
+        };
+        let capture = source_capture(&snapshot, &scope);
+        let preview = capture.accept_preview(preview()).unwrap();
+
+        let native = native_model_path_assets(&preview.path_assets);
+        let selections = resolve_preview_assets(
+            &preview.preview.models,
+            preview.board_reference.as_ref(),
+            &native,
+            &preview.document,
+            |_| None,
+            |_| None,
+        )
+        .into_iter()
+        .collect::<BTreeMap<_, _>>();
+        assert_eq!(
+            selections.get("U1:0"),
+            Some(&AssetSelection::Archived(ResolvedModelAsset {
+                id: "component-model".into(),
+                sha256: model_sha.clone(),
+                filename: "mcu.step".into(),
+                source: ModelAssetSource::Document,
+            }))
+        );
+
+        let decode_count = Rc::new(Cell::new(0));
+        let decode_count_for_port = decode_count.clone();
+        let bytes_for_port = model_bytes.clone();
+        let ports = ModelDeliveryPorts {
+            load_verified_bytes: Rc::new(move |asset| {
+                let bytes = bytes_for_port.clone();
+                Box::pin(async move { Ok(Some(VerifiedModelBytes::verify(bytes, &asset.sha256)?)) })
+            }),
+            decode_stl: Rc::new(|_| Box::pin(async { Ok(MeshArrays::default()) })),
+            decode_wrl: Rc::new(|_| Box::pin(async { Ok(MeshArrays::default()) })),
+            read_step: Rc::new(move |_, _| {
+                decode_count_for_port.set(decode_count_for_port.get() + 1);
+                Box::pin(async {
+                    Ok(MeshArrays {
+                        positions: vec![0.0; 9],
+                        normals: vec![1.0; 9],
+                        colors: None,
+                    })
+                })
+            }),
+        };
+        let owner = ModelOwnerIdentity::new_layout(
+            preview.owner.scope.clone(),
+            preview.owner.snapshot_token,
+            preview.owner.source_generation,
+            &preview.lease,
+        );
+        let batch = ModelBatchIdentity::new(owner, preview.owner.accepted_revision, 1);
+        let lease = preview.lease.clone();
+        let expected_owner = preview.owner.clone();
+        let rows = block_on(ModelDeliveryAdapter::default().deliver_models(
+            preview.preview.revision,
+            &preview.preview.models,
+            &selections,
+            &ports,
+            &batch,
+            Rc::new(move || lease.matches(&expected_owner)),
+        ))
+        .expect("the accepted Layout model delivery should finish while current");
+
+        assert_eq!(decode_count.get(), 1);
+        assert_eq!(rows.delivered.len(), 1);
+        assert_eq!(rows.delivered[0].id, "U1:0");
+        assert!(rows.failures.is_empty());
+
+        fn block_on<F: Future>(future: F) -> F::Output {
+            let mut future = Box::pin(future);
+            let waker = Waker::noop();
+            let mut context = std::task::Context::from_waker(waker);
+            loop {
+                match future.as_mut().poll(&mut context) {
+                    std::task::Poll::Ready(output) => return output,
+                    std::task::Poll::Pending => std::thread::yield_now(),
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn authored_request_uses_preview_pcb_request_and_rejects_wrong_preview_revision() {
+        let (snapshot, scope) = accepted(false);
+        let capture = source_capture(&snapshot, &scope);
+        assert!(matches!(
+            capture.artifact_request("layout-authored".into(), None),
+            Ok(ArtifactRequest::PreviewPcb { id, request })
+                if id == "layout-authored" && request.expected_revision == 7
+        ));
+        let mut stale = preview();
+        stale.revision = 8;
+        assert!(capture.accept_preview(stale).is_err());
+        assert!(capture.accept_preview(preview()).is_ok());
+    }
+
+    #[test]
+    fn picks_require_full_current_scope_source_generation_and_unique_board_reference() {
+        let (snapshot, scope) = accepted(false);
+        let accepted_preview = source_capture(&snapshot, &scope)
+            .accept_preview(preview())
+            .unwrap();
+        assert_eq!(
+            accepted_preview.part_for_current_pick(&snapshot, &scope, 3, "U1", None),
+            Some("part-1".into())
+        );
+        assert!(
+            accepted_preview
+                .part_for_current_pick(&snapshot, &scope, 4, "U1", None)
+                .is_none()
+        );
+        let stale_scene = AcceptedSnapshot {
+            scene: Arc::new(snapshot.scene.as_ref().clone()),
+            ..snapshot.clone()
+        };
+        assert!(
+            accepted_preview
+                .part_for_current_pick(&stale_scene, &scope, 3, "U1", None)
+                .is_none()
+        );
+        let mut other_instance = scope.clone();
+        other_instance.instance_id = Some("right-half".into());
+        assert!(
+            accepted_preview
+                .part_for_current_pick(&snapshot, &other_instance, 3, "U1", None)
+                .is_none()
+        );
+        assert!(
+            accepted_preview
+                .part_for_current_pick(&snapshot, &scope, 3, "U1:0", None)
+                .is_none()
+        );
+
+        let mut duplicate = snapshot.document.as_ref().clone();
+        duplicate.parts.push(Part {
+            id: "part-2".into(),
+            ..duplicate.parts[0].clone()
+        });
+        duplicate.boards[0].part_ids.push("part-2".into());
+        let duplicate_snapshot = AcceptedSnapshot {
+            document: Arc::new(duplicate),
+            ..snapshot.clone()
+        };
+        assert!(
+            accepted_preview
+                .part_for_current_pick(&duplicate_snapshot, &scope, 3, "U1", None)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn rendered_keycap_and_legend_picks_require_current_specs_bodies_and_board_owner() {
+        use boardstudio_core::{
+            CoreEngine,
+            model::{CoreReply, CoreRequest},
+        };
+
+        let (mut snapshot, scope) = accepted(false);
+        let mut document = snapshot.document.as_ref().clone();
+        document.definitions.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "mcu", "name": "MX", "kind": "switch", "pads": [], "courtyard": [],
+                "keycap": {"x": 18.2, "y": 18.2}
+            }))
+            .unwrap(),
+        );
+        let mut other_part = document.parts[0].clone();
+        other_part.id = "other-key".into();
+        other_part.reference = "SW2".into();
+        document.parts.push(other_part);
+        let mut other_board = document.boards[0].clone();
+        other_board.id = "right".into();
+        other_board.part_ids = vec!["other-key".into()];
+        document.boards.push(other_board);
+        document.keycaps = Some(
+            serde_json::from_value(serde_json::json!({
+                "keys": {
+                    "part-1": {"profile": "dsa", "mount": "mx", "legend": "A"},
+                    "other-key": {"profile": "dsa", "mount": "mx", "legend": "B"}
+                }
+            }))
+            .unwrap(),
+        );
+        snapshot.document = Arc::new(document);
+        let resolve = |board_id: &str| {
+            let reply = CoreEngine::new().handle(CoreRequest::ResolveKeycaps {
+                id: "pick-specs".into(),
+                document: snapshot.document.as_ref().clone(),
+                board_id: board_id.into(),
+                cases: None,
+            });
+            let CoreReply::KeycapsResolved { result, .. } = reply else {
+                panic!("Core resolves actual accepted keycap specifications");
+            };
+            assert_eq!(result.revision, snapshot.document.revision);
+            assert_eq!(result.specs.len(), 1);
+            result.specs
+        };
+        let specs = resolve("left");
+        let other_specs = resolve("right");
+        assert_eq!(specs[0].id, "part-1");
+        assert_eq!(specs[0].legend, "A");
+        let accepted_preview = source_capture(&snapshot, &scope)
+            .accept_preview(preview())
+            .unwrap();
+        let body_ids = vec!["keycap:part-1".into(), "keycap-legend:part-1".into()];
+        let mut keycaps = LayoutKeycapPickSource {
+            scope: &scope,
+            snapshot_token: snapshot.token,
+            revision: snapshot.document.revision,
+            generation: 5,
+            rendered_generation: 5,
+            specs: &specs,
+            body_ids: &body_ids,
+        };
+        let pick = |reference: &str, keycaps: &LayoutKeycapPickSource<'_>| {
+            accepted_preview.part_for_current_pick(&snapshot, &scope, 3, reference, Some(keycaps))
+        };
+        assert_eq!(
+            accepted_preview.part_for_current_pick(&snapshot, &scope, 3, "U1", None),
+            Some("part-1".into())
+        );
+        assert_eq!(pick("keycap:part-1", &keycaps), Some("part-1".into()));
+        assert_eq!(
+            pick("keycap-legend:part-1", &keycaps),
+            Some("part-1".into())
+        );
+        keycaps.body_ids = &[];
+        assert!(
+            pick("keycap:part-1", &keycaps).is_none(),
+            "a spec without a rendered mesh is not pickable"
+        );
+        keycaps.body_ids = &body_ids;
+        keycaps.specs = &[];
+        assert!(
+            pick("keycap:part-1", &keycaps).is_none(),
+            "a body without its accepted spec is not pickable"
+        );
+        keycaps.specs = &specs;
+        keycaps.rendered_generation = 4;
+        assert!(
+            pick("keycap:part-1", &keycaps).is_none(),
+            "old rendered mesh generation is retired"
+        );
+        keycaps.rendered_generation = 5;
+        keycaps.snapshot_token = SnapshotToken(snapshot.token.0 + 1);
+        assert!(pick("keycap:part-1", &keycaps).is_none());
+        keycaps.snapshot_token = snapshot.token;
+        keycaps.revision += 1;
+        assert!(pick("keycap:part-1", &keycaps).is_none());
+        keycaps.revision = snapshot.document.revision;
+        let other_body_ids = vec!["keycap:other-key".into()];
+        keycaps.specs = &other_specs;
+        keycaps.body_ids = &other_body_ids;
+        assert!(
+            pick("keycap:other-key", &keycaps).is_none(),
+            "a real spec from another board cannot select its part"
+        );
+        keycaps.specs = &specs;
+        keycaps.body_ids = &body_ids;
+        assert!(
+            accepted_preview
+                .part_for_current_pick(&snapshot, &scope, 4, "keycap:part-1", Some(&keycaps))
+                .is_none()
+        );
+        let mut other_scope = scope.clone();
+        other_scope.instance_id = Some("other-half".into());
+        assert!(
+            accepted_preview
+                .part_for_current_pick(&snapshot, &other_scope, 3, "keycap:part-1", Some(&keycaps))
+                .is_none()
+        );
+        accepted_preview.lease.invalidate();
+        assert!(
+            pick("keycap:part-1", &keycaps).is_none(),
+            "retired Layout source cannot select a part"
+        );
+    }
+
+    #[test]
+    fn accepted_generic_module_scene_is_board_scoped_and_pick_resolves_current_placement() {
+        let (snapshot, scope) = accepted(false);
+        let mut document = snapshot.document.as_ref().clone();
+        for (id, board_id) in [("placement-generic", "left"), ("placement-other", "right")] {
+            document.modules.push(MountedModule {
+                id: id.into(),
+                definition_id: "generic-module-definition".into(),
+                host_board_id: board_id.into(),
+                host_instance_id: None,
+                host_face: Side::Front,
+                facing_face: Side::Front,
+                at: Vec2 { x: 2.0, y: 3.0 },
+                rotation: 0.0,
+                gap: 0.0,
+                attachment: ModuleAttachment::Board,
+                detached: false,
+                connection: None,
+                service_clearance: 0.0,
+                mount_supports: vec![],
+            });
+        }
+        let resolved = |id: &str| ResolvedModule {
+            id: id.into(),
+            definition_id: "generic-module-definition".into(),
+            at: Vec2 { x: 2.0, y: 3.0 },
+            rotation: 0.0,
+            midplane_z: 2.0,
+            flipped: false,
+            board: vec![CaseOpening {
+                points: vec![
+                    Vec2 { x: 0.0, y: 0.0 },
+                    Vec2 { x: 4.0, y: 0.0 },
+                    Vec2 { x: 4.0, y: 3.0 },
+                ],
+                z: 1.0,
+                height: 1.0,
+            }],
+            board_holes: vec![],
+            volumes: vec![],
+            openings: vec![],
+            mounts: vec![],
+            mount_supports: vec![ModuleSupportGeometry {
+                mount_id: "support-1".into(),
+                at: Vec2 { x: 1.0, y: 1.0 },
+                outer_diameter: 2.0,
+                hole_diameter: 0.8,
+                z: 0.0,
+                height: 1.0,
+            }],
+            footprints: vec![],
+            models: vec![boardstudio_core::model::PartModel {
+                asset_id: "module-asset".into(),
+                offset: boardstudio_core::model::Vec3::default(),
+                rotation: boardstudio_core::model::Vec3::default(),
+                scale: boardstudio_core::model::Vec3 {
+                    x: 1.0,
+                    y: 1.0,
+                    z: 1.0,
+                },
+            }],
+            gates: vec![],
+        };
+        let mut scene = snapshot.scene.as_ref().clone();
+        scene.module_scenes = vec![resolved("placement-generic"), resolved("placement-other")];
+        let snapshot = AcceptedSnapshot {
+            document: Arc::new(document),
+            scene: Arc::new(scene),
+            ..snapshot
+        };
+
+        let capture = source_capture(&snapshot, &scope);
+        assert_eq!(
+            capture
+                .module_scenes
+                .iter()
+                .map(|module| module.id.as_str())
+                .collect::<Vec<_>>(),
+            ["placement-generic"]
+        );
+        let preview = capture.accept_preview(preview()).unwrap();
+        assert_eq!(
+            preview.module_for_current_pick(&snapshot, &scope, 3, "module:placement-generic:pcb:0"),
+            Some("placement-generic".into())
+        );
+        assert_eq!(
+            preview.module_for_current_pick(
+                &snapshot,
+                &scope,
+                3,
+                "module-model/placement-generic/0"
+            ),
+            Some("placement-generic".into())
+        );
+        assert!(
+            preview
+                .module_for_current_pick(&snapshot, &scope, 3, "module-model/placement-generic/1")
+                .is_none()
+        );
+        assert!(
+            preview
+                .module_for_current_pick(&snapshot, &scope, 3, "module:placement-other:pcb:0")
+                .is_none()
+        );
+        assert!(
+            preview
+                .module_for_current_pick(&snapshot, &scope, 4, "module:placement-generic:pcb:0")
+                .is_none()
+        );
+        let stale_scene = AcceptedSnapshot {
+            scene: Arc::new(snapshot.scene.as_ref().clone()),
+            ..snapshot
+        };
+        assert!(
+            preview
+                .module_for_current_pick(&stale_scene, &scope, 3, "module:placement-generic:pcb:0")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn source_state_rejects_late_worker_completion_after_owner_replacement() {
+        let (snapshot, scope) = accepted(false);
+        let mut state = LayoutPreviewState::default();
+        let first_generation = state.next_generation().unwrap();
+        let first = LayoutSourceCapture::capture(
+            &snapshot,
+            &scope,
+            first_generation,
+            "layout-preview-first".into(),
+            BTreeMap::new(),
+        )
+        .unwrap();
+        state.begin(&first);
+        assert!(state.owns(&first.owner));
+
+        let second_generation = state.next_generation().unwrap();
+        let second = LayoutSourceCapture::capture(
+            &snapshot,
+            &scope,
+            second_generation,
+            "layout-preview-second".into(),
+            BTreeMap::new(),
+        )
+        .unwrap();
+        state.begin(&second);
+        assert!(!first.lease.is_active());
+        assert!(state.owns(&second.owner));
+
+        let late_result = first.accept_preview(preview()).unwrap();
+        assert!(state.publish(late_result).is_err());
+        assert!(state.published.is_none());
+
+        state
+            .publish(second.accept_preview(preview()).unwrap())
+            .unwrap();
+        assert!(state.published.as_ref().is_some_and(|current| {
+            current.owner == second.owner && current.lease.matches(&second.owner)
+        }));
+        assert!(state.retire_generation(second_generation));
+        assert!(state.published.is_none());
+        assert!(!second.lease.is_active());
+    }
+
+    #[test]
+    fn suspended_model_failure_settlement_cannot_target_replacement_preview_owner() {
+        #[cfg(not(target_arch = "wasm32"))]
+        use crate::model_delivery::settle_layout_model_delivery;
+        #[cfg(target_arch = "wasm32")]
+        use crate::model_delivery::settle_layout_model_delivery;
+        use std::{
+            future::{Future, poll_fn},
+            task::Waker,
+        };
+
+        let (snapshot, scope) = accepted(false);
+        let state = Rc::new(std::cell::RefCell::new(LayoutPreviewState::default()));
+
+        let first_generation = state.borrow_mut().next_generation().unwrap();
+        let first = LayoutSourceCapture::capture(
+            &snapshot,
+            &scope,
+            first_generation,
+            "layout-preview-suspended-model-error-a".into(),
+            BTreeMap::new(),
+        )
+        .unwrap();
+        state.borrow_mut().begin(&first);
+        let captured_preview = Rc::new(first.accept_preview(preview()).unwrap());
+        state
+            .borrow_mut()
+            .publish(captured_preview.as_ref().clone())
+            .unwrap();
+
+        // Suspend A's delivery future before it reports an error.
+        let release_a = Rc::new(Cell::new(false));
+        let release_a_after_suspend = release_a.clone();
+        let delivery_a = async move {
+            poll_fn(move |context| {
+                if release_a_after_suspend.get() {
+                    std::task::Poll::Ready(())
+                } else {
+                    context.waker().wake_by_ref();
+                    std::task::Poll::Pending
+                }
+            })
+            .await;
+            Err("A model resolver failed".to_owned())
+        };
+        let current_state = state.clone();
+        let reported = Rc::new(std::cell::RefCell::new(Vec::new()));
+        let reported_from_callback = reported.clone();
+        let settlement = settle_layout_model_delivery(
+            captured_preview.clone(),
+            delivery_a,
+            move || current_state.borrow().published.clone(),
+            move |error| reported_from_callback.borrow_mut().push(error),
+        );
+        let mut settlement = Box::pin(settlement);
+        let waker = Waker::noop();
+        let mut context = std::task::Context::from_waker(waker);
+        assert!(matches!(
+            settlement.as_mut().poll(&mut context),
+            std::task::Poll::Pending
+        ));
+
+        // While A is suspended, publish a same-scope, same-revision B. The exact
+        // settlement helper used by Runtime must suppress A's later failure.
+        let second_generation = state.borrow_mut().next_generation().unwrap();
+        let second = LayoutSourceCapture::capture(
+            &snapshot,
+            &scope,
+            second_generation,
+            "layout-preview-suspended-model-error-b".into(),
+            BTreeMap::new(),
+        )
+        .unwrap();
+        state.borrow_mut().begin(&second);
+        let replacement = Rc::new(second.accept_preview(preview()).unwrap());
+        state
+            .borrow_mut()
+            .publish(replacement.as_ref().clone())
+            .unwrap();
+        release_a.set(true);
+        assert!(matches!(
+            settlement.as_mut().poll(&mut context),
+            std::task::Poll::Ready(())
+        ));
+
+        assert!(reported.borrow().is_empty());
+        assert!(replacement.same_live_source(&replacement));
+        assert!(!replacement.same_live_source(&captured_preview));
+        assert!(!captured_preview.lease.is_active());
+
+        let current_state = state.clone();
+        let reported_current = reported.clone();
+        block_on(settle_layout_model_delivery(
+            replacement.clone(),
+            async { Err("B model decode failed".to_owned()) },
+            move || current_state.borrow().published.clone(),
+            move |error| reported_current.borrow_mut().push(error),
+        ));
+        assert_eq!(&*reported.borrow(), &["B model decode failed"]);
+
+        fn block_on<F: std::future::Future>(future: F) -> F::Output {
+            let mut future = Box::pin(future);
+            let waker = Waker::noop();
+            let mut context = std::task::Context::from_waker(waker);
+            loop {
+                match future.as_mut().poll(&mut context) {
+                    std::task::Poll::Ready(output) => return output,
+                    std::task::Poll::Pending => std::thread::yield_now(),
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn source_request_reconciliation_retires_pending_owner_when_scope_disappears_or_changes() {
+        let (snapshot, scope) = accepted(false);
+        let mut state = LayoutPreviewState::default();
+        let generation = state.next_generation().unwrap();
+        let capture = LayoutSourceCapture::capture(
+            &snapshot,
+            &scope,
+            generation,
+            "layout-preview-request-reconcile".into(),
+            BTreeMap::new(),
+        )
+        .unwrap();
+        state.begin(&capture);
+
+        assert!(!state.retire_unless_request_matches(Some((
+            &scope,
+            snapshot.token,
+            snapshot.document.revision,
+        ))));
+        assert!(capture.lease.is_active());
+
+        assert!(state.retire_unless_request_matches(None));
+        assert!(!capture.lease.is_active());
+        assert!(state.pending.is_none());
+
+        let next_generation = state.next_generation().unwrap();
+        let next = LayoutSourceCapture::capture(
+            &snapshot,
+            &scope,
+            next_generation,
+            "layout-preview-request-reconcile-next".into(),
+            BTreeMap::new(),
+        )
+        .unwrap();
+        state.begin(&next);
+        assert!(state.retire_unless_request_matches(Some((
+            &scope,
+            snapshot.token,
+            snapshot.document.revision + 1,
+        ))));
+        assert!(!next.lease.is_active());
+    }
+
+    #[test]
+    fn capture_rejects_stale_scope_scene_board_and_ambiguous_import_source() {
+        let (snapshot, scope) = accepted(false);
+        let mut wrong_scope = scope.clone();
+        wrong_scope.document_id = "another-document".into();
+        assert!(
+            LayoutSourceCapture::capture(
+                &snapshot,
+                &wrong_scope,
+                3,
+                "request".into(),
+                BTreeMap::new()
+            )
+            .is_err()
+        );
+        let mut wrong_board = scope.clone();
+        wrong_board.board_id = "missing".into();
+        assert!(
+            LayoutSourceCapture::capture(
+                &snapshot,
+                &wrong_board,
+                3,
+                "request".into(),
+                BTreeMap::new()
+            )
+            .is_err()
+        );
+        let mut duplicate_board = snapshot.document.as_ref().clone();
+        duplicate_board
+            .boards
+            .push(duplicate_board.boards[0].clone());
+        let duplicate_board_snapshot = AcceptedSnapshot {
+            document: Arc::new(duplicate_board),
+            ..snapshot.clone()
+        };
+        assert!(
+            LayoutSourceCapture::capture(
+                &duplicate_board_snapshot,
+                &scope,
+                3,
+                "request".into(),
+                BTreeMap::new()
+            )
+            .is_err()
+        );
+        let mut duplicate_import = snapshot.document.as_ref().clone();
+        duplicate_import.board_references.push(BoardReference {
+            id: "another-reference".into(),
+            board_id: "left".into(),
+            asset_id: "board-source".into(),
+            enabled: true,
+            pose: Pose2 {
+                at: Vec2 { x: 0.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            elevation: 0.0,
+            model_assets: BTreeMap::new(),
+        });
+        let imported_snapshot = AcceptedSnapshot {
+            document: Arc::new(duplicate_import),
+            ..snapshot.clone()
+        };
+        assert!(
+            LayoutSourceCapture::capture(
+                &imported_snapshot,
+                &scope,
+                3,
+                "request".into(),
+                BTreeMap::new()
+            )
+            .is_err()
+        );
+    }
+}

@@ -10,7 +10,7 @@ fn main() {
         let document = serde_json::from_value(value["document"].clone()).expect("valid document");
         let configuration =
             serde_json::from_value(value["configuration"].clone()).expect("valid configuration");
-        let updated = boardstudio_web::case_settings::update_instance_settings(
+        let updated = boardstudio_web_host::case_settings::update_instance_settings(
             &document,
             value["instanceId"].as_str().expect("instance ID"),
             configuration,
@@ -23,7 +23,7 @@ fn main() {
         return;
     }
     let document = serde_json::from_str(&input).expect("valid project document");
-    let settings = boardstudio_web::case_settings::initial_settings(&document, &board)
+    let settings = boardstudio_web_host::case_settings::initial_settings(&document, &board)
         .expect("reference settings");
     println!(
         "{}",

@@ -1,4 +1,4 @@
-use crate::offline::{OfflineManifest, scope_cache_prefix};
+use boardstudio_web_host::offline::{OfflineManifest, scope_cache_prefix};
 use js_sys::Array;
 use wasm_bindgen::{JsCast, JsValue, closure::Closure, prelude::wasm_bindgen};
 use wasm_bindgen_futures::{JsFuture, future_to_promise};
