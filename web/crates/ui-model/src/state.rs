@@ -4,6 +4,7 @@ use crate::case_generation_lifecycle::AutomaticCaseGeneration;
 use crate::instance_selection;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{Position, Vec2};
+use boardstudio_web_runtime::operation_outcomes::OutcomeSlot;
 use dioxus::prelude::*;
 use std::collections::BTreeSet;
 
@@ -127,4 +128,22 @@ pub struct TreeCellAnchor {
     pub matrix_id: String,
     pub row: u32,
     pub column: u32,
+}
+
+#[derive(Clone, Copy)]
+pub struct ThemeState(pub Signal<&'static str>);
+#[derive(Clone, Copy)]
+pub struct PreferenceStorageWarning(pub Signal<bool>);
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SetupGuideRequest {
+    pub project_id: String,
+    pub request_id: String,
+    pub start_at_project: bool,
+}
+
+#[derive(Clone)]
+pub struct PendingNewKeyboard {
+    pub project_id: String,
+    pub outcome: OutcomeSlot,
 }

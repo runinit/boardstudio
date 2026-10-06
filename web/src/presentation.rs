@@ -37,6 +37,7 @@ pub(crate) use boardstudio_web_ui_model::state::{
     CaseGenerationState, CompactPanelState, Drag, InstanceSelection, LayerVisibility,
     LayoutOwnerIdentity, ProjectMenuPage, ResolvedTheme, WorkspaceState,
 };
+pub(crate) use boardstudio_web_ui_model::state::{PreferenceStorageWarning, ThemeState};
 #[cfg(test)]
 pub(crate) use boardstudio_web_ui_model::state::{
     use_empty_test_instance_selection, use_test_case_generation_state,
@@ -46,8 +47,11 @@ pub(crate) use boardstudio_web_ui_model::svg_coordinates::{
     PointerLocation, coordinates, coordinates_at, pointer_location,
 };
 pub(crate) use boardstudio_web_ui_model::{canvas_interaction, instance_selection, selection};
+pub(crate) use boardstudio_web_ui_shared::project_menu::{
+    ThemePicker, close_project_menu, durability_label,
+};
 mod layout_workspace;
-mod library;
+pub(crate) use boardstudio_web_library::library;
 mod mechanical_settings;
 mod mechanical_settings_controller;
 mod mechanical_settings_mount;
@@ -225,11 +229,6 @@ pub(crate) fn use_case_generation_readiness_test_bridge(runtime: Rc<Runtime>) ->
     )
     .generation_ready
 }
-
-#[derive(Clone, Copy)]
-struct ThemeState(Signal<&'static str>);
-#[derive(Clone, Copy)]
-struct PreferenceStorageWarning(Signal<bool>);
 
 #[derive(Clone, Copy)]
 struct WorkspaceCallbackSlots {
@@ -716,28 +715,6 @@ fn RuntimeReportBanner() -> Element {
     }
 }
 
-fn close_project_menu() {
-    let Some(document) = web_sys::window().and_then(|window| window.document()) else {
-        return;
-    };
-    let Some(menu) = document
-        .query_selector("details.m1-project-menu")
-        .ok()
-        .flatten()
-    else {
-        return;
-    };
-    let _ = menu.remove_attribute("open");
-    if let Some(summary) = menu
-        .query_selector("summary")
-        .ok()
-        .flatten()
-        .and_then(|element| element.dyn_into::<HtmlElement>().ok())
-    {
-        let _ = summary.focus();
-    }
-}
-
 fn read_system_theme() -> &'static str {
     if web_sys::window()
         .and_then(|window| {
@@ -752,23 +729,6 @@ fn read_system_theme() -> &'static str {
     } else {
         "light"
     }
-}
-
-#[component]
-pub(super) fn ThemePicker() -> Element {
-    let mut theme = use_context::<ThemeState>().0;
-    let preference_warning = use_context::<PreferenceStorageWarning>().0;
-    rsx! { label { class: "m1-theme-picker", "Appearance"
-        select { "aria-label": "Color theme", value: "{theme()}", onchange: move |event: FormEvent| {
-            let preference = match event.value().as_str() { "light" => "light", "dark" => "dark", _ => "system" };
-            panels::write_theme_preference(preference_warning, preference);
-            theme.set(preference);
-        },
-            option { value: "system", "System" }
-            option { value: "light", "Light" }
-            option { value: "dark", "Dark" }
-        }
-    } }
 }
 
 #[component]
@@ -876,15 +836,6 @@ fn ExportPanel(#[props(default)] zmk_firmware: Option<ZmkFirmwareExportPanelInpu
             }
             p { role: "status", "aria-live": "polite", "{runtime.status()}" }
         }
-    }
-}
-
-fn durability_label(durability: &Durability) -> &'static str {
-    match durability {
-        Durability::Saved { .. } => "Saved",
-        Durability::Saving { .. } => "Saving…",
-        Durability::Failed { .. } => "Save failed",
-        _ => "Pending",
     }
 }
 

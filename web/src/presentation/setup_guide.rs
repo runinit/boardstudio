@@ -3,23 +3,11 @@ use boardstudio_core::{
     electrical::ElectricalPlan,
     model::{PartKind, ProjectDoc, SceneDelta, Severity},
 };
+pub(crate) use boardstudio_web_ui_model::state::{PendingNewKeyboard, SetupGuideRequest};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlInputElement;
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct SetupGuideRequest {
-    pub(crate) project_id: String,
-    pub(crate) request_id: String,
-    pub(crate) start_at_project: bool,
-}
-
-#[derive(Clone)]
-pub(crate) struct PendingNewKeyboard {
-    pub(crate) project_id: String,
-    pub(crate) outcome: OutcomeSlot,
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum SetupGuideStage {

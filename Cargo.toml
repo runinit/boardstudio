@@ -11,6 +11,7 @@ members = [
   "web/crates/runtime",
   "web/crates/ui-model",
   "web/crates/ui-shared",
+  "web/crates/library",
   "web/crates/keycaps",
 ]
 # The CAD crates build in their own toolchains: cad/wasm inside the pinned

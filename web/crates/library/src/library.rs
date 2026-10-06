@@ -467,7 +467,7 @@ fn DemoKeyboardCards(project_menu: bool) -> Element {
 }
 
 #[component]
-pub(super) fn Library(
+pub fn Library(
     project_menu: bool,
     #[props(default)] menu_page: Option<Signal<super::ProjectMenuPage>>,
 ) -> Element {

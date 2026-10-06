@@ -1,10 +1,10 @@
 [package]
-name = "boardstudio-web-keycaps"
+name = "boardstudio-web-library"
 version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 publish = false
-description = "BoardStudio Keycaps workspace: keycap fit, settings, scene and finding navigation."
+description = "BoardStudio Library page: projects, examples and the project menu's project actions."
 
 [features]
 test-support = ["boardstudio-web-ui-model/test-support", "boardstudio-web-ui-shared/test-support"]
