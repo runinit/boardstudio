@@ -80,11 +80,29 @@ class CadrumBuildTests(unittest.TestCase):
         run.assert_called_once()
 
     def test_native_failure_prevents_wasm_build(self):
-        with patch.object(build, "prepare", return_value=self.extracted), patch.object(build, "run", side_effect=[None, subprocess.CalledProcessError(1, "cargo")]), patch.object(build, "build_wasm") as wasm:
+        with patch.object(build, "prepare", return_value=self.extracted), patch.object(build, "run", side_effect=[None, None, subprocess.CalledProcessError(1, "cargo")]), patch.object(build, "build_wasm") as wasm:
             with self.assertRaises(subprocess.CalledProcessError):
                 build.test_cadrum()
         wasm.assert_not_called()
 
+    def test_oracle_is_built_with_the_verified_archive_before_native_tests(self):
+        with patch.object(build, "prepare", return_value=self.extracted), patch.object(build, "run") as run, patch.object(build, "build_wasm") as wasm:
+            build.test_cadrum()
+        commands = [(call.args[0], call.kwargs.get("env")) for call in run.call_args_list]
+        self.assertEqual([command[3] for command, _ in commands], ["../core/Cargo.toml", "step-oracle/Cargo.toml", "wasm/Cargo.toml"])
+        oracle_command, oracle_env = commands[1]
+        self.assertEqual(oracle_command[:2], ["cargo", "build"])
+        self.assertIn("--locked", oracle_command)
+        self.assertEqual(oracle_env["OCCT_ROOT"], str(self.extracted))
+        self.assertEqual(oracle_env["CARGO_TARGET_DIR"], str(self.root / "step-oracle/target"))
+        wasm.assert_called_once()
+
+    def test_oracle_build_failure_stops_native_tests(self):
+        with patch.object(build, "prepare", return_value=self.extracted), patch.object(build, "run", side_effect=[None, subprocess.CalledProcessError(1, "cargo")]) as run, patch.object(build, "build_wasm") as wasm:
+            with self.assertRaises(subprocess.CalledProcessError):
+                build.test_cadrum()
+        self.assertEqual(run.call_count, 2)
+        wasm.assert_not_called()
 
 if __name__ == "__main__":
     unittest.main()

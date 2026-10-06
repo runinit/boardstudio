@@ -76,10 +76,19 @@ def build_wasm():
          "--out-name", "boardstudio_cadrum_wasm", "--release", "--locked"])
 
 
+def build_step_oracle(occt_root):
+    """Build the test-only OCCT STEP reimport oracle that the native tests drive as a subprocess."""
+    env = dict(os.environ, OCCT_ROOT=str(occt_root),
+               CARGO_TARGET_DIR=str(CAD_ROOT / "step-oracle/target"))
+    run(["cargo", "build", "--manifest-path", "step-oracle/Cargo.toml", "--locked"], env=env)
+
+
 def test_cadrum():
     run(["cargo", "build", "--manifest-path", "../core/Cargo.toml",
          "--target-dir", "../core/target", "--example", "prepare_case", "--locked"])
-    env = dict(os.environ, OCCT_ROOT=str(prepare("native")),
+    occt_root = prepare("native")
+    build_step_oracle(occt_root)
+    env = dict(os.environ, OCCT_ROOT=str(occt_root),
                CARGO_TARGET_DIR=str(CAD_ROOT / "wasm/target"))
     run(["cargo", "test", "--manifest-path", "wasm/Cargo.toml", "--locked"], env=env)
     build_wasm()

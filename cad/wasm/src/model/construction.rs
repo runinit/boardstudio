@@ -837,3 +837,6 @@ mod equivalence;
 
 #[cfg(test)]
 mod gasket_features;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod validation_tests;

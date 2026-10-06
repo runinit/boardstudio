@@ -1,0 +1,12 @@
+[package]
+name = "boardstudio-step-oracle"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Test-only, native-only STEP reimport oracle: OCCT 8.0.1 STEPControl_Reader and BRepCheck_Analyzer behind a narrow CXX bridge"
+
+[dependencies]
+cxx = "=1.0.202"
+
+[build-dependencies]
+cxx-build = "=1.0.202"
