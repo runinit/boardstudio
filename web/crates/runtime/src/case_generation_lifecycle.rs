@@ -3,7 +3,6 @@
 //! Session remains the authority for accepting a generation request. This
 //! state only prevents the presentation from repeatedly dispatching the same
 //! request after status notifications.
-#[cfg(feature = "page")]
 use boardstudio_application::AcceptedSnapshot;
 use boardstudio_application::{GenerationStatus, Scope, SnapshotToken};
 use boardstudio_core::model::{ProjectDoc, SceneDelta};
@@ -12,14 +11,14 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct CaseGenerationOwner {
-    pub(crate) scope: Scope,
-    pub(crate) token: SnapshotToken,
-    pub(crate) revision: u64,
+pub struct CaseGenerationOwner {
+    pub scope: Scope,
+    pub token: SnapshotToken,
+    pub revision: u64,
 }
 
 #[derive(Default)]
-pub(crate) struct AutomaticCaseGeneration {
+pub struct AutomaticCaseGeneration {
     enabled: bool,
     attempted: Option<CaseGenerationOwner>,
 }
@@ -28,8 +27,7 @@ pub(crate) struct AutomaticCaseGeneration {
 /// Snapshot tokens/revisions are intentionally excluded; owner identity is checked
 /// separately before a completed result can be rebound. In-flight work never uses
 /// this relaxation.
-#[cfg(feature = "page")]
-pub(crate) fn physical_case_fingerprint(
+pub fn physical_case_fingerprint(
     snapshot: &AcceptedSnapshot,
     scope: &Scope,
 ) -> Option<[u8; 32]> {
@@ -39,8 +37,8 @@ pub(crate) fn physical_case_fingerprint(
     {
         return None;
     }
-    let document = boardstudio_web::cad_jobs::captured_case_document(snapshot, scope).ok()?;
-    let scene = boardstudio_web::cad_jobs::captured_case_scene(snapshot, scope).ok()?;
+    let document = boardstudio_web_host::cad_jobs::captured_case_document(snapshot, scope).ok()?;
+    let scene = boardstudio_web_host::cad_jobs::captured_case_scene(snapshot, scope).ok()?;
     case_fingerprint_for_inputs(&document, &scene, scope)
 }
 
@@ -197,14 +195,14 @@ fn filter_geometry_parameters(value: &mut Value, terminals: Option<&BTreeSet<Str
 
 impl AutomaticCaseGeneration {
     #[cfg(target_arch = "wasm32")]
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             enabled: true,
             attempted: None,
         }
     }
 
-    pub(crate) fn observe(
+    pub fn observe(
         &mut self,
         owner: Option<CaseGenerationOwner>,
         eligible: bool,
@@ -224,7 +222,7 @@ impl AutomaticCaseGeneration {
         true
     }
 
-    pub(crate) fn set_enabled(&mut self, enabled: bool) {
+    pub fn set_enabled(&mut self, enabled: bool) {
         self.enabled = enabled;
         if !enabled {
             self.attempted = None;
@@ -232,12 +230,12 @@ impl AutomaticCaseGeneration {
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub(crate) fn enabled(&self) -> bool {
+    pub fn enabled(&self) -> bool {
         self.enabled
     }
 }
 
-pub(crate) fn may_rebind_completed_case_result(
+pub fn may_rebind_completed_case_result(
     exact: bool,
     scene_scope: &Scope,
     scene_token: SnapshotToken,
@@ -253,7 +251,7 @@ pub(crate) fn may_rebind_completed_case_result(
         && scene_fingerprint == current_fingerprint
 }
 
-pub(crate) fn same_owner_completed_scene_for_display(
+pub fn same_owner_completed_scene_for_display(
     exact: bool,
     scene_scope: &Scope,
     current_scope: &Scope,
@@ -262,14 +260,14 @@ pub(crate) fn same_owner_completed_scene_for_display(
 }
 
 #[derive(Clone, Copy)]
-pub(crate) enum CaseGeometryStatus {
+pub enum CaseGeometryStatus {
     Missing,
     Previous,
     Preview,
     CurrentExact,
 }
 
-pub(crate) fn case_generation_title(
+pub fn case_generation_title(
     generation: &GenerationStatus,
     geometry: CaseGeometryStatus,
 ) -> String {

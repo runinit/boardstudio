@@ -8,21 +8,21 @@ use std::{
 use std::{future::Future, pin::Pin};
 
 #[cfg(target_arch = "wasm32")]
-pub(crate) type ArchiveWorkFuture<'a> = Pin<Box<dyn Future<Output = Result<Vec<u8>, String>> + 'a>>;
+pub type ArchiveWorkFuture<'a> = Pin<Box<dyn Future<Output = Result<Vec<u8>, String>> + 'a>>;
 
 #[derive(Default)]
-pub(crate) struct ArchiveOptionCaptures(BTreeMap<OperationId, bool>);
+pub struct ArchiveOptionCaptures(BTreeMap<OperationId, bool>);
 
 impl ArchiveOptionCaptures {
-    pub(crate) fn capture(&mut self, operation: OperationId, embed_used_models: bool) {
+    pub fn capture(&mut self, operation: OperationId, embed_used_models: bool) {
         self.0.insert(operation, embed_used_models);
     }
 
-    pub(crate) fn take(&mut self, operation: OperationId) -> Option<bool> {
+    pub fn take(&mut self, operation: OperationId) -> Option<bool> {
         self.0.remove(&operation)
     }
 
-    pub(crate) fn remove(&mut self, operation: OperationId) {
+    pub fn remove(&mut self, operation: OperationId) {
         self.0.remove(&operation);
     }
 }
@@ -30,7 +30,7 @@ impl ArchiveOptionCaptures {
 /// Owns the browser-session preference and the per-operation choice used by
 /// the production RunExport dispatcher. Keeping dispatch here makes archive,
 /// cancellation, and STEP classification testable without browser handles.
-pub(crate) struct ArchiveExportOptions {
+pub struct ArchiveExportOptions {
     embed_used_models: Cell<bool>,
     captures: RefCell<ArchiveOptionCaptures>,
 }
@@ -45,31 +45,31 @@ impl Default for ArchiveExportOptions {
 }
 
 impl ArchiveExportOptions {
-    pub(crate) fn embed_used_models(&self) -> bool {
+    pub fn embed_used_models(&self) -> bool {
         self.embed_used_models.get()
     }
 
-    pub(crate) fn set_embed_used_models(&self, value: bool) -> bool {
+    pub fn set_embed_used_models(&self, value: bool) -> bool {
         self.embed_used_models.replace(value) != value
     }
 
-    pub(crate) fn begin_archive(&self, operation: OperationId) {
+    pub fn begin_archive(&self, operation: OperationId) {
         self.captures
             .borrow_mut()
             .capture(operation, self.embed_used_models.get());
     }
 
-    pub(crate) fn settle(&self, operation: OperationId) {
+    pub fn settle(&self, operation: OperationId) {
         self.captures.borrow_mut().remove(operation);
     }
 
-    pub(crate) fn cancel(&self, operation: OperationId) {
+    pub fn cancel(&self, operation: OperationId) {
         self.captures.borrow_mut().remove(operation);
     }
 
     /// Select the exact operation path used by Runtime::run for RunExport.
     /// The returned value can be a future; no preference is read after dispatch.
-    pub(crate) fn dispatch<T>(
+    pub fn dispatch<T>(
         &self,
         operation: OperationId,
         is_step_export: bool,
@@ -91,7 +91,7 @@ impl ArchiveExportOptions {
     }
 }
 
-pub(crate) fn archive_filename(accepted_project_name: &str) -> String {
+pub fn archive_filename(accepted_project_name: &str) -> String {
     format!("{accepted_project_name}.boardstudio")
 }
 

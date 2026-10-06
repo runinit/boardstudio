@@ -1,18 +1,18 @@
+// The page's non-UI layer lives in `boardstudio-web-runtime`; re-export its modules at
+// the crate root so presentation code keeps addressing them as `crate::<module>`.
 #[cfg(feature = "page")]
-mod archive_export;
-#[cfg(feature = "page")]
-mod bundled_models;
-#[cfg(feature = "page")]
-mod case_generation_lifecycle;
-#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
-mod case_model_lifecycle;
+#[allow(unused_imports)]
+use boardstudio_web_runtime::{
+    archive_export, bundled_models, case_generation_lifecycle, case_model_lifecycle, case_preview,
+    firmware_position_projection, layout_viewer_source, model_delivery, operation_outcomes,
+    parts_preview, pcb_wiring_mode_operation, portable_archive, runtime,
+};
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
-mod export_footprints;
+use boardstudio_web_runtime::{case_gesture_preview, renderer_host_page};
+
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 #[path = "macro_accessible_names.rs"]
 mod macro_accessible_names;
-#[cfg(all(target_arch = "wasm32", feature = "page"))]
-mod pcb_handoff;
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod setup_guide_state;
 
@@ -32,51 +32,25 @@ mod parts_new_component;
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod parts_view_generation;
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
-mod pcb_wiring_mode_operation;
-#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod pcb_wiring_remap_operation;
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod physical_setup;
-#[cfg(feature = "page")]
-mod portable_archive;
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 mod presentation;
-#[cfg(all(target_arch = "wasm32", feature = "page"))]
-mod renderer_host_page;
-#[cfg(all(target_arch = "wasm32", feature = "page"))]
-mod runtime;
-#[cfg(all(feature = "page", test, not(target_arch = "wasm32")))]
-#[path = "runtime_test_stub.rs"]
-mod runtime;
-
-#[cfg(all(target_arch = "wasm32", feature = "page"))]
-mod firmware_request_adapter;
 
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 mod case_preview_lifecycle;
 
-#[cfg(all(feature = "page", target_arch = "wasm32"))]
-mod case_gesture_preview;
-#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
-mod case_preview;
-
-#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
-mod operation_outcomes;
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod parts_assembly_preset_draft;
-#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
-mod parts_preview;
 
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod case_generation_admission;
 
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod mechanical_feedback;
-
-#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
-mod firmware_position_projection;
 
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod firmware_position_choices;
@@ -90,9 +64,6 @@ mod instance_selection;
 mod footprint_forms;
 
 #[cfg(all(feature = "page", test, not(target_arch = "wasm32")))]
-mod renderer_host_source_sync;
-
-#[cfg(all(feature = "page", test, not(target_arch = "wasm32")))]
 #[path = "presentation/case_display.rs"]
 mod case_display;
 
@@ -100,14 +71,6 @@ mod case_display;
 #[path = "presentation/parts_import_footprint.rs"]
 #[allow(dead_code)]
 mod parts_import_footprint;
-
-#[cfg(all(feature = "page", test, not(target_arch = "wasm32")))]
-#[path = "presentation/model_delivery.rs"]
-mod model_delivery;
-
-#[cfg(all(feature = "page", test, not(target_arch = "wasm32")))]
-#[path = "presentation/layout_viewer_source.rs"]
-mod layout_viewer_source;
 
 #[cfg(all(feature = "page", test, not(target_arch = "wasm32")))]
 mod presentation {

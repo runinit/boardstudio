@@ -8,7 +8,7 @@ use serde_json::Value;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::wasm_bindgen_test;
 
-#[path = "../../core/tests/support/boundary.rs"]
+#[path = "../../../../core/tests/support/boundary.rs"]
 mod boundary;
 
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
@@ -36,7 +36,7 @@ fn wasm_exports_reproduce_the_native_transcript() {
         },
     );
     let golden: Value = serde_json::from_str(include_str!(
-        "../../core/tests/fixtures/boundary/transcript.json"
+        "../../../../core/tests/fixtures/boundary/transcript.json"
     ))
     .unwrap();
     boundary::assert_golden(&transcript, &golden);

@@ -5,17 +5,17 @@ use std::{
     rc::Rc,
 };
 
-pub(crate) struct Runtime {
-    pub(crate) model: RefCell<ReadModel>,
+pub struct Runtime {
+    pub model: RefCell<ReadModel>,
     scope: RefCell<Option<Scope>>,
     executor_epoch: Cell<u64>,
     next_operation: Cell<u64>,
-    pub(crate) events: RefCell<Vec<Event>>,
-    pub(crate) outcomes: crate::operation_outcomes::OperationOutcomes,
+    pub events: RefCell<Vec<Event>>,
+    pub outcomes: crate::operation_outcomes::OperationOutcomes,
 }
 
 impl Runtime {
-    pub(crate) fn new(model: ReadModel, scope: Scope) -> Rc<Self> {
+    pub fn new(model: ReadModel, scope: Scope) -> Rc<Self> {
         Rc::new(Self {
             model: RefCell::new(model),
             scope: RefCell::new(Some(scope)),
@@ -26,40 +26,40 @@ impl Runtime {
         })
     }
 
-    pub(crate) fn model(&self) -> ReadModel {
+    pub fn model(&self) -> ReadModel {
         self.model.borrow().clone()
     }
 
-    pub(crate) fn scope(&self) -> Option<Scope> {
+    pub fn scope(&self) -> Option<Scope> {
         self.scope.borrow().clone()
     }
 
-    pub(crate) fn set_scope(&self, scope: Option<Scope>) {
+    pub fn set_scope(&self, scope: Option<Scope>) {
         *self.scope.borrow_mut() = scope;
     }
 
-    pub(crate) fn electrical_preview_executor_epoch(&self) -> u64 {
+    pub fn electrical_preview_executor_epoch(&self) -> u64 {
         self.executor_epoch.get()
     }
 
-    pub(crate) fn operation(&self) -> OperationId {
+    pub fn operation(&self) -> OperationId {
         let next = self.next_operation.get();
         self.next_operation.set(next + 1);
         OperationId(next)
     }
 
-    pub(crate) fn observe_operation(
+    pub fn observe_operation(
         &self,
         operation: OperationId,
     ) -> crate::operation_outcomes::OutcomeSlot {
         self.outcomes.observe(operation)
     }
 
-    pub(crate) fn submit(&self, event: Event) {
+    pub fn submit(&self, event: Event) {
         self.events.borrow_mut().push(event);
     }
 
-    pub(crate) fn settle(&self, operation: OperationId, outcome: TerminalOutcome) -> bool {
+    pub fn settle(&self, operation: OperationId, outcome: TerminalOutcome) -> bool {
         self.outcomes.settle(operation, outcome)
     }
 }

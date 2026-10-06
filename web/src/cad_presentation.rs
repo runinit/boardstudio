@@ -67,7 +67,7 @@ pub fn CasePanel(
         GenerationStatus::Preparing { .. } | GenerationStatus::Running { .. }
     );
     let mechanical_export_configured = current_scope.as_ref().is_some_and(|scope| {
-        boardstudio_web::cad_jobs::captured_case_document(snapshot, scope)
+        boardstudio_web_host::cad_jobs::captured_case_document(snapshot, scope)
             .ok()
             .and_then(|document| {
                 document
@@ -322,7 +322,7 @@ mod mounted_tests {
             crate::runtime::firmware_export_test_support::opened_session();
         let mut document = (*opened.document).clone();
         document.mechanical = Some(
-            boardstudio_web::case_settings::initial_settings(&document, &scope.board_id)
+            boardstudio_web_host::case_settings::initial_settings(&document, &scope.board_id)
                 .expect("test board has initial mechanical settings"),
         );
         let mut delta = (*opened.scene).clone();
@@ -374,7 +374,7 @@ mod mounted_tests {
             scope: scope.clone(),
             token: accepted.token,
             snapshot: accepted.clone(),
-            result: boardstudio_web::cad_jobs::CadResult {
+            result: boardstudio_web_host::cad_jobs::CadResult {
                 revision: accepted.document.revision,
                 ..Default::default()
             },

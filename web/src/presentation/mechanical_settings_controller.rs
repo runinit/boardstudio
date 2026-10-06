@@ -443,7 +443,7 @@ impl MechanicalSettingsController {
                 } else {
                     base_document
                 };
-                Some(boardstudio_web::case_settings::initial_settings(
+                Some(boardstudio_web_host::case_settings::initial_settings(
                     defaults_document,
                     &request.identity.active_board_id,
                 )?)
@@ -843,7 +843,7 @@ fn persist_configuration(
     configuration: Option<MechanicalConfiguration>,
 ) -> Result<ProjectDoc, String> {
     if let Some(instance_id) = instance_id {
-        boardstudio_web::case_settings::update_instance_settings(
+        boardstudio_web_host::case_settings::update_instance_settings(
             document,
             instance_id,
             configuration,

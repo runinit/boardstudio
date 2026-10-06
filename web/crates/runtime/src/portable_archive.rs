@@ -2,12 +2,12 @@ use boardstudio_core::model::{Asset, ProjectDoc};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-pub(crate) struct PreparedArchive {
-    pub(crate) metadata: String,
-    pub(crate) buffers: Vec<Vec<u8>>,
+pub struct PreparedArchive {
+    pub metadata: String,
+    pub buffers: Vec<Vec<u8>>,
 }
 
-pub(crate) fn prepare_archive(
+pub fn prepare_archive(
     document: &ProjectDoc,
     local_asset_bytes: &BTreeMap<String, Vec<u8>>,
     bundled_bytes: Vec<(&'static crate::bundled_models::BundledModel, Vec<u8>)>,
@@ -107,7 +107,7 @@ fn hex_digest(bytes: &[u8]) -> String {
 /// Generated IDs already owned by the document use its local assets; other
 /// generated IDs are validated strictly. Saved metadata keeps
 /// React's behavior of including only IDs present in its bundled catalogue.
-pub(crate) fn referenced_models(
+pub fn referenced_models(
     document: &ProjectDoc,
     generated_ids: impl IntoIterator<Item = String>,
 ) -> Result<Vec<&'static crate::bundled_models::BundledModel>, String> {

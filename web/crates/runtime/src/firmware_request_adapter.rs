@@ -12,7 +12,7 @@ use boardstudio_core::{
     model::{HardwareTransport, ProjectDoc},
 };
 
-pub(crate) fn firmware_request(
+pub fn firmware_request(
     document: &ProjectDoc,
     plan: &ElectricalPlan,
     peripheral_plan: Option<&ElectricalPlan>,

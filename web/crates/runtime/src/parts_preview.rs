@@ -13,31 +13,31 @@ use boardstudio_core::model::{
 use std::{cell::Cell, collections::BTreeMap, rc::Rc, sync::Arc};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct PartsPreviewOwnerIdentity {
-    pub(crate) scope: Scope,
-    pub(crate) snapshot_token: SnapshotToken,
-    pub(crate) accepted_revision: u64,
-    pub(crate) accepted_document_identity: usize,
-    pub(crate) definition_id: String,
-    pub(crate) recipe_identity: String,
-    pub(crate) source_generation: u64,
-    pub(crate) request_token: String,
+pub struct PartsPreviewOwnerIdentity {
+    pub scope: Scope,
+    pub snapshot_token: SnapshotToken,
+    pub accepted_revision: u64,
+    pub accepted_document_identity: usize,
+    pub definition_id: String,
+    pub recipe_identity: String,
+    pub source_generation: u64,
+    pub request_token: String,
 }
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
-pub(crate) struct PartsPreviewRecipeMember {
-    pub(crate) id: String,
-    pub(crate) definition: PartDefinition,
+pub struct PartsPreviewRecipeMember {
+    pub id: String,
+    pub definition: PartDefinition,
     #[serde(default)]
-    pub(crate) assets: Vec<Asset>,
-    pub(crate) at: Vec2,
-    pub(crate) rotation: f64,
-    pub(crate) side: Side,
-    pub(crate) generator_parameters: BTreeMap<String, serde_json::Value>,
+    pub assets: Vec<Asset>,
+    pub at: Vec2,
+    pub rotation: f64,
+    pub side: Side,
+    pub generator_parameters: BTreeMap<String, serde_json::Value>,
 }
 
 #[derive(Debug)]
-pub(crate) struct PartsPreviewOwnerLease {
+pub struct PartsPreviewOwnerLease {
     active: Cell<bool>,
     identity: PartsPreviewOwnerIdentity,
 }
@@ -50,48 +50,48 @@ impl PartsPreviewOwnerLease {
         })
     }
 
-    pub(crate) fn is_active(&self) -> bool {
+    pub fn is_active(&self) -> bool {
         self.active.get()
     }
 
-    pub(crate) fn matches(&self, identity: &PartsPreviewOwnerIdentity) -> bool {
+    pub fn matches(&self, identity: &PartsPreviewOwnerIdentity) -> bool {
         self.is_active() && self.identity == *identity
     }
 
-    pub(crate) fn invalidate(&self) {
+    pub fn invalidate(&self) {
         self.active.set(false);
     }
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct PartsPreviewCapture {
-    pub(crate) owner: PartsPreviewOwnerIdentity,
-    pub(crate) lease: Rc<PartsPreviewOwnerLease>,
-    pub(crate) sample_document: ProjectDoc,
-    pub(crate) contours: Vec<Contour>,
-    pub(crate) path_assets: BTreeMap<String, String>,
-    pub(crate) request: PrepareExportRequest,
-    pub(crate) sample_scope: Scope,
+pub struct PartsPreviewCapture {
+    pub owner: PartsPreviewOwnerIdentity,
+    pub lease: Rc<PartsPreviewOwnerLease>,
+    pub sample_document: ProjectDoc,
+    pub contours: Vec<Contour>,
+    pub path_assets: BTreeMap<String, String>,
+    pub request: PrepareExportRequest,
+    pub sample_scope: Scope,
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct PartsPreviewSnapshot {
-    pub(crate) owner: PartsPreviewOwnerIdentity,
-    pub(crate) lease: Rc<PartsPreviewOwnerLease>,
-    pub(crate) sample_document: ProjectDoc,
-    pub(crate) contours: Vec<Contour>,
-    pub(crate) preview: boardstudio_core::model::PcbPreview,
-    pub(crate) model_rows: Option<crate::presentation::model_delivery::ModelDeliveryRows>,
+pub struct PartsPreviewSnapshot {
+    pub owner: PartsPreviewOwnerIdentity,
+    pub lease: Rc<PartsPreviewOwnerLease>,
+    pub sample_document: ProjectDoc,
+    pub contours: Vec<Contour>,
+    pub preview: boardstudio_core::model::PcbPreview,
+    pub model_rows: Option<crate::model_delivery::ModelDeliveryRows>,
 }
 
 #[derive(Default)]
-pub(crate) struct PartsPreviewLeaseSlot {
+pub struct PartsPreviewLeaseSlot {
     current: std::cell::RefCell<Option<Rc<PartsPreviewOwnerLease>>>,
     active_generation: Cell<u64>,
 }
 
 impl PartsPreviewLeaseSlot {
-    pub(crate) fn select_generation(&self, generation: u64) {
+    pub fn select_generation(&self, generation: u64) {
         self.active_generation.set(generation);
         let obsolete = self
             .current
@@ -103,7 +103,7 @@ impl PartsPreviewLeaseSlot {
         }
     }
 
-    pub(crate) fn replace(&self, lease: Rc<PartsPreviewOwnerLease>) {
+    pub fn replace(&self, lease: Rc<PartsPreviewOwnerLease>) {
         if lease.identity.source_generation != self.active_generation.get() {
             lease.invalidate();
             return;
@@ -113,7 +113,7 @@ impl PartsPreviewLeaseSlot {
         }
     }
 
-    pub(crate) fn invalidate_generation(&self, generation: u64) {
+    pub fn invalidate_generation(&self, generation: u64) {
         let matches = self
             .current
             .borrow()
@@ -124,7 +124,7 @@ impl PartsPreviewLeaseSlot {
         }
     }
 
-    pub(crate) fn invalidate(&self) {
+    pub fn invalidate(&self) {
         if let Some(current) = self.current.borrow_mut().take() {
             current.invalidate();
         }
@@ -202,7 +202,7 @@ impl PartialEq for PartsPreviewSnapshot {
 impl Eq for PartsPreviewSnapshot {}
 
 impl PartsPreviewCapture {
-    pub(crate) fn capture(
+    pub fn capture(
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
         source_generation: u64,
@@ -332,10 +332,10 @@ impl PartsPreviewCapture {
         })
     }
 
-    pub(crate) fn accept_preview(
+    pub fn accept_preview(
         self,
         preview: boardstudio_core::model::PcbPreview,
-        model_rows: Option<crate::presentation::model_delivery::ModelDeliveryRows>,
+        model_rows: Option<crate::model_delivery::ModelDeliveryRows>,
     ) -> Result<PartsPreviewSnapshot, String> {
         if preview.revision != self.owner.accepted_revision
             || self.request.expected_revision != self.sample_document.revision

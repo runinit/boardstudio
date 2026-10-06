@@ -1,26 +1,26 @@
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct BundledModel {
-    pub(crate) id: &'static str,
-    pub(crate) filename: &'static str,
-    pub(crate) media_type: &'static str,
-    pub(crate) source_relative_path: &'static str,
-    pub(crate) url_path: &'static str,
-    pub(crate) sha256: &'static str,
+pub struct BundledModel {
+    pub id: &'static str,
+    pub filename: &'static str,
+    pub media_type: &'static str,
+    pub source_relative_path: &'static str,
+    pub url_path: &'static str,
+    pub sha256: &'static str,
 }
 
 include!(concat!(env!("OUT_DIR"), "/bundled_ergogen_models.rs"));
 
-pub(crate) fn bundled_model(id: &str) -> Option<&'static BundledModel> {
+pub fn bundled_model(id: &str) -> Option<&'static BundledModel> {
     BUNDLED_MODELS.iter().find(|model| model.id == id)
 }
 
-pub(crate) fn preview_model_paths() -> impl Iterator<Item = (&'static str, &'static str)> {
+pub fn preview_model_paths() -> impl Iterator<Item = (&'static str, &'static str)> {
     BUNDLED_MODELS
         .iter()
         .map(|model| (model.id, model.url_path))
 }
 
-pub(crate) async fn is_generator_source(source: &str) -> Result<bool, String> {
+pub async fn is_generator_source(source: &str) -> Result<bool, String> {
     Ok(boardstudio_core::generators::is_generator(source))
 }
 
@@ -60,7 +60,7 @@ fn supported_generator(definition: &boardstudio_core::model::PartDefinition) -> 
 }
 
 /// Model assets rendered by every generator-backed part and assembly member of a document.
-pub(crate) async fn generated_model_ids(
+pub async fn generated_model_ids(
     document: &boardstudio_core::model::ProjectDoc,
 ) -> Result<Vec<String>, String> {
     use boardstudio_core::generators::model_asset_ids;
@@ -126,7 +126,7 @@ pub(crate) async fn generated_model_ids(
 /// Resolves model assets used by every standalone footprint definition. Like the reference
 /// `modelFiles`, an unused definition is resolved with a default standalone part, while
 /// definitions with instances resolve once per part.
-pub(crate) async fn footprint_export_model_ids(
+pub async fn footprint_export_model_ids(
     document: &boardstudio_core::model::ProjectDoc,
 ) -> Result<Vec<String>, String> {
     use boardstudio_core::generators::model_asset_ids;
@@ -176,7 +176,7 @@ pub(crate) async fn footprint_export_model_ids(
 
 /// Resolve the generator-authored model bindings. Assembly authoring calls this when a
 /// designer chooses to edit model defaults for a generated component.
-pub(crate) async fn model_bindings(
+pub async fn model_bindings(
     definition: &boardstudio_core::model::PartDefinition,
     part: &boardstudio_core::model::Part,
 ) -> Result<Vec<boardstudio_core::model::PartModel>, String> {
@@ -186,7 +186,7 @@ pub(crate) async fn model_bindings(
     boardstudio_core::generators::model_bindings(definition, Some(part))
 }
 
-pub(crate) async fn generated_model_asset_ids_for_paths(
+pub async fn generated_model_asset_ids_for_paths(
     paths: &[String],
 ) -> Result<Vec<Option<String>>, String> {
     Ok(boardstudio_core::generators::model_asset_ids_for_paths(
@@ -194,8 +194,8 @@ pub(crate) async fn generated_model_asset_ids_for_paths(
     ))
 }
 
-#[cfg(all(target_arch = "wasm32", feature = "page"))]
-pub(crate) async fn bundled_model_bytes(id: &str) -> Result<Vec<u8>, String> {
+#[cfg(target_arch = "wasm32")]
+pub async fn bundled_model_bytes(id: &str) -> Result<Vec<u8>, String> {
     use js_sys::Uint8Array;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_futures::JsFuture;
@@ -266,7 +266,7 @@ mod tests {
     #[test]
     fn catalogue_digest_matches_the_exact_staged_vendor_source_file() {
         let vendor_root =
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../ergogen/library/vendor");
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../ergogen/library/vendor");
         for model in BUNDLED_MODELS {
             let bytes = std::fs::read(vendor_root.join(model.source_relative_path))
                 .expect("catalogue source file is available");

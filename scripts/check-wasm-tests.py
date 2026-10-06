@@ -208,6 +208,7 @@ def _trees(root):
     root = Path(root).resolve()
     src = root / "web/src"
     roots = [src / "main.rs", src / "lib.rs"]
+    roots += sorted((root / "web/crates").glob("*/src/lib.rs"))
     roots += sorted((root / "web/tests").glob("*.rs"))
     roots += sorted((root / "web/examples").glob("*.rs"))
     roots = [path.resolve() for path in roots if path.is_file()]

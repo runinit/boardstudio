@@ -9,7 +9,7 @@ use boardstudio_core::model::{
     ArtifactRequest, Asset, BoardReference, ExportTarget, PcbPreview, PrepareExportRequest,
     ProjectDoc,
 };
-use boardstudio_web::cad_jobs::{captured_case_document, captured_case_scene};
+use boardstudio_web_host::cad_jobs::{captured_case_document, captured_case_scene};
 use std::{
     cell::Cell,
     collections::{BTreeMap, BTreeSet},
@@ -17,21 +17,21 @@ use std::{
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct CasePreviewOwnerIdentity {
-    pub(crate) scope: Scope,
-    pub(crate) snapshot_token: SnapshotToken,
-    pub(crate) accepted_revision: u64,
-    pub(crate) accepted_scene_identity: usize,
-    pub(crate) viewer_instance: u64,
-    pub(crate) projection_generation: u64,
-    pub(crate) batch_generation: u64,
-    pub(crate) core_executor_epoch: u64,
-    pub(crate) core_worker_identity: usize,
-    pub(crate) request_token: String,
+pub struct CasePreviewOwnerIdentity {
+    pub scope: Scope,
+    pub snapshot_token: SnapshotToken,
+    pub accepted_revision: u64,
+    pub accepted_scene_identity: usize,
+    pub viewer_instance: u64,
+    pub projection_generation: u64,
+    pub batch_generation: u64,
+    pub core_executor_epoch: u64,
+    pub core_worker_identity: usize,
+    pub request_token: String,
 }
 
 impl CasePreviewOwnerIdentity {
-    pub(crate) fn capture(
+    pub fn capture(
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
         projection_generation: u64,
@@ -56,7 +56,7 @@ impl CasePreviewOwnerIdentity {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) enum CasePreviewRequest {
+pub enum CasePreviewRequest {
     Authored(Box<PrepareExportRequest>),
     Imported {
         reference: BoardReference,
@@ -68,7 +68,7 @@ pub(crate) enum CasePreviewRequest {
 /// Model deliveries retain only a weak handle and are invalid when the accepted
 /// Case source is superseded or its preview owner is replaced.
 #[derive(Debug)]
-pub(crate) struct CasePreviewOwnerLease {
+pub struct CasePreviewOwnerLease {
     active: Cell<bool>,
     identity: CasePreviewOwnerIdentity,
 }
@@ -81,15 +81,15 @@ impl CasePreviewOwnerLease {
         })
     }
 
-    pub(crate) fn is_active(&self) -> bool {
+    pub fn is_active(&self) -> bool {
         self.active.get()
     }
 
-    pub(crate) fn matches(&self, identity: &CasePreviewOwnerIdentity) -> bool {
+    pub fn matches(&self, identity: &CasePreviewOwnerIdentity) -> bool {
         self.is_active() && self.identity == *identity
     }
 
-    pub(crate) fn identity_matches(
+    pub fn identity_matches(
         &self,
         scope: &Scope,
         token: SnapshotToken,
@@ -103,23 +103,23 @@ impl CasePreviewOwnerLease {
             && self.identity.projection_generation == projection_generation
     }
 
-    pub(crate) fn invalidate(&self) {
+    pub fn invalidate(&self) {
         self.active.set(false);
     }
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct NativePreviewCapture {
-    pub(crate) owner: CasePreviewOwnerIdentity,
-    pub(crate) lease: Rc<CasePreviewOwnerLease>,
-    pub(crate) document: ProjectDoc,
-    pub(crate) contours: Vec<boardstudio_core::model::Contour>,
-    pub(crate) path_assets: BTreeMap<String, String>,
-    pub(crate) request: CasePreviewRequest,
+pub struct NativePreviewCapture {
+    pub owner: CasePreviewOwnerIdentity,
+    pub lease: Rc<CasePreviewOwnerLease>,
+    pub document: ProjectDoc,
+    pub contours: Vec<boardstudio_core::model::Contour>,
+    pub path_assets: BTreeMap<String, String>,
+    pub request: CasePreviewRequest,
 }
 
 impl NativePreviewCapture {
-    pub(crate) fn imported_artifact_request(
+    pub fn imported_artifact_request(
         &self,
         id: String,
         source: String,
@@ -141,14 +141,14 @@ impl NativePreviewCapture {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct NativePreviewSnapshot {
-    pub(crate) owner: CasePreviewOwnerIdentity,
-    pub(crate) lease: Rc<CasePreviewOwnerLease>,
-    pub(crate) accepted_document: ProjectDoc,
-    pub(crate) contours: Vec<boardstudio_core::model::Contour>,
-    pub(crate) path_assets: BTreeMap<String, String>,
-    pub(crate) preview: PcbPreview,
-    pub(crate) board_reference: Option<BoardReference>,
+pub struct NativePreviewSnapshot {
+    pub owner: CasePreviewOwnerIdentity,
+    pub lease: Rc<CasePreviewOwnerLease>,
+    pub accepted_document: ProjectDoc,
+    pub contours: Vec<boardstudio_core::model::Contour>,
+    pub path_assets: BTreeMap<String, String>,
+    pub preview: PcbPreview,
+    pub board_reference: Option<BoardReference>,
 }
 
 impl PartialEq for NativePreviewSnapshot {
@@ -162,7 +162,7 @@ impl Eq for NativePreviewSnapshot {}
 /// Resolve a renderer-picked preview reference to the unique Part on the
 /// preview's accepted board. Decoded mesh ownership stays keyed by model ID;
 /// the renderer emits its model reference for picks.
-pub(crate) fn part_for_native_preview_reference(
+pub fn part_for_native_preview_reference(
     document: &ProjectDoc,
     board_id: &str,
     preview: &PcbPreview,
@@ -190,7 +190,7 @@ pub(crate) fn part_for_native_preview_reference(
 /// native-preview pick to an accepted board Part. `model_reference` is the
 /// renderer pick ID; renderer-sequence freshness is checked by its scoped
 /// signal owner and is a distinct identity domain from the producer lease.
-pub(crate) fn native_preview_pick_part_id(
+pub fn native_preview_pick_part_id(
     preview: &NativePreviewSnapshot,
     scope: &Scope,
     snapshot_token: SnapshotToken,
@@ -385,15 +385,15 @@ mod native_preview_pick_tests {
 
 /// One owner for pending, accepted and failed native preview state.
 #[derive(Default)]
-pub(crate) struct NativePreviewState {
-    pub(crate) published: Option<Rc<NativePreviewSnapshot>>,
-    pub(crate) pending: Option<(CasePreviewOwnerIdentity, Rc<CasePreviewOwnerLease>)>,
-    pub(crate) error: Option<(CasePreviewOwnerIdentity, String)>,
-    pub(crate) generation: u64,
+pub struct NativePreviewState {
+    pub published: Option<Rc<NativePreviewSnapshot>>,
+    pub pending: Option<(CasePreviewOwnerIdentity, Rc<CasePreviewOwnerLease>)>,
+    pub error: Option<(CasePreviewOwnerIdentity, String)>,
+    pub generation: u64,
 }
 
 impl NativePreviewState {
-    pub(crate) fn begin(
+    pub fn begin(
         &mut self,
         owner: CasePreviewOwnerIdentity,
         lease: Rc<CasePreviewOwnerLease>,
@@ -402,7 +402,7 @@ impl NativePreviewState {
         self.pending = Some((owner, lease));
     }
 
-    pub(crate) fn owns(&self, owner: &CasePreviewOwnerIdentity) -> bool {
+    pub fn owns(&self, owner: &CasePreviewOwnerIdentity) -> bool {
         self.published
             .as_ref()
             .is_some_and(|preview| preview.lease.matches(owner))
@@ -412,7 +412,7 @@ impl NativePreviewState {
                 .is_some_and(|(pending, lease)| pending == owner && lease.matches(owner))
     }
 
-    pub(crate) fn is_stale(&self, is_current: impl Fn(&CasePreviewOwnerIdentity) -> bool) -> bool {
+    pub fn is_stale(&self, is_current: impl Fn(&CasePreviewOwnerIdentity) -> bool) -> bool {
         self.published
             .as_ref()
             .is_some_and(|preview| !is_current(&preview.owner))
@@ -426,7 +426,7 @@ impl NativePreviewState {
                 .is_some_and(|(owner, _)| !is_current(owner))
     }
 
-    pub(crate) fn cancel(&mut self) {
+    pub fn cancel(&mut self) {
         self.retire_leases();
         self.generation = self.generation.saturating_add(1);
     }
@@ -441,7 +441,7 @@ impl NativePreviewState {
         self.error.take();
     }
 
-    pub(crate) fn publish(&mut self, preview: NativePreviewSnapshot) -> Result<(), String> {
+    pub fn publish(&mut self, preview: NativePreviewSnapshot) -> Result<(), String> {
         if !self.pending.as_ref().is_some_and(|(owner, lease)| {
             owner == &preview.owner && lease.matches(owner) && Rc::ptr_eq(lease, &preview.lease)
         }) || self.generation != preview.owner.projection_generation
@@ -459,7 +459,7 @@ impl NativePreviewState {
 
 /// Capture the physical document and contours used by the native preview from
 /// the accepted source projection before mechanical Case preparation/CAD.
-pub(crate) fn capture_native_preview(
+pub fn capture_native_preview(
     snapshot: &AcceptedSnapshot,
     scope: &Scope,
     projection_generation: u64,
@@ -554,7 +554,7 @@ pub(crate) fn capture_native_preview(
     })
 }
 
-pub(crate) fn accept_native_preview(
+pub fn accept_native_preview(
     capture: NativePreviewCapture,
     preview: PcbPreview,
 ) -> Result<NativePreviewSnapshot, String> {
@@ -593,7 +593,7 @@ pub(crate) fn accept_native_preview(
     })
 }
 
-pub(crate) fn same_core_executor(
+pub fn same_core_executor(
     captured_epoch: u64,
     current_epoch: u64,
     captured_worker_identity: usize,
@@ -615,7 +615,7 @@ fn model_extension(filename: &str) -> Option<&'static str> {
 /// Build the existing export-relative path table for preview model resolution.
 /// Layout and Case share this metadata rule; their accepted source projections
 /// and freshness owners remain separate.
-pub(crate) fn preview_model_paths(document: &ProjectDoc) -> BTreeMap<String, String> {
+pub fn preview_model_paths(document: &ProjectDoc) -> BTreeMap<String, String> {
     let mut path_assets = document
         .assets
         .iter()

@@ -6,17 +6,17 @@ use std::{
     rc::{Rc, Weak},
 };
 
-pub(crate) type OutcomeSlot = Rc<RefCell<Option<TerminalOutcome>>>;
+pub type OutcomeSlot = Rc<RefCell<Option<TerminalOutcome>>>;
 
 #[derive(Default)]
-pub(crate) struct OperationOutcomes {
+pub struct OperationOutcomes {
     waiting: RefCell<BTreeMap<OperationId, Weak<RefCell<Option<TerminalOutcome>>>>>,
 }
 
 impl OperationOutcomes {
     /// Observe a fresh operation before submitting it. Dropping the slot ends
     /// observation without cancelling the authoritative Session operation.
-    pub(crate) fn observe(&self, operation: OperationId) -> OutcomeSlot {
+    pub fn observe(&self, operation: OperationId) -> OutcomeSlot {
         let mut waiting = self.waiting.borrow_mut();
         waiting.retain(|_, slot| slot.strong_count() != 0);
         if let Some(slot) = waiting.get(&operation).and_then(Weak::upgrade) {
@@ -27,7 +27,7 @@ impl OperationOutcomes {
         slot
     }
 
-    pub(crate) fn settle(&self, operation: OperationId, outcome: TerminalOutcome) -> bool {
+    pub fn settle(&self, operation: OperationId, outcome: TerminalOutcome) -> bool {
         let slot = self
             .waiting
             .borrow_mut()

@@ -12,7 +12,7 @@ use crate::case_preview::NativePreviewSnapshot;
 use crate::renderer_host_page::RendererPageHost;
 use crate::runtime::CadScene;
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_web::cad_jobs::captured_case_document;
+use boardstudio_web_host::cad_jobs::captured_case_document;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use js_sys::{Array, Float32Array, Object, Reflect};
@@ -3552,7 +3552,7 @@ mod tests {
             scope: viewer.scope.clone(),
             token: accepted.token,
             snapshot: accepted,
-            result: boardstudio_web::cad_jobs::CadResult {
+            result: boardstudio_web_host::cad_jobs::CadResult {
                 revision: viewer.revision,
                 ..Default::default()
             },
@@ -3785,7 +3785,7 @@ mod tests {
                     },
                 }),
             },
-            result: boardstudio_web::cad_jobs::CadResult::default(),
+            result: boardstudio_web_host::cad_jobs::CadResult::default(),
             prepared: PreparedCaseAssemblyIR {
                 revision: identity.revision,
                 bodies: vec![],

@@ -30,7 +30,7 @@ async fn renderer_module() -> Result<JsValue, String> {
 async fn decode_model(
     name: &str,
     bytes: &[u8],
-) -> Result<crate::presentation::model_delivery::MeshArrays, String> {
+) -> Result<crate::model_delivery::MeshArrays, String> {
     let module = renderer_module().await?;
     let decoder = Reflect::get(&module, &JsValue::from_str(name))
         .map_err(js_error)?
@@ -61,34 +61,34 @@ async fn decode_model(
                 .to_vec(),
         )
     };
-    Ok(crate::presentation::model_delivery::MeshArrays {
+    Ok(crate::model_delivery::MeshArrays {
         positions,
         normals,
         colors,
     })
 }
 
-pub(crate) async fn decode_stl(
+pub async fn decode_stl(
     bytes: Vec<u8>,
-) -> Result<crate::presentation::model_delivery::MeshArrays, String> {
+) -> Result<crate::model_delivery::MeshArrays, String> {
     decode_model("decodeStl", &bytes).await
 }
 
-pub(crate) async fn decode_wrl(
+pub async fn decode_wrl(
     bytes: Vec<u8>,
-) -> Result<crate::presentation::model_delivery::MeshArrays, String> {
+) -> Result<crate::model_delivery::MeshArrays, String> {
     decode_model("decodeWrl", &bytes).await
 }
 
 /// Binary-only renderer handle. The reusable library host stays unchanged;
 /// this wrapper submits the current Case full-scene input with checked sequence identity.
-pub(crate) struct RendererPageHost {
+pub struct RendererPageHost {
     host: RendererHost,
     last_sequence: Cell<u64>,
 }
 
 impl RendererPageHost {
-    pub(crate) async fn mount(
+    pub async fn mount(
         canvas: HtmlCanvasElement,
         input: JsValue,
         sequence: u64,
@@ -108,11 +108,11 @@ impl RendererPageHost {
         Ok((page_host, accepted))
     }
 
-    pub(crate) fn dispose(&self) -> Result<(), String> {
+    pub fn dispose(&self) -> Result<(), String> {
         self.host.dispose()
     }
 
-    pub(crate) fn submit_scene(&self, input: JsValue, sequence: u64) -> Result<bool, String> {
+    pub fn submit_scene(&self, input: JsValue, sequence: u64) -> Result<bool, String> {
         self.ensure_active()?;
         if sequence <= self.last_sequence.get() {
             return Err("Renderer scene sequence must increase".to_owned());
@@ -129,13 +129,13 @@ impl RendererPageHost {
         Ok(accepted)
     }
 
-    pub(crate) fn set_display_state(&self, state: JsValue) -> Result<(), String> {
+    pub fn set_display_state(&self, state: JsValue) -> Result<(), String> {
         self.ensure_active()?;
         call_method(&self.host.inner.renderer, "setState", &[state]).map_err(js_error)?;
         schedule_frame(&self.host.inner).map_err(js_error)
     }
 
-    pub(crate) fn set_handles(&self, handles: JsValue) -> Result<u32, String> {
+    pub fn set_handles(&self, handles: JsValue) -> Result<u32, String> {
         self.ensure_active()?;
         let count = call_method(&self.host.inner.renderer, "setHandles", &[handles])
             .map_err(js_error)?
@@ -148,7 +148,7 @@ impl RendererPageHost {
         Ok(count as u32)
     }
 
-    pub(crate) fn pick_at_client(
+    pub fn pick_at_client(
         &self,
         client_x: f64,
         client_y: f64,
@@ -166,7 +166,7 @@ impl RendererPageHost {
             .ok_or_else(|| "Renderer returned a non-string pick result".to_owned())
     }
 
-    pub(crate) fn point_on_plane_at_client(
+    pub fn point_on_plane_at_client(
         &self,
         client_x: f64,
         client_y: f64,
@@ -201,23 +201,23 @@ impl RendererPageHost {
         }
     }
 
-    pub(crate) fn orbit(&self, delta_x: f64, delta_y: f64) -> Result<(), String> {
+    pub fn orbit(&self, delta_x: f64, delta_y: f64) -> Result<(), String> {
         self.host.orbit(delta_x, delta_y)
     }
 
-    pub(crate) fn zoom(&self, factor: f64) -> Result<(), String> {
+    pub fn zoom(&self, factor: f64) -> Result<(), String> {
         self.host.zoom(factor)
     }
 
-    pub(crate) fn view(&self, preset: &str) -> Result<(), String> {
+    pub fn view(&self, preset: &str) -> Result<(), String> {
         self.host.view(preset)
     }
 
-    pub(crate) fn fit(&self) -> Result<(), String> {
+    pub fn fit(&self) -> Result<(), String> {
         self.host.fit()
     }
 
-    pub(crate) fn focus_objects(&self, ids: &[String]) -> Result<bool, String> {
+    pub fn focus_objects(&self, ids: &[String]) -> Result<bool, String> {
         self.ensure_active()?;
         let values = Array::new();
         for id in ids {

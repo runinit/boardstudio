@@ -1002,7 +1002,7 @@ fn commit_project_name(
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]
-type ProjectListTestResult = Result<Vec<ProjectDoc>, boardstudio_web::host::PersistError>;
+type ProjectListTestResult = Result<Vec<ProjectDoc>, boardstudio_web_host::host::PersistError>;
 
 #[cfg(all(test, target_arch = "wasm32"))]
 thread_local! {
@@ -1185,7 +1185,7 @@ mod mounted_tests {
             let mut results = results.borrow_mut();
             results.clear();
             results.extend([
-                Err(boardstudio_web::host::PersistError(
+                Err(boardstudio_web_host::host::PersistError(
                     "fixture list failure".into(),
                 )),
                 Ok(vec![ProjectDoc::empty(

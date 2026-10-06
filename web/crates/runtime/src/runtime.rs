@@ -1,7 +1,7 @@
 //! Browser composition runs identified effects; the headless session remains authoritative.
 use crate::archive_export::{ArchiveExportOptions, ArchiveWorkFuture, archive_filename};
 use crate::pcb_wiring_mode_operation::electrical_preview_request;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 use boardstudio_application::GenerationStatus;
 use boardstudio_application::{
     AcceptedSnapshot, Completion, Durability, Effect, Event, JobId, Lifecycle, OperationId,
@@ -18,8 +18,8 @@ use boardstudio_core::{
         OutlineFeature, OutlineSettings, PcbPreview, PrepareExportRequest, ProjectDoc,
     },
 };
-use boardstudio_web::host::{BrowserStore, CoreWorker};
-use boardstudio_web::{
+use boardstudio_web_host::host::{BrowserStore, CoreWorker};
+use boardstudio_web_host::{
     cad_jobs::{
         CadJobError, CadOperation, CadRequest, CadResult, CadSnapshotIdentity,
         captured_case_document, captured_case_scene, prepare_captured_case,
@@ -29,16 +29,16 @@ use boardstudio_web::{
 };
 use sha2::{Digest, Sha256};
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 type CaseGesturePreviewTestExecutor = dyn Fn(AcceptedSnapshot, Scope) -> Result<CadScene, String>;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 type KeycapsPreviewTestExecutor = dyn Fn(
     KeycapsPreviewInput,
 ) -> std::pin::Pin<
     Box<
         dyn std::future::Future<
-                Output = Result<Vec<boardstudio_web::cad_jobs::CadBodyMesh>, String>,
+                Output = Result<Vec<boardstudio_web_host::cad_jobs::CadBodyMesh>, String>,
             >,
     >,
 >;
@@ -48,38 +48,38 @@ pub struct CadScene {
     pub token: SnapshotToken,
     pub snapshot: AcceptedSnapshot,
     pub result: CadResult,
-    pub(crate) prepared: boardstudio_core::model::PreparedCaseAssemblyIR,
-    pub(crate) physical_fingerprint: Option<[u8; 32]>,
+    pub prepared: boardstudio_core::model::PreparedCaseAssemblyIR,
+    pub physical_fingerprint: Option<[u8; 32]>,
     pub mechanical: Option<boardstudio_core::model::MechanicalAssembly>,
     pub exact: bool,
     pub contours: Vec<boardstudio_core::model::Contour>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct KeycapsPreviewInput {
-    pub(crate) scope: Scope,
-    pub(crate) token: SnapshotToken,
-    pub(crate) revision: u64,
-    pub(crate) specs: Vec<KeycapSpec>,
+pub struct KeycapsPreviewInput {
+    pub scope: Scope,
+    pub token: SnapshotToken,
+    pub revision: u64,
+    pub specs: Vec<KeycapSpec>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct KeycapsCadPreview {
-    pub(crate) generation: u64,
-    pub(crate) scope: Scope,
-    pub(crate) token: SnapshotToken,
-    pub(crate) revision: u64,
-    pub(crate) specs: Vec<KeycapSpec>,
-    pub(crate) bodies: Vec<boardstudio_web::cad_jobs::CadBodyMesh>,
+pub struct KeycapsCadPreview {
+    pub generation: u64,
+    pub scope: Scope,
+    pub token: SnapshotToken,
+    pub revision: u64,
+    pub specs: Vec<KeycapSpec>,
+    pub bodies: Vec<boardstudio_web_host::cad_jobs::CadBodyMesh>,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 struct ProjectNamePersistGate {
     entered: futures_channel::oneshot::Sender<()>,
     release: futures_channel::oneshot::Receiver<()>,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 struct ImportArchiveTestGate {
     entered: futures_channel::oneshot::Sender<()>,
     release: futures_channel::oneshot::Receiver<()>,
@@ -87,13 +87,13 @@ struct ImportArchiveTestGate {
     buffers: Vec<Vec<u8>>,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 struct OpenSavedLoadTestGate {
     entered: futures_channel::oneshot::Sender<()>,
     release: futures_channel::oneshot::Receiver<()>,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 enum ProjectNamePersistTestBehavior {
     Fail(String),
     Gate(ProjectNamePersistGate),
@@ -263,7 +263,7 @@ type FirmwareExecutorFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, Strin
 /// Narrow private adapter for the three awaited Core operations in a firmware export. Keeping
 /// the await points behind this interface lets lifecycle tests replace the worker while a real
 /// production export is suspended, without adding a second provider or changing Core's API.
-pub(crate) trait FirmwareExportExecutor {
+pub trait FirmwareExportExecutor {
     fn request<'a>(
         &'a self,
         request_id: &'a str,
@@ -364,7 +364,7 @@ struct FirmwareAcceptedIdentity {
     scene_revision: u64,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 struct FirmwareExportTestContext {
     accepted: AcceptedSnapshot,
     scope: Option<Scope>,
@@ -372,12 +372,12 @@ struct FirmwareExportTestContext {
     executor_epoch: boardstudio_application::ExecutorEpoch,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct FirmwareTestDelivery {
-    pub(crate) bytes: Vec<u8>,
-    pub(crate) filename: String,
-    pub(crate) media_type: Option<String>,
+pub struct FirmwareTestDelivery {
+    pub bytes: Vec<u8>,
+    pub filename: String,
+    pub media_type: Option<String>,
 }
 
 impl From<&AcceptedSnapshot> for FirmwareAcceptedIdentity {
@@ -420,7 +420,7 @@ fn browser_uuid() -> Result<String, String> {
 }
 
 /// Allocate the same browser UUID used by the Session-owned project lifecycle.
-pub(crate) fn new_project_id() -> Result<String, String> {
+pub fn new_project_id() -> Result<String, String> {
     browser_uuid()
 }
 
@@ -458,56 +458,56 @@ pub struct Runtime {
     firmware_export_delivery_errors: RefCell<BTreeMap<OperationId, String>>,
     export_workers: RefCell<BTreeMap<OperationId, Rc<CadWorker>>>,
     native_case_preview: RefCell<crate::case_preview::NativePreviewState>,
-    case_model_delivery: crate::presentation::model_delivery::ModelDeliveryAdapter,
+    case_model_delivery: crate::model_delivery::ModelDeliveryAdapter,
     native_model_delivery: RefCell<NativeModelDeliveryState>,
-    layout_preview: RefCell<crate::presentation::layout_viewer_source::LayoutPreviewState>,
+    layout_preview: RefCell<crate::layout_viewer_source::LayoutPreviewState>,
     layout_model_rows: RefCell<
         Option<(
-            crate::presentation::layout_viewer_source::LayoutSourceIdentity,
-            crate::presentation::model_delivery::ModelDeliveryRows,
+            crate::layout_viewer_source::LayoutSourceIdentity,
+            crate::model_delivery::ModelDeliveryRows,
         )>,
     >,
     layout_model_batch_generation: Cell<u64>,
     native_model_jobs: RefCell<BTreeSet<String>>,
     archive_export_options: ArchiveExportOptions,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     definition_name_test_state: RefCell<Option<(AcceptedSnapshot, Option<Scope>)>>,
     // Preserve accepted scope/event fixtures while mounting transient ReadModel states.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     definition_name_test_model: RefCell<Option<ReadModel>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     layout_component_inspector_test_state: RefCell<Option<(ReadModel, Option<Scope>)>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     layout_component_inspector_test_events: RefCell<Vec<Event>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     definition_name_test_events: RefCell<Vec<Event>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     definition_name_test_generation: RefCell<Option<GenerationStatus>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     firmware_export_test_context: RefCell<Option<FirmwareExportTestContext>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     firmware_export_test_effects: RefCell<Vec<Effect>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     firmware_export_test_events: RefCell<Vec<Event>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     firmware_export_test_deliveries: RefCell<Vec<FirmwareTestDelivery>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     case_gesture_preview_test_executor: RefCell<Option<Rc<CaseGesturePreviewTestExecutor>>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     keycaps_preview_test_executor: RefCell<Option<Rc<KeycapsPreviewTestExecutor>>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     project_name_test_core: RefCell<Option<boardstudio_core::CoreEngine>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     project_name_persist_test_behavior: RefCell<Option<ProjectNamePersistTestBehavior>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     project_name_test_effects: RefCell<Vec<Effect>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     import_archive_test_gate: RefCell<Option<ImportArchiveTestGate>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     open_saved_load_test_gate: RefCell<Option<OpenSavedLoadTestGate>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     import_file_test_done: RefCell<Option<futures_channel::oneshot::Sender<()>>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     open_saved_test_done: RefCell<Option<futures_channel::oneshot::Sender<()>>>,
 }
 
@@ -575,43 +575,43 @@ impl Runtime {
             layout_model_batch_generation: Cell::new(0),
             native_model_jobs: RefCell::new(BTreeSet::new()),
             archive_export_options: ArchiveExportOptions::default(),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             definition_name_test_state: RefCell::new(None),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             definition_name_test_model: RefCell::new(None),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             layout_component_inspector_test_state: RefCell::new(None),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             layout_component_inspector_test_events: RefCell::new(Vec::new()),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             definition_name_test_events: RefCell::new(Vec::new()),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             definition_name_test_generation: RefCell::new(None),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             firmware_export_test_context: RefCell::new(None),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             firmware_export_test_effects: RefCell::new(Vec::new()),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             firmware_export_test_events: RefCell::new(Vec::new()),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             firmware_export_test_deliveries: RefCell::new(Vec::new()),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             case_gesture_preview_test_executor: RefCell::new(None),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             keycaps_preview_test_executor: RefCell::new(None),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             project_name_test_core: RefCell::new(None),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             project_name_persist_test_behavior: RefCell::new(None),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             project_name_test_effects: RefCell::new(Vec::new()),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             import_archive_test_gate: RefCell::new(None),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             open_saved_load_test_gate: RefCell::new(None),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             import_file_test_done: RefCell::new(None),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             open_saved_test_done: RefCell::new(None),
         });
         // Reserve the startup open identity synchronously, before any explicit
@@ -621,7 +621,7 @@ impl Runtime {
         }
         let weak = Rc::downgrade(&runtime);
         spawn_local(async move {
-            if let Err(error) = boardstudio_web::host::register_offline(prefix).await
+            if let Err(error) = boardstudio_web_host::host::register_offline(prefix).await
                 && let Some(runtime) = weak.upgrade()
             {
                 runtime.report(format!("Offline setup failed; this keyboard still needs an online connection: {error:?}"));
@@ -645,33 +645,33 @@ impl Runtime {
         OperationId(id)
     }
     pub fn scope(&self) -> Option<boardstudio_application::Scope> {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         if let Some(context) = self.firmware_export_test_context.borrow().as_ref() {
             return context.scope.clone();
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         if let Some((_, scope)) = self.definition_name_test_state.borrow().as_ref() {
             return scope.clone();
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         if let Some((_, scope)) = self.layout_component_inspector_test_state.borrow().as_ref() {
             return scope.clone();
         }
         self.session.borrow().scope()
     }
-    pub(crate) fn electrical_preview_executor_epoch(&self) -> u64 {
-        #[cfg(test)]
+    pub fn electrical_preview_executor_epoch(&self) -> u64 {
+        #[cfg(any(test, feature = "test-support"))]
         if let Some(context) = self.firmware_export_test_context.borrow().as_ref() {
             return context.executor_epoch.0;
         }
         self.session.borrow().core_executor_epoch().0
     }
     pub fn model(&self) -> ReadModel {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         if let Some(model) = self.definition_name_test_model.borrow().as_ref() {
             return model.clone();
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         if let Some(context) = self.firmware_export_test_context.borrow().as_ref() {
             return ReadModel {
                 accepted: Some(context.accepted.clone()),
@@ -687,7 +687,7 @@ impl Runtime {
                 ..ReadModel::default()
             };
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         if let Some((snapshot, scope)) = self.definition_name_test_state.borrow().as_ref() {
             return ReadModel {
                 accepted: Some(snapshot.clone()),
@@ -704,7 +704,7 @@ impl Runtime {
                 ..ReadModel::default()
             };
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         if let Some((model, _)) = self.layout_component_inspector_test_state.borrow().as_ref() {
             return model.clone();
         }
@@ -714,7 +714,7 @@ impl Runtime {
     /// Load a reviewed bundled switch fit into the Parts editor's local draft.
     /// This never submits an accepted edit; the existing Parts profile Save path
     /// remains the sole owner of document history.
-    pub(crate) async fn standard_switch_profile(
+    pub async fn standard_switch_profile(
         &self,
         operation_id: OperationId,
         definition_id: String,
@@ -737,7 +737,7 @@ impl Runtime {
     }
 
     /// Load a reviewed Core builtin profile for the Case editor's private assignment path.
-    pub(crate) async fn standard_builtin_profile(
+    pub async fn standard_builtin_profile(
         &self,
         operation_id: OperationId,
         definition_id: String,
@@ -787,7 +787,7 @@ impl Runtime {
 
     /// Import a source-owned KiCad footprint through the existing artifact worker.
     /// The Parts owner admits the returned definition into Session after rechecking scope.
-    pub(crate) async fn import_footprint(
+    pub async fn import_footprint(
         &self,
         request_id: String,
         definition_id: String,
@@ -835,7 +835,7 @@ impl Runtime {
 
     /// Read KiCad mechanical geometry for a Parts editor draft. The caller owns the
     /// selected-definition and scope admission before applying any returned geometry.
-    pub(crate) async fn extract_mechanical_profile(
+    pub async fn extract_mechanical_profile(
         &self,
         request_id: String,
         source: String,
@@ -885,7 +885,7 @@ impl Runtime {
 
     /// Ask the existing Core worker to project candidate matrices with its authoritative
     /// layout geometry. This is a private preview path; candidates are never installed in Session.
-    pub(crate) async fn project_matrices(
+    pub async fn project_matrices(
         &self,
         base_revision: u64,
         matrices: Vec<boardstudio_core::model::Matrix>,
@@ -933,13 +933,13 @@ impl Runtime {
     pub fn status(&self) -> String {
         self.status.borrow().message.clone()
     }
-    pub(crate) fn status_is_alert(&self) -> bool {
+    pub fn status_is_alert(&self) -> bool {
         self.status.borrow().severity == RuntimeReportSeverity::Alert
     }
-    pub(crate) fn embed_used_models(&self) -> bool {
+    pub fn embed_used_models(&self) -> bool {
         self.archive_export_options.embed_used_models()
     }
-    pub(crate) fn set_embed_used_models(&self, value: bool) {
+    pub fn set_embed_used_models(&self, value: bool) {
         if self.archive_export_options.set_embed_used_models(value) {
             self.changed();
         }
@@ -1006,7 +1006,7 @@ impl Runtime {
         }
     }
 
-    pub(crate) fn cancel_case_gesture_preview(
+    pub fn cancel_case_gesture_preview(
         &self,
         owner: &crate::case_gesture_preview::CaseGesturePreviewOwner,
     ) {
@@ -1030,7 +1030,7 @@ impl Runtime {
             })
     }
 
-    pub(crate) fn cancel_native_case_preview(&self) {
+    pub fn cancel_native_case_preview(&self) {
         self.native_case_preview.borrow_mut().cancel();
         self.cancel_native_model_jobs();
     }
@@ -1043,7 +1043,7 @@ impl Runtime {
             }
         }
     }
-    pub(crate) fn observe_operation(
+    pub fn observe_operation(
         &self,
         operation: OperationId,
     ) -> crate::operation_outcomes::OutcomeSlot {
@@ -1051,7 +1051,7 @@ impl Runtime {
     }
 
     /// Open a fresh blank keyboard through the normal Session persistence path.
-    pub(crate) fn create_new_keyboard(
+    pub fn create_new_keyboard(
         self: &Rc<Self>,
     ) -> Result<(String, crate::operation_outcomes::OutcomeSlot), String> {
         self.create_new_keyboard_inner(false)
@@ -1104,7 +1104,7 @@ impl Runtime {
         Ok((project_id, outcome))
     }
 
-    pub(crate) async fn delete_saved_project(
+    pub async fn delete_saved_project(
         self: &Rc<Self>,
         project_id: String,
     ) -> Result<(), String> {
@@ -1329,7 +1329,7 @@ impl Runtime {
         expected_sequence: Option<u64>,
     ) -> Result<AcceptedSnapshot, String> {
         for _ in 0..1_200 {
-            #[cfg(all(test, target_arch = "wasm32"))]
+            #[cfg(all(any(test, feature = "test-support"), target_arch = "wasm32"))]
             crate::runtime::project_name_test_support::run_pending(self).await;
             if let Some(outcome) = outcome.borrow_mut().take() {
                 if outcome != TerminalOutcome::Completed {
@@ -1366,7 +1366,7 @@ impl Runtime {
     /// Resolve mechanical settings against the exact accepted source and the proposed canonical
     /// document. The proposal carrier exists only for the existing effective-case projection;
     /// it is never installed in Session or any accepted/display authority.
-    pub(crate) async fn resolve_mechanical_settings(
+    pub async fn resolve_mechanical_settings(
         &self,
         accepted: AcceptedSnapshot,
         scope: Scope,
@@ -1393,7 +1393,7 @@ impl Runtime {
             scene: accepted.scene.clone(),
         };
         let effective_document =
-            boardstudio_web::cad_jobs::captured_case_document(&proposal_projection_input, &scope)
+            boardstudio_web_host::cad_jobs::captured_case_document(&proposal_projection_input, &scope)
                 .map_err(|error| {
                 format!("Could not project proposed mechanical settings: {error:?}")
             })?;
@@ -1414,7 +1414,7 @@ impl Runtime {
 
         // Physical contours come from the real accepted scene. Its projection performs the
         // required X reflection and winding reversal for flipped instances; never reflect twice.
-        let contours = boardstudio_web::cad_jobs::captured_case_scene(&accepted, &scope)
+        let contours = boardstudio_web_host::cad_jobs::captured_case_scene(&accepted, &scope)
             .map_err(|error| format!("Could not project accepted case contours: {error:?}"))?
             .board_contours
             .into_iter()
@@ -1473,7 +1473,7 @@ impl Runtime {
     /// Resolve the accepted PCB's read-only wiring plan through the current Core worker.
     /// The board scope deliberately has no physical instance; switch selection is not part of
     /// this plan's lifetime.
-    pub(crate) async fn resolve_electrical_preview(
+    pub async fn resolve_electrical_preview(
         &self,
         accepted: AcceptedSnapshot,
         scope: Scope,
@@ -1524,7 +1524,7 @@ impl Runtime {
 
     /// Resolve keycap fit against one accepted canonical board and the matching prepared Case
     /// preview, if the current physical-instance preview belongs to this exact snapshot.
-    pub(crate) async fn resolve_keycaps_preview(
+    pub async fn resolve_keycaps_preview(
         &self,
         scope: Scope,
         token: SnapshotToken,
@@ -1535,7 +1535,7 @@ impl Runtime {
     }
 
     /// Case consumes the selected physical projection; Layout retains the canonical document.
-    pub(crate) async fn resolve_case_keycaps_preview(
+    pub async fn resolve_case_keycaps_preview(
         &self,
         scope: Scope,
         token: SnapshotToken,
@@ -1589,20 +1589,20 @@ impl Runtime {
             board_id: scope.board_id.clone(),
             cases,
         };
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         let test_reply = self
             .project_name_test_core
             .borrow_mut()
             .as_mut()
             .map(|core| core.handle(request.clone()));
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         let reply = if let Some(reply) = test_reply {
             Ok(reply)
         } else {
             core.request(&request_id, &executor_epoch.0.to_string(), &request)
                 .await
         };
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-support")))]
         let reply = core
             .request(&request_id, &executor_epoch.0.to_string(), &request)
             .await;
@@ -1669,7 +1669,7 @@ impl Runtime {
     /// Build the mesh preview from the already accepted Core keycap resolution. This worker is
     /// independent from Case generation and STEP export so superseding a keycap view cannot
     /// cancel or publish through either owner.
-    pub(crate) async fn request_keycaps_cad_preview(
+    pub async fn request_keycaps_cad_preview(
         self: &Rc<Self>,
         input: KeycapsPreviewInput,
     ) -> Result<KeycapsCadPreview, String> {
@@ -1699,7 +1699,7 @@ impl Runtime {
             instance_id: input.scope.instance_id.clone(),
             revision: accepted.document.revision,
         };
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         if let Some(executor) = self.keycaps_preview_test_executor.borrow().clone() {
             let bodies = executor(input.clone()).await?;
             self.ensure_keycaps_source_current(&accepted, &input.scope)?;
@@ -1771,7 +1771,7 @@ impl Runtime {
     }
 
     /// Retire the active preview worker on source change or viewer unmount.
-    pub(crate) fn cancel_keycaps_cad_preview(&self) {
+    pub fn cancel_keycaps_cad_preview(&self) {
         self.keycaps_preview_generation
             .set(self.keycaps_preview_generation.get().saturating_add(1));
         if let Some((_, worker)) = self.keycaps_preview_worker.borrow_mut().take() {
@@ -1850,9 +1850,9 @@ impl Runtime {
                 }
             }
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         let test_event = event.clone();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         if self
             .layout_component_inspector_test_state
             .borrow()
@@ -1863,7 +1863,7 @@ impl Runtime {
                 .push(event);
             return;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         if self.definition_name_test_state.borrow().is_some() {
             self.definition_name_test_events.borrow_mut().push(event);
             return;
@@ -1900,7 +1900,7 @@ impl Runtime {
             }
         }
         self.changed();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         if self.firmware_export_test_context.borrow().is_some() {
             self.firmware_export_test_events
                 .borrow_mut()
@@ -1910,7 +1910,7 @@ impl Runtime {
                 .extend(effects);
             return;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         if self.project_name_test_core.borrow().is_some() {
             self.project_name_test_effects.borrow_mut().extend(effects);
             return;
@@ -1918,8 +1918,8 @@ impl Runtime {
         self.drive(effects);
     }
 
-    #[cfg(test)]
-    pub(crate) fn set_definition_name_test_state(
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn set_definition_name_test_state(
         &self,
         snapshot: AcceptedSnapshot,
         scope: Option<Scope>,
@@ -1927,39 +1927,39 @@ impl Runtime {
         *self.definition_name_test_state.borrow_mut() = Some((snapshot, scope));
     }
 
-    #[cfg(test)]
-    pub(crate) fn set_definition_name_test_model(&self, model: ReadModel) {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn set_definition_name_test_model(&self, model: ReadModel) {
         *self.definition_name_test_model.borrow_mut() = Some(model);
     }
 
-    #[cfg(test)]
-    pub(crate) fn set_case_gesture_preview_executor_test(
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn set_case_gesture_preview_executor_test(
         &self,
         executor: Rc<CaseGesturePreviewTestExecutor>,
     ) {
         *self.case_gesture_preview_test_executor.borrow_mut() = Some(executor);
     }
 
-    #[cfg(test)]
-    pub(crate) fn case_gesture_preview_active_test(&self) -> bool {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn case_gesture_preview_active_test(&self) -> bool {
         self.case_gesture_preview.borrow().active_owner().is_some()
     }
 
-    #[cfg(test)]
-    pub(crate) fn set_cad_scene_test(&self, scene: Option<Rc<CadScene>>) {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn set_cad_scene_test(&self, scene: Option<Rc<CadScene>>) {
         *self.cad_scene.borrow_mut() = scene;
     }
 
-    #[cfg(test)]
-    pub(crate) fn set_keycaps_preview_executor_test(
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn set_keycaps_preview_executor_test(
         &self,
         executor: Rc<KeycapsPreviewTestExecutor>,
     ) {
         *self.keycaps_preview_test_executor.borrow_mut() = Some(executor);
     }
 
-    #[cfg(test)]
-    pub(crate) fn install_case_pcb_preview_test(&self) {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn install_case_pcb_preview_test(&self) {
         let accepted = self.model().accepted.expect("accepted preview fixture");
         let scope = self.scope().expect("selected physical fixture scope");
         let generation = self.native_case_preview.borrow().generation + 1;
@@ -1996,13 +1996,13 @@ impl Runtime {
         self.changed();
     }
 
-    #[cfg(test)]
-    pub(crate) fn set_definition_name_test_generation(&self, generation: GenerationStatus) {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn set_definition_name_test_generation(&self, generation: GenerationStatus) {
         *self.definition_name_test_generation.borrow_mut() = Some(generation);
     }
 
-    #[cfg(test)]
-    pub(crate) fn set_layout_component_inspector_test_state(
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn set_layout_component_inspector_test_state(
         &self,
         model: ReadModel,
         scope: Option<Scope>,
@@ -2010,13 +2010,13 @@ impl Runtime {
         *self.layout_component_inspector_test_state.borrow_mut() = Some((model, scope));
     }
 
-    #[cfg(test)]
-    pub(crate) fn take_layout_component_inspector_test_events(&self) -> Vec<Event> {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn take_layout_component_inspector_test_events(&self) -> Vec<Event> {
         std::mem::take(&mut *self.layout_component_inspector_test_events.borrow_mut())
     }
 
-    #[cfg(test)]
-    pub(crate) fn settle_layout_component_inspector_test_operation(
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn settle_layout_component_inspector_test_operation(
         &self,
         operation: OperationId,
         outcome: TerminalOutcome,
@@ -2024,7 +2024,7 @@ impl Runtime {
         self.operation_outcomes.settle(operation, outcome)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     fn set_firmware_export_test_context(
         &self,
         accepted: AcceptedSnapshot,
@@ -2042,7 +2042,7 @@ impl Runtime {
         self.next_operation.set(next_operation);
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     fn replace_firmware_export_test_executor(
         &self,
         executor: Rc<dyn FirmwareExportExecutor>,
@@ -2056,7 +2056,7 @@ impl Runtime {
         context.executor_epoch = epoch;
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     fn replace_firmware_export_test_owner(&self, accepted: AcceptedSnapshot, scope: Option<Scope>) {
         let mut context = self.firmware_export_test_context.borrow_mut();
         let context = context
@@ -2066,23 +2066,23 @@ impl Runtime {
         context.scope = scope;
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     fn take_firmware_export_test_effects(&self) -> Vec<Effect> {
         std::mem::take(&mut *self.firmware_export_test_effects.borrow_mut())
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     fn take_firmware_export_test_events(&self) -> Vec<Event> {
         std::mem::take(&mut *self.firmware_export_test_events.borrow_mut())
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     fn take_firmware_export_test_deliveries(&self) -> Vec<FirmwareTestDelivery> {
         std::mem::take(&mut *self.firmware_export_test_deliveries.borrow_mut())
     }
 
-    #[cfg(test)]
-    pub(crate) fn take_definition_name_test_event(&self) -> Option<Event> {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn take_definition_name_test_event(&self) -> Option<Event> {
         let mut events = self.definition_name_test_events.borrow_mut();
         if events.is_empty() {
             None
@@ -2139,7 +2139,7 @@ impl Runtime {
                 request,
                 ..
             } => {
-                #[cfg(test)]
+                #[cfg(any(test, feature = "test-support"))]
                 {
                     let use_test_core = self.project_name_test_core.borrow().is_some();
                     if use_test_core {
@@ -2213,9 +2213,9 @@ impl Runtime {
                     .filter(|(hash, _)| document.assets.iter().any(|a| &a.sha256 == *hash))
                     .map(|(hash, bytes)| (hash.clone(), bytes.clone()))
                     .collect();
-                #[cfg(test)]
+                #[cfg(any(test, feature = "test-support"))]
                 let test_behavior = self.project_name_persist_test_behavior.borrow_mut().take();
-                #[cfg(test)]
+                #[cfg(any(test, feature = "test-support"))]
                 let test_failure = match test_behavior {
                     Some(ProjectNamePersistTestBehavior::Fail(reason)) => Some(reason),
                     Some(ProjectNamePersistTestBehavior::Gate(gate)) => {
@@ -2225,7 +2225,7 @@ impl Runtime {
                     }
                     None => None,
                 };
-                #[cfg(test)]
+                #[cfg(any(test, feature = "test-support"))]
                 let result = if let Some(reason) = test_failure {
                     SaveResult::Aborted(reason)
                 } else {
@@ -2239,7 +2239,7 @@ impl Runtime {
                         Err(error) => SaveResult::Aborted(error.to_string()),
                     }
                 };
-                #[cfg(not(test))]
+                #[cfg(not(any(test, feature = "test-support")))]
                 let result = match self.store.save_document(&document, &assets).await {
                     Ok(()) => {
                         for asset in &document.assets {
@@ -2654,7 +2654,7 @@ impl Runtime {
         cached.as_ref().cloned()
     }
 
-    pub(crate) fn case_gesture_preview_scene(&self, source: &CadScene) -> Option<Rc<CadScene>> {
+    pub fn case_gesture_preview_scene(&self, source: &CadScene) -> Option<Rc<CadScene>> {
         let owner = self.case_gesture_preview.borrow().active_owner()?;
         if !self.case_gesture_preview_is_current(&owner)
             || owner.scope != source.scope
@@ -2668,7 +2668,7 @@ impl Runtime {
             .scene(&owner.scope, owner.snapshot_token, owner.revision)
     }
 
-    pub(crate) fn case_gesture_preview_message(&self) -> Option<String> {
+    pub fn case_gesture_preview_message(&self) -> Option<String> {
         let owner = self.case_gesture_preview.borrow().active_owner()?;
         self.case_gesture_preview_is_current(&owner)
             .then(|| self.case_gesture_preview.borrow().message(&owner))
@@ -2678,7 +2678,7 @@ impl Runtime {
     /// Start a disposable preview of one Case gesture draft. It uses the
     /// accepted scene and snapshot identity, but only the Case CAD preview
     /// result is overlaid; it never replaces the accepted generation cache.
-    pub(crate) fn update_case_gesture_preview(
+    pub fn update_case_gesture_preview(
         self: &Rc<Self>,
         scope: Scope,
         token: SnapshotToken,
@@ -2775,7 +2775,7 @@ impl Runtime {
         if !is_current() {
             return Err("Case gesture preview was superseded".into());
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         {
             let executor = self.case_gesture_preview_test_executor.borrow().clone();
             if let Some(executor) = executor {
@@ -2856,7 +2856,7 @@ impl Runtime {
         })
     }
 
-    pub(crate) fn native_case_preview(
+    pub fn native_case_preview(
         &self,
     ) -> Option<Rc<crate::case_preview::NativePreviewSnapshot>> {
         let current_scope = self.scope()?;
@@ -2874,9 +2874,9 @@ impl Runtime {
             .cloned()
     }
 
-    pub(crate) fn layout_preview(
+    pub fn layout_preview(
         &self,
-    ) -> Option<Rc<crate::presentation::layout_viewer_source::LayoutPreviewSnapshot>> {
+    ) -> Option<Rc<crate::layout_viewer_source::LayoutPreviewSnapshot>> {
         self.layout_preview
             .borrow()
             .published
@@ -2885,7 +2885,7 @@ impl Runtime {
             .cloned()
     }
 
-    pub(crate) fn layout_preview_pending(&self) -> bool {
+    pub fn layout_preview_pending(&self) -> bool {
         self.layout_preview
             .borrow()
             .pending
@@ -2895,7 +2895,7 @@ impl Runtime {
             })
     }
 
-    pub(crate) fn layout_preview_error(&self) -> Option<String> {
+    pub fn layout_preview_error(&self) -> Option<String> {
         let scope = self.scope()?;
         let accepted = self.model().accepted?;
         self.layout_preview
@@ -2906,7 +2906,7 @@ impl Runtime {
             .map(|(_, error)| error.clone())
     }
 
-    pub(crate) fn layout_source_generation(&self) -> Option<u64> {
+    pub fn layout_source_generation(&self) -> Option<u64> {
         let state = self.layout_preview.borrow();
         state
             .published
@@ -2926,10 +2926,10 @@ impl Runtime {
             })
     }
 
-    pub(crate) fn layout_model_delivery(
+    pub fn layout_model_delivery(
         &self,
-        preview: &crate::presentation::layout_viewer_source::LayoutPreviewSnapshot,
-    ) -> Option<crate::presentation::model_delivery::ModelDeliveryRows> {
+        preview: &crate::layout_viewer_source::LayoutPreviewSnapshot,
+    ) -> Option<crate::model_delivery::ModelDeliveryRows> {
         self.layout_model_rows
             .borrow()
             .as_ref()
@@ -2941,7 +2941,7 @@ impl Runtime {
             .map(|(_, rows)| rows.clone())
     }
 
-    pub(crate) fn retire_layout_source(&self, source_generation: u64) {
+    pub fn retire_layout_source(&self, source_generation: u64) {
         let retired = self
             .layout_preview
             .borrow_mut()
@@ -2952,7 +2952,7 @@ impl Runtime {
         }
     }
 
-    pub(crate) fn reconcile_layout_source_request(
+    pub fn reconcile_layout_source_request(
         &self,
         expected: Option<(&Scope, SnapshotToken, u64)>,
     ) {
@@ -2968,7 +2968,7 @@ impl Runtime {
 
     fn layout_source_owner_is_current(
         &self,
-        owner: &crate::presentation::layout_viewer_source::LayoutSourceIdentity,
+        owner: &crate::layout_viewer_source::LayoutSourceIdentity,
     ) -> bool {
         let Some(scope) = self.scope() else {
             return false;
@@ -2982,7 +2982,7 @@ impl Runtime {
 
     async fn deliver_layout_models(
         self: &Rc<Self>,
-        preview: Rc<crate::presentation::layout_viewer_source::LayoutPreviewSnapshot>,
+        preview: Rc<crate::layout_viewer_source::LayoutPreviewSnapshot>,
     ) -> Result<(), String> {
         if !self.layout_source_owner_is_current(&preview.owner) {
             return Ok(());
@@ -3001,13 +3001,13 @@ impl Runtime {
             .checked_add(1)
             .ok_or_else(|| "Layout model batch identity exhausted".to_owned())?;
         self.layout_model_batch_generation.set(batch_generation);
-        let owner = crate::presentation::model_delivery::ModelOwnerIdentity::new_layout(
+        let owner = crate::model_delivery::ModelOwnerIdentity::new_layout(
             preview.owner.scope.clone(),
             preview.owner.snapshot_token,
             preview.owner.source_generation,
             &preview.lease,
         );
-        let batch = crate::presentation::model_delivery::ModelBatchIdentity::new(
+        let batch = crate::model_delivery::ModelBatchIdentity::new(
             owner,
             preview.owner.accepted_revision,
             batch_generation,
@@ -3069,7 +3069,7 @@ impl Runtime {
             _ => return Err("Core returned an unexpected mounted-module model reply".into()),
         };
         let native_paths =
-            crate::presentation::model_delivery::native_model_path_assets(&preview.path_assets);
+            crate::model_delivery::native_model_path_assets(&preview.path_assets);
         let unique_model_paths = preview
             .preview
             .models
@@ -3091,7 +3091,7 @@ impl Runtime {
             }
             bundled_ids_by_path.extend(unique_model_paths.iter().cloned().zip(ids));
         }
-        let selections = crate::presentation::model_delivery::resolve_preview_assets(
+        let selections = crate::model_delivery::resolve_preview_assets(
             &preview.preview.models,
             preview.board_reference.as_ref(),
             &native_paths,
@@ -3099,11 +3099,11 @@ impl Runtime {
             |path| bundled_ids_by_path.get(path).cloned().flatten(),
             |asset_id| {
                 crate::bundled_models::bundled_model(asset_id).map(|model| {
-                    crate::presentation::model_delivery::ResolvedModelAsset {
+                    crate::model_delivery::ResolvedModelAsset {
                         id: model.id.to_owned(),
                         sha256: model.sha256.to_owned(),
                         filename: model.filename.to_owned(),
-                        source: crate::presentation::model_delivery::ModelAssetSource::Packaged {
+                        source: crate::model_delivery::ModelAssetSource::Packaged {
                             url_path: model.url_path.to_owned(),
                         },
                     }
@@ -3129,16 +3129,16 @@ impl Runtime {
             let selections = module_placements
                 .iter()
                 .map(|placement| {
-                    let selection = crate::presentation::model_delivery::select_model_asset_id(
+                    let selection = crate::model_delivery::select_model_asset_id(
                         &placement.asset_id,
                         &preview.document.assets,
                         |asset_id| {
                             crate::bundled_models::bundled_model(asset_id).map(|model| {
-                                crate::presentation::model_delivery::ResolvedModelAsset {
+                                crate::model_delivery::ResolvedModelAsset {
                                     id: model.id.to_owned(),
                                     sha256: model.sha256.to_owned(),
                                     filename: model.filename.to_owned(),
-                                    source: crate::presentation::model_delivery::ModelAssetSource::Packaged {
+                                    source: crate::model_delivery::ModelAssetSource::Packaged {
                                         url_path: model.url_path.to_owned(),
                                     },
                                 }
@@ -3179,7 +3179,7 @@ impl Runtime {
         Ok(())
     }
 
-    pub(crate) async fn prepare_layout_preview(
+    pub async fn prepare_layout_preview(
         self: &Rc<Self>,
         expected_scope: Scope,
         expected_token: SnapshotToken,
@@ -3204,7 +3204,7 @@ impl Runtime {
         if operation == 0 || operation > 9_007_199_254_740_991 {
             let error = "Layout preview operation identity is outside the safe integer range";
             self.layout_preview.borrow_mut().fail_before_begin(
-                crate::presentation::layout_viewer_source::LayoutSourceIdentity::from_accepted(
+                crate::layout_viewer_source::LayoutSourceIdentity::from_accepted(
                     &accepted,
                     &expected_scope,
                     source_generation,
@@ -3219,7 +3219,7 @@ impl Runtime {
             expected_token.0, expected_revision, operation
         );
         let model_paths = crate::case_preview::preview_model_paths(&accepted.document);
-        let capture = match crate::presentation::layout_viewer_source::LayoutSourceCapture::capture(
+        let capture = match crate::layout_viewer_source::LayoutSourceCapture::capture(
             &accepted,
             &expected_scope,
             source_generation,
@@ -3229,7 +3229,7 @@ impl Runtime {
             Ok(capture) => capture,
             Err(error) => {
                 self.layout_preview.borrow_mut().fail_before_begin(
-                    crate::presentation::layout_viewer_source::LayoutSourceIdentity::from_accepted(
+                    crate::layout_viewer_source::LayoutSourceIdentity::from_accepted(
                         &accepted,
                         &expected_scope,
                         source_generation,
@@ -3253,7 +3253,7 @@ impl Runtime {
             })
         });
         let result = match &capture.request {
-            crate::presentation::layout_viewer_source::LayoutPreviewRequest::Authored(request) => {
+            crate::layout_viewer_source::LayoutPreviewRequest::Authored(request) => {
                 self.run_preview_pipeline(
                     request.as_ref().clone(),
                     operation,
@@ -3263,7 +3263,7 @@ impl Runtime {
                 )
                 .await
             }
-            crate::presentation::layout_viewer_source::LayoutPreviewRequest::Imported {
+            crate::layout_viewer_source::LayoutPreviewRequest::Imported {
                 asset,
                 ..
             } => {
@@ -3281,7 +3281,7 @@ impl Runtime {
                     spawn_local(async move {
                         let current_runtime = Rc::downgrade(&runtime);
                         let reporter = runtime.clone();
-                        crate::presentation::model_delivery::settle_layout_model_delivery(
+                        crate::model_delivery::settle_layout_model_delivery(
                             published.clone(),
                             runtime.deliver_layout_models(published),
                             move || {
@@ -3319,7 +3319,7 @@ impl Runtime {
 
     async fn run_imported_layout_preview(
         &self,
-        capture: &crate::presentation::layout_viewer_source::LayoutSourceCapture,
+        capture: &crate::layout_viewer_source::LayoutSourceCapture,
         asset: &boardstudio_core::model::Asset,
         operation: u64,
         is_current: Rc<dyn Fn() -> bool>,
@@ -3376,7 +3376,7 @@ impl Runtime {
 
     /// Parse a routed KiCad board for the accepted reference editor before its
     /// bytes and BoardReference are admitted through the normal edit path.
-    pub(crate) async fn preview_routed_board_source(
+    pub async fn preview_routed_board_source(
         &self,
         request_id: String,
         source: String,
@@ -3458,7 +3458,7 @@ impl Runtime {
         Ok(bytes)
     }
 
-    pub(crate) fn native_case_preview_pending(&self) -> bool {
+    pub fn native_case_preview_pending(&self) -> bool {
         self.native_case_preview
             .borrow()
             .pending
@@ -3468,7 +3468,7 @@ impl Runtime {
             })
     }
 
-    pub(crate) fn native_case_preview_error(&self) -> Option<String> {
+    pub fn native_case_preview_error(&self) -> Option<String> {
         self.native_case_preview
             .borrow()
             .error
@@ -3477,7 +3477,7 @@ impl Runtime {
             .map(|(_, error)| error.clone())
     }
 
-    pub(crate) fn native_case_preview_key(&self) -> Option<(Scope, SnapshotToken, u64)> {
+    pub fn native_case_preview_key(&self) -> Option<(Scope, SnapshotToken, u64)> {
         let scope = self.scope()?;
         let accepted = self.model().accepted?;
         (scope.session_epoch == accepted.session_epoch
@@ -3486,10 +3486,10 @@ impl Runtime {
             .then_some((scope, accepted.token, accepted.document.revision))
     }
 
-    pub(crate) fn native_model_delivery(
+    pub fn native_model_delivery(
         &self,
         preview: &crate::case_preview::NativePreviewSnapshot,
-    ) -> Option<crate::presentation::model_delivery::ModelDeliveryRows> {
+    ) -> Option<crate::model_delivery::ModelDeliveryRows> {
         self.native_model_delivery
             .borrow()
             .published
@@ -3501,27 +3501,27 @@ impl Runtime {
     /// Decode all models for this exact accepted native preview. The published
     /// rows replace the pending state only after the batch settles, preserving
     /// React's board-first / Promise.all success behavior.
-    pub(crate) async fn deliver_native_case_models(
+    pub async fn deliver_native_case_models(
         self: &Rc<Self>,
         preview: Rc<crate::case_preview::NativePreviewSnapshot>,
     ) -> Result<(), String> {
         if !self.native_preview_snapshot_is_current(&preview) {
             return Ok(());
         }
-        let owner = crate::presentation::model_delivery::ModelOwnerIdentity::new(
+        let owner = crate::model_delivery::ModelOwnerIdentity::new(
             preview.owner.scope.clone(),
             preview.owner.snapshot_token,
             preview.owner.viewer_instance,
             preview.owner.projection_generation,
             &preview.lease,
         );
-        let batch = crate::presentation::model_delivery::ModelBatchIdentity::new(
+        let batch = crate::model_delivery::ModelBatchIdentity::new(
             owner.clone(),
             preview.owner.accepted_revision,
             preview.owner.batch_generation,
         );
         let native_paths =
-            crate::presentation::model_delivery::native_model_path_assets(&preview.path_assets);
+            crate::model_delivery::native_model_path_assets(&preview.path_assets);
         let unique_model_paths = preview
             .preview
             .models
@@ -3544,7 +3544,7 @@ impl Runtime {
         else {
             return Ok(());
         };
-        let selections = crate::presentation::model_delivery::resolve_preview_assets(
+        let selections = crate::model_delivery::resolve_preview_assets(
             &preview.preview.models,
             preview.board_reference.as_ref(),
             &native_paths,
@@ -3552,11 +3552,11 @@ impl Runtime {
             |path| bundled_ids_by_path.get(path).cloned().flatten(),
             |asset_id| {
                 crate::bundled_models::bundled_model(asset_id).map(|model| {
-                    crate::presentation::model_delivery::ResolvedModelAsset {
+                    crate::model_delivery::ResolvedModelAsset {
                         id: model.id.to_owned(),
                         sha256: model.sha256.to_owned(),
                         filename: model.filename.to_owned(),
-                        source: crate::presentation::model_delivery::ModelAssetSource::Packaged {
+                        source: crate::model_delivery::ModelAssetSource::Packaged {
                             url_path: model.url_path.to_owned(),
                         },
                     }
@@ -3620,7 +3620,7 @@ impl Runtime {
         token: SnapshotToken,
         revision: u64,
         is_current: Rc<dyn Fn() -> bool>,
-    ) -> Result<crate::presentation::model_delivery::MeshArrays, String> {
+    ) -> Result<crate::model_delivery::MeshArrays, String> {
         if !is_current() || self.scope().as_ref() != Some(&scope) {
             return Err("STEP model request became stale before worker setup".into());
         }
@@ -3669,7 +3669,7 @@ impl Runtime {
         let mesh = result
             .mesh
             .ok_or_else(|| "STEP model reader returned no mesh".to_owned())?;
-        Ok(crate::presentation::model_delivery::MeshArrays {
+        Ok(crate::model_delivery::MeshArrays {
             positions: mesh.positions,
             normals: mesh.normals,
             colors: None,
@@ -3680,14 +3680,14 @@ impl Runtime {
         self: &Rc<Self>,
         preview: &crate::case_preview::NativePreviewSnapshot,
         is_current: Rc<dyn Fn() -> bool>,
-    ) -> crate::presentation::model_delivery::ModelDeliveryPorts {
+    ) -> crate::model_delivery::ModelDeliveryPorts {
         let scope = preview.owner.scope.clone();
         let token = preview.owner.snapshot_token;
         let viewer_instance = preview.owner.viewer_instance;
         let projection_generation = preview.owner.projection_generation;
         let lease = preview.lease.clone();
         let owner_is_current = Rc::new(
-            move |owner: &crate::presentation::model_delivery::ModelOwnerIdentity| {
+            move |owner: &crate::model_delivery::ModelOwnerIdentity| {
                 owner.is_current_owner(
                     &scope,
                     token,
@@ -3708,15 +3708,15 @@ impl Runtime {
 
     fn layout_model_delivery_ports(
         self: &Rc<Self>,
-        preview: &crate::presentation::layout_viewer_source::LayoutPreviewSnapshot,
+        preview: &crate::layout_viewer_source::LayoutPreviewSnapshot,
         is_current: Rc<dyn Fn() -> bool>,
-    ) -> crate::presentation::model_delivery::ModelDeliveryPorts {
+    ) -> crate::model_delivery::ModelDeliveryPorts {
         let scope = preview.owner.scope.clone();
         let token = preview.owner.snapshot_token;
         let source_generation = preview.owner.source_generation;
         let lease = preview.lease.clone();
         let owner_is_current = Rc::new(
-            move |owner: &crate::presentation::model_delivery::ModelOwnerIdentity| {
+            move |owner: &crate::model_delivery::ModelOwnerIdentity| {
                 owner.is_current_layout_owner(&scope, token, source_generation, &lease)
             },
         );
@@ -3736,10 +3736,10 @@ impl Runtime {
         revision: u64,
         is_current: Rc<dyn Fn() -> bool>,
         owner_is_current: Rc<
-            dyn Fn(&crate::presentation::model_delivery::ModelOwnerIdentity) -> bool,
+            dyn Fn(&crate::model_delivery::ModelOwnerIdentity) -> bool,
         >,
-    ) -> crate::presentation::model_delivery::ModelDeliveryPorts {
-        use crate::presentation::model_delivery::{
+    ) -> crate::model_delivery::ModelDeliveryPorts {
+        use crate::model_delivery::{
             MeshArrays, ModelAssetSource, ModelDeliveryPorts, ModelFuture, ResolvedModelAsset,
             VerifiedModelBytes,
         };
@@ -3821,7 +3821,7 @@ impl Runtime {
         let owner_is_current = owner_is_current.clone();
         let read_step = Rc::new(
             move |bytes: VerifiedModelBytes,
-                  owner: crate::presentation::model_delivery::ModelOwnerIdentity|
+                  owner: crate::model_delivery::ModelOwnerIdentity|
                   -> ModelFuture<MeshArrays> {
                 let weak = weak.clone();
                 let scope = scope.clone();
@@ -3848,7 +3848,7 @@ impl Runtime {
         }
     }
 
-    pub(crate) async fn prepare_native_case_preview(
+    pub async fn prepare_native_case_preview(
         self: &Rc<Self>,
         expected_scope: Scope,
         expected_token: SnapshotToken,
@@ -3948,7 +3948,7 @@ impl Runtime {
     /// generator worker, and model-delivery ports. `capture` is owned by the
     /// mounted Parts preview and becomes stale as soon as that selection or
     /// accepted project changes.
-    pub(crate) async fn prepare_parts_library_preview(
+    pub async fn prepare_parts_library_preview(
         self: &Rc<Self>,
         capture: crate::parts_preview::PartsPreviewCapture,
     ) -> Result<crate::parts_preview::PartsPreviewSnapshot, String> {
@@ -3984,7 +3984,7 @@ impl Runtime {
         }
 
         let native_paths =
-            crate::presentation::model_delivery::native_model_path_assets(&capture.path_assets);
+            crate::model_delivery::native_model_path_assets(&capture.path_assets);
         let unique_model_paths = preview
             .models
             .iter()
@@ -4007,7 +4007,7 @@ impl Runtime {
             }
             bundled_ids_by_path.extend(unique_model_paths.iter().cloned().zip(ids));
         }
-        let selections = crate::presentation::model_delivery::resolve_preview_assets(
+        let selections = crate::model_delivery::resolve_preview_assets(
             &preview.models,
             None,
             &native_paths,
@@ -4015,11 +4015,11 @@ impl Runtime {
             |path| bundled_ids_by_path.get(path).cloned().flatten(),
             |asset_id| {
                 crate::bundled_models::bundled_model(asset_id).map(|model| {
-                    crate::presentation::model_delivery::ResolvedModelAsset {
+                    crate::model_delivery::ResolvedModelAsset {
                         id: model.id.to_owned(),
                         sha256: model.sha256.to_owned(),
                         filename: model.filename.to_owned(),
-                        source: crate::presentation::model_delivery::ModelAssetSource::Packaged {
+                        source: crate::model_delivery::ModelAssetSource::Packaged {
                             url_path: model.url_path.to_owned(),
                         },
                     }
@@ -4028,13 +4028,13 @@ impl Runtime {
         )
         .into_iter()
         .collect::<BTreeMap<_, _>>();
-        let owner = crate::presentation::model_delivery::ModelOwnerIdentity::new_parts(
+        let owner = crate::model_delivery::ModelOwnerIdentity::new_parts(
             capture.owner.scope.clone(),
             capture.owner.snapshot_token,
             capture.owner.source_generation,
             &capture.lease,
         );
-        let batch = crate::presentation::model_delivery::ModelBatchIdentity::new(
+        let batch = crate::model_delivery::ModelBatchIdentity::new(
             owner.clone(),
             capture.owner.accepted_revision,
             capture.owner.source_generation,
@@ -4044,7 +4044,7 @@ impl Runtime {
         let source_generation = capture.owner.source_generation;
         let lease = capture.lease.clone();
         let owner_is_current = Rc::new(
-            move |candidate: &crate::presentation::model_delivery::ModelOwnerIdentity| {
+            move |candidate: &crate::model_delivery::ModelOwnerIdentity| {
                 candidate.is_current_parts_owner(
                     &owner_scope,
                     owner_token,
@@ -4100,7 +4100,7 @@ impl Runtime {
                 == std::sync::Arc::as_ptr(&accepted.document) as usize
     }
 
-    pub(crate) fn parts_preview_snapshot_is_current(
+    pub fn parts_preview_snapshot_is_current(
         &self,
         preview: &crate::parts_preview::PartsPreviewSnapshot,
     ) -> bool {
@@ -4290,7 +4290,7 @@ impl Runtime {
         }) {
             return false;
         }
-        boardstudio_web::cad_jobs::captured_case_document(accepted, &scope).is_ok_and(|document| {
+        boardstudio_web_host::cad_jobs::captured_case_document(accepted, &scope).is_ok_and(|document| {
             document.mechanical.as_ref().is_some_and(|configuration| {
                 configuration.board_id == scope.board_id
                     && configuration.closure_mounts.is_none()
@@ -4345,7 +4345,7 @@ impl Runtime {
         });
     }
 
-    pub(crate) fn export_mechanical(self: &Rc<Self>) {
+    pub fn export_mechanical(self: &Rc<Self>) {
         if self.mechanical_mount_initialization_pending() {
             self.apply_report(RuntimeReport::alert(
                 "Finish preparing mounting locations before exporting the mechanical assembly.",
@@ -4473,7 +4473,7 @@ impl Runtime {
         });
     }
 
-    pub(crate) fn export_keycaps_step(self: &Rc<Self>) {
+    pub fn export_keycaps_step(self: &Rc<Self>) {
         let Some(scope) = self.scope() else {
             self.apply_report(RuntimeReport::alert("Select a board before export"));
             return;
@@ -4501,7 +4501,7 @@ impl Runtime {
             scope,
         });
     }
-    pub(crate) fn export_firmware(self: &Rc<Self>) {
+    pub fn export_firmware(self: &Rc<Self>) {
         let Some(scope) = self.scope() else {
             self.report("Select a board before exporting ZMK source.");
             return;
@@ -4532,7 +4532,7 @@ impl Runtime {
         });
     }
 
-    pub(crate) fn export_footprints(self: &Rc<Self>) {
+    pub fn export_footprints(self: &Rc<Self>) {
         let Some(scope) = self.scope() else {
             self.apply_report(RuntimeReport::alert(
                 "Open a project before exporting its footprint library.",
@@ -4574,7 +4574,7 @@ impl Runtime {
         });
     }
 
-    pub(crate) fn export_kicad_board(self: &Rc<Self>, draft: bool) {
+    pub fn export_kicad_board(self: &Rc<Self>, draft: bool) {
         let Some(scope) = self.scope() else {
             self.apply_report(RuntimeReport::alert("Select a board before KiCad export."));
             return;
@@ -5388,7 +5388,7 @@ impl Runtime {
             && Rc::ptr_eq(core, &current_core)
     }
 
-    pub(crate) fn export_project_copy(self: &Rc<Self>) {
+    pub fn export_project_copy(self: &Rc<Self>) {
         if self.model().accepted.is_none() {
             return;
         }
@@ -5403,7 +5403,7 @@ impl Runtime {
         });
     }
 
-    pub(crate) fn export_board_outline(
+    pub fn export_board_outline(
         self: &Rc<Self>,
         format: boardstudio_core::model::OutlineExportFormat,
     ) {
@@ -5508,7 +5508,7 @@ impl Runtime {
         token: SnapshotToken,
         scope: &Scope,
     ) -> bool {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         if let Some(context) = self.firmware_export_test_context.borrow().as_ref() {
             return context.scope.as_ref() == Some(scope)
                 && context.accepted.token == token
@@ -5548,7 +5548,7 @@ impl Runtime {
         Rc<dyn FirmwareExportExecutor>,
         boardstudio_application::ExecutorEpoch,
     ) {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         if let Some(context) = self.firmware_export_test_context.borrow().as_ref() {
             return (context.current_executor.clone(), context.executor_epoch);
         }
@@ -5557,7 +5557,7 @@ impl Runtime {
         (executor, self.session.borrow().core_executor_epoch())
     }
     fn deliver_artifact(&self, artifact: &Artifact) -> Result<(), String> {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         if self.firmware_export_test_context.borrow().is_some() && artifact.firmware {
             self.firmware_export_test_deliveries
                 .borrow_mut()
@@ -6242,7 +6242,7 @@ impl Runtime {
             }
         }
     }
-    pub(crate) async fn fixture_document(&self, name: &'static str) -> Result<ProjectDoc, String> {
+    pub async fn fixture_document(&self, name: &'static str) -> Result<ProjectDoc, String> {
         let bytes = fetch_bytes(&format!("assets/fixtures/{name}.json")).await?;
         serde_json::from_slice(&bytes)
             .map_err(|error| format!("Could not read the {name} demo preview: {error}"))
@@ -6314,7 +6314,7 @@ impl Runtime {
             {
                 this.report(error);
             }
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             if let Some(done) = this.import_file_test_done.borrow_mut().take() {
                 let _ = done.send(());
             }
@@ -6328,13 +6328,13 @@ impl Runtime {
     ) -> Result<(), String> {
         let operation = self.operation();
         let core = self.core.borrow().clone();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         let test_gate = { self.import_archive_test_gate.borrow_mut().take() };
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         let result = if let Some(gate) = test_gate {
             let _ = gate.entered.send(());
             let _ = gate.release.await;
-            Ok(boardstudio_web::host::ArchiveResult {
+            Ok(boardstudio_web_host::host::ArchiveResult {
                 metadata: gate.metadata,
                 buffers: gate
                     .buffers
@@ -6352,7 +6352,7 @@ impl Runtime {
             .await
             .map_err(|e| e.to_string())
         };
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-support")))]
         let result = core
             .archive(
                 &format!("import-{}", operation.0),
@@ -6406,7 +6406,7 @@ impl Runtime {
         let this = self.clone();
         spawn_local(async move {
             let loaded = this.store.load_document(id).await;
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             let loaded = {
                 let gate = { this.open_saved_load_test_gate.borrow_mut().take() };
                 if let Some(gate) = gate {
@@ -6439,7 +6439,7 @@ impl Runtime {
                 }
                 Ok(None) | Err(_) => {}
             }
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             if let Some(done) = this.open_saved_test_done.borrow_mut().take() {
                 let _ = done.send(());
             }
@@ -6449,7 +6449,7 @@ impl Runtime {
     /// Reopen a durable project after an owned variant operation failed, but only while the
     /// session/document that requested recovery is still active. The saved copy is confirmed
     /// through the same Session open/recovery outcome used by the project library.
-    pub(crate) async fn reopen_saved_if_current(
+    pub async fn reopen_saved_if_current(
         self: &Rc<Self>,
         id: String,
         expected: &AcceptedSnapshot,
@@ -6615,7 +6615,7 @@ struct NativeModelDeliveryState {
     failed: Option<crate::case_preview::CasePreviewOwnerIdentity>,
     published: Option<(
         crate::case_preview::CasePreviewOwnerIdentity,
-        crate::presentation::model_delivery::ModelDeliveryRows,
+        crate::model_delivery::ModelDeliveryRows,
     )>,
 }
 
@@ -6745,14 +6745,14 @@ impl Drop for Runtime {
 }
 
 #[cfg(test)]
-pub(crate) mod firmware_export_test_support {
+pub mod firmware_export_test_support {
     use super::*;
     use boardstudio_application::{Completion, Effect, Event, SaveResult, Session};
     use boardstudio_core::{CoreEngine, firmware::FirmwarePackage, model::Board};
     use futures_channel::oneshot;
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-    pub(crate) enum Stage {
+    pub enum Stage {
         Resolution,
         Generation,
         Packaging,
@@ -6774,27 +6774,27 @@ pub(crate) mod firmware_export_test_support {
         release: oneshot::Receiver<()>,
     }
 
-    pub(crate) struct ControlledExecutor {
+    pub struct ControlledExecutor {
         fail_at: Option<Stage>,
         gate: RefCell<Option<Gate>>,
     }
 
     impl ControlledExecutor {
-        pub(crate) fn succeeding() -> Rc<Self> {
+        pub fn succeeding() -> Rc<Self> {
             Rc::new(Self {
                 fail_at: None,
                 gate: RefCell::new(None),
             })
         }
 
-        pub(crate) fn failing(stage: Stage) -> Rc<Self> {
+        pub fn failing(stage: Stage) -> Rc<Self> {
             Rc::new(Self {
                 fail_at: Some(stage),
                 gate: RefCell::new(None),
             })
         }
 
-        pub(crate) fn gated(
+        pub fn gated(
             stage: Stage,
         ) -> (
             Rc<Self>,
@@ -6934,7 +6934,7 @@ pub(crate) mod firmware_export_test_support {
         }
     }
 
-    pub(crate) fn opened_session() -> (Session, AcceptedSnapshot, Scope) {
+    pub fn opened_session() -> (Session, AcceptedSnapshot, Scope) {
         let mut session = Session::new();
         let mut core = CoreEngine::new();
         let mut document = ProjectDoc::empty("zmk-export-test", "ZMK export test");
@@ -6980,7 +6980,7 @@ pub(crate) mod firmware_export_test_support {
         (session, accepted, scope)
     }
 
-    pub(crate) fn configure_runtime(
+    pub fn configure_runtime(
         runtime: &Runtime,
         session: Session,
         accepted: AcceptedSnapshot,
@@ -6999,23 +6999,23 @@ pub(crate) mod firmware_export_test_support {
         );
     }
 
-    pub(crate) fn new_runtime() -> Rc<Runtime> {
+    pub fn new_runtime() -> Rc<Runtime> {
         Runtime::new().expect("browser runtime fixture initializes")
     }
 
-    pub(crate) async fn run_effects(runtime: &Rc<Runtime>, initial: Vec<Effect>) {
+    pub async fn run_effects(runtime: &Rc<Runtime>, initial: Vec<Effect>) {
         let mut effects = VecDeque::from(initial);
         while let Some(effect) = effects.pop_front() {
             effects.extend(runtime.run(effect).await);
         }
     }
 
-    pub(crate) fn start_export(runtime: &Rc<Runtime>) -> Vec<Effect> {
+    pub fn start_export(runtime: &Rc<Runtime>) -> Vec<Effect> {
         runtime.export_firmware();
         runtime.take_firmware_export_test_effects()
     }
 
-    pub(crate) fn replace_executor(
+    pub fn replace_executor(
         runtime: &Runtime,
         executor: Rc<ControlledExecutor>,
         epoch: boardstudio_application::ExecutorEpoch,
@@ -7023,7 +7023,7 @@ pub(crate) mod firmware_export_test_support {
         runtime.replace_firmware_export_test_executor(executor, epoch);
     }
 
-    pub(crate) fn replace_owner(
+    pub fn replace_owner(
         runtime: &Runtime,
         accepted: AcceptedSnapshot,
         scope: Option<Scope>,
@@ -7031,23 +7031,23 @@ pub(crate) mod firmware_export_test_support {
         runtime.replace_firmware_export_test_owner(accepted, scope);
     }
 
-    pub(crate) fn take_deliveries(runtime: &Runtime) -> Vec<FirmwareTestDelivery> {
+    pub fn take_deliveries(runtime: &Runtime) -> Vec<FirmwareTestDelivery> {
         runtime.take_firmware_export_test_deliveries()
     }
 
-    pub(crate) fn take_events(runtime: &Runtime) -> Vec<Event> {
+    pub fn take_events(runtime: &Runtime) -> Vec<Event> {
         runtime.take_firmware_export_test_events()
     }
 
-    pub(crate) fn take_effects(runtime: &Runtime) -> Vec<Effect> {
+    pub fn take_effects(runtime: &Runtime) -> Vec<Effect> {
         runtime.take_firmware_export_test_effects()
     }
 
-    pub(crate) fn session_model(runtime: &Runtime) -> ReadModel {
+    pub fn session_model(runtime: &Runtime) -> ReadModel {
         runtime.session.borrow().read_model().clone()
     }
 
-    pub(crate) fn has_artifacts(runtime: &Runtime) -> bool {
+    pub fn has_artifacts(runtime: &Runtime) -> bool {
         !runtime.artifacts.borrow().is_empty()
     }
 }
@@ -7205,7 +7205,7 @@ fn authored_case_filename_component(value: &str) -> String {
     result
 }
 
-fn mechanical_stl(mesh: &boardstudio_web::cad_jobs::CadMesh) -> Result<Vec<u8>, String> {
+fn mechanical_stl(mesh: &boardstudio_web_host::cad_jobs::CadMesh) -> Result<Vec<u8>, String> {
     if mesh.positions.len() % 9 != 0 || mesh.positions.len() != mesh.normals.len() {
         return Err("CAD returned incomplete mechanical STL triangles.".into());
     }
@@ -7731,20 +7731,20 @@ fn deliver(bytes: &[u8], filename: &str, media_type: Option<&str>) -> Result<(),
 }
 
 #[cfg(test)]
-pub(crate) mod project_name_test_support {
+pub mod project_name_test_support {
     use super::*;
 
-    pub(crate) fn new_runtime() -> Rc<Runtime> {
+    pub fn new_runtime() -> Rc<Runtime> {
         Runtime::new_with_restoration(false).expect("browser runtime fixture initializes")
     }
 
-    pub(crate) fn install(runtime: &Runtime, session: Session, core: boardstudio_core::CoreEngine) {
+    pub fn install(runtime: &Runtime, session: Session, core: boardstudio_core::CoreEngine) {
         *runtime.session.borrow_mut() = session;
         *runtime.project_name_test_core.borrow_mut() = Some(core);
         runtime.changed();
     }
 
-    pub(crate) fn gate_import_archive(
+    pub fn gate_import_archive(
         runtime: &Runtime,
         document: &ProjectDoc,
     ) -> (
@@ -7766,7 +7766,7 @@ pub(crate) mod project_name_test_support {
         (entered_rx, release)
     }
 
-    pub(crate) fn gate_open_saved_result(
+    pub fn gate_open_saved_result(
         runtime: &Runtime,
     ) -> (
         futures_channel::oneshot::Receiver<()>,
@@ -7781,29 +7781,29 @@ pub(crate) mod project_name_test_support {
         (entered_rx, release)
     }
 
-    pub(crate) fn track_import_file(runtime: &Runtime) -> futures_channel::oneshot::Receiver<()> {
+    pub fn track_import_file(runtime: &Runtime) -> futures_channel::oneshot::Receiver<()> {
         let (done, done_rx) = futures_channel::oneshot::channel();
         *runtime.import_file_test_done.borrow_mut() = Some(done);
         done_rx
     }
 
-    pub(crate) fn track_open_saved(runtime: &Runtime) -> futures_channel::oneshot::Receiver<()> {
+    pub fn track_open_saved(runtime: &Runtime) -> futures_channel::oneshot::Receiver<()> {
         let (done, done_rx) = futures_channel::oneshot::channel();
         *runtime.open_saved_test_done.borrow_mut() = Some(done);
         done_rx
     }
 
-    pub(crate) fn replace_session(runtime: &Runtime, session: Session) {
+    pub fn replace_session(runtime: &Runtime, session: Session) {
         *runtime.session.borrow_mut() = session;
         runtime.changed();
     }
 
-    pub(crate) fn fail_next_persist(runtime: &Runtime, reason: impl Into<String>) {
+    pub fn fail_next_persist(runtime: &Runtime, reason: impl Into<String>) {
         *runtime.project_name_persist_test_behavior.borrow_mut() =
             Some(ProjectNamePersistTestBehavior::Fail(reason.into()));
     }
 
-    pub(crate) fn gate_next_persist(
+    pub fn gate_next_persist(
         runtime: &Runtime,
     ) -> (
         futures_channel::oneshot::Receiver<()>,
@@ -7820,20 +7820,20 @@ pub(crate) mod project_name_test_support {
         (entered_rx, release_tx)
     }
 
-    pub(crate) fn observe(
+    pub fn observe(
         runtime: &Runtime,
         operation: OperationId,
     ) -> crate::operation_outcomes::OutcomeSlot {
         runtime.operation_outcomes.observe(operation)
     }
 
-    pub(crate) fn observe_next(runtime: &Runtime) -> crate::operation_outcomes::OutcomeSlot {
+    pub fn observe_next(runtime: &Runtime) -> crate::operation_outcomes::OutcomeSlot {
         runtime
             .operation_outcomes
             .observe(OperationId(runtime.next_operation.get()))
     }
 
-    pub(crate) async fn run_pending(runtime: &Rc<Runtime>) {
+    pub async fn run_pending(runtime: &Rc<Runtime>) {
         let mut pending = VecDeque::from(std::mem::take(
             &mut *runtime.project_name_test_effects.borrow_mut(),
         ));
@@ -7842,7 +7842,7 @@ pub(crate) mod project_name_test_support {
         }
     }
 
-    pub(crate) fn drive_pending(runtime: &Rc<Runtime>) {
+    pub fn drive_pending(runtime: &Rc<Runtime>) {
         let effects = std::mem::take(&mut *runtime.project_name_test_effects.borrow_mut());
         runtime.drive(effects);
     }

@@ -11,7 +11,7 @@ use boardstudio_core::model::{
     CaseKind, GasketPlacement, MechanicalGasketAnchor, MechanicalGasketSupport,
     MechanicalGasketTrack, MechanicalMount, Mount, MountKind, ProjectDoc, Vec2,
 };
-use boardstudio_web::cad_jobs::captured_case_document;
+use boardstudio_web_host::cad_jobs::captured_case_document;
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -1874,7 +1874,7 @@ mod keycap_consumer_tests {
         CoreEngine,
         model::{CoreReply, CoreRequest, PreparedCaseAssemblyIR},
     };
-    use boardstudio_web::cad_jobs::{CadBodyMesh, CadResult};
+    use boardstudio_web_host::cad_jobs::{CadBodyMesh, CadResult};
     use futures_channel::oneshot;
     use gloo_timers::future::TimeoutFuture;
     use js_sys::{Array, Float32Array, Reflect};
@@ -2011,7 +2011,7 @@ mod keycap_consumer_tests {
         support::install(&runtime, Session::new(), CoreEngine::new());
         runtime
             .store
-            .save_asset(boardstudio_web::host::AssetBytes {
+            .save_asset(boardstudio_web_host::host::AssetBytes {
                 sha256: Sha256::digest(ROUTED_SOURCE)
                     .iter()
                     .map(|byte| format!("{byte:02x}"))
@@ -2357,7 +2357,7 @@ mod gesture_cancellation_tests {
             scope: scope.clone(),
             token: accepted.token,
             snapshot: accepted.clone(),
-            result: boardstudio_web::cad_jobs::CadResult {
+            result: boardstudio_web_host::cad_jobs::CadResult {
                 revision: accepted.document.revision,
                 ..Default::default()
             },
@@ -2389,7 +2389,7 @@ mod gesture_cancellation_tests {
         scope: Scope,
     ) -> Result<CadScene, String> {
         use boardstudio_core::model::{CaseAssemblyIR, CaseIR, CoreReply, CoreRequest};
-        use boardstudio_web::cad_jobs::{CadBodyMesh, CadBounds, CadResult, captured_case_scene};
+        use boardstudio_web_host::cad_jobs::{CadBodyMesh, CadBounds, CadResult, captured_case_scene};
         let document =
             captured_case_document(&snapshot, &scope).map_err(|error| format!("{error:?}"))?;
         let contours = captured_case_scene(&snapshot, &scope)

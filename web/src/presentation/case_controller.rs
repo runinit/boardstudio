@@ -123,7 +123,7 @@ pub(super) fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) 
                 return None;
             }
             Some(
-                boardstudio_web::cad_jobs::captured_case_document(&snapshot, scope)
+                boardstudio_web_host::cad_jobs::captured_case_document(&snapshot, scope)
                     .map(Rc::new)
                     .map_err(|error| format!("{error:?}")),
             )

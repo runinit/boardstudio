@@ -235,6 +235,8 @@ name = "boardstudio-web"
 version = "0.1.0"
 dependencies = [
  "boardstudio-application",
+ "boardstudio-web-host",
+ "boardstudio-web-runtime",
  "boardstudio_core",
  "dioxus",
  "dioxus-web",
@@ -246,6 +248,45 @@ dependencies = [
  "serde_json",
  "sha2",
  "tokio",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+ "web-sys",
+]
+
+[[package]]
+name = "boardstudio-web-host"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-application",
+ "boardstudio_core",
+ "futures-channel",
+ "gloo-timers",
+ "js-sys",
+ "serde",
+ "serde-wasm-bindgen",
+ "serde_json",
+ "sha2",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+ "web-sys",
+]
+
+[[package]]
+name = "boardstudio-web-runtime"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-application",
+ "boardstudio-web-host",
+ "boardstudio_core",
+ "futures-channel",
+ "gloo-timers",
+ "js-sys",
+ "serde",
+ "serde-wasm-bindgen",
+ "serde_json",
+ "sha2",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",

@@ -12,13 +12,13 @@ use boardstudio_core::{
         PrepareExportRequest,
     },
 };
-use boardstudio_web::host::{BrowserStore, CoreWorker};
+use boardstudio_web_host::host::{BrowserStore, CoreWorker};
 use js_sys::Uint8Array;
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, future::Future};
 
-pub(crate) struct HandoffSource<'a> {
+pub struct HandoffSource<'a> {
     pub operation_id: OperationId,
     pub snapshot: &'a AcceptedSnapshot,
     pub scope: &'a Scope,
@@ -27,7 +27,7 @@ pub(crate) struct HandoffSource<'a> {
     pub draft: bool,
 }
 
-pub(crate) struct HandoffPorts<'a> {
+pub struct HandoffPorts<'a> {
     pub core: &'a CoreWorker,
     pub store: &'a BrowserStore,
     pub executor_epoch: u64,
@@ -35,7 +35,7 @@ pub(crate) struct HandoffPorts<'a> {
 
 /// Keep the irreversible protection commit behind successful package creation
 /// and the same captured-owner checks used by the real Runtime path.
-pub(crate) async fn package_then_protect<
+pub async fn package_then_protect<
     T,
     Package,
     IsCurrentBeforeProtect,
@@ -62,7 +62,7 @@ where
     Ok((bytes, protection))
 }
 
-pub(crate) async fn build_handoff(
+pub async fn build_handoff(
     source: HandoffSource<'_>,
     ports: HandoffPorts<'_>,
     is_current: impl Fn() -> Result<(), String>,

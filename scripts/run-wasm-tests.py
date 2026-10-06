@@ -77,6 +77,11 @@ def path_attr_modules(root):
 def module_filter(path, path_modules=None):
     """Map a repo-relative web/src/**.rs path to a test-name prefix filter ('' means every test)."""
     path = path.replace("\\", "/")
+    if path.startswith("web/crates/") and path.endswith(".rs"):
+        crate = path.split("/")[2]
+        raise RunnerError(f"{path} belongs to the web/crates/{crate} crate; run its browser tests with "
+                          f"`wasm-pack test --headless --chrome web/crates/{crate} --lib` "
+                          "(python3 scripts/check.py browser runs them)")
     if not path.startswith("web/src/") or not path.endswith(".rs"):
         raise RunnerError(f"not a web/src Rust file: {path}")
     if path_modules and path in path_modules:

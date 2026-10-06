@@ -1310,7 +1310,7 @@ mod mounted_live_scene_tests {
         let (_, opened, scope) = crate::runtime::firmware_export_test_support::opened_session();
         let mut document = (*opened.document).clone();
         document.mechanical = Some(
-            boardstudio_web::case_settings::initial_settings(&document, &scope.board_id)
+            boardstudio_web_host::case_settings::initial_settings(&document, &scope.board_id)
                 .expect("test board has initial mechanical settings"),
         );
         let mut scene = (*opened.scene).clone();
@@ -1356,7 +1356,7 @@ mod mounted_live_scene_tests {
             scope: scope.clone(),
             token: accepted.token,
             snapshot: accepted.clone(),
-            result: boardstudio_web::cad_jobs::CadResult {
+            result: boardstudio_web_host::cad_jobs::CadResult {
                 revision: accepted.document.revision,
                 ..Default::default()
             },
@@ -1395,7 +1395,7 @@ mod mounted_live_scene_tests {
                 vias: vec![],
             });
             document.mechanical = Some(
-                boardstudio_web::case_settings::initial_settings(&document, "other-board")
+                boardstudio_web_host::case_settings::initial_settings(&document, "other-board")
                     .expect("replacement board has initial mechanical settings"),
             );
         }

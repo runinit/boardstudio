@@ -8,20 +8,20 @@ use boardstudio_core::model::{
     ArchiveEntry, ArchiveReply, ArchiveRequest, ArtifactReply, ArtifactRequest, ExportTarget,
     PrepareExportRequest,
 };
-use boardstudio_web::host::{BrowserStore, CoreWorker};
+use boardstudio_web_host::host::{BrowserStore, CoreWorker};
 use js_sys::Uint8Array;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
-pub(crate) struct ExportSource<'a> {
-    pub(crate) operation_id: OperationId,
-    pub(crate) snapshot: &'a AcceptedSnapshot,
-    pub(crate) core: &'a CoreWorker,
-    pub(crate) store: &'a BrowserStore,
-    pub(crate) executor_epoch: u64,
+pub struct ExportSource<'a> {
+    pub operation_id: OperationId,
+    pub snapshot: &'a AcceptedSnapshot,
+    pub core: &'a CoreWorker,
+    pub store: &'a BrowserStore,
+    pub executor_epoch: u64,
 }
 
-pub(crate) async fn build_zip(
+pub async fn build_zip(
     source: ExportSource<'_>,
     is_current: impl Fn() -> Result<(), String>,
 ) -> Result<Vec<u8>, String> {

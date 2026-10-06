@@ -11,7 +11,7 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::{JsFuture, spawn_local};
 use web_sys::{File, HtmlInputElement};
 
-use boardstudio_web::host::AssetBytes;
+use boardstudio_web_host::host::AssetBytes;
 
 use crate::runtime::Runtime;
 

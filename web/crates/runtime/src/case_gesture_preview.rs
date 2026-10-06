@@ -8,15 +8,15 @@ use boardstudio_application::{Scope, SnapshotToken};
 use std::rc::Rc;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct CaseGesturePreviewOwner {
-    pub(crate) scope: Scope,
-    pub(crate) snapshot_token: SnapshotToken,
-    pub(crate) revision: u64,
-    pub(crate) generation: u64,
+pub struct CaseGesturePreviewOwner {
+    pub scope: Scope,
+    pub snapshot_token: SnapshotToken,
+    pub revision: u64,
+    pub generation: u64,
 }
 
 #[derive(Default)]
-pub(crate) struct CaseGesturePreviewState {
+pub struct CaseGesturePreviewState {
     generation: u64,
     active: Option<CaseGesturePreviewOwner>,
     pending: Option<CaseGesturePreviewOwner>,
@@ -26,7 +26,7 @@ pub(crate) struct CaseGesturePreviewState {
 }
 
 impl CaseGesturePreviewState {
-    pub(crate) fn begin(
+    pub fn begin(
         &mut self,
         scope: Scope,
         snapshot_token: SnapshotToken,
@@ -61,19 +61,19 @@ impl CaseGesturePreviewState {
         Ok(owner)
     }
 
-    pub(crate) fn is_current(&self, owner: &CaseGesturePreviewOwner) -> bool {
+    pub fn is_current(&self, owner: &CaseGesturePreviewOwner) -> bool {
         self.active.as_ref() == Some(owner) && self.generation == owner.generation
     }
 
-    pub(crate) fn active_owner(&self) -> Option<CaseGesturePreviewOwner> {
+    pub fn active_owner(&self) -> Option<CaseGesturePreviewOwner> {
         self.active.clone()
     }
 
-    pub(crate) fn pending(&self, owner: &CaseGesturePreviewOwner) -> bool {
+    pub fn pending(&self, owner: &CaseGesturePreviewOwner) -> bool {
         self.is_current(owner) && self.pending.as_ref() == Some(owner)
     }
 
-    pub(crate) fn publish(
+    pub fn publish(
         &mut self,
         owner: &CaseGesturePreviewOwner,
         scene: Rc<crate::runtime::CadScene>,
@@ -93,14 +93,14 @@ impl CaseGesturePreviewState {
         true
     }
 
-    pub(crate) fn fail(&mut self, owner: &CaseGesturePreviewOwner, error: String) {
+    pub fn fail(&mut self, owner: &CaseGesturePreviewOwner, error: String) {
         if self.pending(owner) {
             self.pending = None;
             self.error = Some((owner.clone(), error));
         }
     }
 
-    pub(crate) fn scene(
+    pub fn scene(
         &self,
         scope: &Scope,
         snapshot_token: SnapshotToken,
@@ -117,7 +117,7 @@ impl CaseGesturePreviewState {
             .map(|(_, _, _, scene)| scene.clone())
     }
 
-    pub(crate) fn message(&self, owner: &CaseGesturePreviewOwner) -> Option<String> {
+    pub fn message(&self, owner: &CaseGesturePreviewOwner) -> Option<String> {
         if !self.is_current(owner) {
             return None;
         }
@@ -132,7 +132,7 @@ impl CaseGesturePreviewState {
 
     /// Retire only the specified gesture. A late cleanup from an old viewer
     /// cannot cancel a newer gesture on the same accepted source.
-    pub(crate) fn cancel(&mut self, expected: &CaseGesturePreviewOwner) -> bool {
+    pub fn cancel(&mut self, expected: &CaseGesturePreviewOwner) -> bool {
         if !self.is_current(expected) {
             return false;
         }
@@ -153,7 +153,7 @@ mod tests {
     use boardstudio_application::AcceptedSnapshot;
     use boardstudio_application::{SessionEpoch, SnapshotToken};
     use boardstudio_core::model::{PreparedCaseAssemblyIR, ProjectDoc, Readiness, SceneDelta};
-    use boardstudio_web::cad_jobs::CadResult;
+    use boardstudio_web_host::cad_jobs::CadResult;
     use std::sync::Arc;
     use wasm_bindgen_test::wasm_bindgen_test;
 

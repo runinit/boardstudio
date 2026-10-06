@@ -13,7 +13,7 @@ fn main() {
 fn generate_bundled_ergogen_models(output: &Path) {
     let manifest_dir =
         PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("Cargo sets CARGO_MANIFEST_DIR"));
-    let vendor_root = manifest_dir.join("../ergogen/library/vendor");
+    let vendor_root = manifest_dir.join("../../../ergogen/library/vendor");
     println!("cargo:rerun-if-changed={}", vendor_root.display());
     let mut files = Vec::new();
     for vendor in fs::read_dir(&vendor_root).unwrap_or_else(|error| {

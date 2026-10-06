@@ -4,7 +4,7 @@ use boardstudio_core::{electrical::ElectricalPlan, model::ProjectDoc};
 use std::{collections::BTreeMap, rc::Rc};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct FirmwarePlanIdentity {
+pub struct FirmwarePlanIdentity {
     pub scope: Scope,
     pub token: SnapshotToken,
     pub revision: u64,
@@ -12,7 +12,7 @@ pub(crate) struct FirmwarePlanIdentity {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct FirmwarePositionIdentity {
+pub struct FirmwarePositionIdentity {
     pub plan: FirmwarePlanIdentity,
     pub ui_scope: Scope,
     pub scope_generation: u64,
@@ -21,14 +21,14 @@ pub(crate) struct FirmwarePositionIdentity {
 /// Stable presentation target for an accepted edit. Plan tokens and revisions are deliberately
 /// excluded so a successful operation remains visible while Runtime refreshes its plan.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct FirmwarePositionFeedbackTarget {
+pub struct FirmwarePositionFeedbackTarget {
     pub ui_scope: Scope,
     pub scope_generation: u64,
     pub key_id: String,
 }
 
 impl FirmwarePositionFeedbackTarget {
-    pub(crate) fn is_visible(
+    pub fn is_visible(
         &self,
         current_scope: &Scope,
         current_generation: u64,
@@ -44,13 +44,13 @@ impl FirmwarePositionFeedbackTarget {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct FirmwarePositionKey {
+pub struct FirmwarePositionKey {
     pub id: String,
     pub label: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum FirmwarePositionState {
+pub enum FirmwarePositionState {
     Idle,
     Pending,
     Current,
@@ -59,7 +59,7 @@ pub(crate) enum FirmwarePositionState {
 
 /// Immutable board values and plan lifecycle supplied to the future F6-owned control.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct FirmwarePositionProjection {
+pub struct FirmwarePositionProjection {
     pub identity: Option<FirmwarePositionIdentity>,
     pub state: FirmwarePositionState,
     pub keys: Rc<[FirmwarePositionKey]>,
@@ -67,14 +67,14 @@ pub(crate) struct FirmwarePositionProjection {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum EditSettlement {
+pub enum EditSettlement {
     Wait,
     Saved,
     Failed(String),
     Suppress,
 }
 
-pub(crate) struct EditSettlementSource<'a> {
+pub struct EditSettlementSource<'a> {
     pub target_is_current: bool,
     pub accepted_is_saved: bool,
     pub accepted_revision: u64,
@@ -84,7 +84,7 @@ pub(crate) struct EditSettlementSource<'a> {
     pub requested_value: &'a str,
 }
 
-pub(crate) struct FirmwarePositionAdmission<'a> {
+pub struct FirmwarePositionAdmission<'a> {
     pub workspace: &'a str,
     pub current_generation: u64,
     pub instance_is_current: bool,
@@ -95,7 +95,7 @@ pub(crate) struct FirmwarePositionAdmission<'a> {
     pub current_projection: &'a FirmwarePositionProjection,
 }
 
-pub(crate) fn admits_edit(
+pub fn admits_edit(
     identity: &FirmwarePositionIdentity,
     key_id: &str,
     admission: FirmwarePositionAdmission<'_>,
@@ -132,7 +132,7 @@ pub(crate) fn admits_edit(
 
 /// Admission identity is intentionally absent here: after submission, plan/source refresh cannot
 /// orphan the exact operation. Only the stable target gates feedback visibility.
-pub(crate) fn settle_edit(
+pub fn settle_edit(
     outcome: &TerminalOutcome,
     source: EditSettlementSource<'_>,
 ) -> EditSettlement {
@@ -170,14 +170,14 @@ pub(crate) fn settle_edit(
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum PlanLifecycle<'a> {
+pub enum PlanLifecycle<'a> {
     Idle,
     Pending(&'a FirmwarePlanIdentity),
     Current(&'a FirmwarePlanIdentity, &'a ElectricalPlan),
     Failed(&'a FirmwarePlanIdentity, &'a str),
 }
 
-pub(crate) fn project(
+pub fn project(
     document: &ProjectDoc,
     identity: &FirmwarePlanIdentity,
     ui_scope: &Scope,
@@ -280,7 +280,7 @@ mod tests {
 
     fn document() -> ProjectDoc {
         serde_json::from_str(include_str!(
-            "../../core/tests/fixtures/reviung41-outline-original.json"
+            "../../../../core/tests/fixtures/reviung41-outline-original.json"
         ))
         .expect("checked-in Reviung fixture is a valid saved project")
     }

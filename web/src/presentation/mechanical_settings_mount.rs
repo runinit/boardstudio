@@ -1257,7 +1257,7 @@ fn project_settings_source(
     if current_source_key(runtime).as_ref() != Some(key) {
         return None;
     }
-    let effective = boardstudio_web::cad_jobs::captured_case_document(accepted, &key.scope).ok()?;
+    let effective = boardstudio_web_host::cad_jobs::captured_case_document(accepted, &key.scope).ok()?;
     let configuration = effective.mechanical.clone().map(Rc::new);
     let profiles = configuration
         .as_ref()

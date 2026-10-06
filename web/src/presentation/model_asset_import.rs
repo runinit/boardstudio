@@ -1,7 +1,7 @@
 //! Shared browser file and verified-byte persistence path for attached model assets.
 
 use crate::presentation::model_delivery::{ModelFormat, VerifiedModelBytes};
-use boardstudio_web::host::{AssetBytes, BrowserStore};
+use boardstudio_web_host::host::{AssetBytes, BrowserStore};
 #[cfg(target_arch = "wasm32")]
 use js_sys::Uint8Array;
 #[cfg(target_arch = "wasm32")]

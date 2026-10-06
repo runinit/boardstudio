@@ -45,13 +45,13 @@ impl ModelSourceLease for PartsPreviewOwnerLease {
     }
 }
 
-pub(crate) type ModelFuture<T> = Pin<Box<dyn Future<Output = Result<T, String>> + 'static>>;
+pub type ModelFuture<T> = Pin<Box<dyn Future<Output = Result<T, String>> + 'static>>;
 
 /// The owner of model work. Renderer scene submissions intentionally are not
 /// part of this identity: healthy model completions can outlive a newer scene
 /// sequence while remaining attached to this exact Case projection.
 #[derive(Clone)]
-pub(crate) struct ModelOwnerIdentity {
+pub struct ModelOwnerIdentity {
     scope: Scope,
     snapshot_token: SnapshotToken,
     viewer_instance: u64,
@@ -60,7 +60,7 @@ pub(crate) struct ModelOwnerIdentity {
 }
 
 impl ModelOwnerIdentity {
-    pub(crate) fn new(
+    pub fn new(
         scope: Scope,
         snapshot_token: SnapshotToken,
         viewer_instance: u64,
@@ -77,7 +77,7 @@ impl ModelOwnerIdentity {
         }
     }
 
-    pub(crate) fn new_layout(
+    pub fn new_layout(
         scope: Scope,
         snapshot_token: SnapshotToken,
         source_generation: u64,
@@ -95,7 +95,7 @@ impl ModelOwnerIdentity {
         }
     }
 
-    pub(crate) fn new_parts(
+    pub fn new_parts(
         scope: Scope,
         snapshot_token: SnapshotToken,
         source_generation: u64,
@@ -122,7 +122,7 @@ impl ModelOwnerIdentity {
     /// Checks the captured physical preview against the current Case owner.
     /// This identity exists before mechanical CAD; the accepted revision remains
     /// a separate batch property.
-    pub(crate) fn is_current_owner(
+    pub fn is_current_owner(
         &self,
         current_scope: &Scope,
         current_token: SnapshotToken,
@@ -148,7 +148,7 @@ impl ModelOwnerIdentity {
             })
     }
 
-    pub(crate) fn is_current_layout_owner(
+    pub fn is_current_layout_owner(
         &self,
         current_scope: &Scope,
         current_token: SnapshotToken,
@@ -167,7 +167,7 @@ impl ModelOwnerIdentity {
             })
     }
 
-    pub(crate) fn is_current_parts_owner(
+    pub fn is_current_parts_owner(
         &self,
         current_scope: &Scope,
         current_token: SnapshotToken,
@@ -189,14 +189,14 @@ impl ModelOwnerIdentity {
 
 /// One request for the model rows of a particular preview under an owner.
 #[derive(Clone)]
-pub(crate) struct ModelBatchIdentity {
+pub struct ModelBatchIdentity {
     owner: ModelOwnerIdentity,
     accepted_revision: u64,
     batch_generation: u64,
 }
 
 impl ModelBatchIdentity {
-    pub(crate) fn new(
+    pub fn new(
         owner: ModelOwnerIdentity,
         accepted_revision: u64,
         batch_generation: u64,
@@ -208,7 +208,7 @@ impl ModelBatchIdentity {
         }
     }
 
-    pub(crate) fn is_current(
+    pub fn is_current(
         &self,
         current_owner: &ModelOwnerIdentity,
         current_revision: u64,
@@ -219,7 +219,7 @@ impl ModelBatchIdentity {
             && self.batch_generation == current_batch_generation
     }
 
-    pub(crate) fn owner(&self) -> &ModelOwnerIdentity {
+    pub fn owner(&self) -> &ModelOwnerIdentity {
         &self.owner
     }
 }
@@ -227,21 +227,21 @@ impl ModelBatchIdentity {
 /// Resolved document asset identity. The path is deliberately not used as a
 /// byte-store key; only `sha256` crosses the Runtime storage port.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct ResolvedModelAsset {
-    pub(crate) id: String,
-    pub(crate) sha256: String,
-    pub(crate) filename: String,
-    pub(crate) source: ModelAssetSource,
+pub struct ResolvedModelAsset {
+    pub id: String,
+    pub sha256: String,
+    pub filename: String,
+    pub source: ModelAssetSource,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum ModelAssetSource {
+pub enum ModelAssetSource {
     Document,
     Packaged { url_path: String },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum AssetSelection {
+pub enum AssetSelection {
     Archived(ResolvedModelAsset),
     Packaged(ResolvedModelAsset),
     MissingDocumentAsset { asset_id: String },
@@ -253,7 +253,7 @@ pub(crate) enum AssetSelection {
 /// BoardReference mapping, native preview path table, then version-matched
 /// generator path helper. The helper is injected because its packaged source is
 /// owned by the layout-generator build, not duplicated here.
-pub(crate) fn select_model_asset(
+pub fn select_model_asset(
     model_path: &str,
     reference: Option<&BoardReference>,
     native_path_assets: &BTreeMap<String, String>,
@@ -297,13 +297,13 @@ pub(crate) fn select_model_asset(
 /// Bytes crossing the page-model adapter must be revalidated even if they
 /// came from the current-import memory map rather than BrowserStore.
 #[derive(Clone, Debug)]
-pub(crate) struct VerifiedModelBytes {
+pub struct VerifiedModelBytes {
     bytes: Rc<[u8]>,
     sha256: String,
 }
 
 impl VerifiedModelBytes {
-    pub(crate) fn verify(bytes: Vec<u8>, expected_sha256: &str) -> Result<Self, String> {
+    pub fn verify(bytes: Vec<u8>, expected_sha256: &str) -> Result<Self, String> {
         if bytes.is_empty() || bytes.len() > MAX_MODEL_BYTES {
             return Err("Model file must be between 1 byte and 32 MiB".into());
         }
@@ -317,11 +317,11 @@ impl VerifiedModelBytes {
         })
     }
 
-    pub(crate) fn bytes(&self) -> &[u8] {
+    pub fn bytes(&self) -> &[u8] {
         &self.bytes
     }
 
-    pub(crate) fn sha256(&self) -> &str {
+    pub fn sha256(&self) -> &str {
         &self.sha256
     }
 }
@@ -334,14 +334,14 @@ fn sha256_hex(bytes: &[u8]) -> String {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ModelFormat {
+pub enum ModelFormat {
     Stl,
     Wrl,
     Step,
 }
 
 impl ModelFormat {
-    pub(crate) fn from_filename(filename: &str) -> Result<Self, String> {
+    pub fn from_filename(filename: &str) -> Result<Self, String> {
         match filename
             .rsplit_once('.')
             .map(|(_, ext)| ext.to_ascii_lowercase())
@@ -358,12 +358,12 @@ impl ModelFormat {
 /// accepts an exact source descriptor; decoding callbacks consume verified bytes.
 /// STEP uses the existing identity-checked CAD worker rather than a second
 /// parser implementation in presentation code.
-pub(crate) struct ModelDeliveryPorts {
-    pub(crate) load_verified_bytes:
+pub struct ModelDeliveryPorts {
+    pub load_verified_bytes:
         Rc<dyn Fn(ResolvedModelAsset) -> ModelFuture<Option<VerifiedModelBytes>>>,
-    pub(crate) decode_stl: Rc<dyn Fn(VerifiedModelBytes) -> ModelFuture<MeshArrays>>,
-    pub(crate) decode_wrl: Rc<dyn Fn(VerifiedModelBytes) -> ModelFuture<MeshArrays>>,
-    pub(crate) read_step:
+    pub decode_stl: Rc<dyn Fn(VerifiedModelBytes) -> ModelFuture<MeshArrays>>,
+    pub decode_wrl: Rc<dyn Fn(VerifiedModelBytes) -> ModelFuture<MeshArrays>>,
+    pub read_step:
         Rc<dyn Fn(VerifiedModelBytes, ModelOwnerIdentity) -> ModelFuture<MeshArrays>>,
 }
 
@@ -379,7 +379,7 @@ impl Clone for ModelDeliveryPorts {
 }
 
 impl ModelDeliveryPorts {
-    pub(crate) async fn load(
+    pub async fn load(
         &self,
         asset: &ResolvedModelAsset,
     ) -> Result<Option<VerifiedModelBytes>, String> {
@@ -392,7 +392,7 @@ impl ModelDeliveryPorts {
         Ok(result)
     }
 
-    pub(crate) async fn decode(
+    pub async fn decode(
         &self,
         format: ModelFormat,
         bytes: VerifiedModelBytes,
@@ -411,17 +411,17 @@ impl ModelDeliveryPorts {
 /// one decoded allocation. Adapters should create/copy JS typed arrays at most
 /// once per decoded asset and retain their JS handles alongside these slices.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct MeshArrays {
-    pub(crate) positions: Vec<f32>,
-    pub(crate) normals: Vec<f32>,
-    pub(crate) colors: Option<Vec<f32>>,
+pub struct MeshArrays {
+    pub positions: Vec<f32>,
+    pub normals: Vec<f32>,
+    pub colors: Option<Vec<f32>>,
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct ValidatedMesh {
-    pub(crate) positions: Rc<[f32]>,
-    pub(crate) normals: Rc<[f32]>,
-    pub(crate) colors: Option<Rc<[f32]>>,
+pub struct ValidatedMesh {
+    pub positions: Rc<[f32]>,
+    pub normals: Rc<[f32]>,
+    pub colors: Option<Rc<[f32]>>,
 }
 
 impl TryFrom<MeshArrays> for ValidatedMesh {
@@ -468,7 +468,7 @@ enum CacheSlot {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) enum MeshCacheClaim {
+pub enum MeshCacheClaim {
     Reuse(Rc<ValidatedMesh>),
     JoinPending {
         task_token: u64,
@@ -485,14 +485,14 @@ pub(crate) enum MeshCacheClaim {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct EvictedTask {
-    pub(crate) sha256: String,
-    pub(crate) task_token: u64,
+pub struct EvictedTask {
+    pub sha256: String,
+    pub task_token: u64,
 }
 
 /// SHA cache with a batch-owned pending slot and token-checked settlement.
 /// Stale completion/failure cannot overwrite or remove a replacement task.
-pub(crate) struct ModelMeshCache {
+pub struct ModelMeshCache {
     slots: BTreeMap<String, CacheSlot>,
     recency: VecDeque<String>,
     next_task_token: u64,
@@ -509,7 +509,7 @@ impl Default for ModelMeshCache {
 }
 
 impl ModelMeshCache {
-    pub(crate) fn claim(
+    pub fn claim(
         &mut self,
         sha256: &str,
         batch: &ModelBatchIdentity,
@@ -557,7 +557,7 @@ impl ModelMeshCache {
         })
     }
 
-    pub(crate) fn complete(
+    pub fn complete(
         &mut self,
         sha256: &str,
         task_token: u64,
@@ -574,7 +574,7 @@ impl ModelMeshCache {
 
     /// A failed current task is removed so the normal retry can claim a new
     /// task. A superseded task has no authority to evict the replacement.
-    pub(crate) fn fail(&mut self, sha256: &str, task_token: u64) -> bool {
+    pub fn fail(&mut self, sha256: &str, task_token: u64) -> bool {
         let current = matches!(self.slots.get(sha256),
             Some(CacheSlot::Pending { task_token: current, .. }) if *current == task_token);
         if current {
@@ -622,30 +622,30 @@ impl ModelBatchIdentity {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct DeliveredModel {
-    pub(crate) id: String,
-    pub(crate) mesh: Rc<ValidatedMesh>,
+pub struct DeliveredModel {
+    pub id: String,
+    pub mesh: Rc<ValidatedMesh>,
     /// Core-resolved module placement in the renderer's accepted board frame.
-    pub(crate) matrix: Option<[f64; 16]>,
+    pub matrix: Option<[f64; 16]>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct ModelFailure {
-    pub(crate) reference: String,
-    pub(crate) reason: String,
+pub struct ModelFailure {
+    pub reference: String,
+    pub reason: String,
 }
 
 #[derive(Clone, Debug, Default)]
-pub(crate) struct ModelDeliveryRows {
-    pub(crate) delivered: Vec<DeliveredModel>,
-    pub(crate) pending: Vec<String>,
-    pub(crate) failures: Vec<ModelFailure>,
+pub struct ModelDeliveryRows {
+    pub delivered: Vec<DeliveredModel>,
+    pub pending: Vec<String>,
+    pub failures: Vec<ModelFailure>,
 }
 
 /// Settle a Layout model-delivery result only against the exact preview that
 /// started it. `current` is supplied by Runtime after the delivery future ends;
 /// it must return only a preview whose complete source owner is current.
-pub(crate) async fn settle_layout_model_delivery<F, C, R>(
+pub async fn settle_layout_model_delivery<F, C, R>(
     expected: Rc<LayoutPreviewSnapshot>,
     delivery: F,
     current: C,
@@ -683,7 +683,7 @@ impl PartialEq for ModelDeliveryRows {
 /// IDs for renderer model IDs. Rows preserve the preview's order. Absent
 /// outcomes remain pending instead of being misreported as missing; terminal
 /// provider/asset errors must be supplied explicitly.
-pub(crate) fn merge_model_rows(
+pub fn merge_model_rows(
     models: &[PcbModel],
     outcomes: &BTreeMap<String, Result<Rc<ValidatedMesh>, String>>,
 ) -> ModelDeliveryRows {
@@ -707,7 +707,7 @@ pub(crate) fn merge_model_rows(
 
 /// Resolve a mounted-module model's direct asset identity using the same
 /// document-first and packaged-provider semantics as preview path assets.
-pub(crate) fn select_model_asset_id(
+pub fn select_model_asset_id(
     asset_id: &str,
     document_assets: &[Asset],
     packaged_asset: impl FnOnce(&str) -> Option<ResolvedModelAsset>,
@@ -804,13 +804,13 @@ impl<T: Clone> Future for WaitCellFuture<T> {
 /// the completed Promise.all-style row snapshot in preview order. Meshes are
 /// cached by verified SHA; model rows retain their distinct renderer IDs.
 #[derive(Default)]
-pub(crate) struct ModelDeliveryAdapter {
+pub struct ModelDeliveryAdapter {
     cache: Rc<std::cell::RefCell<ModelMeshCache>>,
     pending: Rc<std::cell::RefCell<PendingModelWaiters>>,
 }
 
 impl ModelDeliveryAdapter {
-    pub(crate) async fn deliver_models(
+    pub async fn deliver_models(
         &self,
         preview_revision: u64,
         models: &[PcbModel],
@@ -993,7 +993,7 @@ impl ModelDeliveryAdapter {
     /// verification, format decoder, SHA cache, and batch liveness checks used
     /// by ordinary preview models. The returned rows retain Core's stable IDs
     /// and carry its authoritative affine transform to the renderer adapter.
-    pub(crate) async fn deliver_module_placements(
+    pub async fn deliver_module_placements(
         &self,
         preview_revision: u64,
         placements: &[ModuleModelPlacement],
@@ -1116,7 +1116,7 @@ async fn join_all(futures: Vec<DeliveryTask>) {
 /// Resolve all row asset identities without inventing byte locations. The
 /// document is supplied as a captured snapshot; no separate asset registry is
 /// retained in this module.
-pub(crate) fn resolve_preview_assets(
+pub fn resolve_preview_assets(
     models: &[PcbModel],
     reference: Option<&BoardReference>,
     native_path_assets: &BTreeMap<String, String>,
@@ -1148,7 +1148,7 @@ pub(crate) fn resolve_preview_assets(
 /// Native preparation records paths by source asset ID because Core needs that
 /// direction when materializing export artifacts. `PcbPreview` rows point the
 /// other way (path -> model row), so invert only at this consumer boundary.
-pub(crate) fn native_model_path_assets(
+pub fn native_model_path_assets(
     source_paths_by_asset_id: &BTreeMap<String, String>,
 ) -> BTreeMap<String, String> {
     source_paths_by_asset_id

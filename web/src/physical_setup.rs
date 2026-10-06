@@ -112,7 +112,7 @@ fn propose_topology(
         });
     let mechanical = match mechanical {
         Some(configuration) => configuration,
-        None => boardstudio_web::case_settings::initial_settings(accepted, board_id)?,
+        None => boardstudio_web_host::case_settings::initial_settings(accepted, board_id)?,
     };
 
     let mut hardware = old_hardware.cloned().unwrap_or_default();
@@ -308,7 +308,7 @@ mod tests {
     }
 
     fn mechanical(doc: &ProjectDoc, thickness: f64) -> MechanicalConfiguration {
-        let mut value = boardstudio_web::case_settings::initial_settings(doc, "board-a").unwrap();
+        let mut value = boardstudio_web_host::case_settings::initial_settings(doc, "board-a").unwrap();
         value.plate_thickness = thickness;
         value
     }

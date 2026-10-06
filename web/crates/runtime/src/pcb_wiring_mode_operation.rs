@@ -8,7 +8,7 @@ use boardstudio_core::{
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct BoardWiringModeIdentity {
+pub struct BoardWiringModeIdentity {
     /// Selection-independent accepted board-plan identity.
     pub plan: FirmwarePlanIdentity,
     /// Selection and UI-scope identity of the rendered control.
@@ -18,7 +18,7 @@ pub(crate) struct BoardWiringModeIdentity {
 }
 
 impl BoardWiringModeIdentity {
-    pub(crate) fn matches_action_context(
+    pub fn matches_action_context(
         &self,
         current_plan: &FirmwarePlanIdentity,
         current_scope: Option<&Scope>,
@@ -31,7 +31,7 @@ impl BoardWiringModeIdentity {
             && self.scope_generation == current_generation
     }
 
-    pub(crate) fn feedback_target(&self) -> BoardWiringModeFeedbackTarget {
+    pub fn feedback_target(&self) -> BoardWiringModeFeedbackTarget {
         BoardWiringModeFeedbackTarget {
             ui_scope: self.ui_scope.clone(),
             selected_part_id: self.selected_part_id.clone(),
@@ -41,21 +41,21 @@ impl BoardWiringModeIdentity {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct BoardWiringModeFeedbackTarget {
+pub struct BoardWiringModeFeedbackTarget {
     pub ui_scope: Scope,
     pub selected_part_id: Option<String>,
     pub scope_generation: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum ResolutionAdmission {
+pub enum ResolutionAdmission {
     Idle,
     Pending(FirmwarePlanIdentity),
     Current(FirmwarePlanIdentity),
     Failed(FirmwarePlanIdentity),
 }
 
-pub(crate) fn begin_resolution(
+pub fn begin_resolution(
     admission: &mut ResolutionAdmission,
     identity: &FirmwarePlanIdentity,
     force: bool,
@@ -73,7 +73,7 @@ pub(crate) fn begin_resolution(
     true
 }
 
-pub(crate) fn electrical_preview_request(
+pub fn electrical_preview_request(
     request_id: &str,
     document: &ProjectDoc,
     board_id: &str,
@@ -99,7 +99,7 @@ pub(crate) fn electrical_preview_request(
 }
 
 impl BoardWiringModeFeedbackTarget {
-    pub(crate) fn is_visible(
+    pub fn is_visible(
         &self,
         current_scope: Option<&Scope>,
         current_selected_part_id: Option<&str>,
@@ -111,7 +111,7 @@ impl BoardWiringModeFeedbackTarget {
     }
 }
 
-pub(crate) fn propose_mode(
+pub fn propose_mode(
     document: &ProjectDoc,
     board_id: &str,
     mode: ElectricalMode,

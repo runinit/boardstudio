@@ -13,19 +13,19 @@ use std::{cell::Cell, rc::Rc};
 use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct LayoutSourceIdentity {
+pub struct LayoutSourceIdentity {
     /// Keep the complete active scope, including a retained physical instance.
     /// The instance participates in freshness only; it never projects geometry.
-    pub(crate) scope: Scope,
-    pub(crate) snapshot_token: SnapshotToken,
-    pub(crate) accepted_revision: u64,
-    pub(crate) accepted_document_identity: usize,
-    pub(crate) accepted_scene_identity: usize,
-    pub(crate) source_generation: u64,
+    pub scope: Scope,
+    pub snapshot_token: SnapshotToken,
+    pub accepted_revision: u64,
+    pub accepted_document_identity: usize,
+    pub accepted_scene_identity: usize,
+    pub source_generation: u64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum LayoutPreviewRequest {
+pub enum LayoutPreviewRequest {
     Authored(Box<PrepareExportRequest>),
     Imported {
         reference: BoardReference,
@@ -34,43 +34,43 @@ pub(crate) enum LayoutPreviewRequest {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct LayoutSourceCapture {
-    pub(crate) owner: LayoutSourceIdentity,
-    pub(crate) lease: Rc<LayoutSourceLease>,
-    pub(crate) document: Arc<ProjectDoc>,
+pub struct LayoutSourceCapture {
+    pub owner: LayoutSourceIdentity,
+    pub lease: Rc<LayoutSourceLease>,
+    pub document: Arc<ProjectDoc>,
     /// Current resolved modules from the same accepted SceneDelta as this capture.
-    pub(crate) module_scenes: Vec<ResolvedModule>,
-    pub(crate) contours: Vec<Contour>,
-    pub(crate) path_assets: BTreeMap<String, String>,
-    pub(crate) request: LayoutPreviewRequest,
+    pub module_scenes: Vec<ResolvedModule>,
+    pub contours: Vec<Contour>,
+    pub path_assets: BTreeMap<String, String>,
+    pub request: LayoutPreviewRequest,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct LayoutPreviewSnapshot {
-    pub(crate) owner: LayoutSourceIdentity,
-    pub(crate) lease: Rc<LayoutSourceLease>,
-    pub(crate) document: Arc<ProjectDoc>,
+pub struct LayoutPreviewSnapshot {
+    pub owner: LayoutSourceIdentity,
+    pub lease: Rc<LayoutSourceLease>,
+    pub document: Arc<ProjectDoc>,
     /// Board-scoped resolved modules captured with the accepted Layout source.
-    pub(crate) module_scenes: Vec<ResolvedModule>,
-    pub(crate) contours: Vec<Contour>,
-    pub(crate) path_assets: BTreeMap<String, String>,
-    pub(crate) board_reference: Option<BoardReference>,
-    pub(crate) preview: PcbPreview,
+    pub module_scenes: Vec<ResolvedModule>,
+    pub contours: Vec<Contour>,
+    pub path_assets: BTreeMap<String, String>,
+    pub board_reference: Option<BoardReference>,
+    pub preview: PcbPreview,
 }
 
 /// Keycap metadata from the exact mesh generation supplied to the current viewer.
-pub(crate) struct LayoutKeycapPickSource<'a> {
-    pub(crate) scope: &'a Scope,
-    pub(crate) snapshot_token: SnapshotToken,
-    pub(crate) revision: u64,
-    pub(crate) generation: u64,
-    pub(crate) rendered_generation: u64,
-    pub(crate) specs: &'a [KeycapSpec],
-    pub(crate) body_ids: &'a [String],
+pub struct LayoutKeycapPickSource<'a> {
+    pub scope: &'a Scope,
+    pub snapshot_token: SnapshotToken,
+    pub revision: u64,
+    pub generation: u64,
+    pub rendered_generation: u64,
+    pub specs: &'a [KeycapSpec],
+    pub body_ids: &'a [String],
 }
 
 #[derive(Debug)]
-pub(crate) struct LayoutSourceLease {
+pub struct LayoutSourceLease {
     active: Cell<bool>,
     identity: LayoutSourceIdentity,
 }
@@ -83,15 +83,15 @@ impl LayoutSourceLease {
         })
     }
 
-    pub(crate) fn is_active(&self) -> bool {
+    pub fn is_active(&self) -> bool {
         self.active.get()
     }
 
-    pub(crate) fn matches(&self, identity: &LayoutSourceIdentity) -> bool {
+    pub fn matches(&self, identity: &LayoutSourceIdentity) -> bool {
         self.is_active() && self.identity == *identity
     }
 
-    pub(crate) fn invalidate(&self) {
+    pub fn invalidate(&self) {
         self.active.set(false);
     }
 }
@@ -103,15 +103,15 @@ impl PartialEq for LayoutSourceLease {
 }
 
 #[derive(Default)]
-pub(crate) struct LayoutPreviewState {
-    pub(crate) published: Option<Rc<LayoutPreviewSnapshot>>,
-    pub(crate) pending: Option<(LayoutSourceIdentity, Rc<LayoutSourceLease>)>,
-    pub(crate) error: Option<(LayoutSourceIdentity, String)>,
+pub struct LayoutPreviewState {
+    pub published: Option<Rc<LayoutPreviewSnapshot>>,
+    pub pending: Option<(LayoutSourceIdentity, Rc<LayoutSourceLease>)>,
+    pub error: Option<(LayoutSourceIdentity, String)>,
     source_generation: u64,
 }
 
 impl LayoutPreviewState {
-    pub(crate) fn next_generation(&mut self) -> Result<u64, String> {
+    pub fn next_generation(&mut self) -> Result<u64, String> {
         self.retire();
         let generation = self
             .source_generation
@@ -121,12 +121,12 @@ impl LayoutPreviewState {
         Ok(generation)
     }
 
-    pub(crate) fn begin(&mut self, capture: &LayoutSourceCapture) {
+    pub fn begin(&mut self, capture: &LayoutSourceCapture) {
         self.retire();
         self.pending = Some((capture.owner.clone(), capture.lease.clone()));
     }
 
-    pub(crate) fn owns(&self, owner: &LayoutSourceIdentity) -> bool {
+    pub fn owns(&self, owner: &LayoutSourceIdentity) -> bool {
         self.published
             .as_ref()
             .is_some_and(|source| source.lease.matches(owner))
@@ -136,7 +136,7 @@ impl LayoutPreviewState {
                 .is_some_and(|(pending, lease)| pending == owner && lease.matches(owner))
     }
 
-    pub(crate) fn publish(&mut self, source: LayoutPreviewSnapshot) -> Result<(), String> {
+    pub fn publish(&mut self, source: LayoutPreviewSnapshot) -> Result<(), String> {
         if !self.owns(&source.owner)
             || !self.pending.as_ref().is_some_and(|(owner, lease)| {
                 owner == &source.owner && Rc::ptr_eq(lease, &source.lease)
@@ -151,7 +151,7 @@ impl LayoutPreviewState {
         Ok(())
     }
 
-    pub(crate) fn retire_generation(&mut self, generation: u64) -> bool {
+    pub fn retire_generation(&mut self, generation: u64) -> bool {
         if generation == self.source_generation {
             self.retire();
             self.source_generation = self.source_generation.saturating_add(1);
@@ -161,7 +161,7 @@ impl LayoutPreviewState {
         }
     }
 
-    pub(crate) fn retire_unless_request_matches(
+    pub fn retire_unless_request_matches(
         &mut self,
         expected: Option<(&Scope, SnapshotToken, u64)>,
     ) -> bool {
@@ -184,7 +184,7 @@ impl LayoutPreviewState {
         self.retire_generation(current.source_generation)
     }
 
-    pub(crate) fn fail(&mut self, owner: LayoutSourceIdentity, error: String) {
+    pub fn fail(&mut self, owner: LayoutSourceIdentity, error: String) {
         let is_current_pending = self
             .pending
             .as_ref()
@@ -197,7 +197,7 @@ impl LayoutPreviewState {
         }
     }
 
-    pub(crate) fn fail_before_begin(&mut self, owner: LayoutSourceIdentity, error: String) {
+    pub fn fail_before_begin(&mut self, owner: LayoutSourceIdentity, error: String) {
         self.retire();
         self.error = Some((owner, error));
     }
@@ -214,7 +214,7 @@ impl LayoutPreviewState {
 }
 
 impl LayoutSourceIdentity {
-    pub(crate) fn from_accepted(
+    pub fn from_accepted(
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
         source_generation: u64,
@@ -229,7 +229,7 @@ impl LayoutSourceIdentity {
         }
     }
 
-    pub(crate) fn matches_current(
+    pub fn matches_current(
         &self,
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
@@ -253,7 +253,7 @@ impl LayoutSourceIdentity {
 impl LayoutSourceCapture {
     /// Build the canonical selected-board request from the accepted source.
     /// `model_paths` comes from the existing bundled/document model path owner.
-    pub(crate) fn capture(
+    pub fn capture(
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
         source_generation: u64,
@@ -371,7 +371,7 @@ impl LayoutSourceCapture {
 
     /// Convert the captured producer choice to the existing Core artifact request.
     /// Imported bytes are resolved by Runtime from this exact accepted asset SHA.
-    pub(crate) fn artifact_request(
+    pub fn artifact_request(
         &self,
         id: String,
         imported_source: Option<String>,
@@ -404,7 +404,7 @@ impl LayoutSourceCapture {
 
     /// Accept only a preview for this accepted revision. Core reply/request IDs are
     /// checked by Runtime before this method is called.
-    pub(crate) fn accept_preview(
+    pub fn accept_preview(
         &self,
         preview: PcbPreview,
     ) -> Result<LayoutPreviewSnapshot, String> {
@@ -430,7 +430,7 @@ impl LayoutSourceCapture {
 }
 
 impl LayoutPreviewSnapshot {
-    pub(crate) fn same_live_source(&self, expected: &Self) -> bool {
+    pub fn same_live_source(&self, expected: &Self) -> bool {
         self.owner == expected.owner
             && Rc::ptr_eq(&self.lease, &expected.lease)
             && self.lease.matches(&self.owner)
@@ -438,7 +438,7 @@ impl LayoutPreviewSnapshot {
 
     /// Resolve a private Layout renderer ID to the mounted placement represented
     /// by this accepted scene, rejecting stale or cross-board pick events.
-    pub(crate) fn module_for_current_pick(
+    pub fn module_for_current_pick(
         &self,
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
@@ -485,7 +485,7 @@ impl LayoutPreviewSnapshot {
 
     /// A renderer reference selects only a unique Part on this captured board and
     /// only while the full accepted scope and source generation still match.
-    pub(crate) fn part_for_current_pick(
+    pub fn part_for_current_pick(
         &self,
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
@@ -847,7 +847,7 @@ mod tests {
             native_model_path_assets, resolve_preview_assets,
         };
         #[cfg(target_arch = "wasm32")]
-        use crate::presentation::model_delivery::{
+        use crate::model_delivery::{
             AssetSelection, MeshArrays, ModelAssetSource, ModelBatchIdentity, ModelDeliveryAdapter,
             ModelDeliveryPorts, ModelOwnerIdentity, ResolvedModelAsset, VerifiedModelBytes,
             native_model_path_assets, resolve_preview_assets,
@@ -1326,7 +1326,7 @@ mod tests {
         #[cfg(not(target_arch = "wasm32"))]
         use crate::model_delivery::settle_layout_model_delivery;
         #[cfg(target_arch = "wasm32")]
-        use crate::presentation::model_delivery::settle_layout_model_delivery;
+        use crate::model_delivery::settle_layout_model_delivery;
         use std::{
             future::{Future, poll_fn},
             task::Waker,

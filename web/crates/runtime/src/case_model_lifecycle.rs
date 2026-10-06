@@ -1,7 +1,7 @@
 //! Private native Case worker and viewer input identities.
 use std::{cell::RefCell, rc::Rc};
 
-pub(crate) fn case_model_worker<K: Clone + PartialEq, W>(
+pub fn case_model_worker<K: Clone + PartialEq, W>(
     slot: &RefCell<Option<(K, Rc<W>)>>,
     scope: &K,
     usable: impl FnOnce(&W) -> bool,
@@ -20,11 +20,11 @@ pub(crate) fn case_model_worker<K: Clone + PartialEq, W>(
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct ProjectionInputs {
-    pub(crate) source: usize,
-    pub(crate) preview: usize,
-    pub(crate) models: Vec<(String, usize)>,
-    pub(crate) theme: String,
+pub struct ProjectionInputs {
+    pub source: usize,
+    pub preview: usize,
+    pub models: Vec<(String, usize)>,
+    pub theme: String,
 }
 
 #[cfg(test)]
