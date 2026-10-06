@@ -3,13 +3,13 @@ use boardstudio_application::{Durability, Lifecycle, ReadModel, SessionEpoch};
 use boardstudio_core::model::ProjectDoc;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct Preference {
+pub struct Preference {
     pub session_epoch: SessionEpoch,
     pub document_id: String,
     pub explicit_id: String,
 }
 
-pub(super) fn resolve<'a>(
+pub fn resolve<'a>(
     document: &'a ProjectDoc,
     epoch: SessionEpoch,
     board_id: &str,
@@ -32,7 +32,7 @@ pub(super) fn resolve<'a>(
         .map(|instance| instance.id.as_str())
 }
 
-pub(super) fn is_current(model: &ReadModel, preference: Option<&Preference>) -> bool {
+pub fn is_current(model: &ReadModel, preference: Option<&Preference>) -> bool {
     model.accepted.as_ref().is_some_and(|snapshot| {
         resolve(
             &snapshot.document,
@@ -43,7 +43,7 @@ pub(super) fn is_current(model: &ReadModel, preference: Option<&Preference>) -> 
     })
 }
 
-pub(super) fn can_reconcile(model: &ReadModel) -> bool {
+pub fn can_reconcile(model: &ReadModel) -> bool {
     model.lifecycle == Lifecycle::Ready
         && model.gesture.is_none()
         && model.display_preview.is_none()

@@ -1774,7 +1774,8 @@ fn select_native_preview_model(
             context,
             mode: boardstudio_application::SelectionMode::Replace,
             outline_action: None,
-        },
+        }
+        .into(),
     );
     true
 }
@@ -2389,7 +2390,9 @@ mod gesture_cancellation_tests {
         scope: Scope,
     ) -> Result<CadScene, String> {
         use boardstudio_core::model::{CaseAssemblyIR, CaseIR, CoreReply, CoreRequest};
-        use boardstudio_web_host::cad_jobs::{CadBodyMesh, CadBounds, CadResult, captured_case_scene};
+        use boardstudio_web_host::cad_jobs::{
+            CadBodyMesh, CadBounds, CadResult, captured_case_scene,
+        };
         let document =
             captured_case_document(&snapshot, &scope).map_err(|error| format!("{error:?}"))?;
         let contours = captured_case_scene(&snapshot, &scope)

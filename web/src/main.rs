@@ -39,7 +39,6 @@ mod physical_setup;
 mod presentation;
 
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
-
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 mod case_preview_lifecycle;
 
@@ -54,10 +53,6 @@ mod mechanical_feedback;
 
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod firmware_position_choices;
-
-#[cfg(all(feature = "page", test, not(target_arch = "wasm32")))]
-#[path = "presentation/instance_selection.rs"]
-mod instance_selection;
 
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 #[path = "presentation/footprint_forms.rs"]

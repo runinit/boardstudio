@@ -4,7 +4,7 @@ use boardstudio_core::model::{
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) enum TreeContext {
+pub enum TreeContext {
     Outline {
         board_id: String,
     },
@@ -55,7 +55,7 @@ pub(in crate::presentation) enum TreeContext {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum TreeKind {
+pub enum TreeKind {
     Outline,
     OutlineVersion,
     Bridge,
@@ -71,7 +71,7 @@ pub(super) enum TreeKind {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct TreeItem {
+pub struct TreeItem {
     pub id: String,
     pub label: String,
     pub detail: Option<String>,
@@ -84,7 +84,7 @@ pub(super) struct TreeItem {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Grouping {
+pub enum Grouping {
     Column,
     Row,
 }
@@ -99,7 +99,7 @@ impl Grouping {
     }
 }
 
-pub(super) fn visible_matrices<'a>(
+pub fn visible_matrices<'a>(
     document: &'a ProjectDoc,
     board_id: &str,
     board_parts: &HashSet<&str>,
@@ -121,7 +121,7 @@ pub(super) fn visible_matrices<'a>(
         .collect()
 }
 
-pub(super) fn default_disclosures(document: &ProjectDoc, board_id: &str) -> BTreeSet<String> {
+pub fn default_disclosures(document: &ProjectDoc, board_id: &str) -> BTreeSet<String> {
     let Some(board) = document.boards.iter().find(|board| board.id == board_id) else {
         return BTreeSet::new();
     };
@@ -137,7 +137,7 @@ pub(super) fn default_disclosures(document: &ProjectDoc, board_id: &str) -> BTre
 
 /// PCB inventory shows each actual board part as an explicit component, even when
 /// that part is also a primary matrix key in the Layout workspace.
-pub(super) fn build_pcb_tree(
+pub fn build_pcb_tree(
     model: &boardstudio_application::ReadModel,
     expanded: &BTreeSet<String>,
 ) -> Vec<TreeItem> {
@@ -218,7 +218,7 @@ pub(super) fn build_pcb_tree(
     rows
 }
 
-pub(super) fn build_tree(
+pub fn build_tree(
     document: &ProjectDoc,
     board_id: &str,
     grouping: Grouping,
@@ -971,7 +971,7 @@ fn matrix_for_board<'a>(
     Some((item, projected))
 }
 
-pub(super) fn resolve_selection(
+pub fn resolve_selection(
     model: &boardstudio_application::ReadModel,
     context: &TreeContext,
 ) -> Option<Vec<String>> {
@@ -1215,7 +1215,7 @@ pub(super) fn resolve_selection(
     }
 }
 
-pub(super) fn context_for_part(
+pub fn context_for_part(
     model: &boardstudio_application::ReadModel,
     part_id: &str,
 ) -> Option<TreeContext> {
@@ -1293,7 +1293,7 @@ pub(super) fn context_for_part(
 /// Ordinary hit testing still calls `context_for_part` and therefore keeps primary
 /// matrix members in Key mode; a finding has already resolved a Part target and
 /// React deliberately opens that part's component Inspector instead.
-pub(super) fn component_context_for_finding_part(
+pub fn component_context_for_finding_part(
     model: &boardstudio_application::ReadModel,
     part_id: &str,
 ) -> Option<TreeContext> {
@@ -1318,7 +1318,7 @@ fn component_context_for_explicit_part(
     })
 }
 
-pub(super) fn context_for_cell(
+pub fn context_for_cell(
     model: &boardstudio_application::ReadModel,
     matrix_id: &str,
     row: u32,
@@ -1359,7 +1359,7 @@ pub(super) fn context_for_cell(
     })
 }
 
-pub(super) fn context_label(
+pub fn context_label(
     model: &boardstudio_application::ReadModel,
     context: &TreeContext,
 ) -> Option<String> {
@@ -1470,3 +1470,9 @@ pub(super) fn context_label(
 #[cfg(test)]
 #[path = "tree_tests.rs"]
 mod tests;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ScopedTreeContext {
+    pub scope: boardstudio_application::Scope,
+    pub context: TreeContext,
+}

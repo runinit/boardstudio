@@ -1,5 +1,5 @@
-use super::objects::{self, ScopedTreeContext, TreeContext, TreeSelectRequest};
 use crate::runtime::Runtime;
+use crate::tree::{self as objects, ScopedTreeContext, TreeContext};
 use boardstudio_application::{Event, Scope, SelectionMode, SnapshotToken};
 use dioxus::prelude::*;
 use std::{
@@ -7,10 +7,10 @@ use std::{
     rc::Rc,
 };
 
-pub(super) type Cleanup = Rc<dyn Fn()>;
+pub type Cleanup = Rc<dyn Fn()>;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct ScopeTransition {
+pub struct ScopeTransition {
     pub previous_scope: Option<Scope>,
     pub previous_token: Option<SnapshotToken>,
     pub next_scope: Option<Scope>,
@@ -33,7 +33,7 @@ impl ScopeTransition {
 }
 
 #[derive(Clone)]
-pub(super) struct SelectionAdapter {
+pub struct SelectionAdapter {
     pub selected_context: Signal<Option<ScopedTreeContext>>,
     pub anchor_scope: Signal<Option<Scope>>,
     pub generation: Signal<u64>,
@@ -67,7 +67,7 @@ impl SelectionAdapter {
     }
 }
 
-pub(super) struct ReentrancyReset(Rc<Cell<bool>>);
+pub struct ReentrancyReset(Rc<Cell<bool>>);
 
 impl ReentrancyReset {
     pub fn enter(flag: Rc<Cell<bool>>) -> Option<Self> {
@@ -85,7 +85,7 @@ impl Drop for ReentrancyReset {
     }
 }
 
-pub(super) fn live_board_ids(model: &boardstudio_application::ReadModel) -> Vec<String> {
+pub fn live_board_ids(model: &boardstudio_application::ReadModel) -> Vec<String> {
     let Some(snapshot) = model.accepted.as_ref() else {
         return Vec::new();
     };
@@ -105,14 +105,14 @@ pub(super) fn live_board_ids(model: &boardstudio_application::ReadModel) -> Vec<
         .collect()
 }
 
-pub(super) fn eligible_live_ids(model: &boardstudio_application::ReadModel) -> Vec<String> {
+pub fn eligible_live_ids(model: &boardstudio_application::ReadModel) -> Vec<String> {
     live_board_ids(model)
         .into_iter()
         .filter(|id| objects::context_for_part(model, id).is_some())
         .collect()
 }
 
-pub(super) fn context_is_current(
+pub fn context_is_current(
     model: &boardstudio_application::ReadModel,
     scope: &Scope,
     context: &TreeContext,
@@ -126,18 +126,22 @@ pub(super) fn context_is_current(
         && objects::resolve_selection(model, context).is_some()
 }
 
-pub(super) fn resolve_context(
+pub fn resolve_context(
     model: &boardstudio_application::ReadModel,
     context: &TreeContext,
 ) -> Option<Vec<String>> {
     objects::resolve_selection(model, context)
 }
 
-pub(super) fn submit_context(
-    runtime: &Rc<Runtime>,
-    adapter: &SelectionAdapter,
-    request: TreeSelectRequest,
-) {
+/// A tree-context selection: the part of a tree select request that selection reads.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ContextRequest {
+    pub scope: Scope,
+    pub context: TreeContext,
+    pub mode: SelectionMode,
+}
+
+pub fn submit_context(runtime: &Rc<Runtime>, adapter: &SelectionAdapter, request: ContextRequest) {
     if runtime.scope().as_ref() != Some(&request.scope) {
         return;
     }
@@ -222,7 +226,7 @@ pub(super) fn submit_context(
     }
 }
 
-pub(super) fn submit_canvas_selection(
+pub fn submit_canvas_selection(
     runtime: &Rc<Runtime>,
     adapter: &SelectionAdapter,
     scope: &Scope,
@@ -290,7 +294,7 @@ pub(super) fn submit_canvas_selection(
     Some(ids)
 }
 
-pub(super) struct MatrixCellSelection<'a> {
+pub struct MatrixCellSelection<'a> {
     pub matrix_id: String,
     pub target_part_id: String,
     pub hit_context: &'a TreeContext,
@@ -298,7 +302,7 @@ pub(super) struct MatrixCellSelection<'a> {
     pub mode: SelectionMode,
 }
 
-pub(super) fn submit_matrix_cell_selection(
+pub fn submit_matrix_cell_selection(
     runtime: &Rc<Runtime>,
     adapter: &SelectionAdapter,
     scope: &Scope,
@@ -456,9 +460,9 @@ fn additive_inspector_context(
         .unwrap_or_else(|| requested.clone())
 }
 
-pub(super) fn cancel_scoped_drag(
+pub fn cancel_scoped_drag(
     runtime: &Rc<Runtime>,
-    drag: &Rc<RefCell<Option<super::Drag>>>,
+    drag: &Rc<RefCell<Option<crate::state::Drag>>>,
     svg: &Rc<RefCell<Option<web_sys::SvgElement>>>,
     expected_scope: Option<&Scope>,
 ) {
@@ -475,7 +479,7 @@ pub(super) fn cancel_scoped_drag(
     }
 }
 
-pub(super) fn cancel_drag_if_owned(runtime: &Rc<Runtime>, drag: &super::Drag) {
+pub fn cancel_drag_if_owned(runtime: &Rc<Runtime>, drag: &crate::state::Drag) {
     if !drag.active || drag.pan || !owns_session_gesture(runtime, drag) {
         return;
     }
@@ -484,7 +488,7 @@ pub(super) fn cancel_drag_if_owned(runtime: &Rc<Runtime>, drag: &super::Drag) {
     });
 }
 
-pub(super) fn owns_session_gesture(runtime: &Rc<Runtime>, drag: &super::Drag) -> bool {
+pub fn owns_session_gesture(runtime: &Rc<Runtime>, drag: &crate::state::Drag) -> bool {
     runtime.scope().as_ref() == Some(&drag.scope)
         && runtime.model().gesture.is_some_and(|gesture| {
             gesture.pointer_id == drag.pointer

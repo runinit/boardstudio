@@ -23,8 +23,8 @@ mod matrix_transform_controller;
 mod matrix_transform_inspector;
 mod mirrored_pair;
 mod mirrored_pair_controller;
-mod tree;
 pub(in crate::presentation) use board_setup_controller::{BoardSetupMount, use_board_setup};
+use boardstudio_web_ui_model::tree;
 pub(in crate::presentation) use existing_half::{ExistingHalfMount, ExistingHalfSetup};
 pub(in crate::presentation) use keycap_size::KeySizeControls;
 pub(in crate::presentation) use keycap_size_controller::{KeySizeMount, use_key_size};
@@ -63,8 +63,8 @@ pub(in crate::presentation) use mirrored_pair::{
     MirroredPairCanvasOverlay, MirroredPairCreated, MirroredPairMount, MirroredPairMove,
 };
 pub(in crate::presentation) use mirrored_pair_controller::use_mirrored_pair;
-pub(in crate::presentation) use tree::TreeContext;
 use tree::{Grouping, TreeKind};
+pub(in crate::presentation) use tree::{ScopedTreeContext, TreeContext};
 
 #[derive(Clone, Copy)]
 struct ObjectTreePreferences {
@@ -96,10 +96,14 @@ fn ObjectOptions(mut grouping: Signal<Grouping>) -> Element {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct ScopedTreeContext {
-    pub scope: Scope,
-    pub context: TreeContext,
+impl From<TreeSelectRequest> for super::selection::ContextRequest {
+    fn from(request: TreeSelectRequest) -> Self {
+        Self {
+            scope: request.scope,
+            context: request.context,
+            mode: request.mode,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]

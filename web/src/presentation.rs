@@ -1,7 +1,6 @@
 //! Presentation drafts and DOM input are separate from the durable session state.
 mod board_inspector;
 mod board_reference_effect;
-mod canvas_interaction;
 mod canvas_layers;
 mod canvas_status_footer;
 mod case_assembly_layers;
@@ -16,7 +15,6 @@ mod export_workspace;
 mod firmware_positions;
 mod geometry_scripts;
 mod inspector;
-mod instance_selection;
 mod keycaps_finding_marker;
 mod keycaps_fit;
 mod keycaps_navigation;
@@ -30,7 +28,24 @@ mod layout_camera;
 mod layout_component_inspector_tests;
 mod layout_findings;
 mod layout_viewer;
+// Shared UI vocabulary lives in `boardstudio-web-ui-model`; re-export it here so
+// presentation modules keep addressing it as `super::selection`, `super::InstanceSelection`
+// and so on.
 pub(crate) use boardstudio_web_runtime::layout_viewer_source;
+#[allow(unused_imports)]
+pub(crate) use boardstudio_web_ui_model::state::{
+    CaseGenerationState, CompactPanelState, Drag, InstanceSelection, LayerVisibility,
+    LayoutOwnerIdentity, ProjectMenuPage, ResolvedTheme, WorkspaceState,
+};
+#[cfg(test)]
+pub(crate) use boardstudio_web_ui_model::state::{
+    use_empty_test_instance_selection, use_test_case_generation_state,
+};
+#[allow(unused_imports)]
+pub(crate) use boardstudio_web_ui_model::svg_coordinates::{
+    PointerLocation, coordinates, coordinates_at, pointer_location,
+};
+pub(crate) use boardstudio_web_ui_model::{canvas_interaction, instance_selection, selection};
 mod layout_workspace;
 mod library;
 mod mechanical_settings;
@@ -54,7 +69,6 @@ mod pcb_physical_setup;
 mod pcb_scene;
 mod pcb_wiring;
 mod pcb_workspace;
-mod selection;
 mod setup_guide;
 mod shared_viewer;
 mod workbench_shortcuts;
@@ -80,8 +94,10 @@ use zmk_firmware_export::{ZmkFirmwareExportPanelInput, ZmkFirmwareExportRow};
 mod footprint_graphics;
 
 use crate::runtime::Runtime;
+#[cfg(test)]
+use boardstudio_application::SnapshotToken;
 use boardstudio_application::{
-    AcceptedSnapshot, Durability, Event, Lifecycle, ReadModel, Scope, SelectionMode, SnapshotToken,
+    AcceptedSnapshot, Durability, Event, Lifecycle, ReadModel, Scope, SelectionMode,
     TerminalOutcome,
 };
 use boardstudio_core::model::{
@@ -98,30 +114,6 @@ use std::{
 };
 use wasm_bindgen::{JsCast, closure::Closure};
 use web_sys::{HtmlElement, SvgElement};
-
-#[derive(Clone)]
-struct Drag {
-    pointer: i64,
-    scope: Scope,
-    generation: u64,
-    gesture_generation: Option<u64>,
-    origin: Vec2,
-    client_x: f64,
-    client_y: f64,
-    positions: Vec<Position>,
-    active: bool,
-    pan: bool,
-    camera: Vec2,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct LayoutOwnerIdentity {
-    scope: Option<Scope>,
-    token: Option<SnapshotToken>,
-    revision: Option<u64>,
-    generation: u64,
-    workspace: &'static str,
-}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct LayoutFindingReturnTarget {
@@ -186,48 +178,7 @@ struct OwnedTreeCellAnchor {
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct WorkspaceState(pub(super) Signal<&'static str>);
-#[derive(Clone, Copy)]
 pub(super) struct ExportReturnWorkspace(pub(super) Signal<&'static str>);
-#[derive(Clone, Copy)]
-struct CompactPanelState {
-    objects_open: Signal<bool>,
-    inspector_open: Signal<bool>,
-}
-/// The explicit UI preference is separate from Session's effective instance.
-#[derive(Clone, Copy)]
-pub(crate) struct InstanceSelection(Signal<Option<instance_selection::Preference>>);
-
-#[derive(Clone, Copy)]
-pub(crate) struct CaseGenerationState {
-    pub(crate) live_preview: Signal<bool>,
-    pub(crate) automatic: Signal<AutomaticCaseGeneration>,
-}
-
-impl InstanceSelection {
-    pub(crate) fn is_current(self, model: &boardstudio_application::ReadModel) -> bool {
-        instance_selection::is_current(model, self.0.read().as_ref())
-    }
-
-    pub(crate) fn reconcile(
-        mut self,
-        session_epoch: boardstudio_application::SessionEpoch,
-        document_id: String,
-        explicit_id: String,
-    ) {
-        self.0.set(Some(instance_selection::Preference {
-            session_epoch,
-            document_id,
-            explicit_id,
-        }));
-    }
-}
-
-#[cfg(all(test, target_arch = "wasm32"))]
-pub(crate) fn use_empty_test_instance_selection() {
-    let preference = use_signal(|| None);
-    use_context_provider(|| InstanceSelection(preference));
-}
 
 #[cfg(all(test, target_arch = "wasm32"))]
 pub(crate) fn use_case_viewer_test_contexts() {
@@ -275,39 +226,10 @@ pub(crate) fn use_case_generation_readiness_test_bridge(runtime: Rc<Runtime>) ->
     .generation_ready
 }
 
-#[cfg(all(test, target_arch = "wasm32"))]
-pub(crate) fn use_test_case_generation_state() {
-    let live_preview = use_signal(|| true);
-    let automatic = use_signal(AutomaticCaseGeneration::new);
-    use_context_provider(|| CaseGenerationState {
-        live_preview,
-        automatic,
-    });
-}
-
 #[derive(Clone, Copy)]
 struct ThemeState(Signal<&'static str>);
 #[derive(Clone, Copy)]
 struct PreferenceStorageWarning(Signal<bool>);
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) enum ProjectMenuPage {
-    Project,
-    Settings,
-}
-#[derive(Clone, Copy)]
-struct ResolvedTheme(Memo<&'static str>);
-#[derive(Clone, Copy)]
-struct LayerVisibility {
-    hidden: Signal<BTreeSet<String>>,
-    modules_hidden: Signal<BTreeSet<String>>,
-    footprints: Signal<bool>,
-}
-
-struct PointerLocation {
-    world: Vec2,
-    x_fraction: f64,
-    y_fraction: f64,
-}
 
 #[derive(Clone, Copy)]
 struct WorkspaceCallbackSlots {
@@ -493,18 +415,19 @@ pub fn App() -> Element {
                 }
                 if let Some(scope) = next_scope.as_ref() {
                     let current = runtime.model();
-                    let membership = selection_membership.borrow_mut().project(&current, |model| {
-                        crate::matrix_transform_lifecycle::SelectionMembership {
-                            eligible: selection::eligible_live_ids(model),
-                            live: selection::live_board_ids(model),
-                        }
-                    });
+                    let membership = selection_membership
+                        .borrow_mut()
+                        .project(&current, |model| {
+                            crate::matrix_transform_lifecycle::SelectionMembership {
+                                eligible: selection::eligible_live_ids(model),
+                                live: selection::live_board_ids(model),
+                            }
+                        });
                     if (adapter.anchor_scope)().as_ref() == Some(scope)
-                        && current.selection_anchor_id.as_ref().is_none_or(|anchor| {
-                            !membership.eligible
-                                .iter()
-                                .any(|id| id == anchor)
-                        })
+                        && current
+                            .selection_anchor_id
+                            .as_ref()
+                            .is_none_or(|anchor| !membership.eligible.iter().any(|id| id == anchor))
                     {
                         anchor_scope.set(None);
                     }
@@ -4379,7 +4302,7 @@ fn Editor() -> Element {
                 &runtime.model(),
                 Some(&request.context),
             );
-            selection::submit_context(&runtime, &adapter, request);
+            selection::submit_context(&runtime, &adapter, request.into());
             if (adapter.generation)() != generation || runtime.scope().as_ref() != Some(&scope) {
                 return;
             }
@@ -4452,7 +4375,8 @@ fn Editor() -> Element {
                     context: projection.context,
                     mode: SelectionMode::Replace,
                     outline_action: None,
-                },
+                }
+                .into(),
             );
             if layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
                 pin_inspector_on_desktop(inspector_panel_settings);
@@ -4543,7 +4467,8 @@ fn Editor() -> Element {
                     context: projection.context,
                     mode: SelectionMode::Replace,
                     outline_action: None,
-                },
+                }
+                .into(),
             );
             if pcb_owner_is_current(&runtime, workspace, &adapter, &owner) {
                 pin_inspector_on_desktop(inspector_panel_settings);
@@ -9450,70 +9375,6 @@ fn polygon_points(points: &[Vec2]) -> String {
         .map(|p| format!("{},{}", p.x, p.y))
         .collect::<Vec<_>>()
         .join(" ")
-}
-fn coordinates(
-    svg: &Rc<RefCell<Option<SvgElement>>>,
-    pointer: &web_sys::PointerEvent,
-    x: f64,
-    y: f64,
-    width: f64,
-    height: f64,
-) -> Option<Vec2> {
-    coordinates_at(
-        svg,
-        pointer.client_x(),
-        pointer.client_y(),
-        x,
-        y,
-        width,
-        height,
-    )
-}
-
-fn coordinates_at(
-    svg: &Rc<RefCell<Option<SvgElement>>>,
-    client_x: i32,
-    client_y: i32,
-    x: f64,
-    y: f64,
-    width: f64,
-    height: f64,
-) -> Option<Vec2> {
-    let surface = svg.borrow();
-    let rect = surface.as_ref()?.get_bounding_client_rect();
-    pointer_location(&rect, client_x, client_y, x, y, width, height).map(|location| location.world)
-}
-
-fn pointer_location(
-    rect: &web_sys::DomRect,
-    client_x: i32,
-    client_y: i32,
-    view_x: f64,
-    view_y: f64,
-    width: f64,
-    height: f64,
-) -> Option<PointerLocation> {
-    if rect.width() <= 0.0 || rect.height() <= 0.0 || width <= 0.0 || height <= 0.0 {
-        return None;
-    }
-    let scale = (rect.width() / width).min(rect.height() / height);
-    if !scale.is_finite() || scale <= 0.0 {
-        return None;
-    }
-    let content_width = width * scale;
-    let content_height = height * scale;
-    let left = rect.left() + (rect.width() - content_width) * 0.5;
-    let top = rect.top() + (rect.height() - content_height) * 0.5;
-    let x_fraction = (f64::from(client_x) - left) / content_width;
-    let y_fraction = (f64::from(client_y) - top) / content_height;
-    Some(PointerLocation {
-        world: Vec2 {
-            x: view_x + x_fraction * width,
-            y: -(view_y + y_fraction * height),
-        },
-        x_fraction,
-        y_fraction,
-    })
 }
 
 fn zoom_center_at(

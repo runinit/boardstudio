@@ -230,7 +230,8 @@ pub(crate) fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Elemen
                                     },
                                     mode: SelectionMode::Replace,
                                     outline_action: None,
-                                },
+                                }
+                                .into(),
                             );
                         }
                         return;
@@ -282,7 +283,8 @@ pub(crate) fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Elemen
                             context,
                             mode: SelectionMode::Replace,
                             outline_action: None,
-                        },
+                        }
+                        .into(),
                     );
                 }
                 ViewerSignalKind::Failed(message) => runtime.report(message),

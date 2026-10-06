@@ -2,6 +2,9 @@
 use super::tree::{self, TreeContext};
 use boardstudio_application::ReadModel;
 use boardstudio_core::model::Vec2;
+pub(in crate::presentation) use boardstudio_web_ui_model::state::{
+    LayoutSnapSettings, TreeCellAnchor,
+};
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::{JsCast, closure::Closure};
@@ -29,27 +32,6 @@ impl LayoutSelectionKind {
             Self::Column => "Column",
             Self::Key => "Key",
             Self::Part => "Part",
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) struct LayoutSnapSettings {
-    /// Zero disables the grid, positive values are fractions of pitch, negative values are mm.
-    pub snap_fraction: f64,
-    pub geometry_snap: bool,
-    pub gap_snap: bool,
-    /// Kept as an editable draft; blank or invalid input uses the current context's fallback.
-    pub gap_override: String,
-}
-
-impl Default for LayoutSnapSettings {
-    fn default() -> Self {
-        Self {
-            snap_fraction: 0.25,
-            geometry_snap: true,
-            gap_snap: true,
-            gap_override: String::new(),
         }
     }
 }
@@ -302,15 +284,6 @@ mod tests {
 pub(in crate::presentation) struct LayoutSelectionProjection {
     pub context: TreeContext,
     pub part_ids: Vec<String>,
-}
-
-/// Retained cell coordinates let mode changes preserve the full matrix scope after Row/Column
-/// contexts intentionally omit one coordinate. The root owns and clears this with its live owner.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct TreeCellAnchor {
-    pub matrix_id: String,
-    pub row: u32,
-    pub column: u32,
 }
 
 fn retained_coordinates(

@@ -9,7 +9,7 @@ use wasm_bindgen::{JsCast, closure::Closure};
 use web_sys::{HtmlElement, KeyboardEvent, Window};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum CanvasInteractionOwner {
+pub enum CanvasInteractionOwner {
     MirroredPair,
     MatrixPlacement,
     PartPlacement,
@@ -18,7 +18,7 @@ pub(super) enum CanvasInteractionOwner {
 }
 
 #[derive(Clone, Default)]
-pub(super) struct CanvasInteractionArbiter {
+pub struct CanvasInteractionArbiter {
     owner: Rc<Cell<Option<CanvasInteractionOwner>>>,
 }
 
@@ -31,7 +31,7 @@ impl PartialEq for CanvasInteractionArbiter {
 impl CanvasInteractionArbiter {
     /// Atomically claim the canvas for a new interaction. Repeated or competing
     /// starts are rejected synchronously, before either workflow mutates state.
-    pub(super) fn try_acquire(&self, owner: CanvasInteractionOwner) -> bool {
+    pub fn try_acquire(&self, owner: CanvasInteractionOwner) -> bool {
         if self.owner.get().is_some() {
             return false;
         }
@@ -39,15 +39,15 @@ impl CanvasInteractionArbiter {
         true
     }
 
-    pub(super) fn is_owner(&self, owner: CanvasInteractionOwner) -> bool {
+    pub fn is_owner(&self, owner: CanvasInteractionOwner) -> bool {
         self.owner.get() == Some(owner)
     }
 
-    pub(super) fn current(&self) -> Option<CanvasInteractionOwner> {
+    pub fn current(&self) -> Option<CanvasInteractionOwner> {
         self.owner.get()
     }
 
-    pub(super) fn release(&self, owner: CanvasInteractionOwner) {
+    pub fn release(&self, owner: CanvasInteractionOwner) {
         if self.is_owner(owner) {
             self.owner.set(None);
         }
@@ -57,7 +57,7 @@ impl CanvasInteractionArbiter {
 /// Whether a pending Layout part drag has real client-pointer movement.
 /// Keep this tied to pointer coordinates so a canvas
 /// resize after pointer-down cannot manufacture movement in world space.
-pub(super) fn pending_part_drag_threshold_reached(
+pub fn pending_part_drag_threshold_reached(
     start_client: (f64, f64),
     current_client: (f64, f64),
 ) -> bool {
@@ -69,12 +69,12 @@ pub(super) fn pending_part_drag_threshold_reached(
 /// Whether a Layout-level keyboard event should enable Space-drag panning.
 /// This is intentionally independent of canvas focus so pointer-over-canvas
 /// Space gestures work before the SVG has received a click or keyboard focus.
-pub(super) fn layout_space_pan_keydown(key: &str, code: &str, typing_target: bool) -> bool {
+pub fn layout_space_pan_keydown(key: &str, code: &str, typing_target: bool) -> bool {
     !typing_target && (key == " " || code == "Space")
 }
 
 #[cfg(target_arch = "wasm32")]
-pub(super) struct LayoutSpacePanWindowListener {
+pub struct LayoutSpacePanWindowListener {
     window: Window,
     keydown: Closure<dyn FnMut(KeyboardEvent)>,
     keyup: Closure<dyn FnMut(KeyboardEvent)>,
@@ -82,10 +82,7 @@ pub(super) struct LayoutSpacePanWindowListener {
 
 #[cfg(target_arch = "wasm32")]
 impl LayoutSpacePanWindowListener {
-    pub(super) fn install(
-        is_layout: Rc<dyn Fn() -> bool>,
-        space_down: Rc<Cell<bool>>,
-    ) -> Option<Self> {
+    pub fn install(is_layout: Rc<dyn Fn() -> bool>, space_down: Rc<Cell<bool>>) -> Option<Self> {
         let window = web_sys::window()?;
         let keydown_space = space_down.clone();
         let keydown = Closure::wrap(Box::new(move |event: KeyboardEvent| {

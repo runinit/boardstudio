@@ -11,6 +11,7 @@ preparation and checks; the CAD provider is Rust/WASM.
 | `web/src/` (`boardstudio-web` bin) | Dioxus components (`presentation/`), contextual panels and local form drafts |
 | `web/crates/runtime/` | Composition of session state and browser effects (`runtime.rs`), model delivery and presentation-independent operations; no Dioxus |
 | `web/crates/host/` | IndexedDB, Core and CAD worker clients, renderer host and offline policy |
+| `web/crates/ui-model/` | UI vocabulary shared by presentation code: tree contexts, selection, workspace and view state, canvas interaction ownership |
 | `web/src/lib.rs` | Worker entry points packaged by wasm-pack (Core, CAD and offline service worker) |
 | `renderer/` | GPU scene rendering, picking and camera behavior |
 | `cad/` | CAD provider bindings and the Cadrum/OCCT WASM kernel |
@@ -29,7 +30,11 @@ the current scope. Manufacturing output comes from accepted inputs, not rendered
 The page is split into crates so an edit in presentation code recompiles only the
 `boardstudio-web` bin, not the runtime, host or Core. The bin re-exports the runtime's
 modules at its root, so presentation code addresses them as `crate::runtime` and so on.
-Runtime helpers that the page's own tests drive are behind its `test-support` feature.
+Shared presentation types live in `ui-model`, which the bin re-exports under
+`presentation` so modules keep their `super::` paths; presentation crates depend on it
+rather than on each other or on the page shell, and an edit there recompiles them all.
+Runtime and ui-model helpers that the page's own tests drive are behind each crate's
+`test-support` feature.
 
 Heavy CAD and artifact work runs outside the page. Generated JavaScript initializes
 WASM modules; browser worker and service-worker entrypoints are packaged with the

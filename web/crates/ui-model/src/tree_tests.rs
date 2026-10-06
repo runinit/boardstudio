@@ -2,6 +2,7 @@ use super::{Grouping, TreeContext, TreeKind, build_tree};
 use boardstudio_application::ReadModel;
 use boardstudio_core::model::{BoardOutlineScene, OutlineBridge, ProjectDoc};
 use std::collections::BTreeSet;
+#[cfg(target_arch = "wasm32")]
 use wasm_bindgen_test::wasm_bindgen_test;
 
 fn reviung_document() -> ProjectDoc {
@@ -59,7 +60,8 @@ fn stored_row_grouping_and_empty_model_projection_remain_defined() {
     assert_eq!(super::context_label(&empty, &matrix), None);
 }
 
-#[wasm_bindgen_test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn explicit_finding_part_route_uses_component_context_without_changing_key_hit_context() {
     let ordinary_key = TreeContext::Key {
         matrix_id: "left-keys".into(),
