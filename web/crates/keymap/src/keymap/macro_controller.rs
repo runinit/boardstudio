@@ -53,14 +53,14 @@ struct MacroFeedbackState {
     failure_snapshot_token: Option<SnapshotToken>,
 }
 
-pub(in crate::presentation) struct MacroActions {
-    pub(in crate::presentation) editor_instance_id: u64,
-    pub(in crate::presentation) request_sequence: Signal<u64>,
-    pub(in crate::presentation) source: Option<MacroReadSource>,
-    pub(in crate::presentation) sequences: Rc<[MacroStepSequence]>,
-    pub(in crate::presentation) enabled: bool,
-    pub(in crate::presentation) feedback: Option<MacroEditFeedback>,
-    pub(in crate::presentation) on_change: EventHandler<MacroEditRequest>,
+pub struct MacroActions {
+    pub editor_instance_id: u64,
+    pub request_sequence: Signal<u64>,
+    pub source: Option<MacroReadSource>,
+    pub sequences: Rc<[MacroStepSequence]>,
+    pub enabled: bool,
+    pub feedback: Option<MacroEditFeedback>,
+    pub on_change: EventHandler<MacroEditRequest>,
 }
 
 struct SequenceCache {
@@ -69,7 +69,7 @@ struct SequenceCache {
 
 /// Owns all macro submission state for the Editor lifetime, including while
 /// another workspace hides the Keymap panel.
-pub(in crate::presentation) fn use_macro_operations(
+pub fn use_macro_operations(
     runtime: Rc<Runtime>,
     source: Option<LayerSource>,
     workspace: Signal<&'static str>,

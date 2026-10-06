@@ -108,10 +108,10 @@ struct LayerFeedbackState {
 }
 
 #[derive(Clone)]
-pub(in crate::presentation) struct LayerSource {
-    pub(in crate::presentation) scope: Scope,
-    pub(in crate::presentation) token: SnapshotToken,
-    pub(in crate::presentation) revision: u64,
+pub struct LayerSource {
+    pub scope: Scope,
+    pub token: SnapshotToken,
+    pub revision: u64,
 }
 
 struct LayerEditCommit {
@@ -124,15 +124,15 @@ struct LayerEditCommit {
 }
 
 /// Hook-owned state passed directly into the private Keymap panel.
-pub(in crate::presentation) struct LayerActions {
-    pub(in crate::presentation) enabled: bool,
-    pub(in crate::presentation) feedback: Option<KeymapLayerFeedback>,
-    pub(in crate::presentation) on_operation: EventHandler<KeymapLayerOperation>,
+pub struct LayerActions {
+    pub enabled: bool,
+    pub feedback: Option<KeymapLayerFeedback>,
+    pub on_operation: EventHandler<KeymapLayerOperation>,
 }
 
 /// Owns pending work at the Editor lifetime so hiding the Keymap workspace does
 /// not abandon its single-flight guard or the Session terminal observer.
-pub(in crate::presentation) fn use_layer_operations(
+pub fn use_layer_operations(
     runtime: Rc<Runtime>,
     source: Option<LayerSource>,
     active_layer: Signal<String>,

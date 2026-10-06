@@ -8,17 +8,17 @@ use dioxus::prelude::*;
 use std::rc::Rc;
 
 #[derive(Props, Clone, PartialEq)]
-pub(in crate::presentation) struct EncoderEditorProps {
-    pub(in crate::presentation) projection: Rc<EncoderEditorProjection>,
-    pub(in crate::presentation) editor_instance_id: u64,
-    pub(in crate::presentation) request_sequence: Signal<u64>,
-    pub(in crate::presentation) enabled: bool,
-    pub(in crate::presentation) feedback: Option<BindingEditFeedback>,
-    pub(in crate::presentation) on_change: EventHandler<BindingEditRequest>,
+pub struct EncoderEditorProps {
+    pub projection: Rc<EncoderEditorProjection>,
+    pub editor_instance_id: u64,
+    pub request_sequence: Signal<u64>,
+    pub enabled: bool,
+    pub feedback: Option<BindingEditFeedback>,
+    pub on_change: EventHandler<BindingEditRequest>,
 }
 
 #[component]
-pub(in crate::presentation) fn EncoderEditor(props: EncoderEditorProps) -> Element {
+pub fn EncoderEditor(props: EncoderEditorProps) -> Element {
     let projection = props.projection;
     let rows = projection.rows.clone();
     let input_identity = projection.input_identity.clone();

@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 /// Read-only layer browser and shared selected-key control for the Inspector slot.
 #[component]
-pub(in crate::presentation) fn KeymapPanel(
+pub fn KeymapPanel(
     view: Rc<KeymapView>,
     scope: Scope,
     active_layer_id: String,
@@ -374,7 +374,7 @@ mod disclosure_mounted_tests {
         let layer = probe.active_layer.clone();
         let operations = probe.operations.clone();
         rsx! {
-            style { {include_str!("../../../assets/m1.css")} }
+            style { {include_str!("../../../../assets/m1.css")} }
             KeymapPanel {
                 view,
                 scope,

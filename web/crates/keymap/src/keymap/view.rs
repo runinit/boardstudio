@@ -6,19 +6,19 @@ use boardstudio_core::model::{
 use std::rc::Rc;
 
 #[derive(Debug, PartialEq)]
-pub(in crate::presentation) struct KeymapView {
+pub struct KeymapView {
     pub layers: Vec<KeymapLayerLabel>,
     pub keys: Vec<KeymapKey>,
 }
 
 #[derive(Debug, PartialEq)]
-pub(in crate::presentation) struct KeymapLayerLabel {
+pub struct KeymapLayerLabel {
     pub id: Rc<str>,
     pub name: Rc<str>,
 }
 
 #[derive(Debug, PartialEq)]
-pub(in crate::presentation) struct KeymapKey {
+pub struct KeymapKey {
     pub id: Rc<str>,
     pub reference: Rc<str>,
     pub pose: Pose2,
@@ -29,7 +29,7 @@ pub(in crate::presentation) struct KeymapKey {
 }
 
 /// Build the single accepted-snapshot projection shared by the canvas and panel.
-pub(in crate::presentation) fn project(
+pub fn project(
     snapshot: &AcceptedSnapshot,
     scope: Option<&Scope>,
     board_id: &str,

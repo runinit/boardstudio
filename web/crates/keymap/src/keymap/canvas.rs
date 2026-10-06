@@ -5,7 +5,7 @@ use std::{collections::BTreeSet, rc::Rc};
 
 /// Render key targets into the existing board SVG coordinate system.
 #[component]
-pub(in crate::presentation) fn KeymapCanvas(
+pub fn KeymapCanvas(
     view: Rc<KeymapView>,
     contours: Rc<[Contour]>,
     selected_ids: BTreeSet<String>,

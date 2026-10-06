@@ -61,6 +61,9 @@ def browser() -> list[Command]:
         # Panel tests run on their own, as they did in the page suite.
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/ui-shared", "--locked", "--lib", "--", "--skip", "panels::"],
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/ui-shared", "--locked", "--lib", "--", "panels::"],
+        ["wasm-pack", "test", "--headless", "--chrome", "web/crates/keycaps", "--locked", "--lib"],
+        ["wasm-pack", "test", "--headless", "--chrome", "web/crates/library", "--locked", "--lib"],
+        ["wasm-pack", "test", "--headless", "--chrome", "web/crates/keymap", "--locked", "--lib"],
         [*wasm_pack, "--bin", "boardstudio-web", "--", "--list"],
         [PY, "scripts/run-wasm-tests.py", "--all", "--depth", "1", *[f"--isolate={name}" for name in ISOLATED],
          "--result-json", "web/target/test-results/browser.json"],

@@ -11,9 +11,6 @@ use boardstudio_web_runtime::{
 use boardstudio_web_runtime::{case_gesture_preview, renderer_host_page};
 
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
-#[path = "macro_accessible_names.rs"]
-mod macro_accessible_names;
-#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod setup_guide_state;
 
 #[cfg(all(target_arch = "wasm32", feature = "page"))]

@@ -13,6 +13,7 @@ pub(crate) use boardstudio_web_runtime::{case_generation_lifecycle, runtime};
 pub mod instance_selection;
 pub mod state;
 pub mod tree;
+pub mod wiring;
 
 #[cfg(target_arch = "wasm32")]
 pub mod canvas_interaction;

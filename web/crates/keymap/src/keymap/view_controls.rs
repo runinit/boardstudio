@@ -3,12 +3,12 @@ use boardstudio_core::model::Vec2;
 use std::collections::BTreeSet;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(in crate::presentation) struct FitCamera {
+pub struct FitCamera {
     pub center: Vec2,
     pub zoom: f64,
 }
 
-pub(in crate::presentation) fn selected_bounds(
+pub fn selected_bounds(
     view: &KeymapView,
     selected_ids: &BTreeSet<String>,
 ) -> Option<(f64, f64, f64, f64)> {
@@ -40,7 +40,7 @@ pub(in crate::presentation) fn selected_bounds(
     bounds
 }
 
-pub(in crate::presentation) fn fit_camera(
+pub fn fit_camera(
     canvas_bounds: (f64, f64, f64, f64),
     target_bounds: (f64, f64, f64, f64),
     surface: (f64, f64),

@@ -64,9 +64,9 @@ fn update_cache(
     Some(())
 }
 
-pub(in crate::presentation) struct EncoderInputActions {
-    pub(in crate::presentation) projection: Memo<Option<EncoderInputProjection>>,
-    pub(in crate::presentation) current: Rc<dyn Fn() -> Option<EncoderInputProjection>>,
+pub struct EncoderInputActions {
+    pub projection: Memo<Option<EncoderInputProjection>>,
+    pub current: Rc<dyn Fn() -> Option<EncoderInputProjection>>,
 }
 
 fn plan_identity_matches(
@@ -293,7 +293,7 @@ fn current_projection(
     })
 }
 
-pub(in crate::presentation) fn use_encoder_inputs(
+pub fn use_encoder_inputs(
     runtime: Rc<Runtime>,
     source: Option<LayerSource>,
     resolution: Signal<PcbWiringResolution>,

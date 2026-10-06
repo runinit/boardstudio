@@ -21,7 +21,7 @@ pub(crate) use boardstudio_web_keycaps::keycaps_navigation;
 pub(crate) use boardstudio_web_keycaps::keycaps_scene;
 pub(crate) use boardstudio_web_keycaps::keycaps_settings;
 mod keycaps_workspace;
-mod keymap;
+pub(crate) use boardstudio_web_keymap::keymap;
 mod keymap_workspace;
 pub(crate) use boardstudio_web_ui_shared::layout_camera;
 #[cfg(test)]
@@ -47,9 +47,7 @@ pub(crate) use boardstudio_web_ui_model::svg_coordinates::{
     PointerLocation, coordinates, coordinates_at, pointer_location,
 };
 pub(crate) use boardstudio_web_ui_model::{canvas_interaction, instance_selection, selection};
-pub(crate) use boardstudio_web_ui_shared::project_menu::{
-    ThemePicker, close_project_menu, durability_label,
-};
+pub(crate) use boardstudio_web_ui_shared::project_menu::close_project_menu;
 mod layout_workspace;
 pub(crate) use boardstudio_web_library::library;
 mod mechanical_settings;

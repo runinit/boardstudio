@@ -5,19 +5,19 @@ use dioxus::prelude::*;
 use std::rc::Rc;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(in crate::presentation) struct BindingLayerChoice {
-    pub(in crate::presentation) id: String,
-    pub(in crate::presentation) name: String,
+pub struct BindingLayerChoice {
+    pub id: String,
+    pub name: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(in crate::presentation) struct BindingMacroChoice {
-    pub(in crate::presentation) id: String,
-    pub(in crate::presentation) name: String,
+pub struct BindingMacroChoice {
+    pub id: String,
+    pub name: String,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(in crate::presentation) enum BindingField {
+pub enum BindingField {
     Behavior,
     Keycode,
     Tap,
@@ -27,16 +27,16 @@ pub(in crate::presentation) enum BindingField {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(in crate::presentation) struct EncoderInputIdentity {
-    pub(in crate::presentation) scope: Scope,
-    pub(in crate::presentation) token: SnapshotToken,
-    pub(in crate::presentation) revision: u64,
-    pub(in crate::presentation) projection_generation: u64,
-    pub(in crate::presentation) electrical_fingerprint: Option<String>,
+pub struct EncoderInputIdentity {
+    pub scope: Scope,
+    pub token: SnapshotToken,
+    pub revision: u64,
+    pub projection_generation: u64,
+    pub electrical_fingerprint: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(in crate::presentation) enum BindingTarget {
+pub enum BindingTarget {
     Key {
         key_id: String,
     },
@@ -52,7 +52,7 @@ pub(in crate::presentation) enum BindingTarget {
 
 impl BindingTarget {
     /// Stable, collision-free component/DOM identity for this complete target.
-    pub(in crate::presentation) fn stable_key(&self) -> String {
+    pub fn stable_key(&self) -> String {
         match self {
             Self::Key { key_id } => format!("key-{}", hex_bytes(key_id)),
             Self::EncoderRotation {
@@ -84,57 +84,57 @@ fn hex_bytes(value: &str) -> String {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(in crate::presentation) struct BindingEditRequest {
-    pub(in crate::presentation) scope: Scope,
-    pub(in crate::presentation) admission_token: SnapshotToken,
-    pub(in crate::presentation) admission_revision: u64,
-    pub(in crate::presentation) active_layer_id: String,
-    pub(in crate::presentation) target: BindingTarget,
-    pub(in crate::presentation) input_identity: Option<EncoderInputIdentity>,
-    pub(in crate::presentation) field: BindingField,
-    pub(in crate::presentation) editor_instance_id: u64,
-    pub(in crate::presentation) request_id: u64,
-    pub(in crate::presentation) binding: KeyBinding,
+pub struct BindingEditRequest {
+    pub scope: Scope,
+    pub admission_token: SnapshotToken,
+    pub admission_revision: u64,
+    pub active_layer_id: String,
+    pub target: BindingTarget,
+    pub input_identity: Option<EncoderInputIdentity>,
+    pub field: BindingField,
+    pub editor_instance_id: u64,
+    pub request_id: u64,
+    pub binding: KeyBinding,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(in crate::presentation) enum BindingEditStatus {
+pub enum BindingEditStatus {
     Pending,
     Saved,
     Failed(String),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(in crate::presentation) struct BindingEditFeedback {
-    pub(in crate::presentation) scope: Scope,
-    pub(in crate::presentation) admission_token: SnapshotToken,
-    pub(in crate::presentation) admission_revision: u64,
-    pub(in crate::presentation) active_layer_id: String,
-    pub(in crate::presentation) target: BindingTarget,
-    pub(in crate::presentation) input_identity: Option<EncoderInputIdentity>,
-    pub(in crate::presentation) field: BindingField,
-    pub(in crate::presentation) editor_instance_id: u64,
-    pub(in crate::presentation) request_id: u64,
-    pub(in crate::presentation) status: BindingEditStatus,
+pub struct BindingEditFeedback {
+    pub scope: Scope,
+    pub admission_token: SnapshotToken,
+    pub admission_revision: u64,
+    pub active_layer_id: String,
+    pub target: BindingTarget,
+    pub input_identity: Option<EncoderInputIdentity>,
+    pub field: BindingField,
+    pub editor_instance_id: u64,
+    pub request_id: u64,
+    pub status: BindingEditStatus,
 }
 
 #[derive(Props, Clone, PartialEq)]
-pub(in crate::presentation) struct BindingEditorProps {
-    pub(in crate::presentation) scope: Scope,
-    pub(in crate::presentation) admission_token: SnapshotToken,
-    pub(in crate::presentation) admission_revision: u64,
-    pub(in crate::presentation) active_layer_id: String,
-    pub(in crate::presentation) target: BindingTarget,
-    pub(in crate::presentation) input_identity: Option<EncoderInputIdentity>,
-    pub(in crate::presentation) key_label: String,
-    pub(in crate::presentation) editor_instance_id: u64,
-    pub(in crate::presentation) request_sequence: Signal<u64>,
-    pub(in crate::presentation) value: KeyBinding,
-    pub(in crate::presentation) layers: Rc<[BindingLayerChoice]>,
-    pub(in crate::presentation) macros: Rc<[BindingMacroChoice]>,
-    pub(in crate::presentation) enabled: bool,
-    pub(in crate::presentation) feedback: Option<BindingEditFeedback>,
-    pub(in crate::presentation) on_change: EventHandler<BindingEditRequest>,
+pub struct BindingEditorProps {
+    pub scope: Scope,
+    pub admission_token: SnapshotToken,
+    pub admission_revision: u64,
+    pub active_layer_id: String,
+    pub target: BindingTarget,
+    pub input_identity: Option<EncoderInputIdentity>,
+    pub key_label: String,
+    pub editor_instance_id: u64,
+    pub request_sequence: Signal<u64>,
+    pub value: KeyBinding,
+    pub layers: Rc<[BindingLayerChoice]>,
+    pub macros: Rc<[BindingMacroChoice]>,
+    pub enabled: bool,
+    pub feedback: Option<BindingEditFeedback>,
+    pub on_change: EventHandler<BindingEditRequest>,
 }
 
 #[derive(Clone, PartialEq)]
@@ -458,7 +458,7 @@ const KEYCODE_CHOICES: &[(&str, &str)] = &[
 
 /// Edits a single projected binding and reports typed, target-correlated intents.
 #[component]
-pub(in crate::presentation) fn BindingEditor(props: BindingEditorProps) -> Element {
+pub fn BindingEditor(props: BindingEditorProps) -> Element {
     let request_sequence = props.request_sequence;
     let context = EditContext::from(&props);
     let value = props.value.clone();

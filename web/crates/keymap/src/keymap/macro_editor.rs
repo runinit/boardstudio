@@ -6,14 +6,14 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 #[derive(Clone)]
-pub(in crate::presentation) struct MacroReadSource {
+pub struct MacroReadSource {
     document: Arc<ProjectDoc>,
-    pub(in crate::presentation) token: SnapshotToken,
-    pub(in crate::presentation) revision: u64,
+    pub token: SnapshotToken,
+    pub revision: u64,
 }
 
 impl MacroReadSource {
-    pub(in crate::presentation) fn new(
+    pub fn new(
         document: Arc<ProjectDoc>,
         token: SnapshotToken,
         revision: u64,
@@ -25,7 +25,7 @@ impl MacroReadSource {
         }
     }
 
-    pub(in crate::presentation) fn macros(&self) -> &[KeymapMacro] {
+    pub fn macros(&self) -> &[KeymapMacro] {
         self.document
             .keymap
             .as_ref()
@@ -42,9 +42,9 @@ impl PartialEq for MacroReadSource {
 }
 
 #[derive(Clone, Debug)]
-pub(in crate::presentation) struct MacroStepSequence {
-    pub(in crate::presentation) macro_id: Rc<str>,
-    pub(in crate::presentation) steps: Rc<[MacroStep]>,
+pub struct MacroStepSequence {
+    pub macro_id: Rc<str>,
+    pub steps: Rc<[MacroStep]>,
 }
 
 impl PartialEq for MacroStepSequence {
@@ -54,7 +54,7 @@ impl PartialEq for MacroStepSequence {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(in crate::presentation) enum MacroEditTarget {
+pub enum MacroEditTarget {
     AddMacro,
     RemoveMacro,
     Name,
@@ -68,21 +68,21 @@ pub(in crate::presentation) enum MacroEditTarget {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(in crate::presentation) struct MacroEditRequest {
-    pub(in crate::presentation) scope: Scope,
-    pub(in crate::presentation) scope_generation: u64,
-    pub(in crate::presentation) admission_token: SnapshotToken,
-    pub(in crate::presentation) admission_revision: u64,
-    pub(in crate::presentation) editor_instance_id: u64,
-    pub(in crate::presentation) request_id: u64,
-    pub(in crate::presentation) macro_id: Option<String>,
-    pub(in crate::presentation) target: MacroEditTarget,
-    pub(in crate::presentation) step_sequence: Option<Rc<[MacroStep]>>,
-    pub(in crate::presentation) change: MacroEditChange,
+pub struct MacroEditRequest {
+    pub scope: Scope,
+    pub scope_generation: u64,
+    pub admission_token: SnapshotToken,
+    pub admission_revision: u64,
+    pub editor_instance_id: u64,
+    pub request_id: u64,
+    pub macro_id: Option<String>,
+    pub target: MacroEditTarget,
+    pub step_sequence: Option<Rc<[MacroStep]>>,
+    pub change: MacroEditChange,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(in crate::presentation) enum MacroEditChange {
+pub enum MacroEditChange {
     Add {
         name: String,
         tap_ms: u32,
@@ -94,36 +94,36 @@ pub(in crate::presentation) enum MacroEditChange {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(in crate::presentation) enum MacroEditStatus {
+pub enum MacroEditStatus {
     Pending,
     Saved,
     Failed(String),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(in crate::presentation) struct MacroEditFeedback {
-    pub(in crate::presentation) scope: Scope,
-    pub(in crate::presentation) scope_generation: u64,
-    pub(in crate::presentation) admission_token: SnapshotToken,
-    pub(in crate::presentation) admission_revision: u64,
-    pub(in crate::presentation) editor_instance_id: u64,
-    pub(in crate::presentation) request_id: u64,
-    pub(in crate::presentation) macro_id: Option<String>,
-    pub(in crate::presentation) target: MacroEditTarget,
-    pub(in crate::presentation) status: MacroEditStatus,
+pub struct MacroEditFeedback {
+    pub scope: Scope,
+    pub scope_generation: u64,
+    pub admission_token: SnapshotToken,
+    pub admission_revision: u64,
+    pub editor_instance_id: u64,
+    pub request_id: u64,
+    pub macro_id: Option<String>,
+    pub target: MacroEditTarget,
+    pub status: MacroEditStatus,
 }
 
 #[derive(Props, Clone, PartialEq)]
-pub(in crate::presentation) struct MacroEditorProps {
-    pub(in crate::presentation) scope: Scope,
-    pub(in crate::presentation) scope_generation: u64,
-    pub(in crate::presentation) source: MacroReadSource,
-    pub(in crate::presentation) sequences: Rc<[MacroStepSequence]>,
-    pub(in crate::presentation) editor_instance_id: u64,
-    pub(in crate::presentation) request_sequence: Signal<u64>,
-    pub(in crate::presentation) enabled: bool,
-    pub(in crate::presentation) feedback: Option<MacroEditFeedback>,
-    pub(in crate::presentation) on_change: EventHandler<MacroEditRequest>,
+pub struct MacroEditorProps {
+    pub scope: Scope,
+    pub scope_generation: u64,
+    pub source: MacroReadSource,
+    pub sequences: Rc<[MacroStepSequence]>,
+    pub editor_instance_id: u64,
+    pub request_sequence: Signal<u64>,
+    pub enabled: bool,
+    pub feedback: Option<MacroEditFeedback>,
+    pub on_change: EventHandler<MacroEditRequest>,
 }
 
 fn sequence_for<'a>(
@@ -194,7 +194,7 @@ fn request(
 
 /// Displays accepted macros and emits one typed, target-correlated intent at a time.
 #[component]
-pub(in crate::presentation) fn MacroEditor(props: MacroEditorProps) -> Element {
+pub fn MacroEditor(props: MacroEditorProps) -> Element {
     let macros = props.source.macros();
     let busy = !props.enabled;
     let editor_id = props.editor_instance_id;
@@ -694,7 +694,7 @@ mod mounted_accessible_name_tests {
         };
         let request_sequence = use_signal(|| 0);
         rsx! {
-            style { {include_str!("../../../assets/m1.css")} }
+            style { {include_str!("../../../../assets/m1.css")} }
             MacroEditor {
                 scope,
                 scope_generation: 1,

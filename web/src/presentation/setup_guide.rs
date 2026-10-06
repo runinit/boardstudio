@@ -1,4 +1,3 @@
-use crate::operation_outcomes::OutcomeSlot;
 use boardstudio_core::{
     electrical::ElectricalPlan,
     model::{PartKind, ProjectDoc, SceneDelta, Severity},

@@ -17,12 +17,12 @@ use dioxus::prelude::*;
 use std::rc::Rc;
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) struct BindingEditorProjection {
-    pub(in crate::presentation) effective_layer_id: String,
-    pub(in crate::presentation) key_label: String,
-    pub(in crate::presentation) binding: KeyBinding,
-    pub(in crate::presentation) layers: Rc<[BindingLayerChoice]>,
-    pub(in crate::presentation) macros: Rc<[BindingMacroChoice]>,
+pub struct BindingEditorProjection {
+    pub effective_layer_id: String,
+    pub key_label: String,
+    pub binding: KeyBinding,
+    pub layers: Rc<[BindingLayerChoice]>,
+    pub macros: Rc<[BindingMacroChoice]>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -32,49 +32,49 @@ struct BindingReferenceChoices {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) struct EncoderInputChoice {
-    pub(in crate::presentation) id: Rc<str>,
-    pub(in crate::presentation) label: Rc<str>,
-    pub(in crate::presentation) push_key_id: Option<Rc<str>>,
+pub struct EncoderInputChoice {
+    pub id: Rc<str>,
+    pub label: Rc<str>,
+    pub push_key_id: Option<Rc<str>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) struct EncoderInputProjection {
-    pub(in crate::presentation) identity: EncoderInputIdentity,
-    pub(in crate::presentation) encoders: Rc<[EncoderInputChoice]>,
+pub struct EncoderInputProjection {
+    pub identity: EncoderInputIdentity,
+    pub encoders: Rc<[EncoderInputChoice]>,
     /// True once the F5 board plan for this accepted snapshot has settled.
     /// A completed binding edit waits for this edge before acknowledging a
     /// physical encoder whose input identity came from that plan.
-    pub(in crate::presentation) electrical_plan_settled: bool,
+    pub electrical_plan_settled: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) struct EncoderBindingRow {
-    pub(in crate::presentation) id: Rc<str>,
-    pub(in crate::presentation) label: Rc<str>,
-    pub(in crate::presentation) clockwise: KeyBinding,
-    pub(in crate::presentation) counterclockwise: KeyBinding,
-    pub(in crate::presentation) push_key_id: Option<Rc<str>>,
-    pub(in crate::presentation) push_binding: Option<KeyBinding>,
+pub struct EncoderBindingRow {
+    pub id: Rc<str>,
+    pub label: Rc<str>,
+    pub clockwise: KeyBinding,
+    pub counterclockwise: KeyBinding,
+    pub push_key_id: Option<Rc<str>>,
+    pub push_binding: Option<KeyBinding>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) struct EncoderEditorProjection {
-    pub(in crate::presentation) input_identity: EncoderInputIdentity,
-    pub(in crate::presentation) effective_layer_id: String,
-    pub(in crate::presentation) rows: Rc<[EncoderBindingRow]>,
-    pub(in crate::presentation) layers: Rc<[BindingLayerChoice]>,
-    pub(in crate::presentation) macros: Rc<[BindingMacroChoice]>,
+pub struct EncoderEditorProjection {
+    pub input_identity: EncoderInputIdentity,
+    pub effective_layer_id: String,
+    pub rows: Rc<[EncoderBindingRow]>,
+    pub layers: Rc<[BindingLayerChoice]>,
+    pub macros: Rc<[BindingMacroChoice]>,
 }
 
 /// The accepted canvas and encoder projections that define one Keymap read
 /// surface. Encoder display data is memoized; the live getter is reserved for
 /// request admission and current feedback checks.
-pub(in crate::presentation) struct BindingProjectionSources {
-    pub(in crate::presentation) source: Option<LayerSource>,
-    pub(in crate::presentation) view: Option<Rc<KeymapView>>,
-    pub(in crate::presentation) encoder_projection: Memo<Option<EncoderInputProjection>>,
-    pub(in crate::presentation) current_encoder_projection:
+pub struct BindingProjectionSources {
+    pub source: Option<LayerSource>,
+    pub view: Option<Rc<KeymapView>>,
+    pub encoder_projection: Memo<Option<EncoderInputProjection>>,
+    pub current_encoder_projection:
         Rc<dyn Fn() -> Option<EncoderInputProjection>>,
 }
 
@@ -116,15 +116,15 @@ struct BindingReadContext<'a> {
 }
 
 /// Editor-lifetime state and the narrow current projection passed to the panel.
-pub(in crate::presentation) struct BindingActions {
-    pub(in crate::presentation) editor_instance_id: u64,
+pub struct BindingActions {
+    pub editor_instance_id: u64,
     /// Monotonic for the Editor lifetime; components may unmount and remount.
-    pub(in crate::presentation) request_sequence: Signal<u64>,
-    pub(in crate::presentation) enabled: bool,
-    pub(in crate::presentation) projection: Option<Rc<BindingEditorProjection>>,
-    pub(in crate::presentation) encoder_projection: Option<Rc<EncoderEditorProjection>>,
-    pub(in crate::presentation) feedback: Option<BindingEditFeedback>,
-    pub(in crate::presentation) on_change: EventHandler<BindingEditRequest>,
+    pub request_sequence: Signal<u64>,
+    pub enabled: bool,
+    pub projection: Option<Rc<BindingEditorProjection>>,
+    pub encoder_projection: Option<Rc<EncoderEditorProjection>>,
+    pub feedback: Option<BindingEditFeedback>,
+    pub on_change: EventHandler<BindingEditRequest>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -492,7 +492,7 @@ fn legacy_base_binding(snapshot: &AcceptedSnapshot, board_id: &str, key_id: &str
 
 /// Owns binding operation state for the Editor lifetime, including while the
 /// Keymap panel is hidden. Fresh event admission is repeated in the callback.
-pub(in crate::presentation) fn use_binding_operations(
+pub fn use_binding_operations(
     runtime: Rc<Runtime>,
     projections: BindingProjectionSources,
     active_layer: Signal<String>,

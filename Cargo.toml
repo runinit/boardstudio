@@ -11,6 +11,7 @@ members = [
   "web/crates/runtime",
   "web/crates/ui-model",
   "web/crates/ui-shared",
+  "web/crates/keymap",
   "web/crates/library",
   "web/crates/keycaps",
 ]
