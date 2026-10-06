@@ -16,6 +16,10 @@ python3 scripts/dev-web.py
 
 The development server runs at `http://127.0.0.1:8080/`. It builds missing runtime
 providers on the first run, then Dioxus watches page edits in the working tree.
+Edits that only change `rsx!` markup are hot-reloaded without recompiling; other Rust
+edits rebuild the page. The page builds with the `wasm-dev` profile in `Cargo.toml`,
+which keeps line tables only; set `debug = true` there to inspect variables in the
+browser debugger, at roughly twice the rebuild time.
 Commits, agent registration and migration records are not required.
 After changing a worker, bundled example or CAD provider, run
 `python3 scripts/build-web.py --providers-only` to regenerate those assets before testing the page.

@@ -6,7 +6,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 ENV CC=gcc CXX=g++ AR=ar RANLIB=ranlib LD=ld
 
-RUN git clone --depth 1 --recurse-submodules --shallow-submodules \
+# Only the GitHub-hosted submodules: src/config (GNU config.guess/config.sub on
+# git.savannah.gnu.org, unreachable from CI runners) is used only by the toolchain
+# build, and this image reuses the base image's toolchain.
+RUN git clone --depth 1 --recurse-submodules=src/llvm-project \
+      --recurse-submodules=src/wasi-libc --shallow-submodules \
       --branch wasi-sdk-33 https://github.com/WebAssembly/wasi-sdk /tmp/wasi-sdk \
     && test "$(git -C /tmp/wasi-sdk rev-parse HEAD)" = "c10c0507deb3e5aad506f1f9f32084e49a21834b" \
     && sed -i 's/-wasm-use-legacy-eh=false/-wasm-use-legacy-eh=true/' /tmp/wasi-sdk/cmake/wasi-sdk-sysroot.cmake \

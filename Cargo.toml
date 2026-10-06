@@ -26,3 +26,11 @@ exclude = ["cad/wasm", "cad/step-oracle", "renderer/vendor/cgmath-0.18.0"]
 
 [patch.crates-io]
 cgmath = { path = "renderer/vendor/cgmath-0.18.0" }
+
+# `dx serve` builds the page with this profile. Full debuginfo made the debug wasm
+# about 550 MB, and dx's `wasm-bindgen --keep-debug` pass over it took about 52 s of a
+# 78 s rebuild. Line tables keep file:line for browser DWARF debugging and halve the
+# rebuild. Set `debug = true` here locally to inspect variables in the debugger.
+[profile.wasm-dev]
+inherits = "dev"
+debug = "line-tables-only"
