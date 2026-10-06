@@ -619,7 +619,11 @@ impl Runtime {
         if restore_active_project {
             runtime.restore_active_project();
         }
+        // Test servers do not serve the release service worker, so registering it only races
+        // a 404 report against whatever status the test is observing.
+        #[cfg(not(any(test, feature = "test-support")))]
         let weak = Rc::downgrade(&runtime);
+        #[cfg(not(any(test, feature = "test-support")))]
         spawn_local(async move {
             if let Err(error) = boardstudio_web_host::host::register_offline(prefix).await
                 && let Some(runtime) = weak.upgrade()
