@@ -18,8 +18,12 @@ The security tests reproduce undefined behavior on the original source under
 Miri and pass with the patch. Run them with:
 
 ```sh
-cargo +nightly-2026-08-12 miri test --manifest-path renderer/vendor/cgmath-0.18.0/Cargo.toml --locked --test security_swaps
+cp -r renderer/vendor/cgmath-0.18.0 /tmp/cgmath-0.18.0
+cargo +nightly-2026-08-12 miri test --manifest-path /tmp/cgmath-0.18.0/Cargo.toml --locked --test security_swaps
 ```
+
+The copy is needed because the workspace patches crates.io `cgmath` with this
+directory, so Cargo treats it as a workspace package in place.
 
 The security audit verifies file hashes and actual Cargo resolution before
 allowing the single patched advisory. It restores the registry identity in a
