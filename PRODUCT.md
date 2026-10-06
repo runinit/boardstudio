@@ -71,8 +71,8 @@ outlines.
 - [The starter keyboard](core/examples/demo_projects/review.rs) provides a working layout example.
 - [The bundled library](ergogen/library/) contains real generator sources,
   model assets, and vendor provenance. Preserve their attribution and terms.
-- [Core tests](core/tests/), [KiCad tests](kicad/test/),
-  [CAD tests](cad/test/), and [mounted browser tests](web/src/presentation/) provide implementation
+- [Core tests](core/tests/), [KiCad integration tests](core/tests/kicad_integration.rs),
+  [CAD tests](cad/wasm/src/model/), and [mounted browser tests](web/src/presentation/) provide implementation
   evidence. Their existence does not imply a current passing run.
 - Performance validation (historical record in Git at `323967ff`) records measured
   fixtures and conditions. Do not generalize those results into unsupported

@@ -9,7 +9,7 @@ const require = createRequire(path.join(rootDirectory, 'package.json'));
 const ts = require('typescript/unstable/ast');
 const { API } = require('typescript/unstable/sync');
 const { createVirtualFileSystem } = require('typescript/unstable/fs');
-const packages = ['contracts', 'kicad'];
+const packages = ['contracts'];
 const extensions = ['.ts', '.tsx', '.mts', '.mjs', '.js'];
 const excludedDirectories = new Set(['node_modules', 'dist', 'pkg', 'target', '.git', '.impeccable', '.generated', 'library']);
 const isTest = file => /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(file) || /(?:^|\/)(?:test|e2e)\//.test(file);

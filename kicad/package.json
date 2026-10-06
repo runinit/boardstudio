@@ -1,9 +1,0 @@
-{
-  "name": "@boardstudio/v2-kicad",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "test": "cargo build --manifest-path ../core/Cargo.toml --locked --example artifact_request && node --experimental-strip-types --test test/*.test.ts"
-  }
-}

@@ -1,6 +1,5 @@
 packages:
   - contracts
-  - kicad
 
 allowBuilds:
   esbuild: true

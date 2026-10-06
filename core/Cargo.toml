@@ -35,3 +35,6 @@ rhai = { version = "1.26.1", default-features = false, features = ["std"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 rhai = { version = "1.26.1", default-features = false, features = ["std", "wasm-bindgen"] }
+
+[dev-dependencies]
+regex = { version = "1", default-features = false, features = ["std", "perf", "unicode"] }
