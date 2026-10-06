@@ -1,6 +1,6 @@
 # 02: Settlements report where an edit landed
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: None (can start immediately)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
