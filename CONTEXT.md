@@ -81,3 +81,24 @@ pinned by the user; it remains eligible for automatic placement repair.
 **User-positioned support**:
 A support whose position the user has committed or explicitly pinned; automatic
 placement repair preserves it until the user moves or resets it.
+
+### Editing
+
+**Accepted document**:
+The project state the document engine has applied and saved; every view and
+export reads from it.
+_Avoid_: current doc, model, snapshot (when the saved state is meant)
+
+**Draft value**:
+A value typed into a field that has not yet become part of the accepted document.
+
+**Pending edit**:
+An edit the user has committed that has neither landed nor failed. Queued pending
+edits are resolved against the accepted document when they run, so each applies
+on top of the edits accepted before it.
+_Avoid_: in-flight edit, queued command
+
+**Landed edit**:
+A pending edit that produced, or confirmed without change, an accepted document
+revision. An edit that fails or whose target has gone is not landed; its field
+shows the accepted value again with an explanation.

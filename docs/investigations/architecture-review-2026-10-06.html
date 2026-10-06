@@ -1,0 +1,746 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Architecture review for BoardStudio</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({ startOnLoad: false, theme: "neutral", securityLevel: "loose", flowchart: { useMaxWidth: true }, sequence: { useMaxWidth: true } });
+  const blocks = [...document.querySelectorAll("pre.mermaid")];
+  for (const [i, el] of blocks.entries()) {
+    const { svg } = await mermaid.render(`arch-diagram-${i}`, el.textContent);
+    el.innerHTML = svg;
+  }
+</script>
+<style>
+  .seam { stroke-dasharray: 4 4; }
+  .leak { stroke: #dc2626; }
+  .deep { background: linear-gradient(135deg, #0f172a, #1e293b); color: #f8fafc; }
+  .schem { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+  .diagram { min-height: 300px; }
+  .mermaid { background: transparent; }
+  .bar { height: 14px; border-radius: 2px; }
+</style>
+</head>
+<body class="bg-stone-50 text-slate-900 font-sans">
+<main class="max-w-6xl mx-auto px-4 sm:px-6 py-12 space-y-14">
+
+<header class="space-y-4">
+  <p class="schem text-slate-500">runinit/boardstudio · inspected at a352f95 (dev) · 2026-10-06 · whole codebase · line numbers refer to that revision</p>
+  <h1 class="font-serif text-4xl">Architecture review for BoardStudio</h1>
+  <div class="flex flex-wrap gap-5 text-xs text-slate-600 items-center">
+    <span class="flex items-center gap-2"><span class="inline-block w-5 h-4 border border-slate-500 bg-white"></span>module</span>
+    <span class="flex items-center gap-2"><svg width="30" height="8"><line x1="0" y1="4" x2="30" y2="4" stroke="#475569" stroke-width="2" class="seam"/></svg>seam</span>
+    <span class="flex items-center gap-2"><svg width="30" height="8"><line x1="0" y1="4" x2="24" y2="4" stroke="#dc2626" stroke-width="2"/><polygon points="24,0 30,4 24,8" fill="#dc2626"/></svg>leak</span>
+    <span class="flex items-center gap-2"><span class="inline-block w-5 h-4 deep border-2 border-slate-900"></span>deep module</span>
+    <span class="flex items-center gap-2"><span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">Strong</span><span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800">Worth exploring</span><span class="px-2 py-0.5 rounded bg-slate-200 text-slate-700">Speculative</span></span>
+  </div>
+  <nav class="text-sm text-slate-600 grid sm:grid-cols-2 gap-x-8 gap-y-1 pt-2">
+    <a class="hover:underline" href="#c1">1 · Edit settlement module in application</a>
+    <a class="hover:underline" href="#c2">2 · Intent-level Core edits replace ReplaceDocument</a>
+    <a class="hover:underline" href="#c3">3 · Runtime ports with an in-process Core adapter</a>
+    <a class="hover:underline" href="#c4">4 · Case plan module in Core</a>
+    <a class="hover:underline" href="#c5">5 · Render a footprint once: RenderedPart</a>
+    <a class="hover:underline" href="#c6">6 · One normalisation pass in CoreEngine</a>
+    <a class="hover:underline" href="#c7">7 · Scoped job leases for exports and previews</a>
+    <a class="hover:underline" href="#c8">8 · Cross-WASM wire types in contracts</a>
+    <a class="hover:underline" href="#c9">9 · One outline module</a>
+    <a class="hover:underline" href="#c10">10 · Split renderer wasm.rs into native modules</a>
+    <a class="hover:underline" href="#c11">11 · Move or delete the CAD kernel seam</a>
+    <a class="hover:underline" href="#c12">12 · Workspace composition modules under Editor()</a>
+    <a class="hover:underline" href="#c13">13 · Delete shallow leftovers from the cutovers</a>
+  </nav>
+</header>
+
+<section id="candidates" class="space-y-12">
+
+<!-- ============ 1 ============ -->
+<article id="c1" class="rounded-xl border border-slate-200 bg-white shadow-sm p-6 space-y-5">
+  <div class="flex flex-wrap items-center gap-2">
+    <h2 class="font-serif text-2xl mr-3">1 · Edit settlement module in application</h2>
+    <span class="px-2 py-0.5 rounded text-xs bg-emerald-100 text-emerald-800">Strong</span>
+    <span class="px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-600 font-mono">in-process</span>
+  </div>
+  <ul class="font-mono text-sm text-slate-700 leading-6">
+    <li>application/src/session.rs:626-629, 1442-1446, 143 (TerminalOutcome)</li>
+    <li>web/src/presentation/** — 40 <code>struct Pending*</code>, 59 <code>observe_operation</code>, 34 files matching <code>TerminalOutcome::Superseded</code></li>
+    <li>web/src/presentation/objects/matrix_transform_lifecycle.rs (only extracted helper, one caller)</li>
+    <li>docs/investigations/layout-part-editing.md (reproduced overwrite)</li>
+  </ul>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-red-200 bg-red-50/40 p-3 diagram">
+      <p class="schem text-red-700 mb-1">Before · revision rebased, payload stale</p>
+      <pre class="mermaid">
+sequenceDiagram
+  participant F as Inspector form
+  participant S as Session
+  participant C as CoreEngine
+  F->>S: Edit X=60 (built from rev 0)
+  F->>S: Edit Y=-40 (built from rev 0, X=66.7)
+  S->>C: X edit, base_revision=0
+  C-->>S: accepted rev 1 (X=60)
+  Note over S: queued edit: base_revision := 1<br/>payload untouched
+  S->>C: Y edit carrying X=66.7
+  C-->>S: accepted rev 2 — X lost
+  S-->>F: Completed (no revision)
+  Note over F: 35 controllers each guess<br/>"did it land?"
+      </pre>
+    </div>
+    <div class="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 diagram">
+      <p class="schem text-emerald-700 mb-1">After · intent settled at acceptance</p>
+      <pre class="mermaid">
+sequenceDiagram
+  participant F as Inspector form
+  participant E as Edit settlement (application)
+  participant C as CoreEngine
+  F->>E: intent: set X of selection
+  F->>E: intent: set Y of selection
+  E->>C: X resolved against rev 0
+  C-->>E: rev 1
+  E->>C: Y resolved against rev 1
+  C-->>E: rev 2 (X=60, Y=-40)
+  E-->>F: Landed rev 2 / Failed / Retired
+      </pre>
+    </div>
+  </div>
+  <div class="grid md:grid-cols-3 gap-4 text-sm">
+    <p><span class="schem text-slate-500 block">Problem</span>Session rebases every queued <code>Event::Edit</code>'s revision but not its absolute payload, so the last writer wins. Each controller then re-derives settlement from snapshot tokens and durability.</p>
+    <p><span class="schem text-slate-500 block">Solution</span>Make application the one module that owns edit admission policy (rebase / strict / reject), resolves intent against accepted state, and reports <em>where</em> an edit landed. Controllers hold a ticket and read one settlement value.</p>
+    <ul class="list-disc pl-4 space-y-0.5"><span class="schem text-slate-500 block -ml-4">Wins</span>
+      <li>Locality: revision policy in one module</li>
+      <li>Leverage: one interface, ~35 controllers</li>
+      <li>Reproducer becomes a native Session test</li>
+      <li>Deletes ~40 <code>Pending*</code> structs</li>
+      <li>Mounted tests keep focus/ordering only</li>
+    </ul>
+  </div>
+  <p class="text-xs rounded bg-amber-50 border border-amber-200 text-amber-900 px-3 py-2">The investigation asks that pending/rejection/retry behaviour be settled before an interface is chosen. This card names the module and its ownership, not its interface.</p>
+</article>
+
+<!-- ============ 2 ============ -->
+<article id="c2" class="rounded-xl border border-slate-200 bg-white shadow-sm p-6 space-y-5">
+  <div class="flex flex-wrap items-center gap-2">
+    <h2 class="font-serif text-2xl mr-3">2 · Intent-level Core edits replace ReplaceDocument</h2>
+    <span class="px-2 py-0.5 rounded text-xs bg-emerald-100 text-emerald-800">Strong</span>
+    <span class="px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-600 font-mono">in-process</span>
+  </div>
+  <ul class="font-mono text-sm text-slate-700 leading-6">
+    <li>core/src/model.rs:960 (26 EditOperation variants) · core/src/lib.rs:1117-1132, 1420-1438</li>
+    <li>web/src/presentation/outline_lifecycle.rs:1339-2090 · mechanical_settings_controller.rs:998-1944 (apply_patch)</li>
+    <li>web/src/parts_definition_name.rs · board_inspector.rs:148 · pcb_wiring/** · library.rs · keycap_resize.rs</li>
+  </ul>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-red-200 bg-red-50/40 p-4 diagram">
+      <p class="schem text-red-700 mb-3">Before · which edits the product actually sends</p>
+      <div class="space-y-2 text-xs font-mono">
+        <div class="flex items-center gap-2"><span class="w-40 shrink-0">ReplaceDocument</span><div class="bar bg-red-500" style="width:57%"></div><span>57</span></div>
+        <div class="flex items-center gap-2"><span class="w-40 shrink-0">SetMatrix</span><div class="bar bg-slate-500" style="width:40%"></div><span>40</span></div>
+        <div class="flex items-center gap-2"><span class="w-40 shrink-0">MoveParts</span><div class="bar bg-slate-500" style="width:11%"></div><span>11</span></div>
+        <div class="flex items-center gap-2"><span class="w-40 shrink-0 text-slate-400">AddPart · RemoveParts</span><div class="bar bg-slate-200" style="width:1%"></div><span class="text-slate-400">0</span></div>
+        <div class="flex items-center gap-2"><span class="w-40 shrink-0 text-slate-400">SetNet · SetMechanical</span><div class="bar bg-slate-200" style="width:1%"></div><span class="text-slate-400">0</span></div>
+      </div>
+      <div class="mt-5 flex gap-2 items-stretch">
+        <div class="flex-1 border border-red-400 rounded p-2 text-xs"><p class="schem text-red-700">~25 web files</p>clone document → mutate versions, IDs, mechanical defaults → send whole document</div>
+        <svg width="40" height="60" class="self-center"><line x1="0" y1="30" x2="32" y2="30" stroke="#dc2626" stroke-width="2"/><polygon points="32,25 40,30 32,35" fill="#dc2626"/></svg>
+        <div class="w-28 border border-slate-400 rounded p-2 text-xs"><p class="schem">Core</p>swap document; mark every ID changed; full outline recompute</div>
+      </div>
+    </div>
+    <div class="rounded-lg border border-emerald-200 bg-emerald-50/40 p-4 diagram">
+      <p class="schem text-emerald-700 mb-3">After · forms map fields to intents</p>
+      <div class="flex gap-3 items-stretch h-56">
+        <div class="w-32 space-y-1 text-xs">
+          <div class="border border-slate-300 rounded px-2 py-1 bg-white">Outline form</div>
+          <div class="border border-slate-300 rounded px-2 py-1 bg-white">Mechanical form</div>
+          <div class="border border-slate-300 rounded px-2 py-1 bg-white">Board inspector</div>
+          <div class="border border-slate-300 rounded px-2 py-1 bg-white">Wiring mode</div>
+          <div class="border border-slate-300 rounded px-2 py-1 bg-white">Definition name</div>
+        </div>
+        <svg width="30" class="self-center" height="120"><line x1="15" y1="0" x2="15" y2="120" stroke="#475569" stroke-width="2" class="seam"/></svg>
+        <div class="flex-1 deep rounded-lg border-2 border-slate-900 p-3 text-xs space-y-1">
+          <p class="schem text-emerald-300">Core edit interface</p>
+          <p class="font-mono">AddOutlineFeature · SetMechanicalSettings{patch} · RenameBoard · SetWiringMode · RenameDefinition …</p>
+          <p class="text-slate-400 pt-2">inside: ID uniqueness, version targeting, instance ownership, defaults, precise changed_ids, Undo granularity</p>
+          <p class="text-slate-500">ReplaceDocument kept for import / recovery only</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="grid md:grid-cols-3 gap-4 text-sm">
+    <p><span class="schem text-slate-500 block">Problem</span>The typed-edit interface is wide but bypassed: most product edits clone the document in presentation and send it back whole. Domain rules leak into web, and the copies already disagree (switch-family casing, three <code>is_assembly_snapshot</code> variants).</p>
+    <p><span class="schem text-slate-500 block">Solution</span>Core owns one intent-level edit per concept the forms change, deletes the web rule copies, and restricts <code>ReplaceDocument</code> to import and recovery.</p>
+    <ul class="list-disc pl-4 space-y-0.5"><span class="schem text-slate-500 block -ml-4">Wins</span>
+      <li>Domain rules stop leaking into web</li>
+      <li>Tests assert accepted results in Core</li>
+      <li>Precise changed IDs and Undo steps</li>
+      <li>Shrinks card 1's overwrite surface</li>
+    </ul>
+  </div>
+</article>
+
+<!-- ============ 3 ============ -->
+<article id="c3" class="rounded-xl border border-slate-200 bg-white shadow-sm p-6 space-y-5">
+  <div class="flex flex-wrap items-center gap-2">
+    <h2 class="font-serif text-2xl mr-3">3 · Runtime ports with an in-process Core adapter</h2>
+    <span class="px-2 py-0.5 rounded text-xs bg-emerald-100 text-emerald-800">Strong</span>
+    <span class="px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-600 font-mono">ports &amp; adapters</span>
+  </div>
+  <ul class="font-mono text-sm text-slate-700 leading-6">
+    <li>web/src/runtime.rs:427-512 (~70 fields, 19 #[cfg(test)]), :669 model(), :1837 submit(), :2136 run()</li>
+    <li>web/src/runtime_test_stub.rs · web/src/main.rs:49, 120-200 (20 #[path] remounts)</li>
+    <li>web/src/presentation/mechanical_settings_controller.rs:89-108 (already port-shaped, browser-only tests)</li>
+  </ul>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-red-200 bg-red-50/40 p-4 diagram">
+      <p class="schem text-red-700 mb-3">Before · test modes patched into the implementation</p>
+      <div class="space-y-1 text-xs">
+        <div class="h-10 border-l-4 border-slate-500 bg-white px-3 flex items-center justify-between"><span class="schem">Runtime::submit()</span><span class="text-red-600">if layout_inspector_test → record, return</span></div>
+        <div class="h-10 border-l-4 border-slate-500 bg-white px-3 flex items-center justify-between"><span class="schem">Runtime::model()</span><span class="text-red-600">if definition_name_test → fixture</span></div>
+        <div class="h-10 border-l-4 border-slate-500 bg-white px-3 flex items-center justify-between"><span class="schem">Runtime::run()</span><span class="text-red-600">if project_name_test → own CoreEngine</span></div>
+        <div class="h-10 border-l-4 border-slate-500 bg-white px-3 flex items-center justify-between"><span class="schem">Runtime::scope()</span><span class="text-red-600">if firmware_export_test → …</span></div>
+        <div class="h-10 border-l-4 border-red-400 bg-red-50 px-3 flex items-center justify-between"><span class="schem">runtime_test_stub.rs</span><span>2nd Runtime via 20 #[path]</span></div>
+        <p class="pt-2 text-slate-600">349 wasm_bindgen_test vs 285 native #[test]. The mounted X/Y test never reaches Session.</p>
+      </div>
+    </div>
+    <div class="rounded-lg border border-emerald-200 bg-emerald-50/40 p-4 diagram">
+      <p class="schem text-emerald-700 mb-3">After · two adapters justify the seam</p>
+      <div class="relative h-60">
+        <div class="absolute left-1/2 -translate-x-1/2 top-0 w-56 deep rounded-lg border-2 border-slate-900 p-3 text-xs text-center"><p class="schem text-emerald-300">Runtime</p>Session + feature effects<br/><span class="text-slate-400">no cfg(test) fields</span></div>
+        <svg class="absolute inset-0 w-full h-full" viewBox="0 0 400 240" preserveAspectRatio="none">
+          <line x1="20" y1="110" x2="380" y2="110" stroke="#475569" stroke-width="2" class="seam"/>
+          <line x1="140" y1="78" x2="110" y2="150" stroke="#475569" stroke-width="1.5"/>
+          <line x1="260" y1="78" x2="290" y2="150" stroke="#475569" stroke-width="1.5"/>
+        </svg>
+        <p class="absolute top-[100px] right-2 schem text-slate-500 bg-emerald-50 px-1">ports: core · storage · cad · ids/clock</p>
+        <div class="absolute left-2 bottom-2 w-40 border border-slate-400 bg-white rounded p-2 text-xs"><p class="schem">Production adapter</p>CoreWorker · IndexedDB · CAD worker</div>
+        <div class="absolute right-2 bottom-2 w-40 border border-slate-400 bg-white rounded p-2 text-xs"><p class="schem">Test adapter</p>in-process CoreEngine · memory store · stepped completion</div>
+      </div>
+    </div>
+  </div>
+  <div class="grid md:grid-cols-3 gap-4 text-sm">
+    <p><span class="schem text-slate-500 block">Problem</span>Runtime has no seam for its effects, so each feature's tests add a branch inside <code>submit</code>/<code>model</code>/<code>run</code>. A parallel stub Runtime is remounted through <code>#[path]</code>. Mounted tests capture commands instead of accepted results.</p>
+    <p><span class="schem text-slate-500 block">Solution</span>Runtime depends on a small set of ports. A worker-backed adapter runs in production and an in-process Core adapter with controllable completion timing runs in tests.</p>
+    <ul class="list-disc pl-4 space-y-0.5"><span class="schem text-slate-500 block -ml-4">Wins</span>
+      <li>Delete 19 cfg(test) fields</li>
+      <li>Delete stub + #[path] remounting</li>
+      <li>Mounted tests reach Core and Undo</li>
+      <li>Controllers testable natively</li>
+    </ul>
+  </div>
+</article>
+
+<!-- ============ 4 ============ -->
+<article id="c4" class="rounded-xl border border-slate-200 bg-white shadow-sm p-6 space-y-5">
+  <div class="flex flex-wrap items-center gap-2">
+    <h2 class="font-serif text-2xl mr-3">4 · Case plan module in Core</h2>
+    <span class="px-2 py-0.5 rounded text-xs bg-emerald-100 text-emerald-800">Strong</span>
+    <span class="px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-600 font-mono">in-process</span>
+  </div>
+  <ul class="font-mono text-sm text-slate-700 leading-6">
+    <li>web/src/cad_jobs.rs:357-377, 470-756, 812 (cfg feature="page")</li>
+    <li>web/src/runtime.rs:5743 · presentation/case_viewer.rs:2402 · captured_case_document ×9 sites</li>
+    <li>web/src/presentation/mechanical_settings_controller.rs:2406-2472 vs core/src/mechanical.rs:18-55, mechanical/gasket.rs:229, gasket/internal.rs:338</li>
+  </ul>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-red-200 bg-red-50/40 p-3 diagram">
+      <p class="schem text-red-700 mb-1">Before · web projects the Case exterior inputs</p>
+      <pre class="mermaid">
+flowchart LR
+  P["9 presentation sites"] --> J["cad_jobs.rs (page only)<br/>effective config via 20 JSON keys<br/>battery 30×20×6 default<br/>stabilizer string match<br/>flipped-instance reflection<br/>PCB reference body"]
+  RT["runtime.rs:5743"] --> IR["CaseIR assembly ×3"]
+  J --> IR
+  CV["case_viewer.rs:2402"] --> IR
+  MS["mechanical settings controller<br/>gasket length 80, auto_size"] -.->|diverges| G["core gasket defaults<br/>length 12, auto_size None"]
+  IR --> R["core mechanical::resolve<br/>(trusts caller input)"]
+  classDef leak stroke:#dc2626,stroke-width:2px,fill:#fef2f2;
+  class J,MS,IR leak
+      </pre>
+    </div>
+    <div class="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 diagram">
+      <p class="schem text-emerald-700 mb-1">After · web passes a scope</p>
+      <pre class="mermaid">
+flowchart LR
+  P["presentation"] -->|"document, Scope{board, instance}"| CP
+  subgraph CP["Core · case plan"]
+    direction TB
+    a["effective mechanical config"] --- b["family / gasket / battery defaults"]
+    b --- c["instance reflection"]
+    c --- d["PCB reference + CaseIR"]
+  end
+  CP --> R["mechanical::resolve"]
+  classDef deep fill:#0f172a,color:#f8fafc,stroke:#0f172a,stroke-width:3px;
+  class CP deep
+      </pre>
+    </div>
+  </div>
+  <div class="grid md:grid-cols-3 gap-4 text-sm">
+    <p><span class="schem text-slate-500 block">Problem</span>Case-exterior inputs are assembled in a page-only web module and repeated at three sites. Mechanical defaults exist in both web and Core and have already drifted (gasket length 80 vs 12).</p>
+    <p><span class="schem text-slate-500 block">Solution</span>A Core case-plan module turns a document plus scope into the prepared case. It owns effective configuration, defaults, reflection and the PCB reference.</p>
+    <ul class="list-disc pl-4 space-y-0.5"><span class="schem text-slate-500 block -ml-4">Wins</span>
+      <li>One home for mechanical defaults</li>
+      <li>Native tests for case inputs</li>
+      <li>Delete 3 CaseIR assemblies</li>
+      <li>Backlog "Mechanical settings" gets an owner</li>
+    </ul>
+  </div>
+</article>
+
+<!-- ============ 5 ============ -->
+<article id="c5" class="rounded-xl border border-slate-200 bg-white shadow-sm p-6 space-y-5">
+  <div class="flex flex-wrap items-center gap-2">
+    <h2 class="font-serif text-2xl mr-3">5 · Render a footprint once: RenderedPart</h2>
+    <span class="px-2 py-0.5 rounded text-xs bg-emerald-100 text-emerald-800">Strong</span>
+    <span class="px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-600 font-mono">in-process</span>
+    <span class="px-2 py-0.5 rounded text-xs bg-red-100 text-red-800">confirmed latent bug</span>
+  </div>
+  <ul class="font-mono text-sm text-slate-700 leading-6">
+    <li>footprints/src/registry.rs:16, 203 · geometry.rs · models.rs:109 · export.rs · types.rs · generators/util.rs:103-132</li>
+    <li>core/src/generators.rs:20-24 (convert), 84-117 · core/src/artifact/kicad/generation.rs:4-8 · artifact/preview.rs</li>
+    <li>web/src/presentation/footprint_forms.rs · web/src/bundled_models.rs:66, 132, 186</li>
+  </ul>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-red-200 bg-red-50/40 p-3 diagram">
+      <p class="schem text-red-700 mb-1">Before · text re-parsed by four walkers, per query</p>
+      <pre class="mermaid">
+flowchart LR
+  Q1["Core drawing()"] --> R1["render"]
+  Q2["Core model_asset_ids()"] --> R2["render"]
+  Q3["Core model_bindings()"] --> R3["render"]
+  R1 & R2 & R3 --> T["KiCad text"]
+  T --> W1["geometry.rs"]
+  T --> W2["models.rs<br/>reads (offset …) only"]
+  T --> W3["export.rs"]
+  T --> W4["web footprint_forms.rs"]
+  IK["infused-kim emits<br/>(at (xyz …/25.4))"] -.->|dropped| W2
+  CV["core convert:<br/>JSON round trip"] --- Q1
+  classDef leak stroke:#dc2626,stroke-width:2px,fill:#fef2f2;
+  class IK,W2,CV leak
+      </pre>
+    </div>
+    <div class="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 diagram">
+      <p class="schem text-emerald-700 mb-1">After · one render, one value</p>
+      <pre class="mermaid">
+flowchart LR
+  C["Core / web caller"] -->|"part, parameters"| RP
+  subgraph RP["RenderedPart"]
+    direction TB
+    e["emit::model(path, offset_mm, rot, scale)"] --- f["forms (parsed once)"]
+    f --- g["geometry · model ids · bindings · export"]
+  end
+  classDef deep fill:#0f172a,color:#f8fafc,stroke:#0f172a,stroke-width:3px;
+  class RP deep
+      </pre>
+    </div>
+  </div>
+  <div class="grid md:grid-cols-3 gap-4 text-sm">
+    <p><span class="schem text-slate-500 block">Problem</span>The model-placement convention is split between emitters and a parser, so neither owns it. Infused-kim generators write <code>(at (xyz …))</code> while <code>model_bindings</code> reads only <code>offset</code>, so their 3D offsets are silently zero. The JS-recorded golden locks that in.</p>
+    <p><span class="schem text-slate-500 block">Solution</span>Render once into a <code>RenderedPart</code> that callers query, and route every model block through one emitter with explicit units. Core re-exports the footprints types, which deletes the JSON <code>convert</code>.</p>
+    <ul class="list-disc pl-4 space-y-0.5"><span class="schem text-slate-500 block -ml-4">Wins</span>
+      <li>Locality: one model convention</li>
+      <li>Fixes the dropped offsets</li>
+      <li>One render per part, not three</li>
+      <li>Delete JSON convert adapter</li>
+    </ul>
+  </div>
+  <p class="text-xs rounded bg-emerald-50 border border-emerald-200 text-emerald-900 px-3 py-2">Consistent with ADR-0003: text bodies and Core-side rendering stay, and the change is behind the generator interface.</p>
+</article>
+
+<!-- ============ 6 ============ -->
+<article id="c6" class="rounded-xl border border-slate-200 bg-white shadow-sm p-6 space-y-5">
+  <div class="flex flex-wrap items-center gap-2">
+    <h2 class="font-serif text-2xl mr-3">6 · One normalisation pass in CoreEngine</h2>
+    <span class="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-800">Worth exploring</span>
+    <span class="px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-600 font-mono">in-process</span>
+  </div>
+  <ul class="font-mono text-sm text-slate-700 leading-6">
+    <li>core/src/lib.rs:233-254 (open), 515-572 (commit), 597-602 (preview_edit), 1429-1430 (ReplaceDocument), 995-1017 (affects_outline)</li>
+    <li>core/src/lib.rs ~375-445 (ReviewElectricalRemap, ProtectElectricalHandoff transaction paths)</li>
+  </ul>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-red-200 bg-red-50/40 p-4 diagram">
+      <p class="schem text-red-700 mb-3">Before · four hand-sequenced copies</p>
+      <table class="w-full text-xs text-center">
+        <thead class="schem text-slate-500"><tr><th class="text-left">step</th><th>open</th><th>commit</th><th>preview</th><th>replace</th></tr></thead>
+        <tbody class="font-mono">
+          <tr class="border-t"><td class="text-left">keymap validate</td><td>●</td><td>●</td><td class="text-red-600">—</td><td class="text-red-600">—</td></tr>
+          <tr class="border-t"><td class="text-left">scripts / resolve</td><td>●</td><td>—</td><td>—</td><td>●</td></tr>
+          <tr class="border-t"><td class="text-left">preserve_handoff</td><td>—</td><td>●</td><td class="text-red-600">—</td><td>●</td></tr>
+          <tr class="border-t"><td class="text-left">layout::validate</td><td>—</td><td>●</td><td>?</td><td>●</td></tr>
+          <tr class="border-t"><td class="text-left">constraints ⇄ sync ×2</td><td>●</td><td>●</td><td>●</td><td>●</td></tr>
+          <tr class="border-t"><td class="text-left">detach_removed</td><td>—</td><td>●</td><td>?</td><td>●</td></tr>
+          <tr class="border-t"><td class="text-left">affects_outline list</td><td colspan="4" class="text-red-600">manual: has CopyOutline, omits RenameOutline, SetCase</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="rounded-lg border border-emerald-200 bg-emerald-50/40 p-4 diagram flex flex-col justify-center gap-3">
+      <p class="schem text-emerald-700">After · one module, four callers</p>
+      <div class="flex gap-2 text-xs justify-center"><span class="border rounded px-2 py-1 bg-white">open</span><span class="border rounded px-2 py-1 bg-white">commit</span><span class="border rounded px-2 py-1 bg-white">preview</span><span class="border rounded px-2 py-1 bg-white">undo/redo</span></div>
+      <div class="text-center text-slate-400">↓ ↓ ↓ ↓</div>
+      <div class="deep rounded-lg border-2 border-slate-900 p-4 text-xs mx-auto w-4/5">
+        <p class="schem text-emerald-300">normalize(before, &amp;mut next) → Changed</p>
+        <p class="text-slate-400 mt-1">constraint/sync fixed point · outline-input diff (not op classification) · single transaction commit for all mutating requests</p>
+      </div>
+    </div>
+  </div>
+  <div class="grid md:grid-cols-3 gap-4 text-sm">
+    <p><span class="schem text-slate-500 block">Problem</span>Every new operation has to know about six steps and a hand-kept classification, and the copies have drifted. <code>ProtectElectricalHandoff</code> mutates the document without bumping the revision.</p>
+    <p><span class="schem text-slate-500 block">Solution</span>One normalisation module derives what changed by diffing outline inputs, and every mutating request commits through it.</p>
+    <ul class="list-disc pl-4 space-y-0.5"><span class="schem text-slate-500 block -ml-4">Wins</span>
+      <li>Table test: preview ≡ commit</li>
+      <li>New ops need no classification</li>
+      <li>Revision always identifies content</li>
+    </ul>
+  </div>
+</article>
+
+<!-- ============ 7 ============ -->
+<article id="c7" class="rounded-xl border border-slate-200 bg-white shadow-sm p-6 space-y-5">
+  <div class="flex flex-wrap items-center gap-2">
+    <h2 class="font-serif text-2xl mr-3">7 · Scoped job leases for exports and previews</h2>
+    <span class="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-800">Worth exploring</span>
+    <span class="px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-600 font-mono">in-process</span>
+  </div>
+  <ul class="font-mono text-sm text-slate-700 leading-6">
+    <li>web/src/runtime.rs:266, 314-356, 2257-2275, 5140, 5290, 5368, 7852</li>
+    <li>keycaps_preview_generation · layout_model_batch_generation · native_case_preview.generation · case_gesture_preview_job</li>
+  </ul>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-red-200 bg-red-50/40 p-4 diagram">
+      <p class="schem text-red-700 mb-3">Before · same identity, four copies</p>
+      <div class="grid grid-cols-2 gap-2 text-[11px] font-mono">
+        <div class="border border-slate-400 bg-white rounded p-2"><p class="schem">FirmwareExportCapture</p>scope token revision<br/>session_epoch document_id<br/>executor_epoch<p class="text-emerald-700 mt-1">has executor trait + native tests</p></div>
+        <div class="border border-red-300 bg-white rounded p-2"><p class="schem">FootprintExportCapture</p>scope token revision<br/>session_epoch document_id<br/>executor_epoch<p class="text-red-600 mt-1">Rc::as_ptr identity · no native tests</p></div>
+        <div class="border border-red-300 bg-white rounded p-2"><p class="schem">PcbHandoffCapture</p>scope token revision<br/>session_epoch document_id<br/>executor_epoch<p class="text-red-600 mt-1">Rc::as_ptr identity · no native tests</p></div>
+        <div class="border border-red-300 bg-white rounded p-2"><p class="schem">MechanicalExportCapture</p>scope token revision<br/>session_epoch document_id<br/>executor_epoch<p class="text-red-600 mt-1">Rc::as_ptr identity · no native tests</p></div>
+      </div>
+      <p class="text-xs text-slate-600 mt-2">+ 3 near-identical <code>*_capture_is_current</code> bodies, 4 maps cleaned in <code>Effect::Settled</code>, 4 generation counters for previews</p>
+    </div>
+    <div class="rounded-lg border border-emerald-200 bg-emerald-50/40 p-4 diagram flex flex-col justify-center">
+      <p class="schem text-emerald-700 mb-3">After</p>
+      <div class="deep rounded-lg border-2 border-slate-900 p-4 text-xs">
+        <p class="schem text-emerald-300">Scoped jobs (application)</p>
+        <p class="font-mono mt-1">capture(accepted, scope, executor) → JobLease<br/>lease.is_current(&amp;session) · drop on settle</p>
+      </div>
+      <div class="grid grid-cols-4 gap-2 mt-3 text-[11px] text-center">
+        <div class="border rounded bg-white p-1">firmware payload</div><div class="border rounded bg-white p-1">footprint payload</div><div class="border rounded bg-white p-1">PCB payload</div><div class="border rounded bg-white p-1">mechanical payload</div>
+      </div>
+    </div>
+  </div>
+  <div class="grid md:grid-cols-3 gap-4 text-sm">
+    <p><span class="schem text-slate-500 block">Problem</span>Stale-scope protection, which the architecture assigns to application's scoped jobs, is copy-pasted per export inside Runtime. Only one copy is tested natively.</p>
+    <p><span class="schem text-slate-500 block">Solution</span>A lease module owns capture, currency and cleanup, and each export keeps only its payload.</p>
+    <ul class="list-disc pl-4 space-y-0.5"><span class="schem text-slate-500 block -ml-4">Wins</span>
+      <li>One suite covers every export</li>
+      <li>Delete 3 currency checks</li>
+      <li>Fits card 3's executor port</li>
+    </ul>
+  </div>
+</article>
+
+<!-- ============ 8 ============ -->
+<article id="c8" class="rounded-xl border border-slate-200 bg-white shadow-sm p-6 space-y-5">
+  <div class="flex flex-wrap items-center gap-2">
+    <h2 class="font-serif text-2xl mr-3">8 · Cross-WASM wire types in contracts</h2>
+    <span class="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-800">Worth exploring</span>
+    <span class="px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-600 font-mono">ports &amp; adapters</span>
+  </div>
+  <ul class="font-mono text-sm text-slate-700 leading-6">
+    <li>core/src/model.rs:598, 1138-1168 (PreparedCaseIR) ↔ cad/wasm/src/model.rs:19, 26-149, 215-293 (private mirror)</li>
+    <li>web/src/cad_worker.rs:23, 515-592, 1017-1040 · renderer/src/wasm.rs:27-210 (SceneInput, serde(default))</li>
+    <li>web/src/presentation/shared_viewer.rs:852-1113 · web/src/renderer_host.rs:105-145 · contracts/rust/src/lib.rs (115 lines)</li>
+  </ul>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-red-200 bg-red-50/40 p-3 diagram">
+      <p class="schem text-red-700 mb-1">Before · shapes agree by convention</p>
+      <pre class="mermaid">
+flowchart LR
+  CORE["core PreparedCaseIR"] -->|JSON| MIR["cad private mirror<br/>~18 Deserialize types"]
+  MIR --> OUT["Reflect::set result"]
+  OUT -->|"Reflect::get('field')"| W["web cad_worker"]
+  W -->|"call export by string"| MIR
+  SV["shared_viewer json!"] -->|"'setScene'"| SI["renderer SceneInput<br/>serde(default) everywhere"]
+  classDef leak stroke:#dc2626,stroke-width:2px,fill:#fef2f2;
+  class MIR,OUT,SI leak
+      </pre>
+    </div>
+    <div class="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 diagram">
+      <p class="schem text-emerald-700 mb-1">After · one interface, both sides depend on it</p>
+      <pre class="mermaid">
+flowchart LR
+  CORE["core"] --> K
+  subgraph K["contracts"]
+    a["PreparedCase · CaseResult"]
+    b["SceneInput · ViewMode"]
+  end
+  K --> CAD["cad wasm"]
+  K --> RE["renderer"]
+  K --> WA["web typed adapters<br/>CadrumModule · RendererModule"]
+  classDef deep fill:#0f172a,color:#f8fafc,stroke:#0f172a,stroke-width:3px;
+  class K deep
+      </pre>
+    </div>
+  </div>
+  <div class="grid md:grid-cols-3 gap-4 text-sm">
+    <p><span class="schem text-slate-500 block">Problem</span>The contracts crate is a real seam, but it carries only small types. The largest Core→CAD and web→renderer interfaces are mirrored privately or built with <code>json!</code>/<code>Reflect</code>, so drift only shows up in a browser.</p>
+    <p><span class="schem text-slate-500 block">Solution</span>Move the prepared-case, case-result and scene types into contracts, and hide <code>Reflect</code> and method strings behind one typed web adapter per WASM module.</p>
+    <ul class="list-disc pl-4 space-y-0.5"><span class="schem text-slate-500 block -ml-4">Wins</span>
+      <li>Drift caught at compile time</li>
+      <li>Native round-trip tests</li>
+      <li>Delete mirrors and MAX_STEP_BYTES copy</li>
+    </ul>
+  </div>
+</article>
+
+<!-- ============ 9 ============ -->
+<article id="c9" class="rounded-xl border border-slate-200 bg-white shadow-sm p-6 space-y-5">
+  <div class="flex flex-wrap items-center gap-2">
+    <h2 class="font-serif text-2xl mr-3">9 · One outline module</h2>
+    <span class="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-800">Worth exploring</span>
+    <span class="px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-600 font-mono">in-process</span>
+  </div>
+  <ul class="font-mono text-sm text-slate-700 leading-6">
+    <li>core/src/lib.rs (SetOutline, affects_outline, detach_removed, refresh_recovery) · validate.rs · outline_validation.rs (714)</li>
+    <li>core/src/geometry.rs:9-12 (#[path] to outline.rs, outline_cleanup.rs) · artifact/outline.rs</li>
+    <li>web/src/presentation/outline_lifecycle.rs (3,803 lines; edits versions[].geometry.features directly)</li>
+  </ul>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-red-200 bg-red-50/40 p-4 diagram">
+      <p class="schem text-red-700 mb-2">Before · Outline version knowledge scattered</p>
+      <svg viewBox="0 0 400 240" class="w-full h-60">
+        <g font-size="10" font-family="ui-monospace,monospace" fill="#0f172a">
+          <rect x="10" y="15" width="110" height="34" fill="#fff" stroke="#64748b"/><text x="16" y="36">lib.rs edits</text>
+          <rect x="150" y="10" width="100" height="34" fill="#fff" stroke="#64748b"/><text x="156" y="31">validate.rs</text>
+          <rect x="280" y="20" width="110" height="34" fill="#fff" stroke="#64748b"/><text x="286" y="41">outline_valid.</text>
+          <rect x="20" y="100" width="110" height="34" fill="#fff" stroke="#64748b"/><text x="26" y="121">geometry/#path</text>
+          <rect x="165" y="95" width="110" height="34" fill="#fff" stroke="#64748b"/><text x="171" y="116">artifact/outline</text>
+          <rect x="60" y="180" width="170" height="40" fill="#fef2f2" stroke="#dc2626"/><text x="66" y="198">web outline_lifecycle</text><text x="66" y="212">clones + mutates doc</text>
+          <rect x="270" y="160" width="120" height="40" fill="#fff" stroke="#64748b" stroke-dasharray="4 4"/><text x="276" y="178">refinements</text><text x="276" y="192">(ADR-0002, no code)</text>
+        </g>
+        <g stroke="#dc2626" stroke-width="1.5" fill="none">
+          <path d="M145 180 L70 50"/><path d="M160 180 L200 45"/><path d="M200 180 L320 55"/>
+        </g>
+        <text x="300" y="232" font-size="9" fill="#dc2626">features in doc.outline AND versions[]</text>
+      </svg>
+    </div>
+    <div class="rounded-lg border border-emerald-200 bg-emerald-50/40 p-4 diagram flex flex-col justify-center gap-3">
+      <p class="schem text-emerald-700">After</p>
+      <div class="deep rounded-lg border-2 border-slate-900 p-4 text-xs">
+        <p class="schem text-emerald-300">core outline module</p>
+        <p class="mt-1">Generated outline · Outline refinement · Edited outline · Outline version · Active outline · Protected gap · Outline bridge</p>
+        <p class="text-slate-400 mt-2 font-mono">apply(doc, OutlineEdit) · contours(doc, version) · findings(doc)</p>
+      </div>
+      <p class="text-xs text-slate-600">lib.rs delegates; web sends <code>OutlineEdit</code> intents (card 2).</p>
+    </div>
+  </div>
+  <div class="grid md:grid-cols-3 gap-4 text-sm">
+    <p><span class="schem text-slate-500 block">Problem</span>Outline-version rules are split across six Core files, a <code>#[path]</code>-disguised module tree and a 3.8k-line web form, and features have two homes. Linked refinements (ADR-0002) have no code yet and would have to touch all of it.</p>
+    <p><span class="schem text-slate-500 block">Solution</span>One Core outline module owns every outline variant from CONTEXT.md, version selection, recovery and contour resolution.</p>
+    <ul class="list-disc pl-4 space-y-0.5"><span class="schem text-slate-500 block -ml-4">Wins</span>
+      <li>Locality before ADR-0002 lands</li>
+      <li>Existing handle tests survive</li>
+      <li>File tree matches module tree</li>
+    </ul>
+  </div>
+  <p class="text-xs rounded bg-emerald-50 border border-emerald-200 text-emerald-900 px-3 py-2">Serves ADR-0001 and ADR-0002 (both record decisions, not implementation); contradicts neither.</p>
+</article>
+
+<!-- ============ 10 ============ -->
+<article id="c10" class="rounded-xl border border-slate-200 bg-white shadow-sm p-6 space-y-5">
+  <div class="flex flex-wrap items-center gap-2">
+    <h2 class="font-serif text-2xl mr-3">10 · Split renderer wasm.rs into native modules</h2>
+    <span class="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-800">Worth exploring</span>
+    <span class="px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-600 font-mono">local-substitutable</span>
+  </div>
+  <ul class="font-mono text-sm text-slate-700 leading-6">
+    <li>renderer/src/wasm.rs (2,373 lines, wasm32-only, 0 tests) · renderer/src/lib.rs:13-14</li>
+  </ul>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-red-200 bg-red-50/40 p-4 diagram">
+      <p class="schem text-red-700 mb-3">Before · one wasm-only file (line spans)</p>
+      <div class="space-y-1 text-[11px] font-mono">
+        <div class="flex items-center gap-2"><span class="w-28">JS input structs</span><div class="bar bg-slate-400" style="width:18%"></div><span>184</span></div>
+        <div class="flex items-center gap-2"><span class="w-28">camera fit/orbit</span><div class="bar bg-red-400" style="width:16%"></div><span>~160</span></div>
+        <div class="flex items-center gap-2"><span class="w-28">picking + ray</span><div class="bar bg-red-400" style="width:12%"></div><span>~120</span></div>
+        <div class="flex items-center gap-2"><span class="w-28">build_scene</span><div class="bar bg-red-400" style="width:50%"></div><span>~510</span></div>
+        <div class="flex items-center gap-2"><span class="w-28">bitmap font</span><div class="bar bg-slate-400" style="width:12%"></div><span>~120</span></div>
+        <div class="flex items-center gap-2"><span class="w-28">GPU material/glue</span><div class="bar bg-slate-400" style="width:30%"></div><span>rest</span></div>
+      </div>
+      <p class="text-xs text-slate-600 mt-3">Explode offset duplicated in fit and pick; view modes compared as strings ×7; tests via <code>include!</code>.</p>
+    </div>
+    <div class="rounded-lg border border-emerald-200 bg-emerald-50/40 p-4 diagram">
+      <p class="schem text-emerald-700 mb-3">After · pure modules behind a thin GPU adapter</p>
+      <div class="grid grid-cols-3 gap-2 text-xs">
+        <div class="deep rounded border-2 border-slate-900 p-2"><p class="schem text-emerald-300">scene</p>SceneInput → objects</div>
+        <div class="deep rounded border-2 border-slate-900 p-2"><p class="schem text-emerald-300">camera</p>OrbitCamera fit · orbit · ray</div>
+        <div class="deep rounded border-2 border-slate-900 p-2"><p class="schem text-emerald-300">picking</p>pick(targets, ray, plane)</div>
+      </div>
+      <svg viewBox="0 0 300 30" class="w-full h-8"><line x1="0" y1="15" x2="300" y2="15" stroke="#475569" stroke-width="2" class="seam"/></svg>
+      <div class="border border-slate-400 rounded bg-white p-2 text-xs"><p class="schem">wasm.rs adapter</p>three-d GPU objects only</div>
+      <p class="text-xs text-slate-600 mt-2">native cgmath tests for fit, pick and explode</p>
+    </div>
+  </div>
+  <div class="grid md:grid-cols-3 gap-4 text-sm">
+    <p><span class="schem text-slate-500 block">Problem</span>Camera, picking and scene construction are pure maths, but they compile only for wasm32 and have no tests.</p>
+    <p><span class="schem text-slate-500 block">Solution</span>Extract three native modules with a <code>ViewMode</code> enum, and leave wasm.rs as the GPU adapter.</p>
+    <ul class="list-disc pl-4 space-y-0.5"><span class="schem text-slate-500 block -ml-4">Wins</span>
+      <li>Picking tested natively</li>
+      <li>One explode rule</li>
+      <li>Strings become an enum</li>
+    </ul>
+  </div>
+</article>
+
+<!-- ============ 11 ============ -->
+<article id="c11" class="rounded-xl border border-slate-200 bg-white shadow-sm p-6 space-y-5">
+  <div class="flex flex-wrap items-center gap-2">
+    <h2 class="font-serif text-2xl mr-3">11 · Move or delete the CAD kernel seam</h2>
+    <span class="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-800">Worth exploring</span>
+    <span class="px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-600 font-mono">ports &amp; adapters</span>
+  </div>
+  <ul class="font-mono text-sm text-slate-700 leading-6">
+    <li>cad/wasm/src/model/kernel.rs:31-92 (CadKernel, one adapter) · construction/validation_tests.rs:1420, 1513</li>
+    <li>cad/wasm/src/model/construction/cache.rs:137, 266, 353-360 · metrics.rs (no-op; 66 call sites)</li>
+    <li>web/src/cad_worker.rs:1050-1202</li>
+  </ul>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-red-200 bg-red-50/40 p-4 diagram">
+      <p class="schem text-red-700 mb-3">Before · hypothetical seam, bypassed on hot paths</p>
+      <div class="relative h-56 text-xs">
+        <div class="absolute top-0 left-0 right-0 flex justify-between">
+          <span class="border rounded bg-white px-2 py-1">build_assembly</span><span class="border rounded bg-white px-2 py-1">read_step_model</span>
+          <span class="border border-red-400 rounded bg-white px-2 py-1">preview_body</span><span class="border border-red-400 rounded bg-white px-2 py-1">export_cached</span><span class="border border-red-400 rounded bg-white px-2 py-1">build_keycaps</span>
+        </div>
+        <svg class="absolute inset-0 w-full h-full" viewBox="0 0 400 220" preserveAspectRatio="none">
+          <line x1="10" y1="90" x2="390" y2="90" stroke="#475569" stroke-width="2" class="seam"/>
+          <line x1="40" y1="25" x2="80" y2="90" stroke="#475569"/><line x1="120" y1="25" x2="100" y2="90" stroke="#475569"/>
+          <path d="M210 25 L260 170" stroke="#dc2626" stroke-width="1.5"/><path d="M290 25 L280 170" stroke="#dc2626" stroke-width="1.5"/><path d="M370 25 L300 170" stroke="#dc2626" stroke-width="1.5"/>
+        </svg>
+        <span class="absolute top-[72px] left-2 schem bg-red-50 px-1">trait CadKernel</span>
+        <div class="absolute bottom-0 left-16 right-4 border border-slate-400 bg-white rounded p-2"><p class="schem">CadrumKernel — the only adapter</p>cache.rs re-implements export_step with the same error strings · Stage/count no-ops ×66</div>
+      </div>
+    </div>
+    <div class="rounded-lg border border-emerald-200 bg-emerald-50/40 p-4 diagram space-y-3 text-xs">
+      <p class="schem text-emerald-700">After · pick one</p>
+      <div class="border rounded bg-white p-3"><p class="schem">A · no second kernel planned</p>Delete the trait; keep the gate as a plain Cadrum test; delete Stage/count.</div>
+      <div class="deep rounded-lg border-2 border-slate-900 p-3"><p class="schem text-emerald-300">B · second kernel is real</p>A case-engine module owns prepared case → cached body → STEP/mesh. The kernel seam moves beneath the cache, using opaque body handles, so the gate exercises the production paths.</div>
+    </div>
+  </div>
+  <div class="grid md:grid-cols-3 gap-4 text-sm">
+    <p><span class="schem text-slate-500 block">Problem</span>One adapter makes this a hypothetical seam. Three of the five worker entry points bypass it, so its conformance gate does not cover what production runs.</p>
+    <p><span class="schem text-slate-500 block">Solution</span>Either delete the seam, or move it under the cache so that every path crosses it.</p>
+    <ul class="list-disc pl-4 space-y-0.5"><span class="schem text-slate-500 block -ml-4">Wins</span>
+      <li>Gate tests production paths</li>
+      <li>Delete duplicated export_step</li>
+      <li>Delete 66 no-op metric calls</li>
+    </ul>
+  </div>
+</article>
+
+<!-- ============ 12 ============ -->
+<article id="c12" class="rounded-xl border border-slate-200 bg-white shadow-sm p-6 space-y-5">
+  <div class="flex flex-wrap items-center gap-2">
+    <h2 class="font-serif text-2xl mr-3">12 · Workspace composition modules under Editor()</h2>
+    <span class="px-2 py-0.5 rounded text-xs bg-slate-200 text-slate-700">Speculative</span>
+    <span class="px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-600 font-mono">in-process</span>
+  </div>
+  <ul class="font-mono text-sm text-slate-700 leading-6">
+    <li>web/src/presentation.rs:3339-9434 (fn Editor) · :2190-2820 (layout Inspector projection/dispatch)</li>
+  </ul>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-red-200 bg-red-50/40 p-4 diagram">
+      <p class="schem text-red-700 mb-3">Before · one 6,100-line component</p>
+      <div class="border-2 border-red-300 rounded p-2 h-56 overflow-hidden grid grid-cols-6 gap-1 content-start">
+        <div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+<div class="h-5 rounded bg-white border border-slate-300 text-[8px] flex items-center justify-center text-slate-400">use_*</div>
+      </div>
+      <p class="text-xs text-slate-600 mt-2">81 hooks · 109 closures · 12 <code>*_is_current</code> checks · SetPosition math inline</p>
+    </div>
+    <div class="rounded-lg border border-emerald-200 bg-emerald-50/40 p-4 diagram">
+      <p class="schem text-emerald-700 mb-3">After · Editor routes, workspaces own</p>
+      <div class="border border-slate-400 rounded bg-white p-2 text-xs mb-2 text-center"><span class="schem">Editor</span> — workspace routing</div>
+      <div class="grid grid-cols-3 gap-2 text-xs">
+        <div class="deep rounded border-2 border-slate-900 p-2">Layout</div><div class="deep rounded border-2 border-slate-900 p-2">PCB</div><div class="deep rounded border-2 border-slate-900 p-2">Case</div>
+        <div class="deep rounded border-2 border-slate-900 p-2">Keymap</div><div class="deep rounded border-2 border-slate-900 p-2">Keycaps</div><div class="deep rounded border-2 border-slate-900 p-2">Parts</div>
+      </div>
+    </div>
+  </div>
+  <div class="grid md:grid-cols-3 gap-4 text-sm">
+    <p><span class="schem text-slate-500 block">Problem</span>Changing one feature means editing a shared component that holds every workspace's controllers. The backlog already calls this out ("Feature ownership").</p>
+    <p><span class="schem text-slate-500 block">Solution</span>Per-workspace modules own their controllers and owner identity, starting with Layout.</p>
+    <ul class="list-disc pl-4 space-y-0.5"><span class="schem text-slate-500 block -ml-4">Wins</span>
+      <li>Feature edits stay local</li>
+      <li>Follows cards 1 &amp; 3, not before</li>
+    </ul>
+  </div>
+  <p class="text-xs rounded bg-amber-50 border border-amber-200 text-amber-900 px-3 py-2">Speculative on its own: moving code between files doesn't add depth. It pays off only once card 1 shrinks what each workspace has to coordinate. The backlog says to avoid a general framework rewrite.</p>
+</article>
+
+<!-- ============ 13 ============ -->
+<article id="c13" class="rounded-xl border border-slate-200 bg-white shadow-sm p-6 space-y-5">
+  <div class="flex flex-wrap items-center gap-2">
+    <h2 class="font-serif text-2xl mr-3">13 · Delete shallow leftovers from the cutovers</h2>
+    <span class="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-800">Worth exploring</span>
+    <span class="px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-600 font-mono">in-process</span>
+  </div>
+  <p class="text-sm text-slate-600">Each of these fails the deletion test: removing it moves no complexity anywhere.</p>
+  <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs [overflow-wrap:anywhere]">
+    <div class="border rounded p-3"><p class="schem text-slate-500">KiCad phase functions</p><span class="font-mono">core/src/artifact/kicad.rs:5-7</span> — six public phase functions left over from JS rendering. Production uses only <code>preview</code>/<code>export</code>, and tests call <code>finish_export</code> with empty results, a state production can't reach.</div>
+    <div class="border rounded p-3"><p class="schem text-slate-500">Renderer host snapshot</p><span class="font-mono">web/src/renderer_host_page_base.rs</span> — a 925-line copy of renderer_host.rs kept in sync by a text-equality test. Replace it with one module plus a page wrapper type.</div>
+    <div class="border rounded p-3"><p class="schem text-slate-500">Provider naming &amp; types copy</p><span class="font-mono">footprints/src/lib.rs:1-6, types.rs</span> — "provider framework" with no provider seam, stale step comments, and Core-mirrored types that were meant to be re-exported "at cutover".</div>
+    <div class="border rounded p-3"><p class="schem text-slate-500">Session pass-throughs</p><span class="font-mono">application/src/session.rs:2314, 2328</span> — <code>handle_core</code> is a pass-through, and <code>CoreReply::ElectricalApplied</code>/<code>ElectricalHandoffProtected</code> are never constructed.</div>
+    <div class="border rounded p-3"><p class="schem text-slate-500">Provider inventory ×3</p><span class="font-mono">scripts/build-web.py:52-91, dev-web.py, cadrum_build.py</span> — duplicated copy/stage lists, WASM names spelled in Python and Rust, and COOP/COEP headers defined twice. Use one <code>providers.py</code> table and an emitted asset manifest.</div>
+    <div class="border rounded p-3"><p class="schem text-slate-500">Unverified integrity file</p><span class="font-mono">ergogen/library-integrity.json</span> — referenced by no script or test. Wire it into the repo check or retire it.</div>
+  </div>
+</article>
+
+</section>
+
+<section id="top-recommendation" class="rounded-2xl deep p-8 space-y-4">
+  <p class="schem text-emerald-300">Top recommendation</p>
+  <h2 class="font-serif text-3xl"><a href="#c1" class="underline decoration-emerald-400 underline-offset-4">1 · Edit settlement module in application</a></h2>
+  <p class="text-slate-300 max-w-3xl">It is the only friction here with a reproduced data-loss consequence, and its mechanism is not limited to the Inspector. Every queued <code>ReplaceDocument</code> (51 web sites) can undo edits accepted after it was captured. Deepening application's edit interface removes that overwrite at the seam where it originates. It also deletes the settlement logic that ~35 controllers re-derive, and turns the open investigation's reproducer into an ordinary native Session test.</p>
+  <p class="text-slate-400 text-sm max-w-3xl">Sequencing: build card 3's in-process Core adapter as the test harness for card 1, then let card 2's intent-level edits shrink the remaining <code>ReplaceDocument</code> surface. Card 5's dropped model offsets are an independent, verified bug worth fixing on its own.</p>
+</section>
+
+</main>
+</body>
+</html>
