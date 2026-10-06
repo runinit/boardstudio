@@ -114,7 +114,7 @@ python3 scripts/check.py typecheck
 ## Out of scope
 
 - Any web or presentation change (tickets 04 and 06).
-- Making `Event::Edit` stricter (map decision ticket 14).
+- Making `Event::Edit` stricter ([decision ticket 18](18-decide-restrict-event-edit.md)).
 
 ## Pitfalls
 

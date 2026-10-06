@@ -70,7 +70,7 @@ python3 scripts/check-wasm-tests.py
 
 ## Out of scope
 
-- Other panels (cluster tickets 07 to 13).
+- Other panels (cluster tickets 08 to 16).
 - New Core operations: the assign-layout and outline resolvers may still produce
   `ReplaceDocument`, built from the accepted document at execution time.
 

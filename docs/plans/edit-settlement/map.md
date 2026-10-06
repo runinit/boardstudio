@@ -30,6 +30,10 @@ which remaining whole-document replacements become typed Core edits.
   with an inline message; no automatic retry: [ADR-0005](../../adr/0005-resolve-queued-edits-at-execution.md).
 - Runtime ports cover Core and persistence only in this effort: [spec](spec.md).
 - Plans live as committed Markdown under `docs/plans/`: [issue tracker](../../agents/issue-tracker.md).
+- Field edits queue freely; one-shot actions disable their control while pending: [ADR-0005 amendment](../../adr/0005-resolve-queued-edits-at-execution.md#amendment-field-edits-and-one-shot-actions-2026-10-06), terms in [CONTEXT.md](../../../CONTEXT.md).
+- The latest committed value wins; resolvers retire only for a vanished or ineligible target, so the Matrix Transform Inspector's baseline rejection goes: [ADR-0005 amendment](../../adr/0005-resolve-queued-edits-at-execution.md#amendment-field-edits-and-one-shot-actions-2026-10-06).
+- Landed means landed: per-panel content checks are deleted; mechanical closure evidence is decided in [Case, mechanical settings and project/board names](issues/16-case-and-metadata.md).
+- Every action uses a resolver, field-scoped ones included; keyboard nudges become delta intents; previews stay on `Event::Edit`: [cluster migration rules](issues/08-parts-custom-definition-fields.md#migration-rules-same-for-every-cluster-ticket).
 
 ## Progress
 
@@ -37,9 +41,25 @@ which remaining whole-document replacements become typed Core edits.
 
 ## Not yet specified
 
-- Cluster migration tickets for panels other than the Layout Inspector (being
-  sliced from the call-site inventory).
+Nothing. The cluster migrations are now tickets, sliced from the
+[call-site inventory](inventory.md):
+
+- [Definition-name and generator tests reach the real Session and Core](issues/07-definition-name-tests-reach-core.md)
+- [Parts custom definition and definition-name fields](issues/08-parts-custom-definition-fields.md)
+- [Layout remainder: constraints, old position Inspector, nudges and geometry scripts](issues/09-layout-remainder.md)
+- [Objects: align, placement, mirrored halves, boards and keycap size](issues/10-objects.md)
+- [Matrix setup, Matrix Inspector and transform edits](issues/11-matrix-and-transform.md)
+- [Outline actions](issues/12-outline.md)
+- [Keymap and Keycaps edits](issues/13-keymap-and-keycaps.md)
+- [PCB wiring, modules and physical setup](issues/14-pcb-wiring-modules-physical-setup.md)
+- [Remaining Parts actions](issues/15-parts-remainder.md)
+- [Case, mechanical settings and project/board names](issues/16-case-and-metadata.md)
+- [Cleanup: one settlement path and a record of what still replaces the document](issues/17-cleanup.md)
+- Decisions: [restrict `Event::Edit` at the type level?](issues/18-decide-restrict-event-edit.md) and [which whole-document resolvers become typed Core edits first?](issues/19-decide-first-typed-core-edits.md)
 
 ## Out of scope
 
 - CAD/export/preview ports and export capture leases (review candidates 3 remainder, 7).
+- Merging held-key nudges or drag repeats into one edit: changes Undo granularity and the gesture path.
+- Stale `Event::Edit` previews drawn after a queued commit: never changes the accepted document; tracked in the [backlog](../../backlog.md).
+- Cleaning up asset bytes left unreferenced when an upload's edit is retired or fails (unchanged from today).

@@ -19,6 +19,24 @@ edit fails or is retired, the field shows the accepted value again with an inlin
 message, and nothing retries automatically. Gesture commits and export-owned
 commits keep their strict captured-revision checks.
 
+## Amendment: field edits and one-shot actions (2026-10-06)
+
+Planning the panel migrations surfaced two rules that follow from this decision.
+
+- For a [field edit](../../CONTEXT.md), the latest committed value wins. A resolver
+  does not compare the accepted value with the value the user saw when typing; it
+  retires only when the target has gone or is no longer eligible (for example
+  locked, relationship-driven or deleted). The Matrix Transform Inspector's
+  "accepted value changed" rejection is removed during migration. Admission checks
+  for selection lifetime and stale callbacks stay.
+- A [one-shot action](../../CONTEXT.md) disables its control, without a message,
+  while its edit is pending, so a double click cannot create, delete or apply twice.
+  Field edits are never disabled or refused while an earlier edit is pending.
+
+Once an edit has landed, panels do not re-check the accepted document for their
+requested value: the field shows the accepted value, including any value Core
+normalised.
+
 ## Considered Options
 
 - **Reject stale edits** (strict base revision): simple, but rapid entry across

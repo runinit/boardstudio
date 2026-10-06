@@ -105,7 +105,7 @@ README and the existing test-owner files under `scripts/`.
 
 - CAD workers, export workers, keycap/case previews and generation jobs (only Core
   and save go behind ports).
-- Layout-inspector and definition-name interception modes (tickets 05 and 12).
+- Layout-inspector and definition-name interception modes (tickets 05 and 07).
 - Any change to Session or Core.
 
 ## Pitfalls

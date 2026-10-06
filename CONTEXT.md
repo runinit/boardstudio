@@ -102,3 +102,13 @@ _Avoid_: in-flight edit, queued command
 A pending edit that produced, or confirmed without change, an accepted document
 revision. An edit that fails or whose target has gone is not landed; its field
 shows the accepted value again with an explanation.
+
+**Field edit**:
+An edit that sets a value the user entered, such as a name, a coordinate or a
+setting. Committing it again with the same value changes nothing, so field edits
+always queue; the latest committed value wins.
+
+**One-shot action**:
+An edit that creates, removes, imports, uploads or applies something. Committing
+it again does it again, so its control is unavailable while it is pending.
+_Avoid_: command, button edit

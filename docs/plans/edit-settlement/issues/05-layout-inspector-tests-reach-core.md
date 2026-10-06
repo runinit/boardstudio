@@ -80,4 +80,4 @@ python3 scripts/check-wasm-tests.py
 ## Out of scope
 
 - Fixing the overwrite (ticket 06).
-- Definition-name interception (ticket 12).
+- Definition-name interception ([ticket 07](07-definition-name-tests-reach-core.md)).

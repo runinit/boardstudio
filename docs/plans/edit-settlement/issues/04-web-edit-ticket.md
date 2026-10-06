@@ -72,6 +72,7 @@ phrase for messages.
 - [ ] The module compiles natively and in wasm. Its tests run under `cargo test` for the web crate.
 - [ ] One mapping from `TerminalOutcome` plus landing to the four settlements, covered by native tests through a real Session and `CoreEngine`.
 - [ ] Standard failure messages live in this module only. Each outcome has one phrasing, with an optional feature noun.
+- [ ] A ticket answers `is_pending()`, so one-shot actions can disable their control while pending ([ADR-0005 amendment](../../../adr/0005-resolve-queued-edits-at-execution.md#amendment-field-edits-and-one-shot-actions-2026-10-06)).
 - [ ] No controller is migrated in this ticket. The module is ready for ticket 06.
 
 ## Verification
