@@ -3,7 +3,7 @@ use boardstudio_core::model::{ArtifactReply, ArtifactRequest, CoreReply, CoreReq
 use futures_channel::oneshot;
 use js_sys::{Array, Object, Reflect, Uint8Array};
 use serde_json::Value;
-use std::{cell::RefCell, collections::BTreeMap, fmt, rc::Rc};
+use std::{cell::RefCell, collections::BTreeMap, fmt, future::Future, pin::Pin, rc::Rc};
 use wasm_bindgen::{JsCast, prelude::*};
 use web_sys::{ErrorEvent, Event, MessageEvent, Worker, WorkerOptions, WorkerType};
 
@@ -17,6 +17,80 @@ impl fmt::Display for HostError {
 }
 
 impl std::error::Error for HostError {}
+
+pub type CoreExecutorFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, HostError>> + 'a>>;
+
+/// The Core execution port: every awaited Core operation the page runtime performs (Session
+/// requests, resolvers, archives and artifacts). Production implements it over the worker;
+/// tests install an in-process executor, so lifecycle tests can replace or restart the
+/// executor without adding a second provider or changing Core's API.
+pub trait CoreExecutor {
+    fn request<'a>(
+        &'a self,
+        request_id: &'a str,
+        executor_epoch: &'a str,
+        request: &'a CoreRequest,
+    ) -> CoreExecutorFuture<'a, CoreReply>;
+
+    fn archive<'a>(
+        &'a self,
+        request_id: &'a str,
+        executor_epoch: &'a str,
+        metadata: &'a str,
+        buffers: Vec<Uint8Array>,
+    ) -> CoreExecutorFuture<'a, ArchiveResult>;
+
+    fn artifact<'a>(
+        &'a self,
+        request_id: &'a str,
+        executor_epoch: &'a str,
+        request: &'a ArtifactRequest,
+    ) -> CoreExecutorFuture<'a, ArtifactReply>;
+
+    fn ready<'a>(&'a self) -> CoreExecutorFuture<'a, ()>;
+
+    fn close(&self);
+}
+
+impl CoreExecutor for CoreWorker {
+    fn request<'a>(
+        &'a self,
+        request_id: &'a str,
+        executor_epoch: &'a str,
+        request: &'a CoreRequest,
+    ) -> CoreExecutorFuture<'a, CoreReply> {
+        Box::pin(async move { CoreWorker::request(self, request_id, executor_epoch, request).await })
+    }
+
+    fn archive<'a>(
+        &'a self,
+        request_id: &'a str,
+        executor_epoch: &'a str,
+        metadata: &'a str,
+        buffers: Vec<Uint8Array>,
+    ) -> CoreExecutorFuture<'a, ArchiveResult> {
+        Box::pin(async move {
+            CoreWorker::archive(self, request_id, executor_epoch, metadata, buffers).await
+        })
+    }
+
+    fn artifact<'a>(
+        &'a self,
+        request_id: &'a str,
+        executor_epoch: &'a str,
+        request: &'a ArtifactRequest,
+    ) -> CoreExecutorFuture<'a, ArtifactReply> {
+        Box::pin(async move { CoreWorker::artifact(self, request_id, executor_epoch, request).await })
+    }
+
+    fn ready<'a>(&'a self) -> CoreExecutorFuture<'a, ()> {
+        Box::pin(async move { CoreWorker::ready(self).await })
+    }
+
+    fn close(&self) {
+        CoreWorker::close(self)
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct ArchiveResult {

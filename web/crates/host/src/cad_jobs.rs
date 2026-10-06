@@ -277,7 +277,7 @@ fn captured_case_inputs(
 /// wide identities fail before crossing that boundary.
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 pub async fn prepare_captured_case(
-    core: &crate::host::CoreWorker,
+    core: &dyn crate::host::CoreExecutor,
     executor_epoch: &str,
     request_prefix: &str,
     snapshot: &AcceptedSnapshot,
@@ -291,7 +291,7 @@ pub async fn prepare_captured_case(
 /// matching the existing mechanical assembly export contract.
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 pub async fn prepare_captured_step_assembly(
-    core: &crate::host::CoreWorker,
+    core: &dyn crate::host::CoreExecutor,
     executor_epoch: &str,
     request_prefix: &str,
     snapshot: &AcceptedSnapshot,
@@ -303,7 +303,7 @@ pub async fn prepare_captured_step_assembly(
 
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 async fn prepare_captured_case_for_step(
-    core: &crate::host::CoreWorker,
+    core: &dyn crate::host::CoreExecutor,
     executor_epoch: &str,
     request_prefix: &str,
     snapshot: &AcceptedSnapshot,

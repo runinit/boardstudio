@@ -8,7 +8,7 @@ use boardstudio_core::model::{
     ArchiveEntry, ArchiveReply, ArchiveRequest, ArtifactReply, ArtifactRequest, ExportTarget,
     PrepareExportRequest,
 };
-use boardstudio_web_host::host::{BrowserStore, CoreWorker};
+use boardstudio_web_host::host::{BrowserStore, CoreExecutor};
 use js_sys::Uint8Array;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
@@ -16,7 +16,7 @@ use std::collections::BTreeMap;
 pub struct ExportSource<'a> {
     pub operation_id: OperationId,
     pub snapshot: &'a AcceptedSnapshot,
-    pub core: &'a CoreWorker,
+    pub core: &'a dyn CoreExecutor,
     pub store: &'a BrowserStore,
     pub executor_epoch: u64,
 }

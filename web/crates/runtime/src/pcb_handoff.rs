@@ -12,7 +12,7 @@ use boardstudio_core::{
         PrepareExportRequest,
     },
 };
-use boardstudio_web_host::host::{BrowserStore, CoreWorker};
+use boardstudio_web_host::host::{BrowserStore, CoreExecutor};
 use js_sys::Uint8Array;
 use serde_json::json;
 use sha2::{Digest, Sha256};
@@ -28,7 +28,7 @@ pub struct HandoffSource<'a> {
 }
 
 pub struct HandoffPorts<'a> {
-    pub core: &'a CoreWorker,
+    pub core: &'a dyn CoreExecutor,
     pub store: &'a BrowserStore,
     pub executor_epoch: u64,
 }
@@ -277,7 +277,7 @@ async fn load_model_files(
 
 async fn pack_files(
     operation_id: OperationId,
-    core: &CoreWorker,
+    core: &dyn CoreExecutor,
     executor_epoch: u64,
     label: &str,
     files: Vec<(String, Vec<u8>)>,

@@ -18,6 +18,7 @@ use boardstudio_core::{
         OutlineFeature, OutlineSettings, PcbPreview, PrepareExportRequest, ProjectDoc,
     },
 };
+pub use boardstudio_web_host::host::CoreExecutor;
 use boardstudio_web_host::host::{BrowserStore, CoreWorker};
 use boardstudio_web_host::{
     cad_jobs::{
@@ -74,12 +75,6 @@ pub struct KeycapsCadPreview {
 }
 
 #[cfg(any(test, feature = "test-support"))]
-struct ProjectNamePersistGate {
-    entered: futures_channel::oneshot::Sender<()>,
-    release: futures_channel::oneshot::Receiver<()>,
-}
-
-#[cfg(any(test, feature = "test-support"))]
 struct ImportArchiveTestGate {
     entered: futures_channel::oneshot::Sender<()>,
     release: futures_channel::oneshot::Receiver<()>,
@@ -91,12 +86,6 @@ struct ImportArchiveTestGate {
 struct OpenSavedLoadTestGate {
     entered: futures_channel::oneshot::Sender<()>,
     release: futures_channel::oneshot::Receiver<()>,
-}
-
-#[cfg(any(test, feature = "test-support"))]
-enum ProjectNamePersistTestBehavior {
-    Fail(String),
-    Gate(ProjectNamePersistGate),
 }
 use gloo_timers::future::TimeoutFuture;
 use js_sys::{Array, Function, JsString, Object, Reflect, Uint8Array};
@@ -258,53 +247,27 @@ fn firmware_export_is_latest(
     latest_operation_id == Some(operation_id)
 }
 
-type FirmwareExecutorFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, String>> + 'a>>;
-
-/// Narrow private adapter for the three awaited Core operations in a firmware export. Keeping
-/// the await points behind this interface lets lifecycle tests replace the worker while a real
-/// production export is suspended, without adding a second provider or changing Core's API.
-pub trait FirmwareExportExecutor {
-    fn request<'a>(
+/// The document persistence port: the save Runtime performs for Session `Persist` effects.
+/// Loading, listing, deleting and the active-project preference stay on the browser store.
+/// Production saves through IndexedDB; tests install the in-process memory adapter from
+/// `in_process_support`.
+pub trait DocumentPersistence {
+    fn save_document<'a>(
         &'a self,
-        request_id: &'a str,
-        executor_epoch: &'a str,
-        request: &'a CoreRequest,
-    ) -> FirmwareExecutorFuture<'a, CoreReply>;
-
-    fn archive<'a>(
-        &'a self,
-        request_id: &'a str,
-        executor_epoch: &'a str,
-        metadata: &'a str,
-        buffers: Vec<Uint8Array>,
-    ) -> FirmwareExecutorFuture<'a, (String, Vec<Uint8Array>)>;
+        document: &'a ProjectDoc,
+        assets: &'a BTreeMap<String, Vec<u8>>,
+    ) -> Pin<Box<dyn Future<Output = Result<(), String>> + 'a>>;
 }
 
-impl FirmwareExportExecutor for CoreWorker {
-    fn request<'a>(
+impl DocumentPersistence for BrowserStore {
+    fn save_document<'a>(
         &'a self,
-        request_id: &'a str,
-        executor_epoch: &'a str,
-        request: &'a CoreRequest,
-    ) -> FirmwareExecutorFuture<'a, CoreReply> {
+        document: &'a ProjectDoc,
+        assets: &'a BTreeMap<String, Vec<u8>>,
+    ) -> Pin<Box<dyn Future<Output = Result<(), String>> + 'a>> {
         Box::pin(async move {
-            CoreWorker::request(self, request_id, executor_epoch, request)
+            BrowserStore::save_document(self, document, assets)
                 .await
-                .map_err(|error| error.to_string())
-        })
-    }
-
-    fn archive<'a>(
-        &'a self,
-        request_id: &'a str,
-        executor_epoch: &'a str,
-        metadata: &'a str,
-        buffers: Vec<Uint8Array>,
-    ) -> FirmwareExecutorFuture<'a, (String, Vec<Uint8Array>)> {
-        Box::pin(async move {
-            CoreWorker::archive(self, request_id, executor_epoch, metadata, buffers)
-                .await
-                .map(|result| (result.metadata, result.buffers))
                 .map_err(|error| error.to_string())
         })
     }
@@ -368,7 +331,7 @@ struct FirmwareAcceptedIdentity {
 struct FirmwareExportTestContext {
     accepted: AcceptedSnapshot,
     scope: Option<Scope>,
-    current_executor: Rc<dyn FirmwareExportExecutor>,
+    current_executor: Rc<dyn CoreExecutor>,
     executor_epoch: boardstudio_application::ExecutorEpoch,
 }
 
@@ -427,8 +390,11 @@ pub fn new_project_id() -> Result<String, String> {
 pub struct Runtime {
     session: RefCell<Session>,
     operation_outcomes: crate::operation_outcomes::OperationOutcomes,
-    core: RefCell<Rc<CoreWorker>>,
+    core: RefCell<Rc<dyn CoreExecutor>>,
+    core_executor_factory:
+        RefCell<Rc<dyn Fn() -> Result<Rc<dyn CoreExecutor>, String>>>,
     pub store: BrowserStore,
+    persistence: RefCell<Rc<dyn DocumentPersistence>>,
     next_operation: Cell<u64>,
     assets: RefCell<BTreeMap<String, Vec<u8>>>,
     artifacts: RefCell<BTreeMap<String, Artifact>>,
@@ -496,11 +462,9 @@ pub struct Runtime {
     #[cfg(any(test, feature = "test-support"))]
     keycaps_preview_test_executor: RefCell<Option<Rc<KeycapsPreviewTestExecutor>>>,
     #[cfg(any(test, feature = "test-support"))]
-    project_name_test_core: RefCell<Option<boardstudio_core::CoreEngine>>,
+    in_process_adapters: RefCell<Option<Rc<crate::runtime::in_process_support::InProcessAdapters>>>,
     #[cfg(any(test, feature = "test-support"))]
-    project_name_persist_test_behavior: RefCell<Option<ProjectNamePersistTestBehavior>>,
-    #[cfg(any(test, feature = "test-support"))]
-    project_name_test_effects: RefCell<Vec<Effect>>,
+    held_effects: RefCell<Vec<Effect>>,
     #[cfg(any(test, feature = "test-support"))]
     import_archive_test_gate: RefCell<Option<ImportArchiveTestGate>>,
     #[cfg(any(test, feature = "test-support"))]
@@ -529,15 +493,21 @@ impl Runtime {
 
     fn new_with_restoration(restore_active_project: bool) -> Result<Rc<Self>, String> {
         let prefix = deployment_prefix()?;
+        let core_executor_factory: Rc<dyn Fn() -> Result<Rc<dyn CoreExecutor>, String>> =
+            Rc::new(|| {
+                resource_url("assets/core-worker/entry.js")
+                    .and_then(|url| CoreWorker::new(&url).map_err(|e| e.to_string()))
+                    .map(|worker| Rc::new(worker) as Rc<dyn CoreExecutor>)
+            });
+        let store = BrowserStore::scoped(if prefix == "/" { "root" } else { "boardstudio" })
+            .map_err(|e| e.to_string())?;
         let runtime = Rc::new(Self {
             session: RefCell::new(Session::new()),
             operation_outcomes: crate::operation_outcomes::OperationOutcomes::default(),
-            core: RefCell::new(Rc::new(
-                CoreWorker::new(&resource_url("assets/core-worker/entry.js")?)
-                    .map_err(|e| e.to_string())?,
-            )),
-            store: BrowserStore::scoped(if prefix == "/" { "root" } else { "boardstudio" })
-                .map_err(|e| e.to_string())?,
+            core: RefCell::new(core_executor_factory.clone()()?),
+            core_executor_factory: RefCell::new(core_executor_factory),
+            persistence: RefCell::new(Rc::new(store.clone())),
+            store,
             next_operation: Cell::new(1),
             assets: RefCell::new(BTreeMap::new()),
             artifacts: RefCell::new(BTreeMap::new()),
@@ -600,11 +570,9 @@ impl Runtime {
             #[cfg(any(test, feature = "test-support"))]
             keycaps_preview_test_executor: RefCell::new(None),
             #[cfg(any(test, feature = "test-support"))]
-            project_name_test_core: RefCell::new(None),
+            in_process_adapters: RefCell::new(None),
             #[cfg(any(test, feature = "test-support"))]
-            project_name_persist_test_behavior: RefCell::new(None),
-            #[cfg(any(test, feature = "test-support"))]
-            project_name_test_effects: RefCell::new(Vec::new()),
+            held_effects: RefCell::new(Vec::new()),
             #[cfg(any(test, feature = "test-support"))]
             import_archive_test_gate: RefCell::new(None),
             #[cfg(any(test, feature = "test-support"))]
@@ -1593,20 +1561,6 @@ impl Runtime {
             board_id: scope.board_id.clone(),
             cases,
         };
-        #[cfg(any(test, feature = "test-support"))]
-        let test_reply = self
-            .project_name_test_core
-            .borrow_mut()
-            .as_mut()
-            .map(|core| core.handle(request.clone()));
-        #[cfg(any(test, feature = "test-support"))]
-        let reply = if let Some(reply) = test_reply {
-            Ok(reply)
-        } else {
-            core.request(&request_id, &executor_epoch.0.to_string(), &request)
-                .await
-        };
-        #[cfg(not(any(test, feature = "test-support")))]
         let reply = core
             .request(&request_id, &executor_epoch.0.to_string(), &request)
             .await;
@@ -1915,8 +1869,8 @@ impl Runtime {
             return;
         }
         #[cfg(any(test, feature = "test-support"))]
-        if self.project_name_test_core.borrow().is_some() {
-            self.project_name_test_effects.borrow_mut().extend(effects);
+        if self.in_process_adapters.borrow().is_some() {
+            self.held_effects.borrow_mut().extend(effects);
             return;
         }
         self.drive(effects);
@@ -1974,7 +1928,7 @@ impl Runtime {
             generation,
             generation,
             self.session.borrow().core_executor_epoch().0,
-            Rc::as_ptr(&core) as usize,
+            Rc::as_ptr(&core) as *const () as usize,
             format!("case-keycaps-test-{generation}"),
         )
         .expect("valid accepted Case preview input");
@@ -2033,7 +1987,7 @@ impl Runtime {
         &self,
         accepted: AcceptedSnapshot,
         scope: Option<Scope>,
-        current_executor: Rc<dyn FirmwareExportExecutor>,
+        current_executor: Rc<dyn CoreExecutor>,
         executor_epoch: boardstudio_application::ExecutorEpoch,
         next_operation: u64,
     ) {
@@ -2049,7 +2003,7 @@ impl Runtime {
     #[cfg(any(test, feature = "test-support"))]
     fn replace_firmware_export_test_executor(
         &self,
-        executor: Rc<dyn FirmwareExportExecutor>,
+        executor: Rc<dyn CoreExecutor>,
         epoch: boardstudio_application::ExecutorEpoch,
     ) {
         let mut context = self.firmware_export_test_context.borrow_mut();
@@ -2143,23 +2097,6 @@ impl Runtime {
                 request,
                 ..
             } => {
-                #[cfg(any(test, feature = "test-support"))]
-                {
-                    let use_test_core = self.project_name_test_core.borrow().is_some();
-                    if use_test_core {
-                        let reply = self
-                            .project_name_test_core
-                            .borrow_mut()
-                            .as_mut()
-                            .expect("test CoreEngine was checked above")
-                            .handle(*request);
-                        return self.complete(Completion::Core {
-                            request_id,
-                            executor_epoch,
-                            reply: Box::new(reply),
-                        });
-                    }
-                }
                 let core = self.core.borrow().clone();
                 match core
                     .request(
@@ -2183,11 +2120,9 @@ impl Runtime {
             }
             Effect::RestartCoreExecutor { executor_epoch } => {
                 self.core.borrow().close();
-                match resource_url("assets/core-worker/entry.js")
-                    .and_then(|url| CoreWorker::new(&url).map_err(|e| e.to_string()))
-                {
+                let create_executor = self.core_executor_factory.borrow().clone();
+                match create_executor() {
                     Ok(core) => {
-                        let core = Rc::new(core);
                         *self.core.borrow_mut() = core.clone();
                         match core.ready().await {
                             Ok(()) => {
@@ -2217,41 +2152,15 @@ impl Runtime {
                     .filter(|(hash, _)| document.assets.iter().any(|a| &a.sha256 == *hash))
                     .map(|(hash, bytes)| (hash.clone(), bytes.clone()))
                     .collect();
-                #[cfg(any(test, feature = "test-support"))]
-                let test_behavior = self.project_name_persist_test_behavior.borrow_mut().take();
-                #[cfg(any(test, feature = "test-support"))]
-                let test_failure = match test_behavior {
-                    Some(ProjectNamePersistTestBehavior::Fail(reason)) => Some(reason),
-                    Some(ProjectNamePersistTestBehavior::Gate(gate)) => {
-                        let _ = gate.entered.send(());
-                        let _ = gate.release.await;
-                        None
-                    }
-                    None => None,
-                };
-                #[cfg(any(test, feature = "test-support"))]
-                let result = if let Some(reason) = test_failure {
-                    SaveResult::Aborted(reason)
-                } else {
-                    match self.store.save_document(&document, &assets).await {
-                        Ok(()) => {
-                            for asset in &document.assets {
-                                self.assets.borrow_mut().remove(&asset.sha256);
-                            }
-                            SaveResult::Committed
-                        }
-                        Err(error) => SaveResult::Aborted(error.to_string()),
-                    }
-                };
-                #[cfg(not(any(test, feature = "test-support")))]
-                let result = match self.store.save_document(&document, &assets).await {
+                let persistence = self.persistence.borrow().clone();
+                let result = match persistence.save_document(&document, &assets).await {
                     Ok(()) => {
                         for asset in &document.assets {
                             self.assets.borrow_mut().remove(&asset.sha256);
                         }
                         SaveResult::Committed
                     }
-                    Err(error) => SaveResult::Aborted(error.to_string()),
+                    Err(error) => SaveResult::Aborted(error),
                 };
                 self.complete(Completion::Persist {
                     save_attempt_id,
@@ -2789,7 +2698,7 @@ impl Runtime {
         let core = self.core.borrow().clone();
         let executor_epoch = self.session.borrow().core_executor_epoch().0.to_string();
         let prepared =
-            prepare_captured_case(&core, &executor_epoch, &job_id, &snapshot, &owner.scope)
+            prepare_captured_case(core.as_ref(), &executor_epoch, &job_id, &snapshot, &owner.scope)
                 .await
                 .map_err(|error| format!("Case preview preparation failed: {error:?}"))?;
         if !is_current() {
@@ -3892,7 +3801,7 @@ impl Runtime {
         );
         let core = self.core.borrow().clone();
         let core_executor_epoch = self.session.borrow().core_executor_epoch().0;
-        let core_worker_identity = Rc::as_ptr(&core) as usize;
+        let core_worker_identity = Rc::as_ptr(&core) as *const () as usize;
         let capture = match crate::case_preview::capture_native_preview(
             &accepted,
             &expected_scope,
@@ -4161,7 +4070,7 @@ impl Runtime {
                 owner.core_executor_epoch,
                 self.session.borrow().core_executor_epoch().0,
                 owner.core_worker_identity,
-                Rc::as_ptr(&core) as usize,
+                Rc::as_ptr(&core) as *const () as usize,
             )
     }
 
@@ -4464,7 +4373,7 @@ impl Runtime {
                 session_epoch: snapshot.session_epoch,
                 document_id: snapshot.document.id.clone(),
                 executor_epoch: self.session.borrow().core_executor_epoch(),
-                core_worker_identity: Rc::as_ptr(&core) as usize,
+                core_worker_identity: Rc::as_ptr(&core) as *const () as usize,
                 filename: format!(
                     "{}{}-mechanical.zip",
                     snapshot.document.name, instance_suffix
@@ -4569,7 +4478,7 @@ impl Runtime {
                 session_epoch: snapshot.session_epoch,
                 document_id: snapshot.document.id.clone(),
                 executor_epoch,
-                core_worker_identity: Rc::as_ptr(&core) as usize,
+                core_worker_identity: Rc::as_ptr(&core) as *const () as usize,
             },
         );
         self.submit(Event::StartExport {
@@ -4617,7 +4526,7 @@ impl Runtime {
             session_epoch: snapshot.session_epoch,
             document_id: snapshot.document.id.clone(),
             executor_epoch: self.session.borrow().core_executor_epoch(),
-            core_worker_identity: Rc::as_ptr(&core) as usize,
+            core_worker_identity: Rc::as_ptr(&core) as *const () as usize,
             draft,
         };
         self.pcb_handoff_exports
@@ -4755,7 +4664,7 @@ impl Runtime {
                             draft,
                         },
                         crate::pcb_handoff::HandoffPorts {
-                            core: &package_core,
+                            core: package_core.as_ref(),
                             store: &runtime.store,
                             executor_epoch: package_capture.executor_epoch.0,
                         },
@@ -4857,7 +4766,7 @@ impl Runtime {
             .ok_or_else(|| "The selected board has no resolved outline contours.".to_owned())?;
         let executor_epoch = capture.executor_epoch.0.to_string();
         let prepared = prepare_captured_step_assembly(
-            &core,
+            core.as_ref(),
             &executor_epoch,
             &format!("mechanical-export-{}", operation_id.0),
             initial_snapshot,
@@ -5145,7 +5054,7 @@ impl Runtime {
         &self,
         operation_id: OperationId,
         capture: &MechanicalExportCapture,
-        core: &Rc<CoreWorker>,
+        core: &Rc<dyn CoreExecutor>,
     ) -> bool {
         let current_core = self.core.borrow().clone();
         self.mechanical_exports.borrow().get(&operation_id) == Some(capture)
@@ -5159,7 +5068,7 @@ impl Runtime {
                     && snapshot.session_epoch == capture.session_epoch
             })
             && self.session.borrow().core_executor_epoch() == capture.executor_epoch
-            && Rc::as_ptr(&current_core) as usize == capture.core_worker_identity
+            && Rc::as_ptr(&current_core) as *const () as usize == capture.core_worker_identity
             && Rc::ptr_eq(core, &current_core)
     }
 
@@ -5169,7 +5078,7 @@ impl Runtime {
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
         instance_id: Option<&str>,
-        core: &Rc<CoreWorker>,
+        core: &Rc<dyn CoreExecutor>,
         capture: &PcbHandoffCapture,
     ) -> Result<ElectricalPlan, String> {
         if !self.pcb_handoff_capture_is_current(operation_id, capture, core) {
@@ -5295,7 +5204,7 @@ impl Runtime {
         &self,
         operation_id: OperationId,
         capture: &PcbHandoffCapture,
-        core: &Rc<CoreWorker>,
+        core: &Rc<dyn CoreExecutor>,
     ) -> bool {
         let current_core = self.core.borrow().clone();
         let accepted = self.model().accepted;
@@ -5310,7 +5219,7 @@ impl Runtime {
                     && snapshot.session_epoch == capture.session_epoch
             })
             && self.session.borrow().core_executor_epoch() == capture.executor_epoch
-            && Rc::as_ptr(&current_core) as usize == capture.core_worker_identity
+            && Rc::as_ptr(&current_core) as *const () as usize == capture.core_worker_identity
             && Rc::ptr_eq(core, &current_core)
     }
 
@@ -5318,7 +5227,7 @@ impl Runtime {
         &self,
         operation_id: OperationId,
         capture: &PcbHandoffCapture,
-        core: &Rc<CoreWorker>,
+        core: &Rc<dyn CoreExecutor>,
     ) -> Result<(), String> {
         if self.pcb_handoff_capture_is_current(operation_id, capture, core) {
             Ok(())
@@ -5360,7 +5269,7 @@ impl Runtime {
             crate::export_footprints::ExportSource {
                 operation_id,
                 snapshot,
-                core: &core,
+                core: core.as_ref(),
                 store: &self.store,
                 executor_epoch: capture.executor_epoch.0,
             },
@@ -5373,7 +5282,7 @@ impl Runtime {
         &self,
         operation_id: OperationId,
         capture: &FootprintExportCapture,
-        core: &Rc<CoreWorker>,
+        core: &Rc<dyn CoreExecutor>,
     ) -> bool {
         let current_core = self.core.borrow().clone();
         let accepted = self.model().accepted;
@@ -5388,7 +5297,7 @@ impl Runtime {
                     && snapshot.session_epoch == capture.session_epoch
             })
             && self.session.borrow().core_executor_epoch() == capture.executor_epoch
-            && Rc::as_ptr(&current_core) as usize == capture.core_worker_identity
+            && Rc::as_ptr(&current_core) as *const () as usize == capture.core_worker_identity
             && Rc::ptr_eq(core, &current_core)
     }
 
@@ -5549,7 +5458,7 @@ impl Runtime {
     fn current_firmware_executor(
         &self,
     ) -> (
-        Rc<dyn FirmwareExportExecutor>,
+        Rc<dyn CoreExecutor>,
         boardstudio_application::ExecutorEpoch,
     ) {
         #[cfg(any(test, feature = "test-support"))]
@@ -5557,7 +5466,7 @@ impl Runtime {
             return (context.current_executor.clone(), context.executor_epoch);
         }
         let core = self.core.borrow().clone();
-        let executor: Rc<dyn FirmwareExportExecutor> = core;
+        let executor: Rc<dyn CoreExecutor> = core;
         (executor, self.session.borrow().core_executor_epoch())
     }
     fn deliver_artifact(&self, artifact: &Artifact) -> Result<(), String> {
@@ -5641,7 +5550,7 @@ impl Runtime {
         let core = self.core.borrow().clone();
         let epoch = self.session.borrow().core_executor_epoch().0.to_string();
         let prepared = prepare_captured_case(
-            &core,
+            core.as_ref(),
             &epoch,
             &format!("case-{}", job_id.0),
             snapshot,
@@ -6105,12 +6014,12 @@ impl Runtime {
             Some(&core),
             Some(executor_epoch),
         )?;
-        let (packed_metadata, packed_buffers) =
-            packed.map_err(|error| format!("Firmware packaging failed: {error}"))?;
-        match serde_json::from_str::<ArchiveReply>(&packed_metadata)
+        let packed = packed.map_err(|error| format!("Firmware packaging failed: {error}"))?;
+        match serde_json::from_str::<ArchiveReply>(&packed.metadata)
             .map_err(|error| format!("Could not read firmware package result: {error}"))?
         {
-            ArchiveReply::Packed => packed_buffers
+            ArchiveReply::Packed => packed
+                .buffers
                 .first()
                 .map(Uint8Array::to_vec)
                 .ok_or_else(|| "Firmware package returned no ZIP bytes.".into()),
@@ -6126,7 +6035,7 @@ impl Runtime {
         operation_id: OperationId,
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
-        core: &Rc<dyn FirmwareExportExecutor>,
+        core: &Rc<dyn CoreExecutor>,
         executor_epoch: boardstudio_application::ExecutorEpoch,
         target: FirmwarePlanTarget<'_>,
     ) -> Result<ElectricalPlan, String> {
@@ -6210,7 +6119,7 @@ impl Runtime {
         operation_id: OperationId,
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
-        core: Option<&Rc<dyn FirmwareExportExecutor>>,
+        core: Option<&Rc<dyn CoreExecutor>>,
         executor_epoch: Option<boardstudio_application::ExecutorEpoch>,
     ) -> Result<(), String> {
         if !self.export_current(operation_id, snapshot.token, scope) {
@@ -6749,10 +6658,15 @@ impl Drop for Runtime {
 }
 
 #[cfg(any(test, feature = "test-support"))]
+#[path = "in_process_support.rs"]
+pub mod in_process_support;
+
+#[cfg(any(test, feature = "test-support"))]
 pub mod firmware_export_test_support {
     use super::*;
     use boardstudio_application::{Completion, Effect, Event, SaveResult, Session};
     use boardstudio_core::{CoreEngine, firmware::FirmwarePackage, model::Board};
+    use boardstudio_web_host::host::{ArchiveResult, CoreExecutorFuture, HostError};
     use futures_channel::oneshot;
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -6833,18 +6747,18 @@ pub mod firmware_export_test_support {
         }
     }
 
-    impl FirmwareExportExecutor for ControlledExecutor {
+    impl CoreExecutor for ControlledExecutor {
         fn request<'a>(
             &'a self,
             request_id: &'a str,
             _executor_epoch: &'a str,
             request: &'a CoreRequest,
-        ) -> FirmwareExecutorFuture<'a, CoreReply> {
+        ) -> CoreExecutorFuture<'a, CoreReply> {
             let request_id = request_id.to_owned();
             let response = match request {
                 CoreRequest::ResolveElectrical { request, .. } => {
                     if self.fail_at == Some(Stage::Resolution) {
-                        Err("injected electrical-resolution failure".to_owned())
+                        Err(HostError("injected electrical-resolution failure".into()))
                     } else {
                         Ok(CoreReply::ElectricalResolved {
                             id: request_id.clone(),
@@ -6854,7 +6768,7 @@ pub mod firmware_export_test_support {
                 }
                 CoreRequest::GenerateFirmware { .. } => {
                     if self.fail_at == Some(Stage::Generation) {
-                        Err("injected firmware-generation failure".to_owned())
+                        Err(HostError("injected firmware-generation failure".into()))
                     } else {
                         Ok(CoreReply::FirmwareGenerated {
                             id: request_id.clone(),
@@ -6868,7 +6782,7 @@ pub mod firmware_export_test_support {
                         })
                     }
                 }
-                _ => Err("unexpected Core request in firmware test".to_owned()),
+                _ => Err(HostError("unexpected Core request in firmware test".into())),
             };
             let stage = match request {
                 CoreRequest::ResolveElectrical { .. } => Stage::Resolution,
@@ -6887,19 +6801,38 @@ pub mod firmware_export_test_support {
             _executor_epoch: &'a str,
             _metadata: &'a str,
             _buffers: Vec<Uint8Array>,
-        ) -> FirmwareExecutorFuture<'a, (String, Vec<Uint8Array>)> {
+        ) -> CoreExecutorFuture<'a, ArchiveResult> {
             Box::pin(async move {
                 self.wait_at(Stage::Packaging).await;
                 if self.fail_at == Some(Stage::Packaging) {
-                    return Err("injected ZIP-packaging failure".into());
+                    return Err(HostError("injected ZIP-packaging failure".into()));
                 }
-                Ok((
-                    serde_json::to_string(&ArchiveReply::Packed)
-                        .map_err(|error| error.to_string())?,
-                    vec![Uint8Array::from(&[0x50, 0x4b, 0x03, 0x04][..])],
+                Ok(ArchiveResult {
+                    metadata: serde_json::to_string(&ArchiveReply::Packed)
+                        .map_err(|error| HostError(error.to_string()))?,
+                    buffers: vec![Uint8Array::from(&[0x50, 0x4b, 0x03, 0x04][..])],
+                })
+            })
+        }
+
+        fn artifact<'a>(
+            &'a self,
+            _request_id: &'a str,
+            _executor_epoch: &'a str,
+            _request: &'a ArtifactRequest,
+        ) -> CoreExecutorFuture<'a, ArtifactReply> {
+            Box::pin(async move {
+                Err(HostError(
+                    "firmware export tests do not request artifacts".into(),
                 ))
             })
         }
+
+        fn ready<'a>(&'a self) -> CoreExecutorFuture<'a, ()> {
+            Box::pin(async move { Ok(()) })
+        }
+
+        fn close(&self) {}
     }
 
     fn resolved_plan(request: &ElectricalPlanRequest) -> ElectricalPlan {
@@ -6952,8 +6885,11 @@ pub mod firmware_export_test_support {
             traces: Vec::new(),
             vias: Vec::new(),
         });
+        // The open runs outside the runtime's operation counter; keep its identity clear of
+        // the ids the runtime hands out so the session's settled set cannot suppress a later
+        // test edit's Effect::Settled.
         let mut effects = session.submit(Event::Open {
-            operation_id: OperationId(1),
+            operation_id: OperationId(u64::MAX),
             document,
         });
         while let Some(effect) = effects.pop() {
@@ -6989,7 +6925,7 @@ pub mod firmware_export_test_support {
         session: Session,
         accepted: AcceptedSnapshot,
         scope: Scope,
-        executor: Rc<dyn FirmwareExportExecutor>,
+        executor: Rc<dyn CoreExecutor>,
         epoch: boardstudio_application::ExecutorEpoch,
         next_operation: u64,
     ) {
@@ -7737,15 +7673,35 @@ fn deliver(bytes: &[u8], filename: &str, media_type: Option<&str>) -> Result<(),
 #[cfg(any(test, feature = "test-support"))]
 pub mod project_name_test_support {
     use super::*;
+    use crate::runtime::in_process_support::InProcessAdapters;
 
     pub fn new_runtime() -> Rc<Runtime> {
         Runtime::new_with_restoration(false).expect("browser runtime fixture initializes")
     }
 
+    /// Replace the runtime's session and route Core execution through an in-process
+    /// `CoreEngine`. Saves keep running through the production browser-store port (gated by
+    /// `gate_next_persist` / `fail_next_persist`); call `install_memory_persistence` to save
+    /// into memory instead.
     pub fn install(runtime: &Runtime, session: Session, core: boardstudio_core::CoreEngine) {
         *runtime.session.borrow_mut() = session;
-        *runtime.project_name_test_core.borrow_mut() = Some(core);
+        let adapters = Rc::new(InProcessAdapters::new(core, runtime.store.clone()));
+        adapters.attach(runtime);
+        *runtime.in_process_adapters.borrow_mut() = Some(adapters);
         runtime.changed();
+    }
+
+    /// Route saves into the in-process memory store. Requires `install` to have run.
+    pub fn install_memory_persistence(runtime: &Runtime) {
+        installed(runtime).use_memory_saves();
+    }
+
+    fn installed(runtime: &Runtime) -> Rc<InProcessAdapters> {
+        runtime
+            .in_process_adapters
+            .borrow()
+            .clone()
+            .expect("in-process adapters are installed")
     }
 
     pub fn gate_import_archive(
@@ -7803,8 +7759,7 @@ pub mod project_name_test_support {
     }
 
     pub fn fail_next_persist(runtime: &Runtime, reason: impl Into<String>) {
-        *runtime.project_name_persist_test_behavior.borrow_mut() =
-            Some(ProjectNamePersistTestBehavior::Fail(reason.into()));
+        installed(runtime).persistence().fail_next_save(reason);
     }
 
     pub fn gate_next_persist(
@@ -7813,15 +7768,35 @@ pub mod project_name_test_support {
         futures_channel::oneshot::Receiver<()>,
         futures_channel::oneshot::Sender<()>,
     ) {
-        let (entered_tx, entered_rx) = futures_channel::oneshot::channel();
-        let (release_tx, release_rx) = futures_channel::oneshot::channel();
-        *runtime.project_name_persist_test_behavior.borrow_mut() = Some(
-            ProjectNamePersistTestBehavior::Gate(ProjectNamePersistGate {
-                entered: entered_tx,
-                release: release_rx,
-            }),
-        );
-        (entered_rx, release_tx)
+        installed(runtime).persistence().gate_next_save()
+    }
+
+    /// Fail the next Core reply with the supplied reason.
+    pub fn fail_next_core_reply(runtime: &Runtime, reason: impl Into<String>) {
+        installed(runtime).current_core().fail_next_reply(reason);
+    }
+
+    /// Hold the next Core reply until the returned release sender fires. The entered
+    /// receiver observes the request reaching the executor.
+    pub fn gate_next_core_reply(
+        runtime: &Runtime,
+    ) -> (
+        futures_channel::oneshot::Receiver<()>,
+        futures_channel::oneshot::Sender<()>,
+    ) {
+        installed(runtime).current_core().gate_next_reply()
+    }
+
+    /// The copy a completed save left in the in-process memory store.
+    pub fn saved_document(runtime: &Runtime, project_id: &str) -> Option<ProjectDoc> {
+        installed(runtime).persistence().saved_document(project_id)
+    }
+
+    /// The in-process Core executor currently installed on the runtime.
+    pub fn in_process_core(
+        runtime: &Runtime,
+    ) -> Rc<crate::runtime::in_process_support::InProcessCore> {
+        installed(runtime).current_core()
     }
 
     pub fn observe(
@@ -7839,7 +7814,7 @@ pub mod project_name_test_support {
 
     pub async fn run_pending(runtime: &Rc<Runtime>) {
         let mut pending = VecDeque::from(std::mem::take(
-            &mut *runtime.project_name_test_effects.borrow_mut(),
+            &mut *runtime.held_effects.borrow_mut(),
         ));
         while let Some(effect) = pending.pop_front() {
             pending.extend(runtime.run(effect).await);
@@ -7847,7 +7822,7 @@ pub mod project_name_test_support {
     }
 
     pub fn drive_pending(runtime: &Rc<Runtime>) {
-        let effects = std::mem::take(&mut *runtime.project_name_test_effects.borrow_mut());
+        let effects = std::mem::take(&mut *runtime.held_effects.borrow_mut());
         runtime.drive(effects);
     }
 }
@@ -7905,7 +7880,7 @@ mod firmware_export_tests {
     ) -> (Rc<Runtime>, AcceptedSnapshot, Scope) {
         let runtime = test_support::new_runtime();
         let (session, accepted, scope) = test_support::opened_session();
-        let executor: Rc<dyn FirmwareExportExecutor> = executor;
+        let executor: Rc<dyn CoreExecutor> = executor;
         test_support::configure_runtime(
             &runtime,
             session,
@@ -7971,7 +7946,7 @@ mod firmware_export_tests {
             assert!(test_support::take_deliveries(&runtime).is_empty());
 
             let succeeding = test_support::ControlledExecutor::succeeding();
-            let succeeding_executor: Rc<dyn FirmwareExportExecutor> = succeeding;
+            let succeeding_executor: Rc<dyn CoreExecutor> = succeeding;
             runtime.replace_firmware_export_test_executor(succeeding_executor, ExecutorEpoch(11));
             let retry_effects = test_support::start_export(&runtime);
             assert!(
@@ -8506,5 +8481,235 @@ mod project_open_supersession_tests {
             Some(stale_saved),
             "the superseded saved project remains in the library"
         );
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod in_process_adapter_tests {
+    use super::*;
+    use crate::runtime::project_name_test_support as test_support;
+    use boardstudio_application::RequestId;
+    use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    /// Open a document through a session whose Core requests are served by `engine`, and
+    /// hand both back so the runtime can run the same engine in-process.
+    fn opened() -> (Session, boardstudio_core::CoreEngine, AcceptedSnapshot) {
+        let mut session = Session::new();
+        let mut engine = boardstudio_core::CoreEngine::new();
+        let document = ProjectDoc::empty("adapter-test", "Adapter test");
+        // The open runs outside the runtime's operation counter; keep its identity clear of
+        // the ids the runtime hands out so the session's settled set cannot suppress a later
+        // test edit's Effect::Settled.
+        let mut effects = session.submit(Event::Open {
+            operation_id: OperationId(u64::MAX),
+            document,
+        });
+        while let Some(effect) = effects.pop() {
+            match effect {
+                Effect::Core {
+                    request_id,
+                    executor_epoch,
+                    request,
+                    ..
+                } => effects.extend(session.complete(Completion::Core {
+                    request_id,
+                    executor_epoch,
+                    reply: Box::new(engine.handle(*request)),
+                })),
+                Effect::Persist {
+                    save_attempt_id, ..
+                } => {
+                    effects.extend(session.complete(Completion::Persist {
+                        save_attempt_id,
+                        result: SaveResult::Committed,
+                    }));
+                }
+                _ => {}
+            }
+        }
+        let accepted = session.read_model().accepted.clone().unwrap();
+        (session, engine, accepted)
+    }
+
+    fn installed_runtime() -> (Rc<Runtime>, AcceptedSnapshot) {
+        let (session, engine, accepted) = opened();
+        let runtime = test_support::new_runtime();
+        test_support::install(&runtime, session, engine);
+        test_support::install_memory_persistence(&runtime);
+        (runtime, accepted)
+    }
+
+    fn rename_edit(accepted: &AcceptedSnapshot, name: &str) -> EditCommand {
+        let mut document = (*accepted.document).clone();
+        document.name = name.into();
+        EditCommand {
+            base_revision: accepted.document.revision,
+            transaction_id: format!("m1-adapter-test-{}", name),
+            phase: EditPhase::Commit,
+            target_ids: vec![document.id.clone()],
+            operation: EditOperation::ReplaceDocument {
+                document: Box::new(document),
+            },
+        }
+    }
+
+    fn submit_edit(runtime: &Rc<Runtime>, accepted: &AcceptedSnapshot, name: &str) -> OutcomeSlotRef {
+        let slot = test_support::observe_next(runtime);
+        runtime.submit(Event::Edit {
+            operation_id: runtime.operation(),
+            command: rename_edit(accepted, name),
+        });
+        slot
+    }
+
+    type OutcomeSlotRef = crate::operation_outcomes::OutcomeSlot;
+
+    async fn wait_outcome(_runtime: &Rc<Runtime>, slot: &OutcomeSlotRef) -> TerminalOutcome {
+        for _ in 0..200 {
+            if let Some(outcome) = slot.borrow().clone() {
+                return outcome;
+            }
+            TimeoutFuture::new(1).await;
+        }
+        panic!("operation outcome never settled");
+    }
+
+    #[wasm_bindgen_test]
+    async fn installed_adapter_accepts_an_edit_and_saves_a_memory_copy() {
+        let (runtime, accepted) = installed_runtime();
+        let slot = submit_edit(&runtime, &accepted, "Renamed in memory");
+        test_support::run_pending(&runtime).await;
+        assert_eq!(
+            wait_outcome(&runtime, &slot).await,
+            TerminalOutcome::Completed
+        );
+        let current = runtime.model().accepted.unwrap();
+        assert_eq!(current.document.name, "Renamed in memory");
+        assert_eq!(current.document.revision, accepted.document.revision + 1);
+        let saved = test_support::saved_document(&runtime, "adapter-test")
+            .expect("the completed edit leaves a saved copy in memory");
+        assert_eq!(saved.name, "Renamed in memory");
+    }
+
+    #[wasm_bindgen_test]
+    async fn gated_save_holds_saving_until_released_then_reports_saved() {
+        let (runtime, accepted) = installed_runtime();
+        let (entered, release) = test_support::gate_next_persist(&runtime);
+        let slot = submit_edit(&runtime, &accepted, "Gated save");
+        test_support::drive_pending(&runtime);
+        entered
+            .await
+            .expect("the gated save reaches the persistence port");
+        assert!(
+            matches!(runtime.model().durability, Durability::Saving { .. }),
+            "the edit stays pending in Saving while the save is held"
+        );
+        release.send(()).expect("release the held save");
+        assert_eq!(
+            wait_outcome(&runtime, &slot).await,
+            TerminalOutcome::Completed
+        );
+        let current = runtime.model().accepted.unwrap();
+        assert_eq!(current.document.name, "Gated save");
+        assert_eq!(
+            runtime.model().durability,
+            Durability::Saved {
+                revision: current.document.revision
+            }
+        );
+        assert_eq!(
+            test_support::saved_document(&runtime, "adapter-test")
+                .expect("released save lands in memory")
+                .name,
+            "Gated save"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn failed_save_requires_recovery_and_keeps_the_accepted_document() {
+        let (runtime, accepted) = installed_runtime();
+        test_support::fail_next_persist(&runtime, "injected durable write failure");
+        let slot = submit_edit(&runtime, &accepted, "Must not commit");
+        test_support::run_pending(&runtime).await;
+        assert_eq!(
+            wait_outcome(&runtime, &slot).await,
+            TerminalOutcome::PersistenceFailed("injected durable write failure".into())
+        );
+        assert_eq!(runtime.model().lifecycle, Lifecycle::RecoveryRequired);
+        assert_eq!(
+            runtime.model().durability,
+            Durability::Failed {
+                revision: accepted.document.revision + 1,
+                reason: "injected durable write failure".into(),
+            }
+        );
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.name,
+            "Adapter test",
+            "the accepted document keeps the pre-edit value"
+        );
+        assert!(test_support::saved_document(&runtime, "adapter-test").is_none());
+    }
+
+    #[wasm_bindgen_test]
+    async fn gated_core_reply_keeps_the_edit_pending_until_released() {
+        let (runtime, accepted) = installed_runtime();
+        let (entered, release) = test_support::gate_next_core_reply(&runtime);
+        let slot = submit_edit(&runtime, &accepted, "Parked rename");
+        test_support::drive_pending(&runtime);
+        entered
+            .await
+            .expect("the edit request reaches the in-process executor");
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.revision,
+            accepted.document.revision,
+            "nothing is accepted while the reply is held"
+        );
+        release.send(()).expect("release the held reply");
+        assert_eq!(
+            wait_outcome(&runtime, &slot).await,
+            TerminalOutcome::Completed
+        );
+        assert_eq!(runtime.model().accepted.unwrap().document.name, "Parked rename");
+    }
+
+    #[wasm_bindgen_test]
+    async fn restart_builds_a_fresh_engine_and_stale_replies_are_ignored() {
+        let (runtime, accepted) = installed_runtime();
+        let old_core = test_support::in_process_core(&runtime);
+        let old_epoch = runtime.session.borrow().core_executor_epoch();
+        test_support::fail_next_core_reply(&runtime, "injected core failure");
+        let slot = submit_edit(&runtime, &accepted, "Never applied");
+        test_support::run_pending(&runtime).await;
+        assert_eq!(
+            wait_outcome(&runtime, &slot).await,
+            TerminalOutcome::ExecutorFailed("injected core failure".into())
+        );
+        assert_eq!(runtime.model().lifecycle, Lifecycle::RecoveryRequired);
+        let new_core = test_support::in_process_core(&runtime);
+        assert!(
+            !Rc::ptr_eq(&old_core, &new_core),
+            "the executor restart builds a fresh in-process engine"
+        );
+        assert!(old_core.is_closed());
+        assert!(!new_core.is_closed());
+        let current_epoch = runtime.session.borrow().core_executor_epoch();
+        assert_ne!(current_epoch, old_epoch, "the executor epoch advanced");
+        runtime.complete(Completion::Core {
+            request_id: RequestId(2),
+            executor_epoch: old_epoch,
+            reply: Box::new(CoreReply::Error {
+                id: "m1-2".into(),
+                message: "late reply from the replaced executor".into(),
+                revision: 0,
+            }),
+        });
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.name,
+            "Adapter test",
+            "a late reply from the replaced executor changes nothing"
+        );
+        assert_eq!(runtime.model().lifecycle, Lifecycle::RecoveryRequired);
     }
 }

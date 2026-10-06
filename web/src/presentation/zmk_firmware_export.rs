@@ -310,7 +310,7 @@ mod tests {
         let runtime = runtime_test::new_runtime();
         let (session, accepted, scope) = runtime_test::opened_session();
         let failing = runtime_test::ControlledExecutor::failing(runtime_test::Stage::Generation);
-        let failing: Rc<dyn crate::runtime::FirmwareExportExecutor> = failing;
+        let failing: Rc<dyn crate::runtime::CoreExecutor> = failing;
         runtime_test::configure_runtime(
             &runtime,
             session,
@@ -450,7 +450,7 @@ mod tests {
         let runtime = runtime_test::new_runtime();
         let (session, accepted, scope) = runtime_test::opened_session();
         let executor = runtime_test::ControlledExecutor::succeeding();
-        let executor: Rc<dyn crate::runtime::FirmwareExportExecutor> = executor;
+        let executor: Rc<dyn crate::runtime::CoreExecutor> = executor;
         runtime_test::configure_runtime(
             &runtime,
             session,
