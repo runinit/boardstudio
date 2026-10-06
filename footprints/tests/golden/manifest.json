@@ -267,8 +267,8 @@
       "outputErrors": 0,
       "parameterCount": 12
     },
-    "ceoloide/utility_ergogen_logo": {
-      "file": "generators/ceoloide__utility_ergogen_logo.json",
+    "ceoloide/utility_logo": {
+      "file": "generators/ceoloide__utility_logo.json",
       "cases": 15,
       "byFamily": {
         "default": 2,

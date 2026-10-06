@@ -7,9 +7,8 @@ use crate::number::{decode_uri_component, encode_uri_component, js_to_number};
 use crate::sexpr::{Expr, child, children, scalar_error};
 use crate::types::{ModelBinding, Vec3};
 
-/// Prefix of bundled model asset IDs. Step 5 of the plan renames it to
-/// `bundled-model:`; this constant is the single place that changes.
-pub const BUNDLED_MODEL_PREFIX: &str = "ergogen:model:";
+/// Prefix of bundled model asset IDs; the single place the prefix is spelled.
+pub const BUNDLED_MODEL_PREFIX: &str = "bundled-model:";
 const UNRESOLVED_PREFIX: &str = "unresolved-model:";
 
 fn plain(text: &str) -> bool {
@@ -183,11 +182,11 @@ mod tests {
         assert_eq!(model_asset_id("boardstudio-asset:bad id"), None);
         assert_eq!(
             model_asset_id("${KIPRJMOD}/models/boardstudio/kicad/a.step").as_deref(),
-            Some("ergogen:model:kicad/a.step")
+            Some("bundled-model:kicad/a.step")
         );
         assert_eq!(
             model_asset_id("${EG_INFUSED_KIM_3D_MODELS}/b.wrl").as_deref(),
-            Some("ergogen:model:infused-kim/b.wrl")
+            Some("bundled-model:infused-kim/b.wrl")
         );
         assert_eq!(model_asset_id("${KIPRJMOD}/other/c.step"), None);
         assert_eq!(model_asset_id("${KIPRJMOD}/models/boardstudio/"), None);

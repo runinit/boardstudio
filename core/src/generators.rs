@@ -7,7 +7,9 @@ use boardstudio_footprints::definition::DefinitionInput;
 use boardstudio_footprints::geometry::{Geometry, geometry};
 use boardstudio_footprints::models;
 use boardstudio_footprints::nets::NoNets;
-use boardstudio_footprints::sexpr::Expr;
+pub use boardstudio_footprints::definition::DEFINITION_ID_PREFIX;
+pub use boardstudio_footprints::models::BUNDLED_MODEL_PREFIX;
+pub use boardstudio_footprints::sexpr::{Expr, child, children, parse_forms};
 use boardstudio_footprints::types::{GeneratorRef, PartRef};
 use boardstudio_footprints::{GeneratorError, bundled};
 use serde::{Serialize, de::DeserializeOwned};
@@ -71,7 +73,12 @@ pub fn normalize_definition(mut definition: PartDefinition) -> Result<PartDefini
 }
 
 fn generator_of(definition: &PartDefinition) -> Result<GeneratorRef, String> {
-    convert(definition.generator.as_ref().ok_or_else(|| message(GeneratorError::MissingGenerator))?)
+    convert(
+        definition
+            .generator
+            .as_ref()
+            .ok_or_else(|| message(GeneratorError::MissingGenerator))?,
+    )
 }
 
 /// Render a definition (and optionally a placed part) with every net at index 0.
@@ -89,12 +96,18 @@ pub fn drawing(definition: &PartDefinition) -> Result<Geometry, String> {
 }
 
 /// Model assets of a rendered part, in order.
-pub fn model_asset_ids(definition: &PartDefinition, part: Option<&Part>) -> Result<Vec<String>, String> {
+pub fn model_asset_ids(
+    definition: &PartDefinition,
+    part: Option<&Part>,
+) -> Result<Vec<String>, String> {
     models::model_asset_ids(&render_forms(definition, part)?).map_err(message)
 }
 
 /// Models of a rendered part with their placement.
-pub fn model_bindings(definition: &PartDefinition, part: Option<&Part>) -> Result<Vec<PartModel>, String> {
+pub fn model_bindings(
+    definition: &PartDefinition,
+    part: Option<&Part>,
+) -> Result<Vec<PartModel>, String> {
     models::model_bindings(&render_forms(definition, part)?)
         .map_err(message)?
         .iter()
@@ -116,16 +129,34 @@ mod tests {
     fn the_catalogue_converts_to_part_definitions() {
         let catalogue = catalogue().unwrap();
         assert_eq!(catalogue.len(), 36);
-        assert!(catalogue.iter().all(|definition| !definition.pads.is_empty() || definition.kind == crate::model::PartKind::Utility));
-        assert!(parameter_schema("ceoloide/switch_mx").unwrap().contains_key("include_keycap"));
+        assert!(
+            catalogue
+                .iter()
+                .all(|definition| !definition.pads.is_empty()
+                    || definition.kind == crate::model::PartKind::Utility)
+        );
+        assert!(
+            parameter_schema("ceoloide/switch_mx")
+                .unwrap()
+                .contains_key("include_keycap")
+        );
         assert!(parameter_schema("ceoloide/missing").is_err());
     }
 
     #[test]
     fn normalization_regenerates_pads_and_keeps_saved_ids() {
-        let mut definition = catalogue().unwrap().into_iter().find(|d| d.id == "ergogen:ceoloide/switch_mx").unwrap();
+        let mut definition = catalogue()
+            .unwrap()
+            .into_iter()
+            .find(|d| d.id == "generator:ceoloide/switch_mx")
+            .unwrap();
         definition.pads[0].id = "saved".into();
-        definition.generator.as_mut().unwrap().parameters.insert("hotswap".into(), serde_json::json!(false));
+        definition
+            .generator
+            .as_mut()
+            .unwrap()
+            .parameters
+            .insert("hotswap".into(), serde_json::json!(false));
         let normalized = normalize_definition(definition).unwrap();
         assert_eq!(normalized.pads[0].id, "saved");
         assert!(normalized.terminals.contains_key("from"));

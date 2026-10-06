@@ -147,7 +147,7 @@ pub(super) fn PartInputInspector(props: PartInputInspectorProps) -> Element {
         .map(|generator| generator.source.clone());
     let schema = use_resource(use_reactive((&generator_source,), |(source,)| async move {
         match source {
-            Some(source) => crate::presentation::parts::ergogen_parameter_schema(source).await,
+            Some(source) => crate::presentation::parts::generator_parameter_schema(source).await,
             None => Ok(BTreeMap::new()),
         }
     }));
@@ -208,7 +208,7 @@ pub(super) fn PartInputInspector(props: PartInputInspectorProps) -> Element {
                     } else {
                         rsx! {
                             details { class: "m1-pcb-wiring-section m1-pcb-part-bindings", open: true,
-                                summary { "Ergogen bindings" }
+                                summary { "Generator bindings" }
                                 for (name, kind) in fields {
                                     if kind == "net" {
                                         {
@@ -231,7 +231,7 @@ pub(super) fn PartInputInspector(props: PartInputInspectorProps) -> Element {
                                                 label { class: "m1-pcb-part-input-field", key: "net-{name}",
                                                     span { "{name}" }
                                                     select {
-                                                        aria_label: "Ergogen net {name}",
+                                                        aria_label: "Generator net {name}",
                                                         value: current,
                                                         disabled: read_only,
                                                         onchange: on_change,
@@ -276,7 +276,7 @@ pub(super) fn PartInputInspector(props: PartInputInspectorProps) -> Element {
                                                 rsx! {
                                                     label { class: "m1-pcb-part-input-axis", key: "{axis}",
                                                         span { "{name} {axis_upper(axis)}" }
-                                                        input { type: "number", step: "any", aria_label: "Ergogen anchor {name} {axis_upper(axis)}", value: number, disabled: read_only, oninput: on_change }
+                                                        input { type: "number", step: "any", aria_label: "Generator anchor {name} {axis_upper(axis)}", value: number, disabled: read_only, oninput: on_change }
                                                     }
                                                 }
                                             };
@@ -294,8 +294,8 @@ pub(super) fn PartInputInspector(props: PartInputInspectorProps) -> Element {
                         }
                     }
                 }
-                Some(Err(error)) => rsx! { p { role: "alert", "Ergogen settings could not be loaded: {error}" } },
-                None if generator_source.is_some() => rsx! { p { role: "status", "Loading Ergogen settings…" } },
+                Some(Err(error)) => rsx! { p { role: "alert", "Generator settings could not be loaded: {error}" } },
+                None if generator_source.is_some() => rsx! { p { role: "status", "Loading generator settings…" } },
                 None => rsx! {},
             }
             if let Some(feedback) = matching_feedback {

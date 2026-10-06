@@ -1,26 +1,21 @@
 //! Private standalone KiCad footprint ZIP adapter for the Export workspace.
 //!
-//! Rust Core remains the authority for footprint planning and serialization;
-//! the existing Ergogen preview worker converts only Core-issued jobs, and the
-//! existing Core archive worker packs the resulting files.
+//! Rust Core plans, renders and serializes the footprints in one `ExportPcb`
+//! request; the existing Core archive worker packs the resulting files.
 
-use boardstudio_application::{AcceptedSnapshot, OperationId, Scope};
+use boardstudio_application::{AcceptedSnapshot, OperationId};
 use boardstudio_core::model::{
     ArchiveEntry, ArchiveReply, ArchiveRequest, ArtifactReply, ArtifactRequest, ExportTarget,
-    FinishExportRequest, PrepareExportRequest,
+    PrepareExportRequest,
 };
 use boardstudio_web::host::{BrowserStore, CoreWorker};
 use js_sys::Uint8Array;
-use serde_json::json;
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, rc::Rc};
-
-use crate::preview_generator::PreviewGeneratorClient;
+use std::collections::BTreeMap;
 
 pub(crate) struct ExportSource<'a> {
     pub(crate) operation_id: OperationId,
     pub(crate) snapshot: &'a AcceptedSnapshot,
-    pub(crate) scope: &'a Scope,
     pub(crate) core: &'a CoreWorker,
     pub(crate) store: &'a BrowserStore,
     pub(crate) executor_epoch: u64,
@@ -29,12 +24,10 @@ pub(crate) struct ExportSource<'a> {
 pub(crate) async fn build_zip(
     source: ExportSource<'_>,
     is_current: impl Fn() -> Result<(), String>,
-    preview_generator: impl FnOnce() -> Result<Rc<PreviewGeneratorClient>, String>,
 ) -> Result<Vec<u8>, String> {
     let ExportSource {
         operation_id,
         snapshot,
-        scope,
         core,
         store,
         executor_epoch,
@@ -58,14 +51,14 @@ pub(crate) async fn build_zip(
         .map(|definition| definition.id.clone())
         .collect::<Vec<_>>();
     let target = ExportTarget::StandaloneFootprints { definition_ids };
-    let request_id = format!("footprints-{}-prepare", operation_id.0);
-    let request = ArtifactRequest::PrepareExport {
+    let request_id = format!("footprints-{}", operation_id.0);
+    let request = ArtifactRequest::ExportPcb {
         id: request_id.clone(),
         request: PrepareExportRequest {
             snapshot_token: snapshot.token.0.to_string(),
             expected_revision: snapshot.document.revision,
             document: document.clone(),
-            target: target.clone(),
+            target,
             contours: vec![],
             model_paths,
         },
@@ -75,104 +68,16 @@ pub(crate) async fn build_zip(
         .artifact(&request_id, &executor_epoch.to_string(), &request)
         .await;
     is_current()?;
-    let reply = reply.map_err(|error| format!("Footprint export preparation failed: {error}"))?;
-    let plan = match reply {
-        ArtifactReply::PrepareExport { id, result } if id == request_id => *result,
+    let reply = reply.map_err(|error| format!("Footprint export failed: {error}"))?;
+    let exported = match reply {
+        ArtifactReply::ExportPcb { id, result } if id == request_id => result,
         ArtifactReply::Error { id, error } if id == request_id => {
             return Err(format!("Core rejected footprint export: {}", error.message));
         }
-        ArtifactReply::PrepareExport { .. } | ArtifactReply::Error { .. } => {
-            return Err("Core returned a footprint plan for another request.".into());
-        }
-        _ => return Err("Core returned an unexpected footprint preparation reply.".into()),
-    };
-    if plan.snapshot_token != snapshot.token.0.to_string()
-        || plan.revision != snapshot.document.revision
-        || plan.target != target
-        || plan.captured_document.id != snapshot.document.id
-    {
-        return Err("Core returned a footprint plan for another accepted project.".into());
-    }
-
-    let results = if plan.jobs.is_empty() {
-        vec![]
-    } else {
-        if operation_id.0 == 0 || operation_id.0 > 9_007_199_254_740_991 {
-            return Err("Footprint worker identity is outside the safe integer range.".into());
-        }
-        let worker = preview_generator();
-        is_current()?;
-        let worker = worker?;
-        let worker_request = json!({
-            "kind": "generate-preview-jobs",
-            "worker_generation": operation_id.0,
-            "request_id": operation_id.0,
-            "owner": {
-                "scope": {
-                    "sessionEpoch": scope.session_epoch.0,
-                    "documentId": scope.document_id,
-                    "boardId": scope.board_id,
-                    "instanceId": scope.instance_id,
-                },
-                "token": snapshot.token.0.to_string(),
-                "viewer_instance": 0,
-                "projection_generation": operation_id.0,
-            },
-            "batch": {
-                "accepted_revision": snapshot.document.revision,
-                "batch_generation": operation_id.0,
-            },
-            "plan_key": {
-                "snapshot_token": plan.snapshot_token,
-                "revision": plan.revision,
-                "job_ids": plan.jobs.iter().map(|job| job.job_id.clone()).collect::<Vec<_>>(),
-            },
-            "jobs": plan.jobs,
-            "reserved_nets": plan.reserved_nets,
-            "next_net_index": plan.next_net_index,
-            "paths": plan.model_paths.iter().collect::<Vec<_>>(),
-        });
-        let worker_reply = worker.generate(operation_id.0, &worker_request).await;
-        is_current()?;
-        let worker_reply = worker_reply?;
-        crate::runtime::validate_preview_worker_envelope(
-            &worker_reply,
-            &worker_request,
-            operation_id.0,
-            operation_id.0,
-        )?;
-        serde_json::from_value::<Vec<boardstudio_core::model::ErgogenJobResult>>(
-            worker_reply
-                .get("results")
-                .cloned()
-                .ok_or_else(|| "Ergogen worker returned no footprint results.".to_owned())?,
-        )
-        .map_err(|error| format!("Ergogen worker returned malformed footprint results: {error}"))?
-    };
-
-    let finish_id = format!("footprints-{}-finish", operation_id.0);
-    let finish = ArtifactRequest::FinishExport {
-        id: finish_id.clone(),
-        request: FinishExportRequest { plan, results },
-    };
-    is_current()?;
-    let reply = core
-        .artifact(&finish_id, &executor_epoch.to_string(), &finish)
-        .await;
-    is_current()?;
-    let reply = reply.map_err(|error| format!("Footprint serialization failed: {error}"))?;
-    let exported = match reply {
-        ArtifactReply::FinishExport { id, result } if id == finish_id => result,
-        ArtifactReply::Error { id, error } if id == finish_id => {
-            return Err(format!(
-                "Core rejected footprint serialization: {}",
-                error.message
-            ));
-        }
-        ArtifactReply::FinishExport { .. } | ArtifactReply::Error { .. } => {
+        ArtifactReply::ExportPcb { .. } | ArtifactReply::Error { .. } => {
             return Err("Core returned footprint files for another request.".into());
         }
-        _ => return Err("Core returned an unexpected footprint serialization reply.".into()),
+        _ => return Err("Core returned an unexpected footprint export reply.".into()),
     };
     if exported.snapshot_token != snapshot.token.0.to_string()
         || exported.revision != snapshot.document.revision

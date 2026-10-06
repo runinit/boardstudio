@@ -124,14 +124,14 @@ async fn new_preview_retries_after_failure_and_success_keeps_batch_pending() {
         vec!["model.step".into()],
         || true,
         || {},
-        |_| async { Ok(vec![Some("ergogen:model:known.step".into())]) },
+        |_| async { Ok(vec![Some("bundled-model:known.step".into())]) },
     )
     .await
     .unwrap()
     .unwrap();
     assert_eq!(
         mapped.get("model.step"),
-        Some(&Some("ergogen:model:known.step".into()))
+        Some(&Some("bundled-model:known.step".into()))
     );
     assert_eq!(state.borrow().pending.as_ref(), Some(&next));
     assert!(state.borrow().failed.is_none());
@@ -198,7 +198,7 @@ async fn stale_mapping_success_cannot_enter_delivery_or_replace_pending() {
         |_| async {
             gloo_timers::future::TimeoutFuture::new(0).await;
             current.set(false);
-            Ok(vec![Some("ergogen:model:known.step".into())])
+            Ok(vec![Some("bundled-model:known.step".into())])
         },
     )
     .await;

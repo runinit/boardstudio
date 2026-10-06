@@ -2,7 +2,6 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import type { CompiledFootprint, Contour, PartDefinition, Part, ProjectDoc, Side } from '../../contracts/src/index.ts';
-import { exportErgogenForms } from '../src/index.ts';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const driver = process.env.BOARDSTUDIO_ARTIFACT_DRIVER
@@ -21,63 +20,14 @@ export function nativeArtifact<T extends NativeArtifactReply = NativeArtifactRep
   return reply;
 }
 
-export type NativeExportPlan = {
-  snapshotToken: string;
-  revision: number;
-  target: { kind: 'board'; boardId: string } | { kind: 'standalone-footprints'; definitionIds: string[] };
-  jobs: { jobId: string; definition: PartDefinition; part: Part }[];
-  reservedNets: { name: string; index: number }[];
-  nextNetIndex: number;
-};
-
 export type NativeExportArtifact = { files: { filename: string; content: string }[]; skippedUtilities: string[] };
-
-export function prepareNativeExport(
-  document: ProjectDoc,
-  target: NativeExportPlan['target'],
-  contours: Contour[] = [],
-  modelPaths: ReadonlyMap<string, string> = new Map(),
-  id = 'native-export',
-): NativeExportPlan {
-  const reply = nativeArtifact<{ id: string; kind: string; result: NativeExportPlan }>({
-    id: `${id}:prepare`, kind: 'prepare-export', request: {
+function exportNative(document: ProjectDoc, target: object, contours: Contour[], modelPaths: ReadonlyMap<string, string>, id: string): NativeExportArtifact {
+  return nativeArtifact<{ id: string; kind: string; result: NativeExportArtifact }>({
+    id, kind: 'export-pcb', request: {
       snapshotToken: `${id}:snapshot`, expectedRevision: document.revision, document, target, contours,
       modelPaths: Object.fromEntries(modelPaths),
     },
-  });
-  return reply.result;
-}
-
-export function finishNativeExport(
-  plan: NativeExportPlan,
-  modelPaths: ReadonlyMap<string, string> = new Map(),
-  id = 'native-export',
-): NativeExportArtifact {
-  let nets = plan.reservedNets.map((net) => ({ ...net }));
-  let next = plan.nextNetIndex;
-  const lookup = (name: string): number => {
-    const known = nets.find((net) => net.name === name);
-    if (known) return known.index;
-    const created = { name, index: next++ };
-    nets.push(created);
-    return created.index;
-  };
-  const standalone = plan.target.kind === 'standalone-footprints';
-  const results = plan.jobs.map((job) => {
-    const forms = exportErgogenForms(job.definition, standalone ? undefined : job.part, modelPaths, standalone ? () => 0 : lookup);
-    const result = {
-      snapshotToken: plan.snapshotToken,
-      revision: plan.revision,
-      jobId: job.jobId,
-      source: [...forms.footprints, ...forms.objects].join('\n'),
-      nets: nets.map((net) => ({ ...net })),
-    };
-    return result;
-  });
-  const reply = nativeArtifact<{ id: string; kind: string; result: NativeExportArtifact }>({
-    id: `${id}:finish`, kind: 'finish-export', request: { plan, results },
-  });
-  return reply.result;
+  }).result;
 }
 
 export function exportNativeBoard(
@@ -87,8 +37,7 @@ export function exportNativeBoard(
   modelPaths: ReadonlyMap<string, string> = new Map(),
   id = 'native-board',
 ): string {
-  const plan = prepareNativeExport(document, { kind: 'board', boardId }, contours, modelPaths, id);
-  const artifact = finishNativeExport(plan, modelPaths, id);
+  const artifact = exportNative(document, { kind: 'board', boardId }, contours, modelPaths, id);
   const file = artifact.files.find((entry) => entry.filename === `${document.boards.find((board) => board.id === boardId)?.name}.kicad_pcb`);
   if (!file) throw new Error(`Native artifact omitted board ${boardId}`);
   return file.content;
@@ -100,8 +49,7 @@ export function exportNativeFootprint(
   modelPaths: ReadonlyMap<string, string> = new Map(),
   id = 'native-footprint',
 ): { filename: string; content: string } {
-  const plan = prepareNativeExport(document, { kind: 'standalone-footprints', definitionIds: [definitionId] }, [], modelPaths, id);
-  const artifact = finishNativeExport(plan, modelPaths, id);
+  const artifact = exportNative(document, { kind: 'standalone-footprints', definitionIds: [definitionId] }, [], modelPaths, id);
   const file = artifact.files[0];
   if (!file) throw new Error(`Native artifact omitted footprint ${definitionId}`);
   return file;

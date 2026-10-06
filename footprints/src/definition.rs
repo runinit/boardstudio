@@ -16,9 +16,8 @@ use crate::types::{
     EnvelopeOrigin, EnvelopeSource, GeneratorRef, MatrixTerminals, Pad, PartKind, Vec2,
 };
 
-/// Prefix of generated definition IDs. Step 5 of the plan renames it to
-/// `generator:`; this constant is the single place that changes.
-pub const DEFINITION_ID_PREFIX: &str = "ergogen:";
+/// Prefix of generated definition IDs; the single place the prefix is spelled.
+pub const DEFINITION_ID_PREFIX: &str = "generator:";
 
 const NO_CLOSED_COURTYARD: &str =
     "No closed courtyard is available; the outline uses physical graphics and pad extents.";

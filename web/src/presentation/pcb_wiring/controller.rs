@@ -423,11 +423,11 @@ pub(in crate::presentation) fn use_pcb_part_net_edits(
             let alive = alive.clone();
             let generation = request.identity.generation;
             spawn_local(async move {
-                let is_ergogen_source = match source.as_deref() {
+                let is_generator_source = match source.as_deref() {
                     Some(source) => {
-                        match crate::presentation::parts::is_ergogen_source(source.to_owned()).await
+                        match crate::presentation::parts::is_generator_source(source.to_owned()).await
                         {
-                            Ok(is_ergogen_source) => is_ergogen_source,
+                            Ok(is_generator_source) => is_generator_source,
                             Err(_) => return,
                         }
                     }
@@ -503,7 +503,7 @@ pub(in crate::presentation) fn use_pcb_part_net_edits(
                     &accepted.document,
                     &request.identity.board_id,
                     &request.identity.part_id,
-                    is_ergogen_source,
+                    is_generator_source,
                     intent,
                 ) {
                     Ok(proposal) => proposal,

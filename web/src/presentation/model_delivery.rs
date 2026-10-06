@@ -251,14 +251,14 @@ pub(crate) enum AssetSelection {
 
 /// Apply the same source precedence as React's AssemblyPreview: attached
 /// BoardReference mapping, native preview path table, then version-matched
-/// Ergogen path helper. The helper is injected because its packaged source is
+/// generator path helper. The helper is injected because its packaged source is
 /// owned by the layout-generator build, not duplicated here.
 pub(crate) fn select_model_asset(
     model_path: &str,
     reference: Option<&BoardReference>,
     native_path_assets: &BTreeMap<String, String>,
     document_assets: &[Asset],
-    ergogen_model_asset_id: impl FnOnce(&str) -> Option<String>,
+    bundled_model_asset_id: impl FnOnce(&str) -> Option<String>,
 ) -> AssetSelection {
     let asset_id = reference
         .and_then(|item| item.model_assets.get(model_path).cloned())
@@ -273,7 +273,7 @@ pub(crate) fn select_model_asset(
                 })
                 .cloned()
         })
-        .or_else(|| ergogen_model_asset_id(model_path));
+        .or_else(|| bundled_model_asset_id(model_path));
     let Some(asset_id) = asset_id else {
         return AssetSelection::NoAssetId;
     };
@@ -287,7 +287,7 @@ pub(crate) fn select_model_asset(
         });
     }
 
-    if asset_id.starts_with("ergogen:model:") {
+    if asset_id.starts_with("bundled-model:") {
         AssetSelection::MissingBundledProvider { asset_id }
     } else {
         AssetSelection::MissingDocumentAsset { asset_id }
@@ -723,7 +723,7 @@ pub(crate) fn select_model_asset_id(
     packaged_asset(asset_id)
         .map(AssetSelection::Packaged)
         .unwrap_or_else(|| {
-            if asset_id.starts_with("ergogen:model:") {
+            if asset_id.starts_with("bundled-model:") {
                 AssetSelection::MissingBundledProvider {
                     asset_id: asset_id.to_owned(),
                 }
@@ -1121,7 +1121,7 @@ pub(crate) fn resolve_preview_assets(
     reference: Option<&BoardReference>,
     native_path_assets: &BTreeMap<String, String>,
     document: &ProjectDoc,
-    ergogen_model_asset_id: impl Fn(&str) -> Option<String>,
+    bundled_model_asset_id: impl Fn(&str) -> Option<String>,
     packaged_asset: impl Fn(&str) -> Option<ResolvedModelAsset>,
 ) -> Vec<(String, AssetSelection)> {
     models
@@ -1132,7 +1132,7 @@ pub(crate) fn resolve_preview_assets(
                 reference,
                 native_path_assets,
                 &document.assets,
-                |path| ergogen_model_asset_id(path),
+                |path| bundled_model_asset_id(path),
             );
             let selection = match selection {
                 AssetSelection::MissingBundledProvider { asset_id } => packaged_asset(&asset_id)
@@ -1287,10 +1287,10 @@ mod tests {
         );
         assert_eq!(
             select_model_asset("missing.stl", None, &BTreeMap::new(), &[], |_| {
-                Some("ergogen:model:vendor/missing.stl".into())
+                Some("bundled-model:vendor/missing.stl".into())
             }),
             AssetSelection::MissingBundledProvider {
-                asset_id: "ergogen:model:vendor/missing.stl".into()
+                asset_id: "bundled-model:vendor/missing.stl".into()
             }
         );
     }
@@ -1298,7 +1298,7 @@ mod tests {
     #[test]
     fn accepted_kiswitch_preview_path_resolves_to_the_known_packaged_descriptor() {
         let path = "${KIPRJMOD}/models/boardstudio/kiswitch/SW_Cherry_MX_PCB.stp";
-        let id = "ergogen:model:kiswitch/SW_Cherry_MX_PCB.stp";
+        let id = "bundled-model:kiswitch/SW_Cherry_MX_PCB.stp";
         let document = ProjectDoc::empty("case-models", "Case model path test");
         let resolved = resolve_preview_assets(
             &[model("mesh-row", "SW1", path)],
@@ -1335,7 +1335,7 @@ mod tests {
 
     #[test]
     fn core_packaged_preview_path_joins_the_native_table_to_its_exact_descriptor() {
-        let id = "ergogen:model:kiswitch/SW_Cherry_MX_PCB.stp";
+        let id = "bundled-model:kiswitch/SW_Cherry_MX_PCB.stp";
         let bundled = crate::bundled_models::bundled_model(id).unwrap();
         assert_eq!(
             bundled.url_path,
@@ -1379,7 +1379,7 @@ mod tests {
                 None,
                 &native,
                 &[asset("asset-1", "ab", "part.stl")],
-                |_| Some("ergogen:model:other.stl".into()),
+                |_| Some("bundled-model:other.stl".into()),
             ),
             AssetSelection::Archived(ResolvedModelAsset {
                 id: "asset-1".into(),

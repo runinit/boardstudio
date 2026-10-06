@@ -39,7 +39,7 @@ fn prepare(document: ProjectDoc, target: ExportTarget) -> ExportPlan {
     .expect("prepare")
 }
 
-fn ergogen_document() -> ProjectDoc {
+fn generated_document() -> ProjectDoc {
     let mut document = board_document();
     document.definitions = ["d1", "d2"]
         .into_iter()
@@ -159,8 +159,8 @@ fn result(
     index: usize,
     source: &str,
     nets: Vec<ReservedNet>,
-) -> ErgogenJobResult {
-    ErgogenJobResult {
+) -> RenderedJob {
+    RenderedJob {
         snapshot_token: plan.snapshot_token.clone(),
         revision: plan.revision,
         job_id: plan.jobs[index].job_id.clone(),
@@ -422,9 +422,9 @@ fn prepared_plan_is_deterministic_and_rejects_mutated_snapshot() {
 }
 
 #[test]
-fn ergogen_results_require_complete_ordered_snapshot_bound_jobs() {
+fn generated_results_require_complete_ordered_snapshot_bound_jobs() {
     let plan = prepare(
-        ergogen_document(),
+        generated_document(),
         ExportTarget::Board {
             board_id: "board".into(),
         },
@@ -447,7 +447,7 @@ fn ergogen_results_require_complete_ordered_snapshot_bound_jobs() {
     .unwrap_err();
     assert_eq!(reordered.code, ArtifactErrorCode::MismatchedResults);
 
-    let stale = ErgogenJobResult {
+    let stale = RenderedJob {
         snapshot_token: "another-snapshot".into(),
         ..result(&plan, 0, footprint, vec![])
     };
@@ -506,7 +506,7 @@ fn ergogen_validation_preserves_escaped_source_spans() {
 
 #[test]
 fn standalone_bundles_report_board_utility_skips_but_single_export_errors() {
-    let document = ergogen_document();
+    let document = generated_document();
     let target = ExportTarget::StandaloneFootprints {
         definition_ids: vec!["d1".into(), "d2".into()],
     };
@@ -543,7 +543,7 @@ fn standalone_bundles_report_board_utility_skips_but_single_export_errors() {
 
 #[test]
 fn standalone_export_disambiguates_repeated_footprint_names() {
-    let mut document = ergogen_document();
+    let mut document = generated_document();
     document.definitions[0].name = "switch mx".into();
     document.definitions[1].name = "switch mx".into();
     let plan = prepare(

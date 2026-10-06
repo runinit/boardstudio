@@ -19,7 +19,7 @@ pub(super) fn propose(
     document: &ProjectDoc,
     board_id: &str,
     part_id: &str,
-    is_ergogen_source: bool,
+    is_generator_source: bool,
     intent: PartNetIntent,
 ) -> Result<ProjectDoc, String> {
     let board = document
@@ -51,7 +51,7 @@ pub(super) fn propose(
                 .values()
                 .any(|terminal_pads| terminal_pads == &pad_ids);
             let standalone_pad = pad_ids.len() == 1
-                && !is_ergogen_source
+                && !is_generator_source
                 && definition.pads.iter().any(|pad| {
                     pad.id == pad_ids[0]
                         && pad.plated != Some(false)
@@ -334,9 +334,9 @@ mod tests {
             "recognized generator source hides standalone pads even with a project-owned ID"
         );
 
-        document.definitions[0].id = "ergogen:project-connector".into();
+        document.definitions[0].id = "generator:project-connector".into();
         document.definitions[0].generator = None;
-        document.parts[0].definition_id = "ergogen:project-connector".into();
+        document.parts[0].definition_id = "generator:project-connector".into();
         assert!(
             propose(
                 &document,
@@ -349,7 +349,7 @@ mod tests {
                 },
             )
             .is_ok(),
-            "an Ergogen-looking ID without a supported generator source keeps ordinary pads editable"
+            "an generator-looking ID without a supported generator source keeps ordinary pads editable"
         );
     }
 

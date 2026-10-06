@@ -89,7 +89,7 @@ async fn inspector_disables_a_non_input_definition_for_a_selected_key() {
 
 #[wasm_bindgen_test]
 async fn inspector_click_routes_a_switch_to_the_selected_key_action() {
-    let mut switch = definition("ergogen:switch", "switch");
+    let mut switch = definition("generator:switch", "switch");
     switch.pads = vec![input_pad("one", "1"), input_pad("two", "2")];
     assert!(matrix_input_available(&switch));
     let (action, button) = mounted_action("parts-switch-test", switch, true).await;
@@ -105,7 +105,7 @@ async fn inspector_click_routes_a_switch_to_the_selected_key_action() {
         action.borrow().as_ref(),
         Some(
             &super::super::part_placement::ComponentPlacementAction::PartsInspector {
-                definition_id: "ergogen:switch".into(),
+                definition_id: "generator:switch".into(),
                 kind: boardstudio_core::model::PartKind::Switch,
             }
         )
@@ -114,7 +114,7 @@ async fn inspector_click_routes_a_switch_to_the_selected_key_action() {
 
 #[wasm_bindgen_test]
 async fn inspector_disables_a_switch_without_independent_press_contacts() {
-    let switch = definition("ergogen:switch-no-input", "switch");
+    let switch = definition("generator:switch-no-input", "switch");
     assert!(!matrix_input_available(&switch));
     let (action, button) = mounted_action("parts-switch-no-input-test", switch, true).await;
 

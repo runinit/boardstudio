@@ -191,7 +191,7 @@ fn normalized_mounting_hole(template: &PartDefinition, hole: &Hole) -> PartDefin
         }
     }
     // The bundled source consists of one circular NPTH pad and no courtyard
-    // graphics. Ergogen's normalizer therefore uses the generated pad bounds as
+    // graphics. The generator normalizer therefore uses the generated pad bounds as
     // the definition courtyard; keep that derived envelope in sync with its
     // updated hole-size parameter.
     let corners = definition
@@ -426,7 +426,7 @@ mod tests {
 
     fn hole_template() -> PartDefinition {
         serde_json::from_value(serde_json::json!({
-            "id":"ergogen:ceoloide/mounting_hole_npth", "name":"mounting hole npth",
+            "id":"generator:ceoloide/mounting_hole_npth", "name":"mounting hole npth",
             "kind":"custom", "pads":[{"id":"pad-0", "number":"", "at":{"x":0,"y":0},
                 "size":{"x":2.2,"y":2.2}, "shape":"circle", "drill":2.2,"plated":false,"rotation":0}],
             "courtyard":[{"x":-1.1,"y":-1.1},{"x":1.1,"y":-1.1},{"x":1.1,"y":1.1},{"x":-1.1,"y":1.1}],

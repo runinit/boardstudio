@@ -777,11 +777,11 @@ mod tests {
             format!("models/{}.step", "ab".repeat(32))
         );
         assert_eq!(
-            captured.path_assets["ergogen:model:kiswitch/SW_Cherry_MX_PCB.stp"],
+            captured.path_assets["bundled-model:kiswitch/SW_Cherry_MX_PCB.stp"],
             "assets/ergogen-models/model-dd931656985824ce.stp"
         );
         assert_eq!(
-            request.model_paths["ergogen:model:kiswitch/SW_Cherry_MX_PCB.stp"],
+            request.model_paths["bundled-model:kiswitch/SW_Cherry_MX_PCB.stp"],
             "assets/ergogen-models/model-dd931656985824ce.stp"
         );
         assert_eq!(captured.owner.snapshot_token, SnapshotToken(43));
@@ -791,7 +791,7 @@ mod tests {
     fn native_preview_does_not_substitute_packaged_paths_for_document_owned_ids() {
         let (mut snapshot, scope) = snapshot(false, false);
         Arc::make_mut(&mut snapshot.document).assets.push(Asset {
-            id: "ergogen:model:kiswitch/SW_Cherry_MX_PCB.stp".into(),
+            id: "bundled-model:kiswitch/SW_Cherry_MX_PCB.stp".into(),
             name: "unrecognized-model.bin".into(),
             media_type: "application/octet-stream".into(),
             sha256: String::new(),
@@ -805,7 +805,7 @@ mod tests {
         assert!(
             !captured
                 .path_assets
-                .contains_key("ergogen:model:kiswitch/SW_Cherry_MX_PCB.stp"),
+                .contains_key("bundled-model:kiswitch/SW_Cherry_MX_PCB.stp"),
             "a document-owned but unusable asset must not silently resolve to packaged bytes"
         );
     }
@@ -814,7 +814,7 @@ mod tests {
     fn native_preview_preserves_document_path_precedence_for_packaged_model_ids() {
         let (mut snapshot, scope) = snapshot(false, false);
         Arc::make_mut(&mut snapshot.document).assets.push(Asset {
-            id: "ergogen:model:kiswitch/SW_Cherry_MX_PCB.stp".into(),
+            id: "bundled-model:kiswitch/SW_Cherry_MX_PCB.stp".into(),
             name: "local-switch.STEP".into(),
             media_type: "model/step".into(),
             sha256: "cd".repeat(32),
@@ -826,7 +826,7 @@ mod tests {
             .expect("native preview source remains available");
 
         assert_eq!(
-            captured.path_assets["ergogen:model:kiswitch/SW_Cherry_MX_PCB.stp"],
+            captured.path_assets["bundled-model:kiswitch/SW_Cherry_MX_PCB.stp"],
             format!("models/{}.step", "cd".repeat(32))
         );
     }

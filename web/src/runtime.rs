@@ -11,8 +11,8 @@ use boardstudio_core::{
     electrical::{ElectricalMode, ElectricalPlan, ElectricalPlanRequest},
     model::{
         ArchiveEntry, ArchiveReply, ArchiveRequest, ArtifactReply, ArtifactRequest, Board,
-        CaseAssemblyIR, CaseIR, CompiledFootprint, CoreReply, CoreRequest, ErgogenJobResult,
-        FinishExportRequest, HardwareTopology, KeycapSpec, Material, MechanicalAssembly,
+        CaseAssemblyIR, CaseIR, CompiledFootprint, CoreReply, CoreRequest,
+        HardwareTopology, KeycapSpec, Material, MechanicalAssembly,
         MechanicalBuiltinProfile, MechanicalConfiguration, MechanicalExtraction,
         MechanicalPartProfile, MechanicalPurposeMapping, MechanicalSwitchFamily, Operation,
         OutlineFeature, OutlineSettings, PcbPreview, PrepareExportRequest, ProjectDoc,
@@ -469,7 +469,6 @@ pub struct Runtime {
     >,
     layout_model_batch_generation: Cell<u64>,
     native_model_jobs: RefCell<BTreeSet<String>>,
-    preview_generator: RefCell<Option<Rc<crate::preview_generator::PreviewGeneratorClient>>>,
     archive_export_options: ArchiveExportOptions,
     #[cfg(test)]
     definition_name_test_state: RefCell<Option<(AcceptedSnapshot, Option<Scope>)>>,
@@ -575,7 +574,6 @@ impl Runtime {
             layout_model_rows: RefCell::new(None),
             layout_model_batch_generation: Cell::new(0),
             native_model_jobs: RefCell::new(BTreeSet::new()),
-            preview_generator: RefCell::new(None),
             archive_export_options: ArchiveExportOptions::default(),
             #[cfg(test)]
             definition_name_test_state: RefCell::new(None),
@@ -3080,7 +3078,7 @@ impl Runtime {
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
-        let mut ergogen_ids_by_path = BTreeMap::new();
+        let mut bundled_ids_by_path = BTreeMap::new();
         if !unique_model_paths.is_empty() {
             let ids =
                 crate::bundled_models::generated_model_asset_ids_for_paths(&unique_model_paths)
@@ -3091,14 +3089,14 @@ impl Runtime {
             if ids.len() != unique_model_paths.len() {
                 return Err("Model path resolver returned an incomplete Layout mapping".into());
             }
-            ergogen_ids_by_path.extend(unique_model_paths.iter().cloned().zip(ids));
+            bundled_ids_by_path.extend(unique_model_paths.iter().cloned().zip(ids));
         }
         let selections = crate::presentation::model_delivery::resolve_preview_assets(
             &preview.preview.models,
             preview.board_reference.as_ref(),
             &native_paths,
             &preview.document,
-            |path| ergogen_ids_by_path.get(path).cloned().flatten(),
+            |path| bundled_ids_by_path.get(path).cloned().flatten(),
             |asset_id| {
                 crate::bundled_models::bundled_model(asset_id).map(|model| {
                     crate::presentation::model_delivery::ResolvedModelAsset {
@@ -3532,7 +3530,7 @@ impl Runtime {
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
-        let Some(ergogen_ids_by_path) = resolve_native_model_paths(
+        let Some(bundled_ids_by_path) = resolve_native_model_paths(
             &self.native_model_delivery,
             &preview.owner,
             unique_model_paths,
@@ -3551,7 +3549,7 @@ impl Runtime {
             preview.board_reference.as_ref(),
             &native_paths,
             &preview.accepted_document,
-            |path| ergogen_ids_by_path.get(path).cloned().flatten(),
+            |path| bundled_ids_by_path.get(path).cloned().flatten(),
             |asset_id| {
                 crate::bundled_models::bundled_model(asset_id).map(|model| {
                     crate::presentation::model_delivery::ResolvedModelAsset {
@@ -3994,7 +3992,7 @@ impl Runtime {
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
-        let mut ergogen_ids_by_path = BTreeMap::new();
+        let mut bundled_ids_by_path = BTreeMap::new();
         if !unique_model_paths.is_empty() {
             let ids =
                 crate::bundled_models::generated_model_asset_ids_for_paths(&unique_model_paths)
@@ -4007,14 +4005,14 @@ impl Runtime {
                 capture.lease.invalidate();
                 return Err("Model path resolver returned an incomplete Parts mapping".into());
             }
-            ergogen_ids_by_path.extend(unique_model_paths.iter().cloned().zip(ids));
+            bundled_ids_by_path.extend(unique_model_paths.iter().cloned().zip(ids));
         }
         let selections = crate::presentation::model_delivery::resolve_preview_assets(
             &preview.models,
             None,
             &native_paths,
             &capture.sample_document,
-            |path| ergogen_ids_by_path.get(path).cloned().flatten(),
+            |path| bundled_ids_by_path.get(path).cloned().flatten(),
             |asset_id| {
                 crate::bundled_models::bundled_model(asset_id).map(|model| {
                     crate::presentation::model_delivery::ResolvedModelAsset {
@@ -4207,7 +4205,7 @@ impl Runtime {
         crate::case_preview::accept_native_preview(capture, preview)
     }
 
-    /// One existing Core→preview-generator→Core path shared by canonical Layout
+    /// One Core request shared by canonical Layout
     /// and the physical Case producer. Source construction and liveness stay with
     /// each workflow; this method owns only the established preview pipeline.
     async fn run_preview_pipeline(
@@ -4245,110 +4243,25 @@ impl Runtime {
         ensure_current()?;
 
         let epoch = core_epoch.to_string();
-        let prepare_id = format!("board-preview-{operation}-prepare");
-        let prepare = boardstudio_core::model::ArtifactRequest::PreparePreview {
-            id: prepare_id.clone(),
+        let preview_id = format!("board-preview-{operation}");
+        let preview_request = boardstudio_core::model::ArtifactRequest::PreviewPcb {
+            id: preview_id.clone(),
             request: request.clone(),
         };
         let reply = core
-            .artifact(&prepare_id, &epoch, &prepare)
+            .artifact(&preview_id, &epoch, &preview_request)
             .await
-            .map_err(|error| format!("Core preview preparation failed: {error}"))?;
-        ensure_current()?;
-        let plan = match reply {
-            ArtifactReply::PreparePreview { id, result } if id == prepare_id => *result,
-            ArtifactReply::Error { id, error } if id == prepare_id => {
-                return Err(format!(
-                    "Core rejected board preview preparation: {error:?}"
-                ));
-            }
-            ArtifactReply::PreparePreview { .. } | ArtifactReply::Error { .. } => {
-                return Err("Core returned a preview plan for another request".into());
-            }
-            _ => return Err("Core returned an unexpected preview preparation reply".into()),
-        };
-        if plan.snapshot_token != request.snapshot_token
-            || plan.revision != request.expected_revision
-            || plan.target != request.target
-        {
-            return Err("Core preview plan does not match the captured board source".into());
-        }
-
-        let worker_request_id = operation;
-        let worker_request = serde_json::json!({
-            "kind": "generate-preview-jobs",
-            "worker_generation": source_generation,
-            "request_id": worker_request_id,
-            "owner": {
-                "scope": {
-                    "sessionEpoch": scope.session_epoch.0,
-                    "documentId": scope.document_id,
-                    "boardId": scope.board_id,
-                    "instanceId": scope.instance_id,
-                },
-                "token": request.snapshot_token,
-                "viewer_instance": 0,
-                "projection_generation": source_generation,
-            },
-            "batch": {
-                "accepted_revision": request.expected_revision,
-                "batch_generation": source_generation,
-            },
-            "plan_key": {
-                "snapshot_token": plan.snapshot_token,
-                "revision": plan.revision,
-                "job_ids": plan.jobs.iter().map(|job| job.job_id.clone()).collect::<Vec<_>>(),
-            },
-            "jobs": plan.jobs,
-            "reserved_nets": plan.reserved_nets,
-            "next_net_index": plan.next_net_index,
-            "paths": plan.model_paths.iter().collect::<Vec<_>>(),
-        });
-        ensure_current()?;
-        let worker = if let Some(worker) = self.preview_generator.borrow().as_ref() {
-            worker.clone()
-        } else {
-            let url = resource_url("assets/preview-generator/worker.mjs")?;
-            let worker = Rc::new(crate::preview_generator::PreviewGeneratorClient::new(&url)?);
-            *self.preview_generator.borrow_mut() = Some(worker.clone());
-            worker
-        };
-        let worker_reply = worker.generate(worker_request_id, &worker_request).await?;
-        ensure_current()?;
-        validate_preview_worker_envelope(
-            &worker_reply,
-            &worker_request,
-            source_generation,
-            worker_request_id,
-        )?;
-        let results = serde_json::from_value::<Vec<ErgogenJobResult>>(
-            worker_reply
-                .get("results")
-                .cloned()
-                .ok_or_else(|| "Preview worker returned no conversion results".to_owned())?,
-        )
-        .map_err(|error| format!("Preview worker returned malformed results: {error}"))?;
-        let finish_id = format!("board-preview-{operation}-finish");
-        let finish = boardstudio_core::model::ArtifactRequest::FinishPreview {
-            id: finish_id.clone(),
-            request: FinishExportRequest { plan, results },
-        };
-        let reply = core
-            .artifact(&finish_id, &epoch, &finish)
-            .await
-            .map_err(|error| format!("Core preview finish failed: {error}"))?;
+            .map_err(|error| format!("Core board preview failed: {error}"))?;
         ensure_current()?;
         let preview = match reply {
-            ArtifactReply::PreviewBoard { id, result } if id == finish_id => result,
-            ArtifactReply::Error { id, error } if id == finish_id => {
-                return Err(format!(
-                    "Core rejected the completed board preview: {error:?}"
-                ));
+            ArtifactReply::PreviewBoard { id, result } if id == preview_id => result,
+            ArtifactReply::Error { id, error } if id == preview_id => {
+                return Err(format!("Core rejected the board preview: {error:?}"));
             }
             ArtifactReply::PreviewBoard { .. } | ArtifactReply::Error { .. } => {
-                return Err("Core returned a completed preview for another request".into());
+                return Err("Core returned a board preview for another request".into());
             }
-            _ => return Err("Core returned an unexpected completed-preview reply".into()),
+            _ => return Err("Core returned an unexpected board preview reply".into()),
         };
         if preview.revision != request.expected_revision {
             return Err("Core returned a board preview for another revision".into());
@@ -4809,18 +4722,6 @@ impl Runtime {
             populations.push((instance.name.clone(), population));
         }
         self.require_pcb_handoff_current(operation_id, &capture, &core)?;
-        let generator = || {
-            if let Some(worker) = self.preview_generator.borrow().as_ref() {
-                return Ok(worker.clone());
-            }
-            let url = resource_url("assets/preview-generator/worker.mjs")?;
-            let worker = Rc::new(
-                crate::preview_generator::PreviewGeneratorClient::new(&url)
-                    .map_err(|error| error.to_string())?,
-            );
-            *self.preview_generator.borrow_mut() = Some(worker.clone());
-            Ok(worker)
-        };
         let (archive, protected_capture) = crate::pcb_handoff::package_then_protect(
             {
                 let runtime = self.clone();
@@ -4855,7 +4756,6 @@ impl Runtime {
                             executor_epoch: package_capture.executor_epoch.0,
                         },
                         is_current,
-                        generator,
                     )
                     .await
                 }
@@ -5452,29 +5352,15 @@ impl Runtime {
                 Err("Footprint export was cancelled, superseded, or its source changed.".into())
             }
         };
-        let preview_generator = || {
-            if let Some(worker) = runtime.preview_generator.borrow().as_ref() {
-                return Ok(worker.clone());
-            }
-            let url = resource_url("assets/preview-generator/worker.mjs")?;
-            let worker = Rc::new(
-                crate::preview_generator::PreviewGeneratorClient::new(&url)
-                    .map_err(|error| error.to_string())?,
-            );
-            *runtime.preview_generator.borrow_mut() = Some(worker.clone());
-            Ok(worker)
-        };
         crate::export_footprints::build_zip(
             crate::export_footprints::ExportSource {
                 operation_id,
                 snapshot,
-                scope,
                 core: &core,
                 store: &self.store,
                 executor_epoch: capture.executor_epoch.0,
             },
             ensure_current,
-            preview_generator,
         )
         .await
     }
@@ -6767,7 +6653,7 @@ async fn resolve_native_model_paths<
         if ids.len() == paths.len() {
             Ok(ids)
         } else {
-            Err("Ergogen returned an incomplete model path mapping".into())
+            Err("Core returned an incomplete model path mapping".into())
         }
     });
     // Mapping imports may outlive the preview lease or a replacement request.
@@ -6842,34 +6728,6 @@ mod case_preview_source_tests {
 #[path = "native_model_mapping_tests.rs"]
 mod native_model_mapping_tests;
 
-pub(crate) fn validate_preview_worker_envelope(
-    reply: &serde_json::Value,
-    request: &serde_json::Value,
-    worker_generation: u64,
-    request_id: u64,
-) -> Result<(), String> {
-    if reply.get("kind").and_then(serde_json::Value::as_str) == Some("preview-generator-error") {
-        let message = reply
-            .get("message")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or("preview conversion failed");
-        return Err(format!("Ergogen preview conversion failed: {message}"));
-    }
-    if reply.get("kind").and_then(serde_json::Value::as_str) != Some("generated-preview-jobs")
-        || reply.get("worker_generation") != Some(&serde_json::json!(worker_generation))
-        || reply.get("request_id") != Some(&serde_json::json!(request_id))
-    {
-        return Err("Preview worker returned an unexpected request identity".into());
-    }
-    for field in ["owner", "batch", "plan_key"] {
-        if reply.get(field) != request.get(field) {
-            return Err(format!(
-                "Preview worker changed its captured {field} identity"
-            ));
-        }
-    }
-    Ok(())
-}
 impl Drop for Runtime {
     fn drop(&mut self) {
         self.cancel_frames();

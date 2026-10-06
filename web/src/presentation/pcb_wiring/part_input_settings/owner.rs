@@ -396,7 +396,7 @@ async fn prepare_edit(
                 .as_deref()
                 .ok_or_else(|| "The selected part has no supported generator.".to_owned())?;
             let schema =
-                crate::presentation::parts::ergogen_parameter_schema(source.to_owned()).await?;
+                crate::presentation::parts::generator_parameter_schema(source.to_owned()).await?;
             let terminals = projection
                 .definition
                 .terminals

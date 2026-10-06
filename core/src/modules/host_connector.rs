@@ -3,7 +3,7 @@ use super::{ModuleDefinition, MountedModule};
 use crate::model::{Part, PartDefinition, PartKind, Pose2, ProjectDoc, Side, Vec2};
 
 const MODEL_ASSET: &str =
-    "ergogen:model:vik/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal.stp";
+    "bundled-model:vik/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal.stp";
 
 pub(super) fn add_for_mount(
     doc: &mut ProjectDoc,

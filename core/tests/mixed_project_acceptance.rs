@@ -242,7 +242,7 @@ fn mixed_host_project_keeps_module_ownership_and_public_export_gates_together() 
     let export_request = json!({
         "snapshotToken":"mixed-host","expectedRevision":document["revision"],"document":document,
         "target":{"kind":"board","boardId":"host"},"contours":contours,
-        "modelPaths":{"ergogen:model:thqwgd001/THQWGD001C [2pin] #1.stp":"models/thq-tactile.step"}
+        "modelPaths":{"bundled-model:thqwgd001/THQWGD001C [2pin] #1.stp":"models/thq-tactile.step"}
     });
     let fabrication: Value = serde_json::from_str(&artifact_request(
         &json!({"id":"host-fabrication","kind":"export-pcb","request":export_request})

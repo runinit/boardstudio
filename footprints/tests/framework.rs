@@ -507,7 +507,7 @@ fn the_catalogue_lists_generators_as_definitions() {
         .collect();
     assert_eq!(sources, ["test/bare", "test/switch", "test/utility"]);
     let switch = serde_json::to_value(&entries[1]).unwrap();
-    assert_eq!(switch["id"], "ergogen:test/switch");
+    assert_eq!(switch["id"], "generator:test/switch");
     assert_eq!(switch["name"], "test switch");
     assert_eq!(switch["kind"], "switch");
     assert_eq!(switch["keycap"], json!({ "x": 18.0, "y": 18.0 }));
@@ -577,7 +577,7 @@ fn export_separates_objects_renames_modules_and_rejects_other_forms() {
 
     let model = "(footprint \"m\" (model \"${KIPRJMOD}/models/boardstudio/a.step\"))";
     let paths = BTreeMap::from([(
-        "ergogen:model:a.step".to_owned(),
+        "bundled-model:a.step".to_owned(),
         "models/a.step".to_owned(),
     )]);
     let exported = export_forms(parse_forms(model).unwrap(), &paths).unwrap();
@@ -592,7 +592,7 @@ fn export_separates_objects_renames_modules_and_rejects_other_forms() {
         "C:/win.step",
         "",
     ] {
-        let paths = BTreeMap::from([("ergogen:model:a.step".to_owned(), unsafe_path.to_owned())]);
+        let paths = BTreeMap::from([("bundled-model:a.step".to_owned(), unsafe_path.to_owned())]);
         let error = export_forms(parse_forms(model).unwrap(), &paths).unwrap_err();
         assert_eq!(
             error.message(),

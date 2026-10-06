@@ -8,7 +8,7 @@ use boardstudio_core::model::{
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ProfileDefinitionSource {
-    Ergogen,
+    Generator,
     Imported,
     Project,
 }
@@ -278,7 +278,7 @@ pub(crate) fn prepare_profile_edit(
             }
             definition.mechanical_profile = Some(profile);
         }
-        ProfileDefinitionSource::Ergogen | ProfileDefinitionSource::Imported => {
+        ProfileDefinitionSource::Generator | ProfileDefinitionSource::Imported => {
             if replacement
                 .definitions
                 .iter()
@@ -590,7 +590,7 @@ mod tests {
         let owner = edit_owner(
             &snapshot,
             scope.clone(),
-            ProfileDefinitionSource::Ergogen,
+            ProfileDefinitionSource::Generator,
             &selected_definition,
             200,
         );
@@ -819,7 +819,7 @@ mod tests {
         let owner = edit_owner(
             &snapshot,
             scope.clone(),
-            ProfileDefinitionSource::Ergogen,
+            ProfileDefinitionSource::Generator,
             &target,
             300,
         );

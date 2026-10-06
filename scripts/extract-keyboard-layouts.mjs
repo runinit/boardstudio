@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync } from
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
-import { parseForms, child, value } from '../ergogen/src/index.ts';
+import { parseForms, child, value } from './kicad-forms.mjs';
 const root = process.argv[2];
 if (!root) throw new Error('Usage: node scripts/extract-keyboard-layouts.mjs /path/to/checkouts');
 const numbered = (prefix, count) => reference => new RegExp(`^${prefix}\\d+$`).test(reference) && Number(reference.slice(prefix.length)) <= count;
@@ -51,5 +51,5 @@ for (const [id, name, folder, path, split, choc, count, include] of configuratio
   if (license) copyFileSync(resolve(checkout, license), new URL(`${id}.txt`, licenses));
   layouts[id] = { name, split, choc, repository, revision, path, sha256: createHash('sha256').update(source).digest('hex'), licenseFile: license ? `licenses/${id}.txt` : null, keys };
 }
-writeFileSync(new URL('../tooling/demo-projects/src/keyboard-layouts.json', import.meta.url), JSON.stringify(layouts, null, 2)+'\n');
+writeFileSync(new URL('../content/layouts/keyboard-layouts.json', import.meta.url), JSON.stringify(layouts, null, 2)+'\n');
 console.log(`Measured ${Object.keys(layouts).length} layouts`);

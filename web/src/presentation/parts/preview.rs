@@ -1066,7 +1066,7 @@ mod tests {
         PartDefinition {
             hardware_profile: None,
             input_profile: None,
-            id: "ergogen:ceoloide/switch_mx".into(),
+            id: "generator:ceoloide/switch_mx".into(),
             name: "switch mx".into(),
             kind: PartKind::Switch,
             keycap: Some(Vec2 { x: 18.0, y: 18.0 }),
@@ -1151,7 +1151,7 @@ mod tests {
                 recipe_pending: false,
                 recipe_identity: "parts-renderer-init-test".to_owned(),
                 preview_title: None,
-                source: crate::parts_mechanical_profile::ProfileDefinitionSource::Ergogen,
+                source: crate::parts_mechanical_profile::ProfileDefinitionSource::Generator,
             }
         }
     }
@@ -1466,7 +1466,7 @@ mod tests {
                 instance_id: None,
             }),
             snapshot_token: SnapshotToken(7),
-            definition_id: "ergogen:ceoloide/switch_mx".into(),
+            definition_id: "generator:ceoloide/switch_mx".into(),
             definition_json: String::new(),
             recipe_identity: String::new(),
         };
@@ -1479,7 +1479,7 @@ mod tests {
             "an ordinary repaint of the same accepted resource keeps its generation"
         );
         let input_b = PreviewInput {
-            definition_id: "ergogen:ceoloide/encoder".into(),
+            definition_id: "generator:ceoloide/encoder".into(),
             ..input_a.clone()
         };
         let _b = next_preview_owner(&last_input, &generation_counter, input_b);

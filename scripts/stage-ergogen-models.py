@@ -37,7 +37,7 @@ def catalogue(source_root: Path) -> list[dict[str, str]]:
         relative = path.relative_to(source_root).as_posix()
         vendor, model_path = relative.split("/3d_models/", maxsplit=1)
         filename = ALIASES.get((vendor, model_path), model_path)
-        asset_id = f"ergogen:model:{vendor}/{filename}"
+        asset_id = f"bundled-model:{vendor}/{filename}"
         extension = path.suffix.lower().removeprefix(".")
         media_type = {"wrl": "model/vrml", "stl": "model/stl"}.get(extension, "model/step")
         token = f"{stable_model_token(relative):016x}"

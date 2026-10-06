@@ -19,7 +19,8 @@ one-off rewrite script, never by re-recording.
 | `numeric_vectors.json` | JavaScript number formatting and parsing, `Math.sin`/`cos`/`hypot` and `encodeURIComponent` results recorded from V8 |
 | `context_vectors.json` | The render context (`p.at`, `isxy`, `esxy`, nets, local nets, side, parameter merging) recorded through a synthetic generator |
 | `manifest.json` | Counts per generator and family, demo-project coverage, source hashes, Node version |
-| `harness/` | The temporary recorders (`record.mjs`, `record_context.mjs`), the demo-project builder and module hooks |
+The temporary Node recorders were deleted after the Rust cutover. Their source
+and the original generator implementations remain available in Git at `851875a0e`.
 
 ## Case record
 

@@ -12,8 +12,6 @@ mod mechanical_profile_ui;
 mod module_profile_editor;
 mod modules_catalogue;
 pub(super) use modules_catalogue::module_attachment::AttachedModuleNavigation;
-#[cfg(all(test, target_arch = "wasm32"))]
-mod physical_setup;
 mod preview;
 mod standard_profile_lifetime;
 pub(in crate::presentation) use assembly_presets::MatrixPresetId;
@@ -219,7 +217,7 @@ pub(super) async fn load_mounting_hole_definition()
 -> Result<Rc<boardstudio_core::model::PartDefinition>, String> {
     let entries = catalogue::load_bundled(false).await?;
     let mut matches = entries.iter().filter(|entry| {
-        entry.source == catalogue::CatalogueSource::Ergogen
+        entry.source == catalogue::CatalogueSource::Generator
             && entry
                 .definition
                 .generator
@@ -246,23 +244,23 @@ pub(super) async fn prepare_physical_setup_proposal(
     catalogue::prepare_physical_setup_proposal_from_package(&accepted, intent).await
 }
 
-/// Normalize a matrix-owned clone through the same packaged Ergogen path used by Parts.
+/// Normalize a matrix-owned clone through the same built-in generator path used by Parts.
 pub(super) async fn normalize_matrix_definition(
     definition: boardstudio_core::model::PartDefinition,
 ) -> Result<boardstudio_core::model::PartDefinition, String> {
     catalogue::normalize_matrix_definition(definition).await
 }
 
-pub(super) async fn is_ergogen_source(source: String) -> Result<bool, String> {
-    catalogue::is_ergogen_source(source).await
+pub(super) async fn is_generator_source(source: String) -> Result<bool, String> {
+    catalogue::is_generator_source(source).await
 }
 
-/// Read the parameter descriptors from the packaged Ergogen module. The Parts catalogue remains
+/// Read the parameter descriptors from the built-in generators. The Parts catalogue remains
 /// the sole owner of module loading; PCB receives only the accepted package schema values.
-pub(super) async fn ergogen_parameter_schema(
+pub(super) async fn generator_parameter_schema(
     source: String,
 ) -> Result<std::collections::BTreeMap<String, serde_json::Value>, String> {
-    catalogue::ergogen_parameter_schema(&source).await
+    catalogue::generator_parameter_schema(&source).await
 }
 
 pub(super) async fn load_matrix_templates(
@@ -271,7 +269,7 @@ pub(super) async fn load_matrix_templates(
     let entries = catalogue::load_bundled(reversible).await?;
     Ok(entries
         .iter()
-        .filter(|entry| entry.source == catalogue::CatalogueSource::Ergogen)
+        .filter(|entry| entry.source == catalogue::CatalogueSource::Generator)
         .map(|entry| (*entry.definition).clone())
         .collect())
 }
@@ -1506,7 +1504,7 @@ pub(super) fn PartsPreviewWorkspace(
     };
     let source = match entry.source {
         catalogue::CatalogueSource::Project => ProfileDefinitionSource::Project,
-        catalogue::CatalogueSource::Ergogen => ProfileDefinitionSource::Ergogen,
+        catalogue::CatalogueSource::Generator => ProfileDefinitionSource::Generator,
         catalogue::CatalogueSource::Imported => ProfileDefinitionSource::Imported,
     };
 
@@ -1649,7 +1647,7 @@ fn selected_definition_id(
             if search.is_empty() {
                 entries
                     .iter()
-                    .find(|entry| entry.definition.id == "ergogen:ceoloide/switch_mx")
+                    .find(|entry| entry.definition.id == "generator:ceoloide/switch_mx")
             } else {
                 None
             }

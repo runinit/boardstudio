@@ -1,7 +1,8 @@
 # Footprint generators in Rust
 
 Planned: 2026-10-05. Inspected revision: `3cdeb2ac2`.
-Status: agreed plan; steps 1–3 complete (golden baseline, framework and all 36 generator ports in `footprints/`).
+Status: steps 1–6 implemented. Native, WASM and targeted headless browser
+verification is recorded below; a production UI/offline smoke test remains pending.
 
 This plan covers items 1 and 2 of the
 [TypeScript and Node removal assessment](typescript-node-removal.md): the
@@ -16,11 +17,11 @@ JavaScript or requires Node. Decisions are recorded in
 | Piece | Size | Role |
 | --- | --- | --- |
 | 36 JavaScript generators: 24 from [ergogen/library](../../ergogen/library), 12 from its vendored infused-kim directory | ~9k lines | `params` defaults and a `body(p)` producing KiCad S-expression text |
-| [defaultModels.mjs](../../ergogen/library/src/defaultModels.mjs), [generate.mjs](../../ergogen/scripts/generate.mjs) | ~150 lines | Bind default 3D models and model-selection rules; build `catalogue.mjs` |
-| [ergogen/src/index.ts](../../ergogen/src/index.ts) | 411 lines | Parameter schema, catalogue, render context, form parsing, pad and courtyard geometry, definition normalization, terminal discovery, model IDs and bindings |
-| [kicad/src/ergogen.ts](../../kicad/src/ergogen.ts) | 75 lines | Arc upgrade, model-path rewrite, footprint/object split |
-| [preview-generator-worker.ts](../../scripts/web/preview-generator-worker.ts) | 196 lines | Envelope validation, net allocation, job execution |
-| Two packaging scripts in [scripts/web](../../scripts/web) | ~90 lines | Strip types with Node and stage the modules under `web/assets` |
+| `defaultModels.mjs`, `generate.mjs` | ~150 lines | Bind default 3D models and model-selection rules; build `catalogue.mjs` |
+| `ergogen/src/index.ts` | 411 lines | Parameter schema, catalogue, render context, form parsing, pad and courtyard geometry, definition normalization, terminal discovery, model IDs and bindings |
+| `kicad/src/ergogen.ts` | 75 lines | Arc upgrade, model-path rewrite, footprint/object split |
+| `preview-generator-worker.ts` | 196 lines | Envelope validation, net allocation, job execution |
+| Two packaging scripts in `scripts/web` | ~90 lines | Strip types with Node and stage the modules under `web/assets` |
 
 The page loads the generator module with dynamic `import()` in
 [footprint_graphics.rs](../../web/src/presentation/footprint_graphics.rs),
@@ -170,15 +171,15 @@ equivalent), the JavaScript worker, then Core `FinishPreview`.
    identifiers (including the logo source ID), sets `side` on back-side parts and
    converts saved numeric strings for every number parameter, not only
    `mounting_hole_npth`; it covers browser storage, archive import and bundled
-   examples. Until item 3 lands, the JavaScript demo builders keep emitting
-   version 1 documents, which the migration handles at load. Migrated projects
+   examples. The native demo builder now emits version 2 documents; recorded version 1
+   archives still migrate at load. Migrated projects
    are written back immediately. Rewrite committed catalogue data with a one-off
    script after confirming no recorded hash covers the identifiers, then rewrite
    golden fixtures mechanically: definition IDs, asset IDs, the `ergogen_model_…`
    export paths, and the logo source ID, footprint name and display name. The
    `${EG_INFUSED_KIM_3D_MODELS}` KiCad path variable is not an identifier and is
    unchanged.
-6. **Deletion.** Blocked on item 3 of the
+6. **Deletion.** Complete after the native builder replaced item 3 of the
    [removal assessment](typescript-node-removal.md): `tooling/demo-projects` and
    `scripts/prepare-demo-projects.mjs` import the JavaScript provider, so nothing
    it imports can be deleted until a Rust builder replaces them. Steps 1–5 do not
@@ -190,9 +191,8 @@ equivalent), the JavaScript worker, then Core `FinishPreview`.
    upstream refresh scripts. Retain vendored models and source and licence
    manifests.
 
-Until item 3 lands and step 6 runs, bundled demos are still prepared by the
-JavaScript provider. Their stored pads reflect the old behavior until
-renormalized by Rust.
+Bundled demos are now prepared by the native Rust builder. Generator-backed
+definitions are normalized by Rust before Core opens the projects.
 
 ## Deviations
 
@@ -214,10 +214,77 @@ and corrected output.
 
 ## Completion criteria
 
-- [ ] All 36 generators render from Rust and match goldens apart from listed deviations.
-- [ ] No page code imports generator JavaScript; no preview worker exists (the demo builders are gated on item 3).
-- [ ] Board preview, case preview and KiCad export each use one Core request.
-- [ ] Version 1 documents from storage, archives and bundled examples migrate to version 2 without loss.
-- [ ] No persisted identifier or catalogue entry contains `ergogen`; licence and attribution text is exempt.
-- [ ] Ported modules carry their source licence and attribution.
-- [ ] Generator JavaScript and its Node packaging, tests and refresh scripts are deleted (gated on item 3).
+- [x] All 36 generators render from Rust and match goldens apart from listed deviations.
+- [x] No page code imports generator JavaScript; no preview worker exists (the demo builders are gated on item 3).
+- [x] Board preview, case preview and KiCad export each use one Core request.
+- [x] Version 1 documents from storage, archives and bundled examples migrate to version 2 without loss.
+- [x] No persisted identifier or catalogue entry contains `ergogen`; licence and attribution text is exempt.
+- [x] Ported modules carry their source licence and attribution.
+- [x] Generator JavaScript and its Node packaging, tests and refresh scripts are deleted (gated on item 3).
+
+
+## Cutover and deletion verification (2026-10-05)
+
+- Core, footprint golden/licence tests, native page tests, WASM page compilation,
+  release page compilation, generated contracts, repository checks and tooling
+  checks pass. KiCad's independent CLI checks are retained: 23 Node integration
+  checks and the native generator export checks cover source artwork, front/back
+  placement, connectivity, model paths and legacy arcs.
+- The former page/worker/finish chain now uses `PreviewPcb` and `ExportPcb`.
+  Targeted headless browser checks cover the catalogue, previews, generator edits,
+  handoff orchestration and scope/epoch protection. Four catalogue checks had
+  incorrectly used plain `#[test]` inside WASM-only presentation; they now execute
+  as browser tests, and the test-reachability check passes.
+- Six IndexedDB browser checks pass, including version 1 migration, immediate
+  write-back, preservation of stored model bytes and fresh-project save/reopen.
+  Missing format versions are legacy; an explicitly null version is malformed
+  and rejected, with a regression test. The real REVIUNG41 archive migration
+  renders every generated part and opens through Core.
+- `cargo run --manifest-path core/Cargo.toml --locked --release --example
+  prepare_demo_projects -- web/assets/fixtures` replaces Vite/Node preparation.
+  All 20 examples match the recorded Node baseline for placements, references,
+  matrix recipes, electrical assignments, mechanical settings, keymaps, modules,
+  generator parameter configuration, pad identities and selected model hashes.
+  The acceptance test also unpacks every archive and checks embedded bytes.
+  Measured source layouts and the review fixture's authored keymap/assumptions
+  now live in `content/layouts/`; source hashes remain in preparation provenance.
+- Generator JavaScript, the generated catalogue, worker, packaging/transport
+  scripts, temporary recorders, generator refresh/tests and the TypeScript demo
+  builder are deleted. Vite and the retired workspace packages are removed from
+  the lockfile. Vendored models, licences, source manifests and Python model
+  maintenance scripts remain. Layout extraction's standalone KiCad form reader
+  is retained in `scripts/kicad-forms.mjs`, without a generator dependency.
+- Release packaging excludes obsolete generator assets left by an earlier build;
+  a regression test confirms this for both root and subpath sites. This avoids
+  returning the deleted worker to the offline inventory through cached outputs.
+- A production UI/offline smoke test remains unverified: the browser skill's
+  runtime reports no available browser. Native offline-policy tests and release
+  packaging tests pass, but do not establish a deployed offline browser reload.
+  No broad claim of a Node-free repository is made: CAD and other retained
+  maintenance/check tooling remain outside this footprint-generator slice.
+
+- Broader native integration testing (`cargo test --manifest-path web/Cargo.toml`)
+  is blocked by existing harness compilation errors in unchanged tests such as
+  `outline_camera`, `board_reference_effect` and `outline_lifecycle`: they import
+  WASM-only test/browser modules into native fixtures. The documented native
+  `--lib --bin boardstudio-web` check passes; those unrelated harness failures
+  have not been hidden, deleted or addressed with configuration changes.
+
+- Matched page-size comparison against `9d2656d1f` (before the Core/page cutover),
+  with Rust 1.98, the same Cargo release flags (`--no-default-features --features
+  page --bin boardstudio-web`) and wasm-bindgen 0.2.129: the bindgen WASM grows
+  from 36,293,592 to 36,489,667 bytes (+196,075 bytes, 0.54%). Deterministic gzip
+  grows from 7,460,875 to 7,507,383 bytes (+46,508 bytes, 0.62%). This measurement
+  is before Dioxus/wasm-opt deployment optimization and excludes the deleted
+  JavaScript assets. Artifacts are under `web/target/size-comparison/`.
+- The mounted generator editor's two old-side-default assertions were updated
+  to the agreed `F` default, including real pad-position assertions. All four
+  mounted edit/supersession/provider-failure tests pass; the combined targeted
+  page-browser results cover 47 distinct passing tests, plus six storage tests.
+
+- Root and `/boardstudio/` production packaging pass with freshly built page,
+  Core worker and native fixtures, reusing the unchanged CAD/renderer providers.
+  HTTP checks verify the app, worker entrypoint, bundled archive and offline
+  bootstrap with isolation headers on both routes. Each site serves 20 archives;
+  each offline inventory lists 189 assets and excludes the retired generators.
+  This is static packaging evidence; the UI/offline-reload smoke gate remains.

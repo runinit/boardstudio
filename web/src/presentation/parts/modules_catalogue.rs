@@ -235,7 +235,7 @@ fn normalize_host_connector_definition(
     mut definition: PartDefinition,
 ) -> Result<PartDefinition, String> {
     const MODEL_ASSET: &str =
-        "ergogen:model:vik/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal.stp";
+        "bundled-model:vik/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal.stp";
     definition.id = "vik:source:horizontal-host-connector".into();
     definition.name = "VIK horizontal host connector".into();
     definition.models = Some(vec![PartModel {

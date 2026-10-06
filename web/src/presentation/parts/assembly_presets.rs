@@ -37,7 +37,7 @@ pub(super) const PRESETS: [Preset; 8] = [
     Preset {
         id: MatrixPresetId::MxSolder,
         name: "MX Solder",
-        definition_id: "ergogen:ceoloide/switch_mx",
+        definition_id: "generator:ceoloide/switch_mx",
         family: "mx",
         hotswap: false,
         led: false,
@@ -45,7 +45,7 @@ pub(super) const PRESETS: [Preset; 8] = [
     Preset {
         id: MatrixPresetId::MxHotswap,
         name: "MX Hotswap",
-        definition_id: "ergogen:ceoloide/switch_mx",
+        definition_id: "generator:ceoloide/switch_mx",
         family: "mx",
         hotswap: true,
         led: false,
@@ -53,7 +53,7 @@ pub(super) const PRESETS: [Preset; 8] = [
     Preset {
         id: MatrixPresetId::ChocSolder,
         name: "Choc V1 Solder",
-        definition_id: "ergogen:ceoloide/switch_choc_v1_v2",
+        definition_id: "generator:ceoloide/switch_choc_v1_v2",
         family: "choc",
         hotswap: false,
         led: false,
@@ -61,7 +61,7 @@ pub(super) const PRESETS: [Preset; 8] = [
     Preset {
         id: MatrixPresetId::ChocHotswap,
         name: "Choc V1 Hotswap",
-        definition_id: "ergogen:ceoloide/switch_choc_v1_v2",
+        definition_id: "generator:ceoloide/switch_choc_v1_v2",
         family: "choc",
         hotswap: true,
         led: false,
@@ -69,7 +69,7 @@ pub(super) const PRESETS: [Preset; 8] = [
     Preset {
         id: MatrixPresetId::MxRgb,
         name: "MX RGB",
-        definition_id: "ergogen:ceoloide/switch_mx",
+        definition_id: "generator:ceoloide/switch_mx",
         family: "mx",
         hotswap: false,
         led: true,
@@ -77,7 +77,7 @@ pub(super) const PRESETS: [Preset; 8] = [
     Preset {
         id: MatrixPresetId::ChocRgb,
         name: "Choc V1 RGB",
-        definition_id: "ergogen:ceoloide/switch_choc_v1_v2",
+        definition_id: "generator:ceoloide/switch_choc_v1_v2",
         family: "choc",
         hotswap: false,
         led: true,
@@ -85,7 +85,7 @@ pub(super) const PRESETS: [Preset; 8] = [
     Preset {
         id: MatrixPresetId::MxHotswapRgb,
         name: "MX Hotswap RGB",
-        definition_id: "ergogen:ceoloide/switch_mx",
+        definition_id: "generator:ceoloide/switch_mx",
         family: "mx",
         hotswap: true,
         led: true,
@@ -93,7 +93,7 @@ pub(super) const PRESETS: [Preset; 8] = [
     Preset {
         id: MatrixPresetId::ChocHotswapRgb,
         name: "Choc V1 Hotswap RGB",
-        definition_id: "ergogen:ceoloide/switch_choc_v1_v2",
+        definition_id: "generator:ceoloide/switch_choc_v1_v2",
         family: "choc",
         hotswap: true,
         led: true,
@@ -185,7 +185,7 @@ fn recipe_members(
 ) -> Result<Vec<crate::parts_preview::PartsPreviewRecipeMember>, String> {
     let main_source = preset
         .definition_id
-        .strip_prefix("ergogen:")
+        .strip_prefix("generator:")
         .unwrap_or(preset.definition_id);
     let main = find_definition(main_source)
         .ok_or_else(|| format!("Missing switch footprint: {main_source}"))?;

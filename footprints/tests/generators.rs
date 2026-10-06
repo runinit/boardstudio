@@ -21,27 +21,6 @@ use boardstudio_footprints::{GeneratorError, bundled};
 use common::{generator_fixtures, json_eq};
 use serde_json::{Value, json};
 
-/// Source IDs the plan renames; fixtures still carry the old text until step 5.
-const RENAMES: [(&str, &str); 2] = [
-    ("utility_ergogen_logo", "utility_logo"),
-    ("utility ergogen logo", "utility logo"),
-];
-
-fn rename(value: &Value) -> Value {
-    match value {
-        Value::String(text) => Value::String(
-            RENAMES
-                .iter()
-                .fold(text.clone(), |t, (old, new)| t.replace(old, new)),
-        ),
-        Value::Array(items) => Value::Array(items.iter().map(rename).collect()),
-        Value::Object(map) => {
-            Value::Object(map.iter().map(|(k, v)| (k.clone(), rename(v))).collect())
-        }
-        other => other.clone(),
-    }
-}
-
 /// Corrected quirks: generator text that changes on purpose.
 fn corrected_text(source: &str, text: &str) -> String {
     match source {
@@ -549,7 +528,6 @@ fn bundled_generators_match_the_golden_baseline() {
     let mut failures = Vec::new();
     let mut pending = Vec::new();
     for fixture in generator_fixtures() {
-        let fixture = rename(&fixture);
         let source = fixture["source"].as_str().unwrap();
         if !registry.contains(source) {
             pending.push(source.to_owned());
@@ -579,7 +557,7 @@ fn bundled_generators_match_the_golden_baseline() {
 fn every_registered_generator_has_a_fixture() {
     let sources: Vec<String> = generator_fixtures()
         .iter()
-        .map(|f| rename(&f["source"]).as_str().unwrap().to_owned())
+        .map(|f| f["source"].as_str().unwrap().to_owned())
         .collect();
     for spec in bundled().specs() {
         assert!(

@@ -25,7 +25,6 @@ const source = `(footprint "Rich Imported Ω" (version 20240108) (generator "pcb
 
 type Reply<T> = { id: string; kind: string; result: T };
 type Imported = { definition: ProjectDoc['definitions'][number]; geometry: { pads: unknown[]; courtyard: unknown[] }; diagnostics: { kind: string; message: string }[] };
-type Plan = Record<string, unknown>;
 type File = { filename: string; content: string };
 
 const importSource = (id: string, sourceText = source): Imported => {
@@ -61,14 +60,11 @@ const contours: Contour[] = [{ hole: false, points: [
 ] }];
 
 function exportBoard(doc: ProjectDoc): string {
-  const prepared = nativeArtifact<Reply<Plan>>({
-    id: 'prepare-source-board', kind: 'prepare-export', request: {
+  const finished = nativeArtifact<Reply<{ files: File[] }>>({
+    id: 'export-source-board', kind: 'export-pcb', request: {
       snapshotToken: 'source-fixture', expectedRevision: doc.revision, document: doc,
       target: { kind: 'board', boardId: 'board' }, contours, modelPaths: {},
     },
-  });
-  const finished = nativeArtifact<Reply<{ files: File[] }>>({
-    id: 'finish-source-board', kind: 'finish-export', request: { plan: prepared.result, results: [] },
   });
   const board = finished.result.files.find((file) => file.filename === 'source-board.kicad_pcb');
   assert.ok(board, 'native exporter should return the requested board');

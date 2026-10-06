@@ -3,7 +3,7 @@ use serde_json::json;
 
 fn document() -> ProjectDoc {
     serde_json::from_value(json!({
-        "id":"outline-test", "name":"Outline test", "format":"boardstudio/v2", "revision":0, "parameters":{}, "scripts":[],
+        "id":"outline-test", "name":"Outline test", "format":"boardstudio/v2", "formatVersion":2, "revision":0, "parameters":{}, "scripts":[],
         "definitions":[{"id":"switch", "name":"Switch", "kind":"switch",
             "courtyard":[{"x":-9,"y":-9},{"x":9,"y":-9},{"x":9,"y":9},{"x":-9,"y":9}],"pads":[]}],
         "parts":(0..9).map(|i|json!({"id":format!("k{i}"),"definitionId":"switch","reference":format!("SW{i}"),

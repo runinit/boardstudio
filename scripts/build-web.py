@@ -39,10 +39,8 @@ def provider_commands() -> list[tuple[list[str], Path]]:
         (["wasm-pack", "build", "renderer", "--target", "web", "--out-dir", "pkg",
           "--out-name", "boardstudio_renderer_wasm", "--release", "--locked"], ROOT),
         (["pnpm", "--dir", "cad", "run", "build:wasm"], ROOT),
-        (["pnpm", "--dir", "ergogen", "run", "prepare:catalog"], ROOT),
-        (["node", "scripts/web/build-layout-generators.mjs", "web/assets"], ROOT),
-        (["node", "scripts/web/build-preview-generator.mjs", "web/assets"], ROOT),
-        (["node", "scripts/prepare-demo-projects.mjs", "web/assets/fixtures"], ROOT),
+        (["cargo", "run", "--manifest-path", "core/Cargo.toml", "--locked", "--release",
+          "--example", "prepare_demo_projects", "--", "web/assets/fixtures"], ROOT),
         ([sys.executable, "scripts/stage-ergogen-models.py", "--source-root",
           "ergogen/library/vendor", "--destination", "web/assets/ergogen-models",
           "--manifest", "web/target/providers/ergogen-models.json"], ROOT),
@@ -52,7 +50,9 @@ def provider_commands() -> list[tuple[list[str], Path]]:
 def copy_runtime_assets(site: Path, provider_root: Path | None = None) -> None:
     provider_root = provider_root or ROOT
     assets = site / "assets"
-    shutil.copytree(provider_root / "web/assets", assets, dirs_exist_ok=True)
+    shutil.copytree(provider_root / "web/assets", assets, dirs_exist_ok=True,
+                    ignore=shutil.ignore_patterns("layout-generators.js", "layout-generators",
+                                                 "preview-generator"))
     shutil.copy2(provider_root / "catalogue/modules/imported-modules.json",
                  assets / "imported-modules.json")
     shutil.copytree(provider_root / "cad/wasm/pkg", assets / "cad", dirs_exist_ok=True)

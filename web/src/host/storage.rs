@@ -173,6 +173,8 @@ impl BrowserStore {
             .map_err(|_| PersistError("save completion task was abandoned".into()))?
     }
 
+    /// Load a saved project, migrating an older stored shape to the current one. A migrated
+    /// project is written back immediately so nothing past this boundary sees the old shape.
     pub async fn load_document(
         &self,
         project_id: String,
@@ -182,22 +184,21 @@ impl BrowserStore {
         spawn_local(async move {
             let result = load_value(&database_name, PROJECT_STORE, project_id)
                 .await
-                .and_then(|value| {
-                    value
-                        .map(|value| {
-                            serde_wasm_bindgen::from_value(value).map_err(|error| {
-                                PersistError(format!(
-                                    "stored project has invalid representation: {error}"
-                                ))
-                            })
-                        })
-                        .transpose()
-                });
+                .and_then(|value| value.map(decode_document).transpose());
             let _ = sender.send(result);
         });
-        receiver
+        let loaded = receiver
             .await
-            .map_err(|_| PersistError("project load task was abandoned".into()))?
+            .map_err(|_| PersistError("project load task was abandoned".into()))??;
+        let Some((document, migrated)) = loaded else {
+            return Ok(None);
+        };
+        if migrated {
+            // Best effort: the migrated project is returned either way, and the next
+            // save persists it if this write fails.
+            let _ = self.save_document(&document, &Default::default()).await;
+        }
+        Ok(Some(document))
     }
 
     pub async fn list_documents(&self) -> Result<Vec<ProjectDoc>, PersistError> {
@@ -209,13 +210,7 @@ impl BrowserStore {
                 .and_then(|values| {
                     values
                         .into_iter()
-                        .map(|value| {
-                            serde_wasm_bindgen::from_value(value).map_err(|error| {
-                                PersistError(format!(
-                                    "stored project has invalid representation: {error}"
-                                ))
-                            })
-                        })
+                        .map(|value| decode_document(value).map(|(document, _)| document))
                         .collect()
                 });
             let _ = sender.send(result);
@@ -434,6 +429,20 @@ async fn delete_project_inner(
         let _ = storage.remove_item(active_key);
     }
     Ok(())
+}
+
+/// Decode a stored project, migrating older versions first. Returns whether it migrated.
+fn decode_document(value: JsValue) -> Result<(ProjectDoc, bool), PersistError> {
+    let invalid = |error: String| {
+        PersistError(format!(
+            "stored project has invalid representation: {error}"
+        ))
+    };
+    let value: serde_json::Value =
+        serde_wasm_bindgen::from_value(value).map_err(|error| invalid(error.to_string()))?;
+    let (value, migrated) = boardstudio_core::migrate::migrate_value(value).map_err(invalid)?;
+    let document = serde_json::from_value(value).map_err(|error| invalid(error.to_string()))?;
+    Ok((document, migrated))
 }
 
 async fn load_value(

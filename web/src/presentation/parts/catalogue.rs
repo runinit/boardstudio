@@ -1,10 +1,9 @@
+use boardstudio_core::generators;
 use boardstudio_core::model::ProjectDoc;
 use boardstudio_core::model::{PartDefinition, PartKind};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
-use wasm_bindgen::{JsCast, JsValue};
-use wasm_bindgen_futures::JsFuture;
 
 const IMPORTED_PARTS_JSON: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -13,7 +12,7 @@ const IMPORTED_PARTS_JSON: &str = include_str!(concat!(
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum CatalogueSource {
-    Ergogen,
+    Generator,
     Imported,
     Project,
 }
@@ -80,7 +79,6 @@ struct ImportedPart {
 }
 
 struct CachedCatalogue {
-    module: JsValue,
     imported_source_hash: String,
     reversible: bool,
     entries: Rc<Vec<CatalogEntry>>,
@@ -98,7 +96,6 @@ fn imported_parts_hash() -> String {
 }
 
 pub(super) async fn load_bundled(reversible: bool) -> Result<Rc<Vec<CatalogEntry>>, String> {
-    let module = load_ergogen_module().await?;
     let imported_source_hash = imported_parts_hash();
     if let Some(entries) = BUNDLED_CACHE.with(|cache| {
         cache
@@ -107,7 +104,6 @@ pub(super) async fn load_bundled(reversible: bool) -> Result<Rc<Vec<CatalogEntry
             .find(|cached| {
                 cached.reversible == reversible
                     && cached.imported_source_hash == imported_source_hash
-                    && js_sys::Object::is(&cached.module, &module)
             })
             .map(|cached| cached.entries.clone())
     }) {
@@ -121,18 +117,17 @@ pub(super) async fn load_bundled(reversible: bool) -> Result<Rc<Vec<CatalogEntry
         .into_iter()
         .map(|part| part.definition)
         .collect::<Vec<_>>();
-    let ergogen = call_catalogue(&module)?
+    let generated = generators::catalogue()?
         .into_iter()
-        .map(|definition| construction_definition(&module, definition, reversible))
+        .map(|definition| construction_definition(definition, reversible))
         .collect::<Result<Vec<_>, _>>()?;
     let imported = imported
         .into_iter()
-        .map(|definition| construction_definition(&module, definition, reversible))
+        .map(|definition| construction_definition(definition, reversible))
         .collect::<Result<Vec<_>, _>>()?;
-    let entries = Rc::new(merge_bundled_sources(&ergogen, &imported));
+    let entries = Rc::new(merge_bundled_sources(&generated, &imported));
     BUNDLED_CACHE.with(|cache| {
         cache.borrow_mut().push(CachedCatalogue {
-            module,
             imported_source_hash,
             reversible,
             entries: entries.clone(),
@@ -142,13 +137,13 @@ pub(super) async fn load_bundled(reversible: bool) -> Result<Rc<Vec<CatalogEntry
 }
 
 fn merge_bundled_sources(
-    ergogen: &[PartDefinition],
+    generated: &[PartDefinition],
     imported: &[PartDefinition],
 ) -> Vec<CatalogEntry> {
-    let mut entries = Vec::with_capacity(ergogen.len() + imported.len());
+    let mut entries = Vec::with_capacity(generated.len() + imported.len());
     let mut positions = HashMap::<String, usize>::with_capacity(entries.capacity());
     for (definitions, source) in [
-        (ergogen, CatalogueSource::Ergogen),
+        (generated, CatalogueSource::Generator),
         (imported, CatalogueSource::Imported),
     ] {
         for definition in definitions {
@@ -226,120 +221,59 @@ pub(super) fn group_choices(entries: &[CatalogEntry]) -> Vec<CatalogGroup<'_>> {
 
 pub(super) fn preferred_label(definition: &PartDefinition) -> &str {
     match definition.id.as_str() {
-        "ergogen:ceoloide/switch_mx" => "MX switch",
-        "ergogen:ceoloide/switch_choc_v1_v2" => "Choc V1 / V2 switch",
-        "ergogen:ceoloide/switch_gateron_ks27_ks33" => "Gateron KS27 / KS33 switch",
-        "ergogen:ceoloide/diode_tht_sod123" => "Matrix diode (SOD-123 / THT)",
-        "ergogen:ceoloide/led_sk6812mini-e" => "SK6812 MINI-E",
+        "generator:ceoloide/switch_mx" => "MX switch",
+        "generator:ceoloide/switch_choc_v1_v2" => "Choc V1 / V2 switch",
+        "generator:ceoloide/switch_gateron_ks27_ks33" => "Gateron KS27 / KS33 switch",
+        "generator:ceoloide/diode_tht_sod123" => "Matrix diode (SOD-123 / THT)",
+        "generator:ceoloide/led_sk6812mini-e" => "SK6812 MINI-E",
         _ => &definition.name,
     }
 }
 
-async fn load_ergogen_module() -> Result<JsValue, String> {
-    #[cfg(test)]
-    let url = option_env!("BOARDSTUDIO_TEST_LAYOUT_GENERATOR_MODULE_URL")
-        .map(str::to_owned)
-        .map(Ok)
-        .unwrap_or_else(|| crate::runtime::resource_url("assets/layout-generators/src/index.js"))?;
-    #[cfg(not(test))]
-    let url = crate::runtime::resource_url("assets/layout-generators/src/index.js")?;
-    import_ergogen_module(&url).await
+/// Whether a source is a built-in generator. Definition IDs are project-owned identities and
+/// are not a reliable proxy for generator membership.
+pub(super) async fn is_generator_source(source: String) -> Result<bool, String> {
+    Ok(generators::is_generator(&source))
 }
 
-/// Ask the packaged Ergogen catalogue whether a source is actually supported. Definition IDs
-/// are project-owned identities and are not a reliable proxy for generator membership.
-pub(super) async fn is_ergogen_source(source: String) -> Result<bool, String> {
-    let module = load_ergogen_module().await?;
-    is_ergogen_source_with_module(source, &module)
-}
-
-fn is_ergogen_source_with_module(source: String, module: &JsValue) -> Result<bool, String> {
-    function(module, "isErgogen")?
-        .call1(module, &source.into())
-        .map_err(js_error)?
-        .as_bool()
-        .ok_or_else(|| "Ergogen source classification returned a non-boolean value.".to_owned())
-}
-
-pub(super) async fn ergogen_parameter_schema(
+pub(super) async fn generator_parameter_schema(
     source: &str,
 ) -> Result<std::collections::BTreeMap<String, serde_json::Value>, String> {
-    let module = load_ergogen_module().await?;
-    ergogen_parameter_schema_with_module(source, &module)
-}
-
-fn ergogen_parameter_schema_with_module(
-    source: &str,
-    module: &JsValue,
-) -> Result<std::collections::BTreeMap<String, serde_json::Value>, String> {
-    let is_ergogen = function(module, "isErgogen")?
-        .call1(module, &source.into())
-        .map_err(js_error)?
-        .as_bool()
-        .unwrap_or(false);
-    if !is_ergogen {
+    if !generators::is_generator(source) {
         return Ok(Default::default());
     }
-    let schema = function(module, "parameters")?
-        .call1(module, &source.into())
-        .map_err(js_error)?;
-    let schema = js_sys::JSON::stringify(&schema)
-        .map_err(js_error)?
-        .as_string()
-        .ok_or_else(|| "Ergogen parameter schema could not be serialized.".to_owned())?;
-    serde_json::from_str(&schema)
-        .map_err(|error| format!("Ergogen parameter schema is invalid: {error}"))
+    generators::parameter_schema(source)
 }
 
-/// Normalize a matrix-owned generator clone with the exact packaged Ergogen implementation.
-/// The clone is passed as a JSON object so generator parameters have the plain-object shape
-/// expected by the TypeScript normalizer (serde-wasm-bindgen's default Map is not compatible).
+/// Normalize a matrix-owned generator clone with the built-in generators.
 pub(super) async fn normalize_matrix_definition(
     definition: PartDefinition,
 ) -> Result<PartDefinition, String> {
-    let module = load_ergogen_module().await?;
-    normalize_matrix_definition_with_module(definition, &module)
+    normalize_generator_definition(definition).await
 }
 
-/// Normalize a transient Parts generator candidate through the same packaged
-/// service used for construction. This does not edit the accepted document.
+/// Normalize a transient Parts generator candidate through the same service used for
+/// construction. This does not edit the accepted document.
 pub(super) async fn normalize_generator_definition(
     definition: PartDefinition,
 ) -> Result<PartDefinition, String> {
-    let module = load_ergogen_module().await?;
-    normalize_matrix_definition_with_module(definition, &module)
-}
-
-fn normalize_matrix_definition_with_module(
-    mut definition: PartDefinition,
-    module: &JsValue,
-) -> Result<PartDefinition, String> {
-    let Some(generator) = definition.generator.as_mut() else {
+    let Some(generator) = definition.generator.as_ref() else {
         return Err(format!(
             "Matrix component {} has no generator definition.",
             definition.id
         ));
     };
     let source = generator.source.clone();
-    let is_ergogen = function(module, "isErgogen")?
-        .call1(module, &source.clone().into())
-        .map_err(js_error)?
-        .as_bool()
-        .unwrap_or(false);
-    if !is_ergogen {
+    if !generators::is_generator(&source) {
         return Err(format!(
-            "Matrix component {} does not use a supported Ergogen generator.",
+            "Matrix component {} does not use a supported footprint generator.",
             definition.id
         ));
     }
-    let plain = json_plain_value(&definition)
-        .map_err(|error| format!("Could not prepare {source} for matrix creation: {error}"))?;
-    let normalized = function(module, "normalizeDefinition")?
-        .call1(module, &plain)
-        .map_err(js_error)?;
-    let normalized: PartDefinition = serde_wasm_bindgen::from_value(normalized)
-        .map_err(|error| format!("Could not decode normalized {source} definition: {error}"))?;
-    if normalized.id != definition.id
+    let id = definition.id.clone();
+    let normalized = generators::normalize_definition(definition)
+        .map_err(|error| format!("Could not normalize {source}: {error}"))?;
+    if normalized.id != id
         || normalized
             .generator
             .as_ref()
@@ -347,41 +281,20 @@ fn normalize_matrix_definition_with_module(
             != Some(source.as_str())
     {
         return Err(format!(
-            "Normalizing matrix component {} changed its identity or generator source.",
-            definition.id
+            "Normalizing matrix component {id} changed its identity or generator source."
         ));
     }
     Ok(normalized)
 }
 
-async fn import_ergogen_module(url: &str) -> Result<JsValue, String> {
-    let import = js_sys::Function::new_with_args("url", "return import(url)");
-    let promise = import
-        .call1(&JsValue::NULL, &url.into())
-        .map_err(js_error)?
-        .dyn_into::<js_sys::Promise>()
-        .map_err(js_error)?;
-    JsFuture::from(promise).await.map_err(js_error)
-}
-
-fn call_catalogue(module: &JsValue) -> Result<Vec<PartDefinition>, String> {
-    let catalogue = function(module, "catalogue")?;
-    let value = catalogue.call0(module).map_err(js_error)?;
-    serde_wasm_bindgen::from_value(value)
-        .map_err(|error| format!("Ergogen catalogue could not be decoded: {error}"))
-}
-
 fn construction_definition(
-    module: &JsValue,
     definition: PartDefinition,
     reversible: bool,
 ) -> Result<PartDefinition, String> {
-    construction_definition_with_support(module, definition, reversible)
-        .map(|(definition, _)| definition)
+    construction_definition_with_support(definition, reversible).map(|(definition, _)| definition)
 }
 
 fn construction_definition_with_support(
-    module: &JsValue,
     mut definition: PartDefinition,
     reversible: bool,
 ) -> Result<(PartDefinition, bool), String> {
@@ -389,18 +302,9 @@ fn construction_definition_with_support(
         return Ok((definition, false));
     };
     let source = generator.source.clone();
-    let is_ergogen = function(module, "isErgogen")?
-        .call1(module, &source.clone().into())
-        .map_err(js_error)?
-        .as_bool()
-        .unwrap_or(false);
-    if !is_ergogen {
-        return Ok((definition, false));
-    }
-    let parameter_schema = function(module, "parameters")?
-        .call1(module, &source.clone().into())
-        .map_err(js_error)?;
-    if !js_sys::Reflect::has(&parameter_schema, &"reversible".into()).map_err(js_error)? {
+    if !generators::is_generator(&source)
+        || !generators::parameter_schema(&source)?.contains_key("reversible")
+    {
         return Ok((definition, false));
     }
 
@@ -416,56 +320,16 @@ fn construction_definition_with_support(
             .insert("solder".into(), serde_json::Value::Bool(true));
     }
 
-    // Generator code spreads `generator.parameters` as a plain JS object. The
-    // default serde-wasm-bindgen Map representation is not compatible with it.
-    let definition = json_plain_value(&definition)
-        .map_err(|error| format!("Could not prepare {source} for construction: {error}"))?;
-    let normalized = function(module, "normalizeDefinition")?
-        .call1(module, &definition)
-        .map_err(js_error)?;
-    let normalized = serde_wasm_bindgen::from_value(normalized)
-        .map_err(|error| format!("Could not decode normalized {source} definition: {error}"))?;
+    let normalized = generators::normalize_definition(definition)
+        .map_err(|error| format!("Could not normalize {source}: {error}"))?;
     Ok((normalized, true))
 }
 
-/// Prepare a project setup proposal through catalogue-owned package helpers. The normalizer
-/// implementation and its JS module remain private to this module; callers receive proposals,
-/// not access to the catalogue module or its member functions.
+/// Prepare a project setup proposal through catalogue-owned helpers; callers receive
+/// proposals, not access to the generators.
 pub(super) fn prepare_physical_setup_proposal(
     accepted: &ProjectDoc,
     intent: crate::physical_setup::SetupIntent,
-    module: Option<&JsValue>,
-) -> Result<ProjectDoc, String> {
-    use crate::physical_setup::SetupIntent;
-
-    if matches!(intent, SetupIntent::ReversibleLayout(_)) {
-        let module = module
-            .ok_or_else(|| "The packaged construction normalizer is unavailable.".to_string())?;
-        return prepare_physical_setup_proposal_with_module(accepted, intent, module);
-    }
-    crate::physical_setup::propose(accepted, intent, |definition, _| {
-        Ok((definition.clone(), false))
-    })
-}
-
-pub(super) async fn prepare_physical_setup_proposal_from_package(
-    accepted: &ProjectDoc,
-    intent: crate::physical_setup::SetupIntent,
-) -> Result<ProjectDoc, String> {
-    if matches!(
-        intent,
-        crate::physical_setup::SetupIntent::ReversibleLayout(_)
-    ) {
-        let module = load_ergogen_module().await?;
-        return prepare_physical_setup_proposal(accepted, intent, Some(&module));
-    }
-    prepare_physical_setup_proposal(accepted, intent, None)
-}
-
-fn prepare_physical_setup_proposal_with_module(
-    accepted: &ProjectDoc,
-    intent: crate::physical_setup::SetupIntent,
-    module: &JsValue,
 ) -> Result<ProjectDoc, String> {
     use crate::physical_setup::SetupIntent;
 
@@ -473,9 +337,7 @@ fn prepare_physical_setup_proposal_with_module(
         SetupIntent::ReversibleLayout(enabled) => crate::physical_setup::propose(
             accepted,
             SetupIntent::ReversibleLayout(enabled),
-            |definition, enabled| {
-                construction_definition_with_support(module, definition.clone(), enabled)
-            },
+            |definition, enabled| construction_definition_with_support(definition.clone(), enabled),
         ),
         intent => crate::physical_setup::propose(accepted, intent, |definition, _| {
             Ok((definition.clone(), false))
@@ -483,53 +345,42 @@ fn prepare_physical_setup_proposal_with_module(
     }
 }
 
-#[cfg(all(test, target_arch = "wasm32"))]
-mod wasm_tests {
+pub(super) async fn prepare_physical_setup_proposal_from_package(
+    accepted: &ProjectDoc,
+    intent: crate::physical_setup::SetupIntent,
+) -> Result<ProjectDoc, String> {
+    prepare_physical_setup_proposal(accepted, intent)
+}
+
+#[cfg(test)]
+mod generator_tests {
     use super::*;
     use crate::physical_setup::SetupIntent;
     use boardstudio_core::model::HardwareConfiguration;
     use serde_json::json;
-    use wasm_bindgen_test::wasm_bindgen_test;
 
-    #[wasm_bindgen_test]
-    async fn generator_recognition_uses_packaged_source_membership() {
-        let module_url = match option_env!("BOARDSTUDIO_TEST_LAYOUT_GENERATOR_MODULE_URL") {
-            Some(url) => url,
-            None => panic!("run the packaged-layout-generator WASM test harness"),
-        };
-        let module = import_ergogen_module(module_url)
-            .await
-            .expect("import generated layout-generator asset");
-        assert!(
-            is_ergogen_source_with_module("ceoloide/trrs_pj320a".into(), &module)
-                .expect("classify packaged TRRS generator")
-        );
-        assert!(
-            !is_ergogen_source_with_module("ergogen:not-a-generator".into(), &module)
-                .expect("classify unknown source")
-        );
-    }
-
-    #[wasm_bindgen_test]
-    async fn pcb_part_packaged_reversible_proposal_uses_gateron_normalizer() {
-        let module_url = match option_env!("BOARDSTUDIO_TEST_LAYOUT_GENERATOR_MODULE_URL") {
-            Some(url) => url,
-            None => panic!(
-                "run scripts/web/test-physical-setup-proposal.mjs to provide packaged module URL"
-            ),
-        };
-        let module = import_ergogen_module(module_url)
-            .await
-            .expect("import generated layout-generator asset");
-        let catalogue = call_catalogue(&module).unwrap();
-        let gateron = catalogue
+    fn bundled_definition(source: &str) -> PartDefinition {
+        generators::catalogue()
+            .unwrap()
             .into_iter()
             .find(|definition| {
-                definition.generator.as_ref().is_some_and(|generator| {
-                    generator.source == "ceoloide/switch_gateron_ks27_ks33"
-                })
+                definition
+                    .generator
+                    .as_ref()
+                    .is_some_and(|generator| generator.source == source)
             })
-            .expect("packaged catalogue contains Gateron KS27/KS33");
+            .unwrap_or_else(|| panic!("catalogue contains {source}"))
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn generator_recognition_uses_source_membership() {
+        assert!(generators::is_generator("ceoloide/trrs_pj320a"));
+        assert!(!generators::is_generator("generator:not-a-generator"));
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn reversible_proposal_uses_gateron_normalizer() {
+        let gateron = bundled_definition("ceoloide/switch_gateron_ks27_ks33");
         let original = gateron.clone();
         let mut document = ProjectDoc::empty("packaged-test", "Packaged module test");
         document.definitions = vec![gateron.clone()];
@@ -544,12 +395,9 @@ mod wasm_tests {
         document.hardware = Some(HardwareConfiguration::default());
         let accepted = document.clone();
 
-        let proposal = super::super::physical_setup::prepare_proposal_with_module(
-            &document,
-            SetupIntent::ReversibleLayout(true),
-            &module,
-        )
-        .expect("prepare reversible project proposal");
+        let proposal =
+            prepare_physical_setup_proposal(&document, SetupIntent::ReversibleLayout(true))
+                .expect("prepare reversible project proposal");
 
         assert_eq!(
             document, accepted,
@@ -579,17 +427,11 @@ mod wasm_tests {
             proposal.parameters.get("reversibleLayout"),
             Some(&json!(true))
         );
+    }
 
-        let mut matrix_switch = call_catalogue(&module)
-            .unwrap()
-            .into_iter()
-            .find(|definition| {
-                definition
-                    .generator
-                    .as_ref()
-                    .is_some_and(|generator| generator.source == "ceoloide/switch_mx")
-            })
-            .expect("packaged catalogue contains MX switch");
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn matrix_definition_clone_normalizes_through_the_generator() {
+        let mut matrix_switch = bundled_definition("ceoloide/switch_mx");
         matrix_switch.id = "assembly-preset-mx-solder-south-matrix-test-0/definition/switch".into();
         let generator = matrix_switch.generator.as_mut().unwrap();
         generator.parameters.insert("hotswap".into(), json!(true));
@@ -598,8 +440,8 @@ mod wasm_tests {
             .parameters
             .insert("include_keycap".into(), json!(true));
         generator.parameters.insert("side".into(), json!("B"));
-        let normalized = normalize_matrix_definition_with_module(matrix_switch, &module)
-            .expect("matrix definition clone normalizes through the packaged generator");
+        let normalized = futures_lite_block_on(normalize_matrix_definition(matrix_switch))
+            .expect("matrix definition clone normalizes");
         assert_eq!(
             normalized.id,
             "assembly-preset-mx-solder-south-matrix-test-0/definition/switch"
@@ -615,19 +457,10 @@ mod wasm_tests {
         assert!(!normalized.courtyard.is_empty());
     }
 
-    #[wasm_bindgen_test]
-    async fn pcb_part_packaged_binding_schema_uses_generator_parameters() {
-        let module_url = match option_env!("BOARDSTUDIO_TEST_LAYOUT_GENERATOR_MODULE_URL") {
-            Some(url) => url,
-            None => panic!(
-                "run scripts/web/test-physical-setup-proposal.mjs to provide packaged module URL"
-            ),
-        };
-        let module = import_ergogen_module(module_url)
-            .await
-            .expect("import generated layout-generator asset");
-        let schema = ergogen_parameter_schema_with_module("infused-kim/smd_0805", &module)
-            .expect("read packaged generic-part parameter schema");
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn binding_schema_uses_generator_parameters() {
+        let schema = generators::parameter_schema("infused-kim/smd_0805")
+            .expect("read generic-part parameter schema");
         assert_eq!(schema["net_1_from"]["type"], "net");
         assert_eq!(schema["net_1_from"]["value"], "SMD_1_F");
         assert_eq!(schema["net_1_to"]["value"], "SMD_1_T");
@@ -639,25 +472,16 @@ mod wasm_tests {
             )
         }));
     }
-}
 
-fn json_text<T: serde::Serialize>(value: &T) -> Result<String, String> {
-    serde_json::to_string(value).map_err(|error| error.to_string())
-}
-
-fn json_plain_value<T: serde::Serialize>(value: &T) -> Result<JsValue, String> {
-    js_sys::JSON::parse(&json_text(value)?).map_err(js_error)
-}
-
-fn function(module: &JsValue, name: &str) -> Result<js_sys::Function, String> {
-    js_sys::Reflect::get(module, &name.into())
-        .map_err(js_error)?
-        .dyn_into::<js_sys::Function>()
-        .map_err(|_| format!("Packaged Ergogen catalogue is missing {name}()"))
-}
-
-fn js_error(error: JsValue) -> String {
-    format!("{error:?}")
+    /// The async wrappers do no asynchronous work, so one poll completes them.
+    fn futures_lite_block_on<T>(future: impl std::future::Future<Output = T>) -> T {
+        let mut future = std::pin::pin!(future);
+        let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+        match future.as_mut().poll(&mut context) {
+            std::task::Poll::Ready(value) => value,
+            std::task::Poll::Pending => panic!("generator wrapper suspended"),
+        }
+    }
 }
 
 fn catalog_kind(kind: &PartKind) -> CatalogKind {
@@ -686,7 +510,7 @@ fn kind_search_label(kind: &PartKind) -> &'static str {
 
 fn search_aliases(definition: &PartDefinition) -> &'static str {
     match definition.id.as_str() {
-        "ergogen:ceoloide/led_sk6812mini-e" => "RGB LED reverse mount",
+        "generator:ceoloide/led_sk6812mini-e" => "RGB LED reverse mount",
         _ if matches!(&definition.kind, PartKind::Switch) => "solder hotswap",
         _ => "",
     }
@@ -809,7 +633,7 @@ mod tests {
     fn imported_source_hash_matches_the_bundled_source_digest() {
         assert_eq!(
             imported_parts_hash(),
-            "000f4ba13114305c33e1378806c25840d903fa335da559b88c9d9404731acd7f"
+            "179742117905b66a465c54d454ee5d49b0622e62edcc532c5502ae18aeb459e1"
         );
     }
 
@@ -828,11 +652,11 @@ mod tests {
     fn imported_and_project_overrides_keep_the_first_id_position() {
         let actual = imported_definitions().remove(0);
         let id = actual.id.clone();
-        let mut ergogen = actual.clone();
-        ergogen.name = "Ergogen value".into();
+        let mut generated = actual.clone();
+        generated.name = "Generator value".into();
         let mut imported = actual.clone();
         imported.name = "Imported value".into();
-        let bundled = merge_bundled_sources(&[ergogen], &[imported]);
+        let bundled = merge_bundled_sources(&[generated], &[imported]);
         assert_eq!(bundled.len(), 1);
         assert_eq!(bundled[0].definition.name, "Imported value");
         assert_eq!(bundled[0].source, CatalogueSource::Imported);
@@ -869,11 +693,11 @@ mod tests {
     #[wasm_bindgen_test]
     fn category_remains_searchable_alongside_special_search_aliases() {
         let mut led = imported_definitions().remove(0);
-        led.id = "ergogen:ceoloide/led_sk6812mini-e".into();
+        led.id = "generator:ceoloide/led_sk6812mini-e".into();
         led.kind = PartKind::Passive;
         let entry = CatalogEntry {
             definition: Rc::new(led),
-            source: CatalogueSource::Ergogen,
+            source: CatalogueSource::Generator,
         };
         assert!(entry.matches("passives & leds", "Passives & LEDs"));
         assert!(!entry.matches_library_search("passives & leds"));
@@ -881,34 +705,16 @@ mod tests {
         assert!(entry.matches_library_search("rgb led reverse mount"));
 
         let mut switch = (*entry.definition).clone();
-        switch.id = "ergogen:ceoloide/switch_mx".into();
+        switch.id = "generator:ceoloide/switch_mx".into();
         switch.kind = PartKind::Switch;
         let entry = CatalogEntry {
             definition: Rc::new(switch),
-            source: CatalogueSource::Ergogen,
+            source: CatalogueSource::Generator,
         };
         assert!(entry.matches("switches", "Switches"));
         assert!(!entry.matches_library_search("switches"));
         assert!(entry.matches("solder hotswap", "Switches"));
         assert!(entry.matches_library_search("solder hotswap"));
-    }
-
-    #[wasm_bindgen_test]
-    fn typed_generator_parameters_serialize_as_plain_json_objects() {
-        let mut definition = imported_definitions().remove(0);
-        let mut parameters = std::collections::BTreeMap::new();
-        parameters.insert("reversible".into(), serde_json::Value::Bool(true));
-        parameters.insert("hotswap".into(), serde_json::Value::Bool(false));
-        definition.generator = Some(boardstudio_core::model::PartGenerator {
-            source: "ceoloide/switch_gateron_ks27_ks33".into(),
-            version: "test".into(),
-            parameters,
-        });
-        let json = json_text(&definition).expect("serialize typed definition");
-        let json: serde_json::Value = serde_json::from_str(&json).expect("definition JSON");
-        assert!(json["generator"]["parameters"].is_object());
-        assert_eq!(json["generator"]["parameters"]["reversible"], true);
-        assert_eq!(json["generator"]["parameters"]["hotswap"], false);
     }
 
     #[wasm_bindgen_test]

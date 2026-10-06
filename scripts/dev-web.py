@@ -24,9 +24,7 @@ REQUIRED = (
     ROOT / "web/assets/core-worker/m1_core_worker_bg.wasm",
     ROOT / "web/assets/cad-worker/entry.js",
     ROOT / "web/assets/cad-worker/m1_cad_worker_bg.wasm",
-    ROOT / "web/assets/layout-generators/src/index.js",
     ROOT / "web/assets/imported-modules.json",
-    ROOT / "web/assets/preview-generator/worker.mjs",
     ROOT / "web/assets/fixtures/sofle.boardstudio",
 )
 

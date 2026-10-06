@@ -39,7 +39,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/sadekbaroudi-vik/pcb/per56-cirque-leds/pers60-cirque-leds-pcb.step",
-      "assetId": "ergogen:model:vik/sadekbaroudi-vik/pcb/per56-cirque-leds/pers60-cirque-leds-pcb.step"
+      "assetId": "bundled-model:vik/sadekbaroudi-vik/pcb/per56-cirque-leds/pers60-cirque-leds-pcb.step"
     },
     {
       "repository": "Ariamelon/Kiwano",
@@ -90,7 +90,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/Ariamelon-Kiwano/Showcase/Kiwano.step",
-      "assetId": "ergogen:model:vik/Ariamelon-Kiwano/Showcase/Kiwano.step"
+      "assetId": "bundled-model:vik/Ariamelon-Kiwano/Showcase/Kiwano.step"
     },
     {
       "repository": "Ariamelon/Kiwano",
@@ -129,7 +129,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/Ariamelon-Kiwano/3DP/Trackpad Mount.step",
-      "assetId": "ergogen:model:vik/Ariamelon-Kiwano/3DP/Trackpad Mount.step"
+      "assetId": "bundled-model:vik/Ariamelon-Kiwano/3DP/Trackpad Mount.step"
     },
     {
       "repository": "Ariamelon/Kiwano",
@@ -168,7 +168,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/Ariamelon-Kiwano/3DP/Trackball Mount Semi.step",
-      "assetId": "ergogen:model:vik/Ariamelon-Kiwano/3DP/Trackball Mount Semi.step"
+      "assetId": "bundled-model:vik/Ariamelon-Kiwano/3DP/Trackball Mount Semi.step"
     },
     {
       "repository": "Ariamelon/Kiwano",
@@ -207,7 +207,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/Ariamelon-Kiwano/3DP/Trackball Mount Low Profile.step",
-      "assetId": "ergogen:model:vik/Ariamelon-Kiwano/3DP/Trackball Mount Low Profile.step"
+      "assetId": "bundled-model:vik/Ariamelon-Kiwano/3DP/Trackball Mount Low Profile.step"
     },
     {
       "repository": "Ariamelon/Kiwano",
@@ -246,7 +246,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/Ariamelon-Kiwano/3DP/Trackball Mount Full.step",
-      "assetId": "ergogen:model:vik/Ariamelon-Kiwano/3DP/Trackball Mount Full.step"
+      "assetId": "bundled-model:vik/Ariamelon-Kiwano/3DP/Trackball Mount Full.step"
     },
     {
       "repository": "Ariamelon/Kiwano",
@@ -285,7 +285,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/Ariamelon-Kiwano/3DP/Knob Ribbed.step",
-      "assetId": "ergogen:model:vik/Ariamelon-Kiwano/3DP/Knob Ribbed.step"
+      "assetId": "bundled-model:vik/Ariamelon-Kiwano/3DP/Knob Ribbed.step"
     },
     {
       "repository": "Ariamelon/Kiwano",
@@ -324,7 +324,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/Ariamelon-Kiwano/3DP/Knob Low Profile.step",
-      "assetId": "ergogen:model:vik/Ariamelon-Kiwano/3DP/Knob Low Profile.step"
+      "assetId": "bundled-model:vik/Ariamelon-Kiwano/3DP/Knob Low Profile.step"
     },
     {
       "repository": "Ariamelon/Kiwano",
@@ -363,7 +363,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/Ariamelon-Kiwano/3DP/Knob Full.step",
-      "assetId": "ergogen:model:vik/Ariamelon-Kiwano/3DP/Knob Full.step"
+      "assetId": "bundled-model:vik/Ariamelon-Kiwano/3DP/Knob Full.step"
     },
     {
       "repository": "Ariamelon/Kiwano",
@@ -402,7 +402,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/Ariamelon-Kiwano/3DP/Knob Base.step",
-      "assetId": "ergogen:model:vik/Ariamelon-Kiwano/3DP/Knob Base.step"
+      "assetId": "bundled-model:vik/Ariamelon-Kiwano/3DP/Knob Base.step"
     },
     {
       "repository": "Ariamelon/Crenshaw",
@@ -462,7 +462,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/Ariamelon-Crenshaw/Showcase/Crenshaw.step",
-      "assetId": "ergogen:model:vik/Ariamelon-Crenshaw/Showcase/Crenshaw.step"
+      "assetId": "bundled-model:vik/Ariamelon-Crenshaw/Showcase/Crenshaw.step"
     },
     {
       "repository": "Ariamelon/Crenshaw",
@@ -502,7 +502,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/Ariamelon-Crenshaw/PCB/Crenshaw.pretty/3d/FH12-30S-0.5SH.step",
-      "assetId": "ergogen:model:vik/Ariamelon-Crenshaw/PCB/Crenshaw.pretty/3d/FH12-30S-0.5SH.step"
+      "assetId": "bundled-model:vik/Ariamelon-Crenshaw/PCB/Crenshaw.pretty/3d/FH12-30S-0.5SH.step"
     },
     {
       "repository": "Ariamelon/Crenshaw",
@@ -542,7 +542,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/Ariamelon-Crenshaw/PCB/Crenshaw.pretty/3d/FH12-12S-0.5SH.step",
-      "assetId": "ergogen:model:vik/Ariamelon-Crenshaw/PCB/Crenshaw.pretty/3d/FH12-12S-0.5SH.step"
+      "assetId": "bundled-model:vik/Ariamelon-Crenshaw/PCB/Crenshaw.pretty/3d/FH12-12S-0.5SH.step"
     },
     {
       "repository": "sadekbaroudi/vik",
@@ -586,7 +586,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/sadekbaroudi-vik/pcb/vik-playground/vik-playground.step",
-      "assetId": "ergogen:model:vik/sadekbaroudi-vik/pcb/vik-playground/vik-playground.step"
+      "assetId": "bundled-model:vik/sadekbaroudi-vik/pcb/vik-playground/vik-playground.step"
     },
     {
       "repository": "zzeneg/vik-display-adapter",
@@ -632,7 +632,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/zzeneg-vik-display-adapter/pcb/2inch-0.8mm/2inch-0.8mm.step",
-      "assetId": "ergogen:model:vik/zzeneg-vik-display-adapter/pcb/2inch-0.8mm/2inch-0.8mm.step",
+      "assetId": "bundled-model:vik/zzeneg-vik-display-adapter/pcb/2inch-0.8mm/2inch-0.8mm.step",
       "appliesToVariants": [
         "pcb/2inch-0.8mm/pcb"
       ]
@@ -674,7 +674,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/zzeneg-vik-display-adapter/pcb/1.47inch/LCD_lcd_ips.stp",
-      "assetId": "ergogen:model:vik/zzeneg-vik-display-adapter/pcb/1.47inch/LCD_lcd_ips.stp",
+      "assetId": "bundled-model:vik/zzeneg-vik-display-adapter/pcb/1.47inch/LCD_lcd_ips.stp",
       "appliesToVariants": [
         "pcb/1.47inch/pcb"
       ]
@@ -750,7 +750,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/zzeneg-vik-display-adapter/pcb/1.47inch/1.47inch.step",
-      "assetId": "ergogen:model:vik/zzeneg-vik-display-adapter/pcb/1.47inch/1.47inch.step",
+      "assetId": "bundled-model:vik/zzeneg-vik-display-adapter/pcb/1.47inch/1.47inch.step",
       "appliesToVariants": [
         "pcb/1.47inch/pcb"
       ],
@@ -845,7 +845,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/zzeneg-vik-display-adapter/pcb/1.28inch-round/GC9A01.step",
-      "assetId": "ergogen:model:vik/zzeneg-vik-display-adapter/pcb/1.28inch-round/GC9A01.step",
+      "assetId": "bundled-model:vik/zzeneg-vik-display-adapter/pcb/1.28inch-round/GC9A01.step",
       "appliesToVariants": [
         "pcb/1.28inch-round/pcb"
       ]
@@ -898,7 +898,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/zzeneg-vik-display-adapter/pcb/1.28inch-round/1.28inch-round.step",
-      "assetId": "ergogen:model:vik/zzeneg-vik-display-adapter/pcb/1.28inch-round/1.28inch-round.step",
+      "assetId": "bundled-model:vik/zzeneg-vik-display-adapter/pcb/1.28inch-round/1.28inch-round.step",
       "appliesToVariants": [
         "pcb/1.28inch-round/pcb"
       ]
@@ -957,7 +957,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/christrotter-shift-register-spi-breakout-pcb/matrix-inator-rev2.step",
-      "assetId": "ergogen:model:vik/christrotter-shift-register-spi-breakout-pcb/matrix-inator-rev2.step"
+      "assetId": "bundled-model:vik/christrotter-shift-register-spi-breakout-pcb/matrix-inator-rev2.step"
     },
     {
       "repository": "george-norton/peacock",
@@ -991,7 +991,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/george-norton-peacock/case/peacock-low-case-v5.stl",
-      "assetId": "ergogen:model:vik/george-norton-peacock/case/peacock-low-case-v5.stl"
+      "assetId": "bundled-model:vik/george-norton-peacock/case/peacock-low-case-v5.stl"
     },
     {
       "repository": "george-norton/peacock",
@@ -1030,7 +1030,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/george-norton-peacock/case/peacock-low-case-v5.step",
-      "assetId": "ergogen:model:vik/george-norton-peacock/case/peacock-low-case-v5.step"
+      "assetId": "bundled-model:vik/george-norton-peacock/case/peacock-low-case-v5.step"
     },
     {
       "repository": "george-norton/peacock",
@@ -1064,7 +1064,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/george-norton-peacock/case/peacock-low-case-v5-5deg-tilt.stl",
-      "assetId": "ergogen:model:vik/george-norton-peacock/case/peacock-low-case-v5-5deg-tilt.stl"
+      "assetId": "bundled-model:vik/george-norton-peacock/case/peacock-low-case-v5-5deg-tilt.stl"
     },
     {
       "repository": "george-norton/peacock",
@@ -1103,7 +1103,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/george-norton-peacock/case/peacock-low-case-v5-5deg-tilt.step",
-      "assetId": "ergogen:model:vik/george-norton-peacock/case/peacock-low-case-v5-5deg-tilt.step"
+      "assetId": "bundled-model:vik/george-norton-peacock/case/peacock-low-case-v5-5deg-tilt.step"
     },
     {
       "repository": "sadekbaroudi/vik",
@@ -1146,7 +1146,7 @@
         0
       ],
       "bundledFile": "ergogen/library/vendor/vik/3d_models/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal.stp",
-      "assetId": "ergogen:model:vik/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal.stp"
+      "assetId": "bundled-model:vik/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal.stp"
     },
     {
       "repository": "sadekbaroudi/vik",
@@ -1185,7 +1185,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal-mini.step",
-      "assetId": "ergogen:model:vik/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal-mini.step"
+      "assetId": "bundled-model:vik/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal-mini.step"
     },
     {
       "repository": "sadekbaroudi/fingerpunch",
@@ -1224,7 +1224,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/sadekbaroudi-fingerpunch/3d-models/display-housings/ili9341/ili9341-4inch-housing.step",
-      "assetId": "ergogen:model:vik/sadekbaroudi-fingerpunch/3d-models/display-housings/ili9341/ili9341-4inch-housing.step"
+      "assetId": "bundled-model:vik/sadekbaroudi-fingerpunch/3d-models/display-housings/ili9341/ili9341-4inch-housing.step"
     },
     {
       "repository": "sadekbaroudi/fingerpunch",
@@ -1263,7 +1263,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/sadekbaroudi-fingerpunch/3d-models/display-housings/ili9341/ili9341-4inch-cover.step",
-      "assetId": "ergogen:model:vik/sadekbaroudi-fingerpunch/3d-models/display-housings/ili9341/ili9341-4inch-cover.step"
+      "assetId": "bundled-model:vik/sadekbaroudi-fingerpunch/3d-models/display-housings/ili9341/ili9341-4inch-cover.step"
     },
     {
       "repository": "sadekbaroudi/fingerpunch",
@@ -1319,7 +1319,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/sadekbaroudi-fingerpunch/keyboards/vikropad/cases/choc-glp/vikropad-choc-glp-xivik.step",
-      "assetId": "ergogen:model:vik/sadekbaroudi-fingerpunch/keyboards/vikropad/cases/choc-glp/vikropad-choc-glp-xivik.step"
+      "assetId": "bundled-model:vik/sadekbaroudi-fingerpunch/keyboards/vikropad/cases/choc-glp/vikropad-choc-glp-xivik.step"
     },
     {
       "repository": "sadekbaroudi/fingerpunch",
@@ -1353,7 +1353,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/sadekbaroudi-fingerpunch/keyboards/vikropad/cases/choc-glp/vikropad-choc-glp-bottom-xivik.stl",
-      "assetId": "ergogen:model:vik/sadekbaroudi-fingerpunch/keyboards/vikropad/cases/choc-glp/vikropad-choc-glp-bottom-xivik.stl"
+      "assetId": "bundled-model:vik/sadekbaroudi-fingerpunch/keyboards/vikropad/cases/choc-glp/vikropad-choc-glp-bottom-xivik.stl"
     },
     {
       "repository": "sadekbaroudi/fingerpunch",
@@ -1387,7 +1387,7 @@
       "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
       "identityStatus": "candidate, not certified complete assembly",
       "bundledFile": "ergogen/library/vendor/vik/3d_models/sadekbaroudi-fingerpunch/keyboards/vikropad/cases/choc-glp/vikropad-choc-glp-body.stl",
-      "assetId": "ergogen:model:vik/sadekbaroudi-fingerpunch/keyboards/vikropad/cases/choc-glp/vikropad-choc-glp-body.stl"
+      "assetId": "bundled-model:vik/sadekbaroudi-fingerpunch/keyboards/vikropad/cases/choc-glp/vikropad-choc-glp-body.stl"
     }
   ]
 }

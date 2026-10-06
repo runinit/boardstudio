@@ -16,6 +16,7 @@ mod keymap;
 mod matrix;
 pub mod mechanical;
 mod mechanical_checks;
+pub mod migrate;
 pub mod model;
 mod modules;
 mod outline_controls;
@@ -224,6 +225,9 @@ impl CoreEngine {
             CoreRequest::Open { id, mut document } => {
                 if document.format != "boardstudio/v2" {
                     return self.error(id, "Unsupported document format");
+                }
+                if document.format_version != migrate::CURRENT_VERSION {
+                    return self.error(id, "Document must be migrated before it is opened");
                 }
                 if let Some(map) = &document.keymap
                     && let Err(message) = keymap::validate(map)
@@ -1416,6 +1420,9 @@ fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String
         EditOperation::ReplaceDocument { document } => {
             if document.format != "boardstudio/v2" {
                 return Err("Unsupported document format".into());
+            }
+            if document.format_version != migrate::CURRENT_VERSION {
+                return Err("Document must be migrated before it replaces the open one".into());
             }
             let changed = changed_ids(doc, document);
             let mut prepared = document.as_ref().clone();

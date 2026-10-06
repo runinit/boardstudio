@@ -28,6 +28,7 @@ export const defaultOutlineSettings = {
 
 export const emptyProject = (id: Id, name: string): ProjectDoc => ({
   format: 'boardstudio/v2',
+  formatVersion: 2,
   id,
   name,
   revision: 0,

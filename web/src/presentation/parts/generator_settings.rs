@@ -1,4 +1,4 @@
-//! Parts-owned retained Ergogen settings drafts and their accepted edit boundary.
+//! Parts-owned retained generator settings drafts and their accepted edit boundary.
 use super::{GeneratorDraftStore, GeneratorPreviewDraft};
 use crate::{presentation::model_asset_import::read_model_file, runtime::Runtime};
 use boardstudio_application::{AcceptedSnapshot, Event, OperationId, Scope, TerminalOutcome};
@@ -753,7 +753,7 @@ pub(super) fn GeneratorSettingsEditor(
         .map(|generator| generator.source.clone())
         .unwrap_or_default();
     let schema = use_resource(use_reactive((&generator_source,), |(source,)| async move {
-        super::catalogue::ergogen_parameter_schema(&source).await
+        super::catalogue::generator_parameter_schema(&source).await
     }));
     let schema_result = schema.read().clone();
     let edits = use_signal(BTreeMap::<String, Value>::new);
@@ -1463,7 +1463,7 @@ mod tests {
 
     wasm_bindgen_test_configure!(run_in_browser);
 
-    const DEFINITION_ID: &str = "ergogen:ceoloide/switch_mx";
+    const DEFINITION_ID: &str = "generator:ceoloide/switch_mx";
 
     struct CandidateRequest {
         definition: PartDefinition,
@@ -1676,14 +1676,14 @@ mod tests {
             if let Some(index) = {
                 let queue = requests.borrow();
                 queue.iter().position(|request| {
-                    request.edits.get("side") == Some(&Value::String("B".into()))
+                    request.edits.get("side") == Some(&Value::String("F".into()))
                 })
             } {
                 return requests.borrow_mut().remove(index).unwrap();
             }
             gloo_timers::future::TimeoutFuture::new(10).await;
         }
-        panic!("initial mounted generator preview did not request the schema default side B");
+        panic!("initial mounted generator preview did not request the schema default side F");
     }
 
     fn definition() -> PartDefinition {
@@ -1911,11 +1911,11 @@ mod tests {
                 .unwrap()
                 .as_string()
                 .as_deref(),
-            Some("B")
+            Some("F")
         );
 
         let request = take_initial_default_request(&fixture.requests).await;
-        assert_eq!(request.edits.get("side"), Some(&Value::String("B".into())));
+        assert_eq!(request.edits.get("side"), Some(&Value::String("F".into())));
         let candidate =
             super::super::catalogue::normalize_generator_definition(candidate(&request))
                 .await
@@ -1927,8 +1927,8 @@ mod tests {
         );
         let pad_one = candidate.pads.iter().find(|pad| pad.number == "1").unwrap();
         let pad_two = candidate.pads.iter().find(|pad| pad.number == "2").unwrap();
-        assert!(pad_one.at.x < 0.0, "Back preview places pad 1 on the left");
-        assert!(pad_two.at.x > 0.0, "Back preview places pad 2 on the right");
+        assert!(pad_one.at.x > 0.0, "Front preview places pad 1 on the right");
+        assert!(pad_two.at.x < 0.0, "Front preview places pad 2 on the left");
         finish_request(request, Ok(candidate.clone())).await;
         wait_for_text(
             &root,
@@ -1948,7 +1948,7 @@ mod tests {
                 .as_ref()
                 .unwrap()
                 .parameters["side"],
-            "B"
+            "F"
         );
         let accepted = fixture.runtime.model().accepted.unwrap();
         assert_eq!(accepted.document, fixture.snapshot.document);

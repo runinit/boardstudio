@@ -17,7 +17,7 @@
   },
   "normalize": {
    "ok": {
-    "id": "ergogen:ceoloide/switch_mx",
+    "id": "generator:ceoloide/switch_mx",
     "name": "switch mx",
     "kind": "switch",
     "pads": [
@@ -380,8 +380,8 @@
   "ids": [
    "abc_123",
    null,
-   "ergogen:model:kicad/a.step",
-   "ergogen:model:infused-kim/b.wrl",
+   "bundled-model:kicad/a.step",
+   "bundled-model:infused-kim/b.wrl",
    null,
    null,
    null

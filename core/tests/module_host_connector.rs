@@ -16,7 +16,7 @@ fn export_host_board(document: &Value, scene: &Value) -> String {
     let contours = serde_json::from_value(scene["boardContours"][0]["contours"].clone()).unwrap();
     let mut model_paths = BTreeMap::new();
     model_paths.insert(
-        "ergogen:model:vik/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal.stp".into(),
+        "bundled-model:vik/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal.stp".into(),
         "models/vik-connector-horizontal.step".into(),
     );
     let plan = boardstudio_core::artifact::kicad::prepare_export(PrepareExportRequest {
@@ -89,7 +89,7 @@ fn host_connector() -> Value {
         })
         .map(|definition| {
             let mut definition = definition.clone();
-            definition["models"] = json!([{"assetId":"ergogen:model:vik/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal.stp",
+            definition["models"] = json!([{"assetId":"bundled-model:vik/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal.stp",
                 "offset":{"x":-2.75,"y":2.3,"z":0},"rotation":{"x":0,"y":0,"z":0},"scale":{"x":1,"y":1,"z":1}}]);
             definition
         }).unwrap()

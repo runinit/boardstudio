@@ -1,15 +1,12 @@
-//! Dioxus owns drawing; the unchanged catalogue service owns generator execution.
+//! Dioxus owns drawing; the Rust footprint generators own generator execution.
 use crate::footprint_forms::{self as forms, Graphic, Shape};
 use boardstudio_core::model::{PartDefinition, Side};
 use dioxus::prelude::*;
-use js_sys::{Function, Promise, Reflect};
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet, VecDeque},
     rc::Rc,
 };
-use wasm_bindgen::{JsCast, JsValue};
-use wasm_bindgen_futures::JsFuture;
 
 pub(super) type Drawings = Rc<Vec<Graphic>>;
 
@@ -25,57 +22,17 @@ thread_local! {
     static CACHE: RefCell<VecDeque<(String, Drawings)>> = const { RefCell::new(VecDeque::new()) };
 }
 
-fn js_error(error: JsValue) -> String {
-    format!("{error:?}")
-}
-
-async fn load_generators() -> Result<JsValue, String> {
-    let url = crate::runtime::resource_url("assets/layout-generators.js")?;
-    let import = Function::new_with_args("url", "return import(url)");
-    JsFuture::from(
-        import
-            .call1(&JsValue::NULL, &url.into())
-            .map_err(js_error)?
-            .dyn_into::<Promise>()
-            .map_err(js_error)?,
-    )
-    .await
-    .map_err(js_error)
-}
-
 /// Read only the envelope defaults used by the Parts library preview. The
-/// retained generator module remains the source of truth for Ergogen defaults.
+/// generator's declared parameters are the source of truth for its defaults.
 pub(super) async fn generator_preview_defaults(
     source: &str,
 ) -> Result<Option<GeneratorPreviewDefaults>, String> {
-    let module = load_generators().await?;
-    let is_ergogen = Reflect::get(&module, &"isErgogen".into())
-        .map_err(js_error)?
-        .dyn_into::<Function>()
-        .map_err(js_error)?;
-    if !is_ergogen
-        .call1(&JsValue::NULL, &source.into())
-        .map_err(js_error)?
-        .as_bool()
-        .unwrap_or(false)
-    {
+    if !boardstudio_core::generators::is_generator(source) {
         return Ok(None);
     }
-    let parameters = Reflect::get(&module, &"parameters".into())
-        .map_err(js_error)?
-        .dyn_into::<Function>()
-        .map_err(js_error)?;
-    let parameters = parameters
-        .call1(&JsValue::NULL, &source.into())
-        .map_err(js_error)?;
-    let json = js_sys::JSON::stringify(&parameters)
-        .map_err(js_error)?
-        .as_string()
-        .ok_or("Generator parameters returned no JSON")?;
-    let parameters: serde_json::Value =
-        serde_json::from_str(&json).map_err(|error| error.to_string())?;
+    let parameters = boardstudio_core::generators::parameter_schema(source)?;
     Ok(Some(generator_preview_defaults_from_parameters(
-        &parameters,
+        &serde_json::to_value(parameters).map_err(|error| error.to_string())?,
     )))
 }
 
@@ -142,46 +99,11 @@ pub(super) async fn generator_drawings(
     }) {
         return Ok(Some(result));
     }
-    let module = load_generators().await?;
-    // Concurrent instances can finish importing the same module together.
-    if let Some(result) = CACHE.with(|cache| {
-        cache
-            .borrow()
-            .iter()
-            .find(|(k, _)| k == &key)
-            .map(|(_, v)| v.clone())
-    }) {
-        return Ok(Some(result));
-    }
-    let is_ergogen = Reflect::get(&module, &"isErgogen".into())
-        .map_err(js_error)?
-        .dyn_into::<Function>()
-        .map_err(js_error)?;
-    if !is_ergogen
-        .call1(&JsValue::NULL, &source.into())
-        .map_err(js_error)?
-        .as_bool()
-        .unwrap_or(false)
-    {
+    if !boardstudio_core::generators::is_generator(&source) {
         return Ok(None);
     }
-    let render = Reflect::get(&module, &"render".into())
-        .map_err(js_error)?
-        .dyn_into::<Function>()
-        .map_err(js_error)?;
-    let result = render
-        .call1(
-            &JsValue::NULL,
-            &js_sys::JSON::parse(&key).map_err(js_error)?,
-        )
-        .map_err(js_error)?;
-    let result = js_sys::JSON::stringify(&result)
-        .map_err(js_error)?
-        .as_string()
-        .ok_or("Generator returned no drawing")?;
-    let result = Rc::new(forms::project(
-        &serde_json::from_str(&result).map_err(|e| e.to_string())?,
-    ));
+    let rendered = boardstudio_core::generators::render_forms(&definition, None)?;
+    let result = Rc::new(forms::project(&rendered));
     CACHE.with(|cache| {
         let mut cache = cache.borrow_mut();
         if cache.len() >= 64 {

@@ -543,44 +543,6 @@ class RunWasmTestsTests(unittest.TestCase):
                 runner.selection_for_listed_files(
                     ["web/src/presentation/objects/matrix_transform_inspector.rs"], {}, self.dir)
 
-    def test_generator_harness_builds_once_serves_allowlisted_assets_and_cleans_up(self):
-        calls = []
-
-        def build(command, **_kwargs):
-            calls.append(command)
-            assets = Path(command[-1])
-            (assets / "layout-generators/src").mkdir(parents=True)
-            (assets / "layout-generators/generated").mkdir(parents=True)
-            (assets / "layout-generators/src/index.js").write_text("export const test = true;")
-            (assets / "layout-generators/generated/catalogue.mjs").write_text("export const catalogue = [];")
-            return type("Result", (), {"returncode": 0, "stdout": "", "stderr": ""})()
-
-        source_env = {"KEEP": "unchanged"}
-        with patch.object(runner.subprocess, "run", side_effect=build):
-            with runner.packaged_generator_harness(self.dir, source_env) as env:
-                module_url = env[runner.GENERATOR_MODULE_URL_ENV]
-                with urlopen(module_url) as response:
-                    self.assertEqual(response.headers["Access-Control-Allow-Origin"], "*")
-                    self.assertEqual(response.read(), b"export const test = true;")
-                with self.assertRaises(HTTPError) as response:
-                    urlopen(module_url.replace("src/index.js", "../../etc/passwd"))
-                self.assertEqual(response.exception.code, 404)
-                response.exception.close()
-            self.assertEqual(len(calls), 1)
-            self.assertEqual(source_env, {"KEEP": "unchanged"})
-            with self.assertRaises(URLError):
-                urlopen(module_url, timeout=1)
-
-    def test_generator_harness_is_selected_only_for_relevant_sources(self):
-        self.assertTrue(runner.selected_generator_sources(["web/src/bundled_models.rs"], self.dir))
-        self.assertTrue(runner.selected_generator_sources(
-            ["web/src/presentation/parts/catalogue.rs"], self.dir))
-        self.assertFalse(runner.selected_generator_sources(
-            ["web/src/presentation/layout_camera.rs"], self.dir))
-        self.assertTrue(runner.selected_generator_sources(
-            ["web/src/presentation/objects/matrix_transform_inspector.rs"], self.dir),
-            "the reviewed mounted controller owner loads the packaged catalogue asynchronously")
-
     def test_desktop_webdriver_config_is_wide_and_preserves_explicit_override(self):
         with runner.desktop_webdriver_config({}) as env:
             config_path = Path(env[runner.WEBDRIVER_CONFIG_ENV])
@@ -598,44 +560,6 @@ class RunWasmTestsTests(unittest.TestCase):
         with runner.desktop_webdriver_config({}, self.dir) as env:
             self.assertEqual(env[runner.WEBDRIVER_CONFIG_ENV], str(crate_config.resolve()))
 
-    def test_main_keeps_one_generator_url_and_webdriver_config_through_listing_and_runs(self):
-        build_calls, seen_urls, seen_configs = [], [], []
-
-        def build(command, **_kwargs):
-            build_calls.append(command)
-            assets = Path(command[-1])
-            (assets / "layout-generators/src").mkdir(parents=True)
-            (assets / "layout-generators/generated").mkdir(parents=True)
-            (assets / "layout-generators/src/index.js").write_text("export const test = true;")
-            (assets / "layout-generators/generated/catalogue.mjs").write_text("export const catalogue = [];")
-            return type("Result", (), {"returncode": 0, "stdout": "", "stderr": ""})()
-
-        def list_tests(env, _root):
-            seen_urls.append(env[runner.GENERATOR_MODULE_URL_ENV])
-            seen_configs.append(env[runner.WEBDRIVER_CONFIG_ENV])
-            self.assertTrue(Path(seen_configs[-1]).exists())
-            return ["a::m1::t1", "b::m2::t2"]
-
-        def run_filter(filter_, env, _root):
-            seen_urls.append(env[runner.GENERATOR_MODULE_URL_ENV])
-            seen_configs.append(env[runner.WEBDRIVER_CONFIG_ENV])
-            name = "a::m1::t1" if filter_ == "a::m1::" else "b::m2::t2"
-            return 0, {name: "ok"}, f"test {name} ... ok"
-
-        with (
-            patch.dict(os.environ, {runner.RUNNER_ENV: ""}),
-            patch.object(runner, "runner_environment", return_value={"PATH": os.environ.get("PATH", "")}),
-            patch.object(runner, "list_wasm_tests", side_effect=list_tests),
-            patch.object(runner, "run_filter", side_effect=run_filter),
-            patch.object(runner.subprocess, "run", side_effect=build),
-        ):
-            code = runner.main(["--all", "--root", str(self.dir)])
-
-        self.assertEqual(code, 0)
-        self.assertEqual(len(build_calls), 1)
-        self.assertEqual(len(set(seen_urls)), 1)
-        self.assertEqual(len(set(seen_configs)), 1)
-        self.assertFalse(Path(seen_configs[0]).exists())
 
 
 if __name__ == "__main__":

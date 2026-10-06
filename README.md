@@ -19,7 +19,7 @@ pnpm dev
 The development server runs at `http://127.0.0.1:8080/`. It builds missing runtime
 providers on the first run, then Dioxus watches page edits in the working tree.
 Commits, agent registration and migration records are not required.
-After changing a worker, generator, bundled example or CAD provider, run
+After changing a worker, bundled example or CAD provider, run
 `pnpm build:providers` to regenerate those assets before testing the page.
 
 ## Build and preview
@@ -37,9 +37,8 @@ from the watched development loop. Development uses an online server; use the
 production preview to test offline behavior.
 
 The normal Dioxus service worker supports offline use and application updates.
-React, its deployment handoff and rollback tooling are retired. Old project-file
-backward compatibility is not maintained; current projects still save locally and
-round-trip through `.boardstudio` exports. Existing user files are never erased by
+React, its deployment handoff and rollback tooling are retired. Version 1 projects migrate to document format version 2 when loaded; current
+projects save locally and round-trip through `.boardstudio` exports. Existing user files are never erased by
 build or cleanup commands.
 
 ## Checks
@@ -68,13 +67,14 @@ before executing tests.
 | `core/` | Document engine, geometry, artifacts and archives |
 | `renderer/`, `cad/` | Rendering and CAD providers |
 | `contracts/` | Generated Rust/TypeScript contracts |
-| `footprints/` | Rust footprint generator framework; generators are being ported from `ergogen/` |
-| `ergogen/`, `kicad/` | Trusted generators and PCB providers |
+| `footprints/` | Built-in Rust footprint generators, normalization and model references |
+| `ergogen/library/` | Vendored models, source manifests and attribution |
+| `kicad/` | PCB integration checks against Core and KiCad |
 | `catalogue/`, `content/` | Components, models, licences and bundled examples |
-| `tooling/demo-projects/` | Build-time project preparation; no React UI |
+| `core/examples/demo_projects/`, `content/layouts/` | Native bundled-project recipes and measured source layouts |
 | `scripts/` | Build, content preparation and checks |
 
-TypeScript/JavaScript is retained for working providers and tooling. User-supplied
+TypeScript/JavaScript is retained for working providers and tooling. Footprint generation runs in Rust inside Core and the page. User-supplied
 JavaScript generators are not executed. Bundled model export includes used assets;
 missing or unsupported model paths fail explicitly.
 

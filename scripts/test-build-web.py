@@ -18,9 +18,8 @@ class BuildWebTests(unittest.TestCase):
         joined = "\n".join(commands)
         for retained in (
             "wasm-pack build core", "--features core-worker", "--features cad-worker",
-            "pnpm --dir cad run build:wasm", "prepare:catalog",
-            "build-layout-generators.mjs", "build-preview-generator.mjs",
-            "prepare-demo-projects.mjs", "stage-ergogen-models.py",
+            "pnpm --dir cad run build:wasm",
+            "--example prepare_demo_projects", "stage-ergogen-models.py",
         ):
             self.assertIn(retained, joined)
 
@@ -45,6 +44,10 @@ class BuildWebTests(unittest.TestCase):
             public = web / "target/dx/boardstudio-web/release/web/public"
             (web / "assets").mkdir(parents=True)
             (web / "assets/m1.css").write_text("body{}")
+            (web / "assets/layout-generators.js").write_text("obsolete generator")
+            for name in ("layout-generators", "preview-generator"):
+                (web / "assets" / name).mkdir()
+                (web / "assets" / name / "worker.mjs").write_text("obsolete generator")
             (root / "catalogue/modules").mkdir(parents=True)
             (root / "catalogue/modules/imported-modules.json").write_text('{"modules":[]}')
             (root / "cad/wasm/pkg").mkdir(parents=True)
@@ -78,6 +81,8 @@ class BuildWebTests(unittest.TestCase):
             self.assertEqual((subpath_site / "index.html").read_text(), "/boardstudio/")
             for site in (root_site, subpath_site):
                 self.assertTrue((site / "assets/m1.css").is_file())
+                for name in ("layout-generators.js", "layout-generators", "preview-generator"):
+                    self.assertFalse((site / "assets" / name).exists(), name)
                 self.assertTrue((site / "assets/imported-modules.json").is_file())
                 self.assertTrue((site / "assets/cad/cad.js").is_file())
                 self.assertTrue((site / "assets/renderer/renderer.js").is_file())

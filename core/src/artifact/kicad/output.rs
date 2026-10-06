@@ -387,7 +387,7 @@ fn disambiguate_standalone_footprint(
 fn finish_standalone(
     plan: &ExportPlan,
     definition_ids: &[String],
-    results: &[ErgogenJobResult],
+    results: &[RenderedJob],
 ) -> Result<(Vec<ArtifactFile>, Vec<String>), ArtifactError> {
     let definitions = plan
         .captured_document
@@ -411,7 +411,7 @@ fn finish_standalone(
     let mut skipped_utilities = Vec::new();
     let mut result_index = 0;
     for (definition, output_name) in selected_definitions.iter().zip(output_names) {
-        let content = if is_ergogen(definition) {
+        let content = if is_generated(definition) {
             let result = results.get(result_index).ok_or_else(|| {
                 err(
                     ArtifactErrorCode::MismatchedResults,
@@ -516,7 +516,7 @@ fn finish_board(
         .enumerate()
         .map(|(index, id)| (id.as_str(), index as u32 + 1))
         .collect::<HashMap<_, _>>();
-    let mut ergogen_result_index = 0;
+    let mut generated_result_index = 0;
     let mut footprints = Vec::new();
     let mut generated_objects = Vec::new();
     let mut generated_traces = Vec::new();
@@ -529,9 +529,9 @@ fn finish_board(
             .get(part.definition_id.as_str())
             .ok_or_else(|| validation(format!("Missing part or definition: {part_id}")))?;
         let scope = format!("{board_id}:part:{part_id}");
-        if is_ergogen(definition) {
-            let forms = validate_generated_forms(&results[ergogen_result_index], generated_nets)?;
-            ergogen_result_index += 1;
+        if is_generated(definition) {
+            let forms = validate_generated_forms(&results[generated_result_index], generated_nets)?;
+            generated_result_index += 1;
             let mut board_objects_here = Vec::new();
             for form in forms {
                 if form.starts_with("(footprint ") || form.starts_with("(module ") {

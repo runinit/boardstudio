@@ -87,6 +87,7 @@ fn dispatch(request: ArchiveRequest, buffers: &[Vec<u8>], limits: Limits) -> Arc
             )
             .map_err(|_| "Project JSON is not UTF-8")?;
             let references = asset_references(&project_json)?;
+            let (project_json, _) = crate::migrate::migrate_json(&project_json)?;
             let indexed = files
                 .iter()
                 .map(|(name, bytes)| (name.as_str(), bytes.as_slice()))
@@ -371,7 +372,7 @@ mod tests {
     use serde_json::json;
 
     fn document(hashes: &[String]) -> String {
-        json!({"format":"boardstudio/v2","parts":[],"boards":[],"assets":hashes.iter().map(|hash| json!({"id":hash,"name":"fixture.step","sha256":hash})).collect::<Vec<_>>(),"future":{"keep":true}}).to_string()
+        json!({"format":"boardstudio/v2","formatVersion":2,"parts":[],"boards":[],"assets":hashes.iter().map(|hash| json!({"id":hash,"name":"fixture.step","sha256":hash})).collect::<Vec<_>>(),"future":{"keep":true}}).to_string()
     }
 
     fn pack_project(json: String, files: &[(String, Vec<u8>)], limits: Limits) -> ArchiveResult {
@@ -394,6 +395,34 @@ mod tests {
                 .collect::<Vec<_>>(),
             limits,
         )
+    }
+
+    #[test]
+    fn unpacking_a_version_1_project_migrates_it() {
+        let json = json!({
+            "format": "boardstudio/v2", "parts": [], "boards": [], "assets": [],
+            "definitions": [{ "id": "ergogen:ceoloide/switch_mx" }],
+        })
+        .to_string();
+        let (_, packed) = pack_project(json, &[], LIMITS).unwrap();
+        let (reply, _) = dispatch(ArchiveRequest::UnpackProject, &packed, LIMITS).unwrap();
+        let ArchiveReply::Unpacked { project_json, .. } = reply else {
+            panic!("expected project")
+        };
+        let project: serde_json::Value = serde_json::from_str(&project_json).unwrap();
+        assert_eq!(project["formatVersion"], 2);
+        assert_eq!(project["definitions"][0]["id"], "generator:ceoloide/switch_mx");
+    }
+
+    #[test]
+    fn unpacking_a_project_from_a_newer_version_is_rejected() {
+        let json = json!({
+            "format": "boardstudio/v2", "formatVersion": 99, "parts": [], "boards": [], "assets": [],
+        })
+        .to_string();
+        let (_, packed) = pack_project(json, &[], LIMITS).unwrap();
+        let error = dispatch(ArchiveRequest::UnpackProject, &packed, LIMITS).unwrap_err();
+        assert!(error.contains("newer than this app supports"), "{error}");
     }
 
     #[test]

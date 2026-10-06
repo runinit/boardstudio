@@ -1063,7 +1063,7 @@
         },
         "models": [
           {
-            "assetId": "ergogen:model:thqwgd001/THQWGD001 #1.stp",
+            "assetId": "bundled-model:thqwgd001/THQWGD001 #1.stp",
             "offset": {
               "x": 0,
               "y": 0,
@@ -1654,7 +1654,7 @@
         },
         "models": [
           {
-            "assetId": "ergogen:model:thqwgd001/THQWGD001C [2pin] #1.stp",
+            "assetId": "bundled-model:thqwgd001/THQWGD001C [2pin] #1.stp",
             "offset": {
               "x": 0,
               "y": 0,
@@ -2321,7 +2321,7 @@
         },
         "models": [
           {
-            "assetId": "ergogen:model:thqwgd001/THQWGD001C [4pin] #1.stp",
+            "assetId": "bundled-model:thqwgd001/THQWGD001C [4pin] #1.stp",
             "offset": {
               "x": 0,
               "y": 0,

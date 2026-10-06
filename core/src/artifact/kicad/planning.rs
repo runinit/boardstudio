@@ -42,8 +42,8 @@ fn prepare(request: PrepareExportRequest, fabrication: bool) -> Result<ExportPla
                 if fabrication {
                     require_footprint_qualification(definition)?;
                 }
-                if is_ergogen(definition) {
-                    jobs.push(ErgogenJob {
+                if is_generated(definition) {
+                    jobs.push(RenderJob {
                         job_id: format!("{}:{}", board.id, part.id),
                         definition: (*definition).clone(),
                         part: terminal_parameters(definition, part, doc, board, &pin_map)?,
@@ -85,8 +85,8 @@ fn prepare(request: PrepareExportRequest, fabrication: bool) -> Result<ExportPla
                 if fabrication {
                     require_footprint_qualification(definition)?;
                 }
-                if is_ergogen(definition) {
-                    jobs.push(ErgogenJob {
+                if is_generated(definition) {
+                    jobs.push(RenderJob {
                         job_id: format!("definition:{}", definition.id),
                         definition: (*definition).clone(),
                         part: standalone_part(definition),

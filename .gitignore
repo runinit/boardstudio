@@ -47,9 +47,6 @@ __pycache__/
 .scratch/
 core/pkg/
 web/assets/ergogen-models/
-web/assets/layout-generators/
-web/assets/layout-generators.js
-web/assets/preview-generator/
 web/assets/fixtures/
 web/assets/core-worker/
 web/assets/cad-worker/

@@ -13,26 +13,25 @@
     "build:renderer:dev": "wasm-pack build renderer --target web --out-dir pkg --out-name boardstudio_renderer_wasm --dev --locked",
     "build": "python3 scripts/build-web.py",
     "build:cad": "pnpm --dir cad run build:wasm",
-    "typecheck": "cargo check --manifest-path web/Cargo.toml --locked --target wasm32-unknown-unknown --no-default-features --features page --bin boardstudio-web && pnpm --dir cad exec tsc --noEmit -p tsconfig.json && tsc --noEmit -p tooling/demo-projects/tsconfig.json",
+    "typecheck": "cargo check --manifest-path web/Cargo.toml --locked --target wasm32-unknown-unknown --no-default-features --features page --bin boardstudio-web && pnpm --dir cad exec tsc --noEmit -p tsconfig.json",
     "precommit": "pnpm run build:core && pnpm run typecheck",
-    "test": "cargo test --manifest-path core/Cargo.toml --locked && cargo test --manifest-path application/Cargo.toml --locked && cargo test --manifest-path footprints/Cargo.toml --locked && cargo test --manifest-path renderer/Cargo.toml --locked && pnpm --dir ergogen test && pnpm --dir kicad test && pnpm --dir cad test && cargo test --manifest-path web/Cargo.toml --locked --lib --bin boardstudio-web",
+    "test": "cargo test --manifest-path core/Cargo.toml --locked && cargo test --manifest-path application/Cargo.toml --locked && cargo test --manifest-path footprints/Cargo.toml --locked && cargo test --manifest-path renderer/Cargo.toml --locked && pnpm --dir kicad test && pnpm --dir cad test && cargo test --manifest-path web/Cargo.toml --locked --lib --bin boardstudio-web",
     "generate:contracts": "node contracts/scripts/contracts.mjs generate",
     "check:contracts": "node contracts/scripts/contracts.mjs check",
     "test:contracts": "node contracts/test/runtime-import.test.mjs",
     "check:boundaries": "node scripts/check-rust-boundaries.mjs",
     "check:repo": "node --test scripts/repo-check.test.mjs && node scripts/repo-check.mjs",
-    "check": "pnpm run check:repo && pnpm run check:contracts && pnpm run test:contracts && pnpm run test:tooling && pnpm run build && pnpm run test && pnpm run typecheck && pnpm run check:boundaries && pnpm run test:browser && pnpm run test:browser:transport",
+    "check": "pnpm run check:repo && pnpm run check:contracts && pnpm run test:contracts && pnpm run test:tooling && pnpm run build && pnpm run test && pnpm run typecheck && pnpm run check:boundaries && pnpm run test:browser",
     "check:security": "python3 -B scripts/security-audit.test.py && python3 scripts/security-audit.py",
-    "test:browser": "python3 scripts/check-wasm-tests.py && pnpm run test:browser:prepare && python3 scripts/run-wasm-tests.py --all --depth 1 --isolate presentation::case_workspace:: --isolate presentation::setup_guide:: --isolate presentation::panels:: --result-json web/target/test-results/browser.json",
+    "test:browser": "python3 scripts/check-wasm-tests.py && pnpm run test:browser:storage && pnpm run test:browser:prepare && python3 scripts/run-wasm-tests.py --all --depth 1 --isolate presentation::case_workspace:: --isolate presentation::setup_guide:: --isolate presentation::panels:: --result-json web/target/test-results/browser.json",
     "build:providers": "python3 scripts/build-web.py --providers-only",
     "preview": "python3 scripts/serve-web.py web/target/site 4173",
     "test:browser:prepare": "wasm-pack test --headless --chrome web --locked --no-default-features --features page --bin boardstudio-web -- --list",
-    "test:tooling": "python3 -B scripts/test-build-web.py && python3 -B scripts/test-serve-web.py && python3 -B scripts/test-dev-web.py && python3 -B scripts/test-run-wasm-tests.py && python3 -B scripts/test-check-wasm-tests.py && python3 -B scripts/test-stage-ergogen-models.py && node --test scripts/import-kicad-parts.test.mjs scripts/web/preview-generator-worker.test.mjs",
-    "test:browser:transport": "node scripts/web/test-preview-generator-transport.mjs"
+    "test:tooling": "python3 -B scripts/test-build-web.py && python3 -B scripts/test-serve-web.py && python3 -B scripts/test-dev-web.py && python3 -B scripts/test-run-wasm-tests.py && python3 -B scripts/test-check-wasm-tests.py && python3 -B scripts/test-stage-ergogen-models.py && node --test scripts/import-kicad-parts.test.mjs",
+    "test:browser:storage": "wasm-pack test --headless --chrome web --locked --no-default-features --features page --lib -- host::storage::"
   },
   "devDependencies": {
     "typescript": "7.0.2",
-    "fflate": "0.8.3",
-    "vite": "8.3.1"
+    "fflate": "0.8.3"
   }
 }

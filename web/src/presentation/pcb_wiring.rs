@@ -348,7 +348,7 @@ pub(in crate::presentation) fn PcbWiringInspector(props: PcbWiringInspectorProps
     });
     let ergogen_source = use_resource(use_reactive((&generator_source,), |(source,)| async move {
         match source {
-            Some(source) => crate::presentation::parts::is_ergogen_source(source).await,
+            Some(source) => crate::presentation::parts::is_generator_source(source).await,
             None => Ok(false),
         }
     }));

@@ -27,4 +27,8 @@ export type ProjectDoc = {
 /**
  * View-only physical context used by Rust assembly preparation; canonical edits omit it.
  */
-physicalInstanceId?: string, moduleDefinitions?: Array<ModuleDefinition>, modules?: Array<MountedModule>, embeddedCircuits?: Array<EmbeddedCircuit>, keymap?: KeymapConfiguration, keycaps?: KeycapConfiguration, hardware?: HardwareConfiguration, mechanical?: MechanicalConfiguration, boardReferences?: Array<BoardReference>, assemblies?: Array<AssemblyDefinition>, format: "boardstudio/v2", id: string, name: string, revision: number, parameters: { [key in string]: JsonValue }, definitions: Array<PartDefinition>, parts: Array<Part>, matrices: Array<Matrix>, layouts?: Array<Layout>, nets: Array<Net>, outline: Array<OutlineFeature>, boardOutlines?: Array<BoardOutline>, boards: Array<Board>, caseBodies: Array<CaseBody>, materials: Array<Material>, assets: Array<Asset>, scripts: Array<Script>, constraints: Array<Constraint>, };
+physicalInstanceId?: string, moduleDefinitions?: Array<ModuleDefinition>, modules?: Array<MountedModule>, embeddedCircuits?: Array<EmbeddedCircuit>, keymap?: KeymapConfiguration, keycaps?: KeycapConfiguration, hardware?: HardwareConfiguration, mechanical?: MechanicalConfiguration, boardReferences?: Array<BoardReference>, assemblies?: Array<AssemblyDefinition>, format: "boardstudio/v2",
+/**
+ * Schema version of the document; a document without one is version 1.
+ */
+formatVersion?: number, id: string, name: string, revision: number, parameters: { [key in string]: JsonValue }, definitions: Array<PartDefinition>, parts: Array<Part>, matrices: Array<Matrix>, layouts?: Array<Layout>, nets: Array<Net>, outline: Array<OutlineFeature>, boardOutlines?: Array<BoardOutline>, boards: Array<Board>, caseBodies: Array<CaseBody>, materials: Array<Material>, assets: Array<Asset>, scripts: Array<Script>, constraints: Array<Constraint>, };

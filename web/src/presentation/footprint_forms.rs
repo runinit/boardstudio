@@ -1,5 +1,5 @@
-//! Presentation projection of the retained generator's KiCad forms, in Y-up units.
-use serde_json::Value;
+//! Presentation projection of a generator's KiCad forms, in Y-up units.
+use boardstudio_core::generators::Expr;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct Point(pub f64, pub f64);
@@ -20,40 +20,35 @@ pub(super) struct Graphic {
     pub shape: Shape,
 }
 
-fn child<'a>(form: &'a [Value], name: &str) -> Option<&'a [Value]> {
-    form.iter()
-        .filter_map(Value::as_array)
-        .find(|v| v.first().and_then(Value::as_str) == Some(name))
-        .map(Vec::as_slice)
+fn child<'a>(form: &'a [Expr], name: &str) -> Option<&'a [Expr]> {
+    boardstudio_core::generators::child(form, name)
 }
 
-fn scalar(form: &[Value], index: usize) -> Option<&str> {
-    form.get(index)?
-        .as_str()
-        .map(|s| s.strip_prefix('\0').unwrap_or(s))
+fn scalar(form: &[Expr], index: usize) -> Option<&str> {
+    form.get(index)?.value().ok()
 }
 
-fn number(form: &[Value], index: usize) -> Option<f64> {
+fn number(form: &[Expr], index: usize) -> Option<f64> {
     scalar(form, index)?
         .parse::<f64>()
         .ok()
         .filter(|v| v.is_finite())
 }
 
-fn point(form: Option<&[Value]>) -> Option<Point> {
+fn point(form: Option<&[Expr]>) -> Option<Point> {
     let form = form?;
     Some(Point(number(form, 1)?, -number(form, 2)?))
 }
 
-fn descendant<'a>(form: &'a [Value], name: &str) -> Option<&'a [Value]> {
+fn descendant<'a>(form: &'a [Expr], name: &str) -> Option<&'a [Expr]> {
     child(form, name).or_else(|| {
         form.iter()
-            .filter_map(Value::as_array)
+            .filter_map(Expr::as_list)
             .find_map(|v| descendant(v, name))
     })
 }
 
-fn shape(form: &[Value], kind: &str) -> Option<Shape> {
+fn shape(form: &[Expr], kind: &str) -> Option<Shape> {
     let start = || point(child(form, "start"));
     let end = || point(child(form, "end"));
     if kind.ends_with("_line") {
@@ -82,13 +77,15 @@ fn shape(form: &[Value], kind: &str) -> Option<Shape> {
     } else if kind.ends_with("_poly") || kind == "zone" {
         let points: Vec<_> = descendant(form, "pts")?
             .iter()
-            .filter_map(Value::as_array)
+            .filter_map(Expr::as_list)
             .filter(|v| scalar(v, 0) == Some("xy"))
             .filter_map(|v| point(Some(v)))
             .collect();
         (points.len() >= 3).then(|| Shape::Polygon(points, child(form, "keepout").is_some()))
     } else if kind.ends_with("_text") {
-        if form.iter().any(|v| v.as_str() == Some("hide"))
+        if form
+            .iter()
+            .any(|v| matches!(v, Expr::Atom(text) if text == "hide"))
             || (kind == "fp_text" && scalar(form, 1) == Some("reference"))
         {
             return None;
@@ -100,9 +97,9 @@ fn shape(form: &[Value], kind: &str) -> Option<Shape> {
     }
 }
 
-pub(super) fn project(forms: &Value) -> Vec<Graphic> {
-    fn visit(node: &Value, output: &mut Vec<Graphic>) {
-        let Some(form) = node.as_array() else {
+pub(super) fn project(forms: &[Expr]) -> Vec<Graphic> {
+    fn visit(node: &Expr, output: &mut Vec<Graphic>) {
+        let Some(form) = node.as_list() else {
             return;
         };
         if let Some(kind) = scalar(form, 0)
@@ -137,31 +134,31 @@ pub(super) fn project(forms: &Value) -> Vec<Graphic> {
         }
     }
     let mut output = Vec::new();
-    visit(forms, &mut output);
+    for form in forms {
+        visit(form, &mut output);
+    }
     output
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
+    use boardstudio_core::generators::parse_forms;
+
+    fn forms(source: &str) -> Vec<Expr> {
+        parse_forms(source).expect("forms parse")
+    }
 
     #[test]
     fn projects_nested_graphics_into_pad_coordinates_and_decodes_text() {
-        let result = project(&json!([[
-            "footprint",
-            "part",
-            [
-                "fp_line",
-                ["start", "2", "3"],
-                ["end", "4", "-5"],
-                ["layer", "\u{0000}F.SilkS"]
-            ],
-            ["fp_text", "reference", "REF**", ["at", "0", "0"]],
-            ["fp_text", "user", "\u{0000}Hello <world>", ["at", "1", "2"]],
-            ["fp_text", "user", "hidden", ["at", "1", "2"], "hide"],
-            ["fp_line", ["start", "NaN", "0"], ["end", "1", "2"]]
-        ]]));
+        let result = project(&forms(
+            r#"(footprint part
+                (fp_line (start 2 3) (end 4 -5) (layer "F.SilkS"))
+                (fp_text reference REF** (at 0 0))
+                (fp_text user "Hello <world>" (at 1 2))
+                (fp_text user hidden (at 1 2) hide)
+                (fp_line (start NaN 0) (end 1 2)))"#,
+        ));
         assert_eq!(result.len(), 2);
         assert_eq!(
             result[0],
@@ -178,28 +175,11 @@ mod tests {
 
     #[test]
     fn projects_native_and_legacy_arcs_and_nested_keepouts() {
-        let result = project(&json!([
-            [
-                "fp_arc",
-                ["start", "1", "0"],
-                ["mid", "0", "1"],
-                ["end", "-1", "0"]
-            ],
-            [
-                "gr_arc",
-                ["start", "0", "0"],
-                ["end", "1", "0"],
-                ["angle", "180"]
-            ],
-            [
-                "zone",
-                ["keepout"],
-                [
-                    "polygon",
-                    ["pts", ["xy", "0", "0"], ["xy", "1", "0"], ["xy", "1", "2"]]
-                ]
-            ]
-        ]));
+        let result = project(&forms(
+            r#"(fp_arc (start 1 0) (mid 0 1) (end -1 0))
+               (gr_arc (start 0 0) (end 1 0) (angle 180))
+               (zone (keepout) (polygon (pts (xy 0 0) (xy 1 0) (xy 1 2))))"#,
+        ));
         assert_eq!(
             result[0].shape,
             Shape::Arc(Point(1.0, 0.0), Point(0.0, -1.0), Point(-1.0, 0.0))

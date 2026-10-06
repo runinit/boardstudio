@@ -2509,7 +2509,7 @@ fn matrix_cumulative_stagger_splay_survive_growth_and_serialization() {
 #[test]
 fn matrix_accepts_stable_ergogen_catalogue_ids() {
     let definition: PartDefinition = serde_json::from_value(serde_json::json!({
-        "id": "ergogen:ceoloide/switch_mx",
+        "id": "generator:ceoloide/switch_mx",
         "name": "MX switch",
         "kind": "switch",
         "courtyard": [{"x": -5.0, "y": -5.0}, {"x": 5.0, "y": -5.0}, {"x": 5.0, "y": 5.0}, {"x": -5.0, "y": 5.0}],
@@ -2535,7 +2535,7 @@ fn matrix_accepts_stable_ergogen_catalogue_ids() {
     let (_, generated) = scene(reply);
     assert_eq!(
         generated.matrices[0].definition_id,
-        "ergogen:ceoloide/switch_mx"
+        "generator:ceoloide/switch_mx"
     );
 }
 

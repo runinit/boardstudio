@@ -103,7 +103,7 @@ mod tests {
         let recipe = vec![
             recipe_member(
                 "switch",
-                "ergogen:ceoloide/switch_mx",
+                "generator:ceoloide/switch_mx",
                 "ceoloide/switch_mx",
                 Vec2 { x: 0.0, y: 0.0 },
                 0.0,
@@ -118,7 +118,7 @@ mod tests {
             ),
             recipe_member(
                 "diode",
-                "ergogen:ceoloide/diode_tht_sod123",
+                "generator:ceoloide/diode_tht_sod123",
                 "ceoloide/diode_tht_sod123",
                 Vec2 { x: 7.4, y: -1.5 },
                 90.0,
@@ -127,7 +127,7 @@ mod tests {
             ),
             recipe_member(
                 "led",
-                "ergogen:ceoloide/led_sk6812mini-e",
+                "generator:ceoloide/led_sk6812mini-e",
                 "ceoloide/led_sk6812mini-e",
                 Vec2 { x: 0.0, y: -4.75 },
                 180.0,
@@ -158,7 +158,7 @@ mod tests {
                     ),
                     model_mode: Some(AssemblyModelMode::Defaults),
                     id: "switch".into(),
-                    definition_id: Some("ergogen:ceoloide/switch_mx".into()),
+                    definition_id: Some("generator:ceoloide/switch_mx".into()),
                     pose: Pose2 {
                         at: Vec2 { x: 0.0, y: 0.0 },
                         rotation: 0.0
@@ -175,7 +175,7 @@ mod tests {
                     ),
                     model_mode: Some(AssemblyModelMode::Defaults),
                     id: "diode".into(),
-                    definition_id: Some("ergogen:ceoloide/diode_tht_sod123".into()),
+                    definition_id: Some("generator:ceoloide/diode_tht_sod123".into()),
                     pose: Pose2 {
                         at: Vec2 { x: 7.4, y: -1.5 },
                         rotation: 90.0
@@ -192,7 +192,7 @@ mod tests {
                     ),
                     model_mode: Some(AssemblyModelMode::Defaults),
                     id: "led".into(),
-                    definition_id: Some("ergogen:ceoloide/led_sk6812mini-e".into()),
+                    definition_id: Some("generator:ceoloide/led_sk6812mini-e".into()),
                     pose: Pose2 {
                         at: Vec2 { x: 0.0, y: -4.75 },
                         rotation: 180.0

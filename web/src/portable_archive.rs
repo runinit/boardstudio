@@ -56,7 +56,7 @@ pub(crate) fn prepare_archive(
                 media_type: model.media_type.to_owned(),
                 sha256: sha256.clone(),
                 license: None,
-                source: Some("bundled Ergogen library".into()),
+                source: Some("bundled footprint library".into()),
             });
             add_file(
                 format!("assets/{sha256}"),
@@ -103,7 +103,7 @@ fn hex_digest(bytes: &[u8]) -> String {
 }
 
 /// Resolves all directly persisted bundled references plus the generated
-/// references collected from Ergogen's authoritative `modelAssetIds` export.
+/// references collected from the generators' authoritative model asset IDs.
 /// Generated IDs already owned by the document use its local assets; other
 /// generated IDs are validated strictly. Saved metadata keeps
 /// React's behavior of including only IDs present in its bundled catalogue.
@@ -128,7 +128,7 @@ pub(crate) fn referenced_models(
             continue;
         }
         if crate::bundled_models::bundled_model(&id).is_none() {
-            return Err(format!("Bundled Ergogen model is unavailable: {id}"));
+            return Err(format!("Bundled model is unavailable: {id}"));
         }
         add_known(&id);
     }
@@ -261,9 +261,9 @@ mod tests {
 
     #[test]
     fn selected_closure_matches_react_reference_buckets_and_deduplicates() {
-        let included = "ergogen:model:foostan/OLED-Module-with-Pins.step";
-        let other = "ergogen:model:infused-kim/Nice_Nano_V2.step";
-        let unused = "ergogen:model:thqwgd001/THQWGD001 #1.stp";
+        let included = "bundled-model:foostan/OLED-Module-with-Pins.step";
+        let other = "bundled-model:infused-kim/Nice_Nano_V2.step";
+        let unused = "bundled-model:thqwgd001/THQWGD001 #1.stp";
         let circuit_definition = definition("circuit-definition", vec![model(other)]);
         let circuit = ModuleCircuit {
             definitions: vec![circuit_definition],
@@ -321,8 +321,8 @@ mod tests {
         assert_eq!(
             ids,
             vec![
-                "ergogen:model:foostan/OLED-Module-with-Pins.step",
-                "ergogen:model:infused-kim/Nice_Nano_V2.step",
+                "bundled-model:foostan/OLED-Module-with-Pins.step",
+                "bundled-model:infused-kim/Nice_Nano_V2.step",
             ]
         );
         assert!(!ids.contains(&unused));
@@ -348,10 +348,10 @@ mod tests {
     fn generated_unknown_ergogen_model_fails_instead_of_silently_omitting() {
         let error = referenced_models(
             &ProjectDoc::empty("doc", "unknown reference"),
-            ["ergogen:model:missing/model.step".to_owned()],
+            ["bundled-model:missing/model.step".to_owned()],
         )
         .unwrap_err();
-        assert!(error.contains("ergogen:model:missing/model.step"));
+        assert!(error.contains("bundled-model:missing/model.step"));
     }
 
     #[test]
@@ -376,7 +376,7 @@ mod tests {
         let local_bytes = b"existing local asset".to_vec();
         let local_hash = hex_digest(&local_bytes);
         let model =
-            super::super::bundled_models::bundled_model("ergogen:model:thqwgd001/THQWGD001 #1.stp")
+            super::super::bundled_models::bundled_model("bundled-model:thqwgd001/THQWGD001 #1.stp")
                 .unwrap();
         let opaque_bytes = Vec::new();
         let mut document = ProjectDoc::empty("doc", "archive copy");
@@ -420,7 +420,7 @@ mod tests {
         assert_eq!(restored.assets[1].name, model.filename);
         assert_eq!(
             restored.assets[1].source.as_deref(),
-            Some("bundled Ergogen library")
+            Some("bundled footprint library")
         );
         assert_eq!(restored.assets[1].sha256, hex_digest(&opaque_bytes));
         let local = assets

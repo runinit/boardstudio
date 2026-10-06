@@ -1,9 +1,7 @@
 packages:
   - contracts
   - kicad
-  - ergogen
   - cad
-  - tooling/demo-projects
 
 allowBuilds:
   esbuild: true

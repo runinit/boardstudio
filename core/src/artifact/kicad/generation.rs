@@ -20,7 +20,7 @@ fn conversion(error: String) -> ArtifactError {
 
 /// One result per job, in plan order. Each result carries the net table as it
 /// stood after that job, which `finish` checks against the previous one.
-pub(super) fn render_jobs(plan: &ExportPlan) -> Result<Vec<ErgogenJobResult>, ArtifactError> {
+pub(super) fn render_jobs(plan: &ExportPlan) -> Result<Vec<RenderedJob>, ArtifactError> {
     let reserved: Vec<GeneratedNet> = convert(&plan.reserved_nets).map_err(conversion)?;
     let mut nets = NetAllocator::new(&reserved, plan.next_net_index);
     let mut results = Vec::with_capacity(plan.jobs.len());
@@ -34,7 +34,12 @@ pub(super) fn render_jobs(plan: &ExportPlan) -> Result<Vec<ErgogenJobResult>, Ar
         .map_err(conversion)?;
         let part: PartRef = convert(&job.part).map_err(conversion)?;
         let forms = bundled()
-            .render(&job.definition.id, &generator, Some(&part), &mut nets as &mut dyn NetIndexer)
+            .render(
+                &job.definition.id,
+                &generator,
+                Some(&part),
+                &mut nets as &mut dyn NetIndexer,
+            )
             .map_err(generator_error)?;
         let bindings = model_bindings(&forms).map_err(generator_error)?;
         let paths = preview_model_paths(&bindings, &plan.model_paths).map_err(generator_error)?;
@@ -43,7 +48,7 @@ pub(super) fn render_jobs(plan: &ExportPlan) -> Result<Vec<ErgogenJobResult>, Ar
         for form in exported.footprints.iter().chain(&exported.objects) {
             sources.push(source::upgrade_legacy_arcs(form)?);
         }
-        results.push(ErgogenJobResult {
+        results.push(RenderedJob {
             snapshot_token: plan.snapshot_token.clone(),
             revision: plan.revision,
             job_id: job.job_id.clone(),

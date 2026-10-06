@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
-import { parseForms, child, value } from '../ergogen/src/index.ts';
+import { parseForms, child, value } from './kicad-forms.mjs';
 
 const checkout = process.argv[2];
 if (!checkout) throw new Error('Usage: node scripts/extract-sofle-layouts.mjs /path/to/SofleKeyboard');
@@ -49,4 +49,4 @@ for (const variant of ['v2', 'RGB', 'Choc']) {
   const [outline, ...cutouts] = contours;
   layouts[variant.toLowerCase()] = { path, sha256: createHash('sha256').update(source).digest('hex'), components, outline, sourceCutoutCount: cutouts.length };
 }
-writeFileSync(new URL('../tooling/demo-projects/src/sofle-layouts.json', import.meta.url), JSON.stringify({ repository: 'https://github.com/josefadamcik/SofleKeyboard', revision, layouts }, null, 2) + '\n');
+writeFileSync(new URL('../content/layouts/sofle-layouts.json', import.meta.url), JSON.stringify({ repository: 'https://github.com/josefadamcik/SofleKeyboard', revision, layouts }, null, 2) + '\n');

@@ -1,9 +1,0 @@
-{
-  "name": "@boardstudio/footprints",
-  "version": "0.1.0",
-  "private": true,
-  "type": "commonjs",
-  "scripts": {
-    "test": "node scripts/inventory.test.mjs && node scripts/defaultModels.test.mjs && node scripts/verify.mjs && node scripts/coverage.mjs --check && node scripts/smdModels.test.mjs && node scripts/jstModels.test.mjs && node scripts/mxModels.test.mjs && node scripts/resetTht.test.mjs && node scripts/superminiModels.test.mjs && node scripts/niceviewModels.test.mjs && node scripts/nanoAngles.test.mjs && node scripts/gateronModels.test.mjs && node scripts/trackpointModels.test.mjs && node scripts/chocModels.test.mjs && node scripts/chocV2Models.test.mjs && node scripts/chocStabilizers.test.mjs && node scripts/encoderDrills.test.mjs && node scripts/modelPaths.test.mjs && node scripts/refreshSwitches.test.mjs && node scripts/refreshControllers.test.mjs && node scripts/refreshPeripherals.test.mjs"
-  }
-}

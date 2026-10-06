@@ -125,7 +125,7 @@ fn generate_bundled_ergogen_models(output: &Path) {
             .split_once("/3d_models/")
             .expect("model path under vendor 3d_models");
         let filename = react_saved_filename(vendor, rest);
-        let id = format!("ergogen:model:{vendor}/{filename}");
+        let id = format!("bundled-model:{vendor}/{filename}");
         let extension = source_path
             .extension()
             .and_then(|value| value.to_str())

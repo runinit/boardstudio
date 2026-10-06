@@ -627,7 +627,7 @@ fn begin_place_assembly_on_board(
                     .generator
                     .as_ref()
                     .map(|generator| generator.source.clone())
-                    && crate::bundled_models::is_ergogen_source(&source).await?
+                    && crate::bundled_models::is_generator_source(&source).await?
                 {
                     *definition = super::normalize_matrix_definition(definition.clone()).await?;
                 }
@@ -2076,20 +2076,20 @@ mod assembly_selector_tests {
             "name": "F46 saved assembly",
             "members": [{
                 "id": "switch",
-                "definitionId": "ergogen:ceoloide/switch_mx",
+                "definitionId": "generator:ceoloide/switch_mx",
                 "modelMode": "custom",
                 "parameters": { "hotswap": true },
                 "pose": { "at": { "x": 4.0, "y": 0.0 }, "rotation": 0.0 },
                 "side": "back",
                 "models": [
                     {
-                        "assetId": "ergogen:model:kiswitch/SW_Hotswap_Kailh_MX.stp",
+                        "assetId": "bundled-model:kiswitch/SW_Hotswap_Kailh_MX.stp",
                         "offset": { "x": 0.0, "y": 0.0, "z": -1.8709399700164795 },
                         "rotation": { "x": 180.0, "y": 0.0, "z": 0.0 },
                         "scale": { "x": 1.0, "y": 1.0, "z": 1.0 }
                     },
                     {
-                        "assetId": "ergogen:model:kiswitch/SW_Cherry_MX_PCB.stp",
+                        "assetId": "bundled-model:kiswitch/SW_Cherry_MX_PCB.stp",
                         "offset": { "x": 0.007089999970048666, "y": 0.007089999970048666, "z": -1.3574800491333008 },
                         "rotation": { "x": 180.0, "y": 0.0, "z": 0.0 },
                         "scale": { "x": 1.0, "y": 1.0, "z": 1.0 }
@@ -2101,7 +2101,7 @@ mod assembly_selector_tests {
         let member = &assembly.members[0];
         assert_eq!(
             member.definition_id.as_deref(),
-            Some("ergogen:ceoloide/switch_mx")
+            Some("generator:ceoloide/switch_mx")
         );
         assert_eq!(
             member.model_mode,
@@ -2118,17 +2118,17 @@ mod assembly_selector_tests {
                     name: "switch mx".into(),
                 },
                 ModelOption {
-                    id: "ergogen:ceoloide/switch_mx".into(),
+                    id: "generator:ceoloide/switch_mx".into(),
                     name: "switch mx".into(),
                 },
             ],
             asset_options: vec![
                 ModelOption {
-                    id: "ergogen:model:kiswitch/SW_Hotswap_Kailh_MX.stp".into(),
+                    id: "bundled-model:kiswitch/SW_Hotswap_Kailh_MX.stp".into(),
                     name: "SW_Hotswap_Kailh_MX.stp".into(),
                 },
                 ModelOption {
-                    id: "ergogen:model:kiswitch/SW_Cherry_MX_PCB.stp".into(),
+                    id: "bundled-model:kiswitch/SW_Cherry_MX_PCB.stp".into(),
                     name: "SW_Cherry_MX_PCB.stp".into(),
                 },
             ],
@@ -2165,15 +2165,15 @@ mod assembly_selector_tests {
         };
         assert_eq!(
             selected_value("#persisted-component"),
-            "ergogen:ceoloide/switch_mx"
+            "generator:ceoloide/switch_mx"
         );
         assert_eq!(
             selected_value("#persisted-model-0"),
-            "ergogen:model:kiswitch/SW_Hotswap_Kailh_MX.stp"
+            "bundled-model:kiswitch/SW_Hotswap_Kailh_MX.stp"
         );
         assert_eq!(
             selected_value("#persisted-model-1"),
-            "ergogen:model:kiswitch/SW_Cherry_MX_PCB.stp"
+            "bundled-model:kiswitch/SW_Cherry_MX_PCB.stp"
         );
         root.remove();
     }

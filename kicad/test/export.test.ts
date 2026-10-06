@@ -94,7 +94,7 @@ test('exports front and back copper traces and vias', () => {
 
 test('rejects stale revisions and conflicting net assignments', () => {
   const { doc, contours } = fixture();
-  assert.throws(() => nativeArtifact({ id: 'stale', kind: 'prepare-export', request: {
+  assert.throws(() => nativeArtifact({ id: 'stale', kind: 'export-pcb', request: {
     snapshotToken: 'stale', expectedRevision: 1, document: doc,
     target: { kind: 'board', boardId: 'main' }, contours, modelPaths: {},
   } }), /committed current v2 revision/u);

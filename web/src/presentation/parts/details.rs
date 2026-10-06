@@ -56,7 +56,7 @@ fn category_label(definition: &PartDefinition) -> &'static str {
 
 fn source_name(source: CatalogueSource, definition: &PartDefinition) -> &'static str {
     match source {
-        CatalogueSource::Ergogen => "Bundled Ergogen library",
+        CatalogueSource::Generator => "Bundled footprint library",
         CatalogueSource::Imported if definition.kicad_source.is_some() => "Imported KiCad library",
         CatalogueSource::Imported => "Imported library",
         CatalogueSource::Project => "Current project",

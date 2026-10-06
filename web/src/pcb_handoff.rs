@@ -1,24 +1,22 @@
 //! Private full/draft KiCad board handoff built from the accepted Core export plan.
 //!
 //! Wiring mutations remain in Session (through export-owned commits); this
-//! module owns only the existing Core → preview-generator → Core artifact
-//! sequence and the two archive layers used by the reference handoff.
+//! module owns only the single Core `ExportPcb` request
+//! and the two archive layers used by the reference handoff.
 
 use boardstudio_application::{AcceptedSnapshot, OperationId, Scope};
 use boardstudio_core::{
     electrical::ElectricalPlan,
     model::{
         ArchiveEntry, ArchiveReply, ArchiveRequest, ArtifactReply, ArtifactRequest, ExportTarget,
-        FinishExportRequest, PrepareExportRequest,
+        PrepareExportRequest,
     },
 };
 use boardstudio_web::host::{BrowserStore, CoreWorker};
 use js_sys::Uint8Array;
 use serde_json::json;
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, future::Future, rc::Rc};
-
-use crate::preview_generator::PreviewGeneratorClient;
+use std::{collections::BTreeMap, future::Future};
 
 pub(crate) struct HandoffSource<'a> {
     pub operation_id: OperationId,
@@ -68,7 +66,6 @@ pub(crate) async fn build_handoff(
     source: HandoffSource<'_>,
     ports: HandoffPorts<'_>,
     is_current: impl Fn() -> Result<(), String>,
-    preview_generator: impl FnOnce() -> Result<Rc<PreviewGeneratorClient>, String>,
 ) -> Result<Vec<u8>, String> {
     let HandoffSource {
         operation_id,
@@ -118,124 +115,33 @@ pub(crate) async fn build_handoff(
     let target = ExportTarget::Board {
         board_id: scope.board_id.clone(),
     };
-    let prepare_id = format!("pcb-handoff-{}-prepare", operation_id.0);
-    let prepare = ArtifactRequest::PrepareExport {
-        id: prepare_id.clone(),
+    let request_id = format!("pcb-handoff-{}", operation_id.0);
+    let request = ArtifactRequest::ExportPcb {
+        id: request_id.clone(),
         request: PrepareExportRequest {
             snapshot_token: snapshot.token.0.to_string(),
             expected_revision: snapshot.document.revision,
             document: document.clone(),
-            target: target.clone(),
+            target,
             contours,
             model_paths,
         },
     };
     is_current()?;
     let reply = core
-        .artifact(&prepare_id, &executor_epoch.to_string(), &prepare)
+        .artifact(&request_id, &executor_epoch.to_string(), &request)
         .await
-        .map_err(|error| format!("KiCad export preparation failed: {error}"))?;
-    is_current()?;
-    let plan = match reply {
-        ArtifactReply::PrepareExport { id, result } if id == prepare_id => *result,
-        ArtifactReply::Error { id, error } if id == prepare_id => {
-            return Err(format!("Core rejected KiCad export: {}", error.message));
-        }
-        ArtifactReply::PrepareExport { .. } | ArtifactReply::Error { .. } => {
-            return Err("Core returned an export plan for another request.".into());
-        }
-        _ => return Err("Core returned an unexpected KiCad preparation reply.".into()),
-    };
-    if plan.snapshot_token != snapshot.token.0.to_string()
-        || plan.revision != snapshot.document.revision
-        || plan.target != target
-        || plan.captured_document.id != snapshot.document.id
-    {
-        return Err("Core returned an export plan for another accepted board.".into());
-    }
-
-    let results = if plan.jobs.is_empty() {
-        vec![]
-    } else {
-        if operation_id.0 == 0 || operation_id.0 > 9_007_199_254_740_991 {
-            return Err("KiCad worker identity is outside the safe integer range.".into());
-        }
-        let worker = preview_generator();
-        is_current()?;
-        let worker = worker?;
-        let request = json!({
-            "kind": "generate-preview-jobs",
-            "worker_generation": operation_id.0,
-            "request_id": operation_id.0,
-            "owner": {
-                "scope": {
-                    "sessionEpoch": scope.session_epoch.0,
-                    "documentId": scope.document_id,
-                    "boardId": scope.board_id,
-                    "instanceId": scope.instance_id,
-                },
-                "token": snapshot.token.0.to_string(),
-                "viewer_instance": 0,
-                "projection_generation": operation_id.0,
-            },
-            "batch": {
-                "accepted_revision": snapshot.document.revision,
-                "batch_generation": operation_id.0,
-            },
-            "plan_key": {
-                "snapshot_token": plan.snapshot_token,
-                "revision": plan.revision,
-                "job_ids": plan.jobs.iter().map(|job| job.job_id.clone()).collect::<Vec<_>>(),
-            },
-            "jobs": plan.jobs,
-            "reserved_nets": plan.reserved_nets,
-            "next_net_index": plan.next_net_index,
-            "paths": plan.model_paths.iter().collect::<Vec<_>>(),
-        });
-        let response = worker.generate(operation_id.0, &request).await;
-        is_current()?;
-        let response = response?;
-        crate::runtime::validate_preview_worker_envelope(
-            &response,
-            &request,
-            operation_id.0,
-            operation_id.0,
-        )?;
-        serde_json::from_value::<Vec<boardstudio_core::model::ErgogenJobResult>>(
-            response
-                .get("results")
-                .cloned()
-                .ok_or_else(|| "Ergogen worker returned no KiCad conversion results.".to_owned())?,
-        )
-        .map_err(|error| format!("Ergogen worker returned malformed KiCad results: {error}"))?
-    };
-
-    let finish_id = format!("pcb-handoff-{}-finish", operation_id.0);
-    let finish = ArtifactRequest::FinishExport {
-        id: finish_id.clone(),
-        request: FinishExportRequest {
-            plan: plan.clone(),
-            results,
-        },
-    };
-    is_current()?;
-    let reply = core
-        .artifact(&finish_id, &executor_epoch.to_string(), &finish)
-        .await
-        .map_err(|error| format!("KiCad serialization failed: {error}"))?;
+        .map_err(|error| format!("KiCad export failed: {error}"))?;
     is_current()?;
     let exported = match reply {
-        ArtifactReply::FinishExport { id, result } if id == finish_id => result,
-        ArtifactReply::Error { id, error } if id == finish_id => {
-            return Err(format!(
-                "Core rejected KiCad serialization: {}",
-                error.message
-            ));
+        ArtifactReply::ExportPcb { id, result } if id == request_id => result,
+        ArtifactReply::Error { id, error } if id == request_id => {
+            return Err(format!("Core rejected KiCad export: {}", error.message));
         }
-        ArtifactReply::FinishExport { .. } | ArtifactReply::Error { .. } => {
+        ArtifactReply::ExportPcb { .. } | ArtifactReply::Error { .. } => {
             return Err("Core returned KiCad output for another request.".into());
         }
-        _ => return Err("Core returned an unexpected KiCad serialization reply.".into()),
+        _ => return Err("Core returned an unexpected KiCad export reply.".into()),
     };
     if exported.snapshot_token != snapshot.token.0.to_string()
         || exported.revision != snapshot.document.revision

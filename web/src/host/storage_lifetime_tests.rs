@@ -224,3 +224,93 @@ async fn explicit_abort_preserves_caller_reason_and_rolls_back() {
         .delete_database(&database_name)
         .unwrap();
 }
+
+#[wasm_bindgen_test]
+async fn legacy_generator_project_migrates_and_is_written_back_with_assets_intact() {
+    let database_name = format!("boardstudio-idb-migration-{}", js_sys::Date::now());
+    let store = BrowserStore::new(&database_name).unwrap();
+    let mut document = ProjectDoc::empty("legacy", "Legacy generator");
+    document.format_version = 1;
+    let mut definition = boardstudio_core::generators::catalogue()
+        .unwrap()
+        .into_iter()
+        .find(|d| d.generator.as_ref().unwrap().source == "ceoloide/mounting_hole_npth")
+        .unwrap();
+    definition.id = "ergogen:ceoloide/mounting_hole_npth".into();
+    definition
+        .generator
+        .as_mut()
+        .unwrap()
+        .parameters
+        .insert("hole_size".into(), serde_json::json!("3.5"));
+    document.parts.push(
+        serde_json::from_value(serde_json::json!({
+            "id":"hole", "definitionId":definition.id,"reference":"H1","side":"back",
+            "pose":{"at":{"x":0,"y":0},"rotation":37}
+        }))
+        .unwrap(),
+    );
+    document.definitions.push(definition);
+    let bytes = b"persisted model bytes".to_vec();
+    let hash = sha256_bytes(&bytes);
+    document.assets.push(
+        serde_json::from_value(serde_json::json!({
+            "id":"ergogen:model:vendor/model.step","name":"model.step","mediaType":"model/step",
+            "sha256":hash,"source":"bundled Ergogen library"
+        }))
+        .unwrap(),
+    );
+    store
+        .save_document(
+            &document,
+            &std::collections::BTreeMap::from([(hash.clone(), bytes.clone())]),
+        )
+        .await
+        .unwrap();
+    let listed = store.list_documents().await.unwrap();
+    assert_eq!(listed[0].format_version, 2);
+    let loaded = store.load_document("legacy".into()).await.unwrap().unwrap();
+    assert_eq!(loaded.format_version, 2);
+    assert_eq!(
+        loaded.parts[0].definition_id,
+        "generator:ceoloide/mounting_hole_npth"
+    );
+    assert_eq!(
+        loaded.parts[0].generator_parameters.as_ref().unwrap()["side"],
+        "B"
+    );
+    assert_eq!(
+        loaded.definitions[0].generator.as_ref().unwrap().parameters["hole_size"],
+        3.5
+    );
+    boardstudio_core::generators::render_forms(&loaded.definitions[0], Some(&loaded.parts[0]))
+        .unwrap();
+    let raw = load_value(&database_name, PROJECT_STORE, "legacy".into())
+        .await
+        .unwrap()
+        .unwrap();
+    let raw: serde_json::Value = serde_wasm_bindgen::from_value(raw).unwrap();
+    assert_eq!(raw["formatVersion"], 2, "migration writes back immediately");
+    assert!(!raw.to_string().contains("ergogen"));
+    assert_eq!(
+        store.load_asset(hash).await.unwrap().unwrap().to_vec(),
+        bytes
+    );
+    // A fresh project saves and reopens through the same boundary.
+    let fresh = ProjectDoc::empty("fresh", "Fresh project");
+    store
+        .save_document(&fresh, &Default::default())
+        .await
+        .unwrap();
+    assert_eq!(
+        store.load_document("fresh".into()).await.unwrap().unwrap(),
+        fresh
+    );
+    window()
+        .unwrap()
+        .indexed_db()
+        .unwrap()
+        .unwrap()
+        .delete_database(&database_name)
+        .unwrap();
+}

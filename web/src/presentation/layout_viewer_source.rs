@@ -381,7 +381,7 @@ impl LayoutSourceCapture {
         }
         match (&self.request, imported_source) {
             (LayoutPreviewRequest::Authored(request), None) => {
-                Ok(ArtifactRequest::PreparePreview {
+                Ok(ArtifactRequest::PreviewPcb {
                     id,
                     request: request.as_ref().clone(),
                 })
@@ -718,7 +718,7 @@ mod tests {
         assert_eq!(capture.contours, other.contours);
         assert_ne!(capture.owner, other.owner);
         let LayoutPreviewRequest::Authored(request) = capture.request else {
-            panic!("authored board should use PreparePreview");
+            panic!("authored board should use PreviewPcb");
         };
         assert_eq!(request.document.parts[0].pose.at.x, 2.0);
         assert_eq!(request.contours, snapshot.scene.board_contours[0].contours);
@@ -774,7 +774,7 @@ mod tests {
         assert_eq!(capture.contours, snapshot.scene.board_contours[0].contours);
         assert!(!capture.contours.contains(&right_contour));
         let LayoutPreviewRequest::Authored(request) = &capture.request else {
-            panic!("authored board should use PreparePreview");
+            panic!("authored board should use PreviewPcb");
         };
         assert_eq!(
             request.target,
@@ -960,12 +960,12 @@ mod tests {
     }
 
     #[test]
-    fn authored_request_uses_existing_prepare_preview_and_rejects_wrong_preview_revision() {
+    fn authored_request_uses_preview_pcb_request_and_rejects_wrong_preview_revision() {
         let (snapshot, scope) = accepted(false);
         let capture = source_capture(&snapshot, &scope);
         assert!(matches!(
             capture.artifact_request("layout-authored".into(), None),
-            Ok(ArtifactRequest::PreparePreview { id, request })
+            Ok(ArtifactRequest::PreviewPcb { id, request })
                 if id == "layout-authored" && request.expected_revision == 7
         ));
         let mut stale = preview();

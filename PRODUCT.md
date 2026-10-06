@@ -68,7 +68,7 @@ outlines.
 
 - [The v2 overview](README.md) records capabilities, limitations, commands, and
   package boundaries.
-- [The starter keyboard](tooling/demo-projects/src/demo.ts) provides a working layout example.
+- [The starter keyboard](core/examples/demo_projects/review.rs) provides a working layout example.
 - [The bundled library](ergogen/library/) contains real generator sources,
   model assets, and vendor provenance. Preserve their attribution and terms.
 - [Core tests](core/tests/), [KiCad tests](kicad/test/),

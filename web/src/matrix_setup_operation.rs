@@ -41,49 +41,49 @@ impl MatrixSetupPreset {
     fn config(self) -> PresetConfig {
         match self {
             Self::MxSolder => PresetConfig {
-                switch_id: "ergogen:ceoloide/switch_mx",
+                switch_id: "generator:ceoloide/switch_mx",
                 hotswap: false,
                 led: false,
                 choc: false,
             },
             Self::MxHotswap => PresetConfig {
-                switch_id: "ergogen:ceoloide/switch_mx",
+                switch_id: "generator:ceoloide/switch_mx",
                 hotswap: true,
                 led: false,
                 choc: false,
             },
             Self::ChocSolder => PresetConfig {
-                switch_id: "ergogen:ceoloide/switch_choc_v1_v2",
+                switch_id: "generator:ceoloide/switch_choc_v1_v2",
                 hotswap: false,
                 led: false,
                 choc: true,
             },
             Self::ChocHotswap => PresetConfig {
-                switch_id: "ergogen:ceoloide/switch_choc_v1_v2",
+                switch_id: "generator:ceoloide/switch_choc_v1_v2",
                 hotswap: true,
                 led: false,
                 choc: true,
             },
             Self::MxRgb => PresetConfig {
-                switch_id: "ergogen:ceoloide/switch_mx",
+                switch_id: "generator:ceoloide/switch_mx",
                 hotswap: false,
                 led: true,
                 choc: false,
             },
             Self::ChocRgb => PresetConfig {
-                switch_id: "ergogen:ceoloide/switch_choc_v1_v2",
+                switch_id: "generator:ceoloide/switch_choc_v1_v2",
                 hotswap: false,
                 led: true,
                 choc: true,
             },
             Self::MxHotswapRgb => PresetConfig {
-                switch_id: "ergogen:ceoloide/switch_mx",
+                switch_id: "generator:ceoloide/switch_mx",
                 hotswap: true,
                 led: true,
                 choc: false,
             },
             Self::ChocHotswapRgb => PresetConfig {
-                switch_id: "ergogen:ceoloide/switch_choc_v1_v2",
+                switch_id: "generator:ceoloide/switch_choc_v1_v2",
                 hotswap: true,
                 led: true,
                 choc: true,
@@ -175,11 +175,11 @@ pub(crate) fn prepare_matrix(
     let definition_prefix = format!("assembly-{assembly_name}-{matrix_id}-0/definition");
     let switch_source = required_catalogue_definition(catalogue, preset.switch_id)?;
     let diode_source =
-        required_catalogue_definition(catalogue, "ergogen:ceoloide/diode_tht_sod123")?;
+        required_catalogue_definition(catalogue, "generator:ceoloide/diode_tht_sod123")?;
     let led_source = if preset.led {
         Some(required_catalogue_definition(
             catalogue,
-            "ergogen:ceoloide/led_sk6812mini-e",
+            "generator:ceoloide/led_sk6812mini-e",
         )?)
     } else {
         None

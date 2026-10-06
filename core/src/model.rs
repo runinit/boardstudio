@@ -964,6 +964,10 @@ pub struct ProjectDoc {
     pub assemblies: Vec<AssemblyDefinition>,
     #[cfg_attr(feature = "export-types", ts(type = "\"boardstudio/v2\""))]
     pub format: String,
+    /// Schema version of the document; a document without one is version 1.
+    #[serde(rename = "formatVersion", default = "legacy_format_version")]
+    #[cfg_attr(feature = "export-types", ts(as = "Option<u32>", optional))]
+    pub format_version: u32,
     pub id: String,
     pub name: String,
     pub revision: u64,
@@ -995,6 +999,10 @@ pub struct ProjectDoc {
     #[serde(default)]
     pub constraints: Vec<Constraint>,
 }
+fn legacy_format_version() -> u32 {
+    crate::migrate::LEGACY_VERSION
+}
+
 impl ProjectDoc {
     pub fn empty(id: &str, name: &str) -> Self {
         Self {
@@ -1009,6 +1017,7 @@ impl ProjectDoc {
             board_references: vec![],
             assemblies: vec![],
             format: "boardstudio/v2".into(),
+            format_version: crate::migrate::CURRENT_VERSION,
             id: id.into(),
             name: name.into(),
             revision: 0,
@@ -1853,7 +1862,7 @@ pub enum ExportTarget {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
-pub struct ErgogenJob {
+pub struct RenderJob {
     pub job_id: String,
     pub definition: PartDefinition,
     pub part: Part,
@@ -1875,7 +1884,7 @@ pub struct ExportPlan {
     pub fingerprint: String,
     pub revision: u64,
     pub target: ExportTarget,
-    pub jobs: Vec<ErgogenJob>,
+    pub jobs: Vec<RenderJob>,
     pub reserved_nets: Vec<ReservedNet>,
     pub next_net_index: u32,
     pub contours: Vec<Contour>,
@@ -1886,7 +1895,7 @@ pub struct ExportPlan {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
-pub struct ErgogenJobResult {
+pub struct RenderedJob {
     pub snapshot_token: String,
     pub revision: u64,
     pub job_id: String,
@@ -1899,7 +1908,7 @@ pub struct ErgogenJobResult {
 #[serde(rename_all = "camelCase")]
 pub struct FinishExportRequest {
     pub plan: ExportPlan,
-    pub results: Vec<ErgogenJobResult>,
+    pub results: Vec<RenderedJob>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

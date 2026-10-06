@@ -1,8 +1,10 @@
 # TypeScript and Node removal assessment
 
 Assessed: 2026-10-05. Inspected revision: `3cdeb2ac2`.
-Status: dependency inventory and proposed plan; items 1 and 2 have an
-[agreed plan](footprint-generators-rust.md). Implementation has not started.
+Status: dependency inventory at the inspected revision. Items 1–3 are now
+implemented by the [Rust footprint cutover](footprint-generators-rust.md): Core
+renders in process and a native builder prepares bundled projects. The remaining
+items are still an assessment; this document retains its original inventory.
 
 The Dioxus UI is already in Rust. Remaining TypeScript and Node dependencies
 provide footprint generation, PCB worker behavior, bundled content preparation,
@@ -41,13 +43,13 @@ removal work; provider behavior and independent validation require replacement.
 
 | Item | Remaining dependency and required change | Relative effort |
 | --- | --- | --- |
-| 1. Footprint provider | Replace TypeScript parameter handling, geometry extraction, terminals, model bindings and rendering adaptation in [ergogen/src/index.ts](../../ergogen/src/index.ts). Port all generator bodies to Rust and delete the JavaScript; see [the footprint generator plan](footprint-generators-rust.md). | High |
-| 2. PCB generation worker | Move job validation, net allocation, KiCad form conversion, arc upgrades and model-path rewriting from [preview-generator-worker.ts](../../scripts/web/preview-generator-worker.ts) and [kicad/src/ergogen.ts](../../kicad/src/ergogen.ts) into Rust. Rendering moves into Core and the worker is removed; see [the footprint generator plan](footprint-generators-rust.md). | Medium–high |
-| 3. Bundled project preparation | Replace 14 TypeScript files in [tooling/demo-projects](../../tooling/demo-projects) and [prepare-demo-projects.mjs](../../scripts/prepare-demo-projects.mjs) with a native Rust content builder using core document/archive APIs. Preserve bundled examples, embedded models, hashes and provenance. This removes the active Vite dependency. | Medium–high |
+| 1. Footprint provider | Replace TypeScript parameter handling, geometry extraction, terminals, model bindings and rendering adaptation in `ergogen/src/index.ts`. Port all generator bodies to Rust and delete the JavaScript; see [the footprint generator plan](footprint-generators-rust.md). | High |
+| 2. PCB generation worker | Move job validation, net allocation, KiCad form conversion, arc upgrades and model-path rewriting from `preview-generator-worker.ts` and `kicad/src/ergogen.ts` into Rust. Rendering moves into Core and the worker is removed; see [the footprint generator plan](footprint-generators-rust.md). | Medium–high |
+| 3. Bundled project preparation | Replace 14 TypeScript files in `tooling/demo-projects` and `prepare-demo-projects.mjs` with a native Rust content builder using core document/archive APIs. Preserve bundled examples, embedded models, hashes and provenance. This removes the active Vite dependency. | Medium–high |
 | 4. CAD build orchestration | Port the three Node scripts in [cad/scripts](../../cad/scripts) to Python. Preserve pinned OCCT downloads, checksum verification, native setup and container-based WASM builds. The CAD kernel is already Rust. | Low–medium |
 | 5. CAD adapters and validation | The observed consumers of [cad/src](../../cad/src) TypeScript adapters are tests; production uses the Rust CAD worker. Move meaningful [CAD test coverage](../../cad/test) to native/browser Rust tests, then remove the adapters. Replace the libcascade independent STEP-validation oracle before removing its npm dependency. | Medium–high |
 | 6. TypeScript contracts | After consumers are gone, remove generated TypeScript, the handwritten facade/default constructors, Node generation checks, `ts-rs`, `export-types` features and TS-specific Rust annotations/export code. Preserve [shared Rust contracts](../../contracts/rust) and serialization checks. | Medium |
-| 7. Node tests and checks | Migrate Ergogen/KiCad tests, footprint-library tests, repository/link checks, native/WASM parity checks and browser-worker transport orchestration listed in [package.json](../../package.json) and [the footprint package](../../ergogen/library/package.json). Preserve coverage before removing commands. This removes remaining TypeScript-compiler and fflate consumers. | Medium–high |
+| 7. Node tests and checks | Migrate Ergogen/KiCad tests, footprint-library tests, repository/link checks, native/WASM parity checks and browser-worker transport orchestration listed in [package.json](../../package.json) and `the footprint package`. Preserve coverage before removing commands. This removes remaining TypeScript-compiler and fflate consumers. | Medium–high |
 | 8. Content maintenance commands | Port KiCad-part and VIK-module importers, keyboard-layout extractors, and footprint inventory/verification tools in [scripts](../../scripts) and [ergogen/library/scripts](../../ergogen/library/scripts). These remain Node dependencies even outside the ordinary build. | Medium |
 | 9. Development and build entrypoints | Replace nested Node/pnpm calls in [build-web.py](../../scripts/build-web.py), [dev-web.py](../../scripts/dev-web.py) and [run-wasm-tests.py](../../scripts/run-wasm-tests.py). Provide direct Python/Cargo entrypoints for retained package scripts, including precommit and security checks. | Low–medium |
 | 10. CI, manifests and documentation | Update [workflows](../../.github/workflows) to remove project Node setup, the Node-version matrix and pnpm installs/caches. Remove npm auditing and npm Dependabot entries while retaining applicable security checks. Finally remove package manifests, pnpm lock/workspace configuration, `.node-version`, `.npmrc` and TS configs; update current development and onboarding instructions. | Low |

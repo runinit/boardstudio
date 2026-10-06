@@ -446,7 +446,7 @@ fn native_footprint(
     ))
 }
 
-fn is_ergogen(definition: &PartDefinition) -> bool {
+fn is_generated(definition: &PartDefinition) -> bool {
     definition.generator.as_ref().is_some_and(|generator| {
         generator.source.starts_with("ceoloide/") || generator.source.starts_with("infused-kim/")
     })

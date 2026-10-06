@@ -1040,9 +1040,9 @@ pub(super) fn switch_choices(
         })
         .map(|definition| {
             let label = match definition.id.as_str() {
-                "ergogen:ceoloide/switch_mx" => "MX switch".into(),
-                "ergogen:ceoloide/switch_choc_v1_v2" => "Choc V1 / V2 switch".into(),
-                "ergogen:ceoloide/switch_gateron_ks27_ks33" => "Gateron KS27 / KS33 switch".into(),
+                "generator:ceoloide/switch_mx" => "MX switch".into(),
+                "generator:ceoloide/switch_choc_v1_v2" => "Choc V1 / V2 switch".into(),
+                "generator:ceoloide/switch_gateron_ks27_ks33" => "Gateron KS27 / KS33 switch".into(),
                 _ => definition.name.clone(),
             };
             (definition.id, label)

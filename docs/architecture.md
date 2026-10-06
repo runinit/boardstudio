@@ -2,7 +2,7 @@
 
 BoardStudio is a static browser application with a Dioxus frontend. Durable design
 semantics and session state live in Rust. TypeScript and JavaScript remain where
-they implement generator/CAD providers, data preparation and development tooling.
+they implement CAD adapters, source maintenance and development tooling.
 
 | Location | Responsibility |
 | --- | --- |
@@ -14,10 +14,10 @@ they implement generator/CAD providers, data preparation and development tooling
 | `renderer/` | GPU scene rendering, picking and camera behavior |
 | `cad/` | CAD provider bindings and the Cadrum/OCCT WASM kernel |
 | `contracts/` | Shared generated Rust/TypeScript boundary types |
-| `footprints/` | Footprint generator framework (parameters, render context, geometry, normalization, model references); not yet used by production |
-| `ergogen/`, `kicad/` | Generator catalogue, footprint production and PCB output providers |
+| `footprints/` | Built-in generators, parameters, render context, geometry, normalization and model references; Core and the page call Rust directly |
+| `ergogen/library/`, `kicad/` | Vendored model assets and attribution; PCB integration checks |
 | `catalogue/`, `content/` | Component definitions, source assets and bundled examples |
-| `tooling/demo-projects/` | Build-time preparation of bundled project archives |
+| `core/examples/demo_projects/`, `content/layouts/` | Native bundled project preparation through public Core edits, wiring and archive APIs |
 
 The document engine owns durable state. Presentation submits edits through existing
 application/runtime boundaries and displays accepted state; it does not create a
@@ -30,9 +30,9 @@ WASM modules; browser worker and service-worker entrypoints are packaged with th
 page. Root and subpath deployments must preserve asset URLs and COOP/COEP isolation
 headers. Ordinary offline caches remain part of the application.
 
-The React frontend and its rollback path are retired. Existing saved-file backward
-compatibility is not a current requirement; fresh projects must still round-trip
-through persistence and portable archives. Historical cutover work remains in Git
+The React frontend and its rollback path are retired. Version 1 saved documents migrate to format version 2 at storage/archive load
+boundaries before opening. Current projects round-trip through persistence and
+portable archives. Historical cutover work remains in Git
 at `323967ff`; there is no active migration contract or acceptance ledger.
 
 See [development commands](../README.md), [domain terminology](../CONTEXT.md),
