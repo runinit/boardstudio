@@ -337,11 +337,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         } else {
             dst_nets[3].name.clone()
         },
-        e5 = if p.flag("reversible") {
-            dst_nets[2].name.clone()
-        } else {
-            dst_nets[2].name.clone()
-        },
+        e5 = dst_nets[2].name.clone(),
         e6 = n(14.75 + label_vcc_offset),
         e7 = if p.flag("reversible") {
             dst_nets[3].name.clone()

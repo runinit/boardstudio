@@ -634,9 +634,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
             "invert_jumpers_position is unsupported; set it to false and use the documented jumper assembly.",
         ));
     }
-    for name in ["mcu_3dmodel_xyz_scale"] {
-        p.vec3(name)?;
-    }
+    p.vec3("mcu_3dmodel_xyz_scale")?;
     let (side, reversible, reverse_mount) =
         (p.side(), p.flag("reversible"), p.flag("reverse_mount"));
     let invert_pins = (side == "B" && !reverse_mount && !reversible)

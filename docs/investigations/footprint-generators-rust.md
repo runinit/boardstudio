@@ -1,7 +1,7 @@
 # Footprint generators in Rust
 
 Planned: 2026-10-05. Inspected revision: `3cdeb2ac2`.
-Status: agreed plan; steps 1 and 2 complete (`80b8e460e`; framework in `footprints/`).
+Status: agreed plan; steps 1–3 complete (golden baseline, framework and all 36 generator ports in `footprints/`).
 
 This plan covers items 1 and 2 of the
 [TypeScript and Node removal assessment](typescript-node-removal.md): the
@@ -58,8 +58,9 @@ equivalent), the JavaScript worker, then Core `FinishPreview`.
   schema is the only source of the layer a body renders on. Part-side mirroring of
   coordinates still follows the part. The 1→2 migration sets `side` to `B` on
   each back-side part that has a generator and no saved `side`, preserving
-  today's output. Choc, gateron and trackpoint show `B` as their schema default
-  today; this becomes `F` (see Deviations).
+  today's output. Seven generators show `B` (or, for the keepout zone, `F&B`) as
+  their schema default today, which the old renderer never used; this becomes `F`
+  (see Deviations).
 - **Generator lookup.** A definition without a `generator` passes through
   normalization untouched. A definition whose generator source is not in the
   registry, or whose version is not `bundled-1`, is a typed `UnknownGenerator`
@@ -124,16 +125,42 @@ equivalent), the JavaScript worker, then Core `FinishPreview`.
      `wasm32-unknown-unknown` (153 checks run in Node).
    - The page WASM size change is not measured yet; the crate is not linked into
      production. Measure it at step 4.
-3. **Generator ports.** Port in batches: utilities and mounting holes; diode,
-   LED, reset and power switches; MX, Choc and KS27/KS33 switches; controllers,
-   displays, encoder and connectors; infused-kim. Each batch must match goldens
-   as parsed form trees with numbers compared as exact text and whitespace
-   ignored, apart from listed deviations. Port the model-binding assertions from
-   the footprint-library Node tests. Before the first batch, survey every
-   string-typed parameter that is numeric in meaning (only
-   `mounting_hole_npth` is known) and list each. Batches merge unused by
-   production.
-4. **Cutover.** Switch every page call site to the crate, change
+3. **Generator ports.** Complete. Port in batches: utilities and mounting holes;
+   diode, LED, reset and power switches; MX, Choc and KS27/KS33 switches;
+   controllers, displays, encoder and connectors; infused-kim. All 36 generators
+   match all 820 golden cases (render text and nets, geometry, normalization,
+   model references, export, schema and catalogue) as parsed form trees with
+   numbers compared as exact text and whitespace ignored, apart from the listed
+   deviations (`footprints/tests/generators.rs`). The model-binding assertions of
+   the footprint-library Node tests are ported to
+   `footprints/tests/library_assertions.rs`; the tests for the three vendored
+   generators the catalogue excludes (`choc`, `diode`, `nice_nano_pretty`) and for
+   the upstream refresh and inventory scripts retire with that code in step 6.
+   Findings:
+   - The survey of string-typed numeric parameters found only
+     `mounting_hole_npth` (`hole_size`, `hole_drill`) and the 3D-model transform
+     vectors: every `*_3dmodel_xyz_offset|rotation|scale` parameter that defaulted
+     to `''` meant "automatic" and held a three-number list when set. They are
+     typed as arrays; an empty list is automatic. The page saves `''` for every
+     unset schema entry, so existing documents carry `''` for these, which the
+     1→2 migration must drop, and **steps 4 and 5 must ship together** or the Rust
+     renderer would reject those documents.
+   - The generator bodies are mechanical ports of the JavaScript. Kept as they
+     were, to be decided separately: `utility_filled_zone` tests `p.prority`, so
+     `priority` is never written; the LED footprint name reads
+     `…(per-keysingle-side)`; `utility_router` prints `NaN` for unparsable
+     coordinates; `p.drill_y == 0` falls back to `drill` in both mounting holes.
+   - Local nets are allocated for every row of the controllers and displays
+     whether or not they are reversible, because the JavaScript evaluated those
+     templates unconditionally; the goldens pin this, so the Rust bodies do too.
+   - Linking all 36 generators into a WASM module (release, `opt-level = "s"`,
+     LTO) costs about 690 KB before `wasm-opt` and compression, including
+     `serde_json`; measure the page itself at step 4.
+   - The crate is now mixed-licence (13 MIT, 23 CC-BY-NC-SA-4.0); see
+     `footprints/NOTICE.md`. A test keeps each module's declared licence in step
+     with its header. Batches merge unused by production.
+4. **Cutover.** Ships together with step 5, because saved documents carry
+   values the typed renderer rejects until the migration runs. Switch every page call site to the crate, change
    `footprint_forms.rs` to typed forms, and replace the Prepare/worker/Finish
    paths with single Core requests. Run browser checks for generator edits,
    Parts previews, PCB and KiCad export, fresh-project save and reopen, bundled
@@ -177,7 +204,11 @@ and corrected output.
 | `ceoloide/mounting_hole_npth` | `hole_size` and `hole_drill` typed as numbers, not strings | String parameters | Number parameters; saved strings migrated |
 | all | Number parameters reject non-numeric values; saved numeric strings migrated | Numeric strings accepted by most generators; `ceoloide/mounting_hole_plated`, `infused-kim/mounting_hole`, `infused-kim/trackpoint_mount` and `ceoloide/switch_gateron_ks27_ks33` throw "Invalid numeric Ergogen geometry" in geometry extraction, and `ceoloide/rotary_encoder_ec11_ec12` throws its hole-size error | Typed error naming the parameter |
 | all | `side` declared on every generator, default `F` | `side` read from render inputs, unset values follow the part side; schema default ignored | Declared parameter; migration sets `side` on back-side parts |
-| `ceoloide/switch_choc_v1_v2`, `ceoloide/switch_gateron_ks27_ks33`, `infused-kim/trackpoint_mount` | Schema default for `side` | `B` | `F` |
+| `ceoloide/diode_tht_sod123`, `ceoloide/led_sk6812mini-e`, `ceoloide/switch_choc_v1_v2`, `ceoloide/switch_gateron_ks27_ks33`, `ceoloide/switch_mx`, `infused-kim/trackpoint_mount`, `ceoloide/utility_keepout_zone` | Schema default for `side` | `B` (`F&B` for the keepout zone) | `F` |
+| every `*_3dmodel_xyz_offset`, `_rotation`, `_scale` that defaulted to `''` | Typed as arrays; an empty list is automatic; saved `''` removed by migration; a list that is not three numbers is rejected | Text `''` meaning automatic; a malformed list printed `undefined` | Array parameter, typed error naming the parameter |
+| `ceoloide/utility_point_debugger`, `infused-kim/point_debugger` | Crosshair label | The text `undefined` (a point name that never existed) | An empty label |
+| `ceoloide/utility_router` | Position syntax errors | V8's JSON parser text | A typed rejection naming the route; entries of `routes` must be text |
+| `ceoloide/utility_filled_zone`, `ceoloide/utility_keepout_zone` | `points` entries must be `[x, y]` number pairs | Any value printed as text | Typed error naming the parameter |
 | unknown generator source | Normalization returns the definition unchanged | Silent pass-through | Typed `UnknownGenerator` error (definitions without a `generator` still pass through) |
 | `ceoloide/utility_ergogen_logo` | Renamed `ceoloide/utility_logo`, with footprint and display names | `ceoloide:utility_ergogen_logo` | `ceoloide:utility_logo`; saved source IDs migrated |
 

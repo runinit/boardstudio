@@ -13,6 +13,13 @@ pub(crate) mod util;
 
 /// Every bundled generator.
 pub static SPECS: &[&GeneratorSpec] = &[
+    &infused_kim::smd_0805::SPEC,
+    &infused_kim::nice_view::SPEC,
+    &infused_kim::trackpoint_mount::SPEC,
+    &infused_kim::switch_reset::SPEC,
+    &infused_kim::switch_power::SPEC,
+    &infused_kim::conn_molex_pico_ezmate_1x05::SPEC,
+    &infused_kim::conn_molex_pico_ezmate_1x02::SPEC,
     &ceoloide::trrs_pj320a::SPEC,
     &ceoloide::battery_connector_molex_pico_ezmate_1x02::SPEC,
     &ceoloide::battery_connector_jst_ph_2::SPEC,

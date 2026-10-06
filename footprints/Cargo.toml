@@ -3,9 +3,9 @@ name = "boardstudio-footprints"
 version = "0.1.0"
 edition = "2024"
 publish = false
-# The crate will hold ported generators under MIT and CC-BY-NC-SA-4.0; each
-# module records its own SPDX identifier (see src/lib.rs).
-license = "MIT OR Apache-2.0"
+# Mixed: the framework is MIT OR Apache-2.0, the ported generators are MIT or
+# CC-BY-NC-SA-4.0 as marked per file. See NOTICE.md.
+license = "(MIT OR Apache-2.0) AND CC-BY-NC-SA-4.0"
 
 [lib]
 name = "boardstudio_footprints"
