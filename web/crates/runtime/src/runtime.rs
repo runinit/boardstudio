@@ -19,6 +19,12 @@ use boardstudio_core::{
     },
 };
 pub use boardstudio_web_host::host::CoreExecutor;
+
+/// The stable identity of the current Core executor: captures compare it to detect that the
+/// executor was replaced while their operation was in flight.
+fn core_executor_identity(core: &Rc<dyn CoreExecutor>) -> usize {
+    Rc::as_ptr(core) as *const () as usize
+}
 use boardstudio_web_host::host::{BrowserStore, CoreWorker};
 use boardstudio_web_host::{
     cad_jobs::{
@@ -1928,7 +1934,7 @@ impl Runtime {
             generation,
             generation,
             self.session.borrow().core_executor_epoch().0,
-            Rc::as_ptr(&core) as *const () as usize,
+            core_executor_identity(&core),
             format!("case-keycaps-test-{generation}"),
         )
         .expect("valid accepted Case preview input");
@@ -3801,7 +3807,7 @@ impl Runtime {
         );
         let core = self.core.borrow().clone();
         let core_executor_epoch = self.session.borrow().core_executor_epoch().0;
-        let core_worker_identity = Rc::as_ptr(&core) as *const () as usize;
+        let core_worker_identity = core_executor_identity(&core);
         let capture = match crate::case_preview::capture_native_preview(
             &accepted,
             &expected_scope,
@@ -4070,7 +4076,7 @@ impl Runtime {
                 owner.core_executor_epoch,
                 self.session.borrow().core_executor_epoch().0,
                 owner.core_worker_identity,
-                Rc::as_ptr(&core) as *const () as usize,
+                core_executor_identity(&core),
             )
     }
 
@@ -4373,7 +4379,7 @@ impl Runtime {
                 session_epoch: snapshot.session_epoch,
                 document_id: snapshot.document.id.clone(),
                 executor_epoch: self.session.borrow().core_executor_epoch(),
-                core_worker_identity: Rc::as_ptr(&core) as *const () as usize,
+                core_worker_identity: core_executor_identity(&core),
                 filename: format!(
                     "{}{}-mechanical.zip",
                     snapshot.document.name, instance_suffix
@@ -4478,7 +4484,7 @@ impl Runtime {
                 session_epoch: snapshot.session_epoch,
                 document_id: snapshot.document.id.clone(),
                 executor_epoch,
-                core_worker_identity: Rc::as_ptr(&core) as *const () as usize,
+                core_worker_identity: core_executor_identity(&core),
             },
         );
         self.submit(Event::StartExport {
@@ -4526,7 +4532,7 @@ impl Runtime {
             session_epoch: snapshot.session_epoch,
             document_id: snapshot.document.id.clone(),
             executor_epoch: self.session.borrow().core_executor_epoch(),
-            core_worker_identity: Rc::as_ptr(&core) as *const () as usize,
+            core_worker_identity: core_executor_identity(&core),
             draft,
         };
         self.pcb_handoff_exports
@@ -5068,7 +5074,7 @@ impl Runtime {
                     && snapshot.session_epoch == capture.session_epoch
             })
             && self.session.borrow().core_executor_epoch() == capture.executor_epoch
-            && Rc::as_ptr(&current_core) as *const () as usize == capture.core_worker_identity
+            && core_executor_identity(&current_core) == capture.core_worker_identity
             && Rc::ptr_eq(core, &current_core)
     }
 
@@ -5219,7 +5225,7 @@ impl Runtime {
                     && snapshot.session_epoch == capture.session_epoch
             })
             && self.session.borrow().core_executor_epoch() == capture.executor_epoch
-            && Rc::as_ptr(&current_core) as *const () as usize == capture.core_worker_identity
+            && core_executor_identity(&current_core) == capture.core_worker_identity
             && Rc::ptr_eq(core, &current_core)
     }
 
@@ -5297,7 +5303,7 @@ impl Runtime {
                     && snapshot.session_epoch == capture.session_epoch
             })
             && self.session.borrow().core_executor_epoch() == capture.executor_epoch
-            && Rc::as_ptr(&current_core) as *const () as usize == capture.core_worker_identity
+            && core_executor_identity(&current_core) == capture.core_worker_identity
             && Rc::ptr_eq(core, &current_core)
     }
 
@@ -6885,11 +6891,8 @@ pub mod firmware_export_test_support {
             traces: Vec::new(),
             vias: Vec::new(),
         });
-        // The open runs outside the runtime's operation counter; keep its identity clear of
-        // the ids the runtime hands out so the session's settled set cannot suppress a later
-        // test edit's Effect::Settled.
         let mut effects = session.submit(Event::Open {
-            operation_id: OperationId(u64::MAX),
+            operation_id: OperationId(1),
             document,
         });
         while let Some(effect) = effects.pop() {
@@ -8492,52 +8495,30 @@ mod in_process_adapter_tests {
     use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
     use wasm_bindgen_test::wasm_bindgen_test;
 
-    /// Open a document through a session whose Core requests are served by `engine`, and
-    /// hand both back so the runtime can run the same engine in-process.
-    fn opened() -> (Session, boardstudio_core::CoreEngine, AcceptedSnapshot) {
-        let mut session = Session::new();
-        let mut engine = boardstudio_core::CoreEngine::new();
-        let document = ProjectDoc::empty("adapter-test", "Adapter test");
-        // The open runs outside the runtime's operation counter; keep its identity clear of
-        // the ids the runtime hands out so the session's settled set cannot suppress a later
-        // test edit's Effect::Settled.
-        let mut effects = session.submit(Event::Open {
-            operation_id: OperationId(u64::MAX),
-            document,
-        });
-        while let Some(effect) = effects.pop() {
-            match effect {
-                Effect::Core {
-                    request_id,
-                    executor_epoch,
-                    request,
-                    ..
-                } => effects.extend(session.complete(Completion::Core {
-                    request_id,
-                    executor_epoch,
-                    reply: Box::new(engine.handle(*request)),
-                })),
-                Effect::Persist {
-                    save_attempt_id, ..
-                } => {
-                    effects.extend(session.complete(Completion::Persist {
-                        save_attempt_id,
-                        result: SaveResult::Committed,
-                    }));
-                }
-                _ => {}
-            }
-        }
-        let accepted = session.read_model().accepted.clone().unwrap();
-        (session, engine, accepted)
+    /// A runtime whose Core requests run through a fresh in-process engine and whose saves
+    /// land in the adapter's memory store.
+    fn installed_runtime() -> Rc<Runtime> {
+        let runtime = test_support::new_runtime();
+        test_support::install(&runtime, Session::new(), boardstudio_core::CoreEngine::new());
+        test_support::install_memory_persistence(&runtime);
+        runtime
     }
 
-    fn installed_runtime() -> (Rc<Runtime>, AcceptedSnapshot) {
-        let (session, engine, accepted) = opened();
-        let runtime = test_support::new_runtime();
-        test_support::install(&runtime, session, engine);
-        test_support::install_memory_persistence(&runtime);
-        (runtime, accepted)
+    /// Open the fixture document through the runtime itself, so every test exercises the
+    /// installed adapter from open through save.
+    async fn submit_open(runtime: &Rc<Runtime>, name: &str) -> AcceptedSnapshot {
+        let slot = test_support::observe_next(runtime);
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
+            document: ProjectDoc::empty("adapter-test", name),
+        });
+        test_support::run_pending(runtime).await;
+        assert_eq!(
+            wait_outcome(&slot).await,
+            TerminalOutcome::Completed,
+            "the fixture open is accepted"
+        );
+        runtime.model().accepted.unwrap()
     }
 
     fn rename_edit(accepted: &AcceptedSnapshot, name: &str) -> EditCommand {
@@ -8554,7 +8535,11 @@ mod in_process_adapter_tests {
         }
     }
 
-    fn submit_edit(runtime: &Rc<Runtime>, accepted: &AcceptedSnapshot, name: &str) -> OutcomeSlotRef {
+    fn submit_edit(
+        runtime: &Rc<Runtime>,
+        accepted: &AcceptedSnapshot,
+        name: &str,
+    ) -> crate::operation_outcomes::OutcomeSlot {
         let slot = test_support::observe_next(runtime);
         runtime.submit(Event::Edit {
             operation_id: runtime.operation(),
@@ -8563,9 +8548,9 @@ mod in_process_adapter_tests {
         slot
     }
 
-    type OutcomeSlotRef = crate::operation_outcomes::OutcomeSlot;
-
-    async fn wait_outcome(_runtime: &Rc<Runtime>, slot: &OutcomeSlotRef) -> TerminalOutcome {
+    async fn wait_outcome(
+        slot: &crate::operation_outcomes::OutcomeSlot,
+    ) -> TerminalOutcome {
         for _ in 0..200 {
             if let Some(outcome) = slot.borrow().clone() {
                 return outcome;
@@ -8577,11 +8562,12 @@ mod in_process_adapter_tests {
 
     #[wasm_bindgen_test]
     async fn installed_adapter_accepts_an_edit_and_saves_a_memory_copy() {
-        let (runtime, accepted) = installed_runtime();
+        let runtime = installed_runtime();
+        let accepted = submit_open(&runtime, "Adapter test").await;
         let slot = submit_edit(&runtime, &accepted, "Renamed in memory");
         test_support::run_pending(&runtime).await;
         assert_eq!(
-            wait_outcome(&runtime, &slot).await,
+            wait_outcome(&slot).await,
             TerminalOutcome::Completed
         );
         let current = runtime.model().accepted.unwrap();
@@ -8594,7 +8580,8 @@ mod in_process_adapter_tests {
 
     #[wasm_bindgen_test]
     async fn gated_save_holds_saving_until_released_then_reports_saved() {
-        let (runtime, accepted) = installed_runtime();
+        let runtime = installed_runtime();
+        let accepted = submit_open(&runtime, "Adapter test").await;
         let (entered, release) = test_support::gate_next_persist(&runtime);
         let slot = submit_edit(&runtime, &accepted, "Gated save");
         test_support::drive_pending(&runtime);
@@ -8607,7 +8594,7 @@ mod in_process_adapter_tests {
         );
         release.send(()).expect("release the held save");
         assert_eq!(
-            wait_outcome(&runtime, &slot).await,
+            wait_outcome(&slot).await,
             TerminalOutcome::Completed
         );
         let current = runtime.model().accepted.unwrap();
@@ -8628,12 +8615,13 @@ mod in_process_adapter_tests {
 
     #[wasm_bindgen_test]
     async fn failed_save_requires_recovery_and_keeps_the_accepted_document() {
-        let (runtime, accepted) = installed_runtime();
+        let runtime = installed_runtime();
+        let accepted = submit_open(&runtime, "Adapter test").await;
         test_support::fail_next_persist(&runtime, "injected durable write failure");
         let slot = submit_edit(&runtime, &accepted, "Must not commit");
         test_support::run_pending(&runtime).await;
         assert_eq!(
-            wait_outcome(&runtime, &slot).await,
+            wait_outcome(&slot).await,
             TerminalOutcome::PersistenceFailed("injected durable write failure".into())
         );
         assert_eq!(runtime.model().lifecycle, Lifecycle::RecoveryRequired);
@@ -8649,12 +8637,19 @@ mod in_process_adapter_tests {
             "Adapter test",
             "the accepted document keeps the pre-edit value"
         );
-        assert!(test_support::saved_document(&runtime, "adapter-test").is_none());
+        assert_eq!(
+            test_support::saved_document(&runtime, "adapter-test")
+                .expect("the open left a saved copy in memory")
+                .name,
+            "Adapter test",
+            "the failed edit's save never replaced the accepted copy"
+        );
     }
 
     #[wasm_bindgen_test]
     async fn gated_core_reply_keeps_the_edit_pending_until_released() {
-        let (runtime, accepted) = installed_runtime();
+        let runtime = installed_runtime();
+        let accepted = submit_open(&runtime, "Adapter test").await;
         let (entered, release) = test_support::gate_next_core_reply(&runtime);
         let slot = submit_edit(&runtime, &accepted, "Parked rename");
         test_support::drive_pending(&runtime);
@@ -8668,7 +8663,7 @@ mod in_process_adapter_tests {
         );
         release.send(()).expect("release the held reply");
         assert_eq!(
-            wait_outcome(&runtime, &slot).await,
+            wait_outcome(&slot).await,
             TerminalOutcome::Completed
         );
         assert_eq!(runtime.model().accepted.unwrap().document.name, "Parked rename");
@@ -8676,14 +8671,15 @@ mod in_process_adapter_tests {
 
     #[wasm_bindgen_test]
     async fn restart_builds_a_fresh_engine_and_stale_replies_are_ignored() {
-        let (runtime, accepted) = installed_runtime();
+        let runtime = installed_runtime();
+        let accepted = submit_open(&runtime, "Adapter test").await;
         let old_core = test_support::in_process_core(&runtime);
         let old_epoch = runtime.session.borrow().core_executor_epoch();
         test_support::fail_next_core_reply(&runtime, "injected core failure");
         let slot = submit_edit(&runtime, &accepted, "Never applied");
         test_support::run_pending(&runtime).await;
         assert_eq!(
-            wait_outcome(&runtime, &slot).await,
+            wait_outcome(&slot).await,
             TerminalOutcome::ExecutorFailed("injected core failure".into())
         );
         assert_eq!(runtime.model().lifecycle, Lifecycle::RecoveryRequired);

@@ -10,15 +10,9 @@ use boardstudio_core::{archive as core_archive, artifact_request};
 use boardstudio_web_host::host::{ArchiveResult, CoreExecutorFuture, HostError};
 use futures_channel::oneshot;
 
-enum CoreReplyBehavior {
-    Fail(String),
-    Gate {
-        entered: oneshot::Sender<()>,
-        release: oneshot::Receiver<()>,
-    },
-}
-
-enum PersistTestBehavior {
+/// A one-shot test behavior held by a port: fail the next call with a reason, or hold it
+/// until the release sender fires (the entered receiver observes the call reaching the port).
+enum OneShotBehavior {
     Fail(String),
     Gate {
         entered: oneshot::Sender<()>,
@@ -42,7 +36,7 @@ struct MemorySave {
 pub struct InProcessCore {
     engine: RefCell<boardstudio_core::CoreEngine>,
     closed: Cell<bool>,
-    behavior: RefCell<Option<CoreReplyBehavior>>,
+    behavior: RefCell<Option<OneShotBehavior>>,
 }
 
 impl InProcessCore {
@@ -55,7 +49,7 @@ impl InProcessCore {
     }
 
     pub fn fail_next_reply(&self, reason: impl Into<String>) {
-        *self.behavior.borrow_mut() = Some(CoreReplyBehavior::Fail(reason.into()));
+        *self.behavior.borrow_mut() = Some(OneShotBehavior::Fail(reason.into()));
     }
 
     pub fn is_closed(&self) -> bool {
@@ -65,11 +59,11 @@ impl InProcessCore {
     pub fn gate_next_reply(&self) -> (oneshot::Receiver<()>, oneshot::Sender<()>) {
         let (entered, entered_rx) = oneshot::channel();
         let (release, release_rx) = oneshot::channel();
-        *self.behavior.borrow_mut() = Some(CoreReplyBehavior::Gate { entered, release: release_rx });
+        *self.behavior.borrow_mut() = Some(OneShotBehavior::Gate { entered, release: release_rx });
         (entered_rx, release)
     }
 
-    fn take_behavior(&self) -> Option<CoreReplyBehavior> {
+    fn take_behavior(&self) -> Option<OneShotBehavior> {
         self.behavior.borrow_mut().take()
     }
 }
@@ -87,8 +81,8 @@ impl CoreExecutor for InProcessCore {
             }
             if let Some(behavior) = self.take_behavior() {
                 match behavior {
-                    CoreReplyBehavior::Fail(reason) => return Err(HostError(reason)),
-                    CoreReplyBehavior::Gate { entered, release } => {
+                    OneShotBehavior::Fail(reason) => return Err(HostError(reason)),
+                    OneShotBehavior::Gate { entered, release } => {
                         let _ = entered.send(());
                         let _ = release.await;
                     }
@@ -109,7 +103,7 @@ impl CoreExecutor for InProcessCore {
 
     fn archive<'a>(
         &'a self,
-        request_id: &'a str,
+        _request_id: &'a str,
         _executor_epoch: &'a str,
         metadata: &'a str,
         buffers: Vec<Uint8Array>,
@@ -120,7 +114,6 @@ impl CoreExecutor for InProcessCore {
             }
             let inputs = buffers.iter().map(|buffer| buffer.to_vec()).collect::<Vec<_>>();
             let (reply, output_bytes) = core_archive::request(metadata, &inputs);
-            let _ = request_id;
             Ok(ArchiveResult {
                 metadata: reply,
                 buffers: output_bytes
@@ -152,13 +145,13 @@ impl CoreExecutor for InProcessCore {
                 ));
             }
             let reply_json = artifact_request(&frame);
-            let reply: ArtifactReply = serde_json::from_str(&reply_json)
-                .map_err(|error| HostError(format!("invalid artifact reply: {error}")))?;
             let value: serde_json::Value = serde_json::from_str(&reply_json)
-                .map_err(|error| HostError(format!("invalid artifact reply identity: {error}")))?;
+                .map_err(|error| HostError(format!("invalid artifact reply: {error}")))?;
             if value.get("id").and_then(serde_json::Value::as_str) != Some(request_id) {
                 return Err(HostError("artifact reply id does not match request".into()));
             }
+            let reply: ArtifactReply = serde_json::from_value(value)
+                .map_err(|error| HostError(format!("invalid artifact reply: {error}")))?;
             Ok(reply)
         })
     }
@@ -183,7 +176,7 @@ impl CoreExecutor for InProcessCore {
 /// that fails or holds the next save.
 pub struct TestPersistence {
     target: RefCell<PersistTarget>,
-    behavior: RefCell<Option<PersistTestBehavior>>,
+    behavior: RefCell<Option<OneShotBehavior>>,
 }
 
 impl TestPersistence {
@@ -199,17 +192,17 @@ impl TestPersistence {
     }
 
     pub fn fail_next_save(&self, reason: impl Into<String>) {
-        *self.behavior.borrow_mut() = Some(PersistTestBehavior::Fail(reason.into()));
+        *self.behavior.borrow_mut() = Some(OneShotBehavior::Fail(reason.into()));
     }
 
     pub fn gate_next_save(&self) -> (oneshot::Receiver<()>, oneshot::Sender<()>) {
         let (entered, entered_rx) = oneshot::channel();
         let (release, release_rx) = oneshot::channel();
-        *self.behavior.borrow_mut() = Some(PersistTestBehavior::Gate { entered, release: release_rx });
+        *self.behavior.borrow_mut() = Some(OneShotBehavior::Gate { entered, release: release_rx });
         (entered_rx, release)
     }
 
-    fn take_behavior(&self) -> Option<PersistTestBehavior> {
+    fn take_behavior(&self) -> Option<OneShotBehavior> {
         self.behavior.borrow_mut().take()
     }
 
@@ -247,8 +240,8 @@ impl DocumentPersistence for TestPersistence {
         Box::pin(async move {
             if let Some(behavior) = self.take_behavior() {
                 match behavior {
-                    PersistTestBehavior::Fail(reason) => return Err(reason),
-                    PersistTestBehavior::Gate { entered, release } => {
+                    OneShotBehavior::Fail(reason) => return Err(reason),
+                    OneShotBehavior::Gate { entered, release } => {
                         let _ = entered.send(());
                         let _ = release.await;
                     }
