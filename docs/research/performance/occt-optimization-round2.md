@@ -1,5 +1,9 @@
 # Remaining-plan OCCT screening
 
+> Historical research: measurements, code paths and integration status below
+> describe the recorded revision. For current ownership and commands, use
+> [architecture](../../architecture.md) and the [development guide](../../../README.md).
+
 Historical raw artifacts and experimental sources now live in the performance
 worktree. See Development worktrees (historical record in Git at `323967ff`) for their location.
 

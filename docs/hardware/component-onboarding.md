@@ -71,7 +71,8 @@ Layers control presentation, not fabrication contents or validation.
 | Mechanical, when applicable | Independent model bounds/alignment evidence and actual exported solids/drills; support contact, thickness, gap and above/below extents checked. |
 | Electrical/firmware, when applicable | Explicit host assignments and supported behavior through public APIs; unknown mappings or driver facts retain their gates. |
 
-Use the [VIK review checklist](../testing/vik-module-human-review.md) as a
+Use the [archived VIK review scenarios](../archive/vik-module-human-review.md) as a
 presentation example and [VIK source notes](vik.md) for its unresolved facts.
+The archived React test commands need current Dioxus equivalents before execution.
 Imported, previewable and fabrication-qualified are separate claims; record the
 evidence for each supported output before marking an entry complete.

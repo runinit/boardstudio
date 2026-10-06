@@ -40,7 +40,7 @@ The first build downloads target-specific OCCT 8.0.1 archives and verifies their
 SHA-256 digests before extraction. The WASM build requires Podman or Docker;
 the native tests use the verified Linux x86_64 archive. The toolchain pins and
 integration evidence are recorded in the
-[Cadrum assessment](../docs/cadrum-assessment.md).
+[Cadrum assessment](../docs/research/cad/cadrum-assessment.md).
 
 CAD orchestration uses Python 3.11+ and the standard library. Direct commands:
 

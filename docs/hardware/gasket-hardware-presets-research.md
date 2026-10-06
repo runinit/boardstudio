@@ -155,9 +155,9 @@ and two screenshots establish a seller-described flat countersunk hex-socket
 family. The seller labels it 304/A2 stainless, with A2-70 on the product image;
 these are seller claims, not material certification.
 
-- [First screenshot](gasket-hardware-hzyuegou-m16.png): M1.6 and 8 mm are selected;
+- [First screenshot](assets/gasket-hardware-hzyuegou-m16.png): M1.6 and 8 mm are selected;
   it is not evidence of M2 length availability.
-- [M2 screenshot](gasket-hardware-hzyuegou-m2.png): M2 is selected; visible
+- [M2 screenshot](assets/gasket-hardware-hzyuegou-m2.png): M2 is selected; visible
   solid-bordered length options are 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20, 22,
   25, 30, 35, and 40 mm. Options from 45 mm upward are dashed. The caption says
   “Length: 30mm” while the highlighted tile appears to be 16 mm, so record the
@@ -184,7 +184,7 @@ not interchangeable inputs to an under-head grip calculation.
 
 ## CM ultra-thin wafer-head hex: user-supplied evidence
 
-[Saved screenshot](gasket-hardware-wafer-hex-m2.png). The seller title describes
+[Saved screenshot](assets/gasket-hardware-wafer-hex-m2.png). The seller title describes
 CM hex-socket ultra-thin, super-flat wafer-head screws in 304 stainless. The item
 URL is not visible, so this evidence is not assigned to either earlier AliExpress
 link. The material description is a seller claim.
@@ -194,7 +194,7 @@ link. The material description is a seller claim.
 - Dashed lengths: **22, 30, 35, 40, 45, 50 mm**. Do not include these as confirmed
   choices or interpolate them into the observed list.
 - M2.5 is an offered thread option, but its length combinations are not shown.
-- The follow-up [dimension chart](gasket-hardware-wafer-hex-dimensions.png)
+- The follow-up [dimension chart](assets/gasket-hardware-wafer-hex-dimensions.png)
   supplies pitch, head limits and hex width as transcribed below. Thread coverage,
   length tolerance and the meaning of the length datum are not yet established.
 
@@ -210,7 +210,7 @@ extension is implied.
 
 ### Wafer-head dimension chart
 
-Source: [user-supplied chart](gasket-hardware-wafer-hex-dimensions.png), interpreted
+Source: [user-supplied chart](assets/gasket-hardware-wafer-hex-dimensions.png), interpreted
 in the context of the preceding wafer-head listing. It has no visible product ID.
 All dimensions below are millimetres; these are seller specifications, not
 independent measurements.

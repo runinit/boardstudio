@@ -1,5 +1,9 @@
 # CAD kernel options for v2
 
+> Historical research: measurements, code paths and integration status below
+> describe the recorded revision. For current ownership and commands, use
+> [architecture](../../architecture.md) and the [development guide](../../../README.md).
+
 Compared 2026-09-24 against Board Studio `b7b7c3d`; decision updated
 2026-09-25 against the Cadrum implementation at baseline `fd991be3`. Cadrum is
 the production CAD backend for v2. The comparison below remains as context for

@@ -1,5 +1,9 @@
 # opencascade-rs assessment for v2
 
+> Historical research: measurements, code paths and integration status below
+> describe the recorded revision. For current ownership and commands, use
+> [architecture](../../architecture.md) and the [development guide](../../../README.md).
+
 Researched 2026-09-24, America/Toronto, against upstream commit
 [`32758df23a137f4e7c786c618b0317fc3badb3b2`](https://github.com/bschwind/opencascade-rs/tree/32758df23a137f4e7c786c618b0317fc3badb3b2),
 dated 2026-08-24. The inspected `opencascade` package declares version 0.3.0.

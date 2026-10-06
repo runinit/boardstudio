@@ -1,6 +1,6 @@
 # PCB assembly previews
 
-Design → **3D assembly** combines the selected board with its component models
+Layout's **3D assembly** combines the selected board with its component models
 and the current case bodies. Visibility controls hide the PCB, copper, silkscreen,
 models, keycaps, or individual case bodies without changing the document. Camera
 controls provide top, bottom, isometric, and fit views. Parts → **3D model** shows
@@ -46,14 +46,15 @@ placements are not automatically migrated to the new presets.
 
 ## Implementation ownership
 
-`AssemblyViewer` owns preview model loading, retries, and its asset cache for both
-Parts and Design. `ModelPreviewBoundary` handles render failures and clears its
-failure state on retry or a different selected definition. The app controller
-retains geometry revision/context checks, but no longer loads a second copy of
-preview models. Export model packaging remains a separate operation.
+The Dioxus [Parts preview](../../web/src/presentation/parts/preview.rs) owns sample
+request freshness, generation leases and local visibility.
+[SharedViewer](../../web/src/presentation/shared_viewer.rs) projects Parts, Layout
+and Case sources for the renderer and handles renderer lifecycle events.
+[Runtime](../../web/src/runtime.rs) delivers scoped worker results; accepted
+document edits remain in Session/Core. Export model packaging is a separate
+operation.
 
-`assemblyCatalog` defines the eight preset identities and hardware options;
-`assemblyPresets` constructs their recipes. `assemblyPlacement` snapshots and
-applies recipes to documents, while `sampleAssembly` only constructs a preview
-project. Retired catalog definitions remain resolvable for existing documents.
-See [architecture](architecture.md) for the other ownership boundaries.
+The [assembly editor](../../web/src/presentation/parts/assembly_editor.rs) owns
+editable Parts drafts. These presentation modules replace the retired React
+`AssemblyViewer` and `ModelPreviewBoundary` owners. See
+[architecture](../architecture.md) for the wider ownership map.

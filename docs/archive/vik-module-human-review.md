@@ -1,5 +1,11 @@
 # VIK module app review
 
+> Archived React workflow. The `app/` frontend and the Playwright tests named
+> below were retired at `3cdeb2ac2`; these commands are not runnable in the current
+> checkout. Retained review scenarios do not establish Dioxus or hardware
+> qualification. See [VIK status](../hardware/vik.md) and
+> [current checks](../../README.md#checks).
+
 Open **Project → Demo keyboards → VIK module review · above and below**. The app creates an editable local project with pinned-source splitter snapshots above and below the host board, a source-backed EC11/VIK rotary module, a rotation-only wheel, C2/C4 THQ encoder modules replacing matrix keys, layered key behavior, and an independently embedded DRV2605L reference circuit. Opening the demo does not overwrite another saved project. Rename it or use **Save project copy…** to keep a separate review copy.
 
 After selecting a module in Parts, its review note shows the known assumptions. The chosen anchors and 3 mm face gaps are illustrative. Board contours and recorded board thicknesses are source data. The displayed 6 mm outer, 2.8 mm hole, 3 mm high standoffs are designer-selected examples, not vendor fastener dimensions. Component, cable and actuator envelopes are incomplete. The upstream catalogue labels these modules Untested. App review checks presentation, bounds, findings and saved behavior. It cannot establish continuity or prove firmware or fabrication readiness.

@@ -37,3 +37,6 @@ at `323967ff`; there is no active migration contract or acceptance ledger.
 
 See [development commands](../README.md), [domain terminology](../CONTEXT.md),
 [component onboarding](hardware/component-onboarding.md) and [backlog](backlog.md).
+The [documentation index](README.md) separates current references from design,
+research and archived workflows. The [Layout part-editing investigation](investigations/layout-part-editing.md)
+records an open edit-lifecycle concern without changing the ownership above.

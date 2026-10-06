@@ -79,3 +79,5 @@ See [architecture](docs/architecture.md), [domain vocabulary](CONTEXT.md),
 [component onboarding](docs/hardware/component-onboarding.md) and
 [deferred issues](docs/backlog.md). Migration history is preserved in Git at
 `323967ff`; it imposes no development or acceptance process on this branch.
+The [documentation index](docs/README.md) links feature references, investigations,
+design decisions and historical research.

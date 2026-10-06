@@ -1,5 +1,9 @@
 # Pure Rust CAD options for v2
 
+> Historical research: measurements, code paths and integration status below
+> describe the recorded revision. For current ownership and commands, use
+> [architecture](../../architecture.md) and the [development guide](../../../README.md).
+
 Researched 2026-09-24, America/Toronto, for Board Studio HEAD `e43145f` plus the
 existing uncommitted v2 work. This evaluates kernels implemented in Rust;
 Cadrum and opencascade-rs retain the C++ OpenCascade kernel.
@@ -104,7 +108,7 @@ as an actively developed option for a new dependency.
 
 ## Application-specific experiment
 
-Use the existing CAD fixture set (`cad/test/case.test.mjs`, retired; see git history at `cbcfcc5f3`) as the starting
+Use the existing CAD fixture set (`cad/test/case.test.mjs`, retired; see git history at `cbcfcc5f3`, now native tests in `cad/wasm/src/model/construction/validation_tests.rs`) as the starting
 comparison: holed plates, concave contours, tray/lid cavities, mounting geometry,
 gasket grooves and multiple bodies. Add touching/coplanar faces, concentric
 boss/hole cylinders, very thin walls and split contours. Check closed oriented

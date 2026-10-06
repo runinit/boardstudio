@@ -1,5 +1,9 @@
 # Generation and editing performance
 
+> Historical research: measurements, code paths and integration status below
+> describe the recorded revision. For current ownership and commands, use
+> [architecture](../../architecture.md) and the [development guide](../../../README.md).
+
 Execution of PLAN G1–G8 and V1, starting from detached revision
 `0ca5e3f1f71c376135286345f9974066ed8cac45` plus the existing uncommitted
 live-preview implementation. No geometry tolerances or benchmark budgets change.

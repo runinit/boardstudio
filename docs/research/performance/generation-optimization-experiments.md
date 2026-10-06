@@ -1,5 +1,9 @@
 # Generation optimization experiments
 
+> Historical research: measurements, code paths and integration status below
+> describe the recorded revision. For current ownership and commands, use
+> [architecture](../../architecture.md) and the [development guide](../../../README.md).
+
 Historical raw artifacts and experimental sources now live in the performance
 worktree. See Development worktrees (historical record in Git at `323967ff`) for their location.
 
@@ -156,7 +160,7 @@ Deliver a ranked cost report and runnable control/candidate harness before E1.
 
 Inspection of Cadrum's `src/occt/io.rs` shows unconditional topological-edge
 discretization. Its C++ `mesh_shape` also emits face IDs. Our
-[`mesh_to_data`](../cad/wasm/src/model.rs) consumes positions, normals, and indices
+[`mesh_to_data`](../../../cad/wasm/src/model.rs) consumes positions, normals, and indices
 and discards both outputs.
 
 Test edge sampling off first, then face-ID collection off, then both together.
@@ -404,14 +408,14 @@ successful merely because it was implemented or because a microbenchmark improve
 
 ## Implementation and API references
 
-- [Construction](../cad/wasm/src/model/construction.rs),
-  [existing equivalence tests](../cad/wasm/src/model/construction/equivalence.rs),
-  [cache ownership](../cad/wasm/src/model/construction/cache.rs),
-  [planar mesher](../cad/wasm/src/model/construction/planar_mesh.rs),
-  [metrics](../cad/wasm/src/model/metrics.rs), and [mesh bridge](../cad/wasm/src/model.rs).
-- [Pinned dependency](../cad/wasm/Cargo.toml),
-  [container](../cad/wasm/Containerfile), [build script](../cad/scripts/build-cadrum-wasm.py),
-  and [verified OCCT archives](../cad/scripts/prepare-cadrum-occt.py).
+- [Construction](../../../cad/wasm/src/model/construction.rs),
+  [existing equivalence tests](../../../cad/wasm/src/model/construction/equivalence.rs),
+  [cache ownership](../../../cad/wasm/src/model/construction/cache.rs),
+  [planar mesher](../../../cad/wasm/src/model/construction/planar_mesh.rs),
+  [metrics](../../../cad/wasm/src/model/metrics.rs), and [mesh bridge](../../../cad/wasm/src/model.rs).
+- [Pinned dependency](../../../cad/wasm/Cargo.toml),
+  [container](../../../cad/wasm/Containerfile), [build script](../../../cad/scripts/build-cadrum-wasm.py),
+  and [verified OCCT archives](../../../cad/scripts/prepare-cadrum-occt.py).
 - [Cadrum pinned C++ bridge](https://github.com/lzpel/cadrum/blob/8788df70c60b986b5ab387edb75a2f6f341a8c7a/src/ffi.cpp)
   and [mesh extraction](https://github.com/lzpel/cadrum/blob/8788df70c60b986b5ab387edb75a2f6f341a8c7a/src/occt/io.rs).
 - [OCCT Boolean documentation](https://github.com/Open-Cascade-SAS/OCCT/wiki/boolean_operations).

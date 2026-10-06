@@ -1,7 +1,7 @@
 # Keycaps and keymap
 
-Open **Keymap**, choose a profile for each matrix, and select a switch on the
-layout to assign its ZMK binding. Its legend follows that binding unless an
+Use **Keymap** to assign ZMK bindings and **Keycaps** to configure matrix profiles
+and individual keycap settings. A key's legend follows its binding unless an
 explicit legend or blank override is saved. Board colors provide defaults;
 individual keys can override the cap color, profile, row, size in units, and
 socket. Changes participate in normal project saving, Undo, Redo, and archives.
@@ -57,12 +57,13 @@ Letter outlines use bundled DejaVu Sans with `ttf-parser` 0.25.1. The font's lic
 and attribution are shipped alongside the font in `cad/wasm/assets` and in the
 web application's public notices. Unsupported glyphs produce a visible CAD error.
 
-See Development worktrees (historical record in Git at `323967ff`) for preserved experiments
-and unfinished mechanical work relocated before this feature was implemented.
+## Historical implementation verification
 
-## Verification
+The following counts record the implementation before the Dioxus cutover; they
+are not a current test inventory. Use the [development guide](../../README.md#checks)
+for current checks.
 
-The implementation passed 299 core tests, 23 native CAD tests, 49 CAD/WASM
+That implementation passed 299 core tests, 23 native CAD tests, 49 CAD/WASM
 checks, 26 renderer tests, and 442 app tests. The affected browser tests cover
 keymap editing and persistence, mobile input bounds, generated caps and legends,
 STEP and firmware downloads, existing assembly controls, electrical export,

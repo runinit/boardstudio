@@ -84,10 +84,10 @@ and browser workflows; it does not replace routed electrical or physical-fit rev
 
 ## Current limits and next steps
 
-The combined workbench exposes this feature from **Objects → Case → Configure
-mechanical stack**. The existing responsive panels, local-save indicator, findings
+The **Case** workbench exposes **Configure mechanical stack**. The responsive
+panels, local-save indicator, findings
 navigation, Fit board/selection controls and bundled fonts remain shared with the
-Design and Parts workspaces. Generated geometry uses the normal project history;
+Layout and Parts workspaces. Generated geometry uses the normal project history;
 manual case bodies remain in the document when generation is enabled or disabled.
 The Export view distinguishes the generated mechanical package from authored Case
 STEP output. One board owns the project's mechanical configuration; other boards

@@ -1,5 +1,10 @@
 # Internal gasket case redesign
 
+> Design reference: retain the agreed geometry and hardware decisions below.
+> Implementation statements describe the reviewed revision, not a current
+> completion assessment; use the [Case reference](../features/mechanical-assemblies.md)
+> and current source when changing behavior.
+
 Design specification · 2026-09-28 · inspected checkout `49f88a36` plus existing
 uncommitted performance work. **Design confirmed by the user on 2026-09-28;
 not implemented or fabrication validated.** Keep the current Case editing workflow.
@@ -64,9 +69,9 @@ Moving a support within its valid track must not add an external lobe or move a
 screw. A compact non-gasket case removes the gasket space requirement; hardware
 and component clearances still set a lower bound on its size.
 
-![Compact gasket case: local pockets recess into the nominal wall while preserving a default 2 mm exterior skin and the advanced PCB-to-support clearance](gasket-case-sections.svg)
+![Compact gasket case: local pockets recess into the nominal wall while preserving a default 2 mm exterior skin and the advanced PCB-to-support clearance](assets/gasket-case-sections.svg)
 
-The editable [SVG plan and sections](gasket-case-sections.svg) are the documentation
+The editable [SVG plan and sections](assets/gasket-case-sections.svg) are the documentation
 source. All six illustrated supports and all four closure lands connect directly
 to the surrounding wall. The dimensions distinguish nominal wall thickness from
 the remaining exterior wall behind a pocket. A dashed line identifies the nominal
@@ -417,7 +422,7 @@ replace hardware automatically. The standard socket-cap and pan-head references
 below are comparison data, not accepted default profiles.
 Low-head hex and low-head Torx candidates are recorded in the research note.
 
-The [hardware preset research](gasket-hardware-presets-research.md) records supplier
+The [hardware preset research](../hardware/gasket-hardware-presets-research.md) records supplier
 dimensions, process requirements, and unresolved entries. The verified hex socket
 head candidates use DIN 912 / ISO 4762 envelopes before manufacturing allowances:
 
@@ -442,7 +447,7 @@ as an additional slim-profile catalog candidate. The supplied M2 screenshot show
 solid borders; 45 mm and longer options are dashed. Record these as observed
 seller options, not live inventory or independently verified dimensions. The
 M2.5 option is visible but its length combinations have not been supplied.
-Retain the [screenshot evidence and limitations](gasket-hardware-presets-research.md#hzyuegou-countersunk-hex-family-user-supplied-evidence).
+Retain the [screenshot evidence and limitations](../hardware/gasket-hardware-presets-research.md#hzyuegou-countersunk-hex-family-user-supplied-evidence).
 
 For this flat-head variant, model the actual conical countersink and check the
 remaining floor/closure-land material. Do not reuse the cylindrical counterbore
@@ -456,7 +461,7 @@ length](https://www.accu.co.uk/countersunk-socket-head-screws/153236-SSK-M3-8-A2
 for the convention, not dimensions for this product.
 
 Also include the user-supplied **CM ultra-thin wafer-head hex socket** family as
-its own slim-profile candidate. The [supplied screenshot](gasket-hardware-wafer-hex-m2.png)
+its own slim-profile candidate. The [supplied screenshot](../hardware/assets/gasket-hardware-wafer-hex-m2.png)
 shows **M2 × 25 mm selected**. Solid-bordered M2 length options are 2, 3, 4, 5, 6,
 8, 10, 12, 14, 16, 18, 20, and 25 mm; 22 mm and 30–50 mm appear dashed. Preserve
 this discrete list rather than inferring every length up to 25 mm. M2.5 is shown
@@ -467,7 +472,7 @@ This wafer head is not a countersunk head. If recessed, resolve a shallow
 flat-bottom head seat from its measured head diameter, height and under-head
 transition, while preserving bearing material and tool access. Keep its own
 length datum, product dimensions and fit allowances. The subsequently supplied
-[dimension chart](gasket-hardware-wafer-hex-dimensions.png) gives:
+[dimension chart](../hardware/assets/gasket-hardware-wafer-hex-dimensions.png) gives:
 
 | Thread | Pitch | Head diameter min–max | Head thickness min–max | Hex width |
 | --- | ---: | ---: | ---: | ---: |
@@ -698,7 +703,7 @@ revision/instance checks, and deferred STEP serialization.
   Keep the existing five-session 100/200-key interaction gates and 10% regression
   allowance. The 2026-09-25 690.2 ms fresh/4.3 ms cached gasket samples are single-run
   diagnostics, not the current release-to-paint target or a baseline for new mechanics.
-- [Generation results](generation-performance.md): the accepted Phase 2 gasket
+- [Generation results](../research/performance/generation-performance.md): the accepted Phase 2 gasket
   edit p95 was 370 ms; the separate proposed exact target remains 200 ms. Actual
   geometry dependencies and expensive solid work remain relevant after UI scheduling
   improvements. Keep physical pointer, worker, and renderer acknowledgement timings
@@ -708,7 +713,7 @@ revision/instance checks, and deferred STEP serialization.
   production backend restored. Primitive reuse, broader Boolean planning, build
   tuning, copy removal, and browser threading have no promoted improvement here.
   Preserve the existing dirty experiment artifacts and their rejection history.
-- [Gasket comparison](gasket-comparison-results.md): the tested height-band
+- [Gasket comparison](../research/performance/gasket-comparison-results.md): the tested height-band
   construction was about 40% slower. Manifold's roughly 24 ms isolated bottom was
   a polygon preview, not exact CAD or a measured application replacement. Neither
   is a reason to change kernels as part of this mechanical redesign.
@@ -829,7 +834,7 @@ remain fixed. Apply the ownership and regression rules in sections 5 and 7.
 These are evidence and implementation obligations, not reasons to repeatedly ask
 the user to approve ordinary parametric resizing. Missing dimensions must remain
 explicit rather than being invented. The source research and screenshot evidence
-are maintained in [hardware preset research](gasket-hardware-presets-research.md).
+are maintained in [hardware preset research](../hardware/gasket-hardware-presets-research.md).
 
 ### Implementation choices to resolve against the repository
 

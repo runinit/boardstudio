@@ -1,6 +1,19 @@
 # VIK modules
 
-The Parts library includes all 29 researched VIK catalog rows and their 38
+## Current availability
+
+VIK remains a deferred hardware program. The Dioxus Parts catalogue filters VIK
+definitions out of new choices while retaining imported definitions for document
+resolution; see `is_vik_part` in the
+[catalogue module](../../web/src/presentation/parts/catalogue.rs).
+
+## Retained qualification evidence
+
+The following catalogue counts and workflow descriptions record the hardware
+work before the frontend cutover. They do not establish current UI availability
+or completed hardware qualification.
+
+The researched Parts library included all 29 VIK catalog rows and their 38
 imported definitions, including the explicit DRV2605L circuit repair. Select a
 variant before choosing mounted placement, constituent placement, or an editable
 circuit copy. Purchased breakout internals absent from the source remain
@@ -26,9 +39,10 @@ human review in the app. Unknown facts can be resolved from source, supplied as
 explicit configuration, or left as an output-specific blocker. Upstream Untested
 status is retained as provenance rather than a requirement to obtain hardware.
 
-Use the [editable review project and checklist](../testing/vik-module-human-review.md)
-for app review. Record the revision and saved project with any failure. Human
-sign-off remains pending; automated browser tests do not supply it.
+The [archived review checklist](../archive/vik-module-human-review.md) retains the
+former app scenarios and retired test commands. Adapt its scenarios to the current
+workbench before using it for review. Record the revision and saved project with
+any failure. Human sign-off remains pending; automated browser tests do not supply it.
 
 The splitter is not yet a qualified assembled reference. Its BOM names HDGC
 C2919557 while PCB annotations name ATOM C479750, including a distinct J1002

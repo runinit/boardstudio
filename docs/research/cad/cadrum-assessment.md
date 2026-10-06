@@ -1,5 +1,9 @@
 # Cadrum integration assessment
 
+> Historical research: measurements, code paths and integration status below
+> describe the recorded revision. For current ownership and commands, use
+> [architecture](../../architecture.md) and the [development guide](../../../README.md).
+
 Updated 2026-09-25 after the production bridge and acceptance checks. The
 production CAD backend is Cadrum 0.8.20 at
 [`8788df70c60b986b5ab387edb75a2f6f341a8c7a`](https://github.com/lzpel/cadrum/tree/8788df70c60b986b5ab387edb75a2f6f341a8c7a),
@@ -38,7 +42,7 @@ OpenCascade globals in this build.
 
 - Cadrum is pinned to `=0.8.20` in Cargo, with `Cargo.lock` checked in.
 - Cadrum's OCCT 8.0.1 `rev2` WASM and native archives are downloaded by
-  `cad/scripts/prepare-cadrum-occt.mjs` and checked against SHA-256 before
+  `cad/scripts/prepare-cadrum-occt.py` and checked against SHA-256 before
   extraction. The WASM archive digest is
   `8149e781acdbd21507cfb29937e48e5fdbe628ee5c37007f720dcf5d4000e6ad`; the
   Linux x86_64 native archive digest is
