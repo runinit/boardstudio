@@ -1,6 +1,6 @@
 # 01: Runtime Core and persistence ports with an in-process test adapter
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: None (can start immediately)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
