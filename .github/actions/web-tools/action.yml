@@ -1,0 +1,24 @@
+name: Web build tools
+description: Install the pinned wasm-pack and Dioxus CLI release binaries (no compilation).
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+        tools="$RUNNER_TEMP/web-tools"
+        mkdir -p "$tools/bin"
+        fetch() { # url sha256 file
+          curl --proto '=https' --tlsv1.2 -sSfL -o "$tools/$3" "$1"
+          echo "$2  $tools/$3" | sha256sum -c -
+        }
+        fetch https://github.com/wasm-bindgen/wasm-pack/releases/download/v0.15.0/wasm-pack-v0.15.0-x86_64-unknown-linux-musl.tar.gz \
+          c09f971ecaed9a2efc80fdcea7a00ef6b53c7fadc8c57d1f61b53a6aa66b668a wasm-pack.tar.gz
+        tar -xzf "$tools/wasm-pack.tar.gz" -C "$tools/bin" --strip-components=1 \
+          wasm-pack-v0.15.0-x86_64-unknown-linux-musl/wasm-pack
+        fetch https://github.com/DioxusLabs/dioxus/releases/download/v0.7.10/dx-x86_64-unknown-linux-gnu.tar.gz \
+          4363e4ed2a3f1eb7f4d38d2d59aed59ce43271c44c16b425e92c89a64761fbe7 dx.tar.gz
+        tar -xzf "$tools/dx.tar.gz" -C "$tools/bin" dx
+        echo "$tools/bin" >> "$GITHUB_PATH"
+        "$tools/bin/wasm-pack" --version
+        "$tools/bin/dx" --version
