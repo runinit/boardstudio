@@ -3,9 +3,8 @@ name = "boardstudio_core"
 version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
-
-[lib]
-crate-type = ["cdylib", "rlib"]
+# Integration tests are listed below so the per-file tests link as one binary.
+autotests = false
 
 [[example]]
 name = "dump_firmware"
@@ -30,3 +29,15 @@ rhai = { version = "1.26.1", default-features = false, features = ["std", "wasm-
 
 [dev-dependencies]
 regex = { version = "1", default-features = false, features = ["std", "perf", "unicode"] }
+
+[[test]]
+name = "integration"
+path = "tests/integration.rs"
+
+[[test]]
+name = "performance"
+path = "tests/performance.rs"
+
+[[test]]
+name = "matrix_performance"
+path = "tests/matrix_performance.rs"

@@ -26,7 +26,7 @@ def verify_vendor():
         raise ValueError("Vendored cgmath differs from the reviewed security patch")
     metadata = json.loads(subprocess.check_output([
         "cargo", "metadata", "--locked", "--format-version", "1",
-        "--manifest-path", "renderer/Cargo.toml",
+        "--manifest-path", "Cargo.toml",
     ], cwd=ROOT))
     packages = [package for package in metadata["packages"] if package["name"] == "cgmath"]
     if len(packages) != 1 or Path(packages[0]["manifest_path"]).resolve() != VENDOR / "Cargo.toml":
@@ -57,12 +57,13 @@ def registry_lockfile(source, provenance):
 def main():
     provenance = verify_vendor()
     failed = False
-    locks = ["core/Cargo.lock", "renderer/Cargo.lock", "cad/wasm/Cargo.lock",
-             "renderer/vendor/cgmath-0.18.0/Cargo.lock"]
+    locks = ["Cargo.lock", "cad/wasm/Cargo.lock", "renderer/vendor/cgmath-0.18.0/Cargo.lock"]
+    # The workspace lock and the vendor's own lock both contain the patched cgmath.
+    patched_locks = {"Cargo.lock", "renderer/vendor/cgmath-0.18.0/Cargo.lock"}
     for lock in locks:
         print(f"\nAuditing {lock}", flush=True)
         source = (ROOT / lock).read_text()
-        patched = lock.startswith("renderer/")
+        patched = lock in patched_locks
         with tempfile.NamedTemporaryFile(mode="w", suffix=".lock") as audit_input:
             audit_input.write(registry_lockfile(source, provenance) if patched else source)
             audit_input.flush()

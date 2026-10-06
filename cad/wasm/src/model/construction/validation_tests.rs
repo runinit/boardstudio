@@ -25,7 +25,7 @@ fn fixture_path(relative: &str) -> PathBuf {
 }
 
 fn core_request(request: &Value) -> Value {
-    let driver = root().join("core/target/debug/examples/prepare_case");
+    let driver = root().join("target/debug/examples/prepare_case");
     let output = Command::new(driver)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())

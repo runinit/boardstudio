@@ -1,0 +1,16 @@
+[workspace]
+resolver = "3"
+members = [
+  "application",
+  "contracts/rust",
+  "core",
+  "footprints",
+  "renderer",
+  "web",
+]
+# The CAD crates build in their own toolchains: cad/wasm inside the pinned
+# wasi-sdk container and cad/step-oracle against native OCCT.
+exclude = ["cad/wasm", "cad/step-oracle", "renderer/vendor/cgmath-0.18.0"]
+
+[patch.crates-io]
+cgmath = { path = "renderer/vendor/cgmath-0.18.0" }

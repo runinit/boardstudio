@@ -35,7 +35,7 @@ fn resolved_internal_case_is_connected_and_preserves_wall_material() {
     let request = |input: serde_json::Value| {
         let mut driver = Command::new(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../core/target/debug/examples/prepare_case"
+            "/../../target/debug/examples/prepare_case"
         ))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

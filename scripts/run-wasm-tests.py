@@ -150,7 +150,7 @@ def load_test_owners(path=None):
 
 
 def locked_wasm_bindgen_version(root=ROOT):
-    lock = (Path(root) / "web/Cargo.lock").read_text()
+    lock = (Path(root) / "Cargo.lock").read_text()
     match = re.search(r'name = "wasm-bindgen"\nversion = "([^"]+)"', lock)
     return match.group(1) if match else None
 

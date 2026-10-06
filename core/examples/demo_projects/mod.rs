@@ -318,7 +318,7 @@ pub fn prepare(destination: Option<&str>) -> Result<()> {
             "catalogue/modules/imported-modules.json",
             "catalogue/parts/imported-parts.json",
             "core/Cargo.toml",
-            "core/Cargo.lock",
+            "Cargo.lock",
         ] {
             hashes.insert(file, digest(&fs::read(root().join(file))?));
         }

@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def driver_path() -> str:
-    return os.environ.get("BOARDSTUDIO_ARTIFACT_DRIVER") or str(ROOT / "core/target/debug/examples/artifact_request")
+    return os.environ.get("BOARDSTUDIO_ARTIFACT_DRIVER") or str(ROOT / "target/debug/examples/artifact_request")
 
 
 def request(payload: dict, failure: str) -> dict:
