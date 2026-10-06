@@ -25,7 +25,7 @@ would move application code to Rust while retaining that kernel.
 
 ## Fit with the current CAD package
 
-The current [`cad/src/index.ts`](../cad/src/index.ts) uses libcascade 3.0.2 for
+The current `cad/src/index.ts` (retired; see git history at `cbcfcc5f3`) uses libcascade 3.0.2 for
 solids, STEP, and meshing, plus ClipperLib for planar offsets.
 
 | Current need | Inspected Rust API | Remaining integration work |

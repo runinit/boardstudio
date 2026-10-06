@@ -104,7 +104,7 @@ as an actively developed option for a new dependency.
 
 ## Application-specific experiment
 
-Use the existing [CAD fixture set](../cad/test/case.test.mjs) as the starting
+Use the existing CAD fixture set (`cad/test/case.test.mjs`, retired; see git history at `cbcfcc5f3`) as the starting
 comparison: holed plates, concave contours, tray/lid cavities, mounting geometry,
 gasket grooves and multiple bodies. Add touching/coplanar faces, concentric
 boss/hole cylinders, very thin walls and split contours. Check closed oriented

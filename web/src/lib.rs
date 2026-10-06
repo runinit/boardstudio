@@ -16,6 +16,9 @@ pub mod cad_worker;
 
 pub mod offline;
 
+#[cfg(all(test, target_arch = "wasm32", feature = "page"))]
+mod boundary_parity;
+
 pub const CORE_WORKER_FRAME_VERSION: u8 = 1;
 
 #[cfg(any(all(target_arch = "wasm32", feature = "page"), test))]

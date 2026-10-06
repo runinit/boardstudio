@@ -132,7 +132,7 @@ settings, case units, solids and assembly transforms. Convert an indexed mesh if
 necessary at the worker boundary; do not change the Three.js API as part of the
 kernel comparison.
 
-The retained integration suite in [`cad/test/case.test.mjs`](../cad/test/case.test.mjs)
+The retained integration suite in `cad/test/case.test.mjs` (retired; see git history at `cbcfcc5f3`)
 contains all 11 original case fixtures plus transformed multi-solid component
 STEP import. It checks STEP reimport volume and bounds, mesh validity, component
 placement and units, and worker recovery. The development-only `libcascade`
