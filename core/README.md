@@ -1,7 +1,7 @@
 # Rust core
 
-`wasm-pack build core --target web --release` emits the worker package in
-`core/pkg`. `CoreEngine.request(json)` accepts and returns the JSON protocol
+The browser runs Core inside the `web` crate's core-worker build
+(`python3 scripts/build-web.py --providers-only`). `CoreEngine.request(json)` accepts and returns the JSON protocol
 from `contracts`. Preview replies contain projected scene geometry while
 `document` remains committed. Commit, undo, and redo each advance revision.
 

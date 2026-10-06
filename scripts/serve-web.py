@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Serve built Dioxus root and /boardstudio/ sites with web isolation headers."""
+"""Serve the built Dioxus /boardstudio/ site (and the root site, if built) with web isolation headers."""
 
 from __future__ import annotations
 
@@ -9,7 +9,18 @@ from pathlib import Path
 
 
 def handler_for(build_root: Path):
+    has_root = (build_root / "site-root/index.html").is_file()
+
     class Handler(SimpleHTTPRequestHandler):
+        def send_head(self):
+            # `build-web.py` packages only the Pages route unless `--routes root,subpath` is given.
+            if not has_root and self.path.partition("?")[0] == "/":
+                self.send_response(302)
+                self.send_header("Location", "/boardstudio/")
+                self.end_headers()
+                return None
+            return super().send_head()
+
         def translate_path(self, path: str) -> str:
             url_path = path.partition("?")[0].partition("#")[0]
             if url_path == "/boardstudio" or url_path.startswith("/boardstudio/"):
@@ -39,15 +50,14 @@ def handler_for(build_root: Path):
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("build", type=Path, nargs="?", default=Path("web/target/site"),
-                        help="build output containing site-root/ and site-subpath/boardstudio/")
+                        help="build output containing site-subpath/boardstudio/ and optionally site-root/")
     parser.add_argument("port", type=int, nargs="?", default=4173)
     parser.add_argument("--host", default="127.0.0.1")
     args = parser.parse_args()
     build_root = args.build.resolve()
-    for required in (build_root / "site-root/index.html",
-                     build_root / "site-subpath/boardstudio/index.html"):
-        if not required.is_file():
-            parser.error(f"build output is incomplete; missing {required}")
+    required = build_root / "site-subpath/boardstudio/index.html"
+    if not required.is_file():
+        parser.error(f"build output is incomplete; missing {required}")
     server = ThreadingHTTPServer((args.host, args.port), handler_for(build_root))
     print(f"Serving {build_root} at http://{args.host}:{args.port}/", flush=True)
     server.serve_forever()

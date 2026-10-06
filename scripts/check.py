@@ -10,10 +10,10 @@ Steps:
   tooling*    tests for the Python build, content and CAD tooling
   build*      production web build (providers and release packaging)
   test*       native Rust tests (Core, application, footprints, renderer, CAD, web)
-  typecheck*  WASM page compilation
+  typecheck   WASM page compilation (the build step already compiles the page for WASM)
   browser*    mounted headless-browser tests and the real-browser CAD smoke gate
   security    dependency audit of every Rust lockfile (separate CI workflow)
-  precommit   rebuild the Core WASM package and typecheck the page
+  precommit   typecheck the page
 """
 
 from __future__ import annotations
@@ -26,7 +26,12 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 PY = "python3"
-CARGO_TESTS = ("core", "application", "footprints", "renderer")
+# One workspace invocation compiles Core once for every crate's tests. Footprints runs
+# separately: its serde_json `preserve_order` dev-feature must not leak into Core's tests.
+CARGO_TESTS: list[list[str]] = [
+    ["cargo", "test", "--workspace", "--locked", "--exclude", "boardstudio-footprints"],
+    ["cargo", "test", "-p", "boardstudio-footprints", "--locked"],
+]
 TOOLING_TESTS = (
     "cad/scripts/test-cadrum-build.py", "scripts/test-build-web.py", "scripts/test-serve-web.py",
     "scripts/test-dev-web.py", "scripts/test-run-wasm-tests.py", "scripts/test-check-wasm-tests.py",
@@ -40,7 +45,7 @@ Command = list[str]
 
 
 def typecheck() -> list[Command]:
-    return [["cargo", "check", "--manifest-path", "web/Cargo.toml", "--locked", "--target", "wasm32-unknown-unknown",
+    return [["cargo", "check", "-p", "boardstudio-web", "--locked", "--target", "wasm32-unknown-unknown",
              *WASM_PAGE, "--bin", "boardstudio-web"]]
 
 
@@ -60,15 +65,11 @@ STEPS: dict[str, tuple[bool, list[Command]]] = {
     "repo": (True, [[PY, "-B", "scripts/test-check-doc-links.py"], [PY, "scripts/check-doc-links.py"]]),
     "tooling": (True, [[PY, "-B", script] for script in TOOLING_TESTS]),
     "build": (True, [[PY, "scripts/build-web.py"]]),
-    "test": (True, [
-        *[["cargo", "test", "--manifest-path", f"{crate}/Cargo.toml", "--locked"] for crate in CARGO_TESTS],
-        [PY, "cad/scripts/test-cadrum.py"],
-        ["cargo", "test", "--manifest-path", "web/Cargo.toml", "--locked", "--lib", "--bin", "boardstudio-web"],
-    ]),
-    "typecheck": (True, typecheck()),
+    "test": (True, [*CARGO_TESTS, [PY, "cad/scripts/test-cadrum.py"]]),
+    "typecheck": (False, typecheck()),
     "browser": (True, browser()),
     "security": (False, [[PY, "-B", "scripts/security-audit.test.py"], [PY, "scripts/security-audit.py"]]),
-    "precommit": (False, [["wasm-pack", "build", "core", "--target", "web", "--out-dir", "pkg"], *typecheck()]),
+    "precommit": (False, typecheck()),
 }
 DEFAULT = tuple(name for name, (included, _) in STEPS.items() if included)
 

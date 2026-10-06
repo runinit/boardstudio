@@ -27,10 +27,11 @@ python3 scripts/build-web.py
 python3 scripts/serve-web.py web/target/site 4173
 ```
 
-The build creates `web/target/site/site-root` and
-`web/target/site/site-subpath/boardstudio`. Preview serves the root and `/boardstudio/`
-routes at `http://127.0.0.1:4173/` with the isolation headers required by browser workers.
-GitHub Pages publishes the subpath build. Production build and preview are separate
+The build creates `web/target/site/site-subpath/boardstudio`, the `/boardstudio/` route
+GitHub Pages publishes. Add `--routes subpath,root` to also package the root route in
+`web/target/site/site-root`. Preview serves the built routes at `http://127.0.0.1:4173/`
+(redirecting `/` to `/boardstudio/` when only the subpath was built) with the isolation
+headers required by browser workers. Production build and preview are separate
 from the watched development loop. Development uses an online server; use the
 production preview to test offline behavior.
 
@@ -70,6 +71,11 @@ before executing tests.
 | `catalogue/`, `content/` | Components, models, licences and bundled examples |
 | `core/examples/demo_projects/`, `content/layouts/` | Native bundled-project recipes and measured source layouts |
 | `scripts/` | Build, content preparation and checks |
+
+The Rust crates share one Cargo workspace (root `Cargo.toml`, `Cargo.lock` and
+`target/`), so dependencies compile once per profile and target. `cad/wasm` and
+`cad/step-oracle` stay outside it because they build against the pinned WASI and
+native OCCT toolchains.
 
 The repository has no TypeScript or Node dependency; Python scripts handle build, content preparation and checks. Footprint generation runs in Rust inside Core and the page. User-supplied
 JavaScript generators are not executed. Bundled model export includes used assets;

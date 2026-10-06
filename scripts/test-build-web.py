@@ -16,8 +16,9 @@ class BuildWebTests(unittest.TestCase):
     def test_provider_commands_use_retained_build_steps(self):
         commands = [" ".join(command) for command, _ in BUILD.provider_commands()]
         joined = "\n".join(commands)
+        self.assertNotIn("wasm-pack build core", joined)
         for retained in (
-            "wasm-pack build core", "--features core-worker", "--features cad-worker",
+            "--features core-worker", "--features cad-worker", "--features service-worker",
             "cad/scripts/build-cadrum-wasm.py",
             "--example prepare_demo_projects", "stage-ergogen-models.py",
         ):
@@ -37,7 +38,7 @@ class BuildWebTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertTrue(list((root / "web/assets/ergogen-models").iterdir()))
 
-    def test_build_assembles_root_and_pages_subpath_from_dirty_worktree(self):
+    def test_build_assembles_requested_routes_from_dirty_worktree(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             web = root / "web"
@@ -66,15 +67,19 @@ class BuildWebTests(unittest.TestCase):
                 public.mkdir(parents=True, exist_ok=True)
                 (public / "index.html").write_text(prefix)
 
-            def fake_embed(site, route, _temp):
-                (site / "service-worker.js").write_text(route)
+            def fake_embed(site):
+                (site / "service-worker.js").write_text("worker")
 
             with patch.object(BUILD, "ROOT", root), patch.object(BUILD, "WEB", web), \
                  patch.object(BUILD, "dx_public", lambda _release: public), patch.object(BUILD, "run", fake_run), \
                  patch.object(BUILD, "embed_offline_worker", fake_embed):
-                output = BUILD.build(root / "output", prepare_providers=False)
+                default = BUILD.build(root / "default", prepare_providers=False)
+                output = BUILD.build(root / "output", prepare_providers=False,
+                                     routes=("subpath", "root"))
 
-            self.assertEqual(len(calls), 2)
+            self.assertEqual(len(calls), 3)
+            self.assertFalse((default / "site-root").exists())
+            self.assertEqual((default / "site-subpath/boardstudio/index.html").read_text(), "/boardstudio/")
             root_site = output / "site-root"
             subpath_site = output / "site-subpath/boardstudio"
             self.assertEqual((root_site / "index.html").read_text(), "/")
@@ -90,31 +95,46 @@ class BuildWebTests(unittest.TestCase):
                 self.assertTrue((site / "assets/cad-worker/entry.js").is_file())
                 self.assertTrue((site / "service-worker.js").is_file())
 
-    def test_offline_worker_manifest_contains_module_glue_and_scoped_assets(self):
+    def test_offline_worker_bootstrap_passes_route_manifest(self):
+        import json
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             site = root / "site"
-            site.mkdir()
+            (site / "assets").mkdir(parents=True)
             (site / "index.html").write_text("shell")
-            worker_output = root / "offline-root"
+            (site / "assets/app.wasm").write_bytes(b"app")
+            worker = root / "offline-worker"
+            worker.mkdir()
+            (worker / "boardstudio_offline_worker.js").write_text("export function initSync(){}")
+            (worker / "boardstudio_offline_worker_bg.wasm").write_bytes(b"wasm")
 
-            def fake_run(command, *, cwd=BUILD.ROOT, env=None):
-                worker_output.mkdir(parents=True, exist_ok=True)
-                (worker_output / "boardstudio_offline_worker.js").write_text("export function initSync(){}")
-                (worker_output / "boardstudio_offline_worker_bg.wasm").write_bytes(b"wasm")
-                manifest = Path(env["BOARDSTUDIO_OFFLINE_MANIFEST"])
-                payload = __import__("json").loads(manifest.read_text())
-                self.assertIn("index.html", payload["assets"])
-                self.assertIn("service-worker.js", payload["assets"])
-                self.assertIn("boardstudio_offline_worker.js", payload["assets"])
+            BUILD.embed_offline_worker(site, worker)
 
-            with patch.object(BUILD, "ROOT", root), patch.object(BUILD, "run", fake_run):
-                BUILD.embed_offline_worker(site, "root", root)
             bootstrap = (site / "service-worker.js").read_text()
-            self.assertIn('from "./boardstudio_offline_worker.js"', bootstrap)
-            self.assertIn("initSync", bootstrap)
+            self.assertIn('import { initSync, start_offline_worker } from "./boardstudio_offline_worker.js"',
+                          bootstrap)
+            call = bootstrap.splitlines()[-1]
+            self.assertTrue(call.startswith("start_offline_worker(") and call.endswith(");"), call)
+            version, assets = json.loads("[" + call[len("start_offline_worker("):-2] + "]")
+            self.assertRegex(version, r"^boardstudio-[0-9a-f]{16}-[0-9]+$")
+            self.assertEqual(assets, sorted({"index.html", "assets/app.wasm", "service-worker.js",
+                                             "boardstudio_offline_worker.js"}))
             self.assertTrue((site / "boardstudio_offline_worker.js").is_file())
 
+    def test_offline_manifest_validation_matches_the_worker(self):
+        valid = {"version": "boardstudio-1", "assets": ["index.html", "assets/a.wasm"]}
+        BUILD.validate_offline_manifest(valid)
+        for bad in ({"version": "a b", "assets": ["index.html"]},
+                    {"version": "v", "assets": ["app.js"]},
+                    {"version": "v", "assets": ["index.html", "index.html"]},
+                    {"version": "v", "assets": ["index.html", "../x"]},
+                    {"version": "v", "assets": ["index.html", "a?b"]}):
+            with self.assertRaises(ValueError, msg=bad):
+                BUILD.validate_offline_manifest(bad)
+
+    def test_routes_option_rejects_unknown_routes(self):
+        with self.assertRaises(SystemExit):
+            BUILD.main(["--routes", "elsewhere"])
 
 if __name__ == "__main__":
     unittest.main()

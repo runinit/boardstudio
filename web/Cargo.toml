@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 publish = false
+# The files in tests/ `#[path]`-include wasm-only presentation sources and do not build
+# natively; `cargo test --workspace` must not try. Browser tests live in src/.
+autotests = false
 
 [lib]
 name = "boardstudio_web"
@@ -54,7 +57,6 @@ web-sys = { version = "=0.3.106", features = [
 wasm-bindgen-test = "0.3.79"
 
 [build-dependencies]
-serde_json = "1"
 sha2 = "=0.11.0"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]

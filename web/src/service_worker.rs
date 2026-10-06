@@ -7,20 +7,15 @@ use web_sys::{
     WorkerGlobalScope,
 };
 
-include!(concat!(env!("OUT_DIR"), "/offline_manifest.rs"));
+thread_local! {
+    static MANIFEST: std::cell::OnceCell<OfflineManifest> = const { std::cell::OnceCell::new() };
+}
 
+/// The release manifest that `start_offline_worker` received from the generated bootstrap.
 fn manifest() -> Result<OfflineManifest, JsValue> {
-    let manifest = OfflineManifest {
-        version: BUILD_OFFLINE_VERSION.into(),
-        assets: BUILD_OFFLINE_ASSETS
-            .iter()
-            .map(|asset| (*asset).to_owned())
-            .collect(),
-    };
-    manifest
-        .validate()
-        .map_err(|error| JsValue::from_str(&error))?;
-    Ok(manifest)
+    MANIFEST
+        .with(|manifest| manifest.get().cloned())
+        .ok_or_else(|| JsValue::from_str("offline worker started without a release manifest"))
 }
 
 fn scope() -> String {
@@ -107,9 +102,20 @@ async fn cached_fetch(request: Request, scope_url: &str) -> Result<JsValue, JsVa
     JsFuture::from(global.fetch_with_request(&request)).await
 }
 
-#[wasm_bindgen(start)]
-pub fn register_policy_handlers() -> Result<(), JsValue> {
-    manifest()?;
+/// Validate the route's asset manifest and register the offline cache policy.
+///
+/// The release bootstrap (`service-worker.js`) calls this synchronously after
+/// `initSync`, so the handlers exist before the worker's first event. One worker
+/// build serves every route because the manifest is not compiled in.
+#[wasm_bindgen]
+pub fn start_offline_worker(version: String, assets: Vec<String>) -> Result<(), JsValue> {
+    let manifest = OfflineManifest { version, assets };
+    manifest
+        .validate()
+        .map_err(|error| JsValue::from_str(&error))?;
+    if MANIFEST.with(|current| current.set(manifest)).is_err() {
+        return Err(JsValue::from_str("offline worker was already started"));
+    }
     let global = js_sys::global().unchecked_into::<ServiceWorkerGlobalScope>();
 
     let install = Closure::<dyn FnMut(ExtendableEvent)>::new(|event: ExtendableEvent| {
