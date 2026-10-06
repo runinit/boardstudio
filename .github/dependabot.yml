@@ -1,12 +1,5 @@
 version: 2
 updates:
-  - package-ecosystem: npm
-    directory: /
-    schedule:
-      interval: weekly
-    groups:
-      build-and-test:
-        patterns: [vite, typescript, fflate]
   - package-ecosystem: cargo
     directories: [/core, /application, /renderer, /cad/wasm, /web, /contracts/rust]
     schedule:

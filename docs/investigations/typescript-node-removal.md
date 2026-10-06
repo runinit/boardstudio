@@ -1,12 +1,11 @@
 # TypeScript and Node removal assessment
 
 Assessed: 2026-10-05. Inspected revision: `3cdeb2ac2`.
-Status: dependency inventory at the inspected revision. Items 1–3 are now
-implemented by the [Rust footprint cutover](footprint-generators-rust.md): Core
-renders in process and a native builder prepares bundled projects. Item 4 now uses standard-library Python orchestration in `cad/scripts`,
-including verified OCCT preparation, native test setup and the pinned WASM
-container build. The remaining items are still an assessment; this document
-retains its original inventory.
+Status: implemented. This document retains its original inventory and records how
+each item was resolved. Items 1–3 landed with the [Rust footprint cutover](footprint-generators-rust.md);
+items 4–10 removed the CAD adapters, generated contracts, Node tests and checks,
+maintenance commands, package infrastructure and CI steps. Only the remaining
+generated wasm-bindgen glue and vendored sources are JavaScript.
 
 The Dioxus UI is already in Rust. Remaining TypeScript and Node dependencies
 provide footprint generation, PCB worker behavior, bundled content preparation,
@@ -53,8 +52,8 @@ removal work; provider behavior and independent validation require replacement.
 | 6. TypeScript contracts | Complete. The generated TypeScript, the handwritten facade, the Node generation and runtime-import checks, `ts-rs`, the `export-types` features and the TS-specific Rust annotations are removed. [Shared Rust contracts](../../contracts/rust) and serialization checks in `core/tests/contracts.rs` remain. | Complete |
 | 7. Node tests and checks | Complete. KiCad integration checks are native Rust ([tests](../../core/tests/kicad_integration.rs)). Native/WASM boundary parity replays shared requests against a golden transcript natively ([test](../../core/tests/boundary_parity.rs)) and through the real WASM exports in headless Chrome ([test](../../web/src/boundary_parity.rs)). The repository check is [check-doc-links.py](../../scripts/check-doc-links.py); the TypeScript module-graph analysis was retired with the last TypeScript module. | Complete |
 | 8. Content maintenance commands | Complete. The KiCad-part and VIK-module importers and the keyboard and Sofle layout extractors are Python ([scripts](../../scripts)), sharing a KiCad form reader and a JSON writer that reproduces JavaScript's output exactly. Both importers regenerate their committed snapshots byte for byte; the extractors were checked against the removed implementation on shared inputs but not against upstream checkouts. | Complete |
-| 9. Development and build entrypoints | Replace nested Node/pnpm calls in [build-web.py](../../scripts/build-web.py), [dev-web.py](../../scripts/dev-web.py) and [run-wasm-tests.py](../../scripts/run-wasm-tests.py). Provide direct Python/Cargo entrypoints for retained package scripts, including precommit and security checks. | Low–medium |
-| 10. CI, manifests and documentation | Update [workflows](../../.github/workflows) to remove project Node setup, the Node-version matrix and pnpm installs/caches. Remove npm auditing and npm Dependabot entries while retaining applicable security checks. Finally remove package manifests, pnpm lock/workspace configuration, `.node-version`, `.npmrc` and TS configs; update current development and onboarding instructions. | Low |
+| 9. Development and build entrypoints | Complete. [dev-web.py](../../scripts/dev-web.py), [build-web.py](../../scripts/build-web.py), [serve-web.py](../../scripts/serve-web.py) and [run-wasm-tests.py](../../scripts/run-wasm-tests.py) call no Node tool. [check.py](../../scripts/check.py) replaces the composite package scripts (`check`, `test`, `typecheck`, `test:browser`, `check:security`, `precommit`). | Complete |
+| 10. CI, manifests and documentation | Complete. The workflows no longer install Node or pnpm or run a Node-version matrix, and Dependabot no longer tracks npm. `package.json`, the pnpm lockfile and workspace, `.node-version` and `.npmrc` are removed, and the development instructions use the Python entrypoints. | Complete |
 
 ## Proposed sequence
 

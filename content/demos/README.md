@@ -1,6 +1,6 @@
 # Retained keyboard example data
 
-`tooling/demo-projects/src/demos/` contains measured layouts and TypeScript project generators used to build example `.boardstudio` files for application checks. These files are build tooling, not a separate browser frontend.
+`core/examples/demo_projects/` holds the native project recipes and `content/layouts/` the measured layouts used to build example `.boardstudio` files for application checks. These files are build tooling, not a separate browser frontend.
 
 The keyboard examples are adaptations from pinned upstream PCB measurements. They preserve measured key positions and use BoardStudio's bundled Ergogen parts, electrical resolver, and outline generation. They do not reproduce the source board routing, firmware, or fabrication readiness. Source revisions, paths, checksums, and applicable licenses are recorded beside the layout data; license texts are in `licenses/`.
 

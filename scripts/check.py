@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+"""Run BoardStudio's named check steps in order.
+
+  check.py                run the full check (the steps marked with * below)
+  check.py STEP...        run only the named steps
+  check.py --list         print every step and its commands
+
+Steps:
+  repo*       documentation link check and its tests
+  tooling*    tests for the Python build, content and CAD tooling
+  build*      production web build (providers and release packaging)
+  test*       native Rust tests (Core, application, footprints, renderer, CAD, web)
+  typecheck*  WASM page compilation
+  browser*    mounted headless-browser tests and the real-browser CAD smoke gate
+  security    dependency audit of every Rust lockfile (separate CI workflow)
+  precommit   rebuild the Core WASM package and typecheck the page
+"""
+
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+import shlex
+import subprocess
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+PY = "python3"
+CARGO_TESTS = ("core", "application", "footprints", "renderer")
+TOOLING_TESTS = (
+    "cad/scripts/test-cadrum-build.py", "scripts/test-build-web.py", "scripts/test-serve-web.py",
+    "scripts/test-dev-web.py", "scripts/test-run-wasm-tests.py", "scripts/test-check-wasm-tests.py",
+    "scripts/test-stage-ergogen-models.py", "scripts/test-check.py", "scripts/test-catalogue-tools.py",
+    "scripts/test-import-kicad-parts.py",
+)
+WASM_PAGE = ["--no-default-features", "--features", "page"]
+ISOLATED = ("presentation::case_workspace::", "presentation::setup_guide::", "presentation::panels::")
+
+Command = list[str]
+
+
+def typecheck() -> list[Command]:
+    return [["cargo", "check", "--manifest-path", "web/Cargo.toml", "--locked", "--target", "wasm32-unknown-unknown",
+             *WASM_PAGE, "--bin", "boardstudio-web"]]
+
+
+def browser() -> list[Command]:
+    wasm_pack = ["wasm-pack", "test", "--headless", "--chrome", "web", "--locked", *WASM_PAGE]
+    return [
+        [PY, "scripts/check-wasm-tests.py"],
+        [PY, "cad/scripts/test-cadrum-browser.py"],
+        [*wasm_pack, "--lib", "--", "host::storage::"],
+        [*wasm_pack, "--bin", "boardstudio-web", "--", "--list"],
+        [PY, "scripts/run-wasm-tests.py", "--all", "--depth", "1", *[f"--isolate={name}" for name in ISOLATED],
+         "--result-json", "web/target/test-results/browser.json"],
+    ]
+
+
+STEPS: dict[str, tuple[bool, list[Command]]] = {
+    "repo": (True, [[PY, "-B", "scripts/test-check-doc-links.py"], [PY, "scripts/check-doc-links.py"]]),
+    "tooling": (True, [[PY, "-B", script] for script in TOOLING_TESTS]),
+    "build": (True, [[PY, "scripts/build-web.py"]]),
+    "test": (True, [
+        *[["cargo", "test", "--manifest-path", f"{crate}/Cargo.toml", "--locked"] for crate in CARGO_TESTS],
+        [PY, "cad/scripts/test-cadrum.py"],
+        ["cargo", "test", "--manifest-path", "web/Cargo.toml", "--locked", "--lib", "--bin", "boardstudio-web"],
+    ]),
+    "typecheck": (True, typecheck()),
+    "browser": (True, browser()),
+    "security": (False, [[PY, "-B", "scripts/security-audit.test.py"], [PY, "scripts/security-audit.py"]]),
+    "precommit": (False, [["wasm-pack", "build", "core", "--target", "web", "--out-dir", "pkg"], *typecheck()]),
+}
+DEFAULT = tuple(name for name, (included, _) in STEPS.items() if included)
+
+
+def run(names: list[str]) -> int:
+    for name in names:
+        print(f"== {name}", flush=True)
+        for command in STEPS[name][1]:
+            print("$ " + shlex.join(command), flush=True)
+            if subprocess.run(command, cwd=ROOT).returncode:
+                print(f"check: step '{name}' failed", file=sys.stderr)
+                return 1
+    print("check: all steps passed: " + ", ".join(names))
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("steps", nargs="*", metavar="STEP", help="steps to run (default: the full check)")
+    parser.add_argument("--list", action="store_true", help="print every step and its commands")
+    args = parser.parse_args(argv)
+    unknown = [name for name in args.steps if name not in STEPS]
+    if unknown:
+        parser.error(f"unknown step(s): {', '.join(unknown)}; choose from {', '.join(STEPS)}")
+    if args.list:
+        for name, (included, commands) in STEPS.items():
+            print(f"{name}{'*' if included else ''}")
+            for command in commands:
+                print("  " + shlex.join(command))
+        return 0
+    return run(args.steps or list(DEFAULT))
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

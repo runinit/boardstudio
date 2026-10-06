@@ -15,22 +15,14 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      NODE_OPTIONS: --no-experimental-webstorage
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: "24.21.0"
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
       - run: rustup target add wasm32-unknown-unknown
       - run: cargo install wasm-pack --locked --version 0.15.0
       - run: python3 -c 'import sys, tomllib; assert sys.version_info >= (3, 11), sys.version'
       - run: cargo install dioxus-cli --locked --version 0.7.10
       - name: Build the Dioxus release package
-        run: pnpm build
+        run: python3 scripts/build-web.py
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: web/target/site/site-subpath/boardstudio
