@@ -6744,7 +6744,7 @@ impl Drop for Runtime {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 pub mod firmware_export_test_support {
     use super::*;
     use boardstudio_application::{Completion, Effect, Event, SaveResult, Session};
@@ -7730,7 +7730,7 @@ fn deliver(bytes: &[u8], filename: &str, media_type: Option<&str>) -> Result<(),
     result
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 pub mod project_name_test_support {
     use super::*;
 
