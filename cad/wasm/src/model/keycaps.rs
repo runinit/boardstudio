@@ -385,4 +385,45 @@ mod tests {
         s.legend = "🦀".into();
         assert!(template(&s).err().unwrap().contains("glyph"));
     }
+
+    #[test]
+    fn native_build_preserves_cache_placement_and_step_export() {
+        let make_request = |revision, x, height, tilt, export| Request {
+            revision,
+            specs: {
+                let mut s = spec();
+                s.pose.at.x = x;
+                s.height = height;
+                s.tilt = tilt;
+                vec![s]
+            },
+            export,
+        };
+        let first = build(make_request(5, 30.0, 7.5, 0.0, false)).unwrap();
+        assert_eq!(first.revision, 5);
+        assert!(first.step.is_empty());
+        let bodies = first.bodies.as_ref().unwrap();
+        assert_eq!(bodies.len(), 2);
+        assert_eq!(bodies[1].id, "keycap-legend:key");
+        let original = bodies[0].mesh.positions[0];
+
+        // Placement is applied after template-cache lookup; moving the same
+        // geometry must move its mesh without corrupting the cached template.
+        let moved = build(make_request(6, 40.0, 7.5, 0.0, false)).unwrap();
+        let moved_x = moved.bodies.as_ref().unwrap()[0].mesh.positions[0];
+        assert!((moved_x - original - 10.0).abs() < 1e-4);
+
+        // Shape inputs participate in the cache key and change the resulting
+        // mesh, while the same cached template remains valid for export.
+        let changed = build(make_request(7, 30.0, 9.5, 6.0, false)).unwrap();
+        assert_ne!(
+            changed.bodies.as_ref().unwrap()[0].mesh.positions,
+            bodies[0].mesh.positions
+        );
+        let exported = build(make_request(8, 30.0, 7.5, 0.0, true)).unwrap();
+        assert!(exported.step.len() > 1000);
+        let roundtrip = super::super::read_step_model_data(exported.step).unwrap();
+        assert!(roundtrip.min[0] > 15.0 && roundtrip.max[0] < 45.0);
+        assert!(roundtrip.mesh.positions.len() > 100);
+    }
 }

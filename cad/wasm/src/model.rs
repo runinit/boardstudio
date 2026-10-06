@@ -2,6 +2,8 @@ mod construction;
 mod keycaps;
 pub use keycaps::build_keycaps;
 mod metrics;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod source_validation_tests;
 pub use construction::{build_assembly, build_case, export_cached_assembly, preview_body};
 use metrics::Stage;
 
