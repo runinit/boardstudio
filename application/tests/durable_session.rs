@@ -271,7 +271,8 @@ fn protected_handoff_review_uses_core_operation_after_normal_edits_preserve_it()
             operation_id: OperationId(3),
             outcome: TerminalOutcome::Completed,
 
-        ..}
+            ..
+        }
     )));
     assert_eq!(
         session
@@ -312,7 +313,8 @@ fn protected_handoff_review_rejects_a_stale_fingerprint_without_saving() {
             operation_id: OperationId(11),
             outcome: TerminalOutcome::Rejected(_),
 
-        ..}
+            ..
+        }
     )));
 
     let effects = session.submit(Event::ReviewElectricalRemap {
@@ -391,7 +393,8 @@ fn retry_persists_retained_commit_without_replaying_engine_edit() {
             operation_id: OperationId(1),
             outcome: TerminalOutcome::Completed,
 
-        ..}
+            ..
+        }
     )));
 
     let event = Event::Edit {
@@ -439,7 +442,8 @@ fn retry_persists_retained_commit_without_replaying_engine_edit() {
             operation_id: OperationId(2),
             outcome: TerminalOutcome::PersistenceFailed(_),
 
-        ..}
+            ..
+        }
     )));
     assert_eq!(
         session
@@ -483,7 +487,8 @@ fn retry_persists_retained_commit_without_replaying_engine_edit() {
             operation_id: OperationId(3),
             outcome: TerminalOutcome::Completed,
 
-        ..}
+            ..
+        }
     )));
 
     let snapshot_request = CoreRequest::Snapshot {
@@ -638,7 +643,8 @@ fn queued_discrete_edits_use_each_preceding_durable_revision() {
             operation_id: OperationId(12),
             outcome: TerminalOutcome::Completed,
 
-        ..}
+            ..
+        }
     )));
 }
 
@@ -897,7 +903,8 @@ fn drag_coalesces_previews_and_commits_the_pointerup_sample_once() {
             operation_id: OperationId(30),
             outcome: TerminalOutcome::Completed,
 
-        ..}
+            ..
+        }
     )));
     assert!(
         matches!(engine.handle(CoreRequest::Undo { id: "undo-check".into() }), CoreReply::Scene { scene, document, .. } if scene.revision == 2 && document.parts[0].pose.at.x == 0.0)
@@ -932,7 +939,8 @@ fn uncertain_worker_outcome_is_never_replayed_and_requires_explicit_reopen() {
             operation_id: OperationId(40),
             outcome: TerminalOutcome::ExecutorFailed(_),
 
-        ..}
+            ..
+        }
     )));
     assert!(
         effects
@@ -998,7 +1006,8 @@ fn uncertain_worker_outcome_is_never_replayed_and_requires_explicit_reopen() {
             operation_id: OperationId(42),
             outcome: TerminalOutcome::Completed,
 
-        ..}
+            ..
+        }
     )));
 }
 
@@ -1297,7 +1306,8 @@ fn cancelled_pointer_makes_late_preview_inert_and_releases_capture() {
             operation_id: OperationId(60),
             outcome: TerminalOutcome::Cancelled,
 
-        ..}
+            ..
+        }
     )));
     let stale_reply = engine.handle(preview_request);
     session.complete(Completion::Core {
@@ -1365,7 +1375,8 @@ fn same_id_revision_reopen_invalidates_generation_and_export_tokens() {
             operation_id: OperationId(71),
             outcome: TerminalOutcome::Cancelled,
 
-        ..}
+            ..
+        }
     )));
     let (request_id, epoch, request) = core_effect(&effects);
     let reply = engine.handle(request);
@@ -1500,7 +1511,8 @@ fn instance_navigation_updates_scope_and_cancels_in_flight_case_work() {
             operation_id: OperationId(13),
             outcome: TerminalOutcome::Completed,
 
-        ..}
+            ..
+        }
     )));
     let physical_scope = session.scope().unwrap();
     assert_eq!(physical_scope.board_id, "main");
@@ -1518,7 +1530,8 @@ fn instance_navigation_updates_scope_and_cancels_in_flight_case_work() {
             operation_id: OperationId(14),
             outcome: TerminalOutcome::Completed,
 
-        ..}
+            ..
+        }
     )));
     assert_eq!(session.scope().unwrap(), canonical_scope);
 
@@ -1693,7 +1706,10 @@ fn rename_document(base_revision: u64, name: &str) -> ProjectDoc {
     document
 }
 
-fn settled_landing(effects: &[Effect], operation_id: OperationId) -> (TerminalOutcome, Option<Landing>) {
+fn settled_landing(
+    effects: &[Effect],
+    operation_id: OperationId,
+) -> (TerminalOutcome, Option<Landing>) {
     effects
         .iter()
         .find_map(|effect| match effect {
@@ -1734,7 +1750,10 @@ fn document_completions_carry_the_landing_of_the_installed_snapshot() {
     let edit_landing = landing.expect("the edit commit reports where it landed");
     assert_eq!(edit_landing.revision, accepted.document.revision);
     assert_eq!(edit_landing.token, accepted.token);
-    assert_ne!(edit_landing.token, open_landing.token, "each landing names its own snapshot");
+    assert_ne!(
+        edit_landing.token, open_landing.token,
+        "each landing names its own snapshot"
+    );
 
     let effects = session.submit(Event::Undo {
         operation_id: OperationId(3),
@@ -1744,7 +1763,10 @@ fn document_completions_carry_the_landing_of_the_installed_snapshot() {
     assert_eq!(outcome, TerminalOutcome::Completed);
     let accepted = session.read_model().accepted.clone().unwrap();
     let undo_landing = landing.expect("the undo reports where it landed");
-    assert_eq!(accepted.document.name, "Project", "the undo restored the earlier name");
+    assert_eq!(
+        accepted.document.name, "Project",
+        "the undo restored the earlier name"
+    );
     assert_eq!(undo_landing.revision, accepted.document.revision);
     assert_eq!(undo_landing.token, accepted.token);
 
@@ -1756,10 +1778,16 @@ fn document_completions_carry_the_landing_of_the_installed_snapshot() {
     assert_eq!(outcome, TerminalOutcome::Completed);
     let accepted = session.read_model().accepted.clone().unwrap();
     let redo_landing = landing.expect("the redo reports where it landed");
-    assert_eq!(accepted.document.name, "Renamed", "the redo restored the edit");
+    assert_eq!(
+        accepted.document.name, "Renamed",
+        "the redo restored the edit"
+    );
     assert_eq!(redo_landing.revision, accepted.document.revision);
     assert_eq!(redo_landing.token, accepted.token);
-    assert_ne!(redo_landing.token, undo_landing.token, "each landing names its own snapshot");
+    assert_ne!(
+        redo_landing.token, undo_landing.token,
+        "each landing names its own snapshot"
+    );
 }
 
 #[test]
@@ -1863,6 +1891,13 @@ fn non_document_completions_carry_no_landing() {
     let (outcome, landing) = settled_landing(&effects, OperationId(4));
     assert_eq!(outcome, TerminalOutcome::Completed);
     assert!(landing.is_none(), "camera changes no document");
+
+    let effects = session.submit(Event::CancelGeneration {
+        operation_id: OperationId(5),
+    });
+    let (outcome, landing) = settled_landing(&effects, OperationId(5));
+    assert_eq!(outcome, TerminalOutcome::Completed);
+    assert!(landing.is_none(), "cancelling a job changes no document");
 }
 
 #[test]

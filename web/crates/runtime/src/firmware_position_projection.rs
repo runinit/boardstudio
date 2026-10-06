@@ -132,10 +132,7 @@ pub fn admits_edit(
 
 /// Admission identity is intentionally absent here: after submission, plan/source refresh cannot
 /// orphan the exact operation. Only the stable target gates feedback visibility.
-pub fn settle_edit(
-    outcome: &TerminalOutcome,
-    source: EditSettlementSource<'_>,
-) -> EditSettlement {
+pub fn settle_edit(outcome: &TerminalOutcome, source: EditSettlementSource<'_>) -> EditSettlement {
     if !source.target_is_current {
         return EditSettlement::Suppress;
     }
@@ -435,7 +432,8 @@ mod tests {
                 operation_id: OperationId(1),
                 outcome: TerminalOutcome::Completed,
 
-            ..}
+                ..
+            }
         )));
         (session, engine)
     }
@@ -562,8 +560,8 @@ mod tests {
                 Effect::Settled {
                     operation_id: id,
                     outcome,
-
-                ..} if *id == operation_id => Some(outcome.clone()),
+                    ..
+                } if *id == operation_id => Some(outcome.clone()),
                 _ => None,
             })
             .expect("the exact submitted operation settles");

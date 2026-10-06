@@ -10,9 +10,32 @@ pub type OutcomeSlot = Rc<RefCell<Option<TerminalOutcome>>>;
 pub type LandingSlot = Rc<RefCell<Option<Landing>>>;
 
 #[derive(Default)]
+struct ObservedSlots {
+    outcome: Weak<RefCell<Option<TerminalOutcome>>>,
+    landing: Weak<RefCell<Option<Landing>>>,
+}
+
+impl ObservedSlots {
+    fn outcome_slot(&mut self) -> OutcomeSlot {
+        self.outcome.upgrade().unwrap_or_else(|| {
+            let slot = Rc::new(RefCell::new(None));
+            self.outcome = Rc::downgrade(&slot);
+            slot
+        })
+    }
+
+    fn landing_slot(&mut self) -> LandingSlot {
+        self.landing.upgrade().unwrap_or_else(|| {
+            let slot = Rc::new(RefCell::new(None));
+            self.landing = Rc::downgrade(&slot);
+            slot
+        })
+    }
+}
+
+#[derive(Default)]
 pub struct OperationOutcomes {
-    waiting: RefCell<BTreeMap<OperationId, Weak<RefCell<Option<TerminalOutcome>>>>>,
-    landings: RefCell<BTreeMap<OperationId, Weak<RefCell<Option<Landing>>>>>,
+    waiting: RefCell<BTreeMap<OperationId, ObservedSlots>>,
 }
 
 impl OperationOutcomes {
@@ -23,24 +46,15 @@ impl OperationOutcomes {
     }
 
     /// Observe a fresh operation and receive a second slot carrying where the operation
-    /// landed. The outcome slot behaves exactly as `observe`'s.
+    /// landed. The outcome slot behaves exactly as `observe`'s, whichever way round the
+    /// two observation calls happen.
     pub fn observe_with_landing(&self, operation: OperationId) -> (OutcomeSlot, LandingSlot) {
         let mut waiting = self.waiting.borrow_mut();
-        waiting.retain(|_, slot| slot.strong_count() != 0);
-        let mut landings = self.landings.borrow_mut();
-        landings.retain(|_, slot| slot.strong_count() != 0);
-        if let Some(slot) = waiting.get(&operation).and_then(Weak::upgrade) {
-            let landing = landings
-                .get(&operation)
-                .and_then(Weak::upgrade)
-                .unwrap_or_default();
-            return (slot, landing);
-        }
-        let slot = Rc::new(RefCell::new(None));
-        waiting.insert(operation, Rc::downgrade(&slot));
-        let landing = Rc::new(RefCell::new(None));
-        landings.insert(operation, Rc::downgrade(&landing));
-        (slot, landing)
+        waiting.retain(|_, slots| {
+            slots.outcome.strong_count() != 0 || slots.landing.strong_count() != 0
+        });
+        let slots = waiting.entry(operation).or_default();
+        (slots.outcome_slot(), slots.landing_slot())
     }
 
     pub fn settle(&self, operation: OperationId, outcome: TerminalOutcome) -> bool {
@@ -53,25 +67,16 @@ impl OperationOutcomes {
         outcome: TerminalOutcome,
         landing: Option<Landing>,
     ) -> bool {
-        let slot = self
-            .waiting
-            .borrow_mut()
-            .remove(&operation)
-            .and_then(|slot| slot.upgrade());
-        let landing_slot = self
-            .landings
-            .borrow_mut()
-            .remove(&operation)
-            .and_then(|slot| slot.upgrade());
-        if let Some(slot) = slot {
-            *slot.borrow_mut() = Some(outcome);
-            if let Some(landing_slot) = landing_slot {
-                *landing_slot.borrow_mut() = landing;
-            }
-            true
-        } else {
-            false
+        let slots = self.waiting.borrow_mut().remove(&operation);
+        let Some(slots) = slots else { return false };
+        let Some(slot) = slots.outcome.upgrade() else {
+            return false;
+        };
+        *slot.borrow_mut() = Some(outcome);
+        if let Some(landing_slot) = slots.landing.upgrade() {
+            *landing_slot.borrow_mut() = landing;
         }
+        true
     }
 }
 
@@ -96,8 +101,8 @@ mod tests {
                 if let Effect::Settled {
                     operation_id,
                     outcome,
-
-                ..} = effect
+                    ..
+                } = effect
                 {
                     outcomes.settle(operation_id, outcome);
                 }

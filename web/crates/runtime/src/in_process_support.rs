@@ -59,7 +59,10 @@ impl InProcessCore {
     pub fn gate_next_reply(&self) -> (oneshot::Receiver<()>, oneshot::Sender<()>) {
         let (entered, entered_rx) = oneshot::channel();
         let (release, release_rx) = oneshot::channel();
-        *self.behavior.borrow_mut() = Some(OneShotBehavior::Gate { entered, release: release_rx });
+        *self.behavior.borrow_mut() = Some(OneShotBehavior::Gate {
+            entered,
+            release: release_rx,
+        });
         (entered_rx, release)
     }
 
@@ -112,7 +115,10 @@ impl CoreExecutor for InProcessCore {
             if self.closed.get() {
                 return Err(HostError("core worker is closed".into()));
             }
-            let inputs = buffers.iter().map(|buffer| buffer.to_vec()).collect::<Vec<_>>();
+            let inputs = buffers
+                .iter()
+                .map(|buffer| buffer.to_vec())
+                .collect::<Vec<_>>();
             let (reply, output_bytes) = core_archive::request(metadata, &inputs);
             Ok(ArchiveResult {
                 metadata: reply,
@@ -134,11 +140,17 @@ impl CoreExecutor for InProcessCore {
             if self.closed.get() {
                 return Err(HostError("core worker is closed".into()));
             }
-            let frame = serde_json::to_string(request)
-                .map_err(|error| HostError(format!("could not encode artifact request: {error}")))?;
+            let frame = serde_json::to_string(request).map_err(|error| {
+                HostError(format!("could not encode artifact request: {error}"))
+            })?;
             let frame_id = serde_json::from_str::<serde_json::Value>(&frame)
                 .ok()
-                .and_then(|value| value.get("id").and_then(serde_json::Value::as_str).map(str::to_owned));
+                .and_then(|value| {
+                    value
+                        .get("id")
+                        .and_then(serde_json::Value::as_str)
+                        .map(str::to_owned)
+                });
             if frame_id.as_deref() != Some(request_id) {
                 return Err(HostError(
                     "artifact request id does not match worker request id".into(),
@@ -198,7 +210,10 @@ impl TestPersistence {
     pub fn gate_next_save(&self) -> (oneshot::Receiver<()>, oneshot::Sender<()>) {
         let (entered, entered_rx) = oneshot::channel();
         let (release, release_rx) = oneshot::channel();
-        *self.behavior.borrow_mut() = Some(OneShotBehavior::Gate { entered, release: release_rx });
+        *self.behavior.borrow_mut() = Some(OneShotBehavior::Gate {
+            entered,
+            release: release_rx,
+        });
         (entered_rx, release)
     }
 
@@ -248,12 +263,10 @@ impl DocumentPersistence for TestPersistence {
                 }
             }
             match &*self.target.borrow() {
-                PersistTarget::Store(store) => {
-                    store
-                        .save_document(document, assets)
-                        .await
-                        .map_err(|error| error.to_string())
-                }
+                PersistTarget::Store(store) => store
+                    .save_document(document, assets)
+                    .await
+                    .map_err(|error| error.to_string()),
                 PersistTarget::Memory(saves) => {
                     saves.borrow_mut().insert(
                         document.id.clone(),
@@ -302,8 +315,7 @@ impl InProcessAdapters {
     }
 
     fn restart_core(&self) {
-        *self.core.borrow_mut() =
-            Rc::new(InProcessCore::new(boardstudio_core::CoreEngine::new()));
+        *self.core.borrow_mut() = Rc::new(InProcessCore::new(boardstudio_core::CoreEngine::new()));
     }
 
     pub fn use_memory_saves(&self) {

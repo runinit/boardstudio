@@ -1888,23 +1888,40 @@ impl Session {
         effects: &mut Vec<Effect>,
     ) {
         if self.settled.insert(operation_id) {
-            effects.push(Effect::Settled {
-                operation_id,
-                outcome,
-                landing: None,
-            });
+            self.push_settled(operation_id, outcome, None, effects);
         }
     }
 
     /// Settle a completed operation at the accepted snapshot it just installed, so callers
     /// read exactly where it landed. A retried save re-reports the original operation with
-    /// its eventual landing after the earlier failure report.
-    fn settle_landed(&mut self, operation_id: OperationId, landing: Landing, effects: &mut Vec<Effect>) {
+    /// its eventual landing after the earlier failure report, so the dedup set is updated
+    /// without suppressing this report.
+    fn settle_landed(
+        &mut self,
+        operation_id: OperationId,
+        landing: Landing,
+        effects: &mut Vec<Effect>,
+    ) {
         self.settled.insert(operation_id);
+        self.push_settled(
+            operation_id,
+            TerminalOutcome::Completed,
+            Some(landing),
+            effects,
+        );
+    }
+
+    fn push_settled(
+        &mut self,
+        operation_id: OperationId,
+        outcome: TerminalOutcome,
+        landing: Option<Landing>,
+        effects: &mut Vec<Effect>,
+    ) {
         effects.push(Effect::Settled {
             operation_id,
-            outcome: TerminalOutcome::Completed,
-            landing: Some(landing),
+            outcome,
+            landing,
         });
     }
     fn epoch(&self) -> SessionEpoch {

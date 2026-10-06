@@ -11,11 +11,11 @@ use boardstudio_core::{
     electrical::{ElectricalMode, ElectricalPlan, ElectricalPlanRequest},
     model::{
         ArchiveEntry, ArchiveReply, ArchiveRequest, ArtifactReply, ArtifactRequest, Board,
-        CaseAssemblyIR, CaseIR, CompiledFootprint, CoreReply, CoreRequest,
-        HardwareTopology, KeycapSpec, Material, MechanicalAssembly,
-        MechanicalBuiltinProfile, MechanicalConfiguration, MechanicalExtraction,
-        MechanicalPartProfile, MechanicalPurposeMapping, MechanicalSwitchFamily, Operation,
-        OutlineFeature, OutlineSettings, PcbPreview, PrepareExportRequest, ProjectDoc,
+        CaseAssemblyIR, CaseIR, CompiledFootprint, CoreReply, CoreRequest, HardwareTopology,
+        KeycapSpec, Material, MechanicalAssembly, MechanicalBuiltinProfile,
+        MechanicalConfiguration, MechanicalExtraction, MechanicalPartProfile,
+        MechanicalPurposeMapping, MechanicalSwitchFamily, Operation, OutlineFeature,
+        OutlineSettings, PcbPreview, PrepareExportRequest, ProjectDoc,
     },
 };
 pub use boardstudio_web_host::host::CoreExecutor;
@@ -397,8 +397,7 @@ pub struct Runtime {
     session: RefCell<Session>,
     operation_outcomes: crate::operation_outcomes::OperationOutcomes,
     core: RefCell<Rc<dyn CoreExecutor>>,
-    core_executor_factory:
-        RefCell<Rc<dyn Fn() -> Result<Rc<dyn CoreExecutor>, String>>>,
+    core_executor_factory: RefCell<Rc<dyn Fn() -> Result<Rc<dyn CoreExecutor>, String>>>,
     pub store: BrowserStore,
     persistence: RefCell<Rc<dyn DocumentPersistence>>,
     next_operation: Cell<u64>,
@@ -1082,10 +1081,7 @@ impl Runtime {
         Ok((project_id, outcome))
     }
 
-    pub async fn delete_saved_project(
-        self: &Rc<Self>,
-        project_id: String,
-    ) -> Result<(), String> {
+    pub async fn delete_saved_project(self: &Rc<Self>, project_id: String) -> Result<(), String> {
         let lease = self.begin_project_deletion()?;
         self.supersede_pending_opens_for_deletion()?;
         let initial = if self.model().lifecycle == Lifecycle::RecoveryRequired {
@@ -1370,11 +1366,11 @@ impl Runtime {
             document: std::sync::Arc::new(proposed),
             scene: accepted.scene.clone(),
         };
-        let effective_document =
-            boardstudio_web_host::cad_jobs::captured_case_document(&proposal_projection_input, &scope)
-                .map_err(|error| {
-                format!("Could not project proposed mechanical settings: {error:?}")
-            })?;
+        let effective_document = boardstudio_web_host::cad_jobs::captured_case_document(
+            &proposal_projection_input,
+            &scope,
+        )
+        .map_err(|error| format!("Could not project proposed mechanical settings: {error:?}"))?;
         drop(proposal_projection_input);
         let configuration = effective_document
             .mechanical
@@ -1883,11 +1879,7 @@ impl Runtime {
     }
 
     #[cfg(any(test, feature = "test-support"))]
-    pub fn set_definition_name_test_state(
-        &self,
-        snapshot: AcceptedSnapshot,
-        scope: Option<Scope>,
-    ) {
+    pub fn set_definition_name_test_state(&self, snapshot: AcceptedSnapshot, scope: Option<Scope>) {
         *self.definition_name_test_state.borrow_mut() = Some((snapshot, scope));
     }
 
@@ -1915,10 +1907,7 @@ impl Runtime {
     }
 
     #[cfg(any(test, feature = "test-support"))]
-    pub fn set_keycaps_preview_executor_test(
-        &self,
-        executor: Rc<KeycapsPreviewTestExecutor>,
-    ) {
+    pub fn set_keycaps_preview_executor_test(&self, executor: Rc<KeycapsPreviewTestExecutor>) {
         *self.keycaps_preview_test_executor.borrow_mut() = Some(executor);
     }
 
@@ -2706,10 +2695,15 @@ impl Runtime {
         }
         let core = self.core.borrow().clone();
         let executor_epoch = self.session.borrow().core_executor_epoch().0.to_string();
-        let prepared =
-            prepare_captured_case(core.as_ref(), &executor_epoch, &job_id, &snapshot, &owner.scope)
-                .await
-                .map_err(|error| format!("Case preview preparation failed: {error:?}"))?;
+        let prepared = prepare_captured_case(
+            core.as_ref(),
+            &executor_epoch,
+            &job_id,
+            &snapshot,
+            &owner.scope,
+        )
+        .await
+        .map_err(|error| format!("Case preview preparation failed: {error:?}"))?;
         if !is_current() {
             return Err("Case gesture preview was superseded".into());
         }
@@ -2778,9 +2772,7 @@ impl Runtime {
         })
     }
 
-    pub fn native_case_preview(
-        &self,
-    ) -> Option<Rc<crate::case_preview::NativePreviewSnapshot>> {
+    pub fn native_case_preview(&self) -> Option<Rc<crate::case_preview::NativePreviewSnapshot>> {
         let current_scope = self.scope()?;
         let accepted = self.model().accepted?;
         self.native_case_preview
@@ -2796,9 +2788,7 @@ impl Runtime {
             .cloned()
     }
 
-    pub fn layout_preview(
-        &self,
-    ) -> Option<Rc<crate::layout_viewer_source::LayoutPreviewSnapshot>> {
+    pub fn layout_preview(&self) -> Option<Rc<crate::layout_viewer_source::LayoutPreviewSnapshot>> {
         self.layout_preview
             .borrow()
             .published
@@ -2874,10 +2864,7 @@ impl Runtime {
         }
     }
 
-    pub fn reconcile_layout_source_request(
-        &self,
-        expected: Option<(&Scope, SnapshotToken, u64)>,
-    ) {
+    pub fn reconcile_layout_source_request(&self, expected: Option<(&Scope, SnapshotToken, u64)>) {
         let retired = self
             .layout_preview
             .borrow_mut()
@@ -2990,8 +2977,7 @@ impl Runtime {
             }
             _ => return Err("Core returned an unexpected mounted-module model reply".into()),
         };
-        let native_paths =
-            crate::model_delivery::native_model_path_assets(&preview.path_assets);
+        let native_paths = crate::model_delivery::native_model_path_assets(&preview.path_assets);
         let unique_model_paths = preview
             .preview
             .models
@@ -3185,10 +3171,7 @@ impl Runtime {
                 )
                 .await
             }
-            crate::layout_viewer_source::LayoutPreviewRequest::Imported {
-                asset,
-                ..
-            } => {
+            crate::layout_viewer_source::LayoutPreviewRequest::Imported { asset, .. } => {
                 self.run_imported_layout_preview(&capture, asset, operation, is_current.clone())
                     .await
             }
@@ -3442,8 +3425,7 @@ impl Runtime {
             preview.owner.accepted_revision,
             preview.owner.batch_generation,
         );
-        let native_paths =
-            crate::model_delivery::native_model_path_assets(&preview.path_assets);
+        let native_paths = crate::model_delivery::native_model_path_assets(&preview.path_assets);
         let unique_model_paths = preview
             .preview
             .models
@@ -3608,17 +3590,15 @@ impl Runtime {
         let viewer_instance = preview.owner.viewer_instance;
         let projection_generation = preview.owner.projection_generation;
         let lease = preview.lease.clone();
-        let owner_is_current = Rc::new(
-            move |owner: &crate::model_delivery::ModelOwnerIdentity| {
-                owner.is_current_owner(
-                    &scope,
-                    token,
-                    viewer_instance,
-                    projection_generation,
-                    &lease,
-                )
-            },
-        );
+        let owner_is_current = Rc::new(move |owner: &crate::model_delivery::ModelOwnerIdentity| {
+            owner.is_current_owner(
+                &scope,
+                token,
+                viewer_instance,
+                projection_generation,
+                &lease,
+            )
+        });
         self.model_delivery_ports(
             preview.owner.scope.clone(),
             token,
@@ -3637,11 +3617,9 @@ impl Runtime {
         let token = preview.owner.snapshot_token;
         let source_generation = preview.owner.source_generation;
         let lease = preview.lease.clone();
-        let owner_is_current = Rc::new(
-            move |owner: &crate::model_delivery::ModelOwnerIdentity| {
-                owner.is_current_layout_owner(&scope, token, source_generation, &lease)
-            },
-        );
+        let owner_is_current = Rc::new(move |owner: &crate::model_delivery::ModelOwnerIdentity| {
+            owner.is_current_layout_owner(&scope, token, source_generation, &lease)
+        });
         self.model_delivery_ports(
             preview.owner.scope.clone(),
             token,
@@ -3657,9 +3635,7 @@ impl Runtime {
         token: SnapshotToken,
         revision: u64,
         is_current: Rc<dyn Fn() -> bool>,
-        owner_is_current: Rc<
-            dyn Fn(&crate::model_delivery::ModelOwnerIdentity) -> bool,
-        >,
+        owner_is_current: Rc<dyn Fn(&crate::model_delivery::ModelOwnerIdentity) -> bool>,
     ) -> crate::model_delivery::ModelDeliveryPorts {
         use crate::model_delivery::{
             MeshArrays, ModelAssetSource, ModelDeliveryPorts, ModelFuture, ResolvedModelAsset,
@@ -3905,8 +3881,7 @@ impl Runtime {
             return Err("Parts preview became stale after geometry preparation".into());
         }
 
-        let native_paths =
-            crate::model_delivery::native_model_path_assets(&capture.path_assets);
+        let native_paths = crate::model_delivery::native_model_path_assets(&capture.path_assets);
         let unique_model_paths = preview
             .models
             .iter()
@@ -4212,13 +4187,15 @@ impl Runtime {
         }) {
             return false;
         }
-        boardstudio_web_host::cad_jobs::captured_case_document(accepted, &scope).is_ok_and(|document| {
-            document.mechanical.as_ref().is_some_and(|configuration| {
-                configuration.board_id == scope.board_id
-                    && configuration.closure_mounts.is_none()
-                    && configuration.mount != boardstudio_core::model::MechanicalMount::Gasket
-            })
-        })
+        boardstudio_web_host::cad_jobs::captured_case_document(accepted, &scope).is_ok_and(
+            |document| {
+                document.mechanical.as_ref().is_some_and(|configuration| {
+                    configuration.board_id == scope.board_id
+                        && configuration.closure_mounts.is_none()
+                        && configuration.mount != boardstudio_core::model::MechanicalMount::Gasket
+                })
+            },
+        )
     }
 
     pub fn export_step(self: &Rc<Self>) {
@@ -5466,10 +5443,7 @@ impl Runtime {
     }
     fn current_firmware_executor(
         &self,
-    ) -> (
-        Rc<dyn CoreExecutor>,
-        boardstudio_application::ExecutorEpoch,
-    ) {
+    ) -> (Rc<dyn CoreExecutor>, boardstudio_application::ExecutorEpoch) {
         #[cfg(any(test, feature = "test-support"))]
         if let Some(context) = self.firmware_export_test_context.borrow().as_ref() {
             return (context.current_executor.clone(), context.executor_epoch);
@@ -6969,11 +6943,7 @@ pub mod firmware_export_test_support {
         runtime.replace_firmware_export_test_executor(executor, epoch);
     }
 
-    pub fn replace_owner(
-        runtime: &Runtime,
-        accepted: AcceptedSnapshot,
-        scope: Option<Scope>,
-    ) {
+    pub fn replace_owner(runtime: &Runtime, accepted: AcceptedSnapshot, scope: Option<Scope>) {
         runtime.replace_firmware_export_test_owner(accepted, scope);
     }
 
@@ -7819,9 +7789,7 @@ pub mod project_name_test_support {
     }
 
     pub async fn run_pending(runtime: &Rc<Runtime>) {
-        let mut pending = VecDeque::from(std::mem::take(
-            &mut *runtime.held_effects.borrow_mut(),
-        ));
+        let mut pending = VecDeque::from(std::mem::take(&mut *runtime.held_effects.borrow_mut()));
         while let Some(effect) = pending.pop_front() {
             pending.extend(runtime.run(effect).await);
         }
@@ -8502,7 +8470,11 @@ mod in_process_adapter_tests {
     /// land in the adapter's memory store.
     fn installed_runtime() -> Rc<Runtime> {
         let runtime = test_support::new_runtime();
-        test_support::install(&runtime, Session::new(), boardstudio_core::CoreEngine::new());
+        test_support::install(
+            &runtime,
+            Session::new(),
+            boardstudio_core::CoreEngine::new(),
+        );
         test_support::install_memory_persistence(&runtime);
         runtime
     }
@@ -8551,9 +8523,7 @@ mod in_process_adapter_tests {
         slot
     }
 
-    async fn wait_outcome(
-        slot: &crate::operation_outcomes::OutcomeSlot,
-    ) -> TerminalOutcome {
+    async fn wait_outcome(slot: &crate::operation_outcomes::OutcomeSlot) -> TerminalOutcome {
         for _ in 0..200 {
             if let Some(outcome) = slot.borrow().clone() {
                 return outcome;
@@ -8569,10 +8539,7 @@ mod in_process_adapter_tests {
         let accepted = submit_open(&runtime, "Adapter test").await;
         let slot = submit_edit(&runtime, &accepted, "Renamed in memory");
         test_support::run_pending(&runtime).await;
-        assert_eq!(
-            wait_outcome(&slot).await,
-            TerminalOutcome::Completed
-        );
+        assert_eq!(wait_outcome(&slot).await, TerminalOutcome::Completed);
         let current = runtime.model().accepted.unwrap();
         assert_eq!(current.document.name, "Renamed in memory");
         assert_eq!(current.document.revision, accepted.document.revision + 1);
@@ -8596,10 +8563,7 @@ mod in_process_adapter_tests {
             "the edit stays pending in Saving while the save is held"
         );
         release.send(()).expect("release the held save");
-        assert_eq!(
-            wait_outcome(&slot).await,
-            TerminalOutcome::Completed
-        );
+        assert_eq!(wait_outcome(&slot).await, TerminalOutcome::Completed);
         let current = runtime.model().accepted.unwrap();
         assert_eq!(current.document.name, "Gated save");
         assert_eq!(
@@ -8665,11 +8629,11 @@ mod in_process_adapter_tests {
             "nothing is accepted while the reply is held"
         );
         release.send(()).expect("release the held reply");
+        assert_eq!(wait_outcome(&slot).await, TerminalOutcome::Completed);
         assert_eq!(
-            wait_outcome(&slot).await,
-            TerminalOutcome::Completed
+            runtime.model().accepted.unwrap().document.name,
+            "Parked rename"
         );
-        assert_eq!(runtime.model().accepted.unwrap().document.name, "Parked rename");
     }
 
     #[wasm_bindgen_test]
