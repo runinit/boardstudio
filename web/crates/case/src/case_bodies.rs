@@ -5,7 +5,7 @@ use dioxus::prelude::*;
 use std::rc::Rc;
 
 #[derive(Props, Clone, PartialEq)]
-pub(crate) struct CaseBodiesProps {
+pub struct CaseBodiesProps {
     pub board: Option<CaseBoardSummary>,
     pub bodies: Vec<CaseBody>,
     pub scope: Scope,
@@ -22,7 +22,7 @@ pub(crate) struct CaseBodiesProps {
 }
 
 #[derive(Clone)]
-pub(crate) struct CaseBodyRequest {
+pub struct CaseBodyRequest {
     pub editor_instance_id: u64,
     pub request_id: u64,
     /// Stable scope/body/mount/field owner for numeric draft feedback; `None` for buttons.
@@ -34,7 +34,7 @@ pub(crate) struct CaseBodyRequest {
 }
 
 #[derive(Clone, PartialEq)]
-pub(crate) struct CaseBodyEditFeedback {
+pub struct CaseBodyEditFeedback {
     pub editor_instance_id: u64,
     pub scope: Scope,
     pub snapshot_token: SnapshotToken,
@@ -48,26 +48,26 @@ pub(crate) struct CaseBodyEditFeedback {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum CaseBodyEditState {
+pub enum CaseBodyEditState {
     Pending,
     Saved,
     Failed,
 }
 
 #[derive(Clone, PartialEq)]
-pub(crate) struct CaseBoardSummary {
+pub struct CaseBoardSummary {
     pub id: String,
     pub name: String,
 }
 
 #[derive(Clone, PartialEq)]
-pub(crate) struct CaseMismatch {
+pub struct CaseMismatch {
     pub board_id: String,
     pub board_name: String,
 }
 
 #[derive(Clone)]
-pub(crate) enum CaseBodyEdit {
+pub enum CaseBodyEdit {
     AddBody,
     SetKind {
         body_id: String,
@@ -176,7 +176,7 @@ struct CaseBodyDisclosureState {
 }
 
 #[component]
-pub(crate) fn CaseBodies(props: CaseBodiesProps) -> Element {
+pub fn CaseBodies(props: CaseBodiesProps) -> Element {
     let request_sequence = props.request_sequence;
     let pending_request = use_signal(|| None::<RequestIdentity>);
     let submission_busy = use_signal(|| false);

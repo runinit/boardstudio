@@ -24,60 +24,58 @@ use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::spawn_local;
 use web_sys::{HtmlCanvasElement, PointerEvent};
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 #[derive(Clone)]
-pub(super) struct SharedViewerProjectionProbe(pub Rc<dyn Fn(ViewerIdentity, JsValue)>);
+pub struct SharedViewerProjectionProbe(pub Rc<dyn Fn(ViewerIdentity, JsValue)>);
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 thread_local! {
     static NEXT_RENDERER_MOUNT_ERROR: RefCell<Option<String>> = const { RefCell::new(None) };
 }
 
 /// Inject one host initialization error through SharedViewer's real mount-error path.
 /// RendererHost's scripted lifecycle tests separately cover initialization cleanup.
-#[cfg(test)]
-pub(super) struct RendererMountErrorGuard;
+#[cfg(any(test, feature = "test-support"))]
+pub struct RendererMountErrorGuard;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 impl Drop for RendererMountErrorGuard {
     fn drop(&mut self) {
         NEXT_RENDERER_MOUNT_ERROR.with(|error| error.borrow_mut().take());
     }
 }
 
-#[cfg(test)]
-pub(super) fn fail_next_renderer_mount_for_test(
-    message: impl Into<String>,
-) -> RendererMountErrorGuard {
+#[cfg(any(test, feature = "test-support"))]
+pub fn fail_next_renderer_mount_for_test(message: impl Into<String>) -> RendererMountErrorGuard {
     NEXT_RENDERER_MOUNT_ERROR.with(|error| {
         assert!(error.borrow_mut().replace(message.into()).is_none());
     });
     RendererMountErrorGuard
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 fn take_renderer_mount_error_for_test() -> Option<String> {
     NEXT_RENDERER_MOUNT_ERROR.with(|error| error.borrow_mut().take())
 }
 
-pub(crate) use super::case_display::CaseDisplay;
+pub use super::case_display::CaseDisplay;
 use super::case_display::preference_ids;
 use super::case_display::{ComponentModelSource, component_models_for_source};
 
 /// Reusable canvas header and view switch for the Keymap and Keycaps consumers.
 /// The page owner supplies guarded actions and the accepted shared view state.
 #[derive(Props, Clone, PartialEq)]
-pub(crate) struct DesignViewToolbarProps {
-    pub(crate) label: String,
-    pub(crate) detail: String,
-    pub(crate) assembly_3d: bool,
-    pub(crate) footprints_visible: bool,
-    pub(crate) on_view_mode: EventHandler<bool>,
-    pub(crate) on_toggle_footprints: EventHandler<()>,
+pub struct DesignViewToolbarProps {
+    pub label: String,
+    pub detail: String,
+    pub assembly_3d: bool,
+    pub footprints_visible: bool,
+    pub on_view_mode: EventHandler<bool>,
+    pub on_toggle_footprints: EventHandler<()>,
 }
 
 #[component]
-pub(crate) fn DesignViewToolbar(props: DesignViewToolbarProps) -> Element {
+pub fn DesignViewToolbar(props: DesignViewToolbarProps) -> Element {
     let label = props.label;
     let detail = props.detail;
     let assembly_3d = props.assembly_3d;
@@ -130,26 +128,26 @@ pub(crate) fn DesignViewToolbar(props: DesignViewToolbarProps) -> Element {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct ViewerIdentity {
-    pub(crate) scope: Scope,
-    pub(crate) snapshot_token: SnapshotToken,
-    pub(crate) revision: u64,
-    pub(crate) viewer_instance: u64,
-    pub(crate) projection_generation: u64,
-    pub(crate) renderer_sequence: u64,
+pub struct ViewerIdentity {
+    pub scope: Scope,
+    pub snapshot_token: SnapshotToken,
+    pub revision: u64,
+    pub viewer_instance: u64,
+    pub projection_generation: u64,
+    pub renderer_sequence: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct ViewerFocusRequest {
-    pub(crate) scope: Scope,
-    pub(crate) snapshot_token: SnapshotToken,
-    pub(crate) revision: u64,
-    pub(crate) navigation_id: u64,
-    pub(crate) target_ids: Vec<String>,
+pub struct ViewerFocusRequest {
+    pub scope: Scope,
+    pub snapshot_token: SnapshotToken,
+    pub revision: u64,
+    pub navigation_id: u64,
+    pub target_ids: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ViewerLifecycle {
+pub enum ViewerLifecycle {
     Starting,
     Ready,
     Failed,
@@ -157,7 +155,7 @@ pub(crate) enum ViewerLifecycle {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum HandleGesturePhase {
+pub enum HandleGesturePhase {
     Start,
     Move,
     End,
@@ -165,7 +163,7 @@ pub(crate) enum HandleGesturePhase {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum ViewerSignalKind {
+pub enum ViewerSignalKind {
     SceneAccepted(bool),
     Lifecycle(ViewerLifecycle),
     Failed(String),
@@ -180,15 +178,15 @@ pub(crate) enum ViewerSignalKind {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct ScopedViewerSignal {
-    pub(crate) identity: ViewerIdentity,
-    pub(crate) kind: ViewerSignalKind,
+pub struct ScopedViewerSignal {
+    pub identity: ViewerIdentity,
+    pub kind: ViewerSignalKind,
     owner: Weak<ViewerOwner>,
 }
 
 impl ScopedViewerSignal {
     /// Check the live viewer owner, not merely the identity copied into this event.
-    pub(crate) fn is_current(&self) -> bool {
+    pub fn is_current(&self) -> bool {
         self.owner.upgrade().is_some_and(|owner| {
             owner.active.get() && owner.identity.borrow().as_ref() == Some(&self.identity)
         })
@@ -196,14 +194,14 @@ impl ScopedViewerSignal {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct ScopedDisplayChange {
-    pub(crate) identity: ViewerIdentity,
-    pub(crate) display: CaseDisplay,
+pub struct ScopedDisplayChange {
+    pub identity: ViewerIdentity,
+    pub display: CaseDisplay,
     owner: Weak<ViewerOwner>,
 }
 
 impl ScopedDisplayChange {
-    pub(crate) fn is_current(&self) -> bool {
+    pub fn is_current(&self) -> bool {
         self.owner.upgrade().is_some_and(|owner| {
             owner.active.get() && owner.identity.borrow().as_ref() == Some(&self.identity)
         })
@@ -313,7 +311,7 @@ impl PartialEq for RendererSceneProjection {
 }
 
 #[component]
-pub(crate) fn CaseSharedViewer(
+pub fn CaseSharedViewer(
     scene: Option<Rc<CadScene>>,
     preview: Option<Rc<NativePreviewSnapshot>>,
     layout_preview: Option<Rc<LayoutPreviewSnapshot>>,
@@ -479,7 +477,7 @@ pub(crate) fn CaseSharedViewer(
             }
         }
     };
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     if let Some(probe) = try_consume_context::<SharedViewerProjectionProbe>()
         && source.is_current(&runtime)
     {
@@ -1381,22 +1379,22 @@ fn js_error(value: JsValue) -> String {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct ViewerHandle {
-    pub(super) id: String,
-    pub(super) x: f32,
-    pub(super) y: f32,
-    pub(super) z: f32,
-    pub(super) tangent_x: f32,
-    pub(super) tangent_y: f32,
-    pub(super) normal_x: f32,
-    pub(super) normal_y: f32,
-    pub(super) length: f32,
-    pub(super) invalid: bool,
-    pub(super) target: ViewerHandleTarget,
+pub struct ViewerHandle {
+    pub id: String,
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+    pub tangent_x: f32,
+    pub tangent_y: f32,
+    pub normal_x: f32,
+    pub normal_y: f32,
+    pub length: f32,
+    pub invalid: bool,
+    pub target: ViewerHandleTarget,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) enum ViewerHandleTarget {
+pub enum ViewerHandleTarget {
     Gasket {
         support_id: String,
     },
@@ -1528,11 +1526,11 @@ impl PointerOwner {
 
 #[cfg(all(test, target_arch = "wasm32"))]
 #[derive(Clone, Default)]
-pub(super) struct SharedViewerEscapeProbe(Rc<RefCell<Option<Rc<dyn Fn(String)>>>>);
+pub struct SharedViewerEscapeProbe(Rc<RefCell<Option<Rc<dyn Fn(String)>>>>);
 
 #[cfg(all(test, target_arch = "wasm32"))]
 impl SharedViewerEscapeProbe {
-    pub(super) fn arm_handle_capture(&self, handle_id: impl Into<String>) {
+    pub fn arm_handle_capture(&self, handle_id: impl Into<String>) {
         let arm = self
             .0
             .borrow()
@@ -1938,9 +1936,9 @@ fn SharedViewer(
                                 owner: Rc::downgrade(&report_owner),
                             });
                         });
-                    #[cfg(test)]
+                    #[cfg(any(test, feature = "test-support"))]
                     let injected_mount_error = take_renderer_mount_error_for_test();
-                    #[cfg(not(test))]
+                    #[cfg(not(any(test, feature = "test-support")))]
                     let injected_mount_error: Option<String> = None;
                     let mount_result = if let Some(error) = injected_mount_error {
                         Err(error)
@@ -3118,8 +3116,8 @@ fn emit_signal(
     });
 }
 
-#[cfg(all(test, target_arch = "wasm32"))]
-pub(super) fn emit_handle_gesture_for_test(
+#[cfg(all(any(test, feature = "test-support"), target_arch = "wasm32"))]
+pub fn emit_handle_gesture_for_test(
     on_signal: EventHandler<ScopedViewerSignal>,
     identity: &ViewerIdentity,
     phase: HandleGesturePhase,
@@ -4144,7 +4142,7 @@ mod tests {
             })
         });
         rsx! {
-            style { {include_str!("../../assets/m1.css")} }
+            style { {include_str!("../../../assets/m1.css")} }
             section { class: "m1-case-panel", style: "width:725px;height:560px",
                 SharedViewer {
                     projection,

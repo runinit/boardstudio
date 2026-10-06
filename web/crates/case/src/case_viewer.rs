@@ -20,36 +20,36 @@ use std::{
 };
 
 #[derive(Clone, PartialEq)]
-pub(super) struct BodySelection {
-    pub(super) scope: Scope,
-    pub(super) body_id: String,
+pub struct BodySelection {
+    pub scope: Scope,
+    pub body_id: String,
 }
 
 #[derive(Clone, PartialEq)]
-pub(super) struct LayerSelection {
+pub struct LayerSelection {
     scope: Scope,
     id: String,
     focus: Option<(SnapshotToken, u64)>,
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct CaseSelection {
-    pub(super) body: Signal<Option<BodySelection>>,
-    pub(super) layer: Signal<Option<LayerSelection>>,
-    pub(super) display: Signal<BTreeMap<String, CaseDisplay>>,
-    pub(super) body_edit_portal: CaseBodyEditPortal,
+pub struct CaseSelection {
+    pub body: Signal<Option<BodySelection>>,
+    pub layer: Signal<Option<LayerSelection>>,
+    pub display: Signal<BTreeMap<String, CaseDisplay>>,
+    pub body_edit_portal: CaseBodyEditPortal,
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct CaseBodyEditPortal {
-    pub(super) dispatch: Signal<Option<CaseBodyEditDispatch>>,
-    pub(super) editable: Signal<bool>,
+pub struct CaseBodyEditPortal {
+    pub dispatch: Signal<Option<CaseBodyEditDispatch>>,
+    pub editable: Signal<bool>,
 }
 
-pub(super) type CaseBodyEditDispatch = Rc<dyn Fn(CaseBodyEdit, Scope, SnapshotToken, u64)>;
+pub type CaseBodyEditDispatch = Rc<dyn Fn(CaseBodyEdit, Scope, SnapshotToken, u64)>;
 
 impl CaseSelection {
-    pub(super) fn layer_id(self, scope: &Scope) -> String {
+    pub fn layer_id(self, scope: &Scope) -> String {
         self.layer
             .read()
             .as_ref()
@@ -58,7 +58,7 @@ impl CaseSelection {
             .unwrap_or_default()
     }
 
-    pub(super) fn select_layer(mut self, scope: Scope, id: String) {
+    pub fn select_layer(mut self, scope: Scope, id: String) {
         self.layer.set(Some(LayerSelection {
             scope,
             id,
@@ -66,13 +66,7 @@ impl CaseSelection {
         }));
     }
 
-    pub(super) fn focus_layer(
-        mut self,
-        scope: Scope,
-        token: SnapshotToken,
-        revision: u64,
-        id: String,
-    ) {
+    pub fn focus_layer(mut self, scope: Scope, token: SnapshotToken, revision: u64, id: String) {
         self.layer.set(Some(LayerSelection {
             scope,
             id,
@@ -99,7 +93,7 @@ impl CaseSelection {
         })
     }
 
-    pub(super) fn clear_layer_for_scope(mut self, scope: &Scope) {
+    pub fn clear_layer_for_scope(mut self, scope: &Scope) {
         if self
             .layer
             .read()
@@ -110,7 +104,7 @@ impl CaseSelection {
         }
     }
 
-    pub(super) fn display_value(self, scope: &Scope) -> CaseDisplay {
+    pub fn display_value(self, scope: &Scope) -> CaseDisplay {
         let key = display_key(scope);
         self.display
             .read()
@@ -119,7 +113,7 @@ impl CaseSelection {
             .unwrap_or_else(|| read_display(&key))
     }
 
-    pub(super) fn save_display(mut self, scope: &Scope, display: CaseDisplay) {
+    pub fn save_display(mut self, scope: &Scope, display: CaseDisplay) {
         let key = display_key(scope);
         self.display.write().insert(key.clone(), display.clone());
         persist_display(&key, &display);
@@ -311,7 +305,7 @@ fn use_case_keycaps(
 }
 
 #[component]
-pub(crate) fn CaseViewer(
+pub fn CaseViewer(
     scene: Rc<CadScene>,
     preview: Option<Rc<crate::case_preview::NativePreviewSnapshot>>,
     model_rows: Option<super::model_delivery::ModelDeliveryRows>,
@@ -340,7 +334,7 @@ pub(crate) fn CaseViewer(
             .read()
             .clone()
             .filter(|selected| selected.scope == scene.scope);
-        super::case_workspace::selected_part_summary(&model, selected.as_ref())
+        crate::case_selection::selected_part_summary(&model, selected.as_ref())
             .map(|summary| summary.title)
     };
     let key = display_key(&scene.scope);
@@ -595,7 +589,7 @@ pub(crate) fn CaseViewer(
 }
 
 #[component]
-pub(crate) fn CasePreviewViewer(
+pub fn CasePreviewViewer(
     preview: Rc<crate::case_preview::NativePreviewSnapshot>,
     model_rows: Option<super::model_delivery::ModelDeliveryRows>,
 ) -> Element {
@@ -617,7 +611,7 @@ pub(crate) fn CasePreviewViewer(
             .read()
             .clone()
             .filter(|selected| selected.scope == preview.owner.scope);
-        super::case_workspace::selected_part_summary(&model, selected.as_ref())
+        crate::case_selection::selected_part_summary(&model, selected.as_ref())
             .map(|summary| summary.title)
     };
     let key = display_key(&preview.owner.scope);
@@ -1769,13 +1763,11 @@ fn select_native_preview_model(
     super::selection::submit_context(
         runtime,
         adapter,
-        super::objects::TreeSelectRequest {
+        super::selection::ContextRequest {
             scope: owner.scope.clone(),
             context,
             mode: boardstudio_application::SelectionMode::Replace,
-            outline_action: None,
-        }
-        .into(),
+        },
     );
     true
 }
@@ -1916,7 +1908,7 @@ mod keycap_consumer_tests {
         });
         let _ = version();
         super::super::use_empty_test_instance_selection();
-        super::super::use_case_viewer_test_contexts();
+        crate::test_contexts::use_case_viewer_test_contexts();
         super::super::use_test_case_generation_state();
         let mut mounted = use_signal(|| true);
         let mut cad = use_signal(|| false);
@@ -2469,7 +2461,7 @@ mod gesture_cancellation_tests {
         });
         let _ = version();
         super::super::use_empty_test_instance_selection();
-        super::super::use_case_viewer_test_contexts();
+        crate::test_contexts::use_case_viewer_test_contexts();
         super::super::use_test_case_generation_state();
         let mut selection = use_context::<CaseSelection>();
         use_hook(move || selection.body_edit_portal.editable.set(true));
@@ -2481,7 +2473,7 @@ mod gesture_cancellation_tests {
         let restore = runtime.clone();
         let mut instance = use_context::<InstanceSelection>();
         rsx! {
-            style { {include_str!("../../assets/m1.css")} }
+            style { {include_str!("../../../assets/m1.css")} }
             button { id: "case-gesture-scope", onclick: move |_| {
                 instance.reconcile(away_source.scope.session_epoch, away_source.scope.document_id.clone(), "alternate".into());
                 navigate.submit(Event::Navigate {

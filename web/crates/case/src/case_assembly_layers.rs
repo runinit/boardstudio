@@ -9,25 +9,25 @@ use dioxus::prelude::*;
 use wasm_bindgen::JsCast;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum LayerAvailability {
+pub enum LayerAvailability {
     Available,
     Pending,
     Unavailable(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct CaseAssemblyLayer {
-    pub(crate) id: String,
-    pub(crate) label: String,
-    pub(crate) availability: LayerAvailability,
+pub struct CaseAssemblyLayer {
+    pub id: String,
+    pub label: String,
+    pub availability: LayerAvailability,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct CaseComponentLayer {
-    pub(crate) id: String,
-    pub(crate) reference: String,
-    pub(crate) filename: String,
-    pub(crate) availability: LayerAvailability,
+pub struct CaseComponentLayer {
+    pub id: String,
+    pub reference: String,
+    pub filename: String,
+    pub availability: LayerAvailability,
 }
 
 impl CaseComponentLayer {
@@ -36,7 +36,7 @@ impl CaseComponentLayer {
     }
 }
 
-pub(crate) fn standard_assembly_layers(
+pub fn standard_assembly_layers(
     generated: impl IntoIterator<Item = (String, String)>,
 ) -> Vec<CaseAssemblyLayer> {
     let mut layers = [
@@ -69,7 +69,7 @@ pub(crate) fn standard_assembly_layers(
 
 /// Keep configured mechanical stack entries visible even when the current CAD
 /// result has no corresponding body. Only generated bodies can be toggled.
-pub(crate) fn assembly_layers_with_stack(
+pub fn assembly_layers_with_stack(
     generated: impl IntoIterator<Item = (String, String)>,
     configured_stack_ids: impl IntoIterator<Item = String>,
 ) -> Vec<CaseAssemblyLayer> {
@@ -111,7 +111,7 @@ fn assembly_layer_label(id: &str, fallback: &str) -> String {
 
 /// Project the accepted preview rows into layer controls without changing their
 /// order or substituting references/asset paths for renderer model IDs.
-pub(crate) fn physical_component_layers(
+pub fn physical_component_layers(
     models: &[PcbModel],
     delivery: Option<&ModelDeliveryRows>,
 ) -> Vec<CaseComponentLayer> {
@@ -144,7 +144,7 @@ pub(crate) fn physical_component_layers(
 }
 
 #[component]
-pub(crate) fn CaseAssemblyLayers(
+pub fn CaseAssemblyLayers(
     assembly: Vec<CaseAssemblyLayer>,
     components: Vec<CaseComponentLayer>,
     selectable_layers: Vec<String>,
@@ -550,7 +550,7 @@ mod tests {
     async fn layer_menu_toggles_exact_rows_and_unavailable_rows_are_not_checked() {
         let document = web_sys::window().unwrap().document().unwrap();
         let stylesheet = document.create_element("style").unwrap();
-        stylesheet.set_text_content(Some(include_str!("../../assets/m1.css")));
+        stylesheet.set_text_content(Some(include_str!("../../../assets/m1.css")));
         document.head().unwrap().append_child(&stylesheet).unwrap();
         let root = document.create_element("div").unwrap();
         root.set_id("case-assembly-layer-test-root");

@@ -12,6 +12,7 @@ use super::{
 use crate::runtime::{CadScene, Runtime};
 use boardstudio_application::{Event, ReadModel, Scope, SelectionMode, SnapshotToken};
 use boardstudio_core::model::{MechanicalGasketSupport, ProjectDoc};
+pub(super) use boardstudio_web_case::case_selection::{SelectedPartSummary, selected_part_summary};
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
 
@@ -108,85 +109,6 @@ pub(super) struct InspectorInput {
     pub(super) selected_part_summary: Option<SelectedPartSummary>,
     pub(super) on_show_configured_board: EventHandler<String>,
     pub(super) on_display: EventHandler<DisplayRequest>,
-}
-
-pub(super) struct SelectedPartSummary {
-    pub(super) title: String,
-    pub(super) breadcrumb: String,
-    pub(super) selected_count: usize,
-}
-
-/// Project the current tree-owned PCB selection for the Case Inspector.
-/// Requiring the resolved context to equal the accepted selection prevents a
-/// stale tree context from describing a different active selection.
-pub(super) fn selected_part_summary(
-    model: &ReadModel,
-    selected: Option<&ScopedTreeContext>,
-) -> Option<SelectedPartSummary> {
-    let selected = selected?;
-    if !matches!(
-        &selected.context,
-        super::objects::TreeContext::Key { .. } | super::objects::TreeContext::Component { .. }
-    ) {
-        return None;
-    }
-    if !super::selection::context_is_current(model, &selected.scope, &selected.context) {
-        return None;
-    }
-    let ids = super::objects::resolve_selection(model, &selected.context)?;
-    if ids.is_empty() || ids != model.selected_part_ids {
-        return None;
-    }
-    let document = &model.accepted.as_ref()?.document;
-    let board = document
-        .boards
-        .iter()
-        .find(|board| board.id == model.active_board_id)?;
-    let references = ids
-        .iter()
-        .map(|id| {
-            document
-                .parts
-                .iter()
-                .find(|part| part.id == *id)
-                .map(|part| part.reference.clone())
-        })
-        .collect::<Option<Vec<_>>>()?;
-    let matrix_id = match &selected.context {
-        super::objects::TreeContext::Key { matrix_id, .. } => Some(matrix_id.as_str()),
-        super::objects::TreeContext::Component { matrix_id, .. } => matrix_id.as_deref(),
-        _ => None,
-    };
-    let context_name = matrix_id
-        .and_then(|matrix_id| {
-            document
-                .layouts
-                .iter()
-                .find(|layout| {
-                    layout.board_id == model.active_board_id
-                        && layout.matrix_id == matrix_id
-                        && !layout.name.trim().is_empty()
-                })
-                .map(|layout| layout.name.clone())
-                .or_else(|| {
-                    document
-                        .matrices
-                        .iter()
-                        .find(|matrix| matrix.id == matrix_id)
-                        .and_then(|matrix| matrix.name.as_deref())
-                        .map(str::trim)
-                        .filter(|name| !name.is_empty())
-                        .map(str::to_owned)
-                })
-        })
-        .or_else(|| references.first().cloned());
-    Some(SelectedPartSummary {
-        title: references.join(", "),
-        breadcrumb: context_name
-            .map(|name| format!("{} / Case / {name}", board.name))
-            .unwrap_or_else(|| format!("{} / Case", board.name)),
-        selected_count: references.len(),
-    })
 }
 
 /// The page dispatcher may pass a completed same-scope result to the Case

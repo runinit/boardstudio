@@ -3,11 +3,9 @@ mod board_inspector;
 pub(crate) use boardstudio_web_ui_shared::board_reference_effect;
 pub(crate) use boardstudio_web_ui_shared::canvas_layers;
 mod canvas_status_footer;
-mod case_assembly_layers;
-mod case_bodies;
-mod case_controller;
-mod case_display;
-mod case_viewer;
+pub(crate) use boardstudio_web_case::case_controller;
+pub(crate) use boardstudio_web_case::case_display;
+pub(crate) use boardstudio_web_case::case_viewer;
 mod case_workspace;
 mod context_summary;
 mod empty_board_canvas;
@@ -31,29 +29,29 @@ mod layout_viewer;
 // Shared UI vocabulary lives in `boardstudio-web-ui-model`; re-export it here so
 // presentation modules keep addressing it as `super::selection`, `super::InstanceSelection`
 // and so on.
+#[allow(unused_imports)]
+#[cfg(test)]
+pub(crate) use boardstudio_web_case::test_contexts::{
+    use_case_generation_readiness_test_bridge, use_case_viewer_test_contexts,
+};
 pub(crate) use boardstudio_web_runtime::layout_viewer_source;
+#[cfg(test)]
+pub(crate) use boardstudio_web_ui_model::state::use_empty_test_instance_selection;
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_ui_model::state::{
     CaseGenerationState, CompactPanelState, Drag, InstanceSelection, LayerVisibility,
     LayoutOwnerIdentity, ProjectMenuPage, ResolvedTheme, WorkspaceState,
 };
 pub(crate) use boardstudio_web_ui_model::state::{PreferenceStorageWarning, ThemeState};
-#[cfg(test)]
-pub(crate) use boardstudio_web_ui_model::state::{
-    use_empty_test_instance_selection, use_test_case_generation_state,
-};
-#[allow(unused_imports)]
 pub(crate) use boardstudio_web_ui_model::svg_coordinates::{
     PointerLocation, coordinates, coordinates_at, pointer_location,
 };
 pub(crate) use boardstudio_web_ui_model::{canvas_interaction, instance_selection, selection};
 pub(crate) use boardstudio_web_ui_shared::project_menu::close_project_menu;
 mod layout_workspace;
+pub(crate) use boardstudio_web_case::mechanical_settings;
+pub(crate) use boardstudio_web_case::mechanical_settings_mount;
 pub(crate) use boardstudio_web_library::library;
-mod mechanical_settings;
-mod mechanical_settings_controller;
-mod mechanical_settings_mount;
-pub(crate) use boardstudio_web_runtime::model_delivery;
 pub(crate) use boardstudio_web_ui_shared::model_asset_import;
 mod objects;
 mod outline_lifecycle;
@@ -72,7 +70,7 @@ mod pcb_scene;
 mod pcb_wiring;
 mod pcb_workspace;
 mod setup_guide;
-mod shared_viewer;
+pub(crate) use boardstudio_web_case::shared_viewer;
 mod workbench_shortcuts;
 mod workspace_composition;
 mod zmk_firmware_export;
@@ -81,7 +79,6 @@ use crate::case_generation_lifecycle::AutomaticCaseGeneration;
 pub(crate) use boardstudio_web_ui_shared::footprint_graphics;
 use canvas_interaction::{CanvasInteractionArbiter, CanvasInteractionOwner};
 use canvas_layers::CanvasLayers;
-pub(crate) use case_viewer::{CasePreviewViewer, CaseViewer};
 use library::Library;
 pub(crate) use mechanical_settings::{MechanicalSettings, MechanicalSettingsProps};
 pub(crate) use mechanical_settings_mount::MechanicalSettingsMount;
@@ -181,52 +178,6 @@ struct OwnedTreeCellAnchor {
 
 #[derive(Clone, Copy)]
 pub(super) struct ExportReturnWorkspace(pub(super) Signal<&'static str>);
-
-#[cfg(all(test, target_arch = "wasm32"))]
-pub(crate) fn use_case_viewer_test_contexts() {
-    let workspace = use_signal(|| "Case");
-    use_context_provider(|| WorkspaceState(workspace));
-
-    let selected_context = use_signal(|| None::<objects::ScopedTreeContext>);
-    let anchor_scope = use_signal(|| None::<Scope>);
-    let scope_generation = use_signal(|| 0u64);
-    let adapter =
-        use_hook(|| SelectionAdapter::new(selected_context, anchor_scope, scope_generation));
-    use_context_provider(|| adapter);
-
-    let case_selection = case_viewer::CaseSelection {
-        body: use_signal(|| None::<case_viewer::BodySelection>),
-        layer: use_signal(|| None::<case_viewer::LayerSelection>),
-        display: use_signal(std::collections::BTreeMap::new),
-        body_edit_portal: case_viewer::CaseBodyEditPortal {
-            dispatch: use_signal(|| None::<case_viewer::CaseBodyEditDispatch>),
-            editable: use_signal(|| false),
-        },
-    };
-    use_context_provider(|| case_selection);
-
-    let theme = use_memo(|| "light");
-    use_context_provider(|| ResolvedTheme(theme));
-}
-
-// Assemble the real mechanical owner hook's contexts for mounted Case tests.
-// The readiness predicate remains owned by mechanical_settings_mount.
-#[cfg(all(test, target_arch = "wasm32"))]
-pub(crate) fn use_case_generation_readiness_test_bridge(runtime: Rc<Runtime>) -> bool {
-    let adapter = use_context::<SelectionAdapter>();
-    let WorkspaceState(workspace) = use_context::<WorkspaceState>();
-    let instance_selection = use_context::<InstanceSelection>();
-    let case_selection = use_context::<case_viewer::CaseSelection>();
-    mechanical_settings_mount::use_mechanical_settings_mount(
-        runtime,
-        adapter.generation,
-        workspace,
-        instance_selection,
-        case_selection,
-        EventHandler::new(|_| {}),
-    )
-    .generation_ready
-}
 
 #[derive(Clone, Copy)]
 struct WorkspaceCallbackSlots {

@@ -298,10 +298,10 @@ mod mounted_tests {
         let mut runtime_version = use_signal(|| 0u64);
         use_context_provider(|| runtime_version);
         crate::presentation::use_empty_test_instance_selection();
-        crate::presentation::use_case_viewer_test_contexts();
+        crate::test_contexts::use_case_viewer_test_contexts();
         crate::presentation::use_test_case_generation_state();
         let generation_ready =
-            crate::presentation::use_case_generation_readiness_test_bridge(runtime);
+            crate::test_contexts::use_case_generation_readiness_test_bridge(runtime);
         rsx! {
             button { id: "case-export-refresh", onclick: move |_| runtime_version += 1, "Refresh" }
             CasePanel { generation_ready }
@@ -310,7 +310,12 @@ mod mounted_tests {
 
     fn exportable_model(runtime: &Runtime) -> boardstudio_application::ReadModel {
         let mut model = runtime.model();
-        let revision = model.accepted.as_ref().expect("accepted fixture").document.revision;
+        let revision = model
+            .accepted
+            .as_ref()
+            .expect("accepted fixture")
+            .document
+            .revision;
         model.lifecycle = boardstudio_application::Lifecycle::Ready;
         model.durability = boardstudio_application::Durability::Saved { revision };
         model
@@ -571,7 +576,10 @@ mod mounted_tests {
             exact: false,
         });
         let mut preview_model = exportable_model(&runtime);
-        preview_model.generation = GenerationStatus::Ready { job_id: JobId(2), exact: false };
+        preview_model.generation = GenerationStatus::Ready {
+            job_id: JobId(2),
+            exact: false,
+        };
         runtime.set_definition_name_test_model(preview_model);
         runtime.set_cad_scene_test(None);
         refresh_case_in("case-local-export-mounted");
@@ -599,21 +607,44 @@ mod mounted_tests {
         let previous = runtime.model().accepted.expect("exact fixture accepted");
         let previous_scene = runtime.cad_scene().expect("exact fixture geometry");
         let root_id = "case-failed-current-export-mounted";
-        let root = web_sys::window().unwrap().document().unwrap().create_element("div").unwrap();
+        let root = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .create_element("div")
+            .unwrap();
         root.set_id(root_id);
-        web_sys::window().unwrap().document().unwrap().body().unwrap().append_child(&root).unwrap();
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .body()
+            .unwrap()
+            .append_child(&root)
+            .unwrap();
         let dom = VirtualDom::new(export_host);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(dom, dioxus_web::Config::new().rootnode(root.clone().into()));
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
         settle().await;
-        assert!(!export_geometry_button_in(root_id).has_attribute("disabled"),
-            "fixture first proves exact current readiness through the real owner hook");
+        assert!(
+            !export_geometry_button_in(root_id).has_attribute("disabled"),
+            "fixture first proves exact current readiness through the real owner hook"
+        );
         let _ = take_events(&runtime);
 
         // Disable automatic generation before changing the owner; explicit retry is asserted below.
-        let live = web_sys::window().unwrap().document().unwrap()
-            .query_selector(&format!("#{root_id} input[role='switch']")).unwrap().unwrap()
-            .dyn_into::<HtmlInputElement>().unwrap();
+        let live = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector(&format!("#{root_id} input[role='switch']"))
+            .unwrap()
+            .unwrap()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap();
         live.click();
         settle().await;
         assert!(!live.checked());
@@ -622,7 +653,8 @@ mod mounted_tests {
         let current = accepted_after_revision(&previous);
         runtime.set_definition_name_test_state(current.clone(), Some(scope.clone()));
         runtime.set_definition_name_test_generation(GenerationStatus::Failed {
-            job_id: JobId(2), reason: "controlled current generation failure".into(),
+            job_id: JobId(2),
+            reason: "controlled current generation failure".into(),
         });
         let mut failed = exportable_model(&runtime);
         failed.accepted = Some(current.clone());
@@ -630,34 +662,59 @@ mod mounted_tests {
             revision: current.document.revision,
         };
         failed.generation = GenerationStatus::Failed {
-            job_id: JobId(2), reason: "controlled current generation failure".into(),
+            job_id: JobId(2),
+            reason: "controlled current generation failure".into(),
         };
         runtime.set_definition_name_test_model(failed);
         refresh_case_in(root_id);
         settle().await;
-        let text = web_sys::window().unwrap().document().unwrap()
-            .get_element_by_id(root_id).unwrap().text_content().unwrap_or_default();
+        let text = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id(root_id)
+            .unwrap()
+            .text_content()
+            .unwrap_or_default();
         assert!(text.contains("Case generation failed: controlled current generation failure"));
-        assert!(web_sys::window().unwrap().document().unwrap()
-            .query_selector(&format!("#{root_id} .m1-case-panel")).unwrap().is_some());
-        let retained = runtime.cad_scene().expect("previous exact geometry is retained");
+        assert!(
+            web_sys::window()
+                .unwrap()
+                .document()
+                .unwrap()
+                .query_selector(&format!("#{root_id} .m1-case-panel"))
+                .unwrap()
+                .is_some()
+        );
+        let retained = runtime
+            .cad_scene()
+            .expect("previous exact geometry is retained");
         assert_eq!(retained.scope, scope);
         assert_eq!(retained.token, previous_scene.token);
-        assert_eq!(retained.snapshot.document.revision, previous.document.revision);
+        assert_eq!(
+            retained.snapshot.document.revision,
+            previous.document.revision
+        );
         assert_ne!(retained.token, current.token);
         let export = export_geometry_button_in(root_id);
         assert!(export.has_attribute("disabled"));
         let _ = take_events(&runtime);
         export.click();
         settle().await;
-        assert!(!take_events(&runtime).iter().any(|event|
-            matches!(event, AppEvent::StartExport { .. })));
+        assert!(
+            !take_events(&runtime)
+                .iter()
+                .any(|event| matches!(event, AppEvent::StartExport { .. }))
+        );
 
         case_button(root_id, "Update preview").click();
         settle().await;
         let model = runtime.model();
         assert_eq!(model.accepted.as_ref().unwrap().token, current.token);
-        assert_eq!(model.accepted.as_ref().unwrap().document.revision, current.document.revision);
+        assert_eq!(
+            model.accepted.as_ref().unwrap().document.revision,
+            current.document.revision
+        );
         assert!(matches!(take_events(&runtime).as_slice(),
             [AppEvent::StartGeneration { scope: actual, .. }] if actual == &scope));
         remove_case_root(root_id);
@@ -668,12 +725,27 @@ mod mounted_tests {
         let (runtime, _) = configured_exact_mechanical_runtime();
         let accepted = runtime.model().accepted.expect("exact fixture accepted");
         let root_id = "case-session-draft-export-mounted";
-        let root = web_sys::window().unwrap().document().unwrap().create_element("div").unwrap();
+        let root = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .create_element("div")
+            .unwrap();
         root.set_id(root_id);
-        web_sys::window().unwrap().document().unwrap().body().unwrap().append_child(&root).unwrap();
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .body()
+            .unwrap()
+            .append_child(&root)
+            .unwrap();
         let dom = VirtualDom::new(export_host);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(dom, dioxus_web::Config::new().rootnode(root.clone().into()));
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
         settle().await;
         assert!(!export_geometry_button_in(root_id).has_attribute("disabled"));
 
@@ -687,8 +759,11 @@ mod mounted_tests {
         let _ = take_events(&runtime);
         export_geometry_button_in(root_id).click();
         settle().await;
-        assert!(!take_events(&runtime).iter().any(|event|
-            matches!(event, AppEvent::StartExport { .. })));
+        assert!(
+            !take_events(&runtime)
+                .iter()
+                .any(|event| matches!(event, AppEvent::StartExport { .. }))
+        );
 
         let mut settled_model = exportable_model(&runtime);
         settled_model.display_preview = None;
@@ -702,14 +777,23 @@ mod mounted_tests {
         let (mut session, _, _) = crate::runtime::firmware_export_test_support::opened_session();
         let pointer_id = 41;
         let _ = session.submit(AppEvent::GestureBegin {
-            operation_id: runtime.operation(), pointer_id, target_ids: vec![],
-            transaction_id: "case-export-session-gesture".into(), start: vec![],
+            operation_id: runtime.operation(),
+            pointer_id,
+            target_ids: vec![],
+            transaction_id: "case-export-session-gesture".into(),
+            start: vec![],
             pitch: boardstudio_core::model::Vec2 { x: 1.0, y: 1.0 },
-            snap_fraction: 1.0, geometry_snap: false, gap: None, alt: false,
+            snap_fraction: 1.0,
+            geometry_snap: false,
+            gap: None,
+            alt: false,
         });
         let mut gesture = exportable_model(&runtime);
         gesture.gesture = session.read_model().gesture.clone();
-        assert!(gesture.gesture.is_some(), "Session reducer accepted GestureBegin");
+        assert!(
+            gesture.gesture.is_some(),
+            "Session reducer accepted GestureBegin"
+        );
         runtime.set_definition_name_test_model(gesture);
         refresh_case_in(root_id);
         settle().await;
@@ -717,13 +801,19 @@ mod mounted_tests {
         let _ = take_events(&runtime);
         export_geometry_button_in(root_id).click();
         settle().await;
-        assert!(!take_events(&runtime).iter().any(|event|
-            matches!(event, AppEvent::StartExport { .. })));
+        assert!(
+            !take_events(&runtime)
+                .iter()
+                .any(|event| matches!(event, AppEvent::StartExport { .. }))
+        );
 
         let _ = session.submit(AppEvent::GestureCancel { pointer_id });
         let mut settled = exportable_model(&runtime);
         settled.gesture = session.read_model().gesture.clone();
-        assert!(settled.gesture.is_none(), "Session reducer accepted GestureCancel");
+        assert!(
+            settled.gesture.is_none(),
+            "Session reducer accepted GestureCancel"
+        );
         runtime.set_definition_name_test_model(settled);
         refresh_case_in(root_id);
         settle().await;

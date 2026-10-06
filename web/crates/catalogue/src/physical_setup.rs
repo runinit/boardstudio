@@ -10,7 +10,7 @@ use std::collections::BTreeSet;
 
 /// Presentation-owned event data; generated IDs are captured before proposal work starts.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum SetupIntent {
+pub enum SetupIntent {
     Topology {
         board_id: String,
         selected_instance_id: Option<String>,
@@ -25,13 +25,13 @@ pub(crate) enum SetupIntent {
 /// A Session acceptance may assign the next revision while retaining the exact proposal payload.
 /// Keep this comparison at the owner boundary so unrelated or superseding accepted edits never
 /// reconcile the physical-instance preference.
-pub(crate) fn accepted_matches_proposal(accepted: &ProjectDoc, proposal: &ProjectDoc) -> bool {
+pub fn accepted_matches_proposal(accepted: &ProjectDoc, proposal: &ProjectDoc) -> bool {
     let mut normalized = accepted.clone();
     normalized.revision = proposal.revision;
     normalized == *proposal
 }
 
-pub(crate) fn can_reconcile_primary(
+pub fn can_reconcile_primary(
     outcome: &TerminalOutcome,
     owner_is_current: bool,
     accepted: Option<&ProjectDoc>,
@@ -43,7 +43,7 @@ pub(crate) fn can_reconcile_primary(
 }
 
 /// Build a reference-compatible proposal from an immutable accepted document.
-pub(crate) fn propose(
+pub fn propose(
     accepted: &ProjectDoc,
     intent: SetupIntent,
     mut normalize: impl FnMut(&PartDefinition, bool) -> Result<(PartDefinition, bool), String>,
@@ -308,7 +308,8 @@ mod tests {
     }
 
     fn mechanical(doc: &ProjectDoc, thickness: f64) -> MechanicalConfiguration {
-        let mut value = boardstudio_web_host::case_settings::initial_settings(doc, "board-a").unwrap();
+        let mut value =
+            boardstudio_web_host::case_settings::initial_settings(doc, "board-a").unwrap();
         value.plate_thickness = thickness;
         value
     }

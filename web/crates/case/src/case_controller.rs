@@ -23,7 +23,7 @@ struct PendingBodyEdit {
 /// Mount beside the Case preview in the Inspector slot. The shared page passes
 /// its already scope-guarded configured-board navigation callback.
 #[component]
-pub(super) fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) -> Element {
+pub fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let instance_selection = use_context::<super::InstanceSelection>();
     let version = use_context::<Signal<u64>>();

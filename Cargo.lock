@@ -235,6 +235,8 @@ name = "boardstudio-web"
 version = "0.1.0"
 dependencies = [
  "boardstudio-application",
+ "boardstudio-web-case",
+ "boardstudio-web-catalogue",
  "boardstudio-web-host",
  "boardstudio-web-keycaps",
  "boardstudio-web-keymap",
@@ -257,6 +259,45 @@ dependencies = [
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
  "web-sys",
+]
+
+[[package]]
+name = "boardstudio-web-case"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-application",
+ "boardstudio-web-catalogue",
+ "boardstudio-web-host",
+ "boardstudio-web-keycaps",
+ "boardstudio-web-runtime",
+ "boardstudio-web-ui-model",
+ "boardstudio-web-ui-shared",
+ "boardstudio_core",
+ "dioxus",
+ "dioxus-web",
+ "futures-channel",
+ "gloo-timers",
+ "js-sys",
+ "serde",
+ "serde_json",
+ "sha2",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+ "web-sys",
+]
+
+[[package]]
+name = "boardstudio-web-catalogue"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-application",
+ "boardstudio-web-host",
+ "boardstudio_core",
+ "serde",
+ "serde_json",
+ "sha2",
+ "wasm-bindgen-test",
 ]
 
 [[package]]

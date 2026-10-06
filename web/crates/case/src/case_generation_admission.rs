@@ -6,7 +6,7 @@
 
 use boardstudio_core::model::{ProjectDoc, SceneDelta};
 
-pub(crate) fn is_ready(
+pub fn is_ready(
     document: &ProjectDoc,
     scene: &SceneDelta,
     board_id: &str,
@@ -17,7 +17,7 @@ pub(crate) fn is_ready(
 
 /// Material id a new Case body may reference: only an existing PLA material,
 /// never an id absent from the document.
-pub(crate) fn default_case_material(document: &ProjectDoc) -> Option<String> {
+pub fn default_case_material(document: &ProjectDoc) -> Option<String> {
     document
         .materials
         .iter()

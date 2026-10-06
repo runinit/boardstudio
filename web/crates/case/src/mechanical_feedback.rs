@@ -11,22 +11,22 @@ use boardstudio_core::model::{MechanicalMount, PlateMethod};
 use std::rc::Rc;
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct MechanicalSettingsIdentity {
-    pub(crate) editor_instance_id: u64,
+pub struct MechanicalSettingsIdentity {
+    pub editor_instance_id: u64,
     /// External Scope lineage, including away-and-back navigation to an equal Scope.
-    pub(crate) scope_generation: u64,
+    pub scope_generation: u64,
     /// Case presentation lineage, independently superseded by workspace changes.
-    pub(crate) presentation_generation: u64,
-    pub(crate) scope: Scope,
-    pub(crate) snapshot_token: SnapshotToken,
-    pub(crate) revision: u64,
-    pub(crate) active_board_id: String,
+    pub presentation_generation: u64,
+    pub scope: Scope,
+    pub snapshot_token: SnapshotToken,
+    pub revision: u64,
+    pub active_board_id: String,
     /// The accepted configuration's board, or the active board for Configure.
-    pub(crate) configuration_board_id: String,
+    pub configuration_board_id: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum MechanicalSettingsFeedbackState {
+pub enum MechanicalSettingsFeedbackState {
     Pending,
     Saved,
     Failed,
@@ -34,23 +34,23 @@ pub(crate) enum MechanicalSettingsFeedbackState {
 
 /// Root echoes this full request identity and the field owner in all states.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct MechanicalSettingsFeedback {
-    pub(crate) identity: MechanicalSettingsIdentity,
-    pub(crate) request_id: u64,
-    pub(crate) field_id: String,
-    pub(crate) state: MechanicalSettingsFeedbackState,
-    pub(crate) message: Option<String>,
+pub struct MechanicalSettingsFeedback {
+    pub identity: MechanicalSettingsIdentity,
+    pub request_id: u64,
+    pub field_id: String,
+    pub state: MechanicalSettingsFeedbackState,
+    pub message: Option<String>,
 }
 
 #[derive(Clone)]
-pub(crate) struct FeedbackRecord {
-    pub(crate) feedback: MechanicalSettingsFeedback,
+pub struct FeedbackRecord {
+    pub feedback: MechanicalSettingsFeedback,
     /// Shared accepted configuration at publication, including the acknowledged basis of a
     /// reconciliation failure. It is relevance evidence, never a predicted document.
-    pub(crate) basis: Option<Rc<MechanicalConfiguration>>,
+    pub basis: Option<Rc<MechanicalConfiguration>>,
 }
 
-pub(crate) fn field_feedback(
+pub fn field_feedback(
     entries: &[FeedbackRecord],
     identity: &MechanicalSettingsIdentity,
 ) -> Rc<[MechanicalSettingsFeedback]> {
@@ -63,7 +63,7 @@ pub(crate) fn field_feedback(
     )
 }
 
-pub(crate) fn relevant_summary(
+pub fn relevant_summary(
     entries: &[FeedbackRecord],
     identity: &MechanicalSettingsIdentity,
     configuration: Option<&MechanicalConfiguration>,
@@ -88,7 +88,7 @@ pub(crate) fn relevant_summary(
         .map(|record| record.feedback.clone())
 }
 
-pub(crate) fn same_feedback_owner(
+pub fn same_feedback_owner(
     feedback: &MechanicalSettingsIdentity,
     current: &MechanicalSettingsIdentity,
 ) -> bool {

@@ -1,7 +1,12 @@
 //! Parts catalogue, selected-definition editing and placement presentation.
 mod assembly_editor;
 mod assembly_presets;
-mod catalogue;
+pub(super) use boardstudio_web_catalogue::bundled::{
+    generator_parameter_schema, is_generator_source, load_all_catalogue_definitions,
+    load_component_definition, load_matrix_templates, normalize_matrix_definition,
+    prepare_physical_setup_proposal, reversible_layout,
+};
+use boardstudio_web_catalogue::catalogue;
 mod component_model_editor;
 mod details;
 mod generator_settings;
@@ -213,93 +218,6 @@ thread_local! {
 
 /// Reuse the normalized bundled catalogue for project-owned closure projection.
 /// Project overrides never replace this generator template.
-pub(super) async fn load_mounting_hole_definition()
--> Result<Rc<boardstudio_core::model::PartDefinition>, String> {
-    let entries = catalogue::load_bundled(false).await?;
-    let mut matches = entries.iter().filter(|entry| {
-        entry.source == catalogue::CatalogueSource::Generator
-            && entry
-                .definition
-                .generator
-                .as_ref()
-                .is_some_and(|generator| generator.source == "ceoloide/mounting_hole_npth")
-    });
-    let definition = matches
-        .next()
-        .ok_or_else(|| "Bundled mounting-hole template is unavailable.".to_string())?
-        .definition
-        .clone();
-    if matches.next().is_some() {
-        return Err("Bundled mounting-hole template is ambiguous.".into());
-    }
-    Ok(definition)
-}
-
-/// Narrow Parts-owned bridge for the Editor's physical-setup intent owner. Package loading and
-/// metadata normalization stay private to the catalogue implementation.
-pub(super) async fn prepare_physical_setup_proposal(
-    accepted: ProjectDoc,
-    intent: crate::physical_setup::SetupIntent,
-) -> Result<ProjectDoc, String> {
-    catalogue::prepare_physical_setup_proposal_from_package(&accepted, intent).await
-}
-
-/// Normalize a matrix-owned clone through the same built-in generator path used by Parts.
-pub(super) async fn normalize_matrix_definition(
-    definition: boardstudio_core::model::PartDefinition,
-) -> Result<boardstudio_core::model::PartDefinition, String> {
-    catalogue::normalize_matrix_definition(definition).await
-}
-
-pub(super) async fn is_generator_source(source: String) -> Result<bool, String> {
-    catalogue::is_generator_source(source).await
-}
-
-/// Read the parameter descriptors from the built-in generators. The Parts catalogue remains
-/// the sole owner of module loading; PCB receives only the accepted package schema values.
-pub(super) async fn generator_parameter_schema(
-    source: String,
-) -> Result<std::collections::BTreeMap<String, serde_json::Value>, String> {
-    catalogue::generator_parameter_schema(&source).await
-}
-
-pub(super) async fn load_matrix_templates(
-    reversible: bool,
-) -> Result<Vec<boardstudio_core::model::PartDefinition>, String> {
-    let entries = catalogue::load_bundled(reversible).await?;
-    Ok(entries
-        .iter()
-        .filter(|entry| entry.source == catalogue::CatalogueSource::Generator)
-        .map(|entry| (*entry.definition).clone())
-        .collect())
-}
-
-/// Every bundled catalogue definition, for key-level assembly and attached-component choices.
-pub(super) async fn load_all_catalogue_definitions(
-    reversible: bool,
-) -> Result<Vec<boardstudio_core::model::PartDefinition>, String> {
-    let entries = catalogue::load_bundled(reversible).await?;
-    Ok(entries
-        .iter()
-        .map(|entry| (*entry.definition).clone())
-        .collect())
-}
-
-/// Resolve any selectable item from the construction-normalized bundled catalogue, then apply
-/// the accepted project definition with the same precedence as the Parts browser.
-pub(super) async fn load_component_definition(
-    document: &ProjectDoc,
-    definition_id: &str,
-) -> Result<boardstudio_core::model::PartDefinition, String> {
-    let reversible = reversible_layout(document);
-    let bundled = catalogue::load_bundled(reversible).await?;
-    let entries = catalogue::merge_project_overrides(&bundled, &document.definitions);
-    let definition = entries
-        .iter()
-        .find(|entry| entry.definition.id == definition_id)
-        .ok_or_else(|| "The selected component is no longer in the catalogue.".to_string())?;
-    Ok((*definition.definition).clone())
-}
 
 pub(super) async fn load_horizontal_host_connector_definition()
 -> Result<boardstudio_core::model::PartDefinition, String> {
@@ -761,8 +679,7 @@ mod add_object_menu_tests {
         }));
         let fixture = Rc::new(CatalogueMountedFixture {
             snapshot: catalogue_snapshot(),
-            runtime: crate::runtime::Runtime::new()
-                .expect("browser Runtime fixture initializes"),
+            runtime: crate::runtime::Runtime::new().expect("browser Runtime fixture initializes"),
         });
         fixture
             .runtime
@@ -1659,14 +1576,4 @@ fn selected_definition_id(
             .or_else(|| entries.first())
             .map(|entry| entry.definition.id.clone())
         })
-}
-
-pub(super) fn reversible_layout(document: &ProjectDoc) -> bool {
-    match document.parameters.get("reversibleLayout") {
-        Some(serde_json::Value::Bool(reversible)) => *reversible,
-        _ => document
-            .hardware
-            .as_ref()
-            .is_some_and(|hardware| hardware.instances.iter().any(|instance| instance.flipped)),
-    }
 }

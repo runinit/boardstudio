@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use boardstudio_core::model::PcbModel;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ComponentModelSource {
+pub enum ComponentModelSource {
     Layout,
     Physical,
     Parts,
@@ -11,7 +11,7 @@ pub(crate) enum ComponentModelSource {
 
 /// Select component-layer models from the active viewer source. Layout never
 /// borrows physical-preview models when its own current projection is empty.
-pub(crate) fn component_models_for_source<'a>(
+pub fn component_models_for_source<'a>(
     source: ComponentModelSource,
     layout_models: Option<&'a [PcbModel]>,
     physical_models: Option<&'a [PcbModel]>,
@@ -25,24 +25,24 @@ pub(crate) fn component_models_for_source<'a>(
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct CaseDisplay {
-    pub(crate) hidden: Vec<String>,
-    pub(crate) colors: BTreeMap<String, String>,
+pub struct CaseDisplay {
+    pub hidden: Vec<String>,
+    pub colors: BTreeMap<String, String>,
 }
 
 impl CaseDisplay {
-    pub(crate) fn color(&self, id: &str) -> Option<&str> {
+    pub fn color(&self, id: &str) -> Option<&str> {
         preference_ids(id)
             .first()
             .and_then(|id| self.colors.get(id))
             .map(String::as_str)
     }
-    pub(crate) fn has_color(&self, id: &str) -> bool {
+    pub fn has_color(&self, id: &str) -> bool {
         preference_ids(id)
             .iter()
             .any(|alias| self.colors.contains_key(alias))
     }
-    pub(crate) fn set_color(&mut self, id: &str, value: &str) {
+    pub fn set_color(&mut self, id: &str, value: &str) {
         for id in preference_ids(id) {
             if value.is_empty() {
                 self.colors.remove(&id);
@@ -53,7 +53,7 @@ impl CaseDisplay {
     }
 }
 
-pub(crate) fn preference_ids(id: &str) -> Vec<String> {
+pub fn preference_ids(id: &str) -> Vec<String> {
     if id == "gaskets" {
         vec!["Gaskets".to_owned()]
     } else if id == "pcb" {
@@ -72,13 +72,13 @@ pub(crate) fn preference_ids(id: &str) -> Vec<String> {
     }
 }
 
-pub(crate) fn is_visible(display: &CaseDisplay, id: &str) -> bool {
+pub fn is_visible(display: &CaseDisplay, id: &str) -> bool {
     !preference_ids(id)
         .iter()
         .all(|alias| display.hidden.contains(alias))
 }
 
-pub(crate) fn is_inspector_visible(display: &CaseDisplay, id: &str) -> bool {
+pub fn is_inspector_visible(display: &CaseDisplay, id: &str) -> bool {
     !preference_ids(id)
         .iter()
         .any(|alias| display.hidden.contains(alias))

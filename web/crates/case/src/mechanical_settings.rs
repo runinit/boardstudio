@@ -1,6 +1,6 @@
 //! Private read-only presentation and field intents for the Case mechanical stack.
 //! Root owns accepted-state admission and commits every intent through Runtime.
-pub(crate) use crate::mechanical_feedback::{
+pub use crate::mechanical_feedback::{
     MechanicalSettingsFeedback, MechanicalSettingsFeedbackState, MechanicalSettingsIdentity,
 };
 use boardstudio_core::model::{
@@ -23,55 +23,54 @@ use web_sys::HtmlInputElement;
 /// Narrow accepted values used by this control group; it is not an editable
 /// configuration copy and deliberately excludes every field this ticket leaves alone.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct MechanicalSettingsValues {
-    pub(crate) board_id: String,
-    pub(crate) transport: HardwareTransport,
-    pub(crate) battery: Option<MechanicalBattery>,
-    pub(crate) suspension_mounts: Vec<Mount>,
-    pub(crate) closure_mounts: Option<Vec<Mount>>,
-    pub(crate) method: PlateMethod,
-    pub(crate) mount: MechanicalMount,
-    pub(crate) bottom_style: MechanicalBottomStyle,
-    pub(crate) middle_frame: bool,
-    pub(crate) integrated_plate_frame: bool,
-    pub(crate) plate_thickness: f64,
-    pub(crate) plate_foam_thickness: f64,
-    pub(crate) pcb_thickness: f64,
-    pub(crate) bottom_foam_thickness: f64,
-    pub(crate) bottom_thickness: f64,
-    pub(crate) wall_thickness: f64,
-    pub(crate) clearance: f64,
-    pub(crate) opening_allowance: f64,
-    pub(crate) openings: Vec<CaseOpening>,
-    pub(crate) internal_gasket: bool,
-    pub(crate) closure_hardware: Option<InternalClosureHardware>,
-    pub(crate) hardware: Vec<MechanicalHardwareSpecification>,
-    pub(crate) critical_fits: Vec<MechanicalCriticalFit>,
-    pub(crate) plate_to_pcb: f64,
-    pub(crate) battery_height: f64,
+pub struct MechanicalSettingsValues {
+    pub board_id: String,
+    pub transport: HardwareTransport,
+    pub battery: Option<MechanicalBattery>,
+    pub suspension_mounts: Vec<Mount>,
+    pub closure_mounts: Option<Vec<Mount>>,
+    pub method: PlateMethod,
+    pub mount: MechanicalMount,
+    pub bottom_style: MechanicalBottomStyle,
+    pub middle_frame: bool,
+    pub integrated_plate_frame: bool,
+    pub plate_thickness: f64,
+    pub plate_foam_thickness: f64,
+    pub pcb_thickness: f64,
+    pub bottom_foam_thickness: f64,
+    pub bottom_thickness: f64,
+    pub wall_thickness: f64,
+    pub clearance: f64,
+    pub opening_allowance: f64,
+    pub openings: Vec<CaseOpening>,
+    pub internal_gasket: bool,
+    pub closure_hardware: Option<InternalClosureHardware>,
+    pub hardware: Vec<MechanicalHardwareSpecification>,
+    pub critical_fits: Vec<MechanicalCriticalFit>,
+    pub plate_to_pcb: f64,
+    pub battery_height: f64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct MechanicalProfileChoice {
-    pub(crate) definition_id: String,
-    pub(crate) name: String,
-    pub(crate) source: Option<String>,
-    pub(crate) family: Option<MechanicalSwitchFamily>,
-    pub(crate) plate_to_pcb: Option<f64>,
-    pub(crate) supported_thickness: Option<Vec2>,
+pub struct MechanicalProfileChoice {
+    pub definition_id: String,
+    pub name: String,
+    pub source: Option<String>,
+    pub family: Option<MechanicalSwitchFamily>,
+    pub plate_to_pcb: Option<f64>,
+    pub supported_thickness: Option<Vec2>,
     /// True only for a placed switch definition selected by the accepted parent projection.
-    pub(crate) switch_family_selectable: bool,
-    pub(crate) profile: MechanicalPartProfile,
-    pub(crate) kicad_source: Option<String>,
+    pub switch_family_selectable: bool,
+    pub profile: MechanicalPartProfile,
+    pub kicad_source: Option<String>,
 }
 
 /// The first argument is the assigned PartDefinition ID; the mount resolves its accepted KiCad source.
-pub(crate) type ExtractionFuture =
-    Pin<Box<dyn Future<Output = Result<MechanicalExtraction, String>>>>;
+pub type ExtractionFuture = Pin<Box<dyn Future<Output = Result<MechanicalExtraction, String>>>>;
 
 #[derive(Clone)]
-pub(crate) struct MechanicalProfileExtractionPort(
-    pub(crate) Rc<dyn Fn(String, Vec<MechanicalPurposeMapping>) -> ExtractionFuture>,
+pub struct MechanicalProfileExtractionPort(
+    pub Rc<dyn Fn(String, Vec<MechanicalPurposeMapping>) -> ExtractionFuture>,
 );
 
 impl PartialEq for MechanicalProfileExtractionPort {
@@ -81,65 +80,65 @@ impl PartialEq for MechanicalProfileExtractionPort {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct MechanicalProfileTargetChoice {
-    pub(crate) definition_id: String,
-    pub(crate) name: String,
-    pub(crate) switch_profile: bool,
-    pub(crate) imported_geometry: bool,
+pub struct MechanicalProfileTargetChoice {
+    pub definition_id: String,
+    pub name: String,
+    pub switch_profile: bool,
+    pub imported_geometry: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct MechanicalProcessTarget {
-    pub(crate) part_id: String,
-    pub(crate) name: String,
-    pub(crate) default_thickness: f64,
-    pub(crate) process: Option<MechanicalPartProcess>,
+pub struct MechanicalProcessTarget {
+    pub part_id: String,
+    pub name: String,
+    pub default_thickness: f64,
+    pub process: Option<MechanicalPartProcess>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct MechanicalStabilizerFit {
-    pub(crate) part_id: String,
-    pub(crate) reference: String,
-    pub(crate) key_units: f64,
-    pub(crate) default: MechanicalStabilizerOverride,
-    pub(crate) current: MechanicalStabilizerOverride,
+pub struct MechanicalStabilizerFit {
+    pub part_id: String,
+    pub reference: String,
+    pub key_units: f64,
+    pub default: MechanicalStabilizerOverride,
+    pub current: MechanicalStabilizerOverride,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct MechanicalLayerRow {
-    pub(crate) id: String,
-    pub(crate) label: String,
-    pub(crate) z: f64,
-    pub(crate) thickness: f64,
+pub struct MechanicalLayerRow {
+    pub id: String,
+    pub label: String,
+    pub z: f64,
+    pub thickness: f64,
     /// Present only when the displayed completed Case assembly contains a body with this ID.
-    pub(crate) resolved_body_thickness: Option<f64>,
+    pub resolved_body_thickness: Option<f64>,
     /// The row is retained from the last completed same-owner assembly while
     /// the accepted physical inputs have changed.
-    pub(crate) is_previous: bool,
+    pub is_previous: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct MechanicalGasketSupportRow {
-    pub(crate) id: String,
-    pub(crate) region_id: String,
-    pub(crate) outline_key: String,
-    pub(crate) anchor: f64,
-    pub(crate) pair_id: Option<String>,
-    pub(crate) length: f64,
-    pub(crate) width: f64,
-    pub(crate) unlinked: bool,
-    pub(crate) fit_error: Option<String>,
-    pub(crate) is_previous: bool,
+pub struct MechanicalGasketSupportRow {
+    pub id: String,
+    pub region_id: String,
+    pub outline_key: String,
+    pub anchor: f64,
+    pub pair_id: Option<String>,
+    pub length: f64,
+    pub width: f64,
+    pub unlinked: bool,
+    pub fit_error: Option<String>,
+    pub is_previous: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum MechanicalMountCollection {
+pub enum MechanicalMountCollection {
     Suspension,
     Closure,
 }
 
 impl MechanicalGasketSupportRow {
-    pub(crate) fn saved_anchor(&self) -> MechanicalGasketAnchor {
+    pub fn saved_anchor(&self) -> MechanicalGasketAnchor {
         MechanicalGasketAnchor {
             id: self.id.clone(),
             region_id: self.region_id.clone(),
@@ -154,36 +153,36 @@ impl MechanicalGasketSupportRow {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct MechanicalFindingRow {
-    pub(crate) id: String,
-    pub(crate) severity: Severity,
-    pub(crate) message: String,
+pub struct MechanicalFindingRow {
+    pub id: String,
+    pub severity: Severity,
+    pub message: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct MechanicalBoardMismatch {
-    pub(crate) board_id: String,
-    pub(crate) board_name: String,
+pub struct MechanicalBoardMismatch {
+    pub board_id: String,
+    pub board_name: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct MechanicalFitPart {
-    pub(crate) id: String,
-    pub(crate) name: String,
+pub struct MechanicalFitPart {
+    pub id: String,
+    pub name: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct MechanicalHardwareMount {
-    pub(crate) part_id: String,
-    pub(crate) part_name: String,
-    pub(crate) feature_id: String,
-    pub(crate) kind: MountKind,
-    pub(crate) x: f64,
-    pub(crate) y: f64,
+pub struct MechanicalHardwareMount {
+    pub part_id: String,
+    pub part_name: String,
+    pub feature_id: String,
+    pub kind: MountKind,
+    pub x: f64,
+    pub y: f64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum MechanicalDimension {
+pub enum MechanicalDimension {
     PlateThickness,
     PlateFoamThickness,
     PcbThickness,
@@ -238,13 +237,13 @@ pub(crate) enum MechanicalDimension {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum MechanicalCriticalFitTextField {
+pub enum MechanicalCriticalFitTextField {
     Label,
     Tolerance,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum MechanicalHardwareTextField {
+pub enum MechanicalHardwareTextField {
     Designation,
     Thread,
     Tolerance,
@@ -451,7 +450,7 @@ impl MechanicalDimension {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum MechanicalSettingsPatch {
+pub enum MechanicalSettingsPatch {
     Enable,
     InitializeClosures,
     Disable,
@@ -604,7 +603,7 @@ pub(crate) enum MechanicalSettingsPatch {
 }
 
 impl MechanicalSettingsPatch {
-    pub(crate) fn field_id(&self) -> String {
+    pub fn field_id(&self) -> String {
         match self {
             Self::Enable => "configure".to_owned(),
             Self::InitializeClosures => "initialize-closures".to_owned(),
@@ -753,48 +752,48 @@ fn mount_collection_id(collection: MechanicalMountCollection) -> &'static str {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct MechanicalSettingsRequest {
-    pub(crate) identity: MechanicalSettingsIdentity,
-    pub(crate) request_id: u64,
-    pub(crate) field_id: String,
-    pub(crate) patch: MechanicalSettingsPatch,
+pub struct MechanicalSettingsRequest {
+    pub identity: MechanicalSettingsIdentity,
+    pub request_id: u64,
+    pub field_id: String,
+    pub patch: MechanicalSettingsPatch,
 }
 
 #[derive(Props, Clone, PartialEq)]
-pub(crate) struct MechanicalSettingsProps {
-    pub(crate) identity: MechanicalSettingsIdentity,
+pub struct MechanicalSettingsProps {
+    pub identity: MechanicalSettingsIdentity,
     /// Editor-lifetime sequence shared with the page owner, so an unmount/remount cannot reuse
     /// request IDs while retaining the same editor identity.
-    pub(crate) request_sequence: Signal<u64>,
-    pub(crate) values: Option<MechanicalSettingsValues>,
-    pub(crate) profiles: Rc<[MechanicalProfileChoice]>,
+    pub request_sequence: Signal<u64>,
+    pub values: Option<MechanicalSettingsValues>,
+    pub profiles: Rc<[MechanicalProfileChoice]>,
     #[props(default)]
-    pub(crate) extract_profile: Option<MechanicalProfileExtractionPort>,
-    pub(crate) profile_targets: Rc<[MechanicalProfileTargetChoice]>,
-    pub(crate) process_targets: Rc<[MechanicalProcessTarget]>,
-    pub(crate) stabilizer_fits: Rc<[MechanicalStabilizerFit]>,
-    pub(crate) layers: Rc<[MechanicalLayerRow]>,
-    pub(crate) gasket_supports: Rc<[MechanicalGasketSupportRow]>,
-    pub(crate) fit_parts: Rc<[MechanicalFitPart]>,
-    pub(crate) fit_parts_resolved: bool,
-    pub(crate) hardware_mounts: Rc<[MechanicalHardwareMount]>,
-    pub(crate) suggested_mounts: Rc<[Mount]>,
-    pub(crate) findings: Rc<[MechanicalFindingRow]>,
-    pub(crate) selected_layer: String,
-    pub(crate) mismatch: Option<MechanicalBoardMismatch>,
-    pub(crate) editable: bool,
-    pub(crate) disabled_reason: Option<String>,
+    pub extract_profile: Option<MechanicalProfileExtractionPort>,
+    pub profile_targets: Rc<[MechanicalProfileTargetChoice]>,
+    pub process_targets: Rc<[MechanicalProcessTarget]>,
+    pub stabilizer_fits: Rc<[MechanicalStabilizerFit]>,
+    pub layers: Rc<[MechanicalLayerRow]>,
+    pub gasket_supports: Rc<[MechanicalGasketSupportRow]>,
+    pub fit_parts: Rc<[MechanicalFitPart]>,
+    pub fit_parts_resolved: bool,
+    pub hardware_mounts: Rc<[MechanicalHardwareMount]>,
+    pub suggested_mounts: Rc<[Mount]>,
+    pub findings: Rc<[MechanicalFindingRow]>,
+    pub selected_layer: String,
+    pub mismatch: Option<MechanicalBoardMismatch>,
+    pub editable: bool,
+    pub disabled_reason: Option<String>,
     /// Bounded per-request feedback keeps a rejected raced submit from replacing the
     /// currently admitted operation's Pending/Saved response.
-    pub(crate) feedback: Rc<[MechanicalSettingsFeedback]>,
-    pub(crate) summary_feedback: Option<MechanicalSettingsFeedback>,
-    pub(crate) on_request: EventHandler<MechanicalSettingsRequest>,
-    pub(crate) on_select_layer: EventHandler<String>,
-    pub(crate) on_show_finding: EventHandler<String>,
+    pub feedback: Rc<[MechanicalSettingsFeedback]>,
+    pub summary_feedback: Option<MechanicalSettingsFeedback>,
+    pub on_request: EventHandler<MechanicalSettingsRequest>,
+    pub on_select_layer: EventHandler<String>,
+    pub on_show_finding: EventHandler<String>,
 }
 
 #[component]
-pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
+pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
     let request_sequence = props.request_sequence;
     let identity = &props.identity;
     let configuration_matches = props
@@ -5275,7 +5274,7 @@ mod contextual_layer_tests {
     async fn selected_plate_uses_contextual_inspector_and_returns_to_assembly_settings() {
         let document = web_sys::window().unwrap().document().unwrap();
         let stylesheet = document.create_element("style").unwrap();
-        stylesheet.set_text_content(Some(include_str!("../../assets/m1.css")));
+        stylesheet.set_text_content(Some(include_str!("../../../assets/m1.css")));
         document.head().unwrap().append_child(&stylesheet).unwrap();
         let root = document.create_element("div").unwrap();
         root.set_id("case-contextual-mechanical-settings-test-root");

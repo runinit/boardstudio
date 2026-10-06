@@ -31,16 +31,16 @@ use std::{
 use wasm_bindgen_futures::spawn_local;
 
 type LocalFuture<T> = Pin<Box<dyn Future<Output = T> + 'static>>;
-pub(crate) type ResolveMechanicalPort = Rc<
+pub type ResolveMechanicalPort = Rc<
     dyn Fn(
         AcceptedSnapshot,
         Scope,
         ProjectDoc,
     ) -> LocalFuture<Result<MechanicalResolution, String>>,
 >;
-pub(crate) type ProjectClosureClearancePort =
+pub type ProjectClosureClearancePort =
     Rc<dyn Fn(ProjectDoc, &PartDefinition) -> Result<ProjectDoc, String>>;
-pub(crate) type LoadSwitchProfilePort = Rc<
+pub type LoadSwitchProfilePort = Rc<
     dyn Fn(
         String,
         MechanicalBuiltinProfile,
@@ -62,13 +62,13 @@ enum ProfileTargetKind {
 /// It must exclude this controller's own in-flight bit; use `is_busy` to disable the UI. The
 /// controller still re-reads it at every asynchronous boundary.
 #[derive(Clone)]
-pub(crate) struct MechanicalSettingsCurrent {
-    pub(crate) identity: MechanicalSettingsIdentity,
-    pub(crate) accepted: AcceptedSnapshot,
-    pub(crate) configuration: Option<Rc<MechanicalConfiguration>>,
-    pub(crate) editable: bool,
-    pub(crate) lifecycle: Lifecycle,
-    pub(crate) durability: Durability,
+pub struct MechanicalSettingsCurrent {
+    pub identity: MechanicalSettingsIdentity,
+    pub accepted: AcceptedSnapshot,
+    pub configuration: Option<Rc<MechanicalConfiguration>>,
+    pub editable: bool,
+    pub lifecycle: Lifecycle,
+    pub durability: Durability,
 }
 
 /// The page's existing effective-case policy is the source for both a fresh Core resolution and
@@ -76,9 +76,9 @@ pub(crate) struct MechanicalSettingsCurrent {
 /// remains read-only; only this mechanical value is written back through the canonical ownership
 /// mapping.
 #[derive(Clone)]
-pub(crate) struct MechanicalResolution {
-    pub(crate) assembly: MechanicalAssembly,
-    pub(crate) effective_configuration: MechanicalConfiguration,
+pub struct MechanicalResolution {
+    pub assembly: MechanicalAssembly,
+    pub effective_configuration: MechanicalConfiguration,
 }
 
 /// Narrow page ports. `submit_replace` must register the supplied fresh operation with the
@@ -86,22 +86,21 @@ pub(crate) struct MechanicalResolution {
 /// Returning its exact weak-observed slot is required; a page-wide last-error/status string is
 /// not an operation result.
 #[derive(Clone)]
-pub(crate) struct MechanicalSettingsPorts {
-    pub(crate) current: Rc<dyn Fn() -> Option<MechanicalSettingsCurrent>>,
-    pub(crate) resolve: ResolveMechanicalPort,
-    pub(crate) load_mounting_hole: Rc<dyn Fn() -> LocalFuture<Result<Rc<PartDefinition>, String>>>,
-    pub(crate) load_switch_profile: LoadSwitchProfilePort,
-    pub(crate) next_operation: Rc<dyn Fn() -> OperationId>,
-    pub(crate) submit_replace:
-        Rc<dyn Fn(OperationId, u64, ProjectDoc) -> Result<OutcomeSlot, String>>,
-    pub(crate) project_closure_clearance: ProjectClosureClearancePort,
-    pub(crate) publish: Rc<dyn Fn(MechanicalSettingsFeedback)>,
+pub struct MechanicalSettingsPorts {
+    pub current: Rc<dyn Fn() -> Option<MechanicalSettingsCurrent>>,
+    pub resolve: ResolveMechanicalPort,
+    pub load_mounting_hole: Rc<dyn Fn() -> LocalFuture<Result<Rc<PartDefinition>, String>>>,
+    pub load_switch_profile: LoadSwitchProfilePort,
+    pub next_operation: Rc<dyn Fn() -> OperationId>,
+    pub submit_replace: Rc<dyn Fn(OperationId, u64, ProjectDoc) -> Result<OutcomeSlot, String>>,
+    pub project_closure_clearance: ProjectClosureClearancePort,
+    pub publish: Rc<dyn Fn(MechanicalSettingsFeedback)>,
 }
 
 /// A bounded page-local coordinator. The parent should create this once per Case editor lifetime
 /// and call `settle` from its existing Runtime-version effect. The field subtree remains the
 /// owner of its drafts; this controller owns only one in-flight request and its exact outcome.
-pub(crate) struct MechanicalSettingsController {
+pub struct MechanicalSettingsController {
     ports: MechanicalSettingsPorts,
     pending: RefCell<Option<PendingRequest>>,
     last_request_id: Cell<u64>,
@@ -158,7 +157,7 @@ struct ClosureDefinitionEvidence {
 }
 
 impl MechanicalSettingsController {
-    pub(crate) fn new(ports: MechanicalSettingsPorts) -> Rc<Self> {
+    pub fn new(ports: MechanicalSettingsPorts) -> Rc<Self> {
         Rc::new(Self {
             ports,
             pending: RefCell::new(None),
@@ -166,13 +165,13 @@ impl MechanicalSettingsController {
         })
     }
 
-    pub(crate) fn is_busy(&self) -> bool {
+    pub fn is_busy(&self) -> bool {
         self.pending.borrow().is_some()
     }
 
     /// Admission rejection reports against this request without displacing the operation already
     /// admitted for another field. Every child submission gets its own terminal response.
-    pub(crate) fn submit(self: &Rc<Self>, request: MechanicalSettingsRequest) -> bool {
+    pub fn submit(self: &Rc<Self>, request: MechanicalSettingsRequest) -> bool {
         if request.request_id <= self.last_request_id.get() {
             self.emit(
                 &request,
@@ -245,7 +244,7 @@ impl MechanicalSettingsController {
 
     /// Called by the page's existing version signal effect. It observes only the exact slot
     /// registered for this request and never infers success from unrelated Runtime status.
-    pub(crate) fn settle(&self) {
+    pub fn settle(&self) {
         let Some(waiting) = self.pending.borrow().clone() else {
             return;
         };

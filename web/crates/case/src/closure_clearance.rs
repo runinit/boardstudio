@@ -32,7 +32,7 @@ struct Hole {
 /// `ceoloide/mounting_hole_npth`. Its source identity and unrelated normalized
 /// footprint data are retained while the generator parameters and pad drill
 /// dimensions are updated to the projected diameter.
-pub(super) fn project_owned_closure_clearance(
+pub fn project_owned_closure_clearance(
     mut document: ProjectDoc,
     mounting_hole: &PartDefinition,
 ) -> Result<ProjectDoc, String> {

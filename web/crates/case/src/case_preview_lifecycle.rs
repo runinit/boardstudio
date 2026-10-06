@@ -8,10 +8,7 @@ use std::{
 };
 use wasm_bindgen_futures::spawn_local;
 
-pub(crate) fn use_native_case_preview(
-    runtime: Rc<Runtime>,
-    source: Option<(Scope, SnapshotToken, u64)>,
-) {
+pub fn use_native_case_preview(runtime: Rc<Runtime>, source: Option<(Scope, SnapshotToken, u64)>) {
     let request_lifetime = use_hook(|| Rc::new(RefCell::new(None::<Rc<Cell<bool>>>)));
     let dropping = request_lifetime.clone();
     let cancelling = runtime.clone();

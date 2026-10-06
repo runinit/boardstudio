@@ -7,24 +7,24 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 const IMPORTED_PARTS_JSON: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../catalogue/parts/imported-parts.json"
+    "/../../../catalogue/parts/imported-parts.json"
 ));
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum CatalogueSource {
+pub enum CatalogueSource {
     Generator,
     Imported,
     Project,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct CatalogEntry {
+pub struct CatalogEntry {
     pub definition: Rc<PartDefinition>,
     pub source: CatalogueSource,
 }
 
 #[derive(Debug)]
-pub(super) struct CatalogGroup<'a> {
+pub struct CatalogGroup<'a> {
     pub label: &'static str,
     pub entries: Vec<&'a CatalogEntry>,
 }
@@ -95,7 +95,7 @@ fn imported_parts_hash() -> String {
         .collect()
 }
 
-pub(super) async fn load_bundled(reversible: bool) -> Result<Rc<Vec<CatalogEntry>>, String> {
+pub async fn load_bundled(reversible: bool) -> Result<Rc<Vec<CatalogEntry>>, String> {
     let imported_source_hash = imported_parts_hash();
     if let Some(entries) = BUNDLED_CACHE.with(|cache| {
         cache
@@ -164,7 +164,7 @@ fn merge_bundled_sources(
     entries
 }
 
-pub(super) fn merge_project_overrides(
+pub fn merge_project_overrides(
     bundled: &[CatalogEntry],
     project: &[PartDefinition],
 ) -> Vec<CatalogEntry> {
@@ -190,14 +190,14 @@ pub(super) fn merge_project_overrides(
     entries
 }
 
-pub(super) fn catalogue_choices(entries: &[CatalogEntry]) -> Vec<&CatalogEntry> {
+pub fn catalogue_choices(entries: &[CatalogEntry]) -> Vec<&CatalogEntry> {
     entries
         .iter()
         .filter(|entry| is_catalogue_choice(entry))
         .collect()
 }
 
-pub(super) fn group_choices(entries: &[CatalogEntry]) -> Vec<CatalogGroup<'_>> {
+pub fn group_choices(entries: &[CatalogEntry]) -> Vec<CatalogGroup<'_>> {
     let groups = [
         ("Switches", CatalogKind::Switch),
         ("Controllers", CatalogKind::Controller),
@@ -219,7 +219,7 @@ pub(super) fn group_choices(entries: &[CatalogEntry]) -> Vec<CatalogGroup<'_>> {
         .collect()
 }
 
-pub(super) fn preferred_label(definition: &PartDefinition) -> &str {
+pub fn preferred_label(definition: &PartDefinition) -> &str {
     match definition.id.as_str() {
         "generator:ceoloide/switch_mx" => "MX switch",
         "generator:ceoloide/switch_choc_v1_v2" => "Choc V1 / V2 switch",
@@ -232,11 +232,11 @@ pub(super) fn preferred_label(definition: &PartDefinition) -> &str {
 
 /// Whether a source is a built-in generator. Definition IDs are project-owned identities and
 /// are not a reliable proxy for generator membership.
-pub(super) async fn is_generator_source(source: String) -> Result<bool, String> {
+pub async fn is_generator_source(source: String) -> Result<bool, String> {
     Ok(generators::is_generator(&source))
 }
 
-pub(super) async fn generator_parameter_schema(
+pub async fn generator_parameter_schema(
     source: &str,
 ) -> Result<std::collections::BTreeMap<String, serde_json::Value>, String> {
     if !generators::is_generator(source) {
@@ -246,7 +246,7 @@ pub(super) async fn generator_parameter_schema(
 }
 
 /// Normalize a matrix-owned generator clone with the built-in generators.
-pub(super) async fn normalize_matrix_definition(
+pub async fn normalize_matrix_definition(
     definition: PartDefinition,
 ) -> Result<PartDefinition, String> {
     normalize_generator_definition(definition).await
@@ -254,7 +254,7 @@ pub(super) async fn normalize_matrix_definition(
 
 /// Normalize a transient Parts generator candidate through the same service used for
 /// construction. This does not edit the accepted document.
-pub(super) async fn normalize_generator_definition(
+pub async fn normalize_generator_definition(
     definition: PartDefinition,
 ) -> Result<PartDefinition, String> {
     let Some(generator) = definition.generator.as_ref() else {
@@ -327,7 +327,7 @@ fn construction_definition_with_support(
 
 /// Prepare a project setup proposal through catalogue-owned helpers; callers receive
 /// proposals, not access to the generators.
-pub(super) fn prepare_physical_setup_proposal(
+pub fn prepare_physical_setup_proposal(
     accepted: &ProjectDoc,
     intent: crate::physical_setup::SetupIntent,
 ) -> Result<ProjectDoc, String> {
@@ -345,14 +345,14 @@ pub(super) fn prepare_physical_setup_proposal(
     }
 }
 
-pub(super) async fn prepare_physical_setup_proposal_from_package(
+pub async fn prepare_physical_setup_proposal_from_package(
     accepted: &ProjectDoc,
     intent: crate::physical_setup::SetupIntent,
 ) -> Result<ProjectDoc, String> {
     prepare_physical_setup_proposal(accepted, intent)
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_arch = "wasm32"))]
 mod generator_tests {
     use super::*;
     use crate::physical_setup::SetupIntent;
@@ -592,7 +592,7 @@ fn is_uuid(value: &str) -> bool {
     })
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_arch = "wasm32"))]
 mod tests {
     use super::*;
     use wasm_bindgen_test::wasm_bindgen_test;

@@ -62,23 +62,23 @@ struct CurrentSettingsOwner {
 }
 
 #[derive(Clone, PartialEq)]
-pub(crate) struct MechanicalSettingsMount {
-    pub(crate) props: Option<MechanicalSettingsProps>,
-    pub(crate) generation_ready: bool,
+pub struct MechanicalSettingsMount {
+    pub props: Option<MechanicalSettingsProps>,
+    pub generation_ready: bool,
 }
 
 #[derive(Clone)]
-pub(crate) struct MechanicalFindingNavigation {
-    pub(crate) scope: Scope,
-    pub(crate) token: SnapshotToken,
-    pub(crate) revision: u64,
-    pub(crate) resolution: Option<Rc<MechanicalResolution>>,
-    pub(crate) finding_id: String,
+pub struct MechanicalFindingNavigation {
+    pub scope: Scope,
+    pub token: SnapshotToken,
+    pub revision: u64,
+    pub resolution: Option<Rc<MechanicalResolution>>,
+    pub finding_id: String,
 }
 
 /// Keep the controller and its request sequence alive for the whole Editor,
 /// even when the Case workspace or its panel is hidden.
-pub(crate) fn use_mechanical_settings_mount(
+pub fn use_mechanical_settings_mount(
     runtime: Rc<Runtime>,
     generation: Signal<u64>,
     workspace: Signal<&'static str>,
@@ -1257,7 +1257,8 @@ fn project_settings_source(
     if current_source_key(runtime).as_ref() != Some(key) {
         return None;
     }
-    let effective = boardstudio_web_host::cad_jobs::captured_case_document(accepted, &key.scope).ok()?;
+    let effective =
+        boardstudio_web_host::cad_jobs::captured_case_document(accepted, &key.scope).ok()?;
     let configuration = effective.mechanical.clone().map(Rc::new);
     let profiles = configuration
         .as_ref()

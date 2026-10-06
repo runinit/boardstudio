@@ -7,14 +7,12 @@ use boardstudio_web_runtime::{
     firmware_position_projection, layout_viewer_source, model_delivery, operation_outcomes,
     parts_preview, pcb_wiring_mode_operation, portable_archive, runtime,
 };
-#[cfg(all(target_arch = "wasm32", feature = "page"))]
-use boardstudio_web_runtime::{case_gesture_preview, renderer_host_page};
 
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod setup_guide_state;
 
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
-mod cad_presentation;
+pub(crate) use boardstudio_web_case::cad_presentation;
 #[cfg(feature = "page")]
 mod outline_settings;
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
@@ -30,33 +28,19 @@ mod parts_new_component;
 mod parts_view_generation;
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod pcb_wiring_remap_operation;
-#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
-mod physical_setup;
+#[cfg(all(feature = "page", target_arch = "wasm32"))]
+pub(crate) use boardstudio_web_catalogue::physical_setup;
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 mod presentation;
 
-#[cfg(all(target_arch = "wasm32", feature = "page"))]
-#[cfg(all(target_arch = "wasm32", feature = "page"))]
-mod case_preview_lifecycle;
-
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod parts_assembly_preset_draft;
-
-#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
-mod case_generation_admission;
-
-#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
-mod mechanical_feedback;
 
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod firmware_position_choices;
 
 #[cfg(all(feature = "page", target_arch = "wasm32"))]
 pub(crate) use boardstudio_web_ui_shared::footprint_forms;
-
-#[cfg(all(feature = "page", test, not(target_arch = "wasm32")))]
-#[path = "presentation/case_display.rs"]
-mod case_display;
 
 #[cfg(all(feature = "page", test, not(target_arch = "wasm32")))]
 #[path = "presentation/parts_import_footprint.rs"]
@@ -130,10 +114,6 @@ mod presentation {
         mod mode_owner_tests;
     }
 }
-
-#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
-#[path = "presentation/closure_clearance.rs"]
-mod closure_clearance;
 
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 #[path = "matrix_transform_operation.rs"]
