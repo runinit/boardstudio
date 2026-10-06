@@ -14,7 +14,7 @@ preparation and checks; the CAD provider is Rust/WASM.
 | `web/crates/ui-model/` | UI vocabulary shared by presentation code: tree contexts, selection, workspace and view state, canvas interaction ownership |
 | `web/crates/ui-shared/` | UI used by several workspaces: panels, canvas layers, layout camera, footprint graphics, geometry scripts, model import |
 | `web/crates/catalogue/` | Bundled component catalogue loading, generator normalization and physical setup proposals; no Dioxus |
-| `web/crates/keycaps/`, `library/`, `keymap/`, `case/`, `parts/` | Workspace features: keycap fit, settings and scene; the Library page; the Keymap editor; the case viewer, mechanical settings, closure clearance and the shared 3D viewer; the Parts browser, definitions, generators and assemblies. Workspace containers stay in the bin |
+| `web/crates/keycaps/`, `library/`, `keymap/`, `case/`, `parts/`, `pcb/` | Workspace features: keycap fit, settings and scene; the Library page; the Keymap editor; the case viewer, mechanical settings, closure clearance and the shared 3D viewer; the Parts browser, definitions, generators and assemblies; PCB wiring, routed-board references, modules and physical setup. Workspace containers stay in the bin |
 | `web/src/lib.rs` | Worker entry points packaged by wasm-pack (Core, CAD and offline service worker) |
 | `renderer/` | GPU scene rendering, picking and camera behavior |
 | `cad/` | CAD provider bindings and the Cadrum/OCCT WASM kernel |

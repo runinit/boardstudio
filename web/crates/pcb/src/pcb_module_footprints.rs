@@ -6,7 +6,7 @@ use boardstudio_core::model::{PadShape, Severity, Vec2};
 use dioxus::prelude::*;
 use std::collections::BTreeSet;
 
-pub(super) fn default_hidden_layers() -> BTreeSet<String> {
+pub fn default_hidden_layers() -> BTreeSet<String> {
     [
         "module-outlines",
         "module-clearances",
@@ -22,14 +22,14 @@ pub(super) fn default_hidden_layers() -> BTreeSet<String> {
 }
 
 #[derive(Props, Clone, PartialEq)]
-pub(super) struct ModuleSourceFootprintsProps {
+pub struct ModuleSourceFootprintsProps {
     module_id: String,
     snapshot: AcceptedSnapshot,
     on_select: EventHandler<String>,
 }
 
 #[component]
-pub(super) fn ModuleSourceFootprints(props: ModuleSourceFootprintsProps) -> Element {
+pub fn ModuleSourceFootprints(props: ModuleSourceFootprintsProps) -> Element {
     let visibility = use_context::<LayerVisibility>();
     let hidden = (visibility.modules_hidden)();
     let host_hidden = (visibility.hidden)();
@@ -209,7 +209,7 @@ pub(super) fn ModuleSourceFootprints(props: ModuleSourceFootprintsProps) -> Elem
 }
 
 #[component]
-pub(super) fn PcbFindingMarkers(snapshot: AcceptedSnapshot, board_id: String) -> Element {
+pub fn PcbFindingMarkers(snapshot: AcceptedSnapshot, board_id: String) -> Element {
     let visibility = use_context::<LayerVisibility>();
     let module_findings_hidden = (visibility.modules_hidden)().contains("module-findings");
     let module_ids = snapshot

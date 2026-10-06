@@ -20,13 +20,13 @@ impl PartialEq for RuntimeHandle {
     }
 }
 
-pub(super) struct InspectorInput {
-    pub(super) runtime: Rc<Runtime>,
-    pub(super) snapshot: AcceptedSnapshot,
-    pub(super) scope: Scope,
-    pub(super) module_id: String,
-    pub(super) selected_context: Signal<Option<super::objects::ScopedTreeContext>>,
-    pub(super) on_place_component: EventHandler<super::part_placement::ComponentPlacementAction>,
+pub struct InspectorInput {
+    pub runtime: Rc<Runtime>,
+    pub snapshot: AcceptedSnapshot,
+    pub scope: Scope,
+    pub module_id: String,
+    pub selected_context: Signal<Option<super::objects::ScopedTreeContext>>,
+    pub on_place_component: EventHandler<super::part_placement::ComponentPlacementAction>,
 }
 
 #[derive(Clone, Default)]
@@ -49,7 +49,7 @@ struct ConstituentAction {
     source_definition: Option<PartDefinition>,
 }
 
-pub(super) fn inspector(input: InspectorInput) -> Element {
+pub fn inspector(input: InspectorInput) -> Element {
     let owner_key = format!("{:?}:{}", input.scope, input.module_id);
     rsx! {
         PcbMountedModuleInspector {

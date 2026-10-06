@@ -12,21 +12,21 @@ use dioxus::prelude::*;
 use std::rc::Rc;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) enum BoardWiringApplyFeedback {
+pub enum BoardWiringApplyFeedback {
     Pending,
     Saved,
     Failed(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct BoardWiringApplyFeedbackView {
+pub struct BoardWiringApplyFeedbackView {
     pub target: crate::pcb_wiring_mode_operation::BoardWiringModeFeedbackTarget,
     pub request_plan: WiringPlanIdentity,
     pub state: BoardWiringApplyFeedback,
 }
 
 #[derive(Clone, PartialEq)]
-pub(in crate::presentation) struct BoardWiringApplyActions {
+pub struct BoardWiringApplyActions {
     pub identity: Option<BoardWiringModeIdentity>,
     pub editable: bool,
     pub feedback: Option<BoardWiringApplyFeedbackView>,
@@ -42,7 +42,7 @@ struct PendingApply {
     outcome: crate::operation_outcomes::OutcomeSlot,
 }
 
-pub(in crate::presentation) fn use_board_wiring_apply(
+pub fn use_board_wiring_apply(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
     workspace: Signal<&'static str>,

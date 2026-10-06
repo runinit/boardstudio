@@ -6,14 +6,14 @@ use boardstudio_core::{
 use std::collections::BTreeSet;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct ExistingConnectionNet {
+pub struct ExistingConnectionNet {
     pub id: String,
     pub name: String,
     pub pins: BTreeSet<(String, String)>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct ExistingConnectionReview {
+pub struct ExistingConnectionReview {
     pub nets: Vec<ExistingConnectionNet>,
     pub pin_count: usize,
 }
@@ -24,7 +24,7 @@ impl ExistingConnectionReview {
     }
 }
 
-pub(super) fn existing_connection_review(
+pub fn existing_connection_review(
     document: &ProjectDoc,
     plan: &ElectricalPlan,
 ) -> Option<ExistingConnectionReview> {
@@ -81,7 +81,7 @@ pub(super) fn existing_connection_review(
     (!nets.is_empty()).then_some(ExistingConnectionReview { nets, pin_count })
 }
 
-pub(super) fn release_reviewed_connections(
+pub fn release_reviewed_connections(
     document: &ProjectDoc,
     review: &ExistingConnectionReview,
 ) -> ProjectDoc {

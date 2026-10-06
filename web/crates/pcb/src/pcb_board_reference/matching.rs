@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-pub(super) fn is_model_filename(filename: &str) -> bool {
+pub fn is_model_filename(filename: &str) -> bool {
     [".step", ".stp", ".stl", ".wrl"]
         .iter()
         .any(|extension| filename.to_ascii_lowercase().ends_with(extension))
@@ -13,7 +13,7 @@ fn model_basename(path: &str) -> &str {
 }
 
 /// Return each model path paired with the index of its uniquely matching file.
-pub(crate) fn unique_directory_matches(
+pub fn unique_directory_matches(
     paths: &[String],
     filenames: &[String],
 ) -> Vec<(String, usize)> {
@@ -36,7 +36,7 @@ pub(crate) fn unique_directory_matches(
 }
 
 /// Keep a saved selection only when its option is present in the current select.
-pub(crate) fn selected_available_asset<'a>(
+pub fn selected_available_asset<'a>(
     selected_asset_id: &'a str,
     available_asset_ids: impl IntoIterator<Item = &'a str>,
 ) -> Option<&'a str> {

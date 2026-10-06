@@ -26,13 +26,13 @@ struct GeneratorLayerInventory {
 }
 
 #[derive(Props, Clone, PartialEq)]
-pub(super) struct PcbLayerControlsProps {
+pub struct PcbLayerControlsProps {
     snapshot: AcceptedSnapshot,
     scope: Scope,
 }
 
 #[component]
-pub(super) fn PcbLayerControls(props: PcbLayerControlsProps) -> Element {
+pub fn PcbLayerControls(props: PcbLayerControlsProps) -> Element {
     let groups = use_layer_groups(&props.snapshot, &props.scope);
     rsx! {
         CanvasLayers {
@@ -43,7 +43,7 @@ pub(super) fn PcbLayerControls(props: PcbLayerControlsProps) -> Element {
     }
 }
 
-pub(super) fn use_layer_groups(
+pub fn use_layer_groups(
     snapshot: &AcceptedSnapshot,
     scope: &Scope,
 ) -> Vec<CanvasLayerGroup> {
@@ -139,7 +139,7 @@ fn extend_generator_layers(
     }
 }
 
-pub(super) fn layer_groups_for_scene(
+pub fn layer_groups_for_scene(
     document: &ProjectDoc,
     board_contours: &[boardstudio_core::model::BoardContours],
     scene_contours: &[boardstudio_core::model::Contour],
@@ -277,7 +277,7 @@ fn pad_copper_layers(pad: &Pad, part_side: &Side) -> Vec<String> {
     vec![resolve_board_layer(layer, part_side)]
 }
 
-pub(super) fn pad_is_visible(pad: &Pad, part_side: &Side, hidden: &BTreeSet<String>) -> bool {
+pub fn pad_is_visible(pad: &Pad, part_side: &Side, hidden: &BTreeSet<String>) -> bool {
     if pad.plated == Some(false) || hidden.contains("Pads") {
         return false;
     }

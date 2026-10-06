@@ -15,20 +15,20 @@ use dioxus::prelude::*;
 use std::rc::Rc;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct BoardWiringModeEditRequest {
+pub struct BoardWiringModeEditRequest {
     pub identity: BoardWiringModeIdentity,
     pub mode: ElectricalMode,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) enum BoardWiringModeFeedback {
+pub enum BoardWiringModeFeedback {
     Pending,
     Saved,
     Failed(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct BoardWiringModeFeedbackView {
+pub struct BoardWiringModeFeedbackView {
     pub target: BoardWiringModeFeedbackTarget,
     /// Pending and failed results stay tied to the accepted plan that requested them.
     /// Successful save feedback may survive the accepted plan's revision advance.
@@ -37,7 +37,7 @@ pub(in crate::presentation) struct BoardWiringModeFeedbackView {
 }
 
 #[derive(Clone, PartialEq)]
-pub(in crate::presentation) struct BoardWiringModeActions {
+pub struct BoardWiringModeActions {
     pub identity: Option<BoardWiringModeIdentity>,
     pub editable: bool,
     pub feedback: Option<BoardWiringModeFeedbackView>,
@@ -52,7 +52,7 @@ struct PendingModeEdit {
     outcome: crate::operation_outcomes::OutcomeSlot,
 }
 
-pub(in crate::presentation) fn use_board_wiring_mode_edits(
+pub fn use_board_wiring_mode_edits(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
     workspace: Signal<&'static str>,
@@ -234,7 +234,7 @@ pub(in crate::presentation) fn use_board_wiring_mode_edits(
     }
 }
 
-pub(super) fn mode_identity(source: &PcbWiringSource) -> BoardWiringModeIdentity {
+pub fn mode_identity(source: &PcbWiringSource) -> BoardWiringModeIdentity {
     BoardWiringModeIdentity {
         plan: source.identity.clone(),
         ui_scope: source.ui_scope.clone(),
@@ -243,7 +243,7 @@ pub(super) fn mode_identity(source: &PcbWiringSource) -> BoardWiringModeIdentity
     }
 }
 
-pub(super) fn current_snapshot(
+pub fn current_snapshot(
     runtime: &Runtime,
     identity: &BoardWiringModeIdentity,
     workspace: &str,
@@ -261,7 +261,7 @@ pub(super) fn current_snapshot(
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum CurrentSnapshotBlocker {
+pub enum CurrentSnapshotBlocker {
     Workspace,
     InstanceSelection,
     MissingAcceptedSnapshot,
@@ -279,7 +279,7 @@ pub(super) enum CurrentSnapshotBlocker {
 
 /// Private diagnostic seam used by the mounted owner regression probe. Production admission
 /// uses this same predicate and discards the reason; no runtime state or debug API is exposed.
-pub(super) fn current_snapshot_probe(
+pub fn current_snapshot_probe(
     runtime: &Runtime,
     identity: &BoardWiringModeIdentity,
     workspace: &str,

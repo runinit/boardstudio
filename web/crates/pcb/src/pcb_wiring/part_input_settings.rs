@@ -5,7 +5,7 @@ use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
 mod owner;
-pub(in crate::presentation) use owner::{
+pub use owner::{
     PartInputActions, PartInputEditRequest, PartInputFeedbackState, PartInputIdentity,
     PartInputIntent, use_part_input_edits,
 };
@@ -13,7 +13,7 @@ pub(in crate::presentation) use owner::{
 const ROTARY_ENCODER_SOURCE: &str = "ceoloide/rotary_encoder_ec11_ec12";
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct PartInputProjection {
+pub struct PartInputProjection {
     pub part: Part,
     pub definition: PartDefinition,
     pub board_name: String,
@@ -24,12 +24,12 @@ pub(super) struct PartInputProjection {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct NetChoice {
+pub struct NetChoice {
     pub id: String,
     pub name: String,
 }
 
-pub(super) fn project(
+pub fn project(
     document: &ProjectDoc,
     board_id: &str,
     part_id: &str,
@@ -101,7 +101,7 @@ pub(super) fn project(
     })
 }
 
-pub(super) fn binding_schema(
+pub fn binding_schema(
     schema: &BTreeMap<String, Value>,
     terminal_names: &BTreeSet<String>,
 ) -> Vec<(String, String)> {
@@ -119,14 +119,14 @@ pub(super) fn binding_schema(
 }
 
 #[derive(Props, Clone, PartialEq)]
-pub(super) struct PartInputInspectorProps {
+pub struct PartInputInspectorProps {
     pub source: PcbWiringSource,
     pub actions: PartInputActions,
     pub board_details_and_connections: Element,
 }
 
 #[component]
-pub(super) fn PartInputInspector(props: PartInputInspectorProps) -> Element {
+pub fn PartInputInspector(props: PartInputInspectorProps) -> Element {
     let Some(part_id) = props.source.active_part_id.as_deref() else {
         return rsx! {};
     };
@@ -414,7 +414,7 @@ mod tests {
         document
     }
 
-    pub(super) fn projection_for_validation() -> PartInputProjection {
+    pub fn projection_for_validation() -> PartInputProjection {
         project(&project_fixture(), "left", "matrix/main/r0c0").unwrap()
     }
 

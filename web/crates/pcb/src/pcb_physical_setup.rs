@@ -1,8 +1,8 @@
 //! Accepted-source owner and contextual controls for physical setup.
 #[path = "pcb_physical_setup/controller.rs"]
-pub(in crate::presentation) mod controller;
+pub mod controller;
 
-pub(in crate::presentation) use controller::{
+pub use controller::{
     OwnerContext, OwnerIdentity, PhysicalSetupIntent, PhysicalSetupMount, use_controller,
 };
 

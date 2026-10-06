@@ -7,41 +7,41 @@ use dioxus_web::WebEventExt;
 use std::collections::BTreeSet;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct PcbPartHit {
-    pub(in crate::presentation) scope: Scope,
-    pub(in crate::presentation) token: SnapshotToken,
-    pub(in crate::presentation) generation: u64,
-    pub(in crate::presentation) part_id: String,
-    pub(in crate::presentation) additive: bool,
-    pub(in crate::presentation) range: bool,
+pub struct PcbPartHit {
+    pub scope: Scope,
+    pub token: SnapshotToken,
+    pub generation: u64,
+    pub part_id: String,
+    pub additive: bool,
+    pub range: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct PcbPartPointerDown {
-    pub(in crate::presentation) scope: Scope,
-    pub(in crate::presentation) token: SnapshotToken,
-    pub(in crate::presentation) generation: u64,
-    pub(in crate::presentation) part_id: String,
-    pub(in crate::presentation) pointer_id: i64,
-    pub(in crate::presentation) client_x: i32,
-    pub(in crate::presentation) client_y: i32,
-    pub(in crate::presentation) additive: bool,
-    pub(in crate::presentation) range: bool,
+pub struct PcbPartPointerDown {
+    pub scope: Scope,
+    pub token: SnapshotToken,
+    pub generation: u64,
+    pub part_id: String,
+    pub pointer_id: i64,
+    pub client_x: i32,
+    pub client_y: i32,
+    pub additive: bool,
+    pub range: bool,
 }
 
 #[derive(Props, Clone, PartialEq)]
-pub(in crate::presentation) struct PcbSceneProps {
-    pub(in crate::presentation) snapshot: AcceptedSnapshot,
-    pub(in crate::presentation) scope: Scope,
-    pub(in crate::presentation) selected_ids: Vec<String>,
-    pub(in crate::presentation) generation: u64,
-    pub(in crate::presentation) on_part_hit: EventHandler<PcbPartHit>,
-    pub(in crate::presentation) on_part_pointer_down: EventHandler<PcbPartPointerDown>,
-    pub(in crate::presentation) on_module_select: EventHandler<String>,
+pub struct PcbSceneProps {
+    pub snapshot: AcceptedSnapshot,
+    pub scope: Scope,
+    pub selected_ids: Vec<String>,
+    pub generation: u64,
+    pub on_part_hit: EventHandler<PcbPartHit>,
+    pub on_part_pointer_down: EventHandler<PcbPartPointerDown>,
+    pub on_module_select: EventHandler<String>,
 }
 
 #[component]
-pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
+pub fn PcbScene(props: PcbSceneProps) -> Element {
     let snapshot = props.snapshot;
     let scope = props.scope;
     let selected_ids = props.selected_ids;

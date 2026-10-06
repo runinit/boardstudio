@@ -30,14 +30,14 @@ struct PendingFirmwarePositionEdit {
     outcome: crate::operation_outcomes::OutcomeSlot,
 }
 
-pub(in crate::presentation) struct FirmwarePositionActions {
+pub struct FirmwarePositionActions {
     pub feedback: Option<FirmwarePositionFeedback>,
     pub editable: bool,
     pub on_edit: EventHandler<FirmwarePositionEditRequest>,
 }
 
 /// Editor-lifetime root owner for legacy SetKeyBinding admission and exact outcome settlement.
-pub(in crate::presentation) fn use_firmware_position_edits(
+pub fn use_firmware_position_edits(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
     workspace: Signal<&'static str>,
@@ -282,7 +282,7 @@ struct PendingPartNetEdit {
 }
 
 /// Editor-lifetime admission and exact outcome owner for contextual PCB part-net edits.
-pub(in crate::presentation) fn use_pcb_part_net_edits(
+pub fn use_pcb_part_net_edits(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
     workspace: Signal<&'static str>,
@@ -762,21 +762,21 @@ fn legacy_binding<'a>(
 }
 
 #[derive(Clone)]
-pub(in crate::presentation) struct PcbWiringMount {
+pub struct PcbWiringMount {
     pub resolution: PcbWiringResolution,
     pub resolution_signal: Signal<PcbWiringResolution>,
     pub on_resolve: EventHandler<()>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) enum WiringResolutionNotice {
+pub enum WiringResolutionNotice {
     Pending,
     Failed(String),
     Waiting,
 }
 
 impl WiringResolutionNotice {
-    pub(in crate::presentation) fn role(&self) -> &'static str {
+    pub fn role(&self) -> &'static str {
         match self {
             Self::Pending | Self::Waiting => "status",
             Self::Failed(_) => "alert",
@@ -784,7 +784,7 @@ impl WiringResolutionNotice {
     }
 }
 
-pub(in crate::presentation) fn wiring_resolution_notice(
+pub fn wiring_resolution_notice(
     resolution: &PcbWiringResolution,
     identity: &WiringPlanIdentity,
 ) -> WiringResolutionNotice {
@@ -805,7 +805,7 @@ pub(in crate::presentation) fn wiring_resolution_notice(
 
 /// Keep the board-plan query alive at Editor lifetime, regardless of the selected component
 /// or which workspace is currently visible. Call this hook unconditionally in the page parent.
-pub(in crate::presentation) fn use_pcb_wiring_controller(
+pub fn use_pcb_wiring_controller(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
 ) -> PcbWiringMount {

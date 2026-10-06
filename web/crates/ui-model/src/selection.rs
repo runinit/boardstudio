@@ -495,3 +495,50 @@ pub fn owns_session_gesture(runtime: &Rc<Runtime>, drag: &crate::state::Drag) ->
                 && Some(gesture.generation) == drag.gesture_generation
         })
 }
+
+/// The accepted project, board and instance are still the ones `scope` names.
+pub fn active_board_scope_matches(
+    model: &boardstudio_application::ReadModel,
+    scope: &Scope,
+) -> bool {
+    model.active_board_id == scope.board_id
+        && model.active_instance_id == scope.instance_id
+        && model.accepted.as_ref().is_some_and(|snapshot| {
+            snapshot.session_epoch == scope.session_epoch
+                && snapshot.document.id == scope.document_id
+        })
+}
+
+pub fn current_layout_owner(
+    runtime: &Runtime,
+    workspace: Signal<&'static str>,
+    adapter: &SelectionAdapter,
+) -> crate::state::LayoutOwnerIdentity {
+    let model = runtime.model();
+    crate::state::LayoutOwnerIdentity {
+        scope: runtime.scope(),
+        token: model.accepted.as_ref().map(|snapshot| snapshot.token),
+        revision: model
+            .accepted
+            .as_ref()
+            .map(|snapshot| snapshot.document.revision),
+        generation: (adapter.generation)(),
+        workspace: workspace(),
+    }
+}
+
+pub fn layout_owner_is_current(
+    runtime: &Runtime,
+    workspace: Signal<&'static str>,
+    adapter: &SelectionAdapter,
+    owner: &crate::state::LayoutOwnerIdentity,
+) -> bool {
+    if current_layout_owner(runtime, workspace, adapter) != *owner || owner.workspace != "Layout" {
+        return false;
+    }
+    let model = runtime.model();
+    owner
+        .scope
+        .as_ref()
+        .is_some_and(|scope| active_board_scope_matches(&model, scope))
+}

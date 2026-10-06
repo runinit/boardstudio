@@ -28,10 +28,10 @@ fn sha256_bytes(bytes: &[u8]) -> String {
 }
 
 #[derive(Clone)]
-pub(super) struct BoardReferenceRuntimeHandle(Rc<Runtime>);
+pub struct BoardReferenceRuntimeHandle(Rc<Runtime>);
 
 impl BoardReferenceRuntimeHandle {
-    pub(super) fn new(runtime: Rc<Runtime>) -> Self {
+    pub fn new(runtime: Rc<Runtime>) -> Self {
         Self(runtime)
     }
 }
@@ -43,10 +43,10 @@ impl PartialEq for BoardReferenceRuntimeHandle {
 }
 
 #[derive(Clone)]
-pub(super) struct BoardReferenceAdapterHandle(super::SelectionAdapter);
+pub struct BoardReferenceAdapterHandle(super::SelectionAdapter);
 
 impl BoardReferenceAdapterHandle {
-    pub(super) fn new(adapter: super::SelectionAdapter) -> Self {
+    pub fn new(adapter: super::SelectionAdapter) -> Self {
         Self(adapter)
     }
 }
@@ -60,7 +60,7 @@ impl PartialEq for BoardReferenceAdapterHandle {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) enum Action {
+pub enum Action {
     SetEnabled(bool),
     SetPositionX(f64),
     SetPositionY(f64),
@@ -617,7 +617,7 @@ fn begin_model_attachment(
 }
 
 #[component]
-pub(super) fn Editor(
+pub fn Editor(
     reference: Option<BoardReference>,
     assets: Vec<Asset>,
     disabled: bool,
@@ -1020,7 +1020,7 @@ mod test_support {
         static IMPORT_GATE: RefCell<Option<ImportGate>> = const { RefCell::new(None) };
     }
 
-    pub(super) fn install_import_gate() -> (oneshot::Receiver<()>, oneshot::Sender<()>) {
+    pub fn install_import_gate() -> (oneshot::Receiver<()>, oneshot::Sender<()>) {
         let (entered_tx, entered_rx) = oneshot::channel();
         let (release_tx, release_rx) = oneshot::channel();
         IMPORT_GATE.with(|gate| {
@@ -1032,7 +1032,7 @@ mod test_support {
         (entered_rx, release_tx)
     }
 
-    pub(super) async fn pause_import_after_file_read() {
+    pub async fn pause_import_after_file_read() {
         let gate = IMPORT_GATE.with(|gate| gate.borrow_mut().take());
         if let Some(gate) = gate {
             let _ = gate.entered.send(());
@@ -1345,7 +1345,7 @@ mod mounted_async_tests {
     }
 
     fn replacement_file(salt: usize) -> (File, String) {
-        let mut bytes = include_bytes!("../../tests/fixtures/replacement.kicad_pcb").to_vec();
+        let mut bytes = include_bytes!("../../../tests/fixtures/replacement.kicad_pcb").to_vec();
         // Trailing whitespace preserves the fixture as KiCad text while giving
         // each stale-owner case a unique BrowserStore identity.
         bytes.extend(std::iter::repeat_n(b'\n', salt));

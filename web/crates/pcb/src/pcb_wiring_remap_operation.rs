@@ -1,7 +1,7 @@
 //! Accepted-document proposal for deliberately reviewing a protected PCB handoff.
 use boardstudio_core::model::ProjectDoc;
 
-pub(crate) fn propose_review_remap(
+pub fn propose_review_remap(
     document: &ProjectDoc,
     board_id: &str,
     expected_fingerprint: &str,

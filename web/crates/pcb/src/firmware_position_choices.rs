@@ -1,6 +1,6 @@
 //! Legacy PCB firmware-position choices mirrored from the existing TypeScript editor.
 
-pub(crate) fn choices() -> Vec<(String, String)> {
+pub fn choices() -> Vec<(String, String)> {
     let mut choices = vec![
         ("&none".into(), "Unassigned".into()),
         ("&trans".into(), "Transparent".into()),

@@ -9,20 +9,20 @@ use dioxus::prelude::*;
 use std::{cell::Cell, future::Future, pin::Pin, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
 
-pub(in crate::presentation) type ProposalFuture =
+pub type ProposalFuture =
     Pin<Box<dyn Future<Output = Result<ProjectDoc, String>>>>;
-pub(in crate::presentation) type ProposalPreparer =
+pub type ProposalPreparer =
     Rc<dyn Fn(ProjectDoc, SetupIntent) -> ProposalFuture>;
-pub(in crate::presentation) type CurrentOwner = Rc<dyn Fn(&OwnerIdentity, bool) -> bool>;
+pub type CurrentOwner = Rc<dyn Fn(&OwnerIdentity, bool) -> bool>;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in crate::presentation) enum OwnerContext {
+pub enum OwnerContext {
     ProjectGuide,
     CaseInspector,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct OwnerIdentity {
+pub struct OwnerIdentity {
     pub context: OwnerContext,
     pub session_epoch: boardstudio_application::SessionEpoch,
     pub document_id: String,
@@ -35,7 +35,7 @@ pub(in crate::presentation) struct OwnerIdentity {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) enum PhysicalSetupIntent {
+pub enum PhysicalSetupIntent {
     ProjectTopology(bool),
     ProjectTransport(HardwareTransport),
     ProjectReversibleLayout(bool),
@@ -45,7 +45,7 @@ pub(in crate::presentation) enum PhysicalSetupIntent {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct CaseInstanceProjection {
+pub struct CaseInstanceProjection {
     pub name: String,
     pub role: String,
     pub board_id: String,
@@ -55,13 +55,13 @@ pub(in crate::presentation) struct CaseInstanceProjection {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct CaseBoardProjection {
+pub struct CaseBoardProjection {
     pub id: String,
     pub name: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct PhysicalSetupProjection {
+pub struct PhysicalSetupProjection {
     pub topology: HardwareTopology,
     pub transport: HardwareTransport,
     pub reversible: bool,
@@ -73,7 +73,7 @@ pub(in crate::presentation) struct PhysicalSetupProjection {
 }
 
 #[derive(Clone)]
-pub(in crate::presentation) struct PhysicalSetupMount {
+pub struct PhysicalSetupMount {
     pub projection: PhysicalSetupProjection,
     pub busy: Signal<Option<OperationId>>,
     project_owner: Option<OwnerIdentity>,
@@ -88,7 +88,7 @@ struct PhysicalSetupRequest {
 }
 
 impl PhysicalSetupMount {
-    pub(in crate::presentation) fn submit(&self, intent: PhysicalSetupIntent) {
+    pub fn submit(&self, intent: PhysicalSetupIntent) {
         let owner = match intent {
             PhysicalSetupIntent::CaseTransport(_)
             | PhysicalSetupIntent::CasePcbDesign(_)
@@ -157,7 +157,7 @@ struct SubmittedSetup {
     case_reassignment: bool,
 }
 
-pub(in crate::presentation) fn use_controller(
+pub fn use_controller(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
     generation: Signal<u64>,
@@ -391,7 +391,7 @@ pub(in crate::presentation) fn use_controller(
     }
 }
 
-pub(in crate::presentation) fn project_setup_controls(mount: PhysicalSetupMount) -> Element {
+pub fn project_setup_controls(mount: PhysicalSetupMount) -> Element {
     let projection = mount.projection.clone();
     let topology_single = mount.clone();
     let topology_split = mount.clone();

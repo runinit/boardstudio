@@ -2,7 +2,7 @@
 use boardstudio_core::model::{PartKind, ProjectDoc};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum PartNetIntent {
+pub enum PartNetIntent {
     AssignPads {
         pad_ids: Vec<String>,
         net_id: Option<String>,
@@ -15,7 +15,7 @@ pub(super) enum PartNetIntent {
 
 /// Build a proposal from the captured accepted document. The caller separately admits that
 /// document against the live Editor/Session identity before registering and submitting it.
-pub(super) fn propose(
+pub fn propose(
     document: &ProjectDoc,
     board_id: &str,
     part_id: &str,

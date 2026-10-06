@@ -10,7 +10,7 @@ use crate::firmware_position_projection::{FirmwarePositionProjection, FirmwarePo
 use dioxus::prelude::*;
 
 #[derive(Props, Clone, PartialEq)]
-pub(in crate::presentation) struct FirmwareKeymapPanelProps {
+pub struct FirmwareKeymapPanelProps {
     pub projection: FirmwarePositionProjection,
     pub feedback: Option<FirmwarePositionFeedback>,
     pub editable: bool,
@@ -18,7 +18,7 @@ pub(in crate::presentation) struct FirmwareKeymapPanelProps {
 }
 
 #[component]
-pub(in crate::presentation) fn FirmwareKeymapPanel(props: FirmwareKeymapPanelProps) -> Element {
+pub fn FirmwareKeymapPanel(props: FirmwareKeymapPanelProps) -> Element {
     let keys = props.projection.keys.as_ref();
     let assigned = keys
         .iter()

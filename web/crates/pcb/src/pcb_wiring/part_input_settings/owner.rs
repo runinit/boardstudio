@@ -10,7 +10,7 @@ use std::{cell::Cell, collections::BTreeSet, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct PartInputIdentity {
+pub struct PartInputIdentity {
     pub ui_scope: Scope,
     pub board_id: String,
     pub part_id: String,
@@ -23,19 +23,19 @@ pub(in crate::presentation) struct PartInputIdentity {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) enum PartInputIntent {
+pub enum PartInputIntent {
     ScanMode(PressScanMode),
     GeneratorParameter { name: String, value: Option<Value> },
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) struct PartInputEditRequest {
+pub struct PartInputEditRequest {
     pub identity: PartInputIdentity,
     pub intent: PartInputIntent,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) enum PartInputFeedbackState {
+pub enum PartInputFeedbackState {
     Preparing,
     Pending,
     Saved,
@@ -43,13 +43,13 @@ pub(in crate::presentation) enum PartInputFeedbackState {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct PartInputFeedback {
+pub struct PartInputFeedback {
     pub identity: PartInputIdentity,
     pub state: PartInputFeedbackState,
 }
 
 #[derive(Clone, PartialEq)]
-pub(in crate::presentation) struct PartInputActions {
+pub struct PartInputActions {
     pub feedback: Option<PartInputFeedback>,
     pub editable: bool,
     pub on_edit: EventHandler<PartInputEditRequest>,
@@ -69,7 +69,7 @@ struct PendingEdit {
     expected: ExpectedEdit,
 }
 
-pub(in crate::presentation) fn use_part_input_edits(
+pub fn use_part_input_edits(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
     workspace: Signal<&'static str>,

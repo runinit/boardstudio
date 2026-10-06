@@ -14,7 +14,7 @@ use dioxus::prelude::*;
 use std::rc::Rc;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct PcbWiringPinAssignment {
+pub struct PcbWiringPinAssignment {
     pub id: String,
     pub label: String,
     pub detail: Option<String>,
@@ -23,7 +23,7 @@ pub(in crate::presentation) struct PcbWiringPinAssignment {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct PcbWiringPinEditRequest {
+pub struct PcbWiringPinEditRequest {
     pub identity: BoardWiringModeIdentity,
     pub assignment_id: String,
     /// The selected value is written into the existing Core lock map. `None` removes it.
@@ -31,21 +31,21 @@ pub(in crate::presentation) struct PcbWiringPinEditRequest {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) enum PcbWiringPinFeedback {
+pub enum PcbWiringPinFeedback {
     Pending,
     Saved,
     Failed(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct PcbWiringPinFeedbackView {
+pub struct PcbWiringPinFeedbackView {
     pub target: BoardWiringModeFeedbackTarget,
     pub request_plan: super::WiringPlanIdentity,
     pub state: PcbWiringPinFeedback,
 }
 
 #[derive(Clone, PartialEq)]
-pub(in crate::presentation) struct PcbWiringPinActions {
+pub struct PcbWiringPinActions {
     pub identity: Option<BoardWiringModeIdentity>,
     pub editable: bool,
     pub feedback: Option<PcbWiringPinFeedbackView>,
@@ -60,7 +60,7 @@ struct PendingPinEdit {
     outcome: crate::operation_outcomes::OutcomeSlot,
 }
 
-pub(in crate::presentation) fn use_pcb_wiring_pin_edits(
+pub fn use_pcb_wiring_pin_edits(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
     workspace: Signal<&'static str>,
@@ -253,7 +253,7 @@ pub(in crate::presentation) fn use_pcb_wiring_pin_edits(
     }
 }
 
-pub(super) fn assignments(
+pub fn assignments(
     source: &PcbWiringSource,
     plan: &ElectricalPlan,
 ) -> Vec<PcbWiringPinAssignment> {
@@ -331,7 +331,7 @@ pub(super) fn assignments(
     rows
 }
 
-pub(super) fn pin_choices(row: &PcbWiringPinAssignment, plan: &ElectricalPlan) -> Vec<String> {
+pub fn pin_choices(row: &PcbWiringPinAssignment, plan: &ElectricalPlan) -> Vec<String> {
     let mut pins = Vec::new();
     if let Some(value) = row.value.as_ref() {
         pins.push(value.clone());
@@ -344,7 +344,7 @@ pub(super) fn pin_choices(row: &PcbWiringPinAssignment, plan: &ElectricalPlan) -
     pins
 }
 
-pub(super) fn pin_edit_is_available(
+pub fn pin_edit_is_available(
     document: &ProjectDoc,
     plan: &ElectricalPlan,
     board_id: &str,
@@ -389,7 +389,7 @@ pub(super) fn pin_edit_is_available(
     }
 }
 
-pub(super) fn propose_pin_lock(
+pub fn propose_pin_lock(
     document: &ProjectDoc,
     board_id: &str,
     assignment_id: &str,

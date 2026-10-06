@@ -10,7 +10,7 @@ use boardstudio_core::{
 use dioxus::prelude::*;
 use std::rc::Rc;
 
-pub(in crate::presentation) use boardstudio_web_ui_model::wiring::{
+pub use boardstudio_web_ui_model::wiring::{
     PcbWiringResolution, PcbWiringSource,
 };
 
@@ -24,31 +24,31 @@ mod part_net_admission;
 mod pins;
 mod remap;
 use crate::firmware_position_projection;
-pub(in crate::presentation) use crate::firmware_position_projection::{
+pub use crate::firmware_position_projection::{
     FirmwarePlanIdentity as WiringPlanIdentity, FirmwarePositionFeedbackTarget,
     FirmwarePositionIdentity, FirmwarePositionProjection, PlanLifecycle,
 };
-pub(in crate::presentation) use apply::{
+pub use apply::{
     BoardWiringApplyActions, BoardWiringApplyFeedback, use_board_wiring_apply,
 };
-pub(in crate::presentation) use controller::{
+pub use controller::{
     WiringResolutionNotice, use_firmware_position_edits, use_pcb_part_net_edits,
     use_pcb_wiring_controller, wiring_resolution_notice,
 };
-pub(in crate::presentation) use mode::{
+pub use mode::{
     BoardWiringModeActions, BoardWiringModeEditRequest, BoardWiringModeFeedback,
     use_board_wiring_mode_edits,
 };
-pub(in crate::presentation) use part_input_settings::PartInputActions;
-pub(in crate::presentation) use pins::{
+pub use part_input_settings::PartInputActions;
+pub use pins::{
     PcbWiringPinActions, PcbWiringPinEditRequest, PcbWiringPinFeedback, use_pcb_wiring_pin_edits,
 };
-pub(in crate::presentation) use remap::{
+pub use remap::{
     ProtectedRemapActions, ProtectedRemapFeedback, use_protected_remap_review,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct PartNetEditIdentity {
+pub struct PartNetEditIdentity {
     pub board_id: String,
     pub ui_scope: Scope,
     pub part_id: String,
@@ -58,7 +58,7 @@ pub(in crate::presentation) struct PartNetEditIdentity {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) enum PartNetEditAction {
+pub enum PartNetEditAction {
     AssignPads {
         pad_ids: Vec<String>,
         net_id: Option<String>,
@@ -69,26 +69,26 @@ pub(in crate::presentation) enum PartNetEditAction {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct PartNetEditRequest {
+pub struct PartNetEditRequest {
     pub identity: PartNetEditIdentity,
     pub action: PartNetEditAction,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) enum PartNetFeedbackState {
+pub enum PartNetFeedbackState {
     Saved,
     Failed,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct PartNetFeedback {
+pub struct PartNetFeedback {
     pub identity: PartNetEditIdentity,
     pub message: String,
     pub state: PartNetFeedbackState,
 }
 
 #[derive(Clone, PartialEq)]
-pub(in crate::presentation) struct PartNetActions {
+pub struct PartNetActions {
     pub identity: Option<PartNetEditIdentity>,
     pub editable: bool,
     pub feedback: Option<PartNetFeedback>,
@@ -152,7 +152,7 @@ struct WiringDisplayProjection {
 }
 
 #[derive(Props, Clone, PartialEq)]
-pub(in crate::presentation) struct PcbWiringInspectorProps {
+pub struct PcbWiringInspectorProps {
     pub source: PcbWiringSource,
     pub resolution: PcbWiringResolution,
     pub firmware_positions: FirmwarePositionProjection,
@@ -171,26 +171,26 @@ pub(in crate::presentation) struct PcbWiringInspectorProps {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct FirmwarePositionEditRequest {
+pub struct FirmwarePositionEditRequest {
     pub identity: FirmwarePositionIdentity,
     pub key_id: String,
     pub binding: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) enum FirmwarePositionFeedbackState {
+pub enum FirmwarePositionFeedbackState {
     Pending,
     Saved,
     Failed(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct FirmwarePositionFeedback {
+pub struct FirmwarePositionFeedback {
     pub target: FirmwarePositionFeedbackTarget,
     pub state: FirmwarePositionFeedbackState,
 }
 
-pub(in crate::presentation) fn firmware_position_projection(
+pub fn firmware_position_projection(
     source: &PcbWiringSource,
     generation: u64,
     resolution: &PcbWiringResolution,
@@ -212,7 +212,7 @@ pub(in crate::presentation) fn firmware_position_projection(
     )
 }
 
-pub(in crate::presentation) fn use_part_input_edits(
+pub fn use_part_input_edits(
     runtime: Rc<crate::runtime::Runtime>,
     version: Signal<u64>,
     workspace: Signal<&'static str>,
@@ -229,7 +229,7 @@ pub(in crate::presentation) fn use_part_input_edits(
 }
 
 #[component]
-pub(in crate::presentation) fn PcbWiringInspector(props: PcbWiringInspectorProps) -> Element {
+pub fn PcbWiringInspector(props: PcbWiringInspectorProps) -> Element {
     let new_net_name = use_signal(String::new);
     let generator_source = props.source.active_part_id.as_ref().and_then(|part_id| {
         let part = props

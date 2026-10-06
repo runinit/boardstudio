@@ -11,27 +11,27 @@ use dioxus::prelude::*;
 use std::rc::Rc;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct ProtectedRemapIdentity {
+pub struct ProtectedRemapIdentity {
     pub wiring: BoardWiringModeIdentity,
     pub expected_fingerprint: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) enum ProtectedRemapFeedback {
+pub enum ProtectedRemapFeedback {
     Pending,
     Saved,
     Failed(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct ProtectedRemapFeedbackView {
+pub struct ProtectedRemapFeedbackView {
     pub target: BoardWiringModeFeedbackTarget,
     pub request_fingerprint: String,
     pub state: ProtectedRemapFeedback,
 }
 
 #[derive(Clone, PartialEq)]
-pub(in crate::presentation) struct ProtectedRemapActions {
+pub struct ProtectedRemapActions {
     pub identity: Option<ProtectedRemapIdentity>,
     pub handoff_revision: Option<u64>,
     pub editable: bool,
@@ -47,7 +47,7 @@ struct PendingProtectedRemap {
     outcome: crate::operation_outcomes::OutcomeSlot,
 }
 
-pub(in crate::presentation) fn use_protected_remap_review(
+pub fn use_protected_remap_review(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
     workspace: Signal<&'static str>,

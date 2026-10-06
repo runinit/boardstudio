@@ -242,6 +242,7 @@ dependencies = [
  "boardstudio-web-keymap",
  "boardstudio-web-library",
  "boardstudio-web-parts",
+ "boardstudio-web-pcb",
  "boardstudio-web-runtime",
  "boardstudio-web-ui-model",
  "boardstudio-web-ui-shared",
@@ -410,6 +411,32 @@ dependencies = [
  "serde_json",
  "sha2",
  "tokio",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+ "web-sys",
+]
+
+[[package]]
+name = "boardstudio-web-pcb"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-application",
+ "boardstudio-web-catalogue",
+ "boardstudio-web-host",
+ "boardstudio-web-parts",
+ "boardstudio-web-runtime",
+ "boardstudio-web-ui-model",
+ "boardstudio-web-ui-shared",
+ "boardstudio_core",
+ "dioxus",
+ "dioxus-web",
+ "futures-channel",
+ "gloo-timers",
+ "js-sys",
+ "serde",
+ "serde_json",
+ "sha2",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
