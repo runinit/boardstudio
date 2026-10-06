@@ -7,14 +7,12 @@ use std::collections::BTreeMap;
 mod host_connector;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 pub enum ModuleCircuitRepair {
     #[serde(rename = "drv2605l-pullups3v3")]
     Drv2605lPullups3v3,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
 pub enum VikSignal {
     Sclk,
@@ -32,20 +30,16 @@ pub enum VikSignal {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ModuleBoard {
     pub contours: Vec<Contour>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[cfg_attr(feature = "export-types", ts(as = "Option<Vec<Vec<Vec2>>>", optional))]
     pub holes: Vec<Vec<Vec2>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "export-types", ts(optional))]
     pub thickness: Option<f64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ModuleVolume {
     pub id: String,
@@ -56,7 +50,6 @@ pub struct ModuleVolume {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ModuleInterface {
     pub id: String,
@@ -66,7 +59,6 @@ pub struct ModuleInterface {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum ModuleProtocol {
     PassThrough,
@@ -78,9 +70,7 @@ pub enum ModuleProtocol {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-#[cfg_attr(feature = "export-types", ts(optional_fields))]
 pub struct ModuleElectrical {
     pub protocol: ModuleProtocol,
     #[serde(default)]
@@ -100,21 +90,18 @@ pub struct ModuleElectrical {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ModuleConstituent {
     pub reference: String,
     pub name: String,
     pub footprint: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "export-types", ts(optional))]
     pub definition_id: Option<String>,
     #[serde(default)]
     pub purchased: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ModuleModelCandidate {
     pub asset_id: String,
@@ -127,7 +114,6 @@ pub struct ModuleModelCandidate {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ModuleCircuit {
     pub definitions: Vec<PartDefinition>,
@@ -139,12 +125,10 @@ pub struct ModuleCircuit {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ModuleDefinition {
     pub id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "export-types", ts(optional))]
     pub catalogue_row: Option<String>,
     pub name: String,
     pub family: String,
@@ -160,10 +144,6 @@ pub struct ModuleDefinition {
     #[serde(default)]
     pub models: Vec<PartModel>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[cfg_attr(
-        feature = "export-types",
-        ts(as = "Option<Vec<ModuleModelCandidate>>", optional)
-    )]
     pub candidate_models: Vec<ModuleModelCandidate>,
     #[serde(default)]
     pub gates: Vec<HardwareGate>,
@@ -173,12 +153,10 @@ pub struct ModuleDefinition {
     #[serde(default)]
     pub constituents: Vec<ModuleConstituent>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "export-types", ts(optional))]
     pub circuit: Option<ModuleCircuit>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum ModuleAttachment {
     Board,
@@ -186,9 +164,7 @@ pub enum ModuleAttachment {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-#[cfg_attr(feature = "export-types", ts(optional_fields))]
 pub struct ModuleConnection {
     pub host_connector_part_id: String,
     pub module_port_id: String,
@@ -207,9 +183,7 @@ pub struct ModuleConnection {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-#[cfg_attr(feature = "export-types", ts(optional_fields))]
 pub struct MountedModule {
     pub id: String,
     pub definition_id: String,
@@ -230,17 +204,12 @@ pub struct MountedModule {
     #[serde(default)]
     pub service_clearance: f64,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[cfg_attr(
-        feature = "export-types",
-        ts(as = "Option<Vec<ModuleSupport>>", optional)
-    )]
     pub mount_supports: Vec<ModuleSupport>,
 }
 
 /// Designer-selected annular support around one source module mounting hole.
 /// Z is relative to the module PCB midplane; it is converted with the module frame.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ModuleSupport {
     pub mount_id: String,
@@ -251,7 +220,6 @@ pub struct ModuleSupport {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct EmbeddedCircuit {
     pub id: String,
@@ -263,7 +231,6 @@ pub struct EmbeddedCircuit {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ResolvedModule {
     pub id: String,
@@ -276,24 +243,15 @@ pub struct ResolvedModule {
     /// Solids below use the existing host-top-zero mechanical frame.
     pub board: Vec<CaseOpening>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[cfg_attr(feature = "export-types", ts(as = "Option<Vec<Contour>>", optional))]
     pub board_holes: Vec<Contour>,
     pub volumes: Vec<ModuleVolume>,
     pub openings: Vec<ModuleVolume>,
     pub mounts: Vec<MechanicalPcbHole>,
     /// Designer-authored daughterboard supports resolved into host-board coordinates.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[cfg_attr(
-        feature = "export-types",
-        ts(as = "Option<Vec<ModuleSupportGeometry>>", optional)
-    )]
     pub mount_supports: Vec<ModuleSupportGeometry>,
     /// Source-owned daughterboard footprints for PCB preview only. These are never host parts.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[cfg_attr(
-        feature = "export-types",
-        ts(as = "Option<Vec<ResolvedModuleFootprint>>", optional)
-    )]
     pub footprints: Vec<ResolvedModuleFootprint>,
     pub models: Vec<PartModel>,
     pub gates: Vec<HardwareGate>,
@@ -302,7 +260,6 @@ pub struct ResolvedModule {
 /// Resolved designer-selected annular support around a source module mount.
 /// XY and Z use the host-top-zero mechanical frame; dimensions remain authored values.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ModuleSupportGeometry {
     pub mount_id: String,
@@ -315,7 +272,6 @@ pub struct ModuleSupportGeometry {
 
 /// Compact source-local footprint geometry carried by a mounted-module preview.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ResolvedModuleFootprint {
     /// Unique preview identity; does not identify a host `Part`.
@@ -332,14 +288,11 @@ pub struct ResolvedModuleFootprint {
     pub pads: Vec<ResolvedModulePad>,
     /// Artwork geometry stays source-local; F/B layer names are remapped to the resolved host side.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[cfg_attr(feature = "export-types", ts(as = "Option<Vec<PcbSurface>>", optional))]
     pub surfaces: Vec<PcbSurface>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
-#[cfg_attr(feature = "export-types", ts(optional_fields))]
 pub struct ResolvedModulePad {
     pub id: String,
     pub number: String,
@@ -363,7 +316,6 @@ pub(crate) struct ResolvedModuleSupport {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ModuleModelPlacement {
     pub id: String,
@@ -373,26 +325,16 @@ pub struct ModuleModelPlacement {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ModuleResolution {
     pub revision: u64,
     pub modules: Vec<ResolvedModule>,
     pub findings: Vec<Finding>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[cfg_attr(
-        feature = "export-types",
-        ts(as = "Option<Vec<FindingMarker>>", optional)
-    )]
     pub markers: Vec<FindingMarker>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "export-types", ts(optional))]
     pub preview: Option<PreparedCaseAssemblyIR>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[cfg_attr(
-        feature = "export-types",
-        ts(as = "Option<Vec<ModuleModelPlacement>>", optional)
-    )]
     pub model_placements: Vec<ModuleModelPlacement>,
 }
 

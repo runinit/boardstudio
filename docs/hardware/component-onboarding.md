@@ -22,7 +22,7 @@ this guide does not establish that every current entry already complies.
    to their module and initially placed nearby without changing reviewed anchors,
    manual placements or authored outline versions.
 3. **Integrate through Rust.** Use the public edit/resolution/export boundaries
-   and generated contracts. Persist edits through the normal validation and Undo
+   and shared Rust contracts. Persist edits through the normal validation and Undo
    path. Carry geometry changes through CAD, cache identity, preview and affected
    exports. Use [the architecture owners](../architecture.md) and the project
    Rust/CAD integration skill rather than adding a parallel geometry authority.

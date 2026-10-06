@@ -5,7 +5,6 @@ use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ElectricalPlanRequest {
     pub document: ProjectDoc,
@@ -23,7 +22,6 @@ pub struct ElectricalPlanRequest {
     pub controller_part_id: Option<String>,
 }
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum ElectricalMode {
     #[default]
@@ -31,7 +29,6 @@ pub enum ElectricalMode {
     Direct,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ElectricalAssignment {
     pub key_id: String,
@@ -46,7 +43,6 @@ pub struct ElectricalAssignment {
     pub direct_gpio: Option<String>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ElectricalDiagnostic {
     pub code: String,
@@ -55,7 +51,6 @@ pub struct ElectricalDiagnostic {
     pub key_id: Option<String>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ElectricalPlan {
     pub instance_id: Option<String>,

@@ -6,7 +6,6 @@ use crate::model::{Part, PartDefinition, Side};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct JumperSite {
     pub id: String,
@@ -20,7 +19,6 @@ pub struct JumperSite {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct JumperDiagnostic {
     pub code: String,
@@ -29,7 +27,6 @@ pub struct JumperDiagnostic {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct JumperRecipe {
     pub part_id: String,

@@ -6,7 +6,11 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { strToU8, unzipSync, zipSync } from 'fflate';
-import { emptyProject } from '../contracts/src/index.ts';
+
+const emptyProject = (id, name) => ({
+  format: 'boardstudio/v2', formatVersion: 2, id, name, revision: 0, parameters: {}, definitions: [], parts: [],
+  matrices: [], constraints: [], nets: [], outline: [], boards: [], caseBodies: [], materials: [], assets: [], scripts: [],
+});
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const build = spawnSync('cargo', ['build', '--manifest-path', 'core/Cargo.toml', '--locked', '--example', 'core_request', '--example', 'archive_request'], { cwd: root, stdio: 'inherit' });

@@ -1,5 +1,2 @@
-packages:
-  - contracts
-
 allowBuilds:
   esbuild: true

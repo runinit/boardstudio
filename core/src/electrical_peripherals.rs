@@ -6,7 +6,6 @@ use crate::model::ProjectDoc;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct PeripheralRequirement {
     pub part_id: String,
@@ -15,15 +14,12 @@ pub struct PeripheralRequirement {
     pub gpio_terminals: Vec<(String, String)>,
     pub fixed_terminals: Vec<(String, String)>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "export-types", ts(optional))]
     pub rotary: Option<crate::inputs::RotaryProfile>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "export-types", ts(optional))]
     pub press_key_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct PeripheralRequirementError {
     pub part_id: String,

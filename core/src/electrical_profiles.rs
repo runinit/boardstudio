@@ -8,7 +8,6 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
 pub enum JumperState {
     Open,

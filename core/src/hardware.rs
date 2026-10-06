@@ -2,7 +2,6 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct HardwareSource {
     pub repository: String,
@@ -10,15 +9,12 @@ pub struct HardwareSource {
     pub path: String,
     pub license: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "export-types", ts(optional))]
     pub sha256: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "export-types", ts(optional))]
     pub upstream_status: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum HardwareOutput {
     Footprint,
@@ -29,7 +25,6 @@ pub enum HardwareOutput {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct HardwareGate {
     pub output: HardwareOutput,
@@ -38,7 +33,6 @@ pub struct HardwareGate {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum VikRole {
     Host,
@@ -46,14 +40,12 @@ pub enum VikRole {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct HardwareProfile {
     pub source: HardwareSource,
     #[serde(default)]
     pub gates: Vec<HardwareGate>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "export-types", ts(optional))]
     pub vik_role: Option<VikRole>,
     #[serde(default)]
     pub footprint_surface_volumes: bool,

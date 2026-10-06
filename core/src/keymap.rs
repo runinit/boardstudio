@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum KeyBinding {
     KeyPress {
@@ -46,7 +45,6 @@ pub enum KeyBinding {
     None,
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum MacroStep {
     Tap { binding: KeyBinding },
@@ -55,7 +53,6 @@ pub enum MacroStep {
     Wait { ms: u32 },
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct KeymapMacro {
     pub id: String,
@@ -65,13 +62,11 @@ pub struct KeymapMacro {
     pub wait_ms: u32,
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 pub struct EncoderBinding {
     pub clockwise: KeyBinding,
     pub counterclockwise: KeyBinding,
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 pub struct KeymapLayer {
     pub id: String,
     pub name: String,
@@ -81,7 +76,6 @@ pub struct KeymapLayer {
     pub sensors: BTreeMap<String, EncoderBinding>,
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 pub struct KeymapConfiguration {
     pub layers: Vec<KeymapLayer>,
     #[serde(default)]
@@ -101,7 +95,6 @@ impl Default for KeymapConfiguration {
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum KeymapChange {
     EditMacro {
@@ -143,14 +136,12 @@ pub enum KeymapChange {
     },
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum EncoderDirection {
     Clockwise,
     Counterclockwise,
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum MacroChange {
     Name { value: String },

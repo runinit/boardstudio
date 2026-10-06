@@ -66,7 +66,7 @@ before executing tests.
 | `application/` | Accepted state, interactions and scoped operations |
 | `core/` | Document engine, geometry, artifacts and archives |
 | `renderer/`, `cad/` | Rendering and CAD providers |
-| `contracts/` | Generated Rust/TypeScript contracts |
+| `contracts/` | Shared Rust boundary types |
 | `footprints/` | Built-in Rust footprint generators, normalization and model references |
 | `ergogen/library/` | Vendored models, source manifests and attribution |
 | `kicad/` | PCB integration checks against Core and KiCad |

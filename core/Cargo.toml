@@ -7,13 +7,6 @@ license = "MIT OR Apache-2.0"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-[features]
-export-types = ["dep:ts-rs", "boardstudio-contracts/export-types"]
-
-[[example]]
-name = "export_contracts"
-required-features = ["export-types"]
-
 [[example]]
 name = "dump_firmware"
 
@@ -28,7 +21,6 @@ sha2 = { version = "=0.11.0", default-features = false }
 wasm-bindgen = "0.2.129"
 js-sys = "0.3.106"
 zip = { version = "=8.6.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
-ts-rs = { version = "=12.0.1", optional = true, features = ["serde-compat", "serde-json-impl"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 rhai = { version = "1.26.1", default-features = false, features = ["std"] }

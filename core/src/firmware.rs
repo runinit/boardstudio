@@ -11,7 +11,6 @@ mod encoders;
 pub use encoders::FirmwareEncoder;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum SplitTransport {
     Wireless,
@@ -19,14 +18,12 @@ pub enum SplitTransport {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 pub struct ScanPin {
     pub terminal: String,
     pub gpio: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 pub struct FirmwareKey {
     pub id: String,
     pub row: usize,
@@ -34,30 +31,24 @@ pub struct FirmwareKey {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct FirmwareModuleQualification {
     pub id: String,
     pub name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "export-types", ts(optional))]
     pub host_instance_id: Option<String>,
     pub protocol: crate::model::ModuleProtocol,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "export-types", ts(optional))]
     pub catalogue_row: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "export-types", ts(optional))]
     pub source: Option<crate::model::HardwareSource>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "export-types", ts(optional))]
     pub rotary_profile: Option<crate::model::RotaryProfile>,
     #[serde(default)]
     pub gates: Vec<crate::model::HardwareGate>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct FirmwarePhysicalInstance {
     pub id: String,
@@ -65,7 +56,6 @@ pub struct FirmwarePhysicalInstance {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct FirmwareModuleFinding {
     pub id: String,
@@ -73,12 +63,10 @@ pub struct FirmwareModuleFinding {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct FirmwareHardware {
     pub board_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "export-types", ts(optional))]
     pub physical_instance_id: Option<String>,
     pub modules: Vec<FirmwareModuleQualification>,
     pub physical_instances: Vec<FirmwarePhysicalInstance>,
@@ -87,7 +75,6 @@ pub struct FirmwareHardware {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct FirmwarePartQualification {
     pub part_id: String,
@@ -97,7 +84,6 @@ pub struct FirmwarePartQualification {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct FirmwareQualification {
     pub board_id: String,
@@ -105,25 +91,16 @@ pub struct FirmwareQualification {
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 pub struct FirmwareRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "export-types", ts(optional))]
     pub qualification: Option<FirmwareQualification>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "export-types", ts(optional))]
     pub hardware: Option<FirmwareHardware>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[cfg_attr(
-        feature = "export-types",
-        ts(as = "Option<Vec<FirmwareEncoder>>", optional)
-    )]
     pub encoders: Vec<FirmwareEncoder>,
     #[serde(default)]
-    #[cfg_attr(feature = "export-types", ts(optional))]
     pub keymap: Option<crate::model::KeymapConfiguration>,
     #[serde(default)]
-    #[cfg_attr(feature = "export-types", ts(as = "Option<Vec<String>>", optional))]
     pub encoder_ids: Vec<String>,
     pub controller_profile: String,
     pub board_name: String,
@@ -155,7 +132,6 @@ pub struct FirmwareRequest {
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum FirmwareScanMode {
     #[default]
@@ -164,7 +140,6 @@ pub enum FirmwareScanMode {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 pub struct FirmwarePackage {
     pub files: BTreeMap<String, String>,
     pub warnings: Vec<String>,

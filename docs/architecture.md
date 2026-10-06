@@ -2,7 +2,7 @@
 
 BoardStudio is a static browser application with a Dioxus frontend. Durable design
 semantics and session state live in Rust. TypeScript and JavaScript remain only for
-source-maintenance scripts, generated contracts and development tooling; the CAD provider is Rust/WASM.
+source-maintenance scripts and development tooling; the CAD provider is Rust/WASM.
 
 | Location | Responsibility |
 | --- | --- |
@@ -13,7 +13,7 @@ source-maintenance scripts, generated contracts and development tooling; the CAD
 | `web/` host and worker modules | IndexedDB, worker transport, asset/file I/O, rendering adapters and offline policy |
 | `renderer/` | GPU scene rendering, picking and camera behavior |
 | `cad/` | CAD provider bindings and the Cadrum/OCCT WASM kernel |
-| `contracts/` | Shared generated Rust/TypeScript boundary types |
+| `contracts/` | Shared Rust boundary types |
 | `footprints/` | Built-in generators, parameters, render context, geometry, normalization and model references; Core and the page call Rust directly |
 | `ergogen/library/`, `kicad/` | Vendored model assets and attribution; PCB integration checks |
 | `catalogue/`, `content/` | Component definitions, source assets and bundled examples |

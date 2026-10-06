@@ -4,28 +4,22 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
-#[cfg_attr(feature = "export-types", ts(optional_fields))]
 pub struct Vec2 {
     pub x: f64,
     pub y: f64,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
-#[cfg_attr(feature = "export-types", ts(optional_fields))]
 pub struct Pose2 {
     pub at: Vec2,
     pub rotation: f64,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
 pub enum Side {
     Front,
     Back,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum KeycapProfile {
     Cherry,
@@ -38,7 +32,6 @@ pub enum KeycapProfile {
     Choc,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum KeycapMount {
     Mx,
@@ -47,7 +40,6 @@ pub enum KeycapMount {
     Alps,
 }
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", default)]
 pub struct KeycapConfiguration {
     pub boards: BTreeMap<String, KeycapBoardSettings>,
@@ -55,7 +47,6 @@ pub struct KeycapConfiguration {
     pub keys: BTreeMap<String, KeycapKeySettings>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", default)]
 pub struct KeycapBoardSettings {
     pub color: String,
@@ -72,7 +63,6 @@ impl Default for KeycapBoardSettings {
     }
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", default)]
 pub struct KeycapMatrixSettings {
     pub profile: Option<KeycapProfile>,
@@ -91,7 +81,6 @@ impl Default for KeycapMatrixSettings {
     }
 }
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", default)]
 pub struct KeycapKeySettings {
     pub mount: Option<KeycapMount>,
@@ -102,7 +91,6 @@ pub struct KeycapKeySettings {
     pub profile: Option<KeycapProfile>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct KeycapSpec {
     pub id: String,
