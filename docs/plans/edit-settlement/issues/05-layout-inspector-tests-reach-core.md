@@ -40,9 +40,9 @@ layout-inspector interception mode from Runtime.
     runner reports when one starts passing;
   - source-to-test mappings live in `scripts/wasm-test-owners.json`. Keep entries
     for this file's tests correct.
-- Starting points (at `a352f95`):
+- Starting points (at `9548275`):
   - `web/src/presentation/layout_component_inspector_tests.rs`;
-  - `web/src/runtime.rs` (search `layout_component_inspector_test`).
+  - `web/crates/runtime/src/runtime.rs` (search `layout_component_inspector_test`).
 
 ## Approach
 

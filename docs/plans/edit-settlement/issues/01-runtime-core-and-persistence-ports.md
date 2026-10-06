@@ -42,10 +42,10 @@ with no feature-named test branches.
   - the `project_name_test_support` module (install / gate / fail / observe / run
     pending effects).
   Generalise these. Don't add a parallel mechanism.
-- Starting points (orientation only, taken at `a352f95`):
-  - `web/src/runtime.rs` (struct ~427-512, `run` ~2134-2260, firmware executor
-    trait ~260-310, project-name support ~7735-7860);
-  - `web/src/host/core_client.rs` (`CoreWorker`);
+- Starting points (orientation only, taken at `9548275`):
+  - `web/crates/runtime/src/runtime.rs` (struct ~427, `run` ~2138, firmware executor
+    trait ~266, project-name support ~7738);
+  - `web/crates/host/src/host/core_client.rs` (`CoreWorker`);
   - `web/src/core_worker.rs` (how the worker serves archive/artifact).
 
 ## Approach
@@ -93,7 +93,7 @@ Use the README commands. At minimum:
 ```sh
 python3 scripts/check.py --list            # see step names
 python3 scripts/check.py typecheck test     # wasm typecheck + native tests
-python3 scripts/run-wasm-tests.py --files web/src/runtime.rs
+wasm-pack test --headless --chrome web/crates/runtime --locked --lib
 ```
 
 Also run the browser tests for any file whose tests you touched, plus the

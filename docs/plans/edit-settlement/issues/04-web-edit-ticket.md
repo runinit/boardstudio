@@ -37,8 +37,8 @@ phrase for messages.
   that revision". With landings (ticket 02) that guesswork becomes an exact check.
   Find examples with `grep -rn "struct Pending" web/src`. The Matrix Setup
   controller's `settle_pending` is a representative one.
-- `web/src/operation_outcomes.rs` compiles natively (see its `cfg` in
-  `web/src/main.rs`) and has native `#[test]`s. Put the new module beside it, with
+- `web/crates/runtime/src/operation_outcomes.rs` compiles natively (see `web/crates/runtime/src/lib.rs`: the runtime crate has no
+  Dioxus) and has native `#[test]`s. Put the new module beside it, with
   the same `cfg`, so its tests run under native `cargo test`. Presentation itself is
   wasm-only.
 - Standard wording to centralise. Collect the current variants first with
@@ -77,8 +77,8 @@ phrase for messages.
 ## Verification
 
 ```sh
-cargo test --manifest-path web/Cargo.toml --locked --lib --bin boardstudio-web
-cargo test --manifest-path application/Cargo.toml --locked
+cargo test -p boardstudio-web-runtime --locked
+cargo test -p boardstudio-application --locked
 python3 scripts/check.py typecheck
 python3 scripts/check-wasm-tests.py
 ```

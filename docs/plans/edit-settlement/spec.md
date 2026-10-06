@@ -95,8 +95,8 @@ and Undo with controlled timing.
   terminal outcome variant, which avoids a 137-site migration.
 - **Strict paths are unchanged.** Gesture commit, export-owned commits and
   electrical remap review keep their captured-revision checks.
-- **The edit ticket lives in web, outside the wasm-only presentation tree,** so
-  native tests can compile it. Its interface is: begin a ticket from an owner and
+- **The edit ticket lives in the web runtime crate** (no Dioxus, compiled natively),
+  so native tests can compile it. Its interface is: begin a ticket from an owner and
   a resolver; read a settlement given the current read model and an owner-liveness
   answer. Settlement is one of *Pending*, *Landed { revision }*, *Failed {
   message }* or *Retired*. Retired means the owner is gone or the session moved
@@ -172,5 +172,5 @@ and Undo with controlled timing.
   from accepted snapshot identity, preserve raw geometry on untouched blur, keep
   first-selected anchoring for groups, and never make presentation drafts a second
   document store.
-- Line references in tickets are orientation only. They were taken at `a352f95`
+- Line references in tickets are orientation only. They were taken at `9548275`
   and will drift.

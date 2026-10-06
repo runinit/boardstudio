@@ -44,7 +44,7 @@ Undo removes Y, then X.
     by hand, with `core_effect`/`save_effect` helpers;
   - `docs/investigations/layout-part-editing-repro.rs` is the overwrite
     reproducer.
-- Starting points (at `a352f95`): `application/src/session.rs` (`Event`,
+- Starting points (at `9548275`): `application/src/session.rs` (`Event`,
   `IntentKind`, `enqueue`, `pump`, `core_completed`).
 
 ## Shape (decision-rich sketch, adapt names)
@@ -106,8 +106,8 @@ the transaction ID from the label and operation ID unless the command supplies o
 ## Verification
 
 ```sh
-cargo test --manifest-path application/Cargo.toml --locked
-cargo test --manifest-path web/Cargo.toml --locked --lib --bin boardstudio-web
+cargo test -p boardstudio-application --locked
+cargo test -p boardstudio-web-runtime --locked
 python3 scripts/check.py typecheck
 ```
 

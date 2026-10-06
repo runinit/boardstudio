@@ -32,10 +32,10 @@ landing alongside the outcome so later tickets can read it. Existing callers of
   tests, Runtime, operation outcomes, firmware projection, one web integration
   test). `TerminalOutcome::Completed` is referenced 137 times, so don't change that
   variant.
-- Starting points (orientation only, at `a352f95`):
+- Starting points (orientation only, at `9548275`):
   - `application/src/session.rs`: `Effect`, `settle`, `persist_completed`;
-  - `web/src/operation_outcomes.rs`;
-  - `web/src/runtime.rs`: the `Effect::Settled` arm in `run`.
+  - `web/crates/runtime/src/operation_outcomes.rs`;
+  - `web/crates/runtime/src/runtime.rs`: the `Effect::Settled` arm in `run`.
 
 ## Approach
 
@@ -63,8 +63,8 @@ landing alongside the outcome so later tickets can read it. Existing callers of
 ## Verification
 
 ```sh
-cargo test --manifest-path application/Cargo.toml --locked
-cargo test --manifest-path web/Cargo.toml --locked --lib --bin boardstudio-web
+cargo test -p boardstudio-application --locked
+cargo test -p boardstudio-web-runtime --locked
 python3 scripts/check.py typecheck
 ```
 

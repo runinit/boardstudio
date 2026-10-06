@@ -32,9 +32,9 @@ well commented.
   If any check fails, retire with a reason the user can understand, such as "The
   selected part no longer exists" or "This part is locked".
 - If the value already equals the accepted value, resolve **Unchanged**.
-- Starting points (at `a352f95`):
+- Starting points (at `9548275`):
   - `web/src/presentation.rs`: `submit_layout_component_edit` and
-    `dispatch_layout_component_inspector_action` (~2563-2820);
+    `dispatch_layout_component_inspector_action` (~2121-2380);
   - `web/src/presentation/inspector/layout_component_inspector.rs` (drafts,
     Enter/blur, Escape).
 
