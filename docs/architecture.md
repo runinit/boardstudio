@@ -1,8 +1,8 @@
 # Architecture
 
 BoardStudio is a static browser application with a Dioxus frontend. Durable design
-semantics and session state live in Rust. TypeScript and JavaScript remain where
-they implement CAD adapters, source maintenance and development tooling.
+semantics and session state live in Rust. TypeScript and JavaScript remain only for
+source-maintenance scripts, generated contracts and development tooling; the CAD provider is Rust/WASM.
 
 | Location | Responsibility |
 | --- | --- |
