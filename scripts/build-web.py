@@ -169,7 +169,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--skip-providers", action="store_true",
                         help="reuse already generated provider files in the working tree")
     parser.add_argument("--providers-only", action="store_true",
-                        help="build runtime providers for `pnpm dev` without packaging routes")
+                        help="build runtime providers for `python3 scripts/dev-web.py` without packaging routes")
     args = parser.parse_args(argv)
     try:
         if args.providers_only:

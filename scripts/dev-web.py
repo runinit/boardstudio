@@ -180,7 +180,7 @@ def main(argv: list[str] | None = None) -> int:
     missing = [path.relative_to(ROOT).as_posix() for path in REQUIRED if not path.is_file()]
     if missing:
         print("Preparing missing runtime assets for the first development run:", flush=True)
-        setup = subprocess.run(["pnpm", "run", "build:providers"], cwd=ROOT, check=False)
+        setup = subprocess.run([sys.executable, "scripts/build-web.py", "--providers-only"], cwd=ROOT, check=False)
         if setup.returncode:
             return setup.returncode
         missing = [path.relative_to(ROOT).as_posix() for path in REQUIRED if not path.is_file()]
