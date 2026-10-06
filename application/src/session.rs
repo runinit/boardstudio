@@ -6,6 +6,8 @@
 use crate::interactions::{DragSnapOptions, SnapGuide, normalize_drag};
 use boardstudio_core::{CoreEngine, model::*};
 use std::collections::{HashSet, VecDeque};
+use std::fmt;
+use std::rc::Rc;
 use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -168,6 +170,68 @@ pub enum SelectionMode {
     Range,
 }
 
+/// What a resolver answers when Session hands it the accepted snapshot at execution time.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Resolution {
+    /// Run this commit command. Session sets its base revision from the snapshot it
+    /// resolved against, so rapid edits each apply on top of the edits accepted before
+    /// them.
+    Submit(EditCommand),
+    /// Nothing to change: the edit settles completed, landing at the current accepted
+    /// snapshot, without a Core request and without a new revision.
+    Unchanged,
+    /// The edit's target has gone or is ineligible: the edit settles rejected with this
+    /// reason and nothing is applied.
+    Retire(String),
+}
+
+/// The owner-captured intent of a pending edit: a pure function of the accepted snapshot
+/// and the values the owner captured when the user committed. Session calls it exactly
+/// once, when the edit reaches the head of the queue with nothing else running — the
+/// snapshot it receives is exactly the document Core will apply the resolved command to.
+/// A resolver must not read UI state, signals or Runtime.
+pub struct EditResolver {
+    label: String,
+    resolve: Rc<dyn Fn(&AcceptedSnapshot) -> Resolution>,
+}
+
+impl EditResolver {
+    pub fn new(
+        label: impl Into<String>,
+        resolve: impl Fn(&AcceptedSnapshot) -> Resolution + 'static,
+    ) -> Self {
+        Self {
+            label: label.into(),
+            resolve: Rc::new(resolve),
+        }
+    }
+
+    fn resolve(&self, accepted: &AcceptedSnapshot) -> Resolution {
+        (self.resolve)(accepted)
+    }
+}
+
+impl Clone for EditResolver {
+    fn clone(&self) -> Self {
+        Self {
+            label: self.label.clone(),
+            resolve: self.resolve.clone(),
+        }
+    }
+}
+
+impl fmt::Debug for EditResolver {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "EditResolver({})", self.label)
+    }
+}
+
+impl PartialEq for EditResolver {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.resolve, &other.resolve)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum Event {
     Open {
@@ -177,6 +241,13 @@ pub enum Event {
     Edit {
         operation_id: OperationId,
         command: EditCommand,
+    },
+    /// Submit a pending edit as intent rather than as a ready-made command. See
+    /// [`EditResolver`] for when the resolver runs and what it may read.
+    ResolveEdit {
+        operation_id: OperationId,
+        label: String,
+        resolver: EditResolver,
     },
     /// Retire a transient Core preview only while its captured accepted source is current.
     ClearPreview {
@@ -416,6 +487,10 @@ pub enum Effect {
 enum IntentKind {
     Open(Box<ProjectDoc>),
     Edit(EditCommand),
+    ResolveEdit {
+        label: String,
+        resolver: EditResolver,
+    },
     ClearPreview {
         token: SnapshotToken,
         revision: u64,
@@ -637,6 +712,16 @@ impl Session {
                 operation_id,
                 command,
             } => self.enqueue(operation_id, IntentKind::Edit(command), false, &mut effects),
+            Event::ResolveEdit {
+                operation_id,
+                label,
+                resolver,
+            } => self.enqueue(
+                operation_id,
+                IntentKind::ResolveEdit { label, resolver },
+                false,
+                &mut effects,
+            ),
             Event::ClearPreview {
                 operation_id,
                 token,
@@ -1386,6 +1471,57 @@ impl Session {
                 }
                 continue;
             }
+            if let IntentKind::ResolveEdit { label, resolver } = &intent.kind {
+                let Some(accepted_snapshot) = self.model.accepted.as_ref().cloned() else {
+                    self.settle(
+                        intent.operation_id,
+                        TerminalOutcome::Rejected("no accepted document is open".into()),
+                        effects,
+                    );
+                    continue;
+                };
+                let landing = Landing {
+                    revision: accepted_snapshot.document.revision,
+                    token: accepted_snapshot.token,
+                };
+                match resolver.resolve(&accepted_snapshot) {
+                    Resolution::Submit(mut command) => {
+                        if command.phase != EditPhase::Commit {
+                            self.settle(
+                                intent.operation_id,
+                                TerminalOutcome::Rejected(
+                                    "a resolved edit must be a commit; previews do not resolve"
+                                        .into(),
+                                ),
+                                effects,
+                            );
+                        } else {
+                            if command.transaction_id.is_empty() {
+                                command.transaction_id =
+                                    format!("m1-{label}-{}", intent.operation_id.0);
+                            }
+                            command.base_revision = accepted_snapshot.document.revision;
+                            self.queue.push_front(Intent {
+                                operation_id: intent.operation_id,
+                                submitted_epoch: intent.submitted_epoch,
+                                kind: IntentKind::Edit(command),
+                                strict_revision: false,
+                            });
+                        }
+                    }
+                    Resolution::Unchanged => {
+                        self.settle_landed(intent.operation_id, landing, effects);
+                    }
+                    Resolution::Retire(reason) => {
+                        self.settle(
+                            intent.operation_id,
+                            TerminalOutcome::Rejected(reason),
+                            effects,
+                        );
+                    }
+                }
+                continue;
+            }
             let captured_revision = match &intent.kind {
                 IntentKind::Edit(command)
                 | IntentKind::GesturePreview(command)
@@ -1440,6 +1576,9 @@ impl Session {
                 _ => None,
             };
             let (request, kind, gesture_generation) = match intent.kind {
+                IntentKind::ResolveEdit { .. } => {
+                    unreachable!("resolved intents are handled before the request is built")
+                }
                 IntentKind::Open(document) => (
                     CoreRequest::Open {
                         id: request_wire_id.clone(),
@@ -2337,6 +2476,7 @@ fn event_operation(event: &Event) -> Option<OperationId> {
         | Event::Undo { operation_id }
         | Event::Redo { operation_id }
         | Event::RetrySave { operation_id }
+        | Event::ResolveEdit { operation_id, .. }
         | Event::SelectParts { operation_id, .. }
         | Event::SelectMatrixCell { operation_id, .. }
         | Event::Navigate { operation_id, .. }

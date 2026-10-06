@@ -84,7 +84,11 @@ cargo run --manifest-path "$repro_dir/Cargo.toml" --target-dir "$repro_dir/targe
 ```
 
 This is diagnostic evidence rather than a permanent regression test: its output
-records accepted coordinates without asserting that the overwrite must persist.
+records accepted coordinates without asserting that the overwrite must persist. The
+overwrite is now covered permanently by
+`queued_position_edits_resolve_against_the_accepted_document` in
+[application/tests/durable_session.rs](../../application/tests/durable_session.rs),
+which drives the queued-resolver event this investigation motivated.
 
 ## What the existing tests establish
 
