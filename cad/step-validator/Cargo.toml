@@ -1,0 +1,15 @@
+[package]
+name = "boardstudio-step-validator"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Test-only, native-only STEP reimport oracle for BoardStudio CAD exports (Monstertruck parser and B-rep kernel)"
+
+[dependencies]
+monstertruck-assembly = "=0.4.1"
+monstertruck-core = "=0.4.1"
+monstertruck-geometry = "=0.4.1"
+monstertruck-io = { version = "=0.4.1", default-features = false, features = ["step"] }
+monstertruck-mesh = "=0.4.1"
+monstertruck-meshing = "=0.4.1"
+monstertruck-topology = "=0.4.1"
