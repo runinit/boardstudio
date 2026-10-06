@@ -23,7 +23,7 @@
     "build:providers": "python3 scripts/build-web.py --providers-only",
     "preview": "python3 scripts/serve-web.py web/target/site 4173",
     "test:browser:prepare": "wasm-pack test --headless --chrome web --locked --no-default-features --features page --bin boardstudio-web -- --list",
-    "test:tooling": "python3 -B cad/scripts/test-cadrum-build.py && python3 -B scripts/test-build-web.py && python3 -B scripts/test-serve-web.py && python3 -B scripts/test-dev-web.py && python3 -B scripts/test-run-wasm-tests.py && python3 -B scripts/test-check-wasm-tests.py && python3 -B scripts/test-stage-ergogen-models.py && node --test scripts/import-kicad-parts.test.mjs",
+    "test:tooling": "python3 -B cad/scripts/test-cadrum-build.py && python3 -B scripts/test-build-web.py && python3 -B scripts/test-serve-web.py && python3 -B scripts/test-dev-web.py && python3 -B scripts/test-run-wasm-tests.py && python3 -B scripts/test-check-wasm-tests.py && python3 -B scripts/test-stage-ergogen-models.py && python3 -B scripts/test-catalogue-tools.py && python3 -B scripts/test-import-kicad-parts.py",
     "test:browser:cad": "python3 cad/scripts/test-cadrum-browser.py",
     "test:browser:storage": "wasm-pack test --headless --chrome web --locked --no-default-features --features page --lib -- host::storage::"
   },

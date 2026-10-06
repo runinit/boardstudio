@@ -253,7 +253,7 @@ and corrected output.
   builder are deleted. Vite and the retired workspace packages are removed from
   the lockfile. Vendored models, licences, source manifests and Python model
   maintenance scripts remain. Layout extraction's standalone KiCad form reader
-  is retained in `scripts/kicad-forms.mjs`, without a generator dependency.
+  is retained as `scripts/kicad_forms.py`, without a generator dependency.
 - Release packaging excludes obsolete generator assets left by an earlier build;
   a regression test confirms this for both root and subpath sites. This avoids
   returning the deleted worker to the offline inventory through cached outputs.

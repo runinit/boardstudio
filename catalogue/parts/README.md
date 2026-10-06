@@ -29,9 +29,8 @@ Reuse existing generator definitions where possible.
 
    ```sh
    cargo build --manifest-path core/Cargo.toml --locked --example artifact_request
-   node scripts/import-kicad-parts.mjs
-   node scripts/import-kicad-parts.mjs --check
-   pnpm --dir app exec vitest run src/parts/catalogue.test.ts
+   python3 scripts/import-kicad-parts.py
+   python3 scripts/import-kicad-parts.py --check
    ```
 
 4. Review the generated definition, diagnostics, geometry, and electrical mapping.
