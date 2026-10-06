@@ -8,13 +8,13 @@ preparation and checks; the CAD provider is Rust/WASM.
 | --- | --- |
 | `core/` | Document validation, typed edits, resolved geometry, artifacts and portable archives |
 | `application/` | Accepted snapshots, ordered commands, interactions, save identities and scoped jobs |
-| `web/src/` (`boardstudio-web` bin) | Dioxus components (`presentation/`), contextual panels and local form drafts |
+| `web/src/` (`boardstudio-web` bin) | The page shell (`presentation.rs`): app state, workspace containers and composition, the component inspector, Export and the Case workspace container |
 | `web/crates/runtime/` | Composition of session state and browser effects (`runtime.rs`), model delivery and presentation-independent operations; no Dioxus |
 | `web/crates/host/` | IndexedDB, Core and CAD worker clients, renderer host and offline policy |
 | `web/crates/ui-model/` | UI vocabulary shared by presentation code: tree contexts, selection, workspace and view state, canvas interaction ownership |
 | `web/crates/ui-shared/` | UI used by several workspaces: panels, canvas layers, layout camera, footprint graphics, geometry scripts, model import |
 | `web/crates/catalogue/` | Bundled component catalogue loading, generator normalization and physical setup proposals; no Dioxus |
-| `web/crates/keycaps/`, `library/`, `keymap/`, `case/`, `parts/`, `pcb/` | Workspace features: keycap fit, settings and scene; the Library page; the Keymap editor; the case viewer, mechanical settings, closure clearance and the shared 3D viewer; the Parts browser, definitions, generators and assemblies; PCB wiring, routed-board references, modules and physical setup. Workspace containers stay in the bin |
+| `web/crates/keycaps/`, `library/`, `keymap/`, `case/`, `parts/`, `pcb/`, `layout/` | Workspace features: keycap fit, settings and scene; the Library page; the Keymap editor; the case viewer, mechanical settings, closure clearance and the shared 3D viewer; the Parts browser, definitions, generators and assemblies; PCB wiring, routed-board references, modules and physical setup; the Layout objects tree, outlines, part placement and setup guide. Workspace containers stay in the bin |
 | `web/src/lib.rs` | Worker entry points packaged by wasm-pack (Core, CAD and offline service worker) |
 | `renderer/` | GPU scene rendering, picking and camera behavior |
 | `cad/` | CAD provider bindings and the Cadrum/OCCT WASM kernel |
@@ -30,14 +30,26 @@ second writable document store. Worker replies, saves and exports retain their
 captured project, board and revision identities so stale operations cannot replace
 the current scope. Manufacturing output comes from accepted inputs, not rendered meshes.
 
-The page is split into crates so an edit in presentation code recompiles only the
-`boardstudio-web` bin, not the runtime, host or Core. The bin re-exports the runtime's
-modules at its root, so presentation code addresses them as `crate::runtime` and so on.
-Shared presentation types live in `ui-model`, which the bin re-exports under
-`presentation` so modules keep their `super::` paths; presentation crates depend on it
-rather than on each other or on the page shell, and an edit there recompiles them all.
-Runtime and ui-model helpers that the page's own tests drive are behind each crate's
-`test-support` feature.
+The page is split into crates by workspace so each stays a manageable size. Lower
+crates never depend on higher ones:
+
+1. `runtime` and `host` (no Dioxus), then `catalogue` (no Dioxus);
+2. `ui-model`: shared types only, so an edit there recompiles every presentation crate;
+3. `ui-shared`: UI that several workspaces mount;
+4. workspace crates, each on the crates below it: `keycaps`, `library` and `keymap`;
+   `case`; `parts` (on `case`); `pcb` (on `parts`); `layout` (on `keycaps`, `case` and
+   `parts`);
+5. the `boardstudio-web` bin, the page shell.
+
+An edit inside a workspace crate recompiles that crate, the crates above it and the bin.
+Every presentation crate's `lib.rs` aliases itself as `presentation` and re-exports the
+modules its code addressed in the bin (`crate::runtime`, `super::SelectionAdapter`,
+`super::objects::TreeContext` and so on), and the bin re-exports each moved module where
+it was declared, so code keeps the paths it had before the split. Helpers that other
+crates' tests drive are behind each crate's `test-support` feature, which only
+dev-dependencies enable. Each crate runs its own browser tests with
+`wasm-pack test --headless --chrome web/crates/<crate> --lib` (`scripts/check.py browser`
+runs them all).
 
 Heavy CAD and artifact work runs outside the page. Generated JavaScript initializes
 WASM modules; browser worker and service-worker entrypoints are packaged with the

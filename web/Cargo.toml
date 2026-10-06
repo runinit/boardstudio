@@ -19,7 +19,7 @@ required-features = ["page"]
 
 [features]
 default = ["page", "core-worker"]
-page = ["boardstudio-web-host/page", "dep:boardstudio-web-runtime", "dep:boardstudio-web-ui-model", "dep:boardstudio-web-catalogue", "dep:boardstudio-web-ui-shared", "dep:boardstudio-web-pcb", "dep:boardstudio-web-parts", "dep:boardstudio-web-case", "dep:boardstudio-web-keymap", "dep:boardstudio-web-library", "dep:boardstudio-web-keycaps", "dep:boardstudio-application", "dep:boardstudio_core", "dep:dioxus", "dep:dioxus-web", "dep:gloo-timers", "dep:serde_json", "dep:sha2"]
+page = ["boardstudio-web-host/page", "dep:boardstudio-web-runtime", "dep:boardstudio-web-ui-model", "dep:boardstudio-web-catalogue", "dep:boardstudio-web-ui-shared", "dep:boardstudio-web-layout", "dep:boardstudio-web-pcb", "dep:boardstudio-web-parts", "dep:boardstudio-web-case", "dep:boardstudio-web-keymap", "dep:boardstudio-web-library", "dep:boardstudio-web-keycaps", "dep:boardstudio-application", "dep:boardstudio_core", "dep:dioxus", "dep:dioxus-web", "dep:gloo-timers", "dep:serde_json", "dep:sha2"]
 core-worker = ["dep:boardstudio_core", "dep:serde_json"]
 cad-worker = ["boardstudio-web-host/cad-worker", "dep:boardstudio_core", "dep:serde_json", "dep:sha2"]
 service-worker = []
@@ -33,6 +33,7 @@ boardstudio-web-runtime = { path = "crates/runtime", optional = true }
 boardstudio-web-ui-model = { path = "crates/ui-model", optional = true }
 boardstudio-web-catalogue = { path = "crates/catalogue", optional = true }
 boardstudio-web-ui-shared = { path = "crates/ui-shared", optional = true }
+boardstudio-web-layout = { path = "crates/layout", optional = true }
 boardstudio-web-pcb = { path = "crates/pcb", optional = true }
 boardstudio-web-parts = { path = "crates/parts", optional = true }
 boardstudio-web-case = { path = "crates/case", optional = true }
@@ -46,6 +47,7 @@ sha2 = { version = "=0.11.0", default-features = false, optional = true }
 [dev-dependencies]
 boardstudio-web-runtime = { path = "crates/runtime", features = ["test-support"] }
 boardstudio-web-ui-model = { path = "crates/ui-model", features = ["test-support"] }
+boardstudio-web-layout = { path = "crates/layout", features = ["test-support"] }
 boardstudio-web-pcb = { path = "crates/pcb", features = ["test-support"] }
 boardstudio-web-parts = { path = "crates/parts", features = ["test-support"] }
 boardstudio-web-case = { path = "crates/case", features = ["test-support"] }

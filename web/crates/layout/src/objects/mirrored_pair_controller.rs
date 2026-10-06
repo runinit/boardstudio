@@ -43,7 +43,7 @@ struct ActivePair {
 
 /// Called once during the Editor lifetime. The parent mounts its form and forwards the typed
 /// world-coordinate placement callbacks from the existing SVG event owner.
-pub(in crate::presentation) fn use_mirrored_pair(
+pub fn use_mirrored_pair(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
     workspace: Signal<&'static str>,

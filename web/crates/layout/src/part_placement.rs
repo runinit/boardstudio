@@ -28,7 +28,7 @@ use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::spawn_local;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum PlacementWorkflow {
+pub enum PlacementWorkflow {
     WiringController,
     PcbController,
     GeneralComponent,
@@ -47,7 +47,7 @@ struct ControllerChooserOwner {
     generation: u64,
 }
 
-pub(super) use boardstudio_web_ui_model::state::ComponentPlacementAction;
+pub use boardstudio_web_ui_model::state::ComponentPlacementAction;
 
 impl ControllerChooserOwner {
     fn is_current(&self, runtime: &dyn PlacementRuntime, generation: u64, workspace: &str) -> bool {
@@ -59,20 +59,20 @@ impl ControllerChooserOwner {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct PlacementOwner {
-    pub(super) token: SnapshotToken,
-    pub(super) session_epoch: boardstudio_application::SessionEpoch,
-    pub(super) project_id: String,
-    pub(super) revision: u64,
-    pub(super) scope: Scope,
-    pub(super) generation: u64,
+pub struct PlacementOwner {
+    pub token: SnapshotToken,
+    pub session_epoch: boardstudio_application::SessionEpoch,
+    pub project_id: String,
+    pub revision: u64,
+    pub scope: Scope,
+    pub generation: u64,
     source_workspace: &'static str,
-    pub(super) board_id: String,
-    pub(super) part_id: String,
-    pub(super) definition_id: String,
-    pub(super) reference: String,
-    pub(super) layout_id: Option<String>,
-    pub(super) at: Vec2,
+    pub board_id: String,
+    pub part_id: String,
+    pub definition_id: String,
+    pub reference: String,
+    pub layout_id: Option<String>,
+    pub at: Vec2,
     workflow: PlacementWorkflow,
 }
 
@@ -135,7 +135,7 @@ impl PlacementOwner {
         })
     }
 
-    pub(super) fn is_current(
+    pub fn is_current(
         &self,
         snapshot: &AcceptedSnapshot,
         scope: Option<&Scope>,
@@ -159,17 +159,17 @@ impl PlacementOwner {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct PendingPart {
-    pub(super) definition: PartDefinition,
-    pub(super) part: Part,
-    pub(super) at: Vec2,
+pub struct PendingPart {
+    pub definition: PartDefinition,
+    pub part: Part,
+    pub at: Vec2,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct ActivePartPlacement {
-    pub(super) owner: PlacementOwner,
-    pub(super) pending: PendingPart,
-    pub(super) snap_document: Rc<ProjectDoc>,
+pub struct ActivePartPlacement {
+    pub owner: PlacementOwner,
+    pub pending: PendingPart,
+    pub snap_document: Rc<ProjectDoc>,
 }
 
 #[derive(Clone)]
@@ -214,47 +214,47 @@ fn pending_commit_matches(
 }
 
 #[derive(Clone)]
-pub(super) struct PartPlacementMount {
-    pub(super) projection: Option<ActivePartPlacement>,
-    pub(super) busy: bool,
-    pub(super) error: Option<String>,
-    pub(super) on_choose_controller: EventHandler<()>,
-    pub(super) on_place_controller: EventHandler<String>,
-    pub(super) controller_placement_enabled: bool,
-    pub(super) controller_back: Option<EventHandler<()>>,
-    pub(super) on_place_component: EventHandler<ComponentPlacementAction>,
-    pub(super) on_move: EventHandler<Vec2>,
-    pub(super) on_commit: EventHandler<Vec2>,
-    pub(super) on_cancel: EventHandler<()>,
+pub struct PartPlacementMount {
+    pub projection: Option<ActivePartPlacement>,
+    pub busy: bool,
+    pub error: Option<String>,
+    pub on_choose_controller: EventHandler<()>,
+    pub on_place_controller: EventHandler<String>,
+    pub controller_placement_enabled: bool,
+    pub controller_back: Option<EventHandler<()>>,
+    pub on_place_component: EventHandler<ComponentPlacementAction>,
+    pub on_move: EventHandler<Vec2>,
+    pub on_commit: EventHandler<Vec2>,
+    pub on_cancel: EventHandler<()>,
 }
 
 impl PartPlacementMount {
     #[cfg(test)]
-    pub(super) fn owns_canvas(&self) -> bool {
+    pub fn owns_canvas(&self) -> bool {
         self.busy || self.projection.is_some()
     }
 }
 
-pub(super) struct PartPlacementHost {
-    pub(super) runtime: Rc<dyn PlacementRuntime>,
-    pub(super) load_definition: DefinitionLoader,
-    pub(super) workspace: Signal<&'static str>,
-    pub(super) generation: Signal<u64>,
-    pub(super) version: Signal<u64>,
-    pub(super) adapter: SelectionAdapter,
-    pub(super) layout_selection_kind: Signal<objects::LayoutSelectionKind>,
-    pub(super) guide_preferences: Signal<Option<SetupGuidePreferences>>,
-    pub(super) parts_query: PartsQuery,
-    pub(super) parts_selection: PartsSelection,
-    pub(super) snap_settings: Signal<LayoutSnapSettings>,
-    pub(super) layout_target: Signal<Option<String>>,
-    pub(super) canvas_center: Vec2,
-    pub(super) objects_open: Signal<bool>,
-    pub(super) inspect_open: Signal<bool>,
-    pub(super) canvas_interaction: CanvasInteractionArbiter,
+pub struct PartPlacementHost {
+    pub runtime: Rc<dyn PlacementRuntime>,
+    pub load_definition: DefinitionLoader,
+    pub workspace: Signal<&'static str>,
+    pub generation: Signal<u64>,
+    pub version: Signal<u64>,
+    pub adapter: SelectionAdapter,
+    pub layout_selection_kind: Signal<objects::LayoutSelectionKind>,
+    pub guide_preferences: Signal<Option<SetupGuidePreferences>>,
+    pub parts_query: PartsQuery,
+    pub parts_selection: PartsSelection,
+    pub snap_settings: Signal<LayoutSnapSettings>,
+    pub layout_target: Signal<Option<String>>,
+    pub canvas_center: Vec2,
+    pub objects_open: Signal<bool>,
+    pub inspect_open: Signal<bool>,
+    pub canvas_interaction: CanvasInteractionArbiter,
 }
 
-pub(super) type DefinitionLoader = Rc<
+pub type DefinitionLoader = Rc<
     dyn Fn(
         ProjectDoc,
         String,
@@ -262,7 +262,7 @@ pub(super) type DefinitionLoader = Rc<
         -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<PartDefinition, String>>>>,
 >;
 
-pub(super) trait PlacementRuntime {
+pub trait PlacementRuntime {
     fn model(&self) -> boardstudio_application::ReadModel;
     fn scope(&self) -> Option<Scope>;
     fn operation(&self) -> boardstudio_application::OperationId;
@@ -325,7 +325,7 @@ impl PlacementRuntime for RuntimePlacementAdapter {
     }
 }
 
-pub(super) fn runtime_adapter(runtime: Rc<Runtime>) -> Rc<dyn PlacementRuntime> {
+pub fn runtime_adapter(runtime: Rc<Runtime>) -> Rc<dyn PlacementRuntime> {
     Rc::new(RuntimePlacementAdapter(runtime))
 }
 
@@ -424,7 +424,7 @@ fn accepted_snapshot_is_current(
         })
 }
 
-pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
+pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
     let PartPlacementHost {
         runtime,
         load_definition,
@@ -1533,7 +1533,7 @@ fn browser_uuid() -> Result<String, String> {
         .ok_or_else(|| "Could not generate a component identity.".into())
 }
 
-pub(super) fn controller_part(
+pub fn controller_part(
     definition: PartDefinition,
     part_id: String,
     reference: String,
@@ -1543,7 +1543,7 @@ pub(super) fn controller_part(
         .then(|| component_part(definition, part_id, reference, at))
 }
 
-pub(super) fn component_part(
+pub fn component_part(
     definition: PartDefinition,
     part_id: String,
     reference: String,
@@ -1614,12 +1614,12 @@ fn placement_source_definition(
     unreachable!("A finite project cannot exhaust component definition identities")
 }
 
-pub(super) fn update_pending_part(pending: &mut PendingPart, at: Vec2) {
+pub fn update_pending_part(pending: &mut PendingPart, at: Vec2) {
     pending.at = at;
     pending.part.pose.at = at;
 }
 
-pub(super) fn canvas_world_center(
+pub fn canvas_world_center(
     min_x: f64,
     max_x: f64,
     min_y: f64,
@@ -1632,7 +1632,7 @@ pub(super) fn canvas_world_center(
     }
 }
 
-pub(super) fn pointer_release_commits(button: i16) -> bool {
+pub fn pointer_release_commits(button: i16) -> bool {
     button == 0
 }
 
@@ -1671,18 +1671,18 @@ fn grid_snap_point(at: Vec2, snap_fraction: f64) -> Vec2 {
     }
 }
 
-pub(super) struct PlacementSnapOptions {
-    pub(super) snap_fraction: f64,
-    pub(super) geometry_snap: bool,
-    pub(super) gap: Option<f64>,
-    pub(super) free: bool,
+pub struct PlacementSnapOptions {
+    pub snap_fraction: f64,
+    pub geometry_snap: bool,
+    pub gap: Option<f64>,
+    pub free: bool,
 }
 
-pub(super) fn placement_gap(settings: &LayoutSnapSettings) -> Option<f64> {
+pub fn placement_gap(settings: &LayoutSnapSettings) -> Option<f64> {
     objects::gesture_snap_inputs(settings, None, None).gap
 }
 
-pub(super) fn snap_placement_at(
+pub fn snap_placement_at(
     document: &ProjectDoc,
     board_id: &str,
     pending: &PendingPart,
@@ -1708,7 +1708,7 @@ pub(super) fn snap_placement_at(
     .map_or(grid, |guide| guide.at)
 }
 
-pub(super) fn placement_operation(
+pub fn placement_operation(
     accepted: &ProjectDoc,
     board_id: &str,
     definition: &PartDefinition,
@@ -1781,7 +1781,7 @@ pub(super) fn placement_operation(
     })
 }
 
-pub(super) fn selected_key_component_operation(
+pub fn selected_key_component_operation(
     accepted: &ProjectDoc,
     scope: &Scope,
     selection: &ScopedTreeContext,
@@ -1887,7 +1887,7 @@ pub(super) fn selected_key_component_operation(
     })
 }
 
-pub(super) fn next_component_reference(document: &ProjectDoc, kind: &PartKind) -> String {
+pub fn next_component_reference(document: &ProjectDoc, kind: &PartKind) -> String {
     let prefix = match kind {
         PartKind::Switch => 'S',
         PartKind::Controller => 'U',
@@ -1906,7 +1906,7 @@ pub(super) fn next_component_reference(document: &ProjectDoc, kind: &PartKind) -
     format!("{prefix}{next}")
 }
 
-pub(super) fn completion_is_accepted(
+pub fn completion_is_accepted(
     operation_matches: bool,
     outcome: Option<&TerminalOutcome>,
     model_lifecycle: &Lifecycle,
@@ -4324,4 +4324,57 @@ mod tests {
         );
         assert_eq!(placement_failure_message(None), None);
     }
+}
+
+/// What a Layout view-mode switch must cancel before entering 3D.
+pub struct LayoutPlacementCancellation {
+    pub parts: PartPlacementMount,
+    pub matrices: crate::objects::MatrixPlacementMount,
+    pub interactions: crate::canvas_interaction::CanvasInteractionArbiter,
+}
+
+pub fn layout_view_mode_handler(
+    is_owner_current: impl Fn() -> bool + 'static,
+    is_assembly_3d: Signal<bool>,
+    mut set_assembly_3d: impl FnMut(bool) + 'static,
+    placements: LayoutPlacementCancellation,
+    before_placement_cancel: impl Fn() + 'static,
+    mut after_placement_cancel: impl FnMut() + 'static,
+) -> EventHandler<bool> {
+    EventHandler::new(move |assembly_3d| {
+        if !is_owner_current() {
+            return;
+        }
+        if assembly_3d && !is_assembly_3d() {
+            before_placement_cancel();
+            if placements.parts.busy || placements.parts.projection.is_some() {
+                placements.parts.on_cancel.call(());
+            }
+            after_placement_cancel();
+            match placements.interactions.current() {
+                Some(CanvasInteractionOwner::PartPlacement) => {
+                    placements
+                        .interactions
+                        .release(CanvasInteractionOwner::PartPlacement);
+                }
+                Some(CanvasInteractionOwner::OutlinePerimeter) => {
+                    placements
+                        .interactions
+                        .release(CanvasInteractionOwner::OutlinePerimeter);
+                }
+                Some(CanvasInteractionOwner::MatrixPlacement) => {
+                    if let Some(owner) = placements.matrices.cancel_owner.clone() {
+                        placements.matrices.on_cancel.call(owner);
+                    }
+                }
+                Some(CanvasInteractionOwner::MatrixTransform) => {
+                    placements
+                        .interactions
+                        .release(CanvasInteractionOwner::MatrixTransform);
+                }
+                Some(CanvasInteractionOwner::MirroredPair) | None => {}
+            }
+        }
+        set_assembly_3d(assembly_3d);
+    })
 }

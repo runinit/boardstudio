@@ -6,7 +6,7 @@ use boardstudio_core::model::{
 };
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum OutlineEdit {
+pub enum OutlineEdit {
     RenameVersion { version_id: String, name: String },
     CreateAutomatic,
     SetMargin(f64),
@@ -22,7 +22,7 @@ pub(crate) enum OutlineEdit {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum OutlineExpectation {
+pub enum OutlineExpectation {
     VersionName {
         version_id: String,
         name: String,
@@ -38,7 +38,7 @@ pub(crate) enum OutlineExpectation {
     },
 }
 
-pub(crate) fn generated_feature<'a>(
+pub fn generated_feature<'a>(
     document: &'a ProjectDoc,
     board: &Board,
 ) -> Option<&'a OutlineFeature> {
@@ -49,21 +49,21 @@ pub(crate) fn generated_feature<'a>(
         .find(|feature| matches!(feature, OutlineFeature::PartEnvelope { .. }))
 }
 
-pub(crate) fn generated_settings(feature: &OutlineFeature) -> Option<OutlineSettings> {
+pub fn generated_settings(feature: &OutlineFeature) -> Option<OutlineSettings> {
     match feature {
         OutlineFeature::PartEnvelope { settings, .. } => Some(settings.clone()),
         _ => None,
     }
 }
 
-pub(crate) fn generated_margin(feature: &OutlineFeature) -> Option<f64> {
+pub fn generated_margin(feature: &OutlineFeature) -> Option<f64> {
     match feature {
         OutlineFeature::PartEnvelope { margin, .. } => Some(*margin),
         _ => None,
     }
 }
 
-pub(crate) fn reference_outline_settings() -> OutlineSettings {
+pub fn reference_outline_settings() -> OutlineSettings {
     OutlineSettings {
         corners: CornerStyle::Fillet,
         size: 2.0,
@@ -72,7 +72,7 @@ pub(crate) fn reference_outline_settings() -> OutlineSettings {
     }
 }
 
-pub(crate) fn expectation_applied(
+pub fn expectation_applied(
     document: &ProjectDoc,
     board_id: &str,
     expected: &OutlineExpectation,
@@ -115,7 +115,7 @@ pub(crate) fn expectation_applied(
     }
 }
 
-pub(crate) fn apply_outline_edit(
+pub fn apply_outline_edit(
     document: &ProjectDoc,
     scene: &SceneDelta,
     board_id: &str,

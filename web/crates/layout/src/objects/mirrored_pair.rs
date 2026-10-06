@@ -6,10 +6,10 @@ use boardstudio_core::model::Vec2;
 use dioxus::prelude::*;
 
 mod canvas_overlay;
-pub(in crate::presentation) use canvas_overlay::MirroredPairCanvasOverlay;
+pub use canvas_overlay::MirroredPairCanvasOverlay;
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) struct MirroredPairRequest {
+pub struct MirroredPairRequest {
     pub owner: MirroredPairOwner,
     pub left_name: String,
     pub right_name: String,
@@ -20,7 +20,7 @@ pub(in crate::presentation) struct MirroredPairRequest {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct MirroredPairOwner {
+pub struct MirroredPairOwner {
     pub editor_instance_id: u64,
     pub open_id: u64,
     pub scope_generation: u64,
@@ -31,7 +31,7 @@ pub(in crate::presentation) struct MirroredPairOwner {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct MirroredPairFormProjection {
+pub struct MirroredPairFormProjection {
     pub owner: MirroredPairOwner,
     pub values: MirroredPairFormValues,
     pub editable: bool,
@@ -40,7 +40,7 @@ pub(in crate::presentation) struct MirroredPairFormProjection {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct MirroredPairFormValues {
+pub struct MirroredPairFormValues {
     pub left_name: String,
     pub right_name: String,
     pub rows: String,
@@ -63,7 +63,7 @@ impl Default for MirroredPairFormValues {
 }
 
 #[derive(Clone, PartialEq)]
-pub(in crate::presentation) struct MirroredPairMount {
+pub struct MirroredPairMount {
     pub form: Option<MirroredPairFormProjection>,
     pub placement: Option<MirroredPairPlacement>,
     pub can_open: bool,
@@ -78,7 +78,7 @@ pub(in crate::presentation) struct MirroredPairMount {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) struct MirroredPairPlacement {
+pub struct MirroredPairPlacement {
     pub owner: MirroredPairOwner,
     pub pair: MirroredPairProjection,
     pub left_scene: boardstudio_core::model::MatrixScene,
@@ -86,13 +86,13 @@ pub(in crate::presentation) struct MirroredPairPlacement {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) struct MirroredPairMove {
+pub struct MirroredPairMove {
     pub owner: MirroredPairOwner,
     pub center: Vec2,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct MirroredPairCreated {
+pub struct MirroredPairCreated {
     pub owner: MirroredPairOwner,
     pub result_token: SnapshotToken,
     pub result_revision: u64,
@@ -104,14 +104,14 @@ pub(in crate::presentation) struct MirroredPairCreated {
 }
 
 #[derive(Props, Clone, PartialEq)]
-pub(in crate::presentation) struct MirroredPairFormProps {
+pub struct MirroredPairFormProps {
     pub projection: MirroredPairFormProjection,
     pub on_cancel: EventHandler<MirroredPairOwner>,
     pub on_preview: EventHandler<MirroredPairRequest>,
 }
 
 #[component]
-pub(in crate::presentation) fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
+pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
     let values = props.projection.values.clone();
     let mut left_name = use_signal(|| values.left_name);
     let mut right_name = use_signal(|| values.right_name);

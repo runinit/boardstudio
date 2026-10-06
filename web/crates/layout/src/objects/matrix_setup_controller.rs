@@ -27,7 +27,7 @@ struct PendingSetup {
 
 /// Called once for the Editor lifetime. The form may be hidden while its admitted SetMatrix
 /// completes; that operation always settles against its captured scope and never retargets.
-pub(in crate::presentation) fn use_matrix_setup(
+pub fn use_matrix_setup(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
     selected_context: Signal<Option<ScopedTreeContext>>,

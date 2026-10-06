@@ -1,7 +1,7 @@
 //! Pure accepted-envelope and axis-alignment policy for Layout Align.
 use boardstudio_core::model::{Matrix, Mirror, Part, PartDefinition, PartKind, Vec2};
 
-pub(crate) fn reference_choice(
+pub fn reference_choice(
     current: Option<&str>,
     eligible: &[String],
     authoritative: bool,
@@ -15,7 +15,7 @@ pub(crate) fn reference_choice(
         .or_else(|| eligible.first().cloned())
 }
 
-pub(crate) fn reconcile_reference_choice(
+pub fn reconcile_reference_choice(
     current: Option<&str>,
     eligible: &[String],
     authoritative: bool,
@@ -29,13 +29,13 @@ pub(crate) fn reconcile_reference_choice(
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum PendingSettlementGate {
+pub enum PendingSettlementGate {
     RetireOldScope,
     WaitForAcceptedAdvance,
     Settle,
 }
 
-pub(crate) fn pending_settlement_gate(
+pub fn pending_settlement_gate(
     same_scope: bool,
     completed: bool,
     base_token: u64,
@@ -63,7 +63,7 @@ pub(crate) fn pending_settlement_gate(
     }
 }
 
-pub(crate) fn should_wait_for_alignment_advance(
+pub fn should_wait_for_alignment_advance(
     same_scope: bool,
     base_token: u64,
     base_revision: u64,
@@ -81,7 +81,7 @@ pub(crate) fn should_wait_for_alignment_advance(
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum AlignCommand {
+pub enum AlignCommand {
     Left,
     CenterX,
     Right,
@@ -91,7 +91,7 @@ pub(crate) enum AlignCommand {
 }
 
 impl AlignCommand {
-    pub(crate) const ALL: [Self; 6] = [
+    pub const ALL: [Self; 6] = [
         Self::Left,
         Self::CenterX,
         Self::Right,
@@ -100,7 +100,7 @@ impl AlignCommand {
         Self::Bottom,
     ];
 
-    pub(crate) const fn label(self) -> &'static str {
+    pub const fn label(self) -> &'static str {
         match self {
             Self::Left => "Left",
             Self::CenterX => "Center X",
@@ -266,7 +266,7 @@ mod state_tests {
 }
 
 /// Resolve the exact accepted envelope used by React selectionOutline for one live part.
-pub(crate) fn transformed_envelope(
+pub fn transformed_envelope(
     part: &Part,
     definition: &PartDefinition,
 ) -> Result<Vec<Vec2>, String> {
@@ -323,7 +323,7 @@ pub(crate) fn transformed_envelope(
         .collect())
 }
 
-pub(crate) fn alignment_delta(
+pub fn alignment_delta(
     moving: &[Vec<Vec2>],
     reference: &[Vec2],
     command: AlignCommand,
@@ -347,7 +347,7 @@ pub(crate) fn alignment_delta(
     })
 }
 
-pub(crate) fn local_matrix_delta(matrix: &Matrix, delta: Vec2, column: usize) -> Vec2 {
+pub fn local_matrix_delta(matrix: &Matrix, delta: Vec2, column: usize) -> Vec2 {
     let angle = -matrix.rotation.unwrap_or_default().to_radians();
     let (sin, cos) = angle.sin_cos();
     let mut x = delta.x * cos - delta.y * sin;

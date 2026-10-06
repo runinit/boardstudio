@@ -286,7 +286,7 @@ fn overlap_filter_tracks_authoritative_add_and_toggle_selection() {
 #[wasm_bindgen_test]
 fn accepted_projection_uses_session_add_toggle_selection_across_hit_contexts() {
     let mut document: boardstudio_core::model::ProjectDoc = serde_json::from_str(include_str!(
-        "../../../../core/tests/fixtures/reviung41-outline-original.json"
+        "../../../../../core/tests/fixtures/reviung41-outline-original.json"
     ))
     .unwrap();
     let first_matrix_id = document.matrices[0].id.clone();

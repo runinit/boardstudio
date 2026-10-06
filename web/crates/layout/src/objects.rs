@@ -23,49 +23,45 @@ mod matrix_transform_controller;
 mod matrix_transform_inspector;
 mod mirrored_pair;
 mod mirrored_pair_controller;
-pub(in crate::presentation) use board_setup_controller::{BoardSetupMount, use_board_setup};
+pub use board_setup_controller::{BoardSetupMount, use_board_setup};
 use boardstudio_web_ui_model::tree;
 use boardstudio_web_ui_shared::object_options::ObjectTreePreferences;
-pub(in crate::presentation) use existing_half::{ExistingHalfMount, ExistingHalfSetup};
-pub(in crate::presentation) use keycap_size::KeySizeControls;
-pub(in crate::presentation) use keycap_size_controller::{KeySizeMount, use_key_size};
-pub(in crate::presentation) use layout_align::{
+pub use existing_half::{ExistingHalfMount, ExistingHalfSetup};
+pub use keycap_size::KeySizeControls;
+pub use keycap_size_controller::{KeySizeMount, use_key_size};
+pub use layout_align::{
     AlignAction, AlignCommand, AlignFeedback, AlignReference, LayoutAlignMount,
 };
-pub(in crate::presentation) use layout_align_controller::use_canvas_align;
-pub(in crate::presentation) use layout_toolbar::{
+pub use layout_align_controller::use_canvas_align;
+pub use layout_toolbar::{
     LayoutCommandMenu, LayoutCommandPill, LayoutSelectionKind, LayoutSnapIntent,
     LayoutSnapSettings, TreeCellAnchor, context_for_selection_kind, gesture_snap_inputs,
     layout_canvas_grid_style, snap_label as layout_snap_label,
 };
-pub(in crate::presentation) use layout_transform_toolbar::LayoutTransformToolOverlay;
-pub(in crate::presentation) use layout_transform_toolbar::{
+pub use layout_transform_toolbar::LayoutTransformToolOverlay;
+pub use layout_transform_toolbar::{
     LayoutTransformMenuMount, LayoutTransformRuntime, LayoutTransformSvg, LayoutTransformTool,
 };
-pub(in crate::presentation) use matrix_inspector::MatrixInspector;
-pub(in crate::presentation) use matrix_inspector::SwitchOrientation as MatrixSwitchOrientation;
-pub(in crate::presentation) use matrix_inspector_controller::matrix_with_preset;
-pub(in crate::presentation) use matrix_inspector_controller::{
-    MatrixInspectorMount, use_matrix_inspector,
-};
-pub(in crate::presentation) use matrix_placement_controller::use_matrix_placement;
-pub(in crate::presentation) use matrix_setup::{
+pub use matrix_inspector::MatrixInspector;
+pub use matrix_inspector::SwitchOrientation as MatrixSwitchOrientation;
+pub use matrix_inspector_controller::matrix_with_preset;
+pub use matrix_inspector_controller::{MatrixInspectorMount, use_matrix_inspector};
+pub use matrix_placement_controller::use_matrix_placement;
+pub use matrix_setup::{
     MatrixPlacementInput, MatrixPlacementMount, MatrixPlacementMove, MatrixPlacementSource,
     MatrixSetup, MatrixSetupMount,
 };
-pub(in crate::presentation) use matrix_setup_controller::use_matrix_setup;
-pub(in crate::presentation) use matrix_transform_controller::{
+pub use matrix_setup_controller::use_matrix_setup;
+pub use matrix_transform_controller::{
     MatrixTransformInspectorMount, use_workspace_matrix_transform,
 };
-pub(in crate::presentation) use matrix_transform_inspector::{
-    MatrixTransformInspector, MatrixTransformInspectorOwner,
-};
-pub(in crate::presentation) use mirrored_pair::{
+pub use matrix_transform_inspector::{MatrixTransformInspector, MatrixTransformInspectorOwner};
+pub use mirrored_pair::{
     MirroredPairCanvasOverlay, MirroredPairCreated, MirroredPairMount, MirroredPairMove,
 };
-pub(in crate::presentation) use mirrored_pair_controller::use_mirrored_pair;
+pub use mirrored_pair_controller::use_mirrored_pair;
 use tree::TreeKind;
-pub(in crate::presentation) use tree::{ScopedTreeContext, TreeContext};
+pub use tree::{ScopedTreeContext, TreeContext};
 
 impl From<TreeSelectRequest> for super::selection::ContextRequest {
     fn from(request: TreeSelectRequest) -> Self {
@@ -78,7 +74,7 @@ impl From<TreeSelectRequest> for super::selection::ContextRequest {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct TreeSelectRequest {
+pub struct TreeSelectRequest {
     pub scope: Scope,
     pub context: TreeContext,
     pub mode: SelectionMode,
@@ -86,7 +82,7 @@ pub(super) struct TreeSelectRequest {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct TreeNudgeRequest {
+pub struct TreeNudgeRequest {
     pub scope: Scope,
     pub part_id: String,
     pub dx: i8,
@@ -94,22 +90,19 @@ pub(super) struct TreeNudgeRequest {
     pub large_step: bool,
 }
 
-pub(super) fn resolve_selection(model: &ReadModel, context: &TreeContext) -> Option<Vec<String>> {
+pub fn resolve_selection(model: &ReadModel, context: &TreeContext) -> Option<Vec<String>> {
     tree::resolve_selection(model, context)
 }
 
-pub(super) fn context_for_part(model: &ReadModel, part_id: &str) -> Option<TreeContext> {
+pub fn context_for_part(model: &ReadModel, part_id: &str) -> Option<TreeContext> {
     tree::context_for_part(model, part_id)
 }
 
-pub(super) fn component_context_for_finding_part(
-    model: &ReadModel,
-    part_id: &str,
-) -> Option<TreeContext> {
+pub fn component_context_for_finding_part(model: &ReadModel, part_id: &str) -> Option<TreeContext> {
     tree::component_context_for_finding_part(model, part_id)
 }
 
-pub(super) fn context_for_cell(
+pub fn context_for_cell(
     model: &ReadModel,
     matrix_id: &str,
     row: u32,
@@ -132,7 +125,7 @@ fn matrix_id_for_context(context: &TreeContext) -> Option<&str> {
     }
 }
 
-pub(super) fn matrix_visible_on_board(
+pub fn matrix_visible_on_board(
     document: &boardstudio_core::model::ProjectDoc,
     board_id: &str,
     matrix_id: &str,
@@ -148,12 +141,12 @@ pub(super) fn matrix_visible_on_board(
         .any(|matrix| matrix.id == matrix_id)
 }
 
-pub(super) fn context_label(model: &ReadModel, context: &TreeContext) -> Option<String> {
+pub fn context_label(model: &ReadModel, context: &TreeContext) -> Option<String> {
     tree::context_label(model, context)
 }
 
 #[component]
-pub(super) fn Objects(
+pub fn Objects(
     selected_context: Signal<Option<ScopedTreeContext>>,
     on_select: EventHandler<TreeSelectRequest>,
     on_navigate: EventHandler<(Scope, String, Option<String>)>,

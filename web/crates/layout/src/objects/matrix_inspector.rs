@@ -4,13 +4,13 @@ use boardstudio_core::model::DiodeDirection;
 use dioxus::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) enum MatrixNameTarget {
+pub enum MatrixNameTarget {
     Matrix,
     Layout { id: String },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in crate::presentation) enum MatrixEditField {
+pub enum MatrixEditField {
     Name,
     Rows,
     Columns,
@@ -24,7 +24,7 @@ pub(in crate::presentation) enum MatrixEditField {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in crate::presentation) enum MatrixPreset {
+pub enum MatrixPreset {
     MxSolder,
     MxHotswap,
     ChocSolder,
@@ -36,13 +36,13 @@ pub(in crate::presentation) enum MatrixPreset {
 }
 
 impl MatrixPreset {
-    pub(super) fn parse(value: &str) -> Option<Self> {
+    pub fn parse(value: &str) -> Option<Self> {
         Self::ALL
             .into_iter()
             .find(|preset| preset.as_str() == value)
     }
 
-    pub(super) fn as_str(self) -> &'static str {
+    pub fn as_str(self) -> &'static str {
         match self {
             Self::MxSolder => "mx-solder",
             Self::MxHotswap => "mx-hotswap",
@@ -81,13 +81,13 @@ impl MatrixPreset {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in crate::presentation) enum SwitchOrientation {
+pub enum SwitchOrientation {
     South,
     North,
 }
 
 impl SwitchOrientation {
-    pub(super) fn as_str(self) -> &'static str {
+    pub fn as_str(self) -> &'static str {
         match self {
             Self::South => "south",
             Self::North => "north",
@@ -113,7 +113,7 @@ impl MatrixEditField {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) enum MatrixEditValue {
+pub enum MatrixEditValue {
     Name(Option<String>),
     Rows(u32),
     Columns(u32),
@@ -127,7 +127,7 @@ pub(in crate::presentation) enum MatrixEditValue {
 
 /// Draft owner excludes accepted token/revision so unrelated accepted edits do not erase text.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct MatrixInspectorOwner {
+pub struct MatrixInspectorOwner {
     pub editor_instance_id: u64,
     pub context_generation: u64,
     pub scope_generation: u64,
@@ -137,7 +137,7 @@ pub(in crate::presentation) struct MatrixInspectorOwner {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) struct MatrixInspectorProjection {
+pub struct MatrixInspectorProjection {
     pub owner: MatrixInspectorOwner,
     pub snapshot_token: SnapshotToken,
     pub revision: u64,
@@ -161,13 +161,13 @@ pub(in crate::presentation) struct MatrixInspectorProjection {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct MatrixLayoutRelation {
+pub struct MatrixLayoutRelation {
     pub partner_name: Option<String>,
     pub unlink_layout_id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) struct MatrixEditRequest {
+pub struct MatrixEditRequest {
     pub owner: MatrixInspectorOwner,
     pub request_id: u64,
     pub snapshot_token: SnapshotToken,
@@ -178,7 +178,7 @@ pub(in crate::presentation) struct MatrixEditRequest {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) struct MatrixPresetRequest {
+pub struct MatrixPresetRequest {
     pub owner: MatrixInspectorOwner,
     pub request_id: u64,
     pub snapshot_token: SnapshotToken,
@@ -189,14 +189,14 @@ pub(in crate::presentation) struct MatrixPresetRequest {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) struct MatrixDeleteRequest {
+pub struct MatrixDeleteRequest {
     pub owner: MatrixInspectorOwner,
     pub snapshot_token: SnapshotToken,
     pub revision: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct MatrixUnlinkRequest {
+pub struct MatrixUnlinkRequest {
     pub owner: MatrixInspectorOwner,
     pub snapshot_token: SnapshotToken,
     pub revision: u64,
@@ -204,7 +204,7 @@ pub(in crate::presentation) struct MatrixUnlinkRequest {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) struct MatrixDuplicateRequest {
+pub struct MatrixDuplicateRequest {
     pub owner: MatrixInspectorOwner,
     pub snapshot_token: SnapshotToken,
     pub revision: u64,
@@ -213,14 +213,14 @@ pub(in crate::presentation) struct MatrixDuplicateRequest {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in crate::presentation) enum MatrixEditState {
+pub enum MatrixEditState {
     Pending,
     Saved,
     Failed,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct MatrixEditFeedback {
+pub struct MatrixEditFeedback {
     pub owner: MatrixInspectorOwner,
     pub request_id: u64,
     pub field: MatrixEditField,
@@ -229,7 +229,7 @@ pub(in crate::presentation) struct MatrixEditFeedback {
 }
 
 #[derive(Props, Clone, PartialEq)]
-pub(in crate::presentation) struct MatrixInspectorProps {
+pub struct MatrixInspectorProps {
     pub projection: MatrixInspectorProjection,
     pub request_sequence: Signal<u64>,
     pub editable: bool,
@@ -243,7 +243,7 @@ pub(in crate::presentation) struct MatrixInspectorProps {
 }
 
 #[component]
-pub(in crate::presentation) fn MatrixInspector(props: MatrixInspectorProps) -> Element {
+pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
     let projection = &props.projection;
     let definition_label = projection
         .switch_choices

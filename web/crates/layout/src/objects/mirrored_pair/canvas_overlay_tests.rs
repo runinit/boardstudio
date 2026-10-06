@@ -331,7 +331,7 @@ async fn canvas_overlay_preserves_preview_values_and_routes_owner_cancel_escape(
 
 #[wasm_bindgen_test]
 fn overlay_styles_keep_bounded_canvas_geometry() {
-    let css = include_str!("../../../../assets/m1.css");
+    let css = include_str!("../../../../../assets/m1.css");
     assert!(css.contains(".m1-mirrored-pair-canvas-overlay"));
     assert!(css.contains("width: min(380px, 100%)"));
     assert!(css.contains("max-height: 100%"));

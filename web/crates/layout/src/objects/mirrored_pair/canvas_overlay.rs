@@ -3,14 +3,14 @@ use super::{MirroredPairForm, MirroredPairFormProjection, MirroredPairOwner, Mir
 use dioxus::prelude::*;
 
 #[derive(Props, Clone, PartialEq)]
-pub(in crate::presentation) struct MirroredPairCanvasOverlayProps {
+pub struct MirroredPairCanvasOverlayProps {
     pub projection: MirroredPairFormProjection,
     pub on_cancel: EventHandler<MirroredPairOwner>,
     pub on_preview: EventHandler<MirroredPairRequest>,
 }
 
 #[component]
-pub(in crate::presentation) fn MirroredPairCanvasOverlay(
+pub fn MirroredPairCanvasOverlay(
     props: MirroredPairCanvasOverlayProps,
 ) -> Element {
     let owner = props.projection.owner.clone();

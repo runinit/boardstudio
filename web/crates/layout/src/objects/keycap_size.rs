@@ -32,12 +32,12 @@ impl ResizeIntent {
 }
 
 #[derive(Props, Clone, PartialEq)]
-pub(in crate::presentation) struct KeySizeControlsProps {
+pub struct KeySizeControlsProps {
     pub mount: KeySizeMount,
 }
 
 #[component]
-pub(in crate::presentation) fn KeySizeControls(props: KeySizeControlsProps) -> Element {
+pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
     let Some(projection) = props.mount.projection.clone() else {
         return rsx! {};
     };

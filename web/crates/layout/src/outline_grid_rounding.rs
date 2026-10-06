@@ -10,11 +10,11 @@ fn javascript_round(value: f64) -> f64 {
     }
 }
 
-pub(super) fn rounded(value: f64) -> f64 {
+pub fn rounded(value: f64) -> f64 {
     (value * 1_000_000.0).round() / 1_000_000.0
 }
 
-pub(super) fn snap_to_grid(point: Vec2, grid: Vec2) -> Vec2 {
+pub fn snap_to_grid(point: Vec2, grid: Vec2) -> Vec2 {
     Vec2 {
         x: if grid.x > 0.0 {
             rounded(javascript_round(point.x / grid.x) * grid.x)

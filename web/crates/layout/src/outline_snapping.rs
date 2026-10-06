@@ -5,47 +5,43 @@ mod grid_rounding;
 use grid_rounding::{rounded, snap_to_grid};
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct Guide {
-    pub(super) id: String,
-    pub(super) from: Vec2,
-    pub(super) direction: Vec2,
-    pub(super) label: &'static str,
+pub struct Guide {
+    pub id: String,
+    pub from: Vec2,
+    pub direction: Vec2,
+    pub label: &'static str,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct Snap {
-    pub(super) at: Vec2,
-    pub(super) guides: Vec<Guide>,
+pub struct Snap {
+    pub at: Vec2,
+    pub guides: Vec<Guide>,
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct Context {
-    pub(super) anchor: Option<Vec2>,
-    pub(super) previous: Option<Vec2>,
-    pub(super) exclude: Option<Vec2>,
-    pub(super) neighbor: Option<Vec2>,
+pub struct Context {
+    pub anchor: Option<Vec2>,
+    pub previous: Option<Vec2>,
+    pub exclude: Option<Vec2>,
+    pub neighbor: Option<Vec2>,
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct Options {
-    pub(super) grid: Vec2,
-    pub(super) tolerance: f64,
-    pub(super) enabled: bool,
-    pub(super) free: bool,
+pub struct Options {
+    pub grid: Vec2,
+    pub tolerance: f64,
+    pub enabled: bool,
+    pub free: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct Origin {
-    pub(super) reference: String,
-    pub(super) center: Vec2,
-    pub(super) polygon: Vec<Vec2>,
+pub struct Origin {
+    pub reference: String,
+    pub center: Vec2,
+    pub polygon: Vec<Vec2>,
 }
 
-pub(super) fn snap_origin(
-    point: Vec2,
-    origins: &[Origin],
-    tolerance: f64,
-) -> Option<(Vec2, String)> {
+pub fn snap_origin(point: Vec2, origins: &[Origin], tolerance: f64) -> Option<(Vec2, String)> {
     let mut best: Option<(Vec2, String)> = None;
     let mut nearest = tolerance;
     for origin in origins {
@@ -74,7 +70,7 @@ pub(super) fn snap_origin(
     best
 }
 
-pub(super) fn convex_hull(mut points: Vec<Vec2>) -> Vec<Vec2> {
+pub fn convex_hull(mut points: Vec<Vec2>) -> Vec<Vec2> {
     points.sort_by(|a, b| a.x.total_cmp(&b.x).then_with(|| a.y.total_cmp(&b.y)));
     let cross = |a: Vec2, b: Vec2, c: Vec2| (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
     let half = |ordered: &[Vec2]| {
@@ -142,7 +138,7 @@ fn landmarks(candidates: &mut Vec<Guide>, point: Vec2, excluded: Option<Vec2>) {
 
 /// Screen-distance acquisition/release avoids zoom-dependent magnetic strength.
 /// Snapping policy for authored outline points.
-pub(super) fn snap_outline_point(
+pub fn snap_outline_point(
     point: Vec2,
     context: Context,
     paths: &[Vec<Vec2>],

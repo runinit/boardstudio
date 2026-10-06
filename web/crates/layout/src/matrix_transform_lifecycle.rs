@@ -3,13 +3,13 @@
 use boardstudio_application::{SnapshotToken, TerminalOutcome};
 
 #[derive(Default)]
-pub(crate) struct SelectionMembership {
-    pub(crate) eligible: Vec<String>,
-    pub(crate) live: Vec<String>,
+pub struct SelectionMembership {
+    pub eligible: Vec<String>,
+    pub live: Vec<String>,
 }
 
 #[derive(Default)]
-pub(crate) struct SelectionMembershipCache {
+pub struct SelectionMembershipCache {
     source: Option<SelectionMembershipSource>,
     membership: std::rc::Rc<SelectionMembership>,
 }
@@ -34,7 +34,7 @@ impl SelectionMembershipSource {
 }
 
 impl SelectionMembershipCache {
-    pub(crate) fn project(
+    pub fn project(
         &mut self,
         model: &boardstudio_application::ReadModel,
         compute: impl FnOnce(&boardstudio_application::ReadModel) -> SelectionMembership,
@@ -68,25 +68,25 @@ impl SelectionMembershipCache {
 }
 
 #[derive(Clone, Copy)]
-pub(crate) struct AcceptedIdentity {
-    pub(crate) token: SnapshotToken,
-    pub(crate) revision: u64,
+pub struct AcceptedIdentity {
+    pub token: SnapshotToken,
+    pub revision: u64,
 }
 
 impl AcceptedIdentity {
-    pub(crate) fn admits(self, captured: Self) -> bool {
+    pub fn admits(self, captured: Self) -> bool {
         self.token == captured.token && self.revision == captured.revision
     }
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum PendingSettlement {
+pub enum PendingSettlement {
     Wait,
     Suppress,
     Settle(TerminalOutcome),
 }
 
-pub(crate) fn pending_settlement(
+pub fn pending_settlement(
     outcome: Option<TerminalOutcome>,
     target_is_current: bool,
 ) -> PendingSettlement {
@@ -215,7 +215,7 @@ mod tests {
 /// Remembers selected generated keys across accepted cell-disable transitions.
 /// The owner supplied by the mounted Layout is its full ScopedTreeContext, so
 /// another project/session/board/cell cannot inherit the remembered IDs.
-pub(crate) struct SelectionRetention<K> {
+pub struct SelectionRetention<K> {
     last: Option<(K, Vec<String>)>,
     suspended: Option<(K, Vec<String>)>,
 }
@@ -230,7 +230,7 @@ impl<K> Default for SelectionRetention<K> {
 }
 
 impl<K: Clone + PartialEq> SelectionRetention<K> {
-    pub(crate) fn reconcile(
+    pub fn reconcile(
         &mut self,
         owner: Option<&K>,
         selected_ids: &[String],

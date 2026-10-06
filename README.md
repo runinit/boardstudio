@@ -51,7 +51,9 @@ Rust and provider tests, WASM page compilation, release packaging, native/WASM
 boundary checks and mounted headless browser tests. Name steps (`python3 scripts/check.py --list`) to run
 only the affected checks during development. The browser runner checks
 that every listed test actually executes, grouped into broad batches to avoid repeated
-WASM/browser startup costs. Three modules run separately because their mounted fixtures need an isolated
+WASM/browser startup costs. Each presentation crate under `web/crates/` runs its own browser
+tests (`wasm-pack test --headless --chrome web/crates/<crate> --lib`); the Case workspace,
+panel and setup guide tests run separately because their mounted fixtures need an isolated
 DOM. Each batch has a bounded two-minute timeout, overridable with
 `WASM_BINDGEN_TEST_TIMEOUT`. A native test run alone does not compile
 WASM-only presentation code. Browser setup installs the locked wasm-bindgen runner

@@ -2,14 +2,14 @@ use boardstudio_core::{
     electrical::ElectricalPlan,
     model::{PartKind, ProjectDoc, SceneDelta, Severity},
 };
-pub(crate) use boardstudio_web_ui_model::state::{PendingNewKeyboard, SetupGuideRequest};
+pub use boardstudio_web_ui_model::state::{PendingNewKeyboard, SetupGuideRequest};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlInputElement;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum SetupGuideStage {
+pub enum SetupGuideStage {
     Project,
     Layout,
     Wiring,
@@ -40,16 +40,16 @@ impl SetupGuideStage {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct SetupGuidePreferences {
-    pub(crate) project_id: String,
-    pub(crate) open: bool,
-    pub(crate) current_stage: SetupGuideStage,
+pub struct SetupGuidePreferences {
+    pub project_id: String,
+    pub open: bool,
+    pub current_stage: SetupGuideStage,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct SetupGuideStageStatus {
-    pub(crate) ready: bool,
-    pub(crate) detail: String,
+pub struct SetupGuideStageStatus {
+    pub ready: bool,
+    pub detail: String,
 }
 
 fn step_class(current: bool, ready: bool) -> &'static str {
@@ -61,7 +61,7 @@ fn step_class(current: bool, ready: bool) -> &'static str {
     }
 }
 
-pub(crate) fn stage_statuses(
+pub fn stage_statuses(
     document: &ProjectDoc,
     board_id: &str,
     scene: &SceneDelta,
@@ -251,7 +251,7 @@ pub(crate) fn stage_statuses(
 }
 
 #[component]
-pub(super) fn ProjectSetupGuide(
+pub fn ProjectSetupGuide(
     stage: SetupGuideStage,
     stage_readiness: [bool; 5],
     stage_detail: String,
@@ -385,11 +385,7 @@ pub(super) fn ProjectSetupGuide(
     }
 }
 
-pub(crate) fn stage_detail(
-    stage: SetupGuideStage,
-    document: &ProjectDoc,
-    board_id: &str,
-) -> String {
+pub fn stage_detail(stage: SetupGuideStage, document: &ProjectDoc, board_id: &str) -> String {
     let board = document.boards.iter().find(|board| board.id == board_id);
     match stage {
         SetupGuideStage::Project => {
@@ -439,7 +435,7 @@ pub(crate) fn stage_detail(
     }
 }
 
-pub(crate) fn read_preferences(project_id: &str) -> SetupGuidePreferences {
+pub fn read_preferences(project_id: &str) -> SetupGuidePreferences {
     let key = format!("boardstudio:v2:setup-guide:{project_id}");
     let raw = web_sys::window()
         .and_then(|window| window.local_storage().ok().flatten())
@@ -463,7 +459,7 @@ pub(crate) fn read_preferences(project_id: &str) -> SetupGuidePreferences {
     }
 }
 
-pub(crate) fn write_preferences(preferences: &SetupGuidePreferences) {
+pub fn write_preferences(preferences: &SetupGuidePreferences) {
     let key = format!("boardstudio:v2:setup-guide:{}", preferences.project_id);
     let value = serde_json::json!({
         "open": preferences.open,
@@ -477,7 +473,7 @@ pub(crate) fn write_preferences(preferences: &SetupGuidePreferences) {
 }
 
 /// Keep stage navigation and its panel reveal in one production transition.
-pub(super) fn activate_stage(
+pub fn activate_stage(
     stage: SetupGuideStage,
     mut workspace: Signal<&'static str>,
     mut requested_workspace: Signal<Option<&'static str>>,
@@ -506,7 +502,7 @@ pub(super) fn activate_stage(
 }
 
 /// Reveal the requested panel without changing compact-mode stored preferences.
-pub(super) fn reveal_panels(
+pub fn reveal_panels(
     intent: crate::setup_guide_state::GuideReveal,
     mut objects_open: Signal<bool>,
     mut inspector_open: Signal<bool>,
@@ -531,7 +527,7 @@ pub(super) fn reveal_panels(
     }
 }
 
-pub(super) fn focus_settings(workspace: &str) {
+pub fn focus_settings(workspace: &str) {
     let selector = if workspace == "Export" {
         ".m1-workspace-content :is(input, select, button):not(:disabled)"
     } else {

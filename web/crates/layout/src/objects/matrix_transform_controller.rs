@@ -45,7 +45,7 @@ struct ContextGeneration {
 }
 
 #[derive(Clone, PartialEq)]
-pub(in crate::presentation) struct MatrixTransformInspectorMount {
+pub struct MatrixTransformInspectorMount {
     pub projection: Option<MatrixTransformProjection>,
     pub request_sequence: Signal<u64>,
     pub editable: bool,
@@ -56,7 +56,7 @@ pub(in crate::presentation) struct MatrixTransformInspectorMount {
 }
 
 impl MatrixTransformInspectorMount {
-    pub(in crate::presentation) fn pick_splay_origin(&self, point: Vec2) -> bool {
+    pub fn pick_splay_origin(&self, point: Vec2) -> bool {
         let Some(projection) = self.projection.as_ref() else {
             return false;
         };
@@ -87,7 +87,7 @@ impl MatrixTransformInspectorMount {
 
 /// Called once at the Editor lifetime. Every request and projection resolves the live accepted
 /// matrix again; no document copy survives as a writable store.
-pub(in crate::presentation) fn use_workspace_matrix_transform(
+pub fn use_workspace_matrix_transform(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
     selected_context: Signal<Option<ScopedTreeContext>>,

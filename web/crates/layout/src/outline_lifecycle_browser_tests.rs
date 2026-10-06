@@ -296,7 +296,7 @@ fn mounted_outline_inspector_host() -> Element {
         }
     };
     rsx! {
-        style { {include_str!("../../assets/m1.css")} }
+        style { {include_str!("../../../assets/m1.css")} }
         svg { id: "outline-point-canvas-test", view_box: "-20 -20 40 40", onmounted: mount_point_canvas,
             if let Some(projection) = projection.clone() {
                 super::super::outline_lifecycle::OutlinePointCanvasOverlay {
@@ -592,7 +592,10 @@ async fn mounted_fixed_outline_canvas_point_escape_returns_to_board_without_edit
 async fn mounted_fixed_outline_point_click_and_escape_preserve_fractional_geometry() {
     let points = vec![
         Vec2 { x: -13.0, y: 13.0 },
-        Vec2 { x: -8.2375, y: -13.0 },
+        Vec2 {
+            x: -8.2375,
+            y: -13.0,
+        },
         Vec2 { x: 13.0, y: -13.0 },
         Vec2 { x: 13.0, y: 13.0 },
     ];
@@ -675,7 +678,12 @@ async fn mounted_fixed_outline_point_click_and_escape_preserve_fractional_geomet
         .unwrap();
     settle_dimension().await;
 
-    assert!(probe.runtime.take_layout_component_inspector_test_events().is_empty());
+    assert!(
+        probe
+            .runtime
+            .take_layout_component_inspector_test_events()
+            .is_empty()
+    );
     root.remove();
 }
 
@@ -695,9 +703,8 @@ fn install_test_pointer_capture(target: &web_sys::SvgElement) -> TestPointerCapt
         set_capture_state.set(Some(id));
     });
     let has_capture_state = captured.clone();
-    let has_capture = Closure::<dyn FnMut(i32) -> bool>::new(move |id| {
-        has_capture_state.get() == Some(id)
-    });
+    let has_capture =
+        Closure::<dyn FnMut(i32) -> bool>::new(move |id| has_capture_state.get() == Some(id));
     let release_capture_state = captured.clone();
     let release_capture = Closure::<dyn FnMut(i32)>::new(move |id| {
         if release_capture_state.get() == Some(id) {

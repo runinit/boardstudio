@@ -82,7 +82,7 @@ pub enum MatrixTransformFields {
 
 /// Produce the choices for one attached-component selector while preserving
 /// only its own assembly snapshot from the accepted document.
-pub(crate) fn attachment_component_choices(
+pub fn attachment_component_choices(
     definitions: &[PartDefinition],
     current_id: &str,
 ) -> Vec<(String, String)> {
@@ -153,7 +153,7 @@ fn is_uuid(value: &str) -> bool {
 
 /// Whether an assembly edit may proceed with the accepted document's available definitions.
 /// This policy is shared by the Inspector controller and native owner-level regressions.
-pub(crate) fn component_edit_admitted_by_catalogue(
+pub fn component_edit_admitted_by_catalogue(
     catalog_built_for: Option<bool>,
     reversible: bool,
     field: MatrixTransformField,
@@ -191,7 +191,7 @@ pub(crate) fn component_edit_admitted_by_catalogue(
 }
 
 /// Whether another user-triggered attempt can start a failed catalogue load for this construction.
-pub(crate) fn catalogue_retry_due(
+pub fn catalogue_retry_due(
     requested: Option<bool>,
     loading: bool,
     catalog_built_for: Option<bool>,

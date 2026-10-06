@@ -33,29 +33,29 @@ struct BoardInspectorOwner {
 }
 
 #[derive(Clone, PartialEq)]
-pub(super) struct BoardInspectorProjection {
+pub struct BoardInspectorProjection {
     owner: BoardInspectorOwner,
-    pub(super) board_name: String,
-    pub(super) outline_status: &'static str,
-    pub(super) placed_parts: usize,
-    pub(super) editable: bool,
+    pub board_name: String,
+    pub outline_status: &'static str,
+    pub placed_parts: usize,
+    pub editable: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct BoardRenameAction {
+pub struct BoardRenameAction {
     owner: BoardInspectorOwner,
     name: String,
 }
 
 #[derive(Clone, PartialEq)]
-pub(super) struct BoardInspectorMount {
-    pub(super) projection: Option<BoardInspectorProjection>,
-    pub(super) on_rename: EventHandler<BoardRenameAction>,
+pub struct BoardInspectorMount {
+    pub projection: Option<BoardInspectorProjection>,
+    pub on_rename: EventHandler<BoardRenameAction>,
 }
 
 /// Owns only the transient Inspector context generation. Board data always comes from the
 /// current accepted Runtime snapshot, and edits use the existing ReplaceDocument history path.
-pub(super) fn use_board_inspector(
+pub fn use_board_inspector(
     runtime: Rc<Runtime>,
     selected_context: Signal<Option<ScopedTreeContext>>,
     workspace: Signal<&'static str>,
@@ -254,7 +254,7 @@ fn board_context_is_current(
 }
 
 #[component]
-pub(super) fn BoardInspector(
+pub fn BoardInspector(
     projection: BoardInspectorProjection,
     on_rename: EventHandler<BoardRenameAction>,
 ) -> Element {

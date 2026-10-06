@@ -1,7 +1,7 @@
 //! Private guide presentation transitions, independent of browser storage.
 
 /// Reconcile only accepted name changes; unrelated renders must preserve typing.
-pub(crate) fn accepted_name_change(
+pub fn accepted_name_change(
     previous: Option<&(String, String)>,
     current: &(String, String),
 ) -> Option<(String, String)> {
@@ -11,20 +11,20 @@ pub(crate) fn accepted_name_change(
 }
 
 #[derive(Clone, Copy)]
-pub(crate) enum GuideReveal {
+pub enum GuideReveal {
     Guide,
     Settings,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) struct PanelReveal {
-    pub(crate) objects_open: bool,
-    pub(crate) inspector_open: bool,
-    pub(crate) pin_objects: bool,
-    pub(crate) pin_inspector: bool,
+pub struct PanelReveal {
+    pub objects_open: bool,
+    pub inspector_open: bool,
+    pub pin_objects: bool,
+    pub pin_inspector: bool,
 }
 
-pub(crate) fn panel_reveal(intent: GuideReveal, compact: bool) -> PanelReveal {
+pub fn panel_reveal(intent: GuideReveal, compact: bool) -> PanelReveal {
     match intent {
         GuideReveal::Guide => PanelReveal {
             objects_open: true,
@@ -84,14 +84,14 @@ mod tests {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) enum CreationSettlement {
+pub enum CreationSettlement {
     Wait,
     Reveal,
     Retire,
 }
 
 /// Called only after this creation's exact Completed outcome has arrived.
-pub(crate) fn creation_settlement(
+pub fn creation_settlement(
     project_id: &str,
     accepted_project_id: Option<&str>,
     saved_and_ready: bool,

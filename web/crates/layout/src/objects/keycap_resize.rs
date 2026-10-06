@@ -3,31 +3,31 @@ use boardstudio_core::model::{Layout, Matrix, MatrixCell, MatrixScene, Mirror, P
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in crate::presentation) enum ResizeAxis {
+pub enum ResizeAxis {
     X,
     Y,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct KeycapPlacement {
-    pub(in crate::presentation) id: String,
-    pub(in crate::presentation) matrix_id: String,
-    pub(in crate::presentation) row: u32,
-    pub(in crate::presentation) column: u32,
-    pub(in crate::presentation) at: Vec2,
-    pub(in crate::presentation) rotation: f64,
-    pub(in crate::presentation) size: Vec2,
+pub struct KeycapPlacement {
+    pub id: String,
+    pub matrix_id: String,
+    pub row: u32,
+    pub column: u32,
+    pub at: Vec2,
+    pub rotation: f64,
+    pub size: Vec2,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct KeycapResizePlan {
-    pub(in crate::presentation) document: ProjectDoc,
-    pub(in crate::presentation) target_ids: Vec<String>,
+pub struct KeycapResizePlan {
+    pub document: ProjectDoc,
+    pub target_ids: Vec<String>,
 }
 
 /// Returns overlapping oriented keycap-envelope pairs in input order.
 /// The accepted placements are preordered by `ProjectDoc.parts`, matching the React workbench.
-pub(super) fn overlapping_pairs(placements: &[KeycapPlacement]) -> Vec<(String, String)> {
+pub fn overlapping_pairs(placements: &[KeycapPlacement]) -> Vec<(String, String)> {
     let mut bounds: Vec<_> = placements
         .iter()
         .map(|placement| {
@@ -111,7 +111,7 @@ fn project_polygon(points: &[Vec2; 4], axis: Vec2) -> (f64, f64) {
     })
 }
 
-pub(in crate::presentation) struct KeycapResizeInput<'a> {
+pub struct KeycapResizeInput<'a> {
     pub document: &'a ProjectDoc,
     pub matrices: &'a [Matrix],
     pub scenes: &'a [MatrixScene],
@@ -123,7 +123,7 @@ pub(in crate::presentation) struct KeycapResizeInput<'a> {
 }
 
 /// Build one immutable document plan. Geometry inputs must come from the accepted active-board projection.
-pub(super) fn plan_resize(input: KeycapResizeInput<'_>) -> Option<KeycapResizePlan> {
+pub fn plan_resize(input: KeycapResizeInput<'_>) -> Option<KeycapResizePlan> {
     let KeycapResizeInput {
         document,
         matrices,

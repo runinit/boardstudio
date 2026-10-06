@@ -2,7 +2,7 @@
 use boardstudio_core::model::{Layout, LayoutMirrorLink, Matrix, MatrixScene, Mirror, Vec2};
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct MirroredPairProjection {
+pub struct MirroredPairProjection {
     pub left: Layout,
     pub right: Layout,
     pub matrix: Matrix,
@@ -13,21 +13,21 @@ pub(crate) struct MirroredPairProjection {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct MirroredPairGeometryInput {
+pub struct MirroredPairGeometryInput {
     pub left_name: String,
     pub right_name: String,
     pub gap_mm: f64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct MirroredPairIds {
+pub struct MirroredPairIds {
     pub right_matrix_id: String,
     pub left_layout_id: String,
     pub right_layout_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct PairPreviewCell {
+pub struct PairPreviewCell {
     pub row: u32,
     pub column: u32,
     pub center: Vec2,
@@ -37,7 +37,7 @@ pub(crate) struct PairPreviewCell {
 
 /// Adapt Core's projected scene to the canvas preview, adding only the visual key bounds.
 /// Cell locations and rotations always come from `CoreRequest::ProjectMatrices`.
-pub(crate) fn preview_cells(scene: &MatrixScene, matrix: &Matrix) -> Vec<PairPreviewCell> {
+pub fn preview_cells(scene: &MatrixScene, matrix: &Matrix) -> Vec<PairPreviewCell> {
     let edge_gap = matrix.edge_gap.unwrap_or(Vec2 { x: 1.0, y: 1.0 });
     scene
         .cells
@@ -58,7 +58,7 @@ pub(crate) fn preview_cells(scene: &MatrixScene, matrix: &Matrix) -> Vec<PairPre
 
 /// Matches React `pairAt`: inset both halves from the shared axis by half the requested key-edge
 /// gap plus half the pitch, minus half the matrix edge gap.
-pub(crate) fn project_mirrored_pair(
+pub fn project_mirrored_pair(
     mut matrix: Matrix,
     ids: &MirroredPairIds,
     request: &MirroredPairGeometryInput,

@@ -72,7 +72,7 @@ struct ContextGeneration {
 
 /// Projection and exact callback state to mount beside the selected Layout context.
 #[derive(Clone, PartialEq)]
-pub(in crate::presentation) struct MatrixInspectorMount {
+pub struct MatrixInspectorMount {
     pub projection: Option<MatrixInspectorProjection>,
     pub request_sequence: Signal<u64>,
     pub editable: bool,
@@ -89,7 +89,7 @@ pub(in crate::presentation) struct MatrixInspectorMount {
 
 /// Must be called unconditionally at the shared presentation lifetime. It owns no document
 /// state: every projection and callback resolves the current accepted snapshot again.
-pub(in crate::presentation) fn use_matrix_inspector(
+pub fn use_matrix_inspector(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
     selected_context: Signal<Option<ScopedTreeContext>>,
@@ -992,7 +992,7 @@ struct MatrixProjectionContext {
     workspace: &'static str,
 }
 
-pub(super) fn switch_choices(
+pub fn switch_choices(
     document: &ProjectDoc,
     templates: &[PartDefinition],
     current_id: &str,
@@ -2519,7 +2519,7 @@ fn matrix_setup_preset(preset: MatrixPreset) -> crate::matrix_setup_operation::M
 
 /// Mirrors the pinned `matrixWithPreset` recipe while retaining matrix-only fields and each
 /// pre-existing cell's enabled state, local pose and non-diode/non-LED assembly membership.
-pub(in crate::presentation) fn matrix_with_preset(
+pub fn matrix_with_preset(
     matrix: &Matrix,
     prepared: &Matrix,
     variant: &str,
@@ -2613,7 +2613,7 @@ mod tests {
 
     fn reviung_document() -> ProjectDoc {
         serde_json::from_str(include_str!(
-            "../../../../core/tests/fixtures/reviung41-outline-original.json"
+            "../../../../../core/tests/fixtures/reviung41-outline-original.json"
         ))
         .expect("checked-in Reviung 41 project fixture should deserialize")
     }

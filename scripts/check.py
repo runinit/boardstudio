@@ -39,7 +39,7 @@ TOOLING_TESTS = (
     "scripts/test-import-kicad-parts.py",
 )
 WASM_PAGE = ["--no-default-features", "--features", "page"]
-ISOLATED = ("presentation::case_workspace::", "presentation::setup_guide::")
+ISOLATED = ("presentation::case_workspace::",)
 
 Command = list[str]
 
@@ -68,6 +68,10 @@ def browser() -> list[Command]:
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/case", "--locked", "--lib"],
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/parts", "--locked", "--lib"],
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/pcb", "--locked", "--lib"],
+        # The setup guide test runs on its own, as it did in the page suite; web/crates/layout/
+        # webdriver.json gives it the desktop viewport it needs.
+        ["wasm-pack", "test", "--headless", "--chrome", "web/crates/layout", "--locked", "--lib", "--", "--skip", "setup_guide::"],
+        ["wasm-pack", "test", "--headless", "--chrome", "web/crates/layout", "--locked", "--lib", "--", "setup_guide::"],
         [*wasm_pack, "--bin", "boardstudio-web", "--", "--list"],
         [PY, "scripts/run-wasm-tests.py", "--all", "--depth", "1", *[f"--isolate={name}" for name in ISOLATED],
          "--result-json", "web/target/test-results/browser.json"],

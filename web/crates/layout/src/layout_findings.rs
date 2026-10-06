@@ -7,7 +7,7 @@ use std::rc::Rc;
 use wasm_bindgen::JsCast;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct Source {
+pub struct Source {
     pub workspace: &'static str,
     pub scope: Scope,
     pub token: SnapshotToken,
@@ -16,13 +16,13 @@ pub(super) struct Source {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct Request {
+pub struct Request {
     pub source: Source,
     pub finding: Finding,
     pub target: FindingNavigationTarget,
 }
 
-pub(super) struct InspectorMount {
+pub struct InspectorMount {
     pub open: bool,
     pub document: Rc<ProjectDoc>,
     pub findings: Vec<Finding>,
@@ -32,7 +32,7 @@ pub(super) struct InspectorMount {
 }
 
 #[component]
-pub(super) fn LayoutFindingsFooterButton(count: usize, on_toggle: EventHandler<()>) -> Element {
+pub fn LayoutFindingsFooterButton(count: usize, on_toggle: EventHandler<()>) -> Element {
     rsx! {
         button {
             class: "m1-canvas-footer-findings",
@@ -49,7 +49,7 @@ pub(super) fn LayoutFindingsFooterButton(count: usize, on_toggle: EventHandler<(
 }
 
 #[component]
-pub(super) fn LayoutFindingsInspector(
+pub fn LayoutFindingsInspector(
     open: bool,
     document: Rc<ProjectDoc>,
     findings: Vec<Finding>,
@@ -170,7 +170,7 @@ fn LayoutFinding(
     }
 }
 
-pub(super) fn target_has_live_layout_destination(
+pub fn target_has_live_layout_destination(
     target: &FindingNavigationTarget,
     document: &ProjectDoc,
 ) -> bool {

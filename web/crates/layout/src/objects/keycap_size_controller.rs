@@ -12,7 +12,7 @@ use dioxus::prelude::*;
 use std::{cell::RefCell, collections::BTreeSet, rc::Rc};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct KeySizeOwner {
+pub struct KeySizeOwner {
     editor_instance_id: u64,
     context_generation: u64,
     scope_generation: u64,
@@ -22,7 +22,7 @@ pub(in crate::presentation) struct KeySizeOwner {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) struct KeySizeItem {
+pub struct KeySizeItem {
     pub id: String,
     pub size: Vec2,
     pub pitch: Vec2,
@@ -30,7 +30,7 @@ pub(in crate::presentation) struct KeySizeItem {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) struct KeySizeProjection {
+pub struct KeySizeProjection {
     pub owner: KeySizeOwner,
     pub snapshot_token: SnapshotToken,
     pub revision: u64,
@@ -43,7 +43,7 @@ pub(in crate::presentation) struct KeySizeProjection {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) struct KeySizeRequest {
+pub struct KeySizeRequest {
     pub owner: KeySizeOwner,
     pub request_id: u64,
     pub snapshot_token: SnapshotToken,
@@ -53,7 +53,7 @@ pub(in crate::presentation) struct KeySizeRequest {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) struct KeySizeFeedback {
+pub struct KeySizeFeedback {
     pub owner: KeySizeOwner,
     pub request_id: u64,
     pub state: KeySizeState,
@@ -61,14 +61,14 @@ pub(in crate::presentation) struct KeySizeFeedback {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in crate::presentation) enum KeySizeState {
+pub enum KeySizeState {
     Pending,
     Saved,
     Failed,
 }
 
 #[derive(Clone, PartialEq)]
-pub(in crate::presentation) struct KeySizeMount {
+pub struct KeySizeMount {
     pub projection: Option<KeySizeProjection>,
     pub request_sequence: Signal<u64>,
     pub editable: bool,
@@ -93,7 +93,7 @@ struct ContextTracker {
     generation: u64,
 }
 
-pub(in crate::presentation) fn use_key_size(
+pub fn use_key_size(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
     selected_context: Signal<Option<ScopedTreeContext>>,

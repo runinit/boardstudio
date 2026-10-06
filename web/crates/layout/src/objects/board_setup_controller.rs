@@ -10,7 +10,7 @@ use dioxus::prelude::*;
 use std::rc::Rc;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct BoardCreateOwner {
+pub struct BoardCreateOwner {
     scope: Scope,
     token: SnapshotToken,
     revision: u64,
@@ -19,7 +19,7 @@ pub(in crate::presentation) struct BoardCreateOwner {
 }
 
 #[derive(Clone, PartialEq)]
-pub(in crate::presentation) struct BoardSetupMount {
+pub struct BoardSetupMount {
     pub owner: Option<BoardCreateOwner>,
     pub on_add: EventHandler<BoardCreateOwner>,
 }
@@ -31,7 +31,7 @@ struct PendingBoard {
     outcome: OutcomeSlot,
 }
 
-pub(in crate::presentation) fn use_board_setup(
+pub fn use_board_setup(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
     workspace: Signal<&'static str>,

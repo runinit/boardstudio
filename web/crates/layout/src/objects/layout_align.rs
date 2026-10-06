@@ -1,5 +1,5 @@
 //! Private Layout Align toolbar controls.
-pub(in crate::presentation) use super::layout_align_geometry::{
+pub use super::layout_align_geometry::{
     AlignCommand, PendingSettlementGate, alignment_delta, local_matrix_delta,
     pending_settlement_gate, reconcile_reference_choice, transformed_envelope,
 };
@@ -9,13 +9,13 @@ use boardstudio_application::{Scope, SnapshotToken};
 use dioxus::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct AlignReference {
+pub struct AlignReference {
     pub id: String,
     pub label: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct AlignFeedback {
+pub struct AlignFeedback {
     pub reference: String,
     pub command: AlignCommand,
     pub message: String,
@@ -23,7 +23,7 @@ pub(in crate::presentation) struct AlignFeedback {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct AlignAction {
+pub struct AlignAction {
     pub workspace: &'static str,
     pub scope: Scope,
     pub scope_generation: u64,
@@ -36,7 +36,7 @@ pub(in crate::presentation) struct AlignAction {
 }
 
 #[derive(Clone, PartialEq)]
-pub(in crate::presentation) struct LayoutAlignMount {
+pub struct LayoutAlignMount {
     pub references: Vec<AlignReference>,
     pub selected_reference: Option<String>,
     pub action: Option<AlignAction>,
@@ -49,7 +49,7 @@ pub(in crate::presentation) struct LayoutAlignMount {
 }
 
 #[component]
-pub(in crate::presentation) fn LayoutAlignToolbar(
+pub fn LayoutAlignToolbar(
     mount: LayoutAlignMount,
     open_menu: Signal<Option<LayoutCommandMenu>>,
     show_relationships: bool,

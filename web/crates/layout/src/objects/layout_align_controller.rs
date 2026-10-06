@@ -84,7 +84,7 @@ impl PartialEq for AlignIdentity {
 }
 
 /// Must run at the Editor lifetime, including while the Layout toolbar is hidden.
-pub(in crate::presentation) fn use_canvas_align(
+pub fn use_canvas_align(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
     selected_context: Signal<Option<ScopedTreeContext>>,

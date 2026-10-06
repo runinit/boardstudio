@@ -14,7 +14,7 @@ use super::matrix_transform_controller::MatrixTransformInspectorMount;
 mod mounted_tests;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct MatrixTransformInspectorOwner {
+pub struct MatrixTransformInspectorOwner {
     pub editor_instance_id: u64,
     pub workspace: &'static str,
     pub context_generation: u64,
@@ -25,14 +25,14 @@ pub(in crate::presentation) struct MatrixTransformInspectorOwner {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in crate::presentation) enum MatrixTransformState {
+pub enum MatrixTransformState {
     Pending,
     Saved,
     Failed,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct MatrixTransformFeedback {
+pub struct MatrixTransformFeedback {
     pub owner: MatrixTransformInspectorOwner,
     pub request_id: u64,
     pub field: MatrixTransformField,
@@ -41,7 +41,7 @@ pub(in crate::presentation) struct MatrixTransformFeedback {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) struct MatrixTransformRequest {
+pub struct MatrixTransformRequest {
     pub owner: MatrixTransformInspectorOwner,
     pub request_id: u64,
     pub snapshot_token: SnapshotToken,
@@ -53,7 +53,7 @@ pub(in crate::presentation) struct MatrixTransformRequest {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) struct MatrixTransformProjection {
+pub struct MatrixTransformProjection {
     pub owner: MatrixTransformInspectorOwner,
     pub snapshot_token: SnapshotToken,
     pub revision: u64,
@@ -62,13 +62,13 @@ pub(in crate::presentation) struct MatrixTransformProjection {
 }
 
 #[derive(Props, Clone, PartialEq)]
-pub(in crate::presentation) struct MatrixTransformInspectorProps {
+pub struct MatrixTransformInspectorProps {
     pub mount: MatrixTransformInspectorMount,
     pub on_pick_splay_origin: EventHandler<()>,
 }
 
 #[component]
-pub(in crate::presentation) fn MatrixTransformInspector(
+pub fn MatrixTransformInspector(
     props: MatrixTransformInspectorProps,
 ) -> Element {
     let Some(projection) = props.mount.projection.as_ref() else {

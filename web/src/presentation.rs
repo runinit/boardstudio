@@ -1,5 +1,5 @@
 //! Presentation drafts and DOM input are separate from the durable session state.
-mod board_inspector;
+pub(crate) use boardstudio_web_layout::board_inspector;
 pub(crate) use boardstudio_web_ui_shared::canvas_layers;
 mod canvas_status_footer;
 pub(crate) use boardstudio_web_case::case_controller;
@@ -23,8 +23,8 @@ mod keymap_workspace;
 pub(crate) use boardstudio_web_ui_shared::layout_camera;
 #[cfg(test)]
 mod layout_component_inspector_tests;
-mod layout_findings;
-mod layout_viewer;
+pub(crate) use boardstudio_web_layout::layout_findings;
+pub(crate) use boardstudio_web_layout::layout_viewer;
 // Shared UI vocabulary lives in `boardstudio-web-ui-model`; re-export it here so
 // presentation modules keep addressing it as `super::selection`, `super::InstanceSelection`
 // and so on.
@@ -33,7 +33,6 @@ mod layout_viewer;
 pub(crate) use boardstudio_web_case::test_contexts::{
     use_case_generation_readiness_test_bridge, use_case_viewer_test_contexts,
 };
-pub(crate) use boardstudio_web_runtime::layout_viewer_source;
 pub(crate) use boardstudio_web_ui_model::selection::{
     active_board_scope_matches, current_layout_owner, layout_owner_is_current,
 };
@@ -54,13 +53,14 @@ pub(crate) use boardstudio_web_ui_shared::project_menu::close_project_menu;
 mod layout_workspace;
 pub(crate) use boardstudio_web_case::mechanical_settings;
 pub(crate) use boardstudio_web_case::mechanical_settings_mount;
+pub(crate) use boardstudio_web_layout::objects;
+pub(crate) use boardstudio_web_layout::outline_lifecycle;
+pub(crate) use boardstudio_web_layout::outline_snapping;
+pub(crate) use boardstudio_web_layout::part_placement;
 pub(crate) use boardstudio_web_library::library;
-mod objects;
-mod outline_lifecycle;
-mod outline_snapping;
-pub(crate) use boardstudio_web_ui_shared::panels;
-mod part_placement;
 pub(crate) use boardstudio_web_parts::parts;
+pub(crate) use boardstudio_web_ui_shared::panels;
+use part_placement::{LayoutPlacementCancellation, layout_view_mode_handler};
 mod parts_workspace;
 pub(crate) use boardstudio_web_pcb::pcb_board_reference;
 pub(crate) use boardstudio_web_pcb::pcb_layers;
@@ -70,8 +70,8 @@ pub(crate) use boardstudio_web_pcb::pcb_physical_setup;
 pub(crate) use boardstudio_web_pcb::pcb_scene;
 pub(crate) use boardstudio_web_pcb::pcb_wiring;
 mod pcb_workspace;
-mod setup_guide;
 pub(crate) use boardstudio_web_case::shared_viewer;
+pub(crate) use boardstudio_web_layout::setup_guide;
 mod workbench_shortcuts;
 mod workspace_composition;
 mod zmk_firmware_export;
@@ -2375,58 +2375,6 @@ fn dispatch_layout_component_inspector_action(
             inspect_open.set(true);
         }
     }
-}
-
-struct LayoutPlacementCancellation {
-    parts: part_placement::PartPlacementMount,
-    matrices: objects::MatrixPlacementMount,
-    interactions: CanvasInteractionArbiter,
-}
-
-fn layout_view_mode_handler(
-    is_owner_current: impl Fn() -> bool + 'static,
-    is_assembly_3d: Signal<bool>,
-    mut set_assembly_3d: impl FnMut(bool) + 'static,
-    placements: LayoutPlacementCancellation,
-    before_placement_cancel: impl Fn() + 'static,
-    mut after_placement_cancel: impl FnMut() + 'static,
-) -> EventHandler<bool> {
-    EventHandler::new(move |assembly_3d| {
-        if !is_owner_current() {
-            return;
-        }
-        if assembly_3d && !is_assembly_3d() {
-            before_placement_cancel();
-            if placements.parts.busy || placements.parts.projection.is_some() {
-                placements.parts.on_cancel.call(());
-            }
-            after_placement_cancel();
-            match placements.interactions.current() {
-                Some(CanvasInteractionOwner::PartPlacement) => {
-                    placements
-                        .interactions
-                        .release(CanvasInteractionOwner::PartPlacement);
-                }
-                Some(CanvasInteractionOwner::OutlinePerimeter) => {
-                    placements
-                        .interactions
-                        .release(CanvasInteractionOwner::OutlinePerimeter);
-                }
-                Some(CanvasInteractionOwner::MatrixPlacement) => {
-                    if let Some(owner) = placements.matrices.cancel_owner.clone() {
-                        placements.matrices.on_cancel.call(owner);
-                    }
-                }
-                Some(CanvasInteractionOwner::MatrixTransform) => {
-                    placements
-                        .interactions
-                        .release(CanvasInteractionOwner::MatrixTransform);
-                }
-                Some(CanvasInteractionOwner::MirroredPair) | None => {}
-            }
-        }
-        set_assembly_3d(assembly_3d);
-    })
 }
 
 fn pending_splay_origin_pick_after_view_change<T>(

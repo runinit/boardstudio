@@ -1,11 +1,11 @@
 //! Private immediate-origin Matrix Setup form, shared by Layout and the project guide.
 use crate::matrix_setup_operation::MatrixSetupPreset;
-pub(in crate::presentation) use crate::presentation::parts::MatrixPlacementSource;
+pub use crate::presentation::parts::MatrixPlacementSource;
 use boardstudio_application::{Scope, SnapshotToken};
 use dioxus::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct MatrixSetupOwner {
+pub struct MatrixSetupOwner {
     pub editor_instance_id: u64,
     pub open_id: u64,
     pub scope_generation: u64,
@@ -16,7 +16,7 @@ pub(in crate::presentation) struct MatrixSetupOwner {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct MatrixSetupProjection {
+pub struct MatrixSetupProjection {
     pub owner: MatrixSetupOwner,
     pub editable: bool,
     pub can_cancel: bool,
@@ -25,7 +25,7 @@ pub(in crate::presentation) struct MatrixSetupProjection {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct MatrixSetupCreateRequest {
+pub struct MatrixSetupCreateRequest {
     pub owner: MatrixSetupOwner,
     pub rows: u32,
     pub columns: u32,
@@ -33,7 +33,7 @@ pub(in crate::presentation) struct MatrixSetupCreateRequest {
 }
 
 #[derive(Clone, PartialEq)]
-pub(in crate::presentation) struct MatrixSetupMount {
+pub struct MatrixSetupMount {
     pub projection: Option<MatrixSetupProjection>,
     pub can_open: bool,
     pub on_open: EventHandler<()>,
@@ -42,7 +42,7 @@ pub(in crate::presentation) struct MatrixSetupMount {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct MatrixPlacementOwner {
+pub struct MatrixPlacementOwner {
     pub editor_instance_id: u64,
     pub request_id: u64,
     pub scope_generation: u64,
@@ -53,7 +53,7 @@ pub(in crate::presentation) struct MatrixPlacementOwner {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) struct MatrixPlacementProjection {
+pub struct MatrixPlacementProjection {
     pub owner: MatrixPlacementOwner,
     pub matrix: boardstudio_core::model::Matrix,
     pub scene: boardstudio_core::model::MatrixScene,
@@ -61,13 +61,13 @@ pub(in crate::presentation) struct MatrixPlacementProjection {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) struct MatrixPlacementMove {
+pub struct MatrixPlacementMove {
     pub owner: MatrixPlacementOwner,
     pub center: boardstudio_core::model::Vec2,
 }
 
 #[derive(Clone, PartialEq)]
-pub(in crate::presentation) struct MatrixPlacementMount {
+pub struct MatrixPlacementMount {
     pub cancel_owner: Option<MatrixPlacementOwner>,
     pub placement: Option<MatrixPlacementProjection>,
     pub busy: bool,
@@ -79,7 +79,7 @@ pub(in crate::presentation) struct MatrixPlacementMount {
 }
 
 #[derive(Clone)]
-pub(in crate::presentation) struct MatrixPlacementInput {
+pub struct MatrixPlacementInput {
     pub version: Signal<u64>,
     pub selected_context: Signal<Option<super::ScopedTreeContext>>,
     pub anchor_scope: Signal<Option<Scope>>,
@@ -90,14 +90,14 @@ pub(in crate::presentation) struct MatrixPlacementInput {
 }
 
 #[derive(Props, Clone, PartialEq)]
-pub(in crate::presentation) struct MatrixSetupProps {
+pub struct MatrixSetupProps {
     pub projection: MatrixSetupProjection,
     pub on_cancel: EventHandler<MatrixSetupOwner>,
     pub on_create: EventHandler<MatrixSetupCreateRequest>,
 }
 
 #[component]
-pub(in crate::presentation) fn MatrixSetup(props: MatrixSetupProps) -> Element {
+pub fn MatrixSetup(props: MatrixSetupProps) -> Element {
     let mut rows = use_signal(String::new);
     let mut columns = use_signal(String::new);
     let mut preset = use_signal(|| MatrixSetupPreset::MxSolder);

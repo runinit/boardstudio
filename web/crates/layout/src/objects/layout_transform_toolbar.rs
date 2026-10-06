@@ -28,7 +28,7 @@ type TransformEscapeListener = Rc<
 >;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in crate::presentation) enum LayoutTransformTool {
+pub enum LayoutTransformTool {
     Stagger,
     Splay,
     Origin,
@@ -43,7 +43,7 @@ impl LayoutTransformTool {
 }
 
 #[derive(Clone, PartialEq)]
-pub(in crate::presentation) struct LayoutTransformMenuMount {
+pub struct LayoutTransformMenuMount {
     pub properties_available: bool,
     pub column_available: bool,
     pub row_available: bool,
@@ -56,7 +56,7 @@ pub(in crate::presentation) struct LayoutTransformMenuMount {
 }
 
 #[derive(Clone)]
-pub(in crate::presentation) struct LayoutTransformRuntime(pub Rc<Runtime>);
+pub struct LayoutTransformRuntime(pub Rc<Runtime>);
 
 impl PartialEq for LayoutTransformRuntime {
     fn eq(&self, other: &Self) -> bool {
@@ -65,7 +65,7 @@ impl PartialEq for LayoutTransformRuntime {
 }
 
 #[derive(Clone)]
-pub(in crate::presentation) struct LayoutTransformSvg(pub Rc<RefCell<Option<SvgElement>>>);
+pub struct LayoutTransformSvg(pub Rc<RefCell<Option<SvgElement>>>);
 
 impl PartialEq for LayoutTransformSvg {
     fn eq(&self, other: &Self) -> bool {
@@ -106,7 +106,7 @@ struct TransformDrag {
 }
 
 #[component]
-pub(in crate::presentation) fn LayoutTransformToolOverlay(
+pub fn LayoutTransformToolOverlay(
     runtime: LayoutTransformRuntime,
     svg: LayoutTransformSvg,
     arbiter: CanvasInteractionArbiter,
@@ -1191,7 +1191,7 @@ fn angle_handle_point(
 }
 
 #[component]
-pub(in crate::presentation) fn LayoutTransformToolbar(
+pub fn LayoutTransformToolbar(
     mount: LayoutTransformMenuMount,
     open_menu: Signal<Option<LayoutCommandMenu>>,
 ) -> Element {

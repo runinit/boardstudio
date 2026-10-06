@@ -8,40 +8,16 @@ use boardstudio_web_runtime::{
     parts_preview, pcb_wiring_mode_operation, portable_archive, runtime,
 };
 
-#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
-mod setup_guide_state;
-
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 pub(crate) use boardstudio_web_case::cad_presentation;
-#[cfg(feature = "page")]
-mod outline_settings;
 #[cfg(all(feature = "page", target_arch = "wasm32"))]
-pub(crate) use boardstudio_web_catalogue::matrix_setup_operation;
+pub(crate) use boardstudio_web_layout::matrix_transform_lifecycle;
+#[cfg(all(feature = "page", target_arch = "wasm32"))]
+pub(crate) use boardstudio_web_layout::mirrored_pair_geometry;
+#[cfg(all(feature = "page", target_arch = "wasm32"))]
+pub(crate) use boardstudio_web_layout::setup_guide_state;
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 mod presentation;
-
-#[cfg(all(feature = "page", test, not(target_arch = "wasm32")))]
-mod presentation {
-    pub(crate) use crate::model_delivery;
-
-    #[path = "outline_grid_rounding.rs"]
-    mod outline_grid_rounding_tests;
-
-    pub(crate) mod objects {
-        #[path = "keycap_resize.rs"]
-        mod keycap_resize;
-    }
-}
-
-#[cfg(all(target_arch = "wasm32", feature = "page"))]
-#[path = "matrix_transform_operation.rs"]
-mod matrix_transform_operation;
-
-#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
-mod mirrored_pair_lifecycle;
-
-#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
-mod matrix_transform_lifecycle;
 
 fn main() {
     #[cfg(all(target_arch = "wasm32", feature = "page"))]
@@ -60,6 +36,3 @@ fn app() -> dioxus::prelude::Element {
     });
     presentation::App()
 }
-
-#[cfg(feature = "page")]
-mod mirrored_pair_geometry;

@@ -48,17 +48,17 @@ async fn request_keycaps_preview(
 }
 
 #[derive(Props, Clone, PartialEq)]
-pub(crate) struct LayoutCanonicalViewerProps {
+pub struct LayoutCanonicalViewerProps {
     #[props(default)]
-    pub(crate) keycaps_fit: Option<super::keycaps_fit::KeycapsFitState>,
+    pub keycaps_fit: Option<super::keycaps_fit::KeycapsFitState>,
     #[props(default)]
-    pub(crate) focused_finding: Option<super::keycaps_finding_marker::FocusedFinding>,
+    pub focused_finding: Option<super::keycaps_finding_marker::FocusedFinding>,
     #[props(default)]
-    pub(crate) on_mounted_module_pick: Option<EventHandler<String>>,
+    pub on_mounted_module_pick: Option<EventHandler<String>>,
 }
 
 #[component]
-pub(crate) fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
+pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let selection = use_context::<SelectionAdapter>();
     let theme = use_context::<super::ResolvedTheme>().0;

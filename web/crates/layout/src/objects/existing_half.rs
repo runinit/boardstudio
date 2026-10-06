@@ -10,13 +10,13 @@ use dioxus::prelude::*;
 use std::rc::Rc;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct ExistingHalfOption {
+pub struct ExistingHalfOption {
     pub matrix_id: String,
     pub label: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) struct ExistingHalfOwner {
+pub struct ExistingHalfOwner {
     editor_instance_id: u64,
     open_id: u64,
     scope_generation: u64,
@@ -28,7 +28,7 @@ pub(in crate::presentation) struct ExistingHalfOwner {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) struct ExistingHalfProjection {
+pub struct ExistingHalfProjection {
     pub owner: ExistingHalfOwner,
     pub editable: bool,
     pub can_cancel: bool,
@@ -37,14 +37,14 @@ pub(in crate::presentation) struct ExistingHalfProjection {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) struct ExistingHalfCreateRequest {
+pub struct ExistingHalfCreateRequest {
     pub owner: ExistingHalfOwner,
     pub matrix_ids: Vec<String>,
     pub axis_x: f64,
 }
 
 #[derive(Clone, PartialEq)]
-pub(in crate::presentation) struct ExistingHalfMount {
+pub struct ExistingHalfMount {
     pub projection: Option<ExistingHalfProjection>,
     pub visible: bool,
     pub can_open: bool,
@@ -61,7 +61,7 @@ struct PendingExistingHalf {
     target_layout_ids: Vec<String>,
 }
 
-pub(in crate::presentation) fn use_existing_half(
+pub fn use_existing_half(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
     workspace: Signal<&'static str>,
@@ -704,14 +704,14 @@ fn settle_pending(
 }
 
 #[derive(Props, Clone, PartialEq)]
-pub(in crate::presentation) struct ExistingHalfProps {
+pub struct ExistingHalfProps {
     pub projection: ExistingHalfProjection,
     pub on_cancel: EventHandler<ExistingHalfOwner>,
     pub on_create: EventHandler<ExistingHalfCreateRequest>,
 }
 
 #[component]
-pub(in crate::presentation) fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
+pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
     let owner = props.projection.owner.clone();
     let mut default_choice = use_signal(|| "all".to_owned());
     let choice = default_choice();

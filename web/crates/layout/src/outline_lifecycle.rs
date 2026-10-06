@@ -49,7 +49,7 @@ fn unique_outline_version_id(
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) enum OutlineAction {
+pub enum OutlineAction {
     Activate {
         scope: Scope,
         token: boardstudio_application::SnapshotToken,
@@ -146,7 +146,7 @@ pub(super) enum OutlineAction {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) enum OutlinePointTarget {
+pub enum OutlinePointTarget {
     Generated {
         contour: u32,
     },
@@ -347,58 +347,58 @@ struct ActionState {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) enum OutlineDrawTool {
+pub enum OutlineDrawTool {
     Polygon(Operation),
     Connect,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct OutlineFeedback {
+pub struct OutlineFeedback {
     scope: Scope,
-    pub(super) generation: u64,
-    pub(super) board_id: String,
-    pub(super) state: &'static str,
-    pub(super) message: Option<String>,
+    pub generation: u64,
+    pub board_id: String,
+    pub state: &'static str,
+    pub message: Option<String>,
 }
 
 #[derive(Clone, PartialEq)]
-pub(super) struct OutlineInspectorProjection {
-    pub(super) board_id: String,
-    pub(super) board_name: String,
-    pub(super) version_name: String,
-    pub(super) active_version_id: Option<String>,
-    pub(super) contours: Vec<Contour>,
+pub struct OutlineInspectorProjection {
+    pub board_id: String,
+    pub board_name: String,
+    pub version_name: String,
+    pub active_version_id: Option<String>,
+    pub contours: Vec<Contour>,
     perimeter: Option<EditablePerimeter>,
     snap_paths: Vec<Vec<Vec2>>,
-    pub(super) selected_point: Signal<usize>,
-    pub(super) editing_points: Signal<bool>,
-    pub(super) drawing_operation: Signal<Option<OutlineDrawTool>>,
-    pub(super) drawing_points: Signal<Vec<Vec2>>,
+    pub selected_point: Signal<usize>,
+    pub editing_points: Signal<bool>,
+    pub drawing_operation: Signal<Option<OutlineDrawTool>>,
+    pub drawing_points: Signal<Vec<Vec2>>,
     selected_feature_id: Signal<Option<String>>,
     selected_connection_id: Signal<Option<String>>,
-    pub(super) geometry_features: Vec<OutlineFeature>,
-    pub(super) connections: Vec<OutlineConnection>,
+    pub geometry_features: Vec<OutlineFeature>,
+    pub connections: Vec<OutlineConnection>,
     connection_feature: Option<OutlineFeature>,
     outline_parts: Vec<Part>,
-    pub(super) versions: Vec<OutlineVersionChoice>,
-    pub(super) settings: OutlineSettings,
-    pub(super) repair: OutlineRepairSettings,
-    pub(super) generated_margin: Option<f64>,
-    pub(super) has_generated: bool,
-    pub(super) gaps: Vec<OutlineGap>,
+    pub versions: Vec<OutlineVersionChoice>,
+    pub settings: OutlineSettings,
+    pub repair: OutlineRepairSettings,
+    pub generated_margin: Option<f64>,
+    pub has_generated: bool,
+    pub gaps: Vec<OutlineGap>,
     action_context: Rc<OutlineActionContext>,
-    pub(super) enabled: bool,
-    pub(super) feedback: Option<OutlineFeedback>,
-    pub(super) on_action: EventHandler<OutlineAction>,
+    pub enabled: bool,
+    pub feedback: Option<OutlineFeedback>,
+    pub on_action: EventHandler<OutlineAction>,
     selected_context: Signal<Option<super::objects::ScopedTreeContext>>,
-    pub(super) scope: Scope,
+    pub scope: Scope,
     token: boardstudio_application::SnapshotToken,
     revision: u64,
     generation: u64,
 }
 
 impl OutlineInspectorProjection {
-    pub(super) fn canvas_edit_key(&self) -> String {
+    pub fn canvas_edit_key(&self) -> String {
         format!(
             "{:?}-{}-{:?}-{}-{}-{}",
             self.scope,
@@ -537,9 +537,9 @@ impl OutlineActionContext {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct OutlineVersionChoice {
-    pub(super) id: String,
-    pub(super) name: String,
+pub struct OutlineVersionChoice {
+    pub id: String,
+    pub name: String,
 }
 
 impl OutlineAction {
@@ -635,7 +635,7 @@ impl OutlineAction {
         }
     }
 
-    pub(super) fn is_current(&self, runtime: &Runtime, generation: u64) -> bool {
+    pub fn is_current(&self, runtime: &Runtime, generation: u64) -> bool {
         let (scope, token, revision, captured_generation, board_id) = self.envelope();
         let model = runtime.model();
         let perimeter_edit = matches!(
@@ -669,7 +669,7 @@ impl OutlineAction {
             && model.gesture.is_none()
     }
 
-    pub(super) fn for_tree(
+    pub fn for_tree(
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
         generation: u64,
@@ -695,7 +695,7 @@ impl OutlineAction {
     }
 }
 
-pub(super) fn use_outline_lifecycle(
+pub fn use_outline_lifecycle(
     runtime: Rc<Runtime>,
     selected_context: Signal<Option<super::objects::ScopedTreeContext>>,
     workspace: Signal<&'static str>,
@@ -2113,7 +2113,7 @@ impl OutlineInspectorProjection {
 }
 
 #[component]
-pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Element {
+pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Element {
     let contour_view = contour_preview(&projection.contours);
     let copy = projection.copy_action();
     let delete = projection.delete_action();
@@ -3088,10 +3088,10 @@ struct PointSnapInputs {
 }
 
 #[derive(Clone)]
-pub(super) struct OutlineRuntimeHandle(Rc<Runtime>);
+pub struct OutlineRuntimeHandle(Rc<Runtime>);
 
 impl OutlineRuntimeHandle {
-    pub(super) fn new(runtime: Rc<Runtime>) -> Self {
+    pub fn new(runtime: Rc<Runtime>) -> Self {
         Self(runtime)
     }
 }
@@ -3103,7 +3103,7 @@ impl PartialEq for OutlineRuntimeHandle {
 }
 
 #[component]
-pub(super) fn OutlinePointCanvasOverlay(
+pub fn OutlinePointCanvasOverlay(
     projection: OutlineInspectorProjection,
     runtime: OutlineRuntimeHandle,
     arbiter: CanvasInteractionArbiter,
@@ -3183,7 +3183,9 @@ pub(super) fn OutlinePointCanvasOverlay(
             let Some(mut active) = drag.borrow_mut().take() else {
                 return;
             };
-            if (active.moved || final_displaced) && let Some(at) = final_at {
+            if (active.moved || final_displaced)
+                && let Some(at) = final_at
+            {
                 apply_point_sample(&mut active, at, &snap_inputs, free);
             }
             preview.set(None);
@@ -3453,7 +3455,7 @@ fn polygon_area(points: &[Vec2]) -> f64 {
 }
 
 #[component]
-pub(super) fn OutlineDraftCanvasOverlay(
+pub fn OutlineDraftCanvasOverlay(
     projection: OutlineInspectorProjection,
     runtime: OutlineRuntimeHandle,
     arbiter: CanvasInteractionArbiter,

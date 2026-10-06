@@ -2,7 +2,7 @@
 use boardstudio_application::{Durability, SnapshotToken};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum PairFormStage {
+pub enum PairFormStage {
     Setup,
     Preparing,
     Placement,
@@ -10,40 +10,40 @@ pub(crate) enum PairFormStage {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct PairFormState<T> {
-    pub(crate) stage: PairFormStage,
-    pub(crate) values: T,
+pub struct PairFormState<T> {
+    pub stage: PairFormStage,
+    pub values: T,
 }
 
 impl<T> PairFormState<T> {
-    pub(crate) fn new(values: T) -> Self {
+    pub fn new(values: T) -> Self {
         Self {
             stage: PairFormStage::Setup,
             values,
         }
     }
 
-    pub(crate) fn setup_is_visible(&self) -> bool {
+    pub fn setup_is_visible(&self) -> bool {
         self.stage != PairFormStage::Placement
     }
 
-    pub(crate) fn setup_is_editable(&self) -> bool {
+    pub fn setup_is_editable(&self) -> bool {
         self.stage == PairFormStage::Setup
     }
 }
 
-pub(crate) fn pair_cancel_is_allowed(active_owner: bool, save_pending: bool) -> bool {
+pub fn pair_cancel_is_allowed(active_owner: bool, save_pending: bool) -> bool {
     active_owner && !save_pending
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct PairResultGuard {
-    pub(crate) transaction_id: String,
-    pub(crate) base_token: SnapshotToken,
-    pub(crate) base_revision: u64,
+pub struct PairResultGuard {
+    pub transaction_id: String,
+    pub base_token: SnapshotToken,
+    pub base_revision: u64,
 }
 
-pub(crate) fn accepted_saved_result_is_current(
+pub fn accepted_saved_result_is_current(
     pending: &PairResultGuard,
     accepted_transaction_id: &str,
     accepted_token: SnapshotToken,

@@ -2,7 +2,7 @@
 use super::tree::{self, TreeContext};
 use boardstudio_application::ReadModel;
 use boardstudio_core::model::Vec2;
-pub(in crate::presentation) use boardstudio_web_ui_model::state::{
+pub use boardstudio_web_ui_model::state::{
     LayoutSnapSettings, TreeCellAnchor,
 };
 use dioxus::prelude::*;
@@ -13,7 +13,7 @@ use web_sys::{Document, HtmlElement, Node, PointerEvent as WebPointerEvent};
 const DEFAULT_PITCH_MM: f64 = 19.05;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(in crate::presentation) enum LayoutSelectionKind {
+pub enum LayoutSelectionKind {
     Matrix,
     Row,
     Column,
@@ -37,7 +37,7 @@ impl LayoutSelectionKind {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) enum LayoutSnapIntent {
+pub enum LayoutSnapIntent {
     Fraction(f64),
     GeometrySnap(bool),
     GapSnap(bool),
@@ -45,7 +45,7 @@ pub(in crate::presentation) enum LayoutSnapIntent {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(in crate::presentation) struct GestureSnapInputs {
+pub struct GestureSnapInputs {
     pub pitch: Vec2,
     pub snap_fraction: f64,
     pub geometry_snap: bool,
@@ -53,13 +53,13 @@ pub(in crate::presentation) struct GestureSnapInputs {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(in crate::presentation) struct LayoutCanvasGridStyle {
+pub struct LayoutCanvasGridStyle {
     pub spacing_mm: f64,
     pub radius_mm: f64,
 }
 
 /// Match the React canvas background grid, including its denser, screen-stable outline-edit grid.
-pub(in crate::presentation) fn layout_canvas_grid_style(
+pub fn layout_canvas_grid_style(
     view_width_mm: f64,
     surface_width_px: f64,
     pitch_x_mm: f64,
@@ -97,7 +97,7 @@ pub(in crate::presentation) fn layout_canvas_grid_style(
 }
 
 /// Produce the exact existing GestureBegin snap values from current root-owned preferences.
-pub(in crate::presentation) fn gesture_snap_inputs(
+pub fn gesture_snap_inputs(
     settings: &LayoutSnapSettings,
     accepted_matrix_pitch: Option<Vec2>,
     selected_matrix_edge_gap: Option<f64>,
@@ -281,7 +281,7 @@ mod tests {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct LayoutSelectionProjection {
+pub struct LayoutSelectionProjection {
     pub context: TreeContext,
     pub part_ids: Vec<String>,
 }
@@ -328,7 +328,7 @@ fn part_context(cell_context: TreeContext, part_ids: &[String]) -> Option<TreeCo
 
 /// Convert an existing matrix context to the current Select mode using fresh scene membership.
 /// `None` means the current context cannot be converted; empty `part_ids` is valid for an empty cell.
-pub(in crate::presentation) fn context_for_selection_kind(
+pub fn context_for_selection_kind(
     model: &ReadModel,
     current: &TreeContext,
     kind: LayoutSelectionKind,
@@ -437,7 +437,7 @@ const SNAP_STEPS: [(f64, &str, &str); 8] = [
     (-0.1, "-0.1", "0.1 mm"),
 ];
 
-pub(in crate::presentation) fn snap_label(fraction: f64) -> &'static str {
+pub fn snap_label(fraction: f64) -> &'static str {
     SNAP_STEPS
         .iter()
         .find(|(value, _, _)| *value == fraction)
@@ -446,7 +446,7 @@ pub(in crate::presentation) fn snap_label(fraction: f64) -> &'static str {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in crate::presentation) enum LayoutCommandMenu {
+pub enum LayoutCommandMenu {
     Select,
     Transform,
     Align,
@@ -482,7 +482,7 @@ fn remove_menu_outside_listener(listener: &MenuOutsideListener) {
     }
 }
 
-pub(in crate::presentation) fn close_layout_command_menu(
+pub fn close_layout_command_menu(
     mut open_menu: Signal<Option<LayoutCommandMenu>>,
     menu: LayoutCommandMenu,
 ) {
@@ -491,7 +491,7 @@ pub(in crate::presentation) fn close_layout_command_menu(
 }
 
 #[component]
-pub(in crate::presentation) fn LayoutCommandMenuHeader(
+pub fn LayoutCommandMenuHeader(
     label: String,
     close_label: String,
     open_menu: Signal<Option<LayoutCommandMenu>>,
@@ -528,7 +528,7 @@ fn toggle_layout_command_menu(
 }
 
 #[component]
-pub(in crate::presentation) fn LayoutCommandPill(
+pub fn LayoutCommandPill(
     command_label: String,
     menu_owner_key: String,
     open_menu: Signal<Option<LayoutCommandMenu>>,

@@ -27,7 +27,7 @@ struct PendingPlacement {
     selected_part_ids: Vec<String>,
 }
 
-pub(in crate::presentation) fn use_matrix_placement(
+pub fn use_matrix_placement(
     runtime: Rc<Runtime>,
     input: MatrixPlacementInput,
 ) -> MatrixPlacementMount {
