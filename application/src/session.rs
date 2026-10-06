@@ -20,6 +20,15 @@ pub struct SaveAttemptId(pub u64);
 pub struct SessionEpoch(pub u64);
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct SnapshotToken(pub u64);
+
+/// Where a completed operation landed: the accepted document revision and snapshot token
+/// the operation produced or confirmed. Document-changing completions carry one; every
+/// other settlement carries none.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Landing {
+    pub revision: u64,
+    pub token: SnapshotToken,
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct JobId(pub u64);
 
@@ -365,6 +374,7 @@ pub enum Effect {
     Settled {
         operation_id: OperationId,
         outcome: TerminalOutcome,
+        landing: Option<Landing>,
     },
     CapturePointer {
         pointer_id: i64,
@@ -1744,6 +1754,10 @@ impl Session {
                 }
                 let token = SnapshotToken(self.next_token);
                 self.next_token += 1;
+                let landing = Landing {
+                    revision: pending.document.revision,
+                    token,
+                };
                 self.model.accepted = Some(AcceptedSnapshot {
                     token,
                     session_epoch: epoch,
@@ -1774,9 +1788,9 @@ impl Session {
                 }
                 self.reconcile_selection_and_board();
                 self.model.lifecycle = Lifecycle::Ready;
-                self.settle(pending.operation_id, TerminalOutcome::Completed, effects);
+                self.settle_landed(pending.operation_id, landing, effects);
                 if let Some(retry_operation_id) = pending.retry_operation_id {
-                    self.settle(retry_operation_id, TerminalOutcome::Completed, effects);
+                    self.settle_landed(retry_operation_id, landing, effects);
                 }
                 self.finish_gesture_commit(None, true, effects);
                 if let Some(operation) = self.close_operation.take() {
@@ -1877,8 +1891,21 @@ impl Session {
             effects.push(Effect::Settled {
                 operation_id,
                 outcome,
+                landing: None,
             });
         }
+    }
+
+    /// Settle a completed operation at the accepted snapshot it just installed, so callers
+    /// read exactly where it landed. A retried save re-reports the original operation with
+    /// its eventual landing after the earlier failure report.
+    fn settle_landed(&mut self, operation_id: OperationId, landing: Landing, effects: &mut Vec<Effect>) {
+        self.settled.insert(operation_id);
+        effects.push(Effect::Settled {
+            operation_id,
+            outcome: TerminalOutcome::Completed,
+            landing: Some(landing),
+        });
     }
     fn epoch(&self) -> SessionEpoch {
         self.model

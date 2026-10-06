@@ -467,7 +467,8 @@ fn matrix_setup_uses_saved_session_history_selection_and_reopen() {
         Effect::Settled {
             operation_id: OperationId(2),
             outcome: TerminalOutcome::Completed,
-        }
+
+        ..}
     )));
 
     let accepted = session
@@ -511,7 +512,8 @@ fn matrix_setup_uses_saved_session_history_selection_and_reopen() {
             Effect::Settled {
                 operation_id: OperationId(3),
                 outcome: TerminalOutcome::Completed,
-            }
+
+            ..}
         )),
         "selection settles synchronously in Session"
     );

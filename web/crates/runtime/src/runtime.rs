@@ -2176,10 +2176,13 @@ impl Runtime {
             Effect::Settled {
                 operation_id,
                 outcome,
+                landing,
             } => {
-                let observed = self
-                    .operation_outcomes
-                    .settle(operation_id, outcome.clone());
+                let observed = self.operation_outcomes.settle_with_landing(
+                    operation_id,
+                    outcome.clone(),
+                    landing,
+                );
                 self.step_exports.borrow_mut().remove(&operation_id);
                 let is_keycaps_step_export =
                     self.keycaps_step_exports.borrow_mut().remove(&operation_id);

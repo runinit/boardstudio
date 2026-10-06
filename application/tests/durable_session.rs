@@ -1,6 +1,6 @@
 use boardstudio_application::{
-    Completion, Effect, Event, ExecutorEpoch, OperationId, RequestId, SaveAttemptId, SaveResult,
-    Session, TerminalOutcome,
+    Completion, Effect, Event, ExecutorEpoch, Landing, OperationId, RequestId, SaveAttemptId,
+    SaveResult, SelectionMode, Session, TerminalOutcome,
 };
 use boardstudio_core::{CoreEngine, model::*};
 use std::collections::BTreeMap;
@@ -269,8 +269,9 @@ fn protected_handoff_review_uses_core_operation_after_normal_edits_preserve_it()
         effect,
         Effect::Settled {
             operation_id: OperationId(3),
-            outcome: TerminalOutcome::Completed
-        }
+            outcome: TerminalOutcome::Completed,
+
+        ..}
     )));
     assert_eq!(
         session
@@ -309,8 +310,9 @@ fn protected_handoff_review_rejects_a_stale_fingerprint_without_saving() {
         effect,
         Effect::Settled {
             operation_id: OperationId(11),
-            outcome: TerminalOutcome::Rejected(_)
-        }
+            outcome: TerminalOutcome::Rejected(_),
+
+        ..}
     )));
 
     let effects = session.submit(Event::ReviewElectricalRemap {
@@ -335,8 +337,9 @@ fn protected_handoff_review_rejects_a_stale_fingerprint_without_saving() {
         effect,
         Effect::Settled {
             operation_id: OperationId(12),
-            outcome: TerminalOutcome::Rejected(message)
-        } if message.contains("handoff changed")
+            outcome: TerminalOutcome::Rejected(message),
+
+        ..} if message.contains("handoff changed")
     )));
     let accepted = session.read_model().accepted.as_ref().unwrap();
     assert_eq!(accepted.document.revision, 0);
@@ -386,8 +389,9 @@ fn retry_persists_retained_commit_without_replaying_engine_edit() {
         effect,
         Effect::Settled {
             operation_id: OperationId(1),
-            outcome: TerminalOutcome::Completed
-        }
+            outcome: TerminalOutcome::Completed,
+
+        ..}
     )));
 
     let event = Event::Edit {
@@ -433,8 +437,9 @@ fn retry_persists_retained_commit_without_replaying_engine_edit() {
         effect,
         Effect::Settled {
             operation_id: OperationId(2),
-            outcome: TerminalOutcome::PersistenceFailed(_)
-        }
+            outcome: TerminalOutcome::PersistenceFailed(_),
+
+        ..}
     )));
     assert_eq!(
         session
@@ -476,8 +481,9 @@ fn retry_persists_retained_commit_without_replaying_engine_edit() {
         effect,
         Effect::Settled {
             operation_id: OperationId(3),
-            outcome: TerminalOutcome::Completed
-        }
+            outcome: TerminalOutcome::Completed,
+
+        ..}
     )));
 
     let snapshot_request = CoreRequest::Snapshot {
@@ -630,8 +636,9 @@ fn queued_discrete_edits_use_each_preceding_durable_revision() {
         effect,
         Effect::Settled {
             operation_id: OperationId(12),
-            outcome: TerminalOutcome::Completed
-        }
+            outcome: TerminalOutcome::Completed,
+
+        ..}
     )));
 }
 
@@ -888,8 +895,9 @@ fn drag_coalesces_previews_and_commits_the_pointerup_sample_once() {
         effect,
         Effect::Settled {
             operation_id: OperationId(30),
-            outcome: TerminalOutcome::Completed
-        }
+            outcome: TerminalOutcome::Completed,
+
+        ..}
     )));
     assert!(
         matches!(engine.handle(CoreRequest::Undo { id: "undo-check".into() }), CoreReply::Scene { scene, document, .. } if scene.revision == 2 && document.parts[0].pose.at.x == 0.0)
@@ -922,8 +930,9 @@ fn uncertain_worker_outcome_is_never_replayed_and_requires_explicit_reopen() {
         effect,
         Effect::Settled {
             operation_id: OperationId(40),
-            outcome: TerminalOutcome::ExecutorFailed(_)
-        }
+            outcome: TerminalOutcome::ExecutorFailed(_),
+
+        ..}
     )));
     assert!(
         effects
@@ -987,8 +996,9 @@ fn uncertain_worker_outcome_is_never_replayed_and_requires_explicit_reopen() {
         effect,
         Effect::Settled {
             operation_id: OperationId(42),
-            outcome: TerminalOutcome::Completed
-        }
+            outcome: TerminalOutcome::Completed,
+
+        ..}
     )));
 }
 
@@ -1285,8 +1295,9 @@ fn cancelled_pointer_makes_late_preview_inert_and_releases_capture() {
         effect,
         Effect::Settled {
             operation_id: OperationId(60),
-            outcome: TerminalOutcome::Cancelled
-        }
+            outcome: TerminalOutcome::Cancelled,
+
+        ..}
     )));
     let stale_reply = engine.handle(preview_request);
     session.complete(Completion::Core {
@@ -1352,8 +1363,9 @@ fn same_id_revision_reopen_invalidates_generation_and_export_tokens() {
         effect,
         Effect::Settled {
             operation_id: OperationId(71),
-            outcome: TerminalOutcome::Cancelled
-        }
+            outcome: TerminalOutcome::Cancelled,
+
+        ..}
     )));
     let (request_id, epoch, request) = core_effect(&effects);
     let reply = engine.handle(request);
@@ -1487,7 +1499,8 @@ fn instance_navigation_updates_scope_and_cancels_in_flight_case_work() {
         Effect::Settled {
             operation_id: OperationId(13),
             outcome: TerminalOutcome::Completed,
-        }
+
+        ..}
     )));
     let physical_scope = session.scope().unwrap();
     assert_eq!(physical_scope.board_id, "main");
@@ -1504,7 +1517,8 @@ fn instance_navigation_updates_scope_and_cancels_in_flight_case_work() {
         Effect::Settled {
             operation_id: OperationId(14),
             outcome: TerminalOutcome::Completed,
-        }
+
+        ..}
     )));
     assert_eq!(session.scope().unwrap(), canonical_scope);
 
@@ -1522,7 +1536,8 @@ fn instance_navigation_updates_scope_and_cancels_in_flight_case_work() {
             Effect::Settled {
                 operation_id: id,
                 outcome: TerminalOutcome::Rejected(_),
-            } if *id == OperationId(operation_id)
+
+            ..} if *id == OperationId(operation_id)
         )));
         assert_eq!(session.scope().unwrap(), canonical_scope);
     }
@@ -1653,7 +1668,224 @@ fn generation_block_is_typed_and_stale_block_completion_is_ignored() {
         effect,
         Effect::Settled {
             operation_id: OperationId(80),
-            outcome: TerminalOutcome::Rejected(reason)
-        } if reason == "case has blocking findings"
+            outcome: TerminalOutcome::Rejected(reason),
+
+        ..} if reason == "case has blocking findings"
     )));
+}
+
+fn rename_edit_command(base_revision: u64, name: &str) -> EditCommand {
+    EditCommand {
+        base_revision,
+        transaction_id: format!("rename-{name}"),
+        phase: EditPhase::Commit,
+        target_ids: vec!["project".into()],
+        operation: EditOperation::ReplaceDocument {
+            document: Box::new(rename_document(base_revision, name)),
+        },
+    }
+}
+
+fn rename_document(base_revision: u64, name: &str) -> ProjectDoc {
+    let mut document = fixture();
+    document.revision = base_revision;
+    document.name = name.into();
+    document
+}
+
+fn settled_landing(effects: &[Effect], operation_id: OperationId) -> (TerminalOutcome, Option<Landing>) {
+    effects
+        .iter()
+        .find_map(|effect| match effect {
+            Effect::Settled {
+                operation_id: settled,
+                outcome,
+                landing,
+            } if *settled == operation_id => Some((outcome.clone(), landing.clone())),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("operation {operation_id:?} never settled"))
+}
+
+#[test]
+fn document_completions_carry_the_landing_of_the_installed_snapshot() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    let effects = session.submit(Event::Open {
+        operation_id: OperationId(1),
+        document: fixture(),
+    });
+    let (_, settled) = settle_core_and_save(&mut session, &mut engine, effects);
+    let (outcome, landing) = settled_landing(&settled, OperationId(1));
+    assert_eq!(outcome, TerminalOutcome::Completed);
+    let accepted = session.read_model().accepted.clone().unwrap();
+    let open_landing = landing.expect("the open reports where it landed");
+    assert_eq!(open_landing.revision, accepted.document.revision);
+    assert_eq!(open_landing.token, accepted.token);
+
+    let effects = session.submit(Event::Edit {
+        operation_id: OperationId(2),
+        command: rename_edit_command(0, "Renamed"),
+    });
+    let (_, settled) = settle_core_and_save(&mut session, &mut engine, effects);
+    let (outcome, landing) = settled_landing(&settled, OperationId(2));
+    assert_eq!(outcome, TerminalOutcome::Completed);
+    let accepted = session.read_model().accepted.clone().unwrap();
+    let edit_landing = landing.expect("the edit commit reports where it landed");
+    assert_eq!(edit_landing.revision, accepted.document.revision);
+    assert_eq!(edit_landing.token, accepted.token);
+    assert_ne!(edit_landing.token, open_landing.token, "each landing names its own snapshot");
+
+    let effects = session.submit(Event::Undo {
+        operation_id: OperationId(3),
+    });
+    let (_, settled) = settle_core_and_save(&mut session, &mut engine, effects);
+    let (outcome, landing) = settled_landing(&settled, OperationId(3));
+    assert_eq!(outcome, TerminalOutcome::Completed);
+    let accepted = session.read_model().accepted.clone().unwrap();
+    let undo_landing = landing.expect("the undo reports where it landed");
+    assert_eq!(accepted.document.name, "Project", "the undo restored the earlier name");
+    assert_eq!(undo_landing.revision, accepted.document.revision);
+    assert_eq!(undo_landing.token, accepted.token);
+
+    let effects = session.submit(Event::Redo {
+        operation_id: OperationId(4),
+    });
+    let (_, settled) = settle_core_and_save(&mut session, &mut engine, effects);
+    let (outcome, landing) = settled_landing(&settled, OperationId(4));
+    assert_eq!(outcome, TerminalOutcome::Completed);
+    let accepted = session.read_model().accepted.clone().unwrap();
+    let redo_landing = landing.expect("the redo reports where it landed");
+    assert_eq!(accepted.document.name, "Renamed", "the redo restored the edit");
+    assert_eq!(redo_landing.revision, accepted.document.revision);
+    assert_eq!(redo_landing.token, accepted.token);
+    assert_ne!(redo_landing.token, undo_landing.token, "each landing names its own snapshot");
+}
+
+#[test]
+fn retrying_a_failed_save_settles_the_retry_and_the_original_with_the_same_landing() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    let effects = session.submit(Event::Open {
+        operation_id: OperationId(1),
+        document: fixture(),
+    });
+    let (_, _) = settle_core_and_save(&mut session, &mut engine, effects);
+
+    let effects = session.submit(Event::Edit {
+        operation_id: OperationId(2),
+        command: rename_edit_command(0, "Renamed"),
+    });
+    let (request_id, executor_epoch, request) = core_effect(&effects);
+    let reply = engine.handle(request);
+    let effects = session.complete(Completion::Core {
+        request_id,
+        executor_epoch,
+        reply: Box::new(reply),
+    });
+    let (save_attempt_id, _) = save_effect(&effects);
+    let effects = session.complete(Completion::Persist {
+        save_attempt_id,
+        result: SaveResult::Aborted("quota".into()),
+    });
+    let (outcome, landing) = settled_landing(&effects, OperationId(2));
+    assert!(matches!(outcome, TerminalOutcome::PersistenceFailed(_)));
+    assert!(landing.is_none(), "a failed save has no landing");
+
+    let effects = session.submit(Event::RetrySave {
+        operation_id: OperationId(3),
+    });
+    let (retry_save_id, _) = save_effect(&effects);
+    let effects = session.complete(Completion::Persist {
+        save_attempt_id: retry_save_id,
+        result: SaveResult::Committed,
+    });
+    let accepted = session.read_model().accepted.clone().unwrap();
+    let (retry_outcome, retry_landing) = settled_landing(&effects, OperationId(3));
+    let (original_outcome, original_landing) = settled_landing(&effects, OperationId(2));
+    assert_eq!(retry_outcome, TerminalOutcome::Completed);
+    assert_eq!(original_outcome, TerminalOutcome::Completed);
+    let retry_landing = retry_landing.expect("the retry reports where it landed");
+    assert_eq!(retry_landing.revision, accepted.document.revision);
+    assert_eq!(retry_landing.token, accepted.token);
+    assert_eq!(
+        original_landing,
+        Some(retry_landing),
+        "the original edit operation reports the same landing"
+    );
+}
+
+#[test]
+fn non_document_completions_carry_no_landing() {
+    let mut document = fixture();
+    document.boards.push(Board {
+        id: "main".into(),
+        name: "Main".into(),
+        outline_ids: vec![],
+        part_ids: vec![],
+        net_ids: vec![],
+        thickness: 1.6,
+        traces: vec![],
+        vias: vec![],
+    });
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    let effects = session.submit(Event::Open {
+        operation_id: OperationId(1),
+        document,
+    });
+    let (_, _) = settle_core_and_save(&mut session, &mut engine, effects);
+
+    let effects = session.submit(Event::SelectParts {
+        operation_id: OperationId(2),
+        mode: SelectionMode::Replace,
+        part_ids: vec!["key".into()],
+        range_part_ids: Vec::new(),
+    });
+    let (outcome, landing) = settled_landing(&effects, OperationId(2));
+    assert_eq!(outcome, TerminalOutcome::Completed);
+    assert!(landing.is_none(), "selection changes no document");
+
+    let effects = session.submit(Event::Navigate {
+        operation_id: OperationId(3),
+        board_id: "main".into(),
+        instance_id: None,
+    });
+    let (outcome, landing) = settled_landing(&effects, OperationId(3));
+    assert_eq!(outcome, TerminalOutcome::Completed);
+    assert!(landing.is_none(), "navigation changes no document");
+
+    let effects = session.submit(Event::SetCamera {
+        operation_id: OperationId(4),
+        center: Vec2 { x: 0.0, y: 0.0 },
+        zoom: 1.0,
+    });
+    let (outcome, landing) = settled_landing(&effects, OperationId(4));
+    assert_eq!(outcome, TerminalOutcome::Completed);
+    assert!(landing.is_none(), "camera changes no document");
+}
+
+#[test]
+fn rejections_and_closing_carry_no_landing() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    let effects = session.submit(Event::Open {
+        operation_id: OperationId(1),
+        document: fixture(),
+    });
+    let (_, _) = settle_core_and_save(&mut session, &mut engine, effects);
+
+    let effects = session.submit(Event::RetrySave {
+        operation_id: OperationId(2),
+    });
+    let (outcome, landing) = settled_landing(&effects, OperationId(2));
+    assert!(matches!(outcome, TerminalOutcome::Rejected(_)));
+    assert!(landing.is_none(), "a rejected operation has no landing");
+
+    let effects = session.submit(Event::Close {
+        operation_id: OperationId(3),
+    });
+    let (outcome, landing) = settled_landing(&effects, OperationId(3));
+    assert_eq!(outcome, TerminalOutcome::Completed);
+    assert!(landing.is_none(), "closing is not a document landing");
 }

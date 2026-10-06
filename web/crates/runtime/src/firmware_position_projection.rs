@@ -433,8 +433,9 @@ mod tests {
             effect,
             Effect::Settled {
                 operation_id: OperationId(1),
-                outcome: TerminalOutcome::Completed
-            }
+                outcome: TerminalOutcome::Completed,
+
+            ..}
         )));
         (session, engine)
     }
@@ -561,7 +562,8 @@ mod tests {
                 Effect::Settled {
                     operation_id: id,
                     outcome,
-                } if *id == operation_id => Some(outcome.clone()),
+
+                ..} if *id == operation_id => Some(outcome.clone()),
                 _ => None,
             })
             .expect("the exact submitted operation settles");
