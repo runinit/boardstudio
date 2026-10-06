@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Verify download integrity, cache reuse and build failure propagation."""
+import contextlib
 import hashlib
+import importlib.util
 import io
 from pathlib import Path
 import subprocess
@@ -9,6 +11,10 @@ import unittest
 from unittest.mock import patch
 
 import cadrum_build as build
+
+_spec = importlib.util.spec_from_file_location("cadrum_browser", Path(__file__).with_name("test-cadrum-browser.py"))
+browser = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(browser)
 
 
 class CadrumBuildTests(unittest.TestCase):
@@ -103,6 +109,28 @@ class CadrumBuildTests(unittest.TestCase):
                 build.test_cadrum()
         self.assertEqual(run.call_count, 2)
         wasm.assert_not_called()
+
+class BrowserSmokeParserTests(unittest.TestCase):
+    def test_result_is_read_from_the_rendered_page_and_unescaped(self):
+        dom = '<html><pre id="result">{"ok":true,"error":null,"checks":[{"name":"a &amp; b","ok":true,"detail":"1 &lt; 2"}]}</pre></html>'
+        result = browser.parse_result(dom)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["checks"][0]["name"], "a & b")
+        self.assertEqual(result["checks"][0]["detail"], "1 < 2")
+
+    def test_missing_or_unfinished_page_is_an_error_not_a_pass(self):
+        with self.assertRaisesRegex(RuntimeError, "did not render"):
+            browser.parse_result("<html></html>")
+        with self.assertRaisesRegex(RuntimeError, "never finished"):
+            browser.parse_result('<pre id="result">pending</pre>')
+
+    def test_a_failed_check_makes_the_run_fail(self):
+        failing = '{"ok":false,"error":null,"checks":[{"name":"x","ok":false,"detail":"d"}]}'
+        with patch.object(browser, "serve"), patch.object(browser, "run_page", return_value=subprocess.CompletedProcess([], 0, f'<pre id="result">{failing}</pre>', "")), patch.object(browser.Path, "exists", return_value=True):
+            with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as raised:
+                browser.main()
+        self.assertEqual(raised.exception.code, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

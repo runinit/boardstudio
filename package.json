@@ -23,11 +23,12 @@
     "check:repo": "node --test scripts/repo-check.test.mjs && node scripts/repo-check.mjs",
     "check": "pnpm run check:repo && pnpm run check:contracts && pnpm run test:contracts && pnpm run test:tooling && pnpm run build && pnpm run test && pnpm run typecheck && pnpm run check:boundaries && pnpm run test:browser",
     "check:security": "python3 -B scripts/security-audit.test.py && python3 scripts/security-audit.py",
-    "test:browser": "python3 scripts/check-wasm-tests.py && pnpm run test:browser:storage && pnpm run test:browser:prepare && python3 scripts/run-wasm-tests.py --all --depth 1 --isolate presentation::case_workspace:: --isolate presentation::setup_guide:: --isolate presentation::panels:: --result-json web/target/test-results/browser.json",
+    "test:browser": "python3 scripts/check-wasm-tests.py && pnpm run test:browser:cad && pnpm run test:browser:storage && pnpm run test:browser:prepare && python3 scripts/run-wasm-tests.py --all --depth 1 --isolate presentation::case_workspace:: --isolate presentation::setup_guide:: --isolate presentation::panels:: --result-json web/target/test-results/browser.json",
     "build:providers": "python3 scripts/build-web.py --providers-only",
     "preview": "python3 scripts/serve-web.py web/target/site 4173",
     "test:browser:prepare": "wasm-pack test --headless --chrome web --locked --no-default-features --features page --bin boardstudio-web -- --list",
     "test:tooling": "python3 -B cad/scripts/test-cadrum-build.py && python3 -B scripts/test-build-web.py && python3 -B scripts/test-serve-web.py && python3 -B scripts/test-dev-web.py && python3 -B scripts/test-run-wasm-tests.py && python3 -B scripts/test-check-wasm-tests.py && python3 -B scripts/test-stage-ergogen-models.py && node --test scripts/import-kicad-parts.test.mjs",
+    "test:browser:cad": "python3 cad/scripts/test-cadrum-browser.py",
     "test:browser:storage": "wasm-pack test --headless --chrome web --locked --no-default-features --features page --lib -- host::storage::"
   },
   "devDependencies": {

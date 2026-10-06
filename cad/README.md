@@ -31,7 +31,10 @@ adapter-independent from the production Cadrum reader (which sews orphan faces)
 but **not kernel-independent**: it uses the same OCCT 8.0.1 archive. Independent
 kernel evidence comes from the pinned FreeCAD measurements and analytic expectations
 in the fixtures. Native tests cannot prove WASM bindings, worker transfer or
-cancellation; those stay with the browser tests (`pnpm test:browser`).
+cancellation; the Rust worker tests (`pnpm test:browser`) own transport, and
+`python3 cad/scripts/test-cadrum-browser.py` runs the real WASM bindings in headless
+Chromium (result shapes, STEP import bounds and rejection, buffer ownership). Run it
+after `build-cadrum-wasm.py`.
 
 The first build downloads target-specific OCCT 8.0.1 archives and verifies their
 SHA-256 digests before extraction. The WASM build requires Podman or Docker;
