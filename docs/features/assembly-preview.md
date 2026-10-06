@@ -46,7 +46,7 @@ placements are not automatically migrated to the new presets.
 
 ## Implementation ownership
 
-The Dioxus [Parts preview](../../web/src/presentation/parts/preview.rs) owns sample
+The Dioxus [Parts preview](../../web/crates/parts/src/parts/preview.rs) owns sample
 request freshness, generation leases and local visibility.
 [SharedViewer](../../web/crates/case/src/shared_viewer.rs) projects Parts, Layout
 and Case sources for the renderer and handles renderer lifecycle events.
@@ -54,7 +54,7 @@ and Case sources for the renderer and handles renderer lifecycle events.
 document edits remain in Session/Core. Export model packaging is a separate
 operation.
 
-The [assembly editor](../../web/src/presentation/parts/assembly_editor.rs) owns
+The [assembly editor](../../web/crates/parts/src/parts/assembly_editor.rs) owns
 editable Parts drafts. These presentation modules replace the retired React
 `AssemblyViewer` and `ModelPreviewBoundary` owners. See
 [architecture](../architecture.md) for the wider ownership map.

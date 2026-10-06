@@ -3,7 +3,7 @@ use boardstudio_core::model::PartDefinition;
 use dioxus::prelude::*;
 
 #[component]
-pub(super) fn SelectedDefinition(entry: Option<CatalogEntry>) -> Element {
+pub fn SelectedDefinition(entry: Option<CatalogEntry>) -> Element {
     let Some(entry) = entry else {
         return rsx! {
             section { class: "m1-parts-details", "aria-label": "Selected component",

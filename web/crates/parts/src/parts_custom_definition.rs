@@ -95,7 +95,7 @@ mod ui {
     }
 
     #[cfg(test)]
-    pub(super) fn set_pad_number_draft_for_test(value: &str) -> bool {
+    pub fn set_pad_number_draft_for_test(value: &str) -> bool {
         PAD_NUMBER_DRAFT_FOR_TEST.with(|draft| {
             let Some(mut draft) = *draft.borrow() else {
                 return false;
@@ -106,12 +106,12 @@ mod ui {
     }
 
     #[cfg(test)]
-    pub(super) fn clear_pad_number_draft_for_test() {
+    pub fn clear_pad_number_draft_for_test() {
         PAD_NUMBER_DRAFT_FOR_TEST.with(|draft| *draft.borrow_mut() = None);
     }
 
     #[component]
-    pub(crate) fn CustomDefinitionFields(
+    pub fn CustomDefinitionFields(
         snapshot: AcceptedSnapshot,
         scope: Option<Scope>,
         selection: Signal<Option<(Option<Scope>, String)>>,
@@ -542,20 +542,20 @@ mod ui {
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]
-pub(crate) fn set_pad_number_draft_for_test(value: &str) -> bool {
+pub fn set_pad_number_draft_for_test(value: &str) -> bool {
     ui::set_pad_number_draft_for_test(value)
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]
-pub(crate) fn clear_pad_number_draft_for_test() {
+pub fn clear_pad_number_draft_for_test() {
     ui::clear_pad_number_draft_for_test();
 }
 
 #[cfg(target_arch = "wasm32")]
-pub(crate) use ui::CustomDefinitionFields;
+pub use ui::CustomDefinitionFields;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct DefinitionFieldsCapture {
+pub struct DefinitionFieldsCapture {
     scope: Option<Scope>,
     definition_id: String,
     session_epoch: SessionEpoch,
@@ -565,7 +565,7 @@ pub(crate) struct DefinitionFieldsCapture {
 }
 
 impl DefinitionFieldsCapture {
-    pub(crate) fn new(
+    pub fn new(
         snapshot: &AcceptedSnapshot,
         scope: Option<Scope>,
         definition: &PartDefinition,
@@ -582,13 +582,13 @@ impl DefinitionFieldsCapture {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Axis {
+pub enum Axis {
     X,
     Y,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum DefinitionEdit {
+pub enum DefinitionEdit {
     Kind(PartKind),
     CourtyardWidth(String),
     CourtyardHeight(String),
@@ -624,7 +624,7 @@ pub(crate) enum DefinitionEdit {
     },
 }
 
-pub(crate) fn apply_definition_edit(
+pub fn apply_definition_edit(
     current: &AcceptedSnapshot,
     current_scope: Option<Scope>,
     current_selection: Option<(Option<Scope>, String)>,

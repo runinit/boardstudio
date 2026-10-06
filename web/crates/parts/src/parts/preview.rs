@@ -104,7 +104,7 @@ struct Visibility {
 /// The Parts slot supplies accepted immutable source identity; this component
 /// owns only its transient generator request and visibility controls.
 #[component]
-pub(in crate::presentation) fn PartsPreviewPanel(
+pub fn PartsPreviewPanel(
     definition: Option<Rc<PartDefinition>>,
     recipe: Vec<crate::parts_preview::PartsPreviewRecipeMember>,
     recipe_error: Option<String>,

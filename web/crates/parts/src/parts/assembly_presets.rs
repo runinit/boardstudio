@@ -5,7 +5,7 @@ use boardstudio_core::model::{
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in crate::presentation) enum MatrixPresetId {
+pub enum MatrixPresetId {
     MxSolder,
     MxHotswap,
     ChocSolder,
@@ -17,23 +17,23 @@ pub(in crate::presentation) enum MatrixPresetId {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(in crate::presentation) enum SwitchOrientation {
+pub enum SwitchOrientation {
     #[default]
     South,
     North,
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct Preset {
-    pub(super) id: MatrixPresetId,
-    pub(super) name: &'static str,
-    pub(super) definition_id: &'static str,
+pub struct Preset {
+    pub id: MatrixPresetId,
+    pub name: &'static str,
+    pub definition_id: &'static str,
     family: &'static str,
     hotswap: bool,
     led: bool,
 }
 
-pub(super) const PRESETS: [Preset; 8] = [
+pub const PRESETS: [Preset; 8] = [
     Preset {
         id: MatrixPresetId::MxSolder,
         name: "MX Solder",
@@ -100,7 +100,7 @@ pub(super) const PRESETS: [Preset; 8] = [
     },
 ];
 
-pub(super) fn name(id: MatrixPresetId) -> &'static str {
+pub fn name(id: MatrixPresetId) -> &'static str {
     preset(id).name
 }
 
@@ -111,7 +111,7 @@ fn preset(id: MatrixPresetId) -> &'static Preset {
         .expect("all preset ids are listed")
 }
 
-pub(super) async fn resolve(
+pub async fn resolve(
     id: MatrixPresetId,
     entries: &[CatalogEntry],
     reversible: bool,
@@ -152,7 +152,7 @@ pub(super) async fn resolve(
 /// Resolve the library recipe used to start a customizable assembly. It uses
 /// the same preset member construction as preview, but the reference creates a
 /// single-sided assembly from library definitions even in reversible layouts.
-pub(super) fn customization_recipe(
+pub fn customization_recipe(
     id: MatrixPresetId,
     definitions: &[PartDefinition],
     orientation: SwitchOrientation,
@@ -292,7 +292,7 @@ fn member(
 /// geometry and enabled state, matching the pinned `matrixWithAssembly` helper.
 /// Definitions receive operation-specific snapshot identities so Core can
 /// commit recipe edits without changing already-placed part snapshots.
-pub(in crate::presentation) fn matrix_with_assembly(
+pub fn matrix_with_assembly(
     matrix: &Matrix,
     assembly: &AssemblyDefinition,
     catalogue_definitions: &[PartDefinition],
@@ -471,7 +471,7 @@ pub(in crate::presentation) fn matrix_with_assembly(
 /// Reproduces the React editor's selected-board placement as one accepted
 /// project proposal. Each assembly member gets an immutable definition/part
 /// snapshot; later recipe edits therefore cannot move existing placements.
-pub(super) fn document_with_assembly(
+pub fn document_with_assembly(
     document: &ProjectDoc,
     assembly: &AssemblyDefinition,
     source_definitions: &[PartDefinition],
@@ -668,7 +668,7 @@ pub(super) fn document_with_assembly(
 
 /// Retain unrelated accepted changes made while definition normalization was
 /// in flight, and attach only this operation's assembly snapshots and assets.
-pub(super) fn rebase_assembly_placement(
+pub fn rebase_assembly_placement(
     latest: &ProjectDoc,
     proposal: &ProjectDoc,
     draft_assets: &[Asset],

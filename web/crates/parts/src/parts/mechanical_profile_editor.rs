@@ -22,18 +22,18 @@ enum ContourField {
     Clearances,
 }
 
-pub(super) type StandardProfileFuture =
+pub type StandardProfileFuture =
     std::pin::Pin<Box<dyn std::future::Future<Output = Result<MechanicalPartProfile, String>>>>;
-pub(super) type StandardProfileRequester = Rc<
+pub type StandardProfileRequester = Rc<
     dyn Fn(
         String,
         MechanicalSwitchFamily,
         f64,
     ) -> (boardstudio_application::OperationId, StandardProfileFuture),
 >;
-pub(super) type MechanicalExtractionFuture =
+pub type MechanicalExtractionFuture =
     std::pin::Pin<Box<dyn std::future::Future<Output = Result<MechanicalExtraction, String>>>>;
-pub(super) type MechanicalExtractionRequester = Rc<
+pub type MechanicalExtractionRequester = Rc<
     dyn Fn(
         String,
         Vec<MechanicalPurposeMapping>,
@@ -42,18 +42,18 @@ pub(super) type MechanicalExtractionRequester = Rc<
         MechanicalExtractionFuture,
     ),
 >;
-pub(super) type DetachedProfileSpawner =
+pub type DetachedProfileSpawner =
     Rc<dyn Fn(std::pin::Pin<Box<dyn std::future::Future<Output = ()>>>)>;
-pub(super) type CurrentProfileScope = Rc<dyn Fn() -> Option<Scope>>;
-pub(super) type AcceptedProfileOwner = Rc<dyn Fn(&ProfileEditOwner) -> bool>;
+pub type CurrentProfileScope = Rc<dyn Fn() -> Option<Scope>>;
+pub type AcceptedProfileOwner = Rc<dyn Fn(&ProfileEditOwner) -> bool>;
 
 #[derive(Clone)]
-pub(super) struct ManualProfileEditorPorts {
-    pub(super) request_standard_profile: StandardProfileRequester,
-    pub(super) request_mechanical_extraction: MechanicalExtractionRequester,
-    pub(super) spawn_detached: DetachedProfileSpawner,
-    pub(super) current_scope: CurrentProfileScope,
-    pub(super) accepted_owner_is_current: AcceptedProfileOwner,
+pub struct ManualProfileEditorPorts {
+    pub request_standard_profile: StandardProfileRequester,
+    pub request_mechanical_extraction: MechanicalExtractionRequester,
+    pub spawn_detached: DetachedProfileSpawner,
+    pub current_scope: CurrentProfileScope,
+    pub accepted_owner_is_current: AcceptedProfileOwner,
 }
 
 impl PartialEq for ManualProfileEditorPorts {
@@ -77,7 +77,7 @@ impl PartialEq for ManualProfileEditorPorts {
 impl Eq for ManualProfileEditorPorts {}
 
 #[component]
-pub(super) fn ManualProfileEditor(
+pub fn ManualProfileEditor(
     definition: PartDefinition,
     initial: Option<MechanicalPartProfile>,
     owner: ProfileEditOwner,

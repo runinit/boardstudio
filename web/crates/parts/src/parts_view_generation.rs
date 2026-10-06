@@ -3,7 +3,7 @@
 use dioxus::prelude::*;
 
 #[component]
-pub(crate) fn PartsViewGenerationOwner(
+pub fn PartsViewGenerationOwner(
     workspace: Signal<&'static str>,
     view_generation: Signal<u64>,
 ) -> Element {

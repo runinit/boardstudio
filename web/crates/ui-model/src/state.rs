@@ -147,3 +147,20 @@ pub struct PendingNewKeyboard {
     pub project_id: String,
     pub outcome: OutcomeSlot,
 }
+
+/// A catalogue choice the Parts browser hands to the Layout placement owner.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ComponentPlacementAction {
+    AddObject {
+        definition_id: String,
+        kind: boardstudio_core::model::PartKind,
+    },
+    AddSourceObject {
+        module_definition_id: String,
+        definition: boardstudio_core::model::PartDefinition,
+    },
+    PartsInspector {
+        definition_id: String,
+        kind: boardstudio_core::model::PartKind,
+    },
+}

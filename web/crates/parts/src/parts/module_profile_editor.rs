@@ -301,7 +301,7 @@ fn rotary_profile_from_draft(draft: &ModuleRotaryDraft) -> Result<RotaryProfile,
 }
 
 #[component]
-pub(super) fn ModuleProfileEditor(
+pub fn ModuleProfileEditor(
     snapshot: AcceptedSnapshot,
     definition: ModuleDefinition,
     project_owned: bool,

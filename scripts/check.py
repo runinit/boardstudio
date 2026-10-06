@@ -66,6 +66,7 @@ def browser() -> list[Command]:
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/keymap", "--locked", "--lib"],
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/catalogue", "--locked", "--lib"],
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/case", "--locked", "--lib"],
+        ["wasm-pack", "test", "--headless", "--chrome", "web/crates/parts", "--locked", "--lib"],
         [*wasm_pack, "--bin", "boardstudio-web", "--", "--list"],
         [PY, "scripts/run-wasm-tests.py", "--all", "--depth", "1", *[f"--isolate={name}" for name in ISOLATED],
          "--result-json", "web/target/test-results/browser.json"],

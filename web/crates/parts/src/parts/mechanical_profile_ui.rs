@@ -19,7 +19,7 @@ use std::rc::Rc;
 use wasm_bindgen_futures::spawn_local;
 
 #[component]
-pub(crate) fn PartsMechanicalProfileWorkspace(
+pub fn PartsMechanicalProfileWorkspace(
     snapshot: AcceptedSnapshot,
     scope: Option<Scope>,
     mut selection: Signal<Option<(Option<Scope>, String)>>,

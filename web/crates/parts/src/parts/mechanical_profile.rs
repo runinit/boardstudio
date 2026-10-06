@@ -7,24 +7,24 @@ use boardstudio_core::model::{
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ProfileDefinitionSource {
+pub enum ProfileDefinitionSource {
     Generator,
     Imported,
     Project,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct ProfileEditOwner {
-    pub(crate) view_id: OperationId,
-    pub(crate) scope: Option<Scope>,
-    pub(crate) session_epoch: SessionEpoch,
-    pub(crate) document_id: String,
-    pub(crate) definition_id: String,
-    pub(crate) source: ProfileDefinitionSource,
+pub struct ProfileEditOwner {
+    pub view_id: OperationId,
+    pub scope: Option<Scope>,
+    pub session_epoch: SessionEpoch,
+    pub document_id: String,
+    pub definition_id: String,
+    pub source: ProfileDefinitionSource,
 }
 
 impl ProfileEditOwner {
-    pub(crate) fn new(
+    pub fn new(
         view_id: OperationId,
         snapshot: &AcceptedSnapshot,
         scope: Option<Scope>,
@@ -43,24 +43,24 @@ impl ProfileEditOwner {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct ProfileEditCapture {
+pub struct ProfileEditCapture {
     owner: ProfileEditOwner,
     definition: PartDefinition,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct StandardProfileRequestCapture {
-    pub(crate) operation_id: OperationId,
-    pub(crate) owner: ProfileEditOwner,
-    pub(crate) definition: PartDefinition,
-    pub(crate) family: MechanicalSwitchFamily,
-    pub(crate) plate_to_pcb: f64,
-    pub(crate) scope_generation: u64,
-    pub(crate) selection_generation: u64,
+pub struct StandardProfileRequestCapture {
+    pub operation_id: OperationId,
+    pub owner: ProfileEditOwner,
+    pub definition: PartDefinition,
+    pub family: MechanicalSwitchFamily,
+    pub plate_to_pcb: f64,
+    pub scope_generation: u64,
+    pub selection_generation: u64,
 }
 
 impl StandardProfileRequestCapture {
-    pub(crate) fn new(
+    pub fn new(
         operation_id: OperationId,
         owner: ProfileEditOwner,
         definition: PartDefinition,
@@ -82,7 +82,7 @@ impl StandardProfileRequestCapture {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn standard_profile_request_is_current(
+pub fn standard_profile_request_is_current(
     request: &StandardProfileRequestCapture,
     pending_operation: Option<OperationId>,
     current_owner: &ProfileEditOwner,
@@ -109,7 +109,7 @@ pub(crate) fn standard_profile_request_is_current(
         && selection_generation == request.selection_generation
 }
 
-pub(crate) fn standard_profile_source_and_gap(
+pub fn standard_profile_source_and_gap(
     family: MechanicalSwitchFamily,
 ) -> (MechanicalBuiltinProfile, f64) {
     match family {
@@ -121,7 +121,7 @@ pub(crate) fn standard_profile_source_and_gap(
 
 /// Keep the selector and the reusable built-in action's eligibility separate:
 /// any switch can select a family, while any saved family can reload its fit.
-pub(crate) fn standard_profile_controls(
+pub fn standard_profile_controls(
     definition: &PartDefinition,
     profile: &MechanicalPartProfile,
 ) -> (bool, bool) {
@@ -131,7 +131,7 @@ pub(crate) fn standard_profile_controls(
     )
 }
 
-pub(crate) fn dispatch_standard_profile_family(
+pub fn dispatch_standard_profile_family(
     value: &str,
     load_standard: impl FnOnce(MechanicalSwitchFamily),
 ) -> bool {
@@ -145,7 +145,7 @@ pub(crate) fn dispatch_standard_profile_family(
     true
 }
 
-pub(crate) fn standard_profile_reply_matches(
+pub fn standard_profile_reply_matches(
     reply: CoreReply,
     request_id: &str,
     definition_id: &str,
@@ -170,7 +170,7 @@ pub(crate) fn standard_profile_reply_matches(
     }
 }
 
-pub(crate) fn merge_standard_profile(
+pub fn merge_standard_profile(
     draft: &mut MechanicalPartProfile,
     mut loaded: MechanicalPartProfile,
     family: MechanicalSwitchFamily,
@@ -204,13 +204,13 @@ pub(crate) fn merge_standard_profile(
 }
 
 #[derive(Clone)]
-pub(crate) struct PendingProfileEdit {
+pub struct PendingProfileEdit {
     owner: ProfileEditOwner,
     outcome: crate::operation_outcomes::OutcomeSlot,
 }
 
 impl PendingProfileEdit {
-    pub(crate) fn new(
+    pub fn new(
         owner: ProfileEditOwner,
         outcome: crate::operation_outcomes::OutcomeSlot,
     ) -> Self {
@@ -219,7 +219,7 @@ impl PendingProfileEdit {
 
     /// Retire this exact operation observation once it settles or its Parts view
     /// owner changes. No terminal branch publishes feedback in the editor.
-    pub(crate) fn should_retire(
+    pub fn should_retire(
         &self,
         current_owner: &ProfileEditOwner,
         current_scope: &Option<Scope>,
@@ -230,16 +230,16 @@ impl PendingProfileEdit {
     }
 }
 
-pub(crate) struct ProfileEditContext<'a> {
-    pub(crate) snapshot: &'a AcceptedSnapshot,
-    pub(crate) owner: &'a ProfileEditOwner,
-    pub(crate) runtime_scope: Option<Scope>,
-    pub(crate) selection: Option<(Option<Scope>, String)>,
-    pub(crate) definition: &'a PartDefinition,
+pub struct ProfileEditContext<'a> {
+    pub snapshot: &'a AcceptedSnapshot,
+    pub owner: &'a ProfileEditOwner,
+    pub runtime_scope: Option<Scope>,
+    pub selection: Option<(Option<Scope>, String)>,
+    pub definition: &'a PartDefinition,
 }
 
 impl ProfileEditCapture {
-    pub(crate) fn new(owner: ProfileEditOwner, definition: PartDefinition) -> Self {
+    pub fn new(owner: ProfileEditOwner, definition: PartDefinition) -> Self {
         Self { owner, definition }
     }
 }
@@ -247,7 +247,7 @@ impl ProfileEditCapture {
 /// Resolve the local draft's commit against the latest accepted document. The
 /// selected source definition is immutable; unrelated accepted edits rebase,
 /// while a changed target or owner is silently rejected.
-pub(crate) fn prepare_profile_edit(
+pub fn prepare_profile_edit(
     current: ProfileEditContext<'_>,
     capture: &ProfileEditCapture,
     profile: MechanicalPartProfile,
@@ -306,7 +306,7 @@ pub(crate) fn prepare_profile_edit(
     })
 }
 
-pub(crate) fn initial_profile(
+pub fn initial_profile(
     definition: &PartDefinition,
     existing: Option<&MechanicalPartProfile>,
 ) -> MechanicalPartProfile {
@@ -336,7 +336,7 @@ pub(crate) fn initial_profile(
     }
 }
 
-pub(crate) fn displayed_mounting_gap(profile: &MechanicalPartProfile) -> Option<String> {
+pub fn displayed_mounting_gap(profile: &MechanicalPartProfile) -> Option<String> {
     profile
         .switch_family
         .map(|_| format!("{:.2}", profile.plate_to_pcb))

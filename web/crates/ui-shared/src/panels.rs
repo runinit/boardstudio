@@ -9,6 +9,25 @@ use web_sys::{Document, HtmlElement, MediaQueryList, Node, PointerEvent, Storage
 
 mod policy;
 
+/// Open the Parts workspace with its browser panel visible.
+pub fn browse_parts_workspace(
+    mut workspace: Signal<&'static str>,
+    mut compact_open: Signal<bool>,
+    mut settings: Signal<PanelSettings>,
+    compact: bool,
+) {
+    workspace.set("Parts");
+    if compact {
+        compact_open.set(true);
+        return;
+    }
+    let mut current = settings();
+    if current.mode != PanelMode::Pinned {
+        current.mode = PanelMode::Pinned;
+        settings.set(current);
+    }
+}
+
 /// Apply ordinary workspace panel defaults without overriding an explicit reveal.
 pub fn use_workspace_panel_defaults(
     workspace: &'static str,

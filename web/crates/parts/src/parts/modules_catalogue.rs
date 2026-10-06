@@ -11,12 +11,12 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 
-pub(in crate::presentation) mod module_attachment;
+pub mod module_attachment;
 
 const MODULES_ASSET: &str = "assets/imported-modules.json";
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct ModuleEntry {
+pub struct ModuleEntry {
     pub row: String,
     pub definition: Rc<ModuleDefinition>,
     source: EntrySource,
@@ -29,7 +29,7 @@ enum EntrySource {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct ModuleGroup {
+pub struct ModuleGroup {
     pub row: String,
     pub name: String,
     pub entries: Vec<ModuleEntry>,
@@ -88,13 +88,13 @@ struct ModuleCatalogueResult {
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
-pub(super) struct ModuleCatalogueView {
+pub struct ModuleCatalogueView {
     pub entries: Option<Rc<Vec<ModuleEntry>>>,
     pub error: Option<String>,
     pub pending: bool,
 }
 
-pub(super) fn use_catalogue(
+pub fn use_catalogue(
     active: bool,
     token: SnapshotToken,
     project: Vec<ModuleDefinition>,
@@ -205,7 +205,7 @@ async fn load_bundled() -> Result<Rc<Vec<ModuleEntry>>, String> {
     Ok(entries)
 }
 
-pub(super) async fn load_horizontal_host_connector_definition() -> Result<PartDefinition, String> {
+pub async fn load_horizontal_host_connector_definition() -> Result<PartDefinition, String> {
     let entries = load_bundled().await?;
     let source = entries
         .iter()
@@ -325,7 +325,7 @@ fn merge_project_overrides(
     entries
 }
 
-pub(super) fn group_choices(entries: &[ModuleEntry]) -> Vec<ModuleGroup> {
+pub fn group_choices(entries: &[ModuleEntry]) -> Vec<ModuleGroup> {
     let mut groups = Vec::<ModuleGroup>::new();
     let mut positions = HashMap::<String, usize>::new();
     for entry in entries {
@@ -343,7 +343,7 @@ pub(super) fn group_choices(entries: &[ModuleEntry]) -> Vec<ModuleGroup> {
     groups
 }
 
-pub(super) fn variants(entries: &[ModuleEntry], row: &str) -> Vec<ModuleEntry> {
+pub fn variants(entries: &[ModuleEntry], row: &str) -> Vec<ModuleEntry> {
     entries
         .iter()
         .filter(|entry| entry.row == row)
@@ -351,7 +351,7 @@ pub(super) fn variants(entries: &[ModuleEntry], row: &str) -> Vec<ModuleEntry> {
         .collect()
 }
 
-pub(super) fn selected_id(
+pub fn selected_id(
     selection: Option<(Option<Scope>, String)>,
     scope: &Option<Scope>,
 ) -> Option<String> {
@@ -373,7 +373,7 @@ struct CircuitPartPreview {
 
 /// Read-only rendering of the selected module snapshot's own board and circuit source geometry.
 #[component]
-pub(super) fn ModuleSourcePreview(module: ModuleEntry) -> Element {
+pub fn ModuleSourcePreview(module: ModuleEntry) -> Element {
     let definition = &module.definition;
     let board_points = definition
         .board
@@ -515,7 +515,7 @@ pub(super) fn ModuleSourcePreview(module: ModuleEntry) -> Element {
 }
 
 #[component]
-pub(super) fn ModuleInspector(
+pub fn ModuleInspector(
     snapshot: AcceptedSnapshot,
     module: ModuleEntry,
     variants: Vec<ModuleEntry>,

@@ -1,7 +1,7 @@
 //! Parts catalogue, selected-definition editing and placement presentation.
 mod assembly_editor;
 mod assembly_presets;
-pub(super) use boardstudio_web_catalogue::bundled::{
+pub use boardstudio_web_catalogue::bundled::{
     generator_parameter_schema, is_generator_source, load_all_catalogue_definitions,
     load_component_definition, load_matrix_templates, normalize_matrix_definition,
     prepare_physical_setup_proposal, reversible_layout,
@@ -16,14 +16,27 @@ mod mechanical_profile_editor;
 mod mechanical_profile_ui;
 mod module_profile_editor;
 mod modules_catalogue;
-pub(super) use modules_catalogue::module_attachment::AttachedModuleNavigation;
+pub use modules_catalogue::module_attachment::AttachedModuleNavigation;
 mod preview;
 mod standard_profile_lifetime;
-pub(in crate::presentation) use assembly_presets::MatrixPresetId;
-pub(in crate::presentation) use assembly_presets::SwitchOrientation;
-pub(in crate::presentation) use assembly_presets::matrix_with_assembly;
+pub use assembly_presets::MatrixPresetId;
 
-pub(super) fn matrix_setup_preset(
+/// Data source for the existing Layout matrix-placement lifecycle. Saved
+/// assembly recipes carry only their source definitions; Core still validates
+/// and commits the matrix plus definition snapshots through SetMatrix.
+#[derive(Clone, Debug, PartialEq)]
+pub enum MatrixPlacementSource {
+    Preset(MatrixPresetId),
+    Assembly {
+        assembly: boardstudio_core::model::AssemblyDefinition,
+        definitions: Vec<boardstudio_core::model::PartDefinition>,
+    },
+}
+
+pub use assembly_presets::SwitchOrientation;
+pub use assembly_presets::matrix_with_assembly;
+
+pub fn matrix_setup_preset(
     preset: assembly_presets::MatrixPresetId,
 ) -> crate::matrix_setup_operation::MatrixSetupPreset {
     use crate::matrix_setup_operation::MatrixSetupPreset as SetupPreset;
@@ -39,7 +52,7 @@ pub(super) fn matrix_setup_preset(
         PartsPreset::ChocHotswapRgb => SetupPreset::ChocHotswapRgb,
     }
 }
-pub(super) use generator_settings::GeneratorPreviewStatus;
+pub use generator_settings::GeneratorPreviewStatus;
 
 #[cfg(any(target_arch = "wasm32", test))]
 use mechanical_profile_editor::{
@@ -47,8 +60,8 @@ use mechanical_profile_editor::{
     ManualProfileEditorPorts, MechanicalExtractionFuture, MechanicalExtractionRequester,
     StandardProfileFuture, StandardProfileRequester,
 };
-pub(in crate::presentation) use preview::PartsPreviewPanel;
-pub(super) use standard_profile_lifetime::PartsStandardProfileLifetime;
+pub use preview::PartsPreviewPanel;
+pub use standard_profile_lifetime::PartsStandardProfileLifetime;
 #[cfg(all(test, target_arch = "wasm32"))]
 mod placement_action_tests;
 
@@ -64,25 +77,23 @@ use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 /// Parent-owned interaction state keeps the reference library query and choice
 /// alive while the editor switches between workspaces.
-pub(super) type PartsQuery = Signal<String>;
-pub(super) type PartsSelection = Signal<Option<(Option<Scope>, String)>>;
+pub type PartsQuery = Signal<String>;
+pub type PartsSelection = Signal<Option<(Option<Scope>, String)>>;
 
 #[derive(Clone, Copy)]
-pub(super) struct PartsAssemblySelection(
-    pub(super) Signal<Option<assembly_presets::MatrixPresetId>>,
-);
+pub struct PartsAssemblySelection(pub Signal<Option<assembly_presets::MatrixPresetId>>);
 
 #[derive(Clone, Copy)]
-pub(super) struct PartsAssemblyOrientation(pub(super) Signal<assembly_presets::SwitchOrientation>);
+pub struct PartsAssemblyOrientation(pub Signal<assembly_presets::SwitchOrientation>);
 
 #[derive(Clone, Copy)]
-pub(super) struct PartsSelectionGeneration(pub(super) Signal<u64>);
+pub struct PartsSelectionGeneration(pub Signal<u64>);
 
 /// Explicit catalogue activation resets the local preview mode. Search/filter
 /// changes use `PartsSelectionGeneration` for stale-work admission, but do not
 /// count as a user selecting a catalogue item.
 #[derive(Clone, Copy)]
-pub(super) struct PartsPreviewActivation(pub(super) Signal<u64>);
+pub struct PartsPreviewActivation(pub Signal<u64>);
 
 #[derive(Clone, PartialEq)]
 struct AssemblyRecipeRequest {
@@ -122,16 +133,16 @@ impl AssemblyRecipeRequest {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct GeneratorPreviewDraft {
+pub struct GeneratorPreviewDraft {
     owner: generator_settings::GeneratorOwner,
     definition: Option<boardstudio_core::model::PartDefinition>,
     status: generator_settings::GeneratorPreviewStatus,
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct GeneratorDraftStore(pub(super) Signal<Option<GeneratorPreviewDraft>>);
+pub struct GeneratorDraftStore(pub Signal<Option<GeneratorPreviewDraft>>);
 /// React's library predicate is advisory; Core remains authoritative when SetMatrix is accepted.
-pub(super) fn matrix_input_available(definition: &boardstudio_core::model::PartDefinition) -> bool {
+pub fn matrix_input_available(definition: &boardstudio_core::model::PartDefinition) -> bool {
     let press = if let Some(profile) = definition.input_profile.as_ref() {
         profile
             .press
@@ -219,19 +230,17 @@ thread_local! {
 /// Reuse the normalized bundled catalogue for project-owned closure projection.
 /// Project overrides never replace this generator template.
 
-pub(super) async fn load_horizontal_host_connector_definition()
+pub async fn load_horizontal_host_connector_definition()
 -> Result<boardstudio_core::model::PartDefinition, String> {
     modules_catalogue::load_horizontal_host_connector_definition().await
 }
 
-pub(in crate::presentation) fn placement_label(
-    definition: &boardstudio_core::model::PartDefinition,
-) -> &str {
+pub fn placement_label(definition: &boardstudio_core::model::PartDefinition) -> &str {
     preferred_label(definition)
 }
 
 #[component]
-pub(super) fn AddObjectComponentChooser(
+pub fn AddObjectComponentChooser(
     snapshot: AcceptedSnapshot,
     scope: Option<Scope>,
     layout_target: Signal<Option<String>>,
@@ -841,7 +850,7 @@ mod add_object_menu_tests {
 
 /// Place inside the existing Objects panel when Parts is the active workspace.
 #[component]
-pub(super) fn PartsLibraryPanel(
+pub fn PartsLibraryPanel(
     snapshot: AcceptedSnapshot,
     scope: Option<Scope>,
     scope_generation: Signal<u64>,
@@ -1027,7 +1036,7 @@ pub(super) fn PartsLibraryPanel(
 
 /// Place inside the existing Inspector panel when Parts is active.
 #[component]
-pub(super) fn PartsInspectorPanel(
+pub fn PartsInspectorPanel(
     snapshot: AcceptedSnapshot,
     scope: Option<Scope>,
     query: PartsQuery,
@@ -1282,7 +1291,7 @@ fn PartsInspectorPlacementAction(
 /// Selection and catalogue lookup stay with the Parts owner; the preview only
 /// receives the immutable definition and its accepted source identity.
 #[component]
-pub(super) fn PartsPreviewWorkspace(
+pub fn PartsPreviewWorkspace(
     snapshot: AcceptedSnapshot,
     scope: Option<Scope>,
     query: PartsQuery,

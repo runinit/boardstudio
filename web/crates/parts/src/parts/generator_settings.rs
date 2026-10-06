@@ -18,19 +18,19 @@ use wasm_bindgen_futures::spawn_local;
 use web_sys::HtmlInputElement;
 
 #[derive(Clone, Debug)]
-pub(crate) struct GeneratorOwner {
-    pub(super) scope: Option<Scope>,
-    pub(super) selection: Option<(Option<Scope>, String)>,
-    pub(super) session_epoch: boardstudio_application::SessionEpoch,
-    pub(super) document_id: String,
-    pub(super) definition_id: String,
-    pub(super) base_definition: PartDefinition,
-    pub(super) source: String,
-    pub(super) generator_version: String,
-    pub(super) base_parameters: BTreeMap<String, Value>,
-    pub(super) project_owned_at_start: bool,
-    pub(super) scope_generation: u64,
-    pub(super) selection_generation: u64,
+pub struct GeneratorOwner {
+    pub scope: Option<Scope>,
+    pub selection: Option<(Option<Scope>, String)>,
+    pub session_epoch: boardstudio_application::SessionEpoch,
+    pub document_id: String,
+    pub definition_id: String,
+    pub base_definition: PartDefinition,
+    pub source: String,
+    pub generator_version: String,
+    pub base_parameters: BTreeMap<String, Value>,
+    pub project_owned_at_start: bool,
+    pub scope_generation: u64,
+    pub selection_generation: u64,
 }
 
 impl PartialEq for GeneratorOwner {
@@ -49,7 +49,7 @@ impl PartialEq for GeneratorOwner {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum GeneratorPreviewStatus {
+pub enum GeneratorPreviewStatus {
     Pending,
     Ready,
     Failed(String),
@@ -77,7 +77,7 @@ struct ScopedFeedback {
     message: String,
 }
 
-pub(super) fn owner_is_current(
+pub fn owner_is_current(
     owner: &GeneratorOwner,
     runtime: &Runtime,
     selected: Signal<Option<(Option<Scope>, String)>>,
@@ -348,7 +348,7 @@ fn apply_input(
     Ok(candidate)
 }
 
-pub(super) async fn prepare_generator_candidate(
+pub async fn prepare_generator_candidate(
     definition: PartDefinition,
     schema: BTreeMap<String, Value>,
     edits: BTreeMap<String, Value>,
@@ -735,7 +735,7 @@ struct GeneratorCandidateTestProvider(
 /// Dynamic settings form. Each field remains a local JSON draft until Apply; every
 /// candidate preview uses the same retained generator renderer as the Parts canvas.
 #[component]
-pub(super) fn GeneratorSettingsEditor(
+pub fn GeneratorSettingsEditor(
     snapshot: AcceptedSnapshot,
     scope: Option<Scope>,
     selected: Signal<Option<(Option<Scope>, String)>>,

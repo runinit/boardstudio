@@ -6,7 +6,7 @@ const PITCH_MM: f64 = 19.05;
 const MAX_MATRIX_CELLS: u32 = 4096;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum MatrixSetupPreset {
+pub enum MatrixSetupPreset {
     MxSolder,
     MxHotswap,
     ChocSolder,
@@ -18,14 +18,14 @@ pub(crate) enum MatrixSetupPreset {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct MatrixSetupRequest {
+pub struct MatrixSetupRequest {
     pub rows: u32,
     pub columns: u32,
     pub preset: MatrixSetupPreset,
 }
 
 impl MatrixSetupPreset {
-    pub(crate) fn as_str(self) -> &'static str {
+    pub fn as_str(self) -> &'static str {
         match self {
             Self::MxSolder => "mx-solder",
             Self::MxHotswap => "mx-hotswap",
@@ -99,12 +99,12 @@ struct PresetConfig {
     choc: bool,
 }
 
-pub(crate) struct PreparedMatrix {
+pub struct PreparedMatrix {
     pub matrix: Matrix,
     pub definitions: Vec<PartDefinition>,
 }
 
-pub(crate) fn next_matrix_id(
+pub fn next_matrix_id(
     matrices: &[Matrix],
     definitions: &[PartDefinition],
     parts: &[boardstudio_core::model::Part],
@@ -139,7 +139,7 @@ pub(crate) fn next_matrix_id(
 
 /// Prepare the reference matrix seed; Core remains responsible for validating it and deriving
 /// live Parts, matrix membership, board ownership, scene and history from SetMatrix.
-pub(crate) fn prepare_matrix(
+pub fn prepare_matrix(
     matrix_id: String,
     board_id: String,
     request: MatrixSetupRequest,
@@ -351,4 +351,21 @@ fn snapshot_definition(
     );
     definition.id = id;
     Ok(definition)
+}
+
+impl MatrixSetupPreset {
+    /// Parse a Matrix Setup form value.
+    pub fn from_str(value: &str) -> Option<Self> {
+        Some(match value {
+            "mx-solder" => Self::MxSolder,
+            "mx-hotswap" => Self::MxHotswap,
+            "choc-solder" => Self::ChocSolder,
+            "choc-hotswap" => Self::ChocHotswap,
+            "mx-rgb" => Self::MxRgb,
+            "choc-rgb" => Self::ChocRgb,
+            "mx-hotswap-rgb" => Self::MxHotswapRgb,
+            "choc-hotswap-rgb" => Self::ChocHotswapRgb,
+            _ => return None,
+        })
+    }
 }

@@ -12,7 +12,7 @@ use wasm_bindgen_futures::spawn_local;
 const AUTOMATIC_CONNECTOR_SELECTION: &str = "__automatic_vik_host_connector__";
 
 #[derive(Clone)]
-pub(in crate::presentation) struct AttachedModuleNavigation {
+pub struct AttachedModuleNavigation {
     pub scope: Scope,
     pub snapshot_token: SnapshotToken,
     pub revision: u64,
@@ -22,7 +22,7 @@ pub(in crate::presentation) struct AttachedModuleNavigation {
 }
 
 #[component]
-pub(super) fn ModuleAttachment(
+pub fn ModuleAttachment(
     snapshot: AcceptedSnapshot,
     module: ModuleEntry,
     scope: Option<Scope>,

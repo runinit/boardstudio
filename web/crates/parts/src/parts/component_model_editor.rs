@@ -310,7 +310,7 @@ fn submit_remove_model(
 }
 
 #[component]
-pub(super) fn ComponentModelEditor(
+pub fn ComponentModelEditor(
     snapshot: AcceptedSnapshot,
     scope: Option<Scope>,
     selected: PartsSelection,

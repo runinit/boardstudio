@@ -47,6 +47,7 @@ pub(crate) use boardstudio_web_ui_model::svg_coordinates::{
     PointerLocation, coordinates, coordinates_at, pointer_location,
 };
 pub(crate) use boardstudio_web_ui_model::{canvas_interaction, instance_selection, selection};
+pub(crate) use boardstudio_web_ui_shared::panels::browse_parts_workspace;
 pub(crate) use boardstudio_web_ui_shared::project_menu::close_project_menu;
 mod layout_workspace;
 pub(crate) use boardstudio_web_case::mechanical_settings;
@@ -58,8 +59,7 @@ mod outline_lifecycle;
 mod outline_snapping;
 pub(crate) use boardstudio_web_ui_shared::panels;
 mod part_placement;
-mod parts;
-mod parts_import_footprint;
+pub(crate) use boardstudio_web_parts::parts;
 mod parts_workspace;
 mod pcb_board_reference;
 mod pcb_layers;
@@ -2925,24 +2925,6 @@ fn is_compact_viewport() -> bool {
     web_sys::window()
         .and_then(|window| window.match_media("(max-width: 760px)").ok().flatten())
         .is_some_and(|query| query.matches())
-}
-
-fn browse_parts_workspace(
-    mut workspace: Signal<&'static str>,
-    mut compact_open: Signal<bool>,
-    mut settings: Signal<PanelSettings>,
-    compact: bool,
-) {
-    workspace.set("Parts");
-    if compact {
-        compact_open.set(true);
-        return;
-    }
-    let mut current = settings();
-    if current.mode != PanelMode::Pinned {
-        current.mode = PanelMode::Pinned;
-        settings.set(current);
-    }
 }
 
 fn focus_first_inspector_control_on_next_frame(

@@ -17,7 +17,7 @@ mod ui {
     use web_sys::HtmlInputElement;
 
     #[component]
-    pub(crate) fn DefinitionNameEditor(
+    pub fn DefinitionNameEditor(
         snapshot: AcceptedSnapshot,
         scope: Option<Scope>,
         selection: Signal<Option<(Option<Scope>, String)>>,
@@ -156,10 +156,10 @@ mod ui {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub(crate) use ui::DefinitionNameEditor;
+pub use ui::DefinitionNameEditor;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct DefinitionNameCapture {
+pub struct DefinitionNameCapture {
     scope: Option<Scope>,
     definition_id: String,
     session_epoch: SessionEpoch,
@@ -169,7 +169,7 @@ pub(crate) struct DefinitionNameCapture {
 }
 
 impl DefinitionNameCapture {
-    pub(crate) fn new(
+    pub fn new(
         snapshot: &AcceptedSnapshot,
         scope: Option<Scope>,
         definition: &PartDefinition,
@@ -185,7 +185,7 @@ impl DefinitionNameCapture {
     }
 }
 
-pub(crate) fn prepare_definition_name_edit(
+pub fn prepare_definition_name_edit(
     current: &AcceptedSnapshot,
     current_scope: Option<Scope>,
     current_selection: Option<(Option<Scope>, String)>,

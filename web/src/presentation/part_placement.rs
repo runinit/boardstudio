@@ -47,6 +47,8 @@ struct ControllerChooserOwner {
     generation: u64,
 }
 
+pub(super) use boardstudio_web_ui_model::state::ComponentPlacementAction;
+
 impl ControllerChooserOwner {
     fn is_current(&self, runtime: &dyn PlacementRuntime, generation: u64, workspace: &str) -> bool {
         workspace == "Parts"
@@ -54,22 +56,6 @@ impl ControllerChooserOwner {
             && runtime.scope().as_ref() == Some(&self.scope)
             && accepted_snapshot_is_current(runtime, &self.accepted)
     }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(super) enum ComponentPlacementAction {
-    AddObject {
-        definition_id: String,
-        kind: PartKind,
-    },
-    AddSourceObject {
-        module_definition_id: String,
-        definition: PartDefinition,
-    },
-    PartsInspector {
-        definition_id: String,
-        kind: PartKind,
-    },
 }
 
 #[derive(Clone, Debug, PartialEq)]

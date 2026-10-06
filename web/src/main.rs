@@ -16,36 +16,18 @@ pub(crate) use boardstudio_web_case::cad_presentation;
 #[cfg(feature = "page")]
 mod outline_settings;
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
-mod parts_custom_definition;
-#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
-mod parts_definition_name;
-#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
-#[path = "presentation/parts/mechanical_profile.rs"]
-mod parts_mechanical_profile;
-#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
-mod parts_new_component;
-#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
-mod parts_view_generation;
-#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod pcb_wiring_remap_operation;
 #[cfg(all(feature = "page", target_arch = "wasm32"))]
+pub(crate) use boardstudio_web_catalogue::matrix_setup_operation;
+#[cfg(all(feature = "page", target_arch = "wasm32"))]
 pub(crate) use boardstudio_web_catalogue::physical_setup;
+#[cfg(all(feature = "page", target_arch = "wasm32", test))]
+pub(crate) use boardstudio_web_ui_shared::footprint_forms;
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 mod presentation;
 
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
-mod parts_assembly_preset_draft;
-
-#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod firmware_position_choices;
-
-#[cfg(all(feature = "page", target_arch = "wasm32"))]
-pub(crate) use boardstudio_web_ui_shared::footprint_forms;
-
-#[cfg(all(feature = "page", test, not(target_arch = "wasm32")))]
-#[path = "presentation/parts_import_footprint.rs"]
-#[allow(dead_code)]
-mod parts_import_footprint;
 
 #[cfg(all(feature = "page", test, not(target_arch = "wasm32")))]
 mod presentation {
@@ -118,9 +100,6 @@ mod presentation {
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 #[path = "matrix_transform_operation.rs"]
 mod matrix_transform_operation;
-
-#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
-mod matrix_setup_operation;
 
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod mirrored_pair_lifecycle;

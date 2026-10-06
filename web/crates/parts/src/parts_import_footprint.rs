@@ -4,7 +4,7 @@ use boardstudio_application::{AcceptedSnapshot, Event, OperationId, Scope, Snaps
 use boardstudio_core::model::{CompiledFootprint, EditCommand, EditOperation, EditPhase};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct ImportCapture {
+pub struct ImportCapture {
     scope: Scope,
     session_epoch: boardstudio_application::SessionEpoch,
     document_id: String,
@@ -265,7 +265,7 @@ mod ui {
 
     /// The upload action stays mounted independently from catalogue success/loading state.
     #[component]
-    pub(crate) fn ImportKiCadFootprintAction(
+    pub fn ImportKiCadFootprintAction(
         scope: Option<Scope>,
         view_generation: Signal<u64>,
         scope_generation: Signal<u64>,
@@ -791,4 +791,4 @@ mod ui {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub(crate) use ui::ImportKiCadFootprintAction;
+pub use ui::ImportKiCadFootprintAction;

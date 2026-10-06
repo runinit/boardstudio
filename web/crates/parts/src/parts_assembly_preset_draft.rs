@@ -1,7 +1,7 @@
 //! Pure conversion from a resolved Parts recipe into an editable assembly draft.
 use boardstudio_core::model::{AssemblyDefinition, AssemblyMember, AssemblyModelMode, Pose2};
 
-pub(crate) fn from_recipe(
+pub fn from_recipe(
     id: String,
     name: String,
     members: Vec<crate::parts_preview::PartsPreviewRecipeMember>,

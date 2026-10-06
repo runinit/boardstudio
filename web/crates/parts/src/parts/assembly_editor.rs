@@ -46,7 +46,7 @@ enum PendingTarget {
 /// Saved reusable assemblies are project data; editor fields stay local until one
 /// accepted document edit commits them through the existing Session path.
 #[component]
-pub(super) fn SavedAssembliesEditor(
+pub fn SavedAssembliesEditor(
     snapshot: AcceptedSnapshot,
     scope: Option<Scope>,
     definitions: Vec<PartDefinition>,

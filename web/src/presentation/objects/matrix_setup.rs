@@ -1,5 +1,6 @@
 //! Private immediate-origin Matrix Setup form, shared by Layout and the project guide.
 use crate::matrix_setup_operation::MatrixSetupPreset;
+pub(in crate::presentation) use crate::presentation::parts::MatrixPlacementSource;
 use boardstudio_application::{Scope, SnapshotToken};
 use dioxus::prelude::*;
 
@@ -49,18 +50,6 @@ pub(in crate::presentation) struct MatrixPlacementOwner {
     pub board_id: String,
     pub snapshot_token: SnapshotToken,
     pub revision: u64,
-}
-
-/// Data source for the existing Layout matrix-placement lifecycle. Saved
-/// assembly recipes carry only their source definitions; Core still validates
-/// and commits the matrix plus definition snapshots through SetMatrix.
-#[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) enum MatrixPlacementSource {
-    Preset(crate::presentation::parts::MatrixPresetId),
-    Assembly {
-        assembly: boardstudio_core::model::AssemblyDefinition,
-        definitions: Vec<boardstudio_core::model::PartDefinition>,
-    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -227,22 +216,6 @@ pub(in crate::presentation) fn MatrixSetup(props: MatrixSetupProps) -> Element {
                 }
             }
         }
-    }
-}
-
-impl MatrixSetupPreset {
-    fn from_str(value: &str) -> Option<Self> {
-        Some(match value {
-            "mx-solder" => Self::MxSolder,
-            "mx-hotswap" => Self::MxHotswap,
-            "choc-solder" => Self::ChocSolder,
-            "choc-hotswap" => Self::ChocHotswap,
-            "mx-rgb" => Self::MxRgb,
-            "choc-rgb" => Self::ChocRgb,
-            "mx-hotswap-rgb" => Self::MxHotswapRgb,
-            "choc-hotswap-rgb" => Self::ChocHotswapRgb,
-            _ => return None,
-        })
     }
 }
 

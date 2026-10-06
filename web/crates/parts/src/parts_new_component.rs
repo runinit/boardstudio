@@ -23,7 +23,7 @@ mod ui {
     /// The Parts parent mounts this action outside its catalogue loading/error branches so
     /// module-source availability never controls whether a project definition can be created.
     #[component]
-    pub(crate) fn NewCustomComponentAction(
+    pub fn NewCustomComponentAction(
         scope: Option<Scope>,
         view_generation: Signal<u64>,
         scope_generation: Signal<u64>,
@@ -185,10 +185,10 @@ mod ui {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub(crate) use ui::NewCustomComponentAction;
+pub use ui::NewCustomComponentAction;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct CreateCapture {
+pub struct CreateCapture {
     scope: Scope,
     session_epoch: boardstudio_application::SessionEpoch,
     document_id: String,
@@ -201,7 +201,7 @@ pub(crate) struct CreateCapture {
 
 /// Resolve editable project-owned selection from the accepted document even when the
 /// module catalogue is still loading or has failed.
-pub(crate) fn accepted_project_definition(
+pub fn accepted_project_definition(
     snapshot: &AcceptedSnapshot,
     current_scope: &Option<Scope>,
     selection: &Option<(Option<Scope>, String)>,
@@ -219,7 +219,7 @@ pub(crate) fn accepted_project_definition(
 }
 
 impl CreateCapture {
-    pub(crate) fn new(
+    pub fn new(
         snapshot: &AcceptedSnapshot,
         scope: Scope,
         view_generation: u64,
@@ -239,7 +239,7 @@ impl CreateCapture {
     }
 }
 
-pub(crate) fn prepare_create_edit(
+pub fn prepare_create_edit(
     snapshot: &AcceptedSnapshot,
     capture: &CreateCapture,
     operation_id: OperationId,
@@ -315,7 +315,7 @@ fn non_colliding_id(base: &str, definitions: &[PartDefinition]) -> Option<String
         })
 }
 
-pub(crate) fn reconciliation_is_current(
+pub fn reconciliation_is_current(
     capture: &CreateCapture,
     current_scope: Option<&Scope>,
     current_generation: u64,
