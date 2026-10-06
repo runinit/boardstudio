@@ -2,6 +2,8 @@
 use super::*;
 
 const STRAIGHTNESS_TOLERANCE: f64 = 0.1;
+/// Slack for comparing accumulated run lengths, so a one-ulp coordinate change cannot flip a threshold.
+const LENGTH_EPSILON: f64 = 1e-6;
 
 struct Run {
     points: Vec<Vec2>,
@@ -134,11 +136,11 @@ pub(super) fn closure(
                 // side merely to keep that run free for pads.
                 let delta = (c.anchor - target).abs();
                 let target_distance = delta.min(1. - delta) * perimeter;
-                (run.span >= 30.
+                (run.span + LENGTH_EPSILON >= 30.
                     && target_distance <= end_search_radius
-                    && along >= 0.
-                    && along <= run.span
-                    && along.min(run.span - along) <= margin + 1.)
+                    && along >= -LENGTH_EPSILON
+                    && along <= run.span + LENGTH_EPSILON
+                    && along.min(run.span - along) <= margin + 1. + LENGTH_EPSILON)
                     .then_some((c, target_distance + run.span / 2.))
             })
         })
