@@ -39,7 +39,7 @@ TOOLING_TESTS = (
     "scripts/test-import-kicad-parts.py",
 )
 WASM_PAGE = ["--no-default-features", "--features", "page"]
-ISOLATED = ("presentation::case_workspace::", "presentation::setup_guide::", "presentation::panels::")
+ISOLATED = ("presentation::case_workspace::", "presentation::setup_guide::")
 
 Command = list[str]
 
@@ -58,6 +58,9 @@ def browser() -> list[Command]:
          "--lib", "--", "host::storage::"],
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/runtime", "--locked", "--lib"],
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/ui-model", "--locked", "--lib"],
+        # Panel tests run on their own, as they did in the page suite.
+        ["wasm-pack", "test", "--headless", "--chrome", "web/crates/ui-shared", "--locked", "--lib", "--", "--skip", "panels::"],
+        ["wasm-pack", "test", "--headless", "--chrome", "web/crates/ui-shared", "--locked", "--lib", "--", "panels::"],
         [*wasm_pack, "--bin", "boardstudio-web", "--", "--list"],
         [PY, "scripts/run-wasm-tests.py", "--all", "--depth", "1", *[f"--isolate={name}" for name in ISOLATED],
          "--result-json", "web/target/test-results/browser.json"],

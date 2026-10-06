@@ -8,10 +8,10 @@ use std::{
     rc::Rc,
 };
 
-pub(super) type Drawings = Rc<Vec<Graphic>>;
+pub type Drawings = Rc<Vec<Graphic>>;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub(super) struct GeneratorPreviewDefaults {
+pub struct GeneratorPreviewDefaults {
     pub keycap_width: Option<f64>,
     pub keycap_height: Option<f64>,
     pub include_keycap: Option<bool>,
@@ -24,7 +24,7 @@ thread_local! {
 
 /// Read only the envelope defaults used by the Parts library preview. The
 /// generator's declared parameters are the source of truth for its defaults.
-pub(super) async fn generator_preview_defaults(
+pub async fn generator_preview_defaults(
     source: &str,
 ) -> Result<Option<GeneratorPreviewDefaults>, String> {
     if !boardstudio_core::generators::is_generator(source) {
@@ -72,7 +72,7 @@ mod preview_default_tests {
     }
 }
 
-pub(super) async fn generator_drawings(
+pub async fn generator_drawings(
     source_definition: PartDefinition,
     parameters: Option<BTreeMap<String, serde_json::Value>>,
     include_keycap: Option<bool>,
@@ -115,7 +115,7 @@ pub(super) async fn generator_drawings(
 }
 
 #[component]
-pub(super) fn FootprintGraphics(
+pub fn FootprintGraphics(
     definition: PartDefinition,
     parameters: Option<BTreeMap<String, serde_json::Value>>,
     #[props(default)] hidden_layers: Option<BTreeSet<String>>,
@@ -151,7 +151,7 @@ pub(super) fn FootprintGraphics(
     }
 }
 
-pub(super) fn resolve_board_layer(layer: &str, side: &Side) -> String {
+pub fn resolve_board_layer(layer: &str, side: &Side) -> String {
     if matches!(side, &Side::Back) {
         if let Some(rest) = layer.strip_prefix("F.") {
             return format!("B.{rest}");
@@ -164,7 +164,7 @@ pub(super) fn resolve_board_layer(layer: &str, side: &Side) -> String {
 }
 
 #[component]
-pub(super) fn GraphicElement(graphic: Graphic, hidden: bool) -> Element {
+pub fn GraphicElement(graphic: Graphic, hidden: bool) -> Element {
     if hidden {
         return rsx! {};
     }

@@ -54,9 +54,8 @@ mod mechanical_feedback;
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod firmware_position_choices;
 
-#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
-#[path = "presentation/footprint_forms.rs"]
-mod footprint_forms;
+#[cfg(all(feature = "page", target_arch = "wasm32"))]
+pub(crate) use boardstudio_web_ui_shared::footprint_forms;
 
 #[cfg(all(feature = "page", test, not(target_arch = "wasm32")))]
 #[path = "presentation/case_display.rs"]
@@ -77,12 +76,6 @@ mod presentation {
     pub(crate) mod objects {
         #[path = "keycap_resize.rs"]
         mod keycap_resize;
-    }
-
-    pub(crate) mod panels {
-        #[allow(dead_code)]
-        #[path = "policy.rs"]
-        mod policy;
     }
 
     pub(crate) mod pcb_wiring {

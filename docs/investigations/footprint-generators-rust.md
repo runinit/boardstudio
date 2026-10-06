@@ -24,7 +24,7 @@ JavaScript or requires Node. Decisions are recorded in
 | Two packaging scripts in `scripts/web` | ~90 lines | Strip types with Node and stage the modules under `web/assets` |
 
 The page loads the generator module with dynamic `import()` in
-[footprint_graphics.rs](../../web/src/presentation/footprint_graphics.rs),
+[footprint_graphics.rs](../../web/crates/ui-shared/src/footprint_graphics.rs),
 [parts/catalogue.rs](../../web/src/presentation/parts/catalogue.rs) and
 [bundled_models.rs](../../web/crates/runtime/src/bundled_models.rs). Board preview, case
 preview and KiCad export each run Core `PreparePreview` (or the export

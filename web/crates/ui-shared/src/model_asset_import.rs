@@ -15,17 +15,17 @@ use wasm_bindgen_futures::JsFuture;
 const MAX_MODEL_BYTES: f64 = 32.0 * 1024.0 * 1024.0;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct ImportedModelFile {
-    pub(crate) filename: String,
-    pub(crate) media_type: String,
-    pub(crate) sha256: String,
+pub struct ImportedModelFile {
+    pub filename: String,
+    pub media_type: String,
+    pub sha256: String,
     bytes: Vec<u8>,
 }
 
 impl ImportedModelFile {
     /// Persist through the existing verified project asset store. The document
     /// edit remains a separate normal accepted operation owned by the caller.
-    pub(crate) async fn store(&self, store: &BrowserStore) -> Result<(), String> {
+    pub async fn store(&self, store: &BrowserStore) -> Result<(), String> {
         VerifiedModelBytes::verify(self.bytes.clone(), &self.sha256)?;
         store
             .save_asset(AssetBytes {
@@ -38,7 +38,7 @@ impl ImportedModelFile {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub(crate) async fn read_model_file(file: web_sys::File) -> Result<ImportedModelFile, String> {
+pub async fn read_model_file(file: web_sys::File) -> Result<ImportedModelFile, String> {
     let filename = file.name();
     let format = ModelFormat::from_filename(&filename)?;
     if file.size() <= 0.0 || file.size() > MAX_MODEL_BYTES {

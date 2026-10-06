@@ -5,21 +5,21 @@ use wasm_bindgen::JsCast;
 use web_sys::HtmlElement;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum LayerTarget {
+pub enum LayerTarget {
     Hidden(String),
     ModuleHidden(String),
     LayoutFootprints,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct CanvasLayer {
-    pub(super) id: String,
-    pub(super) label: String,
-    pub(super) target: LayerTarget,
+pub struct CanvasLayer {
+    pub id: String,
+    pub label: String,
+    pub target: LayerTarget,
 }
 
 impl CanvasLayer {
-    pub(super) fn hidden(id: impl Into<String>, label: impl Into<String>) -> Self {
+    pub fn hidden(id: impl Into<String>, label: impl Into<String>) -> Self {
         let id = id.into();
         Self {
             label: label.into(),
@@ -28,7 +28,7 @@ impl CanvasLayer {
         }
     }
 
-    pub(super) fn layout_footprints() -> Self {
+    pub fn layout_footprints() -> Self {
         Self {
             id: "Footprints".into(),
             label: "Footprints".into(),
@@ -36,7 +36,7 @@ impl CanvasLayer {
         }
     }
 
-    pub(super) fn module_hidden(id: impl Into<String>, label: impl Into<String>) -> Self {
+    pub fn module_hidden(id: impl Into<String>, label: impl Into<String>) -> Self {
         let id = id.into();
         Self {
             label: label.into(),
@@ -47,20 +47,20 @@ impl CanvasLayer {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct CanvasLayerGroup {
-    pub(super) title: Option<String>,
-    pub(super) layers: Vec<CanvasLayer>,
+pub struct CanvasLayerGroup {
+    pub title: Option<String>,
+    pub layers: Vec<CanvasLayer>,
 }
 
 impl CanvasLayerGroup {
-    pub(super) fn ungrouped(layers: Vec<CanvasLayer>) -> Self {
+    pub fn ungrouped(layers: Vec<CanvasLayer>) -> Self {
         Self {
             title: None,
             layers,
         }
     }
 
-    pub(super) fn titled(title: impl Into<String>, layers: Vec<CanvasLayer>) -> Self {
+    pub fn titled(title: impl Into<String>, layers: Vec<CanvasLayer>) -> Self {
         Self {
             title: Some(title.into()),
             layers,
@@ -69,14 +69,14 @@ impl CanvasLayerGroup {
 }
 
 #[derive(Props, Clone, PartialEq)]
-pub(super) struct CanvasLayersProps {
-    pub(super) trigger_id: String,
-    pub(super) list_id: String,
-    pub(super) groups: Vec<CanvasLayerGroup>,
+pub struct CanvasLayersProps {
+    pub trigger_id: String,
+    pub list_id: String,
+    pub groups: Vec<CanvasLayerGroup>,
 }
 
 #[component]
-pub(super) fn CanvasLayers(props: CanvasLayersProps) -> Element {
+pub fn CanvasLayers(props: CanvasLayersProps) -> Element {
     let layers = use_context::<LayerVisibility>();
     let mut open = use_signal(|| false);
     let hidden = (layers.hidden)();
@@ -205,7 +205,7 @@ fn focus_trigger(id: &str) {
     }
 }
 
-pub(super) fn layout_groups() -> Vec<CanvasLayerGroup> {
+pub fn layout_groups() -> Vec<CanvasLayerGroup> {
     vec![CanvasLayerGroup::ungrouped(vec![
         CanvasLayer::hidden("Keys", "Keys"),
         CanvasLayer::hidden("Components", "Components"),

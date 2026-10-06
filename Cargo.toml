@@ -10,6 +10,7 @@ members = [
   "web/crates/host",
   "web/crates/runtime",
   "web/crates/ui-model",
+  "web/crates/ui-shared",
 ]
 # The CAD crates build in their own toolchains: cad/wasm inside the pinned
 # wasi-sdk container and cad/step-oracle against native OCCT.

@@ -238,6 +238,7 @@ dependencies = [
  "boardstudio-web-host",
  "boardstudio-web-runtime",
  "boardstudio-web-ui-model",
+ "boardstudio-web-ui-shared",
  "boardstudio_core",
  "dioxus",
  "dioxus-web",
@@ -304,6 +305,27 @@ dependencies = [
  "dioxus",
  "serde_json",
  "wasm-bindgen",
+ "wasm-bindgen-test",
+ "web-sys",
+]
+
+[[package]]
+name = "boardstudio-web-ui-shared"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-application",
+ "boardstudio-web-host",
+ "boardstudio-web-runtime",
+ "boardstudio-web-ui-model",
+ "boardstudio_core",
+ "dioxus",
+ "dioxus-web",
+ "gloo-timers",
+ "js-sys",
+ "serde_json",
+ "sha2",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
  "wasm-bindgen-test",
  "web-sys",
 ]

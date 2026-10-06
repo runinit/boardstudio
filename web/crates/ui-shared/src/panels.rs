@@ -2,7 +2,7 @@ use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use gloo_timers::callback::Timeout;
 use policy::decode_settings;
-pub(super) use policy::{PanelMode, PanelSettings, PanelSide};
+pub use policy::{PanelMode, PanelSettings, PanelSide};
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::{JsCast, closure::Closure};
 use web_sys::{Document, HtmlElement, MediaQueryList, Node, PointerEvent, Storage};
@@ -10,7 +10,7 @@ use web_sys::{Document, HtmlElement, MediaQueryList, Node, PointerEvent, Storage
 mod policy;
 
 /// Apply ordinary workspace panel defaults without overriding an explicit reveal.
-pub(super) fn use_workspace_panel_defaults(
+pub fn use_workspace_panel_defaults(
     workspace: &'static str,
     mut objects_open: Signal<bool>,
     mut inspector_open: Signal<bool>,
@@ -33,7 +33,7 @@ pub(super) fn use_workspace_panel_defaults(
 }
 
 #[component]
-pub(super) fn CompactPanelControls() -> Element {
+pub fn CompactPanelControls() -> Element {
     let state = use_context::<super::CompactPanelState>();
     let workspace = use_context::<super::WorkspaceState>().0;
     let objects_compact = use_compact_viewport(PanelSide::Objects);
@@ -100,7 +100,7 @@ pub(super) fn CompactPanelControls() -> Element {
 }
 
 #[component]
-pub(super) fn CompactPanelScrim() -> Element {
+pub fn CompactPanelScrim() -> Element {
     let state = use_context::<super::CompactPanelState>();
     let workspace = use_context::<super::WorkspaceState>().0;
     let objects_compact = use_compact_viewport(PanelSide::Objects);
@@ -126,10 +126,7 @@ type OutsideListener = Rc<RefCell<Option<(Document, Closure<dyn FnMut(PointerEve
 type MediaChangeListener =
     Rc<RefCell<Option<(MediaQueryList, Closure<dyn FnMut(web_sys::Event)>)>>>;
 
-pub(super) fn use_panel_settings(
-    side: PanelSide,
-    storage_warning: Signal<bool>,
-) -> Signal<PanelSettings> {
+pub fn use_panel_settings(side: PanelSide, storage_warning: Signal<bool>) -> Signal<PanelSettings> {
     let settings = use_signal(|| read_settings(side, storage_warning));
     use_effect(use_reactive((&settings(),), {
         move |(value,)| write_settings(side, value, storage_warning)
@@ -192,7 +189,7 @@ fn preference_storage(storage_warning: &mut Signal<bool>) -> Option<Storage> {
     }
 }
 
-pub(super) fn read_theme_preference(mut storage_warning: Signal<bool>) -> &'static str {
+pub fn read_theme_preference(mut storage_warning: Signal<bool>) -> &'static str {
     let stored = preference_storage(&mut storage_warning).and_then(|storage| {
         match storage.get_item("boardstudio:v2:theme") {
             Ok(value) => value,
@@ -209,7 +206,7 @@ pub(super) fn read_theme_preference(mut storage_warning: Signal<bool>) -> &'stat
     }
 }
 
-pub(super) fn write_theme_preference(mut storage_warning: Signal<bool>, preference: &'static str) {
+pub fn write_theme_preference(mut storage_warning: Signal<bool>, preference: &'static str) {
     if let Some(storage) = preference_storage(&mut storage_warning)
         && storage
             .set_item("boardstudio:v2:theme", preference)
@@ -220,12 +217,12 @@ pub(super) fn write_theme_preference(mut storage_warning: Signal<bool>, preferen
 }
 
 #[component]
-pub(super) fn ObjectsPanel(
+pub fn ObjectsPanel(
     compact_open: Signal<bool>,
     settings: Signal<PanelSettings>,
     children: Element,
 ) -> Element {
-    let options = super::objects::use_object_options();
+    let options = crate::object_options::use_object_options();
     panel_frame(
         PanelSide::Objects,
         compact_open,
@@ -236,7 +233,7 @@ pub(super) fn ObjectsPanel(
 }
 
 #[component]
-pub(super) fn InspectorPanel(
+pub fn InspectorPanel(
     compact_open: Signal<bool>,
     settings: Signal<PanelSettings>,
     children: Element,
@@ -679,7 +676,7 @@ fn set_panel_width(mut settings: Signal<PanelSettings>, side: PanelSide, request
     settings.set(next);
 }
 
-pub(super) fn focus_panel_toggle(side: PanelSide) {
+pub fn focus_panel_toggle(side: PanelSide) {
     let selector = format!(
         ".m1-compact-panel-controls button[aria-controls='{}']",
         PanelIds::for_side(side).shell

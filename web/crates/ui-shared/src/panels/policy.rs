@@ -1,11 +1,11 @@
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(in crate::presentation) enum PanelSide {
+pub enum PanelSide {
     Objects,
     Inspector,
 }
 
 impl PanelSide {
-    pub(super) const fn storage_side(self) -> &'static str {
+    pub const fn storage_side(self) -> &'static str {
         match self {
             Self::Objects => "left",
             Self::Inspector => "right",
@@ -19,7 +19,7 @@ impl PanelSide {
         }
     }
 
-    pub(super) fn resize_width(self, requested: f64, available: f64) -> f64 {
+    pub fn resize_width(self, requested: f64, available: f64) -> f64 {
         let (minimum, maximum) = self.width_bounds();
         let maximum = maximum.min(available.max(minimum));
         if requested.is_finite() {
@@ -29,20 +29,20 @@ impl PanelSide {
         }
     }
 
-    pub(super) fn minimum_width(self) -> f64 {
+    pub fn minimum_width(self) -> f64 {
         self.width_bounds().0
     }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(in crate::presentation) enum PanelMode {
+pub enum PanelMode {
     Pinned,
     Autohide,
     Collapsed,
 }
 
 impl PanelMode {
-    pub(super) fn parse(value: &str) -> Option<Self> {
+    pub fn parse(value: &str) -> Option<Self> {
         match value {
             "pinned" => Some(Self::Pinned),
             "autohide" => Some(Self::Autohide),
@@ -51,7 +51,7 @@ impl PanelMode {
         }
     }
 
-    pub(super) const fn as_str(self) -> &'static str {
+    pub const fn as_str(self) -> &'static str {
         match self {
             Self::Pinned => "pinned",
             Self::Autohide => "autohide",
@@ -61,13 +61,13 @@ impl PanelMode {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(in crate::presentation) struct PanelSettings {
-    pub(in crate::presentation) mode: PanelMode,
-    pub(in crate::presentation) width: Option<f64>,
+pub struct PanelSettings {
+    pub mode: PanelMode,
+    pub width: Option<f64>,
 }
 
 impl PanelSettings {
-    pub(super) const fn default_pinned() -> Self {
+    pub const fn default_pinned() -> Self {
         Self {
             mode: PanelMode::Pinned,
             width: None,
@@ -75,7 +75,7 @@ impl PanelSettings {
     }
 }
 
-pub(super) fn decode_settings(
+pub fn decode_settings(
     side: PanelSide,
     mode: Option<&str>,
     width: Option<f64>,

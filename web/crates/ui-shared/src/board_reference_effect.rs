@@ -3,7 +3,7 @@ use dioxus::prelude::*;
 
 /// Keep stale routed-board failures actionable without carrying a specific
 /// error from an old project/board/editor scope into the current one.
-pub(super) fn retryable_error(message: String, owner_lineage_is_current: bool) -> String {
+pub fn retryable_error(message: String, owner_lineage_is_current: bool) -> String {
     if owner_lineage_is_current {
         message
     } else {
@@ -11,7 +11,7 @@ pub(super) fn retryable_error(message: String, owner_lineage_is_current: bool) -
     }
 }
 
-pub(super) fn clear_missing_reference(
+pub fn clear_missing_reference(
     mut model_paths: Signal<Vec<String>>,
     mut paths_asset_id: Signal<Option<String>>,
     mut attempted_discovery: Signal<Option<String>>,

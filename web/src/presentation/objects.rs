@@ -25,6 +25,7 @@ mod mirrored_pair;
 mod mirrored_pair_controller;
 pub(in crate::presentation) use board_setup_controller::{BoardSetupMount, use_board_setup};
 use boardstudio_web_ui_model::tree;
+use boardstudio_web_ui_shared::object_options::ObjectTreePreferences;
 pub(in crate::presentation) use existing_half::{ExistingHalfMount, ExistingHalfSetup};
 pub(in crate::presentation) use keycap_size::KeySizeControls;
 pub(in crate::presentation) use keycap_size_controller::{KeySizeMount, use_key_size};
@@ -63,38 +64,8 @@ pub(in crate::presentation) use mirrored_pair::{
     MirroredPairCanvasOverlay, MirroredPairCreated, MirroredPairMount, MirroredPairMove,
 };
 pub(in crate::presentation) use mirrored_pair_controller::use_mirrored_pair;
-use tree::{Grouping, TreeKind};
+use tree::TreeKind;
 pub(in crate::presentation) use tree::{ScopedTreeContext, TreeContext};
-
-#[derive(Clone, Copy)]
-struct ObjectTreePreferences {
-    grouping: Signal<Grouping>,
-}
-
-pub(super) fn use_object_options() -> Element {
-    let grouping = use_signal(|| Grouping::from_storage(read_tree_grouping()));
-    use_context_provider(|| ObjectTreePreferences { grouping });
-    rsx! { ObjectOptions { grouping } }
-}
-
-#[component]
-fn ObjectOptions(mut grouping: Signal<Grouping>) -> Element {
-    rsx! {
-        label { "Group objects"
-            select {
-                "aria-label": "Tree grouping",
-                value: if grouping() == Grouping::Row { "row" } else { "column" },
-                onchange: move |event: FormEvent| {
-                    let next = Grouping::from_storage(Some(event.value()));
-                    grouping.set(next);
-                    write_tree_grouping(next);
-                },
-                option { value: "column", "Columns" }
-                option { value: "row", "Rows" }
-            }
-        }
-    }
-}
 
 impl From<TreeSelectRequest> for super::selection::ContextRequest {
     fn from(request: TreeSelectRequest) -> Self {
@@ -772,32 +743,6 @@ fn toggle_tree(mut expanded: Signal<BTreeSet<String>>, id: &str) {
     let mut state = expanded.write();
     if !state.remove(id) {
         state.insert(id.to_owned());
-    }
-}
-
-fn read_tree_grouping() -> Option<String> {
-    web_sys::window()
-        .and_then(|window| window.local_storage().ok().flatten())
-        .and_then(|storage| {
-            storage
-                .get_item("boardstudio:v2:tree-grouping")
-                .ok()
-                .flatten()
-        })
-}
-
-fn write_tree_grouping(grouping: Grouping) {
-    if let Some(storage) =
-        web_sys::window().and_then(|window| window.local_storage().ok().flatten())
-    {
-        let _ = storage.set_item(
-            "boardstudio:v2:tree-grouping",
-            if grouping == Grouping::Row {
-                "row"
-            } else {
-                "column"
-            },
-        );
     }
 }
 

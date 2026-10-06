@@ -1,7 +1,7 @@
 //! Presentation drafts and DOM input are separate from the durable session state.
 mod board_inspector;
-mod board_reference_effect;
-mod canvas_layers;
+pub(crate) use boardstudio_web_ui_shared::board_reference_effect;
+pub(crate) use boardstudio_web_ui_shared::canvas_layers;
 mod canvas_status_footer;
 mod case_assembly_layers;
 mod case_bodies;
@@ -13,7 +13,7 @@ mod context_summary;
 mod empty_board_canvas;
 mod export_workspace;
 mod firmware_positions;
-mod geometry_scripts;
+pub(crate) use boardstudio_web_ui_shared::geometry_scripts;
 mod inspector;
 mod keycaps_finding_marker;
 mod keycaps_fit;
@@ -23,7 +23,7 @@ mod keycaps_settings;
 mod keycaps_workspace;
 mod keymap;
 mod keymap_workspace;
-mod layout_camera;
+pub(crate) use boardstudio_web_ui_shared::layout_camera;
 #[cfg(test)]
 mod layout_component_inspector_tests;
 mod layout_findings;
@@ -51,12 +51,12 @@ mod library;
 mod mechanical_settings;
 mod mechanical_settings_controller;
 mod mechanical_settings_mount;
-pub(crate) mod model_asset_import;
 pub(crate) use boardstudio_web_runtime::model_delivery;
+pub(crate) use boardstudio_web_ui_shared::model_asset_import;
 mod objects;
 mod outline_lifecycle;
 mod outline_snapping;
-mod panels;
+pub(crate) use boardstudio_web_ui_shared::panels;
 mod part_placement;
 mod parts;
 mod parts_import_footprint;
@@ -76,6 +76,7 @@ mod workspace_composition;
 mod zmk_firmware_export;
 
 use crate::case_generation_lifecycle::AutomaticCaseGeneration;
+pub(crate) use boardstudio_web_ui_shared::footprint_graphics;
 use canvas_interaction::{CanvasInteractionArbiter, CanvasInteractionOwner};
 use canvas_layers::CanvasLayers;
 pub(crate) use case_viewer::{CasePreviewViewer, CaseViewer};
@@ -91,7 +92,6 @@ use setup_guide::{PendingNewKeyboard, SetupGuidePreferences, SetupGuideRequest, 
 use zmk_firmware_export::use_export_panel_input;
 #[cfg(test)]
 use zmk_firmware_export::{ZmkFirmwareExportPanelInput, ZmkFirmwareExportRow};
-mod footprint_graphics;
 
 use crate::runtime::Runtime;
 #[cfg(test)]

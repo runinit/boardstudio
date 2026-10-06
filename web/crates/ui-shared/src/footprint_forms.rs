@@ -2,10 +2,10 @@
 use boardstudio_core::generators::Expr;
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct Point(pub f64, pub f64);
+pub struct Point(pub f64, pub f64);
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) enum Shape {
+pub enum Shape {
     Line(Point, Point),
     Arc(Point, Point, Point),
     Rect(Point, Point),
@@ -15,7 +15,7 @@ pub(super) enum Shape {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct Graphic {
+pub struct Graphic {
     pub layer: String,
     pub shape: Shape,
 }
@@ -97,7 +97,7 @@ fn shape(form: &[Expr], kind: &str) -> Option<Shape> {
     }
 }
 
-pub(super) fn project(forms: &[Expr]) -> Vec<Graphic> {
+pub fn project(forms: &[Expr]) -> Vec<Graphic> {
     fn visit(node: &Expr, output: &mut Vec<Graphic>) {
         let Some(form) = node.as_list() else {
             return;

@@ -12,6 +12,7 @@ preparation and checks; the CAD provider is Rust/WASM.
 | `web/crates/runtime/` | Composition of session state and browser effects (`runtime.rs`), model delivery and presentation-independent operations; no Dioxus |
 | `web/crates/host/` | IndexedDB, Core and CAD worker clients, renderer host and offline policy |
 | `web/crates/ui-model/` | UI vocabulary shared by presentation code: tree contexts, selection, workspace and view state, canvas interaction ownership |
+| `web/crates/ui-shared/` | UI used by several workspaces: panels, canvas layers, layout camera, footprint graphics, geometry scripts, model import |
 | `web/src/lib.rs` | Worker entry points packaged by wasm-pack (Core, CAD and offline service worker) |
 | `renderer/` | GPU scene rendering, picking and camera behavior |
 | `cad/` | CAD provider bindings and the Cadrum/OCCT WASM kernel |

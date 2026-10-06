@@ -8,7 +8,7 @@ use dioxus::prelude::*;
 use std::rc::Rc;
 
 #[component]
-pub(super) fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
+pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
     let _ = use_context::<Signal<u64>>()();
     let runtime = use_context::<Rc<Runtime>>();
     let model = runtime.model();

@@ -2,17 +2,17 @@ use boardstudio_core::model::Vec2;
 
 /// 2D canvas zoom limits shared by wheel and Zoom buttons. These are the pinned
 /// TypeScript Workbench limits (`Math.min(4, Math.max(0.25, ...))`).
-pub(super) const MIN_ZOOM: f64 = 0.25;
-pub(super) const MAX_ZOOM: f64 = 4.0;
+pub const MIN_ZOOM: f64 = 0.25;
+pub const MAX_ZOOM: f64 = 4.0;
 
 /// Wheel zoom: `basis_ratio` converts the stored camera zoom into the displayed
 /// (reference) scale, which is the scale the limits apply to.
-pub(super) fn wheel_zoom(current: f64, basis_ratio: f64, delta_y: f64) -> f64 {
+pub fn wheel_zoom(current: f64, basis_ratio: f64, delta_y: f64) -> f64 {
     (current * basis_ratio * (-delta_y * 0.001).exp()).clamp(MIN_ZOOM, MAX_ZOOM) / basis_ratio
 }
 
 /// One Zoom button step on the displayed scale; `direction < 0` zooms out.
-pub(super) fn step_zoom(effective: f64, direction: f64) -> f64 {
+pub fn step_zoom(effective: f64, direction: f64) -> f64 {
     if direction < 0.0 {
         (effective / 1.2).max(MIN_ZOOM)
     } else {
@@ -20,7 +20,7 @@ pub(super) fn step_zoom(effective: f64, direction: f64) -> f64 {
     }
 }
 
-pub(super) fn bridge_camera_offset(viewport_bounds: (f64, f64, f64, f64), target: Vec2) -> Vec2 {
+pub fn bridge_camera_offset(viewport_bounds: (f64, f64, f64, f64), target: Vec2) -> Vec2 {
     // The Layout view box is already centered on the visible-part bounds; camera.center is
     // a pan delta from that origin, not an absolute world-space target.
     let viewport_center = Vec2 {
@@ -33,7 +33,7 @@ pub(super) fn bridge_camera_offset(viewport_bounds: (f64, f64, f64, f64), target
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_arch = "wasm32"))]
 mod tests {
     use super::{MAX_ZOOM, MIN_ZOOM, bridge_camera_offset, step_zoom, wheel_zoom};
     use boardstudio_core::model::Vec2;
