@@ -54,7 +54,9 @@ def browser() -> list[Command]:
     return [
         [PY, "scripts/check-wasm-tests.py"],
         [PY, "cad/scripts/test-cadrum-browser.py"],
-        [*wasm_pack, "--lib", "--", "host::storage::"],
+        ["wasm-pack", "test", "--headless", "--chrome", "web/crates/host", "--locked", "--features", "page",
+         "--lib", "--", "host::storage::"],
+        ["wasm-pack", "test", "--headless", "--chrome", "web/crates/runtime", "--locked", "--lib"],
         [*wasm_pack, "--bin", "boardstudio-web", "--", "--list"],
         [PY, "scripts/run-wasm-tests.py", "--all", "--depth", "1", *[f"--isolate={name}" for name in ISOLATED],
          "--result-json", "web/target/test-results/browser.json"],

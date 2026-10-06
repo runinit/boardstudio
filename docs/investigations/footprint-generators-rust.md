@@ -26,7 +26,7 @@ JavaScript or requires Node. Decisions are recorded in
 The page loads the generator module with dynamic `import()` in
 [footprint_graphics.rs](../../web/src/presentation/footprint_graphics.rs),
 [parts/catalogue.rs](../../web/src/presentation/parts/catalogue.rs) and
-[bundled_models.rs](../../web/src/bundled_models.rs). Board preview, case
+[bundled_models.rs](../../web/crates/runtime/src/bundled_models.rs). Board preview, case
 preview and KiCad export each run Core `PreparePreview` (or the export
 equivalent), the JavaScript worker, then Core `FinishPreview`.
 

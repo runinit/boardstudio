@@ -8,9 +8,10 @@ preparation and checks; the CAD provider is Rust/WASM.
 | --- | --- |
 | `core/` | Document validation, typed edits, resolved geometry, artifacts and portable archives |
 | `application/` | Accepted snapshots, ordered commands, interactions, save identities and scoped jobs |
-| `web/src/presentation/` | Dioxus components, contextual panels and local form drafts |
-| `web/src/runtime.rs` | Composition of session state and browser effects |
-| `web/` host and worker modules | IndexedDB, worker transport, asset/file I/O, rendering adapters and offline policy |
+| `web/src/` (`boardstudio-web` bin) | Dioxus components (`presentation/`), contextual panels and local form drafts |
+| `web/crates/runtime/` | Composition of session state and browser effects (`runtime.rs`), model delivery and presentation-independent operations; no Dioxus |
+| `web/crates/host/` | IndexedDB, Core and CAD worker clients, renderer host and offline policy |
+| `web/src/lib.rs` | Worker entry points packaged by wasm-pack (Core, CAD and offline service worker) |
 | `renderer/` | GPU scene rendering, picking and camera behavior |
 | `cad/` | CAD provider bindings and the Cadrum/OCCT WASM kernel |
 | `contracts/` | Shared Rust boundary types |
@@ -24,6 +25,11 @@ application/runtime boundaries and displays accepted state; it does not create a
 second writable document store. Worker replies, saves and exports retain their
 captured project, board and revision identities so stale operations cannot replace
 the current scope. Manufacturing output comes from accepted inputs, not rendered meshes.
+
+The page is split into crates so an edit in presentation code recompiles only the
+`boardstudio-web` bin, not the runtime, host or Core. The bin re-exports the runtime's
+modules at its root, so presentation code addresses them as `crate::runtime` and so on.
+Runtime helpers that the page's own tests drive are behind its `test-support` feature.
 
 Heavy CAD and artifact work runs outside the page. Generated JavaScript initializes
 WASM modules; browser worker and service-worker entrypoints are packaged with the

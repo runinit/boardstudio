@@ -50,7 +50,7 @@ The Dioxus [Parts preview](../../web/src/presentation/parts/preview.rs) owns sam
 request freshness, generation leases and local visibility.
 [SharedViewer](../../web/src/presentation/shared_viewer.rs) projects Parts, Layout
 and Case sources for the renderer and handles renderer lifecycle events.
-[Runtime](../../web/src/runtime.rs) delivers scoped worker results; accepted
+[Runtime](../../web/crates/runtime/src/runtime.rs) delivers scoped worker results; accepted
 document edits remain in Session/Core. Export model packaging is a separate
 operation.
 

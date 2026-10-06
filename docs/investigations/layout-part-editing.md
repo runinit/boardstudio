@@ -16,7 +16,7 @@ an X edit commits. Live browser reproduction remains outstanding.
 | --- | --- |
 | Drafts, two-decimal display, Enter/blur suppression, Escape | `LayoutComponentInspector` in [the Inspector form](../../web/src/presentation/inspector/layout_component_inspector.rs) |
 | Projection, selection lifetime, owner admission, command construction | `layout_component_inspector_projection`, `layout_component_inspector_owner_is_current`, and `dispatch_layout_component_inspector_action` in [presentation.rs](../../web/src/presentation.rs) |
-| Browser effects and operation delivery | [Runtime](../../web/src/runtime.rs) |
+| Browser effects and operation delivery | [Runtime](../../web/crates/runtime/src/runtime.rs) |
 | Ordered edits and accepted state | [Session](../../application/src/session.rs) |
 | Document edits and Undo/Redo | [CoreEngine](../../core/src/lib.rs) |
 

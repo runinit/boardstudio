@@ -6,5 +6,5 @@ title = "BoardStudio"
 
 [web.watcher]
 reload_html = true
-watch_path = ["src"]
+watch_path = ["src", "crates"]
 index_on_404 = false
