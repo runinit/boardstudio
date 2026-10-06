@@ -78,12 +78,21 @@ class CadrumBuildTests(unittest.TestCase):
         self.assertIn(f"{self.root}:/workspace/cad:Z", commands[1])
         self.assertIn("OCCT_ROOT=/workspace/cad/.cache/cadrum/wasm/occt", commands[1])
         self.assertIn(f"{self.root.parent}/contracts/rust:/workspace/contracts/rust:ro", commands[1])
+        self.assertIn(f"{self.root}/.cache/cargo-registry:/root/.cargo/registry:Z", commands[1])
         self.assertFalse((pkg / "package.json").exists())
         self.assertEqual((pkg / "provider.wasm").read_bytes(), b"keep")
         with patch.dict(build.os.environ, {"CADRUM_CONTAINER_RUNTIME": "docker"}), patch.object(build, "prepare", return_value=self.root / ".cache/cadrum/wasm/occt"), patch.object(build, "run", side_effect=subprocess.CalledProcessError(1, "docker")) as run:
             with self.assertRaises(subprocess.CalledProcessError):
                 build.build_wasm()
         run.assert_called_once()
+
+    def test_prebuilt_image_skips_only_the_image_build(self):
+        environment = {"CADRUM_CONTAINER_RUNTIME": "docker", "CADRUM_IMAGE_READY": "1"}
+        with patch.dict(build.os.environ, environment), patch.object(build, "prepare", return_value=self.root / ".cache/cadrum/wasm/occt"), patch.object(build, "run") as run:
+            build.build_wasm()
+        commands = [call.args[0] for call in run.call_args_list]
+        self.assertEqual([command[:2] for command in commands], [["docker", "run"]])
+        self.assertIn(build.IMAGE, commands[0])
 
     def test_native_failure_prevents_wasm_build(self):
         with patch.object(build, "prepare", return_value=self.extracted), patch.object(build, "run", side_effect=[None, None, subprocess.CalledProcessError(1, "cargo")]), patch.object(build, "build_wasm") as wasm:

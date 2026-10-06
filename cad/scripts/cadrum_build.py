@@ -62,13 +62,20 @@ def build_wasm():
         (name for name in ("podman", "docker") if available(name)), None)
     if not runtime:
         raise RuntimeError("Building the Cadrum WASM module requires Podman or Docker")
-    run([runtime, "build", "--file", "wasm/Containerfile", "--tag", IMAGE, "."])
+    # CI builds and caches the pinned image itself, then sets CADRUM_IMAGE_READY.
+    if not os.environ.get("CADRUM_IMAGE_READY"):
+        run([runtime, "build", "--file", "wasm/Containerfile", "--tag", IMAGE, "."])
     contracts = CAD_ROOT.parent / "contracts/rust"
-    cad_mount = f"{CAD_ROOT}:/workspace/cad" + (":Z" if runtime == "podman" else "")
+    label = ":Z" if runtime == "podman" else ""
+    cad_mount = f"{CAD_ROOT}:/workspace/cad{label}"
+    # Keep downloaded crates between container runs instead of fetching them each build.
+    registry = CAD_ROOT / ".cache/cargo-registry"
+    registry.mkdir(parents=True, exist_ok=True)
     # wasm-pack 0.15 mistakes its previous package manifest for wasm-bindgen's
     # dependency map. Remove only this generated manifest before rebuilding.
     (CAD_ROOT / "wasm/pkg/package.json").unlink(missing_ok=True)
     run([runtime, "run", "--rm", "--volume", cad_mount,
+         "--volume", f"{registry}:/root/.cargo/registry{label}",
          "--volume", f"{contracts}:/workspace/contracts/rust:ro",
          "--workdir", "/workspace/cad", "--env", f"OCCT_ROOT=/workspace/cad/{occt}",
          "--env", "CARGO_TARGET_DIR=/workspace/cad/wasm/target", IMAGE,
