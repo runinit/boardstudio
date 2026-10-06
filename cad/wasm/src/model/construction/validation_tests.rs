@@ -422,6 +422,7 @@ fn transformed_multi_solid_vendor_step_keeps_count_bounds_and_mesh() {
         want["solids"].as_u64().unwrap(),
         "independent solid count"
     );
+    assert_eq!(report.shells, report.solids, "one shell per solid");
     check_bounds(report.min, report.max, &want["bounds"], "oracle bounds");
     // Informational baseline volume (no original assertion): allow 0.5 mm³.
     assert_close(
@@ -1409,4 +1410,124 @@ fn oracle_accepts_valid_wrong_geometry_and_only_the_fixture_comparison_rejects_i
         0.1,
         "the lifted plate really is 1.5x thicker",
     );
+}
+
+// ---- Kernel interface ---------------------------------------------------------------------
+
+/// The acceptance gate for a `CadKernel`: build, export, import and mesh the fixture cases and
+/// judge them with the independent oracle and the shared expectations, never with the kernel's own
+/// reader. A future kernel (or a refactor) passes this or it does not ship.
+fn assert_kernel_meets_the_gate<K: CadKernel>(kernel: &K) {
+    let prepared = |input: Value| -> PreparedCase {
+        let assembly = json!({ "revision": input["revision"], "bodies": [input] });
+        let prepared = prepare(&assembly, "prepare-case");
+        serde_json::from_value(prepared["bodies"][0].clone()).expect("prepared case contract")
+    };
+    let holed = prepared(json!({
+        "revision": 7,
+        "body": { "id": "case", "name": "plate", "boardId": "board", "kind": "plate", "thickness": 2, "clearance": 0.5 },
+        "contours": [
+            { "hole": false, "points": square(0.0, 20.0) },
+            { "hole": true, "points": square(5.0, 15.0) }
+        ]
+    }));
+    let model = kernel
+        .build_case(&holed)
+        .expect("kernel builds the holed plate");
+    let step = kernel
+        .export_step(std::slice::from_ref(&model))
+        .expect("kernel exports STEP");
+    let id = "holed-plate-export";
+    let report = export(&step, id);
+    assert_eq!(report.solids, 1);
+    check_amount(report.volume, &expect(id)["volume"], "kernel export volume");
+    check_baseline(&report, baseline(id), id);
+
+    let mesh = kernel.mesh(&model).expect("kernel meshes the plate");
+    assert!(!mesh.positions.is_empty() && mesh.positions.len() % 9 == 0);
+    assert_eq!(mesh.positions.len(), mesh.normals.len());
+    assert!(mesh
+        .positions
+        .iter()
+        .chain(&mesh.normals)
+        .all(|value| value.is_finite()));
+
+    let imported = kernel
+        .import_step(&step)
+        .expect("kernel re-imports its own export");
+    assert_eq!(imported.solid_count, 1);
+    for axis in 0..3 {
+        assert_close(
+            imported.min[axis],
+            report.min[axis],
+            0.01,
+            &format!("import min {axis}"),
+        );
+        assert_close(
+            imported.max[axis],
+            report.max[axis],
+            0.01,
+            &format!("import max {axis}"),
+        );
+    }
+    assert!(!kernel
+        .mesh(&imported.model)
+        .expect("imported mesh")
+        .positions
+        .is_empty());
+
+    // Two bodies in one STEP compound: counts and volume come from the oracle, not the kernel.
+    let plate = |index: usize, z: f64| {
+        prepared(json!({
+            "revision": 9,
+            "body": { "id": format!("plate-{index}"), "name": format!("plate-{index}"), "boardId": "board", "kind": "plate", "thickness": 2, "clearance": 0, "z": z },
+            "contours": [{ "hole": false, "points": square(0.0, 20.0) }]
+        }))
+    };
+    let parts = [
+        kernel.build_case(&plate(0, 0.0)).unwrap(),
+        kernel.build_case(&plate(1, 8.0)).unwrap(),
+    ];
+    let id = "compound-two-offset-plates";
+    let compound = export(&kernel.export_step(&parts).expect("compound export"), id);
+    assert_eq!(compound.solids, 2);
+    check_amount(
+        compound.volume,
+        &expect(id)["volume"],
+        "kernel compound volume",
+    );
+
+    assert!(
+        kernel.import_step(b"ISO-10303-21; not really").is_err(),
+        "garbage must not import"
+    );
+    let no_solids = control_step().replace("MANIFOLD_SOLID_BREP", "UNKNOWN_SOLID_THING");
+    assert!(
+        kernel.import_step(no_solids.as_bytes()).is_err(),
+        "a file without solids must not import"
+    );
+}
+
+#[test]
+fn kernel_interface_meets_the_same_gate() {
+    assert_kernel_meets_the_gate(&CadrumKernel);
+}
+
+#[test]
+fn kernel_interface_preserves_production_behaviour_and_policy() {
+    // The thin production wrappers must agree with the generic seam, error text included.
+    let step = control_step().into_bytes();
+    let through_wrapper = read_step_model_data(step.clone()).expect("wrapper import");
+    let through_seam = read_step_model_data_with(&CadrumKernel, &step).expect("seam import");
+    assert_eq!(through_wrapper.mesh.positions, through_seam.mesh.positions);
+    assert_eq!(through_wrapper.min, through_seam.min);
+    assert_eq!(through_wrapper.max, through_seam.max);
+    assert_eq!(through_wrapper.solid_count, 1);
+    // The size policy stays outside the kernel.
+    let oversize = read_step_model_data_with(&CadrumKernel, &vec![0u8; MAX_STEP_BYTES + 1])
+        .err()
+        .unwrap();
+    assert_eq!(oversize, "STEP import failed: invalid file size");
+    let empty = CadrumKernel.import_step(b"").err().expect("empty input");
+    assert!(empty.starts_with("STEP import failed"), "{empty}");
 }

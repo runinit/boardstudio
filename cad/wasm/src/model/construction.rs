@@ -19,21 +19,35 @@ pub fn build_assembly(input: JsValue) -> Result<JsValue, JsValue> {
 }
 
 fn build_case_data(ir: PreparedCase) -> Result<CaseResultData, String> {
+    build_case_data_with(&CadrumKernel, ir)
+}
+
+fn build_case_data_with<K: CadKernel>(
+    kernel: &K,
+    ir: PreparedCase,
+) -> Result<CaseResultData, String> {
     if ir.regions.is_empty() {
         return Err("Case requires at least one prepared region".into());
     }
     let revision = ir.revision;
-    let solids = build_body(&ir)?;
-    export_case(solids, revision, None)
+    let model = kernel.build_case(&ir)?;
+    export_case_with(kernel, vec![model], revision, None)
 }
 
 fn build_assembly_data(ir: PreparedAssembly) -> Result<CaseResultData, String> {
+    build_assembly_data_with(&CadrumKernel, ir)
+}
+
+fn build_assembly_data_with<K: CadKernel>(
+    kernel: &K,
+    ir: PreparedAssembly,
+) -> Result<CaseResultData, String> {
     if ir.bodies.is_empty() {
         return Err("Case assembly requires at least one body".into());
     }
 
     let revision = ir.revision;
-    let mut solids = Vec::new();
+    let mut models = Vec::with_capacity(ir.bodies.len());
     let mut meshes = Vec::with_capacity(ir.bodies.len());
     for body in &ir.bodies {
         if body.revision != revision {
@@ -42,16 +56,16 @@ fn build_assembly_data(ir: PreparedAssembly) -> Result<CaseResultData, String> {
         if body.regions.is_empty() {
             return Err("Case requires at least one prepared region".into());
         }
-        let body_solids = build_body(body)?;
+        let model = kernel.build_case(body)?;
         meshes.push(BodyMeshData {
             id: body.body.id.clone(),
             name: body.body.name.clone(),
-            mesh: mesh_data(&body_solids)?,
+            mesh: kernel.mesh(&model)?,
         });
-        solids.extend(body_solids);
+        models.push(model);
     }
 
-    export_case(solids, revision, Some(meshes))
+    export_case_with(kernel, models, revision, Some(meshes))
 }
 
 fn validate_feature_regions(ir: &PreparedCase) -> Result<(), String> {
@@ -87,7 +101,7 @@ fn validate_feature_regions(ir: &PreparedCase) -> Result<(), String> {
     Ok(())
 }
 
-fn build_body(ir: &PreparedCase) -> Result<Vec<Solid>, String> {
+pub(super) fn build_body(ir: &PreparedCase) -> Result<Vec<Solid>, String> {
     validate_feature_regions(ir)?;
     let mut solids = Vec::new();
     for region in &ir.regions {

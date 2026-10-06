@@ -1,4 +1,5 @@
 mod construction;
+mod kernel;
 mod keycaps;
 pub use keycaps::build_keycaps;
 mod metrics;
@@ -7,6 +8,7 @@ mod source_validation_tests;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod step_oracle;
 pub use construction::{build_assembly, build_case, export_cached_assembly, preview_body};
+use kernel::{CadKernel, CadrumKernel};
 use metrics::Stage;
 
 use cadrum::{Boolean, DVec3, Edge, Mesh, Solid, Tessellation};
@@ -295,15 +297,16 @@ fn export_case(
     revision: u64,
     bodies: Option<Vec<BodyMeshData>>,
 ) -> Result<CaseResultData, String> {
-    if solids.is_empty() {
-        return Err("OpenCascade returned an empty case solid".into());
-    }
-    let mut step = Vec::new();
-    {
-        let _stage = Stage::new("stepSerialization");
-        Solid::write_step(&solids, &mut step)
-            .map_err(|error| format!("OpenCascade STEP export failed: {error}"))?;
-    }
+    export_case_with(&CadrumKernel, vec![solids], revision, bodies)
+}
+
+fn export_case_with<K: CadKernel>(
+    kernel: &K,
+    parts: Vec<K::Model>,
+    revision: u64,
+    bodies: Option<Vec<BodyMeshData>>,
+) -> Result<CaseResultData, String> {
+    let step = kernel.export_step(&parts)?;
     let mesh = if let Some(bodies) = &bodies {
         let _stage = Stage::new("combinedMeshCopy");
         metrics::count(
@@ -323,8 +326,19 @@ fn export_case(
                 .flat_map(|body| body.mesh.normals.iter().copied())
                 .collect(),
         }
+    } else if let [model] = parts.as_slice() {
+        kernel.mesh(model)?
     } else {
-        mesh_data(&solids)?
+        let mut combined = MeshData {
+            positions: Vec::new(),
+            normals: Vec::new(),
+        };
+        for model in &parts {
+            let mesh = kernel.mesh(model)?;
+            combined.positions.extend(mesh.positions);
+            combined.normals.extend(mesh.normals);
+        }
+        combined
     };
     Ok(CaseResultData {
         revision,
@@ -335,35 +349,25 @@ fn export_case(
 }
 
 fn read_step_model_data(bytes: Vec<u8>) -> Result<StepModelData, String> {
+    read_step_model_data_with(&CadrumKernel, &bytes)
+}
+
+fn read_step_model_data_with<K: CadKernel>(
+    kernel: &K,
+    bytes: &[u8],
+) -> Result<StepModelData, String> {
     if bytes.is_empty() || bytes.len() > MAX_STEP_BYTES {
         return Err("STEP import failed: invalid file size".into());
     }
-    let mut reader = std::io::Cursor::new(bytes);
-    let solids = {
-        let _stage = Stage::new("stepImport");
-        Solid::read_step(&mut reader).map_err(|error| format!("STEP import failed: {error}"))?
-    };
-    if solids.is_empty() {
-        return Err("STEP import failed: empty shape".into());
-    }
-
-    let mut min = DVec3::splat(f64::INFINITY);
-    let mut max = DVec3::splat(f64::NEG_INFINITY);
-    for solid in &solids {
-        let [solid_min, solid_max] = solid.bounding_box();
-        min = min.min(solid_min);
-        max = max.max(solid_max);
-    }
-    if !min.is_finite() || !max.is_finite() || min.cmpgt(max).any() {
-        return Err("STEP import failed: invalid bounds".into());
-    }
-
+    let imported = kernel.import_step(bytes)?;
     Ok(StepModelData {
-        mesh: mesh_data(&solids).map_err(|error| format!("STEP import failed: {error}"))?,
-        min: min.to_array(),
-        max: max.to_array(),
+        mesh: kernel
+            .mesh(&imported.model)
+            .map_err(|error| format!("STEP import failed: {error}"))?,
+        min: imported.min,
+        max: imported.max,
         #[cfg(test)]
-        solid_count: solids.len(),
+        solid_count: imported.solid_count,
     })
 }
 
