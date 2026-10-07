@@ -168,17 +168,17 @@ and serializes Chrome leases. Cleanup follows all three merged migrations.
 
 ## Three-app allocation
 
-- This chat runs captured Scope, keyed settlement and Matrix actions/integration, then
-  Layout panels.
-- The user's second app owns the reserved shared UI helpers, then can take the
-  Case/Keymap/Keycaps/Library migration after the tracer gate.
+- This chat completed the tracer integration and now owns Layout panels.
+- The user's second app completed the shared helpers and now owns
+  [Case/Keymap/Keycaps/Library settlement](handoff-09-case-keymap-keycaps-library.md).
 - The user's third app completed
   [Parts and PCB native test preparation](issues/19-parts-pcb-native-test-preparation.md)
-  and can take Parts/PCB settlement after the tracer gate merges.
+  and now owns [Parts/PCB settlement](handoff-08-parts-pcb.md).
 
-The test-preparation stream touches only Parts test modules and the existing PCB native
-owner test file, so it does not share files with the Runtime, UI helpers or Matrix
-streams. Wider panel behavior still waits for the complete tracer.
+All three migration worktrees start at the same integrated-tracer claim commit.
+Each app owns a distinct source area; root integrates their reviewed branches and
+serializes Chrome leases. The handoffs name the exact branch, worktree and starting
+commit, and retain the shared contracts and domain assertions.
 
 ## Out of scope
 

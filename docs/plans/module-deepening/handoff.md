@@ -88,6 +88,20 @@ work and the second app's UI helpers, then merges before Parts/PCB panel settlem
 Use the same separate worktree, single orchestrator, explicit file ownership and Chrome
 lease rules above. Do not dispatch this assignment to agents here concurrently.
 
+## Three-app panel migration
+
+The complete tracer gate is resolved. Layout panels run here; the second app receives
+[Case/Keymap/Keycaps/Library settlement](handoff-09-case-keymap-keycaps-library.md),
+and the third app receives [Parts/PCB settlement](handoff-08-parts-pcb.md). Both
+external handoffs include dedicated clean worktrees from the same integrated-tracer
+claim commit. They own separate ticket paths and report to this orchestrator for merge
+and resolution. Keep Chrome leased to one app at a time.
+
+Within a shared ticket worktree, one integration owner stages/commits and runs compiler
+and browser pipelines. Subagents may edit disjoint paths and submit diffs/evidence;
+they leave the shared Git index to that owner. Coordinate TDD check windows so an
+unrelated worker's unfinished edit is not mistaken for the expected failing test.
+
 ## Claiming and resolving
 
 The orchestrator, not the agents, writes ticket status on `dev`, so claims never race:
