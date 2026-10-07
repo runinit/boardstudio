@@ -38,7 +38,7 @@ finish      13 cleanup (07, 08, 09, 10, 12)
 ```
 
 ES-20 is [edit settlement 20](../edit-settlement/issues/20-preview-only-direct-edit-event.md);
-TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. ES-20, 06, TCE-01, 10 and 11 are resolved. Tickets 03, 04 and 12 are claimed; 03 and 12 are completing verification, and 04 integrates after 03. Ticket 05 starts after both 03 and 04 merge. The TCE-02 spec and TCE-03 decision proposals await human approval.
+TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. ES-20, 06, TCE-01, 10 and 11 are resolved. Ticket 03 is resolved. Tickets 04 and 12 are claimed; 04 is integrating the new Runtime test helpers, and 12 is completing its commit/check boundaries. Ticket 05 starts after both 03 and 04 merge. The TCE-02 spec and TCE-03 decision proposals await human approval.
 
 ## Decisions so far
 
@@ -60,6 +60,9 @@ TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. ES-20, 06, TC
 ## Progress
 
 <!-- one line per resolved build ticket -->
+
+- 03 Native test Runtime drives real Session/Core and shared gates; fake drivers and
+  manual settlement are removed: [Outcome](issues/03-native-test-runtime.md#outcome).
 
 - ES-20 Preview-only direct events landed; former test commits use resolvers:
   [Outcome](../edit-settlement/issues/20-preview-only-direct-edit-event.md#outcome).
