@@ -454,10 +454,6 @@ pub struct Runtime {
     #[cfg(any(test, feature = "test-support"))]
     in_process_adapters: RefCell<Option<Rc<crate::runtime::in_process_support::InProcessAdapters>>>,
     #[cfg(any(test, feature = "test-support"))]
-    layout_component_inspector_test_state: RefCell<Option<(ReadModel, Option<Scope>)>>,
-    #[cfg(any(test, feature = "test-support"))]
-    layout_component_inspector_test_events: RefCell<Vec<Event>>,
-    #[cfg(any(test, feature = "test-support"))]
     held_effects: RefCell<Vec<Effect>>,
     #[cfg(any(test, feature = "test-support"))]
     import_archive_test_gate: RefCell<Option<ImportArchiveTestGate>>,
@@ -554,10 +550,6 @@ impl Runtime {
             #[cfg(any(test, feature = "test-support"))]
             in_process_adapters: RefCell::new(None),
             #[cfg(any(test, feature = "test-support"))]
-            layout_component_inspector_test_state: RefCell::new(None),
-            #[cfg(any(test, feature = "test-support"))]
-            layout_component_inspector_test_events: RefCell::new(Vec::new()),
-            #[cfg(any(test, feature = "test-support"))]
             held_effects: RefCell::new(Vec::new()),
             #[cfg(any(test, feature = "test-support"))]
             import_archive_test_gate: RefCell::new(None),
@@ -617,14 +609,6 @@ impl Runtime {
         if let Some(context) = self.firmware_export_test_context.borrow().as_ref() {
             return context.scope.clone();
         }
-        #[cfg(any(test, feature = "test-support"))]
-        if let Some((_, scope)) = self
-            .layout_component_inspector_test_state
-            .borrow()
-            .as_ref()
-        {
-            return scope.clone();
-        }
         self.session.borrow().scope()
     }
     pub fn electrical_preview_executor_epoch(&self) -> u64 {
@@ -650,14 +634,6 @@ impl Runtime {
                     .and_then(|scope| scope.instance_id.clone()),
                 ..ReadModel::default()
             };
-        }
-        #[cfg(any(test, feature = "test-support"))]
-        if let Some((model, _)) = self
-            .layout_component_inspector_test_state
-            .borrow()
-            .as_ref()
-        {
-            return model.clone();
         }
         self.session.borrow().read_model().clone()
     }
@@ -1786,17 +1762,6 @@ impl Runtime {
         }
         #[cfg(any(test, feature = "test-support"))]
         let test_event = event.clone();
-        #[cfg(any(test, feature = "test-support"))]
-        if self
-            .layout_component_inspector_test_state
-            .borrow()
-            .is_some()
-        {
-            self.layout_component_inspector_test_events
-                .borrow_mut()
-                .push(event);
-            return;
-        }
         if matches!(&event, Event::StartGeneration { .. })
             && self.mechanical_mount_initialization_pending()
         {
@@ -1906,29 +1871,6 @@ impl Runtime {
             .publish(preview)
             .unwrap();
         self.changed();
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn set_layout_component_inspector_test_state(
-        &self,
-        model: ReadModel,
-        scope: Option<Scope>,
-    ) {
-        *self.layout_component_inspector_test_state.borrow_mut() = Some((model, scope));
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn take_layout_component_inspector_test_events(&self) -> Vec<Event> {
-        std::mem::take(&mut *self.layout_component_inspector_test_events.borrow_mut())
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn settle_layout_component_inspector_test_operation(
-        &self,
-        operation: OperationId,
-        outcome: TerminalOutcome,
-    ) -> bool {
-        self.operation_outcomes.settle(operation, outcome)
     }
 
     #[cfg(any(test, feature = "test-support"))]
