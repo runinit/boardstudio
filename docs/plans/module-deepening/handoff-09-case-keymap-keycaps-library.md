@@ -19,6 +19,8 @@ Starting dev commit: `8ce860a0950304ddfae34f12d5891b8c6f267f2f`
 
 Reuse the merged [keyed collection contract](issues/15-keyed-pending-edits.md#outcome), [Signal helper contract](issues/16-pending-edit-ui-helpers.md#outcome), and [complete Matrix tracer](issues/18-matrix-field-pending-edits.md#outcome). Read the source example before choosing your panel key type. The helper retains bindings, so use bounded logical keys and keep bound Signals alive for the observation lifetime. A real panel unmount must retire its observation even when editor/selection remain; accepted revisions alone keep it live. Field helpers own submitted-draft memory and settlement writes to bound draft/failure Signals; callers own admission, accepted projection, owner liveness, error placement and precise Landed follow-ups.
 
+For text-field migrations, bind the actual stable draft/failure Signals before submission and pass the exact typed text before parsing. Remove the panel's submitted-request tracking and settlement restoration once the helper owns them. Accepted-projection effects must preserve a newer draft after the helper drains an older result. Prove this in a mounted held-result test, including an older failure that still appears inline beside the newer text.
+
 ## Ownership and coordination
 
 This app owns this assignment’s source and tests in its isolated worktree. The orchestrator owns `dev`, ticket claims/resolutions and the canonical GitNexus index. Use upstream impact before shared-symbol changes and detect_changes before each commit; stale, empty or UNKNOWN graph results require source confirmation. Reindexing belongs to the orchestrator. Report a shared Runtime/helper contract gap before changing another ticket’s files. Stage explicit paths, preserve unrelated edits, and use the repo’s Git safety rules.
@@ -26,4 +28,3 @@ This app owns this assignment’s source and tests in its isolated worktree. The
 ## Known verification limits
 
 The documented native CAD failure is `core_internal_gasket_fixtures_export_connected_positive_regions` (rotated-concave/bottom volume). Treat that gate as failing if reproduced; list the actual result. AppImage-hosted KiCad failures reported by the helper app are a separate environment issue, not the CAD failure. Run the current tree and report what actually happens. Browser presentation compiles only for WASM; native tests alone do not verify it.
-
