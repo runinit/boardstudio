@@ -12,7 +12,10 @@ helpers. Own `web/crates/layout/src/objects/matrix_inspector_controller.rs` and
 `objects/matrix_inspector.rs`, their field/mounted tests, and only minimal related
 module wiring needed to register genuine native interface tests.
 
-Bind fields and the existing action collection to the shared helpers. Preserve domain
+Bind fields through the shared field helper and bind the preceding action slice's
+presentation through the shared one-shot helper. Reuse its existing PendingEdits
+collection and domain admission; do not introduce another action collection or a
+second settlement policy. Preserve domain
 projection, resolver eligibility, catalogue ordering, per-field queueing and exact
 post-landing selection. Do not redesign the Runtime/helper interfaces independently;
 report any contract gap to the orchestrator and its owner.

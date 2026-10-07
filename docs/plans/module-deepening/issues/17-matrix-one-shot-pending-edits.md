@@ -28,8 +28,11 @@ will bind the shared helpers and remove the remaining field feedback layer.
   silent, including owner departure and Scope changes during preparation or saving.
 - [ ] Audit the duplicate-design-variant preset waiter as another one-shot observation:
   use the collection where applicable and document any workflow-specific waiter.
-  Preserve its captured-source, save/reopen and recovery guards; ordinary panel
-  retirement must not redirect or restore over another project.
+  Retired ends observation silently; it must not become an error that triggers
+  failure recovery or a user-visible report. Dropping observation does not cancel
+  authoritative Session work. Genuine catalogue/Core/save/duplication failures keep
+  their existing guarded recovery/reporting. Any lifecycle cleanup must still prove
+  ownership of the clone; never redirect or restore over another project or owner.
 - [ ] Existing field behavior remains usable until the final field integration;
   the remaining MatrixSubmission/field feedback is explicitly deferred to that slice.
 - [ ] Mounted action tests use the real WASM Runtime; migrate hand-resolved domain
