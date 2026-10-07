@@ -155,12 +155,41 @@ passed; Layout 93 passed; presentation Component Inspector 20 and Layout remaind
 passed. After rebasing onto agent A's Parts repair (`7e520799d`), typecheck and repo
 checks pass with no temporary Parts overrides; those overrides were never staged.
 
-Blocked environment/baseline gates: `check.py test` reaches the missing
-`step-oracle/Cargo.toml` fixture and fails there. This checkout has no `check.py lint`
+Blocked environment/baseline gates: `check.py test` reaches the CAD STEP oracle's
+workspace-discovery error in this nested worktree and fails there. This checkout
+has no `check.py lint`
 step; targeted WASM Clippy with `-D warnings` stops at the pre-existing Application
 `Resolution` large-enum-variant warning. These blockers were not changed by this
 ticket. The affected browser subsets of `check.py browser` were run as listed above.
 
 Follow-up: ticket 17 remains gated on all cluster tickets 08–16 being resolved.
-The array-valued mechanical adapters remain as specified; typed Core mechanical
-commands are outside this ticket.
+Explicit adoption actions remain collection replacements; other opening and mount
+actions were narrowed in the review follow-up below. Typed Core mechanical commands
+remain outside this ticket.
+
+### Astra/high review follow-up (2026-10-07)
+
+`0cbab30a7` addresses the queue/draft findings from the requested Astra/high review.
+Authored gasket inset/width/depth now change only their accepted field. Opening
+and mount add/remove/vertex actions resolve narrow intents against accepted
+collections; explicit adoption actions retain replacement semantics. Captured
+preceding-removal metadata retires queued positional fields whose opening or
+vertex index shifts, under the existing single structural-action guard. Library
+Escape/blur submits no canceled rename. Library, setup-guide name and authored
+body numeric fields preserve newer typing when older tickets settle. A private
+setup-name hook exposes the production behavior to its mounted regression.
+
+Regression tests first reproduced the stale gasket/vector overwrite, shifted
+opening target, canceled Library rename and older-landing draft erasure, then
+passed with accepted values and ordered Undo checked. Failed-removal guard behavior
+was source-traced by Astra; the runtime regression covers a successful removal.
+`5d3bce3f` removes two production unwraps reported by Standards and formats the new
+mount regression. Astra/high Standards and Spec rereviews report no remaining
+findings after that correction.
+
+Case browser 60, Library browser 13, page browser 42, native Application 29 and
+Runtime 102 passed. Page typecheck, repo/docs, WASM ownership and whitespace checks
+passed. The focused opening browser rerun after the checked-binding correction passed
+(3 tests).
+The CAD workspace-discovery and pre-existing Clippy gates above remain unchanged.
+No ticket-15 code, strict export/remap path, dependency or public API was changed.

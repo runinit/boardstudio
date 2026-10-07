@@ -22,6 +22,14 @@ which remaining whole-document replacements become typed Core edits.
 - Build tickets are execution slices for implementation agents; decision tickets
   need the user (HITL).
 
+## Decision preparation
+
+The [review and decision brief](decision-brief.md) records the Astra/high follow-up
+and the open questions for tickets 18 and 19. The [cleanup audit](../../investigations/edit-settlement-cleanup-audit.md),
+[Event edit options](../../investigations/edit-event-restriction-options.md) and
+[whole-document resolver inventory](replace-document-resolvers.md) are provisional
+until ticket 15 merges and ticket 17 completes; they do not resolve those tickets.
+
 ## Decisions so far
 
 - Queued edits resolve against the accepted document at execution; vanished targets

@@ -25,3 +25,8 @@ Using ticket 17's `replace-document-resolvers.md`, decide:
 
 Call the `grilling` and `domain-modeling` skills. Resolve with `## Answer`; if a new
 effort is chosen, its map is the destination of that effort, not this one.
+
+
+## Comments
+
+2026-10-07: Prepared the [provisional resolver inventory](../replace-document-resolvers.md) and [decision brief](../decision-brief.md). Ranking is inferred, not measured usage; refresh after ticket 15/17. No concept, new effort or ReplaceDocument restriction has been chosen.

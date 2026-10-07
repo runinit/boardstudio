@@ -69,3 +69,8 @@ python3 scripts/check-doc-links.py
 ## Out of scope
 
 - Restricting `Event::Edit` (decision ticket 18) and typed Core edits (decision ticket 19).
+
+
+## Comments
+
+2026-10-07: Prepared a [source cleanup audit](../../../investigations/edit-settlement-cleanup-audit.md) and [provisional resolver inventory](../replace-document-resolvers.md). Refresh them after ticket 15 lands; no cleanup implementation or final acceptance claim is made here.

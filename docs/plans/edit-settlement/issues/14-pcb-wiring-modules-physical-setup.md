@@ -157,7 +157,23 @@ Application 29, Runtime 102, PCB 16 and Catalogue 7 passed. `check.py repo` and
 `check.py typecheck`,
 `check-wasm-tests.py`, documentation links (56 files) and `git diff --check` passed.
 `check.py test` passed the workspace and footprint Rust suites, then stopped at the
-existing missing `cad/step-oracle/Cargo.toml` fixture. No dependency changes.
+existing CAD STEP-oracle workspace-discovery error in this nested worktree. No dependency changes.
 
 Follow-up: ticket 15 is owned by the user's parallel worktree; ticket 17 remains
 outside this ticket. Asset cleanup remains out of scope.
+
+### Astra/high review follow-up (2026-10-07)
+
+`fb0138356` fixes the module placement failure found by Astra/high: settlement
+restores the committed draft to accepted coordinates without replacing newer
+uncommitted typing. Recovery is distinguished from a vanished selection, while
+new edit admission still checks lifecycle/durability. Ticket-list changes also
+trigger settlement observation, including immediate outcomes. The mounted regression
+uses the real Runtime open path and covers both restored and newer active drafts;
+it first failed with the old production implementation for the expected value.
+
+Astra/high Spec rereview found no remaining concrete gaps; Standards rereview found
+no remaining findings for this correction. PCB browser 38, page browser 42, native
+Application 29 and Runtime 102 passed, as did repo/typecheck, WASM ownership and
+whitespace checks. The full-native CAD blocker above was verified to be workspace
+discovery in this nested worktree, not a missing manifest.

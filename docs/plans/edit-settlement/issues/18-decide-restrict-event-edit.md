@@ -26,3 +26,8 @@ For each, say what it costs (call sites, Core types, tests) and what it protects
 
 Call the `grilling` and `domain-modeling` skills. Resolve with `## Answer`; record an
 ADR if the result is hard to reverse, otherwise a line on the map.
+
+
+## Comments
+
+2026-10-07: Prepared the [four-option investigation](../../../investigations/edit-event-restriction-options.md) and [decision brief](../decision-brief.md). They distinguish direct-event enforcement from unrestricted resolver outputs and preserve the strict-path constraints. The human decision and ticket-17 prerequisite remain open.
