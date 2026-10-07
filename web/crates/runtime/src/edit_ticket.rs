@@ -57,6 +57,18 @@ pub struct EditTicket {
     feature: Option<String>,
 }
 
+impl Clone for EditTicket {
+    fn clone(&self) -> Self {
+        // The observation slots are shared: a clone observes the same settlement.
+        Self {
+            operation: self.operation,
+            outcome: self.outcome.clone(),
+            landing: self.landing.clone(),
+            feature: self.feature.clone(),
+        }
+    }
+}
+
 impl EditTicket {
     /// Begin a pending edit for `resolver`. The outcome and landing are observed before
     /// the event is submitted, so a synchronous settlement cannot be missed. `feature` is
