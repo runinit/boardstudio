@@ -1777,8 +1777,10 @@ mod tests {
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
     use super::*;
-    use boardstudio_application::{SessionEpoch, SnapshotToken, TerminalOutcome};
-    use boardstudio_core::model::{Board, EditCommand, OutlineSettings};
+    use boardstudio_application::{
+        Event as SessionEvent, OperationId, ReadModel, SessionEpoch, SnapshotToken, TerminalOutcome,
+    };
+    use boardstudio_core::model::{Board, EditCommand, EditPhase, OutlineSettings};
     use std::{
         cell::{Cell, RefCell},
         sync::Arc,

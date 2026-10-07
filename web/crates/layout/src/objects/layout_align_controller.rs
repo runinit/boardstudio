@@ -10,6 +10,8 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
+#[cfg(test)]
+use boardstudio_core::model::{EditCommand, EditPhase};
 use boardstudio_core::model::{EditOperation, Part, ProjectDoc, Vec2};
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
