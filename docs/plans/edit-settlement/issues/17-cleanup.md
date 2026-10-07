@@ -1,6 +1,6 @@
 # 17: Cleanup: one settlement path and a record of what still replaces the document
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: 08, 09, 10, 11, 12, 13, 14, 15, 16
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
@@ -74,3 +74,7 @@ python3 scripts/check-doc-links.py
 ## Comments
 
 2026-10-07: Prepared a [source cleanup audit](../../../investigations/edit-settlement-cleanup-audit.md) and [provisional resolver inventory](../replace-document-resolvers.md). Refresh them after ticket 15 lands; no cleanup implementation or final acceptance claim is made here.
+
+2026-10-07: Claimed after ticket 15 merged. Migrate remaining Runtime feature
+interception to the shared adapter, retain strict export/remap/gesture behavior,
+refresh the resolver inventory, and leave decisions 18/19 to the user.
