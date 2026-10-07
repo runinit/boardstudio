@@ -8,11 +8,15 @@ use super::pins::{
 };
 use super::remap::{ProtectedRemapActions, ProtectedRemapFeedback, use_protected_remap_review};
 use super::*;
-use boardstudio_application::{Event, OperationId, Resolution, Scope, SessionEpoch, SnapshotToken};
+use boardstudio_application::{
+    Durability, EditResolver, Event, OperationId, Resolution, Scope, SessionEpoch, SnapshotToken,
+    TerminalOutcome,
+};
 use boardstudio_core::{
     electrical::{ElectricalDiagnostic, ElectricalMode, ElectricalPlan, ElectricalPlanRequest},
     model::*,
 };
+use boardstudio_web_runtime::operation_outcomes::OutcomeSlot;
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -1039,5 +1043,227 @@ fn mounted_protected_remap_failures_preserve_the_accepted_handoff() {
                 .state,
             ProtectedRemapFeedback::Failed(_)
         ));
+    }
+}
+
+/// Queue a whole-document edit that resolves against the document accepted when it runs.
+fn queue_document_edit(
+    runtime: &crate::runtime::Runtime,
+    change: impl Fn(&mut ProjectDoc) + 'static,
+) -> OutcomeSlot {
+    let operation = runtime.operation();
+    let slot = runtime.observe_operation(operation);
+    runtime.submit(Event::ResolveEdit {
+        operation_id: operation,
+        label: "native-test-queued-document-edit".into(),
+        resolver: EditResolver::new("native-test-queued-document-edit", move |accepted| {
+            let mut document = (*accepted.document).clone();
+            change(&mut document);
+            Resolution::submit(
+                vec![document.id.clone()],
+                EditOperation::ReplaceDocument {
+                    document: Box::new(document),
+                },
+            )
+        }),
+    });
+    slot
+}
+
+/// The settlement slot of the most recently submitted edit, observed while it is gated.
+fn latest_edit_slot(runtime: &crate::runtime::Runtime) -> OutcomeSlot {
+    let events = runtime.events.borrow();
+    let Some(Event::ResolveEdit { operation_id, .. }) = events
+        .iter()
+        .rev()
+        .find(|event| matches!(event, Event::ResolveEdit { .. }))
+    else {
+        panic!("no edit was submitted");
+    };
+    runtime.observe_operation(*operation_id)
+}
+
+fn accepted_mode(runtime: &crate::runtime::Runtime) -> ElectricalMode {
+    runtime
+        .model()
+        .accepted
+        .unwrap()
+        .document
+        .hardware
+        .as_ref()
+        .and_then(|hardware| {
+            hardware
+                .boards
+                .iter()
+                .find(|configuration| configuration.board_id == "left")
+        })
+        .map_or(ElectricalMode::Matrix, |configuration| configuration.mode)
+}
+
+fn mark_unrelated(document: &mut ProjectDoc) {
+    document
+        .parameters
+        .insert("unrelated-edit".into(), serde_json::json!(true));
+}
+
+fn has_unrelated_edit(runtime: &crate::runtime::Runtime) -> bool {
+    runtime
+        .model()
+        .accepted
+        .unwrap()
+        .document
+        .parameters
+        .get("unrelated-edit")
+        == Some(&serde_json::json!(true))
+}
+
+fn remove_left_board(document: &mut ProjectDoc) {
+    document.boards.retain(|board| board.id != "left");
+}
+
+#[test]
+fn mounted_mode_choice_submits_one_edit_that_lands_and_saves() {
+    let (probe, mut dom) = mounted();
+    assert_eq!(accepted_mode(&probe.runtime), ElectricalMode::Matrix);
+    let actions = probe.latest.borrow().as_ref().unwrap().clone();
+    actions
+        .on_change
+        .call(request(&probe, ElectricalMode::Direct));
+
+    assert_eq!(mutation_count(&probe.runtime), 1);
+    assert_eq!(accepted_mode(&probe.runtime), ElectricalMode::Direct);
+    let model = probe.runtime.model();
+    assert_eq!(
+        model.durability,
+        Durability::Saved {
+            revision: model.accepted.as_ref().unwrap().document.revision
+        }
+    );
+    let next_source = refreshed_source(&probe.runtime, None, 5);
+    *probe.source.borrow_mut() = next_source;
+    tick(&probe, &mut dom);
+    assert!(matches!(
+        probe
+            .latest
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .feedback
+            .as_ref()
+            .unwrap()
+            .state,
+        BoardWiringModeFeedback::Saved
+    ));
+}
+
+#[test]
+fn queued_mode_choice_resolves_against_the_prior_accepted_edit() {
+    let (probe, _dom) = mounted();
+    let actions = probe.latest.borrow().as_ref().unwrap().clone();
+    let direct = request(&probe, ElectricalMode::Direct);
+
+    probe.runtime.hold_next_core();
+    let unrelated = queue_document_edit(&probe.runtime, mark_unrelated);
+    assert!(
+        probe.runtime.core_entered(),
+        "the unrelated edit reaches Core"
+    );
+    actions.on_change.call(direct);
+    assert_eq!(mutation_count(&probe.runtime), 2);
+    let mode = latest_edit_slot(&probe.runtime);
+    assert!(mode.borrow().is_none(), "the mode choice waits for Core");
+
+    probe.runtime.release_core();
+    assert_eq!(*unrelated.borrow(), Some(TerminalOutcome::Completed));
+    assert_eq!(*mode.borrow(), Some(TerminalOutcome::Completed));
+    assert_eq!(accepted_mode(&probe.runtime), ElectricalMode::Direct);
+    assert!(
+        has_unrelated_edit(&probe.runtime),
+        "the mode choice keeps the edit accepted ahead of it"
+    );
+}
+
+#[test]
+fn queued_mode_choice_retires_when_its_board_departs_first() {
+    let (probe, _dom) = mounted();
+    let actions = probe.latest.borrow().as_ref().unwrap().clone();
+    let direct = request(&probe, ElectricalMode::Direct);
+
+    probe.runtime.hold_next_core();
+    let departure = queue_document_edit(&probe.runtime, remove_left_board);
+    assert!(probe.runtime.core_entered(), "the departure reaches Core");
+    actions.on_change.call(direct);
+    let mode = latest_edit_slot(&probe.runtime);
+    assert!(mode.borrow().is_none(), "the mode choice waits for Core");
+
+    probe.runtime.release_core();
+    assert_eq!(*departure.borrow(), Some(TerminalOutcome::Completed));
+    assert_eq!(
+        *mode.borrow(),
+        Some(TerminalOutcome::Rejected("The board was deleted.".into()))
+    );
+    let accepted = probe.runtime.model().accepted.unwrap();
+    assert!(
+        accepted
+            .document
+            .boards
+            .iter()
+            .all(|board| board.id != "left")
+    );
+}
+
+#[test]
+fn queued_pin_choice_keeps_the_prior_edit_and_retires_with_its_board() {
+    let free_pin = resolved_plan(&document()).free_pins[0].clone();
+    for board_departs in [false, true] {
+        let (probe, _dom) = mounted();
+        let actions = probe.latest_pins.borrow().as_ref().unwrap().clone();
+        let choice = PcbWiringPinEditRequest {
+            identity: actions.identity.clone().unwrap(),
+            assignment_id: "row/0".into(),
+            pin: Some(free_pin.clone()),
+        };
+
+        probe.runtime.hold_next_core();
+        let first = if board_departs {
+            queue_document_edit(&probe.runtime, remove_left_board)
+        } else {
+            queue_document_edit(&probe.runtime, mark_unrelated)
+        };
+        assert!(probe.runtime.core_entered(), "the first edit reaches Core");
+        actions.on_change.call(choice);
+        let pin = latest_edit_slot(&probe.runtime);
+        assert!(pin.borrow().is_none(), "the pin choice waits for Core");
+
+        probe.runtime.release_core();
+        assert_eq!(*first.borrow(), Some(TerminalOutcome::Completed));
+        let accepted = probe.runtime.model().accepted.unwrap();
+        if board_departs {
+            assert_eq!(
+                *pin.borrow(),
+                Some(TerminalOutcome::Rejected("The board was deleted.".into()))
+            );
+            assert!(
+                accepted
+                    .document
+                    .boards
+                    .iter()
+                    .all(|board| board.id != "left")
+            );
+        } else {
+            assert_eq!(*pin.borrow(), Some(TerminalOutcome::Completed));
+            assert!(has_unrelated_edit(&probe.runtime));
+            let locks = &accepted
+                .document
+                .hardware
+                .as_ref()
+                .unwrap()
+                .boards
+                .iter()
+                .find(|configuration| configuration.board_id == "left")
+                .unwrap()
+                .locks;
+            assert_eq!(locks.get("row/0"), Some(&free_pin));
+        }
     }
 }
