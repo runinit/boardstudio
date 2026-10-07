@@ -3011,5 +3011,47 @@ mod tests {
                 "the matrix was removed by the real Core edit"
             );
         }
+
+        #[wasm_bindgen_test]
+        async fn mounted_delete_does_not_clear_a_newer_outline_selection() {
+            let runtime = fixture::open_matrix_runtime().await;
+            let (probe, root) = mount_matrix_inspector(runtime.clone()).await;
+            let (entered, release) = support::gate_next_core_reply(&runtime);
+
+            button_named(&root, "Delete matrix").click();
+            support::drive_pending(&runtime);
+            entered.await.expect("the mounted delete reached Core");
+            let newer_selection = ScopedTreeContext {
+                scope: probe.scope.clone(),
+                context: TreeContext::Outline {
+                    board_id: probe.scope.board_id.clone(),
+                },
+            };
+            let mut selected = probe
+                .selected_context
+                .borrow()
+                .as_ref()
+                .copied()
+                .expect("mounted selection signal");
+            selected.set(Some(newer_selection.clone()));
+
+            release.send(()).expect("release the held delete");
+            support::run_pending(&runtime).await;
+            let mut version = probe
+                .version
+                .borrow()
+                .as_ref()
+                .copied()
+                .expect("mounted version signal");
+            version.set(version() + 1);
+            gloo_timers::future::TimeoutFuture::new(35).await;
+            support::run_pending(&runtime).await;
+
+            assert_eq!(
+                selected.read().as_ref(),
+                Some(&newer_selection),
+                "the old delete cannot clear a newer outline selection"
+            );
+        }
     }
 }
