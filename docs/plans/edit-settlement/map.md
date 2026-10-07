@@ -66,6 +66,9 @@ which remaining whole-document replacements become typed Core edits.
 - 12 Outline actions go through one planner and the edit ticket; the `Pending` settle
   effect is gone; the layout-inspector interception is deleted from Runtime:
   [issues/12-outline.md](issues/12-outline.md).
+- 09 Layout remainder: nudges, the old position Inspector's commit and geometry-script
+  New/Apply submit intent through the edit ticket; constraint set/remove covered by
+  queued tests: [issues/09-layout-remainder.md](issues/09-layout-remainder.md).
 
 ## Not yet specified
 

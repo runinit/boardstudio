@@ -1,6 +1,6 @@
 # 09: Layout remainder: constraints, old position Inspector, nudges and geometry scripts
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: 06
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0005](../../../adr/0005-resolve-queued-edits-at-execution.md)
@@ -106,3 +106,37 @@ wasm-pack test --headless --chrome web/crates/ui-shared --locked --lib
 - Merging held-key nudges into one edit (map: out of scope).
 - Stale previews drawn after a queued commit (recorded in `docs/backlog.md`).
 - Matrix and transform nudges (ticket 11).
+
+## Outcome
+
+Commits: claim; "Land constraint, old position, nudge and geometry-script edits through
+resolution".
+
+- Constraint set/remove (call sites 4 and 5) already submit through resolvers since ticket 06;
+  this ticket's tests now cover them queued back-to-back and retiring on a deleted part.
+- Keyboard nudge (`nudge_resolver`): a delta intent that moves each part from its accepted
+  position when it runs and retires when a part is gone, locked or relationship-driven. The
+  tree handler keeps its admission checks and the selection/camera side effects.
+- Old position Inspector: previews stay on `Event::Edit`; the Enter/Apply commit begins a
+  ticket (`commit_position_resolver`) that keeps the preview's transaction id, retires if the
+  part is gone and resolves Unchanged on an equal point.
+- Geometry scripts: `new_script_resolver` and `apply_script_resolver` build the
+  `ReplaceDocument` from the accepted document; New and Apply disable while their ticket is
+  pending, a failed ticket shows its message inline, and admission now only requires the open
+  project session (the token/revision equality is gone).
+- New tests (real Session/Core, gated reply): `layout_remainder_tests.rs` — three nudges
+  queued behind a gated reply move the part three steps and three Undos restore it; a nudge
+  retires when its part was deleted; old-Inspector commits keep the latest value and Undo
+  steps back; constraint set then remove both land; removing a constraint whose part was
+  deleted retires. `geometry_scripts.rs` — Apply queued behind an unrelated edit keeps that
+  edit; two queued New scripts get distinct names; Apply on a deleted script retires.
+
+Checks: `python3 scripts/check.py typecheck`; `python3 scripts/check-wasm-tests.py`;
+`python3 scripts/run-wasm-tests.py --files web/src/presentation/layout_component_inspector_tests.rs`
+(20 executed, 0 failed) and `--files web/src/presentation/layout_remainder_tests.rs` (5/0);
+`wasm-pack test --headless --chrome web/crates/ui-shared --locked --lib` — 9 passed.
+Typecheck was run with agent A's broken WIP parts files swapped for their pre-WIP versions
+locally (never committed); see the handoff.
+
+Follow-ups: the project-name submit in `presentation.rs` still sends `Event::Edit` directly
+(ticket 16); a failed script ticket's message stays visible until the next script action.
