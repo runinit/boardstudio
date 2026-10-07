@@ -63,6 +63,8 @@ pub mod board_inspector;
 #[cfg(target_arch = "wasm32")]
 pub mod layout_findings;
 #[cfg(target_arch = "wasm32")]
+pub mod layout_findings_state;
+#[cfg(target_arch = "wasm32")]
 pub mod layout_viewer;
 #[cfg(target_arch = "wasm32")]
 pub mod objects;
