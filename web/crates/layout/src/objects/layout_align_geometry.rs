@@ -29,58 +29,6 @@ pub fn reconcile_reference_choice(
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PendingSettlementGate {
-    RetireOldScope,
-    WaitForAcceptedAdvance,
-    Settle,
-}
-
-pub fn pending_settlement_gate(
-    same_scope: bool,
-    completed: bool,
-    base_token: u64,
-    base_revision: u64,
-    accepted: Option<(u64, u64)>,
-    terminal_failure: bool,
-    ready_and_saved: bool,
-) -> PendingSettlementGate {
-    if !same_scope {
-        return PendingSettlementGate::RetireOldScope;
-    }
-    if completed
-        && should_wait_for_alignment_advance(
-            true,
-            base_token,
-            base_revision,
-            accepted,
-            terminal_failure,
-            ready_and_saved,
-        )
-    {
-        PendingSettlementGate::WaitForAcceptedAdvance
-    } else {
-        PendingSettlementGate::Settle
-    }
-}
-
-pub fn should_wait_for_alignment_advance(
-    same_scope: bool,
-    base_token: u64,
-    base_revision: u64,
-    accepted: Option<(u64, u64)>,
-    terminal_failure: bool,
-    ready_and_saved: bool,
-) -> bool {
-    if !same_scope || terminal_failure {
-        return false;
-    }
-    let Some((token, revision)) = accepted else {
-        return true;
-    };
-    token == base_token || revision <= base_revision || !ready_and_saved
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AlignCommand {
     Left,
     CenterX,
@@ -187,10 +135,7 @@ fn finite_point(point: Vec2) -> bool {
 
 #[cfg(test)]
 mod state_tests {
-    use super::{
-        PendingSettlementGate, pending_settlement_gate, reconcile_reference_choice,
-        reference_choice, should_wait_for_alignment_advance,
-    };
+    use super::{reconcile_reference_choice, reference_choice};
 
     #[test]
     fn reference_choice_retains_preferences_when_projection_is_unavailable() {
@@ -231,37 +176,6 @@ mod state_tests {
             Some("A".into())
         );
         assert_eq!(writes, vec![Some("A".into())]);
-    }
-
-    #[test]
-    fn completed_old_scope_is_not_held_by_a_lower_new_revision() {
-        assert!(!should_wait_for_alignment_advance(
-            false,
-            10,
-            40,
-            Some((1, 2)),
-            false,
-            true,
-        ));
-        assert!(!should_wait_for_alignment_advance(
-            false, 10, 40, None, false, false,
-        ));
-        assert!(should_wait_for_alignment_advance(
-            true,
-            10,
-            40,
-            Some((10, 40)),
-            false,
-            true,
-        ));
-        assert_eq!(
-            pending_settlement_gate(false, true, 10, 40, Some((1, 2)), false, true),
-            PendingSettlementGate::RetireOldScope
-        );
-        assert_eq!(
-            pending_settlement_gate(true, true, 10, 40, Some((10, 40)), false, true),
-            PendingSettlementGate::WaitForAcceptedAdvance
-        );
     }
 }
 

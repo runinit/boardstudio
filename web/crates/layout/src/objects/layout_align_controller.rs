@@ -1,25 +1,27 @@
 //! Root-lifetime admission and exact outcome settlement for Layout Align commands.
 use super::layout_align::{
-    PendingSettlementGate, alignment_delta, local_matrix_delta, pending_settlement_gate,
-    reconcile_reference_choice, transformed_envelope,
+    alignment_delta, local_matrix_delta, reconcile_reference_choice, transformed_envelope,
 };
 use super::{
     AlignAction, AlignCommand, AlignFeedback, AlignReference, LayoutAlignMount, ScopedTreeContext,
     TreeContext,
 };
-use crate::{operation_outcomes::OutcomeSlot, runtime::Runtime};
+use crate::runtime::Runtime;
 use boardstudio_application::{
-    Durability, Event, Lifecycle, Scope, SnapshotToken, TerminalOutcome,
+    AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
 use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, Matrix, Part, Pose2, ProjectDoc, Vec2,
+    EditCommand, EditOperation, EditPhase, Part, ProjectDoc, Vec2,
 };
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
 
+/// The in-flight Align: the edit ticket plus the identity its feedback is shown under.
+/// One-shot, so the Align controls disable while the ticket is pending.
 #[derive(Clone)]
 struct PendingAlign {
-    outcome: OutcomeSlot,
+    ticket: EditTicket,
     workspace: &'static str,
     scope: Scope,
     scope_generation: u64,
@@ -27,21 +29,6 @@ struct PendingAlign {
     moving_ids: Vec<String>,
     reference_id: String,
     command: AlignCommand,
-    base_token: SnapshotToken,
-    base_revision: u64,
-    expected: ExpectedEdit,
-}
-
-#[derive(Clone)]
-enum ExpectedEdit {
-    Matrix {
-        value: Box<Matrix>,
-        reference_pose: Pose2,
-    },
-    Parts {
-        positions: Vec<(String, Pose2)>,
-        reference_pose: Pose2,
-    },
 }
 
 #[derive(Clone)]
@@ -92,10 +79,6 @@ pub fn use_canvas_align(
     scope_generation: Signal<u64>,
     owner_workspace: &'static str,
 ) -> LayoutAlignMount {
-    let editor_instance_id = use_hook({
-        let runtime = runtime.clone();
-        move || runtime.operation().0
-    });
     let mut selected_reference = use_signal(|| None::<String>);
     let pending = use_signal(|| None::<PendingAlign>);
     let feedback = use_signal(|| None::<AlignFeedbackState>);
@@ -186,7 +169,10 @@ pub fn use_canvas_align(
             && projection.selected_reference.as_deref() == Some(state.reference_id.as_str()))
         .then_some(state.feedback)
     });
-    let busy = pending.read().is_some();
+    let busy = pending
+        .read()
+        .as_ref()
+        .is_some_and(|waiting| waiting.ticket.is_pending());
 
     let on_reference = use_callback({
         let runtime = runtime.clone();
@@ -215,7 +201,11 @@ pub fn use_canvas_align(
         let mut pending = pending;
         let mut feedback = feedback;
         move |request: AlignAction| {
-            if pending.peek().is_some() {
+            if pending
+                .peek()
+                .as_ref()
+                .is_some_and(|waiting| waiting.ticket.is_pending())
+            {
                 return;
             }
             let current_workspace = workspace();
@@ -265,83 +255,23 @@ pub fn use_canvas_align(
                 || model.gesture.is_some()
                 || model.active_board_id != selected.scope.board_id
                 || model.active_instance_id != selected.scope.instance_id
-                || snapshot.token != request.snapshot_token
-                || snapshot.document.revision != request.revision
             {
                 feedback.set(None);
                 return;
             }
-            let Some(reference) = snapshot
-                .document
-                .parts
-                .iter()
-                .find(|part| part.id == reference_id)
-            else {
-                feedback.set(None);
-                return;
-            };
-            let Some(reference_definition) = snapshot
-                .document
-                .definitions
-                .iter()
-                .find(|definition| definition.id == reference.definition_id)
-            else {
-                return;
-            };
-            let Ok(reference_envelope) = transformed_envelope(reference, reference_definition)
-            else {
-                return;
-            };
-            let moving_parts: Vec<_> = current
-                .moving_ids
-                .iter()
-                .filter_map(|id| snapshot.document.parts.iter().find(|part| part.id == *id))
-                .collect();
-            if moving_parts.len() != current.moving_ids.len() {
-                return;
-            }
-            let moving_envelopes: Result<Vec<_>, _> = moving_parts
-                .iter()
-                .map(|part| {
-                    let definition = snapshot
-                        .document
-                        .definitions
-                        .iter()
-                        .find(|definition| definition.id == part.definition_id)
-                        .ok_or_else(|| {
-                            format!("{} has no supported alignment definition", part.reference)
-                        })?;
-                    transformed_envelope(part, definition)
-                })
-                .collect();
-            let Ok(moving_envelopes) = moving_envelopes else {
-                return;
-            };
-            let Ok(delta) =
-                alignment_delta(&moving_envelopes, &reference_envelope, request.command)
-            else {
-                return;
-            };
-            let Some(operation) = make_edit(
-                &snapshot.document,
-                &selected.context,
-                &current.moving_ids,
-                delta,
-                reference.pose,
-            ) else {
-                return;
-            };
-            let (operation, target_ids, expected) = operation;
-            let operation_id = runtime.operation();
-            let outcome = runtime.observe_operation(operation_id);
-            let transaction_id = format!(
-                "layout-align-{editor_instance_id}-{}-{}-{}",
-                snapshot.document.revision,
-                operation_id.0,
-                request.command.label().replace(' ', "-").to_lowercase(),
+            let ticket = EditTicket::begin(
+                &runtime,
+                "layout-align",
+                Some("alignment".into()),
+                align_resolver(
+                    selected.context.clone(),
+                    current.moving_ids.clone(),
+                    reference_id.clone(),
+                    request.command,
+                ),
             );
             pending.set(Some(PendingAlign {
-                outcome,
+                ticket,
                 workspace: request.workspace,
                 scope: selected.scope.clone(),
                 scope_generation: current_generation,
@@ -349,21 +279,8 @@ pub fn use_canvas_align(
                 moving_ids: current.moving_ids.clone(),
                 reference_id: reference_id.clone(),
                 command: request.command,
-                base_token: snapshot.token,
-                base_revision: snapshot.document.revision,
-                expected,
             }));
             feedback.set(None);
-            runtime.submit(Event::Edit {
-                operation_id,
-                command: EditCommand {
-                    base_revision: snapshot.document.revision,
-                    transaction_id,
-                    phase: EditPhase::Commit,
-                    target_ids,
-                    operation,
-                },
-            });
         }
     });
 
@@ -390,23 +307,14 @@ pub fn use_canvas_align(
         selected
             .as_ref()
             .zip(projection.selected_reference.as_ref())
-            .zip(
-                runtime
-                    .model()
-                    .accepted
-                    .as_ref()
-                    .map(|snapshot| (snapshot.token, snapshot.document.revision)),
-            )
             .map(
-                |((selected, reference_id), (snapshot_token, revision))| AlignAction {
+                |(selected, reference_id)| AlignAction {
                     workspace: owner_workspace,
                     scope: selected.scope.clone(),
                     scope_generation: current_scope_generation,
                     context: selected.context.clone(),
                     moving_ids: projection.moving_ids.clone(),
                     reference_id: reference_id.clone(),
-                    snapshot_token,
-                    revision,
                     command: AlignCommand::Left,
                 },
             )
@@ -802,13 +710,92 @@ fn linked_partner(document: &ProjectDoc, scope: &Scope, matrix_id: &str) -> Opti
     Some(linked.matrix_id.clone())
 }
 
+/// Resolve an align against the accepted document at execution time. Every part the
+/// command moves, and the reference, must still exist and stay eligible; the delta and
+/// the replacement operation come from the accepted poses, so an align queued behind
+/// other edits applies on top of them.
+fn align_resolver(
+    context: TreeContext,
+    moving_ids: Vec<String>,
+    reference_id: String,
+    command: AlignCommand,
+) -> EditResolver {
+    EditResolver::new("layout-align", move |accepted: &AcceptedSnapshot| {
+        let document = &accepted.document;
+        let Some(reference) = document.parts.iter().find(|part| part.id == reference_id) else {
+            return Resolution::Retire("The alignment reference no longer exists.".into());
+        };
+        let moving_parts: Vec<&Part> = moving_ids
+            .iter()
+            .filter_map(|id| document.parts.iter().find(|part| part.id == *id))
+            .collect();
+        if moving_parts.len() != moving_ids.len() {
+            return Resolution::Retire("A selected part no longer exists.".into());
+        }
+        let board_part_ids: BTreeSet<&str> = document
+            .boards
+            .iter()
+            .flat_map(|board| board.part_ids.iter().map(String::as_str))
+            .collect();
+        if moving_parts.iter().any(|part| {
+            part.locked == Some(true)
+                || document.constraints.iter().any(|constraint| {
+                    constraint.target() == part.id
+                        && board_part_ids.contains(constraint.source())
+                })
+        }) {
+            return Resolution::Retire(
+                "A selected part is locked or driven by a relationship.".into(),
+            );
+        }
+        if let Some(reason) = unsupported_source(document, &moving_parts, Some(&reference_id)) {
+            return Resolution::Retire(reason);
+        }
+        let envelope = |part: &Part| {
+            document
+                .definitions
+                .iter()
+                .find(|definition| definition.id == part.definition_id)
+                .ok_or_else(|| format!("{} has no supported alignment definition", part.reference))
+                .and_then(|definition| transformed_envelope(part, definition))
+        };
+        let reference_envelope = match envelope(reference) {
+            Ok(envelope) => envelope,
+            Err(reason) => return Resolution::Retire(reason),
+        };
+        let moving_envelopes: Result<Vec<_>, _> =
+            moving_parts.iter().map(|part| envelope(part)).collect();
+        let moving_envelopes = match moving_envelopes {
+            Ok(envelopes) => envelopes,
+            Err(reason) => return Resolution::Retire(reason),
+        };
+        let delta = match alignment_delta(&moving_envelopes, &reference_envelope, command) {
+            Ok(delta) => delta,
+            Err(reason) => return Resolution::Retire(reason),
+        };
+        if delta == Vec2::default() {
+            return Resolution::Unchanged;
+        }
+        let Some((operation, target_ids)) = make_edit(document, &context, &moving_ids, delta)
+        else {
+            return Resolution::Retire("The aligned selection no longer exists.".into());
+        };
+        Resolution::Submit(EditCommand {
+            base_revision: 0,
+            transaction_id: String::new(),
+            phase: EditPhase::Commit,
+            target_ids,
+            operation,
+        })
+    })
+}
+
 fn make_edit(
     document: &ProjectDoc,
     context: &TreeContext,
     moving_ids: &[String],
     delta: Vec2,
-    reference_pose: Pose2,
-) -> Option<(EditOperation, Vec<String>, ExpectedEdit)> {
+) -> Option<(EditOperation, Vec<String>)> {
     match context {
         TreeContext::Matrix { matrix_id } => {
             let mut matrix = document
@@ -818,16 +805,13 @@ fn make_edit(
                 .clone();
             matrix.origin.x += delta.x;
             matrix.origin.y += delta.y;
+            let id = matrix.id.clone();
             Some((
                 EditOperation::SetMatrix {
-                    matrix: matrix.clone(),
+                    matrix,
                     definitions: None,
                 },
-                vec![matrix.id.clone()],
-                ExpectedEdit::Matrix {
-                    value: Box::new(matrix),
-                    reference_pose,
-                },
+                vec![id],
             ))
         }
         TreeContext::Column { matrix_id, column } => {
@@ -843,50 +827,33 @@ fn make_edit(
             }
             matrix.column_offsets[index].x += local.x;
             matrix.column_offsets[index].y += local.y;
+            let id = matrix.id.clone();
             Some((
                 EditOperation::SetMatrix {
-                    matrix: matrix.clone(),
+                    matrix,
                     definitions: None,
                 },
-                vec![matrix.id.clone()],
-                ExpectedEdit::Matrix {
-                    value: Box::new(matrix),
-                    reference_pose,
-                },
+                vec![id],
             ))
         }
         TreeContext::Row { .. } => None,
         TreeContext::Key { .. } | TreeContext::Component { .. } => {
-            let positions: Vec<_> = moving_ids
+            let positions = moving_ids
                 .iter()
                 .map(|id| {
                     let part = document.parts.iter().find(|part| part.id == *id)?;
-                    Some((
-                        id.clone(),
-                        Pose2 {
-                            at: Vec2 {
-                                x: part.pose.at.x + delta.x,
-                                y: part.pose.at.y + delta.y,
-                            },
-                            ..part.pose
+                    Some(boardstudio_core::model::Position {
+                        id: id.clone(),
+                        at: Vec2 {
+                            x: part.pose.at.x + delta.x,
+                            y: part.pose.at.y + delta.y,
                         },
-                    ))
+                    })
                 })
                 .collect::<Option<Vec<_>>>()?;
-            let edit = positions
-                .iter()
-                .map(|(id, pose)| boardstudio_core::model::Position {
-                    id: id.clone(),
-                    at: pose.at,
-                })
-                .collect();
             Some((
-                EditOperation::MoveParts { positions: edit },
+                EditOperation::MoveParts { positions },
                 moving_ids.to_vec(),
-                ExpectedEdit::Parts {
-                    positions,
-                    reference_pose,
-                },
             ))
         }
         TreeContext::Board { .. }
@@ -910,82 +877,32 @@ fn settle_pending(
     let Some(waiting) = pending.peek().clone() else {
         return;
     };
-    let Some(outcome) = waiting.outcome.borrow().clone() else {
-        return;
-    };
     let model = runtime.model();
     let live_scope = runtime.scope();
     let same_scope =
         live_scope.as_ref() == Some(&waiting.scope) && scope_generation == waiting.scope_generation;
-    let still_visible_target = same_scope
-        && workspace == waiting.workspace
-        && selected_context.peek().as_ref().is_some_and(|selected| {
-            selected.scope == waiting.scope && selected.context == waiting.context
-        });
-    let accepted = model
-        .accepted
-        .as_ref()
-        .map(|snapshot| (snapshot.token.0, snapshot.document.revision));
-    let terminal_failure = matches!(model.durability, Durability::Failed { .. })
-        || matches!(
-            model.lifecycle,
-            Lifecycle::RecoveryRequired | Lifecycle::Closed
-        );
-    let ready_and_saved = model.lifecycle == Lifecycle::Ready
-        && accepted
-            .is_some_and(|(_, revision)| model.durability == (Durability::Saved { revision }));
-    match pending_settlement_gate(
-        same_scope,
-        matches!(&outcome, TerminalOutcome::Completed),
-        waiting.base_token.0,
-        waiting.base_revision,
-        accepted,
-        terminal_failure,
-        ready_and_saved,
-    ) {
-        PendingSettlementGate::RetireOldScope => {
+    let settlement = waiting.ticket.settlement(same_scope);
+    let (message, succeeded) = match settlement {
+        Settlement::Pending => return,
+        Settlement::Landed { .. } => (
+            format!(
+                "Aligned selection to {}. Reference unchanged.",
+                reference_label(&model, &waiting.reference_id)
+            ),
+            true,
+        ),
+        Settlement::Failed { message } => (message, false),
+        Settlement::Retired => {
             feedback.set(None);
             pending.set(None);
             return;
         }
-        PendingSettlementGate::WaitForAcceptedAdvance => return,
-        PendingSettlementGate::Settle => {}
-    }
-    let completed = match outcome {
-        TerminalOutcome::Completed => {
-            let Some(snapshot) = model.accepted.as_ref() else { return; };
-            if terminal_failure {
-                Some(Err("The alignment completed, but the accepted document did not save. Retry after recovery.".to_owned()))
-            } else {
-                Some(if expected_applied(&snapshot.document, &waiting.expected, &waiting.reference_id) {
-                    Ok(())
-                } else {
-                    Err("The accepted alignment does not match the requested target. Review it and retry.".into())
-                })
-            }
-        }
-        TerminalOutcome::Rejected(reason)
-        | TerminalOutcome::PersistenceFailed(reason)
-        | TerminalOutcome::BlockedByRecovery(reason)
-        | TerminalOutcome::ExecutorFailed(reason) => Some(Err(reason)),
-        TerminalOutcome::Cancelled | TerminalOutcome::Superseded | TerminalOutcome::Closed => {
-            Some(Err("The alignment did not complete for its original selection. Select it again to retry.".into()))
-        }
     };
-    let Some(result) = completed else {
-        return;
-    };
+    let still_visible_target = workspace == waiting.workspace
+        && selected_context.peek().as_ref().is_some_and(|selected| {
+            selected.scope == waiting.scope && selected.context == waiting.context
+        });
     if still_visible_target {
-        let (message, succeeded) = match result {
-            Ok(()) => (
-                format!(
-                    "Aligned selection to {}. Reference unchanged.",
-                    reference_label(&model, &waiting.reference_id)
-                ),
-                true,
-            ),
-            Err(message) => (message, false),
-        };
         feedback.set(Some(AlignFeedbackState {
             scope: waiting.scope.clone(),
             scope_generation: waiting.scope_generation,
@@ -999,7 +916,7 @@ fn settle_pending(
                 succeeded,
             },
         }));
-    } else if !same_scope || identity.scope.as_ref() != Some(&waiting.scope) {
+    } else if identity.scope.as_ref() != Some(&waiting.scope) {
         feedback.set(None);
     }
     pending.set(None);
@@ -1012,41 +929,4 @@ fn reference_label(model: &boardstudio_application::ReadModel, id: &str) -> Stri
         .and_then(|snapshot| snapshot.document.parts.iter().find(|part| part.id == id))
         .map(|part| part.reference.clone())
         .unwrap_or_else(|| id.to_owned())
-}
-
-fn expected_applied(document: &ProjectDoc, expected: &ExpectedEdit, reference_id: &str) -> bool {
-    match expected {
-        ExpectedEdit::Matrix {
-            value,
-            reference_pose,
-        } => {
-            document
-                .matrices
-                .iter()
-                .find(|matrix| matrix.id == value.id)
-                == Some(value.as_ref())
-                && document
-                    .parts
-                    .iter()
-                    .find(|part| part.id == reference_id)
-                    .is_some_and(|part| part.pose == *reference_pose)
-        }
-        ExpectedEdit::Parts {
-            positions,
-            reference_pose,
-        } => {
-            document
-                .parts
-                .iter()
-                .find(|part| part.id == reference_id)
-                .is_some_and(|part| part.pose == *reference_pose)
-                && positions.iter().all(|(id, pose)| {
-                    document
-                        .parts
-                        .iter()
-                        .find(|part| part.id == *id)
-                        .is_some_and(|part| part.pose == *pose)
-                })
-        }
-    }
 }

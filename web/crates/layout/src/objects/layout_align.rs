@@ -1,11 +1,11 @@
 //! Private Layout Align toolbar controls.
 pub use super::layout_align_geometry::{
-    AlignCommand, PendingSettlementGate, alignment_delta, local_matrix_delta,
-    pending_settlement_gate, reconcile_reference_choice, transformed_envelope,
+    AlignCommand, alignment_delta, local_matrix_delta, reconcile_reference_choice,
+    transformed_envelope,
 };
 use super::layout_toolbar::{LayoutCommandMenu, close_layout_command_menu};
 use super::tree::TreeContext;
-use boardstudio_application::{Scope, SnapshotToken};
+use boardstudio_application::Scope;
 use dioxus::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -30,8 +30,6 @@ pub struct AlignAction {
     pub context: TreeContext,
     pub moving_ids: Vec<String>,
     pub reference_id: String,
-    pub snapshot_token: SnapshotToken,
-    pub revision: u64,
     pub command: AlignCommand,
 }
 

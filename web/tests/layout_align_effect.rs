@@ -156,31 +156,3 @@ async fn mounted_reference_survives_hidden_workspace_and_falls_back_only_when_in
     settle(&mut dom).await;
     assert_eq!(probe.effect_runs.get(), settled_runs);
 }
-
-#[test]
-fn completed_old_scope_does_not_wait_for_the_new_scopes_lower_revision() {
-    assert_eq!(
-        layout_align_geometry::pending_settlement_gate(
-            false,
-            true,
-            10,
-            40,
-            Some((1, 2)),
-            false,
-            true,
-        ),
-        layout_align_geometry::PendingSettlementGate::RetireOldScope
-    );
-    assert_eq!(
-        layout_align_geometry::pending_settlement_gate(
-            true,
-            true,
-            10,
-            40,
-            Some((10, 40)),
-            false,
-            true,
-        ),
-        layout_align_geometry::PendingSettlementGate::WaitForAcceptedAdvance
-    );
-}
