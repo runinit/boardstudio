@@ -32,7 +32,9 @@ impl Probe {
     }
 
     fn watch_next(&self) -> boardstudio_web_runtime::operation_outcomes::OutcomeSlot {
-        // Dispatch allocates a seed before EditTicket allocates the operation being observed.
+        // The hook reserves one operation for its dispatch-time plan seed, then EditTicket
+        // allocates the operation that owns this action. Reserve the seed here so the
+        // observed ID remains deterministic across asynchronous Core/Session execution.
         let seed = self.runtime.operation();
         self.runtime
             .observe_operation(boardstudio_application::OperationId(seed.0 + 2))
