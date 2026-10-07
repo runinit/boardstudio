@@ -652,9 +652,6 @@ fn setup_resolver(
     prepared: Result<(), String>,
 ) -> EditResolver {
     EditResolver::new("physical-setup", move |accepted: &AcceptedSnapshot| {
-        if accepted.document.id != owner.document_id {
-            return Resolution::Retire(boardstudio_application::DOCUMENT_SESSION_CHANGED.into());
-        }
         if let Err(reason) = &prepared {
             return Resolution::Retire(reason.clone());
         }

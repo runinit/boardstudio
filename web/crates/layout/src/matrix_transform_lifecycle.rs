@@ -420,7 +420,6 @@ mod selection_retention_tests {
             assemblies: vec![],
             assemblies_local: None,
         });
-        let revision = before.accepted.as_ref().unwrap().document.revision;
         runtime.submit(fixed_commit(
             OperationId(4),
             Resolution::submit_with_transaction_id(

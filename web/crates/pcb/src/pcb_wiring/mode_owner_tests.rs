@@ -341,20 +341,15 @@ fn source(
 
 fn replace_document(runtime: &Rc<crate::runtime::Runtime>, document: ProjectDoc) {
     let target_id = document.id.clone();
-    let resolver = boardstudio_application::EditResolver::new(
-        "native-test-document-replacement",
-        move |accepted| {
-            boardstudio_application::Resolution::Submit(boardstudio_core::model::EditCommand {
-                base_revision: accepted.document.revision,
-                transaction_id: String::new(),
-                phase: EditPhase::Commit,
-                target_ids: vec![target_id.clone()],
-                operation: EditOperation::ReplaceDocument {
+    let resolver =
+        boardstudio_application::EditResolver::new("native-test-document-replacement", move |_| {
+            boardstudio_application::Resolution::submit(
+                vec![target_id.clone()],
+                EditOperation::ReplaceDocument {
                     document: Box::new(document.clone()),
                 },
-            })
-        },
-    );
+            )
+        });
     let ticket = boardstudio_web_runtime::edit_ticket::EditTicket::begin(
         runtime,
         "native-test-document-replacement",
