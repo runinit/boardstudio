@@ -1,6 +1,6 @@
 # 04: Resolvers state only their intent
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: 06, [edit settlement 20](../../edit-settlement/issues/20-preview-only-direct-edit-event.md), [typed Core edits 01](../../typed-core-edits/issues/01-set-wiring-mode.md) (its resolver sweep touches their files)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [01 answer](01-decide-pending-edit-settlement.md#answer) (item 5)
