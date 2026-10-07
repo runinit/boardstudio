@@ -2,9 +2,9 @@
 use super::binding_controller::{BindingActions, BindingProjectionSources, use_binding_operations};
 use super::binding_editor::{BindingEditRequest, BindingField, BindingTarget};
 use super::layer_controller::{LayerActions, LayerSource, use_layer_operations};
-use super::layer_edit::KeymapLayerOperation;
 use super::macro_controller::{MacroActions, use_macro_operations};
 use super::macro_editor::{MacroEditChange, MacroEditRequest, MacroEditTarget};
+use crate::layer_edit::KeymapLayerOperation;
 use crate::runtime::{Runtime, project_name_test_support as support};
 use boardstudio_application::{Event, SelectionMode};
 use boardstudio_core::model::{KeyBinding, ProjectDoc};
@@ -445,7 +445,7 @@ async fn rename_of_layer_removed_before_execution_retires_with_reason() {
         1
     );
     assert!(
-        matches!(&probe.layers.borrow().as_ref().unwrap().feedback, Some(super::layer_edit::KeymapLayerFeedback::Failed(message)) if message.contains("no longer exists"))
+        matches!(&probe.layers.borrow().as_ref().unwrap().feedback, Some(crate::layer_edit::KeymapLayerFeedback::Failed(message)) if message.contains("no longer exists"))
     );
     runtime.submit(Event::Undo {
         operation_id: runtime.operation(),

@@ -1,6 +1,6 @@
 //! Editor-owned layer intents and ticket settlement.
-use super::layer_edit::{KeymapLayerFeedback, KeymapLayerOperation};
 use super::observed_edits::ObservedEdits;
+use crate::layer_edit::{KeymapLayerFeedback, KeymapLayerOperation, layer_resolver};
 use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
@@ -226,74 +226,6 @@ fn current_source(
         && model.display_preview.is_none()
         && model.gesture.is_none())
     .then_some(accepted)
-}
-
-fn layer_resolver(scope: Scope, request: KeymapLayerOperation, seed: u64) -> EditResolver {
-    EditResolver::new("keymap-layer", move |accepted: &AcceptedSnapshot| {
-        if !accepted
-            .document
-            .boards
-            .iter()
-            .any(|board| board.id == scope.board_id)
-        {
-            return Resolution::Retire("This board no longer exists.".into());
-        }
-        let map = accepted.document.keymap.as_ref();
-        if map.is_some_and(|map| map.layers.is_empty()) {
-            return Resolution::Retire("The keymap has no base layer.".into());
-        }
-        let change = match &request {
-            KeymapLayerOperation::Add => {
-                let count = map.map_or(1, |map| map.layers.len());
-                if count >= 32 {
-                    return Resolution::Retire("The keymap already has 32 layers.".into());
-                }
-                let mut id = format!("keymap-layer-{seed}");
-                let mut suffix = 0u64;
-                while map.is_some_and(|map| map.layers.iter().any(|layer| layer.id == id)) {
-                    suffix += 1;
-                    id = format!("keymap-layer-{seed}-{suffix}");
-                }
-                KeymapChange::AddLayer {
-                    id,
-                    name: format!("Layer {count}"),
-                }
-            }
-            KeymapLayerOperation::Rename { layer_id, name } => {
-                let current = map
-                    .and_then(|map| map.layers.iter().find(|layer| layer.id == *layer_id))
-                    .map(|layer| layer.name.as_str())
-                    .or_else(|| (map.is_none() && layer_id == "base").then_some("Base"));
-                let Some(current) = current else {
-                    return Resolution::Retire("This layer no longer exists.".into());
-                };
-                if current == name {
-                    return Resolution::Unchanged;
-                }
-                KeymapChange::RenameLayer {
-                    id: layer_id.clone(),
-                    name: name.clone(),
-                }
-            }
-            KeymapLayerOperation::Remove { layer_id } => {
-                let Some(index) =
-                    map.and_then(|map| map.layers.iter().position(|layer| layer.id == *layer_id))
-                else {
-                    return Resolution::Retire("This layer no longer exists.".into());
-                };
-                if index == 0 {
-                    return Resolution::Retire("The base layer cannot be removed.".into());
-                }
-                KeymapChange::RemoveLayer {
-                    id: layer_id.clone(),
-                }
-            }
-        };
-        Resolution::submit(
-            vec![scope.board_id.clone()],
-            EditOperation::EditKeymap { change },
-        )
-    })
 }
 
 fn resolve_display_layer_id<'a>(

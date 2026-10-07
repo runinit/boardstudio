@@ -1,5 +1,5 @@
-use super::layer_edit::{KeymapLayerFeedback, KeymapLayerOperation};
 use super::view::KeymapView;
+use crate::layer_edit::{KeymapLayerFeedback, KeymapLayerOperation};
 use boardstudio_application::Scope;
 use dioxus::prelude::*;
 use std::rc::Rc;

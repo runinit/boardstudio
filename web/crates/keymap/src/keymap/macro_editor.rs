@@ -49,45 +49,7 @@ impl PartialEq for MacroStepSequence {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum MacroEditTarget {
-    AddMacro,
-    RemoveMacro,
-    Name,
-    TapMs,
-    WaitMs,
-    AddStep,
-    RemoveStep { index: usize },
-    StepKind { index: usize },
-    StepDelay { index: usize },
-    StepKeycode { index: usize },
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct MacroEditRequest {
-    pub scope: Scope,
-    pub scope_generation: u64,
-    pub admission_token: SnapshotToken,
-    pub admission_revision: u64,
-    pub editor_instance_id: u64,
-    pub request_id: u64,
-    pub macro_id: Option<String>,
-    pub target: MacroEditTarget,
-    pub step_sequence: Option<Rc<[MacroStep]>>,
-    pub change: MacroEditChange,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum MacroEditChange {
-    Add {
-        name: String,
-        tap_ms: u32,
-        wait_ms: u32,
-        steps: Vec<MacroStep>,
-    },
-    Remove,
-    Change(MacroChange),
-}
+pub use crate::macro_edit::{MacroEditChange, MacroEditRequest, MacroEditTarget};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MacroEditStatus {
