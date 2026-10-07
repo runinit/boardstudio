@@ -21,7 +21,16 @@ values, and one Undo reverts only height.
 
 ## Migration rules (same for every cluster ticket)
 
-Ticket 06 sets the pattern; read its code and Outcome before starting. In short:
+Ticket 06 sets the pattern; read its Outcome and copy its shape before starting:
+`web/src/presentation/layout_component_edits.rs` (pure resolver builders, one
+`EditTicket` per committed field, the settle helper) and
+`web/crates/runtime/src/edit_ticket.rs` (`EditTicket::begin(port, label, feature,
+resolver)`, `settlement(owner_is_live)`, `is_pending()`; usage example in its module
+docs). Ticket 06 left two things for the clusters: it had no one-shot controls, so
+the first cluster ticket with one establishes the `is_pending()` disabling; and its
+settle helper passes `owner_is_live = true` because the Inspector unmounts with its
+owner. Panels that outlive their owner (a selection change keeps the panel mounted)
+must pass a real liveness answer. In short:
 
 - Every action in this ticket submits intent through the edit ticket (ticket 04)
   with a resolver. This includes field-scoped operations: their resolver checks the
@@ -71,6 +80,11 @@ line numbers at `3368825`, orientation only):
   it was deleted or the project changed), with a reason such as "This part
   definition no longer exists".
 - If the definition is built in (not editable) in the accepted document, retire.
+- Ticket 07 found that moving focus off a dirty courtyard width submitted nothing in
+  the mounted harness (the old interception silently discarded it; see its Outcome).
+  Before migrating, establish whether that is a harness artefact or a real lost
+  commit on blur, and cover it with a mounted test either way. If it is a real bug,
+  fixing it is in scope here.
 
 ## Acceptance criteria
 

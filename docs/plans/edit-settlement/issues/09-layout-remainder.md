@@ -19,7 +19,16 @@ is still its own Undo step.
 
 ## Migration rules (same for every cluster ticket)
 
-Ticket 06 sets the pattern; read its code and Outcome before starting. In short:
+Ticket 06 sets the pattern; read its Outcome and copy its shape before starting:
+`web/src/presentation/layout_component_edits.rs` (pure resolver builders, one
+`EditTicket` per committed field, the settle helper) and
+`web/crates/runtime/src/edit_ticket.rs` (`EditTicket::begin(port, label, feature,
+resolver)`, `settlement(owner_is_live)`, `is_pending()`; usage example in its module
+docs). Ticket 06 left two things for the clusters: it had no one-shot controls, so
+the first cluster ticket with one establishes the `is_pending()` disabling; and its
+settle helper passes `owner_is_live = true` because the Inspector unmounts with its
+owner. Panels that outlive their owner (a selection change keeps the panel mounted)
+must pass a real liveness answer. In short:
 
 - Every action in this ticket submits intent through the edit ticket (ticket 04)
   with a resolver. This includes field-scoped operations: their resolver checks the

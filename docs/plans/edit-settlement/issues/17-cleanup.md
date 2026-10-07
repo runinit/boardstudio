@@ -21,9 +21,13 @@ interception is left, and write down which resolvers still produce
   (ui-model state) and `PendingProtectedRemap` (strict electrical remap).
 - `grep -rn "Event::Edit" web` should find only previews and anything a cluster
   ticket deliberately left (each should be named in that ticket's Outcome).
-- Runtime test interception: tickets 01, 05 and 07 removed the project-name,
-  layout-inspector and definition-name modes. Check for any `#[cfg(test)]`
-  fields or `submit` branches that remain.
+- Runtime test interception: tickets 01 and 07 removed the project-name and
+  definition-name modes; tickets 11/12 remove the layout-inspector mode (deferred
+  from ticket 05). If it is still present, delete it here. The
+  `firmware_export_test_*` fields (context, effects, events, deliveries) are a further
+  mode, flagged by ticket 07: move its tests onto ticket 01's adapter and delete it,
+  unless that needs export-path changes (strict paths are out of scope), in which case
+  record why it stays. Check for any other `#[cfg(test)]` fields or `submit` branches.
 - Shared "landed" helpers to delete if unused: Std-landed variants,
   `pending_settlement_gate`, `matrix_transform_lifecycle` settlement helpers,
   standard failure strings outside the edit ticket

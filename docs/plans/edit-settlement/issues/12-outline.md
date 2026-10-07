@@ -15,7 +15,16 @@ their clone-and-mutate step moves into the resolver.
 
 ## Migration rules (same for every cluster ticket)
 
-Ticket 06 sets the pattern; read its code and Outcome before starting. In short:
+Ticket 06 sets the pattern; read its Outcome and copy its shape before starting:
+`web/src/presentation/layout_component_edits.rs` (pure resolver builders, one
+`EditTicket` per committed field, the settle helper) and
+`web/crates/runtime/src/edit_ticket.rs` (`EditTicket::begin(port, label, feature,
+resolver)`, `settlement(owner_is_live)`, `is_pending()`; usage example in its module
+docs). Ticket 06 left two things for the clusters: it had no one-shot controls, so
+the first cluster ticket with one establishes the `is_pending()` disabling; and its
+settle helper passes `owner_is_live = true` because the Inspector unmounts with its
+owner. Panels that outlive their owner (a selection change keeps the panel mounted)
+must pass a real liveness answer. In short:
 
 - Every action in this ticket submits intent through the edit ticket (ticket 04)
   with a resolver. This includes field-scoped operations: their resolver checks the
@@ -89,9 +98,10 @@ Operations used across these: `SelectOutline`, `CopyOutline`, `RemoveOutline`,
 - [ ] `Pending`, its settle effect and per-action content checks are gone; `submit_action` submits intents.
 - [ ] One-shot controls are disabled while pending; settings fields are not.
 - [ ] `outline_lifecycle_browser_tests.rs` runs against the real Session and Core
-  (accepted-result assertions, no interception); once both this file and ticket 11's are
-  off it, delete the layout-inspector interception from Runtime (deferred from ticket 05;
-  see its Comments).
+  (accepted-result assertions, no interception); whichever of tickets 11 and 12 resolves
+  second deletes the layout-inspector interception from Runtime (deferred from ticket 05;
+  see its Comments). If ticket 11 is still open, leave the interception and say so in
+  the Outcome.
 
 ## Verification
 
