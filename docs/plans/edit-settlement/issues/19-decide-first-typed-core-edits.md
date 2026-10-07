@@ -8,8 +8,8 @@ Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Source: [architecture
 ## Question
 
 The migration makes whole-document replacements correct by building them from the
-accepted document at execution. They still copy domain rules into web, mark every
-ID changed and recompute every outline. Architecture review candidate 2 proposes
+accepted document at execution. They still copy domain rules into web, report all part IDs and top-level outline
+feature IDs as changed, and trigger outline recomputation. Architecture review candidate 2 proposes
 intent-level Core edits (`RenameBoard`, `SetWiringMode`, `AddOutlineFeature`,
 `SetMechanicalSettings { patch }`, `RenameDefinition` …) and restricting
 `ReplaceDocument` to import and recovery.
