@@ -309,6 +309,7 @@ pub fn use_matrix_inspector(
     let last_request_id = use_signal(|| 0u64);
     let pending = use_signal(Vec::<MatrixSubmission>::new);
     let pending_actions = use_signal(PendingEdits::<MatrixActionKey>::default);
+    let pending_action_owner = use_signal(|| None::<MatrixInspectorOwner>);
     let one_shot_busy = move || {
         pending_actions
             .read()
@@ -369,16 +370,38 @@ pub fn use_matrix_inspector(
             let alive = alive.clone();
             let mut pending = pending;
             let mut pending_actions = pending_actions;
+            let mut pending_action_owner = pending_action_owner;
             let mut feedback = feedback;
+            let context_generation = context_generation.clone();
+            let workspace = workspace;
+            let scope_generation = scope_generation;
             move |(_, _, _, _)| {
                 settle_pending(&runtime, scope_generation(), &mut pending, &mut feedback);
+                let owner_is_live = pending_action_owner.read().as_ref().is_some_and(|owner| {
+                    alive.get()
+                        && owner.editor_instance_id == editor_instance_id
+                        && owner.context_generation == context_generation.borrow().value
+                        && owner.scope_generation == scope_generation()
+                        && workspace() == "Layout"
+                });
                 settle_pending_actions(
                     &runtime,
                     &mut pending_actions,
                     &mut feedback,
                     selected_context,
-                    alive.get(),
+                    owner_is_live,
                 );
+                if pending_action_owner.read().is_some()
+                    && !pending_actions
+                        .read()
+                        .is_pending(&MatrixActionKey::preset())
+                    && !pending_actions
+                        .read()
+                        .is_pending(&MatrixActionKey::delete())
+                    && !pending_actions.read().is_pending(&MatrixActionKey::Unlink)
+                {
+                    pending_action_owner.set(None);
+                }
             }
         },
     ));
@@ -585,6 +608,7 @@ pub fn use_matrix_inspector(
             let runtime = runtime.clone();
             let mut preparing = preparing_preset;
             let mut pending = pending_actions;
+            let mut pending_action_owner = pending_action_owner;
             let mut feedback = feedback;
             let selected_context = selected_context;
             let context_generation = context_generation.clone();
@@ -664,6 +688,7 @@ pub fn use_matrix_inspector(
                 if !alive.get() {
                     return;
                 }
+                pending_action_owner.set(Some(request.owner.clone()));
                 pending.write().begin(
                     &runtime,
                     MatrixActionKey::Preset(Some(request.clone())),
@@ -679,6 +704,7 @@ pub fn use_matrix_inspector(
         let runtime = runtime.clone();
         let context_generation = context_generation.clone();
         let mut pending_actions = pending_actions;
+        let mut pending_action_owner = pending_action_owner;
         move |request: MatrixDeleteRequest| {
             if request.owner.editor_instance_id != editor_instance_id
                 || request.owner.context_generation != context_generation.borrow().value
@@ -714,6 +740,7 @@ pub fn use_matrix_inspector(
                 return;
             }
             let matrix_id = request.owner.matrix_id.clone();
+            pending_action_owner.set(Some(request.owner.clone()));
             pending_actions.write().begin(
                 &runtime,
                 MatrixActionKey::Delete(Some(request)),
@@ -912,6 +939,7 @@ pub fn use_matrix_inspector(
         let runtime = runtime.clone();
         let context_generation = context_generation.clone();
         let mut pending_actions = pending_actions;
+        let mut pending_action_owner = pending_action_owner;
         move |request: MatrixUnlinkRequest| {
             if request.owner.editor_instance_id != editor_instance_id
                 || request.owner.context_generation != context_generation.borrow().value
@@ -953,6 +981,7 @@ pub fn use_matrix_inspector(
                 );
                 return;
             }
+            pending_action_owner.set(Some(request.owner.clone()));
             pending_actions.write().begin(
                 &runtime,
                 MatrixActionKey::Unlink,
@@ -3051,6 +3080,97 @@ mod tests {
                 selected.read().as_ref(),
                 Some(&newer_selection),
                 "the old delete cannot clear a newer outline selection"
+            );
+        }
+
+        #[wasm_bindgen_test]
+        async fn departed_matrix_owner_does_not_report_a_held_delete_save_failure() {
+            let runtime = fixture::open_matrix_runtime().await;
+            let (probe, root) = mount_matrix_inspector(runtime.clone()).await;
+            let (core_entered, release_core) = support::gate_next_core_reply(&runtime);
+
+            button_named(&root, "Delete matrix").click();
+            support::drive_pending(&runtime);
+            core_entered
+                .await
+                .expect("the mounted delete reached the held Core reply");
+
+            let newer_selection = ScopedTreeContext {
+                scope: probe.scope.clone(),
+                context: TreeContext::Outline {
+                    board_id: probe.scope.board_id.clone(),
+                },
+            };
+            let mut selected = probe
+                .selected_context
+                .borrow()
+                .as_ref()
+                .copied()
+                .expect("mounted selection signal");
+            selected.set(Some(newer_selection));
+            let mut version = probe
+                .version
+                .borrow()
+                .as_ref()
+                .copied()
+                .expect("mounted version signal");
+            version.set(version() + 1);
+            gloo_timers::future::TimeoutFuture::new(35).await;
+
+            support::fail_next_persist(&runtime, "injected matrix delete save failure");
+            release_core.send(()).expect("release the held Core reply");
+            support::run_pending(&runtime).await;
+            version.set(version() + 1);
+            gloo_timers::future::TimeoutFuture::new(35).await;
+            support::run_pending(&runtime).await;
+
+            assert_eq!(runtime.model().lifecycle, Lifecycle::RecoveryRequired);
+            assert!(
+                runtime.model().accepted.is_some_and(|snapshot| {
+                    snapshot
+                        .document
+                        .matrices
+                        .iter()
+                        .any(|matrix| matrix.id == fixture::MATRIX_ID)
+                }),
+                "the failed save leaves the accepted Matrix intact"
+            );
+            assert!(
+                !runtime.status().starts_with("Could not delete matrix:"),
+                "a failure from a departed Matrix owner is retired silently: {}",
+                runtime.status()
+            );
+        }
+
+        #[wasm_bindgen_test]
+        async fn current_matrix_owner_still_reports_a_held_delete_save_failure() {
+            let runtime = fixture::open_matrix_runtime().await;
+            let (probe, root) = mount_matrix_inspector(runtime.clone()).await;
+            let (core_entered, release_core) = support::gate_next_core_reply(&runtime);
+
+            button_named(&root, "Delete matrix").click();
+            support::drive_pending(&runtime);
+            core_entered
+                .await
+                .expect("the mounted delete reached the held Core reply");
+            support::fail_next_persist(&runtime, "injected matrix delete save failure");
+            release_core.send(()).expect("release the held Core reply");
+            support::run_pending(&runtime).await;
+            let mut version = probe
+                .version
+                .borrow()
+                .as_ref()
+                .copied()
+                .expect("mounted version signal");
+            version.set(version() + 1);
+            gloo_timers::future::TimeoutFuture::new(35).await;
+            support::run_pending(&runtime).await;
+
+            assert_eq!(runtime.model().lifecycle, Lifecycle::RecoveryRequired);
+            assert!(
+                runtime.status().starts_with("Could not delete matrix:"),
+                "a failure from the current Matrix owner remains visible: {}",
+                runtime.status()
             );
         }
     }
