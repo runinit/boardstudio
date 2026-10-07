@@ -1,10 +1,107 @@
 //! Keymap-owned canvas and Inspector composition.
+use super::Runtime;
 use super::workspace_composition::{CanvasEventHandlers, SharedObjectsInput};
 use super::{keymap, objects};
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::Contour;
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
+
+#[derive(Clone, Copy)]
+pub(super) struct KeymapWorkspaceState {
+    layer_id: Signal<String>,
+}
+
+pub(super) fn use_keymap_workspace_state() -> KeymapWorkspaceState {
+    KeymapWorkspaceState {
+        layer_id: use_signal(|| "base".to_owned()),
+    }
+}
+
+impl KeymapWorkspaceState {
+    pub(super) fn active_layer_id(self) -> Signal<String> {
+        self.layer_id
+    }
+
+    pub(super) fn select_layer(&self, layer_id: String) {
+        let mut active_layer = self.layer_id;
+        active_layer.set(layer_id);
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod workspace_state_tests {
+    use super::*;
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::*;
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    #[component]
+    fn state_host() -> Element {
+        let state = use_keymap_workspace_state();
+        let active_layer = state.active_layer_id();
+        let active_layer_label = active_layer();
+        rsx! {
+            button { id: "select-layer", onclick: move |_| state.select_layer("function".into()), "Select layer" }
+            output { id: "active-layer", "{active_layer_label}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn selecting_a_layer_updates_the_workspace_state() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(state_host);
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        document
+            .get_element_by_id("select-layer")
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        assert_eq!(
+            document
+                .get_element_by_id("active-layer")
+                .unwrap()
+                .text_content()
+                .as_deref(),
+            Some("function")
+        );
+        root.remove();
+    }
+}
+
+pub(super) fn use_projection(
+    runtime: Rc<Runtime>,
+    accepted_token: Option<SnapshotToken>,
+    current_scope: Option<Scope>,
+    active_board_id: String,
+    layer_id: String,
+) -> Option<(Rc<keymap::KeymapView>, Rc<[Contour]>)> {
+    use_memo(use_reactive(
+        (&accepted_token, &current_scope, &active_board_id, &layer_id),
+        {
+            move |(token, scope, board_id, layer_id)| {
+                let model = runtime.model();
+                let snapshot = model.accepted.as_ref()?;
+                if token.as_ref() != Some(&snapshot.token) {
+                    return None;
+                }
+                let view = keymap::project(snapshot, scope.as_ref(), &board_id, layer_id.as_ref())?;
+                Some((view, super::accepted_board_contours(snapshot, &board_id)))
+            }
+        },
+    ))
+    .read()
+    .clone()
+}
 
 pub(super) struct CanvasInput {
     pub(super) view: Option<Rc<keymap::KeymapView>>,

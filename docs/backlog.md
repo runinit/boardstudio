@@ -18,7 +18,7 @@ and subsequent cluster migrations; they are no longer deferred work.
 - **Rust conventions:** audit six production `unwrap` sites (`find`-by-id in `core/src/inputs.rs`, `core/src/modules/circuit.rs`, `core/src/mechanical/gasket.rs`; `accepted.unwrap()` in `application/src/session.rs`) for panics reachable from real documents, and drop 17 dead `#[allow(unused_imports)]` re-exports. Measurements, rejected advice and ordering are in the [Rust conventions review](investigations/rust-conventions-review.md). Reproduce before repairing.
 - **Undo/Redo:** investigate outstanding history behavior separately. Existing controls and tests remain; earlier qualification was deferred.
 - **Generator errors:** replace raw JavaScript stack text in Parts validation with an actionable message (`web/src/presentation/parts/`).
-- **Feature ownership:** reduce shared composition changes across `web/src/presentation.rs` and `web/src/runtime.rs` when concrete feature work exposes a useful boundary. Avoid a general framework rewrite.
+- **Feature ownership:** keep workspace-owned state, lifecycle and behavior in private handles under `web/src/presentation/*_workspace.rs`; keep `Editor` focused on composing views and routing cross-workspace actions. Avoid a general framework rewrite.
 - **Geometry ownership:** consolidate frontend geometric planning and explicit canonical/physical-instance/sample scopes where ambiguity causes a reproduced defect.
 - **Host interfaces:** review exposed internal browser types, reflective renderer calls and the single-observer Runtime contract when extending those interfaces.
 - **Asynchronous operations:** distinguish worker cancellation from kernel cancellation; make provider-failure tests deterministic and preserve scope checks on delivery.

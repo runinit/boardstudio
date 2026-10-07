@@ -76,6 +76,160 @@ pub enum LayoutInspectorTab {
     Relations,
 }
 
+/// Layout's selection, command, transform, and view state. Editor retains the
+/// cross-workspace owner and supplies the current selected tree context.
+#[derive(Clone, Copy)]
+pub(super) struct LayoutWorkspaceState {
+    selection_kind: Signal<objects::LayoutSelectionKind>,
+    snap_settings: Signal<objects::LayoutSnapSettings>,
+    inspector_tab: Signal<LayoutInspectorTab>,
+    command_menu: Signal<Option<objects::LayoutCommandMenu>>,
+    transform_tool: Signal<Option<objects::LayoutTransformTool>>,
+    transform_tool_owner: Signal<
+        Option<(
+            Option<boardstudio_application::Scope>,
+            u64,
+            Option<String>,
+            &'static str,
+            bool,
+        )>,
+    >,
+    assembly_3d: Signal<bool>,
+    splay_affect: Signal<boardstudio_core::model::MatrixSplayAffect>,
+    pending_splay_origin_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
+    pair_created_selection: Signal<Option<objects::MirroredPairCreated>>,
+    component_inspector_edits: Signal<super::layout_component_edits::LayoutComponentInspectorEdits>,
+}
+
+pub(super) fn use_layout_workspace_state(
+    selected_context: Signal<Option<objects::ScopedTreeContext>>,
+    workspace: Signal<&'static str>,
+) -> LayoutWorkspaceState {
+    let mut state = LayoutWorkspaceState {
+        selection_kind: use_signal(objects::LayoutSelectionKind::default),
+        snap_settings: use_signal(objects::LayoutSnapSettings::default),
+        inspector_tab: use_signal(LayoutInspectorTab::default),
+        command_menu: use_signal(|| None),
+        transform_tool: use_signal(|| None),
+        transform_tool_owner: use_signal(|| None),
+        assembly_3d: use_signal(|| false),
+        splay_affect: use_signal(|| boardstudio_core::model::MatrixSplayAffect::Following),
+        pending_splay_origin_pick: use_signal(|| None),
+        pair_created_selection: use_signal(|| None),
+        component_inspector_edits: use_signal(
+            super::layout_component_edits::LayoutComponentInspectorEdits::default,
+        ),
+    };
+    use_contextual_inspector_tab_reset(selected_context, state.inspector_tab);
+    let observed_workspace = workspace();
+    use_effect(use_reactive!(|observed_workspace| {
+        if observed_workspace != "Layout" {
+            state.transform_tool.set(None);
+        }
+    }));
+    let observed_assembly_3d = state.assembly_3d()();
+    use_effect(use_reactive!(|observed_assembly_3d| {
+        if observed_assembly_3d {
+            state.pending_splay_origin_pick.set(None);
+        }
+    }));
+    state
+}
+
+impl LayoutWorkspaceState {
+    pub(super) fn selection_kind(self) -> Signal<objects::LayoutSelectionKind> {
+        self.selection_kind
+    }
+    pub(super) fn snap_settings(self) -> Signal<objects::LayoutSnapSettings> {
+        self.snap_settings
+    }
+    pub(super) fn inspector_tab(self) -> Signal<LayoutInspectorTab> {
+        self.inspector_tab
+    }
+    pub(super) fn command_menu(self) -> Signal<Option<objects::LayoutCommandMenu>> {
+        self.command_menu
+    }
+    pub(super) fn transform_tool(self) -> Signal<Option<objects::LayoutTransformTool>> {
+        self.transform_tool
+    }
+    pub(super) fn assembly_3d(self) -> Signal<bool> {
+        self.assembly_3d
+    }
+    pub(super) fn splay_affect(self) -> Signal<boardstudio_core::model::MatrixSplayAffect> {
+        self.splay_affect
+    }
+    pub(super) fn pending_splay_origin_pick(
+        self,
+    ) -> Signal<Option<objects::MatrixTransformInspectorOwner>> {
+        self.pending_splay_origin_pick
+    }
+    pub(super) fn pair_created_selection(self) -> Signal<Option<objects::MirroredPairCreated>> {
+        self.pair_created_selection
+    }
+
+    pub(super) fn component_inspector_edits(
+        self,
+    ) -> Signal<super::layout_component_edits::LayoutComponentInspectorEdits> {
+        self.component_inspector_edits
+    }
+
+    pub(super) fn set_selection_kind_from_context(mut self, context: &objects::TreeContext) {
+        if let Some(kind) = selection_kind_for_tree_context(context) {
+            self.selection_kind.set(kind);
+        }
+    }
+
+    pub(super) fn set_assembly_3d(mut self, assembly_3d: bool) {
+        self.assembly_3d.set(assembly_3d);
+        if assembly_3d {
+            self.pending_splay_origin_pick.set(None);
+        }
+    }
+
+    pub(super) fn observe_transform_tool_owner(
+        self,
+        owner: (
+            Option<boardstudio_application::Scope>,
+            u64,
+            Option<String>,
+            &'static str,
+            bool,
+        ),
+    ) {
+        let mut state = self;
+        let owner = owner.clone();
+        use_effect(use_reactive!(|owner| {
+            if state
+                .transform_tool_owner
+                .peek()
+                .as_ref()
+                .is_some_and(|previous| previous != &owner)
+            {
+                state.transform_tool.set(None);
+            }
+            state.transform_tool_owner.set(Some(owner));
+        }));
+    }
+}
+
+pub(super) fn selection_kind_for_tree_context(
+    context: &objects::TreeContext,
+) -> Option<objects::LayoutSelectionKind> {
+    match context {
+        objects::TreeContext::Matrix { .. } => Some(objects::LayoutSelectionKind::Matrix),
+        objects::TreeContext::Row { .. } => Some(objects::LayoutSelectionKind::Row),
+        objects::TreeContext::Column { .. } => Some(objects::LayoutSelectionKind::Column),
+        objects::TreeContext::Key { .. } => Some(objects::LayoutSelectionKind::Key),
+        objects::TreeContext::Component { .. } => Some(objects::LayoutSelectionKind::Part),
+        objects::TreeContext::Outline { .. }
+        | objects::TreeContext::OutlineVersion { .. }
+        | objects::TreeContext::Bridge { .. }
+        | objects::TreeContext::MountedModule { .. }
+        | objects::TreeContext::Board { .. }
+        | objects::TreeContext::LayoutGroup { .. } => None,
+    }
+}
+
 /// Keep the shared tab choice scoped to the currently selected tree context.
 /// Unrelated accepted revisions leave that context equal and retain the user's
 /// tab, while selecting another object returns to its Properties.
@@ -172,6 +326,146 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                 }
             }
         }
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod workspace_state_tests {
+    use super::*;
+    use boardstudio_application::{Scope, SessionEpoch};
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::*;
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    #[component]
+    fn state_host() -> Element {
+        let mut selected_context = use_signal(|| None::<objects::ScopedTreeContext>);
+        let mut workspace = use_signal(|| "Layout");
+        let state = use_layout_workspace_state(selected_context, workspace);
+        let mut inspector_tab = state.inspector_tab();
+        let selection_kind = state.selection_kind();
+        let mut pending_pick = state.pending_splay_origin_pick();
+        let mut active_tool = state.transform_tool();
+        let owner = objects::MatrixTransformInspectorOwner {
+            editor_instance_id: 1,
+            workspace: "Layout",
+            context_generation: 1,
+            scope_generation: 1,
+            scope: Scope {
+                session_epoch: SessionEpoch(1),
+                document_id: "layout-state".into(),
+                board_id: "board".into(),
+                instance_id: None,
+            },
+            matrix_id: "matrix".into(),
+            context: objects::TreeContext::Matrix {
+                matrix_id: "matrix".into(),
+            },
+        };
+        let selection_owner = owner.clone();
+        let pick_owner = owner.clone();
+        let selection_kind_label = match selection_kind() {
+            objects::LayoutSelectionKind::Matrix => "Matrix",
+            objects::LayoutSelectionKind::Row => "Row",
+            objects::LayoutSelectionKind::Column => "Column",
+            objects::LayoutSelectionKind::Key => "Key",
+            objects::LayoutSelectionKind::Part => "Part",
+        };
+        let inspector_tab_label = match inspector_tab() {
+            LayoutInspectorTab::Properties => "Properties",
+            LayoutInspectorTab::Relations => "Relations",
+        };
+        rsx! {
+            button { id: "layout-state-relations", onclick: move |_| inspector_tab.set(LayoutInspectorTab::Relations), "Relations" }
+            button { id: "layout-state-select", onclick: move |_| {
+                let context = objects::TreeContext::Matrix { matrix_id: "matrix".into() };
+                selected_context.set(Some(objects::ScopedTreeContext {
+                    scope: selection_owner.scope.clone(),
+                    context: context.clone(),
+                }));
+                state.set_selection_kind_from_context(&context);
+            }, "Select matrix" }
+            button { id: "layout-state-arm-pick", onclick: move |_| pending_pick.set(Some(pick_owner.clone())), "Arm origin pick" }
+            button { id: "layout-state-enter-3d", onclick: move |_| state.set_assembly_3d(true), "Enter 3D" }
+            button { id: "layout-state-tool", onclick: move |_| active_tool.set(Some(objects::LayoutTransformTool::Stagger)), "Activate tool" }
+            button { id: "layout-state-switch", onclick: move |_| workspace.set("Keycaps"), "Switch workspace" }
+            output { id: "layout-state-tab", "{inspector_tab_label}" }
+            output { id: "layout-state-selection-kind", "{selection_kind_label}" }
+            output { id: "layout-state-pending", "{pending_pick().is_some()}" }
+            output { id: "layout-state-tool-active", "{active_tool().is_some()}" }
+        }
+    }
+
+    async fn click(document: &web_sys::Document, id: &str) {
+        document
+            .get_element_by_id(id)
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        gloo_timers::future::TimeoutFuture::new(40).await;
+    }
+
+    #[wasm_bindgen_test]
+    async fn handle_resets_layout_interactions_when_selection_or_owner_changes() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(state_host);
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(40).await;
+
+        click(&document, "layout-state-relations").await;
+        assert_eq!(
+            document
+                .get_element_by_id("layout-state-tab")
+                .unwrap()
+                .text_content()
+                .as_deref(),
+            Some("Relations")
+        );
+        click(&document, "layout-state-select").await;
+        assert_eq!(
+            document
+                .get_element_by_id("layout-state-tab")
+                .unwrap()
+                .text_content()
+                .as_deref(),
+            Some("Properties")
+        );
+        assert_eq!(
+            document
+                .get_element_by_id("layout-state-selection-kind")
+                .unwrap()
+                .text_content()
+                .as_deref(),
+            Some("Matrix")
+        );
+        click(&document, "layout-state-arm-pick").await;
+        click(&document, "layout-state-enter-3d").await;
+        assert_eq!(
+            document
+                .get_element_by_id("layout-state-pending")
+                .unwrap()
+                .text_content()
+                .as_deref(),
+            Some("false")
+        );
+        click(&document, "layout-state-tool").await;
+        click(&document, "layout-state-switch").await;
+        assert_eq!(
+            document
+                .get_element_by_id("layout-state-tool-active")
+                .unwrap()
+                .text_content()
+                .as_deref(),
+            Some("false")
+        );
+        root.remove();
     }
 }
 

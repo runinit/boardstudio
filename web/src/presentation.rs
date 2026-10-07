@@ -72,6 +72,7 @@ pub(crate) use boardstudio_web_parts::parts;
 pub(crate) use boardstudio_web_ui_shared::panels;
 use part_placement::{LayoutPlacementCancellation, layout_view_mode_handler};
 mod parts_workspace;
+mod setup_workspace;
 pub(crate) use boardstudio_web_pcb::pcb_board_reference;
 pub(crate) use boardstudio_web_pcb::pcb_layers;
 pub(crate) use boardstudio_web_pcb::pcb_module_footprints;
@@ -98,7 +99,7 @@ use panels::{
 };
 use parts::{PartsQuery, PartsSelection};
 use selection::{ReentrancyReset, SelectionAdapter};
-use setup_guide::{PendingNewKeyboard, SetupGuidePreferences, SetupGuideRequest, SetupGuideStage};
+use setup_guide::{PendingNewKeyboard, SetupGuideRequest, SetupGuideStage};
 use zmk_firmware_export::use_export_panel_input;
 #[cfg(test)]
 use zmk_firmware_export::{ZmkFirmwareExportPanelInput, ZmkFirmwareExportRow};
@@ -111,8 +112,7 @@ use boardstudio_application::{
     TerminalOutcome,
 };
 use boardstudio_core::model::{
-    Contour, EditOperation, Matrix, MatrixSplayAffect, Part, PartDefinition, PartKind, PartOutline,
-    Position, Vec2,
+    Contour, EditOperation, Matrix, Part, PartDefinition, PartKind, PartOutline, Position, Vec2,
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -184,37 +184,9 @@ struct OwnedTreeCellAnchor {
 pub(super) struct ExportReturnWorkspace(pub(super) Signal<&'static str>);
 
 #[derive(Clone, Copy)]
-struct WorkspaceCallbackSlots {
+struct WorkspaceRoutingSlots {
     select_tree: EventHandler<objects::TreeSelectRequest>,
     navigate: EventHandler<(Scope, String, Option<String>)>,
-    nudge_tree: EventHandler<objects::TreeNudgeRequest>,
-    parts_select: EventHandler<()>,
-    toggle_footprints: EventHandler<()>,
-    retry_save: EventHandler<()>,
-    recover_saved: EventHandler<()>,
-    canvas_end_pointer: EventHandler<PointerEvent>,
-    canvas_cancel_pointer: EventHandler<PointerEvent>,
-    canvas_keyboard: EventHandler<KeyboardEvent>,
-    canvas_wheel: EventHandler<WheelEvent>,
-    keymap_select: EventHandler<String>,
-    keycaps_select: EventHandler<String>,
-    keycaps_finding: EventHandler<keycaps_fit::FindingNavigationRequest>,
-    pcb_empty_hit: EventHandler<PointerEvent>,
-    pcb_part_hit: EventHandler<pcb_scene::PcbPartHit>,
-    pcb_part_pointer_down: EventHandler<pcb_scene::PcbPartPointerDown>,
-    mounted_module_select: EventHandler<String>,
-    pcb_wiring_edit_board: EventHandler<()>,
-    layout_selection_kind: EventHandler<objects::LayoutSelectionKind>,
-    layout_snap_intent: EventHandler<objects::LayoutSnapIntent>,
-    pcb_selection_kind: EventHandler<objects::LayoutSelectionKind>,
-    pcb_snap_intent: EventHandler<objects::LayoutSnapIntent>,
-    pcb_transform_properties: EventHandler<()>,
-    case_action: EventHandler<case_workspace::TreeAction>,
-    case_display: EventHandler<case_workspace::DisplayRequest>,
-    keymap_layer: EventHandler<String>,
-    keymap_export: EventHandler<()>,
-    show_configured_board: EventHandler<String>,
-    open_geometry_scripts: EventHandler<()>,
 }
 
 #[allow(non_snake_case)]
@@ -1033,7 +1005,7 @@ struct LayoutFindingNavigationContext {
     inspect_open: Signal<bool>,
     findings_open: Signal<bool>,
     inspector_settings: Signal<PanelSettings>,
-    focused_finding: Signal<Option<keycaps_finding_marker::FocusedFinding>>,
+    keycaps_state: keycaps_workspace::KeycapsWorkspaceState,
     svg: Rc<RefCell<Option<SvgElement>>>,
     alive: Rc<Cell<bool>>,
     body_selection: Signal<Option<case_viewer::BodySelection>>,
@@ -1055,7 +1027,7 @@ fn perform_layout_finding_navigation(
         mut inspect_open,
         mut findings_open,
         inspector_settings,
-        mut focused_finding,
+        keycaps_state,
         svg,
         alive,
         body_selection,
@@ -1150,14 +1122,12 @@ fn perform_layout_finding_navigation(
         }
     }
 
-    let navigation_id = keycaps_finding_marker::next_navigation_id(focused_finding.peek().as_ref());
-    focused_finding.set(Some(keycaps_finding_marker::FocusedFinding {
-        scope: scope.clone(),
-        token: request.source.token,
-        revision: request.source.revision,
-        finding_id: request.finding.id,
-        navigation_id,
-    }));
+    keycaps_state.focus_finding(
+        scope.clone(),
+        request.source.token,
+        request.source.revision,
+        request.finding.id,
+    );
     findings_open.set(false);
     objects_open.set(false);
     inspect_open.set(true);
@@ -1563,33 +1533,6 @@ fn layout_relationship_summary(
     driven.unwrap_or_else(|| "No saved placement relationship on this selection.".to_owned())
 }
 
-fn layout_selection_kind_for_tree_context(
-    context: &objects::TreeContext,
-) -> Option<objects::LayoutSelectionKind> {
-    match context {
-        objects::TreeContext::Matrix { .. } => Some(objects::LayoutSelectionKind::Matrix),
-        objects::TreeContext::Row { .. } => Some(objects::LayoutSelectionKind::Row),
-        objects::TreeContext::Column { .. } => Some(objects::LayoutSelectionKind::Column),
-        objects::TreeContext::Key { .. } => Some(objects::LayoutSelectionKind::Key),
-        objects::TreeContext::Component { .. } => Some(objects::LayoutSelectionKind::Part),
-        objects::TreeContext::Outline { .. }
-        | objects::TreeContext::OutlineVersion { .. }
-        | objects::TreeContext::Bridge { .. }
-        | objects::TreeContext::MountedModule { .. }
-        | objects::TreeContext::Board { .. }
-        | objects::TreeContext::LayoutGroup { .. } => None,
-    }
-}
-
-fn update_layout_selection_kind_for_tree_context(
-    mut selection_kind: Signal<objects::LayoutSelectionKind>,
-    context: &objects::TreeContext,
-) {
-    if let Some(kind) = layout_selection_kind_for_tree_context(context) {
-        selection_kind.set(kind);
-    }
-}
-
 fn layout_component_inspector_owner_key(
     model: &ReadModel,
     workspace: &'static str,
@@ -1836,33 +1779,6 @@ fn dispatch_layout_component_inspector_action(
             workspace.set("PCB");
             inspect_open.set(true);
         }
-    }
-}
-
-fn pending_splay_origin_pick_after_view_change<T>(
-    from_3d: bool,
-    to_3d: bool,
-    pending: Option<T>,
-) -> Option<T> {
-    if !from_3d && to_3d { None } else { pending }
-}
-
-#[cfg(test)]
-mod layout_splay_pick_view_change_tests {
-    use super::pending_splay_origin_pick_after_view_change;
-    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
-
-    #[wasm_bindgen_test::wasm_bindgen_test]
-    fn entering_layout_3d_cancels_pending_splay_origin_pick() {
-        assert_eq!(
-            pending_splay_origin_pick_after_view_change(false, true, Some("origin")),
-            None
-        );
-        assert_eq!(
-            pending_splay_origin_pick_after_view_change(true, false, Some("origin")),
-            Some("origin"),
-            "leaving 3D does not rewrite the pending pick state"
-        );
     }
 }
 
@@ -2514,180 +2430,56 @@ mod setup_project_name_queue_tests {
 
 #[component]
 fn Editor() -> Element {
-    let mut workspace_callbacks = use_hook(|| WorkspaceCallbackSlots {
+    let mut workspace_routing = use_hook(|| WorkspaceRoutingSlots {
         select_tree: EventHandler::new(|_: objects::TreeSelectRequest| {}),
         navigate: EventHandler::new(|_: (Scope, String, Option<String>)| {}),
-        nudge_tree: EventHandler::new(|_: objects::TreeNudgeRequest| {}),
-        parts_select: EventHandler::new(|_: ()| {}),
-        toggle_footprints: EventHandler::new(|_: ()| {}),
-        retry_save: EventHandler::new(|_: ()| {}),
-        recover_saved: EventHandler::new(|_: ()| {}),
-        canvas_end_pointer: EventHandler::new(|_: PointerEvent| {}),
-        canvas_cancel_pointer: EventHandler::new(|_: PointerEvent| {}),
-        canvas_keyboard: EventHandler::new(|_: KeyboardEvent| {}),
-        canvas_wheel: EventHandler::new(|_: WheelEvent| {}),
-        keymap_select: EventHandler::new(|_: String| {}),
-        keycaps_select: EventHandler::new(|_: String| {}),
-        keycaps_finding: EventHandler::new(|_: keycaps_fit::FindingNavigationRequest| {}),
-        pcb_empty_hit: EventHandler::new(|_: PointerEvent| {}),
-        pcb_part_hit: EventHandler::new(|_: pcb_scene::PcbPartHit| {}),
-        pcb_part_pointer_down: EventHandler::new(|_: pcb_scene::PcbPartPointerDown| {}),
-        mounted_module_select: EventHandler::new(|_: String| {}),
-        pcb_wiring_edit_board: EventHandler::new(|_: ()| {}),
-        layout_selection_kind: EventHandler::new(|_: objects::LayoutSelectionKind| {}),
-        layout_snap_intent: EventHandler::new(|_: objects::LayoutSnapIntent| {}),
-        pcb_selection_kind: EventHandler::new(|_: objects::LayoutSelectionKind| {}),
-        pcb_snap_intent: EventHandler::new(|_: objects::LayoutSnapIntent| {}),
-        pcb_transform_properties: EventHandler::new(|_: ()| {}),
-        case_action: EventHandler::new(|_: case_workspace::TreeAction| {}),
-        case_display: EventHandler::new(|_: case_workspace::DisplayRequest| {}),
-        keymap_layer: EventHandler::new(|_: String| {}),
-        keymap_export: EventHandler::new(|_: ()| {}),
-        show_configured_board: EventHandler::new(|_: String| {}),
-        open_geometry_scripts: EventHandler::new(|_: ()| {}),
     });
     let runtime = use_context::<Rc<Runtime>>();
     let compact_panel_state = use_context::<CompactPanelState>();
     let mut objects_open = compact_panel_state.objects_open;
     let mut inspect_open = compact_panel_state.inspector_open;
-    let mut geometry_scripts_open = use_signal(|| false);
     let preference_warning = use_context::<PreferenceStorageWarning>().0;
     let objects_panel_settings = use_panel_settings(PanelSide::Objects, preference_warning);
     let inspector_panel_settings = use_panel_settings(PanelSide::Inspector, preference_warning);
     let created_request_signal = use_context::<Signal<Option<SetupGuideRequest>>>();
-    let created_request = created_request_signal();
-    let mut guide_preferences = use_signal(|| None::<SetupGuidePreferences>);
+    let setup_state = setup_workspace::use_setup_workspace_state(
+        runtime.clone(),
+        created_request_signal,
+        objects_open,
+        inspect_open,
+        objects_panel_settings,
+        inspector_panel_settings,
+    );
+    let guide_preferences = setup_state.guide_preferences();
+    let geometry_scripts_open = setup_state.geometry_scripts_open();
     let guide_name_edit = use_setup_project_name(runtime.clone());
     let guide_name_draft = guide_name_edit.draft;
     let guide_name_failure = guide_name_edit.failure;
-    let consumed_guide_requests = use_hook(|| Rc::new(RefCell::new(BTreeSet::<String>::new())));
-    let accepted_project_id = runtime
-        .model()
-        .accepted
-        .as_ref()
-        .map(|snapshot| snapshot.document.id.clone());
-    let mut guide_workspace = use_context::<WorkspaceState>().0;
-    use_effect(use_reactive!(|accepted_project_id, created_request| {
-        let mut created_request_signal = created_request_signal;
-        let Some(project_id) = accepted_project_id.as_ref() else {
-            return;
-        };
-        if let Some(request) = created_request
-            .as_ref()
-            .filter(|request| request.project_id == *project_id)
-        {
-            let already_consumed = consumed_guide_requests
-                .borrow()
-                .contains(&request.request_id);
-            if !already_consumed {
-                consumed_guide_requests
-                    .borrow_mut()
-                    .insert(request.request_id.clone());
-                guide_preferences.set(Some(SetupGuidePreferences {
-                    project_id: project_id.clone(),
-                    open: true,
-                    current_stage: if request.start_at_project {
-                        SetupGuideStage::Project
-                    } else {
-                        guide_preferences()
-                            .filter(|preferences| preferences.project_id == *project_id)
-                            .map(|preferences| preferences.current_stage)
-                            .unwrap_or_else(|| {
-                                setup_guide::read_preferences(project_id).current_stage
-                            })
-                    },
-                }));
-                if request.start_at_project {
-                    guide_workspace.set("Layout");
-                }
-                setup_guide::reveal_panels(
-                    crate::setup_guide_state::GuideReveal::Guide,
-                    objects_open,
-                    inspect_open,
-                    objects_panel_settings,
-                    inspector_panel_settings,
-                );
-                created_request_signal.set(None);
-            }
-        } else if guide_preferences()
-            .as_ref()
-            .is_none_or(|preferences| preferences.project_id != *project_id)
-        {
-            let preferences = setup_guide::read_preferences(project_id);
-            if preferences.open {
-                setup_guide::reveal_panels(
-                    crate::setup_guide_state::GuideReveal::Guide,
-                    objects_open,
-                    inspect_open,
-                    objects_panel_settings,
-                    inspector_panel_settings,
-                );
-            }
-            guide_preferences.set(Some(preferences));
-        }
-    }));
-    let preferences_to_persist = guide_preferences();
-    use_effect(use_reactive!(|preferences_to_persist| {
-        if let Some(preferences) = preferences_to_persist.as_ref() {
-            setup_guide::write_preferences(preferences);
-        }
-    }));
     let adapter = use_context::<SelectionAdapter>();
     let layout_component_inspector_lifetime =
         use_hook(|| Rc::new(inspector::LayoutComponentInspectorLifetime::default()));
     let version = use_context::<Signal<u64>>();
     let observed_version = version();
-    let instance_preference = use_signal(|| {
-        runtime.scope().and_then(|scope| {
-            scope
-                .instance_id
-                .map(|explicit_id| instance_selection::Preference {
-                    session_epoch: scope.session_epoch,
-                    document_id: scope.document_id,
-                    explicit_id,
-                })
-        })
-    });
-    let instance_selection = use_context_provider(|| InstanceSelection(instance_preference));
-    let case_body_selection = use_signal(|| None::<case_viewer::BodySelection>);
-    let case_layer_selection = use_signal(|| None::<case_viewer::LayerSelection>);
-    let focused_keycaps_finding = use_signal(|| None::<keycaps_finding_marker::FocusedFinding>);
-    let pending_keycaps_navigation_fit =
-        use_signal(|| None::<keycaps_navigation::PendingLayoutFit>);
-    let keycaps_navigation_alive = keycaps_navigation::use_navigation_lifetime();
-    let case_display = use_signal(std::collections::BTreeMap::new);
-    let case_body_edit_dispatch = use_signal(|| None::<case_viewer::CaseBodyEditDispatch>);
-    let case_body_editable = use_signal(|| false);
-    let case_selection = case_viewer::CaseSelection {
-        body: case_body_selection,
-        layer: case_layer_selection,
-        display: case_display,
-        body_edit_portal: case_viewer::CaseBodyEditPortal {
-            dispatch: case_body_edit_dispatch,
-            editable: case_body_editable,
-        },
-    };
-    use_context_provider(|| case_selection);
-    let case_tree_expanded = use_signal(BTreeSet::<String>::new);
+    let instance_preference = setup_state.instance_preference();
+    let instance_selection = InstanceSelection(instance_preference);
+    let case_workspace_state = case_workspace::use_case_workspace_state();
+    let case_selection = case_workspace_state.selection();
+    let case_tree_expanded = case_workspace_state.tree_expanded();
     let workspace = use_context::<WorkspaceState>().0;
+    let layout_state =
+        layout_workspace::use_layout_workspace_state(adapter.selected_context, workspace);
     let canvas_navigation = use_canvas_navigation_state(workspace);
     let return_workspace = use_context::<ExportReturnWorkspace>().0;
     let active_workspace = workspace();
     let requested_workspace_panel =
         panels::use_workspace_panel_defaults(active_workspace, objects_open, inspect_open);
     let render_generation = (adapter.generation)();
-    let layout_selection_kind = use_signal(objects::LayoutSelectionKind::default);
-    let layout_snap_settings = use_signal(objects::LayoutSnapSettings::default);
-    let mut layout_context_tab = use_signal(layout_workspace::LayoutInspectorTab::default);
-    layout_workspace::use_contextual_inspector_tab_reset(
-        adapter.selected_context,
-        layout_context_tab,
-    );
-    let layout_command_menu = use_signal(|| None::<objects::LayoutCommandMenu>);
-    let mut layout_transform_tool = use_signal(|| None::<objects::LayoutTransformTool>);
-    let layout_transform_tool_owner =
-        use_signal(|| None::<(Option<Scope>, u64, Option<String>, &'static str, bool)>);
-    let mut layout_assembly_3d = use_signal(|| false);
+    let layout_selection_kind = layout_state.selection_kind();
+    let layout_snap_settings = layout_state.snap_settings();
+    let mut layout_context_tab = layout_state.inspector_tab();
+    let layout_command_menu = layout_state.command_menu();
+    let mut layout_transform_tool = layout_state.transform_tool();
+    let layout_assembly_3d = layout_state.assembly_3d();
     let tree_cell_anchor = use_hook(|| Rc::new(RefCell::new(None::<OwnedTreeCellAnchor>)));
     let matrix_inspector = objects::use_matrix_inspector(
         runtime.clone(),
@@ -2709,7 +2501,7 @@ fn Editor() -> Element {
         workspace,
         adapter.generation,
     );
-    let matrix_splay_affect = use_signal(|| MatrixSplayAffect::Following);
+    let matrix_splay_affect = layout_state.splay_affect();
     let matrix_transform_inspector = objects::use_workspace_matrix_transform(
         runtime.clone(),
         version,
@@ -2719,7 +2511,7 @@ fn Editor() -> Element {
         matrix_splay_affect,
         "Layout",
     );
-    let pending_splay_origin_pick = use_signal(|| None::<objects::MatrixTransformInspectorOwner>);
+    let pending_splay_origin_pick = layout_state.pending_splay_origin_pick();
     let layout_align = objects::use_canvas_align(
         runtime.clone(),
         version,
@@ -2744,7 +2536,8 @@ fn Editor() -> Element {
         workspace,
         adapter.generation,
     );
-    let parts_assembly_orientation = use_signal(|| parts::SwitchOrientation::South);
+    let parts_state = parts_workspace::use_parts_workspace_state();
+    let parts_assembly_orientation = parts_state.assembly_orientation();
     let canvas_interaction = use_hook(CanvasInteractionArbiter::default);
     let matrix_placement = objects::use_matrix_placement(
         runtime.clone(),
@@ -2787,7 +2580,7 @@ fn Editor() -> Element {
             });
         })
     };
-    let pair_created_selection = use_signal(|| None::<objects::MirroredPairCreated>);
+    let pair_created_selection = layout_state.pair_created_selection();
     let on_mirrored_pair_created = use_callback({
         let runtime = runtime.clone();
         let mut adapter = adapter.clone();
@@ -2891,19 +2684,12 @@ fn Editor() -> Element {
         adapter.generation,
     );
     let layer_visibility = use_context::<LayerVisibility>();
-    let parts_query: PartsQuery = use_signal(String::new);
-    let parts_selection: PartsSelection = use_signal(|| None);
-    let parts_assembly_selection = use_signal(|| None);
-    use_context_provider(|| parts::PartsAssemblySelection(parts_assembly_selection));
-    use_context_provider(|| parts::PartsAssemblyOrientation(parts_assembly_orientation));
-    let parts_selection_generation = use_signal(|| 0u64);
-    use_context_provider(|| parts::PartsSelectionGeneration(parts_selection_generation));
-    let parts_preview_activation = use_signal(|| 0u64);
-    use_context_provider(|| parts::PartsPreviewActivation(parts_preview_activation));
-    let parts_generator_draft = use_signal(|| None::<parts::GeneratorPreviewDraft>);
-    use_context_provider(|| parts::GeneratorDraftStore(parts_generator_draft));
+    let parts_query: PartsQuery = parts_state.query();
+    let parts_selection: PartsSelection = parts_state.selected();
+    let parts_selection_generation = parts_state.selection_generation();
     let layout_target: Signal<Option<String>> = use_signal(|| None);
-    let mut keymap_layer_id = use_signal(|| "base".to_owned());
+    let keymap_state = keymap_workspace::use_keymap_workspace_state();
+    let keymap_layer_id = keymap_state.active_layer_id();
     let has_inspector = matches!(
         active_workspace,
         "Layout" | "Parts" | "Keymap" | "Keycaps" | "Case" | "PCB"
@@ -2960,14 +2746,6 @@ fn Editor() -> Element {
         adapter.clone(),
         layout_owner.clone(),
     );
-    use_effect(use_reactive((&active_workspace,), {
-        let mut active_tool = layout_transform_tool;
-        move |(active_workspace,)| {
-            if active_workspace != "Layout" {
-                active_tool.set(None);
-            }
-        }
-    }));
     use_effect(use_reactive((&layout_owner,), {
         let tree_cell_anchor = tree_cell_anchor.clone();
         move |(owner,)| {
@@ -2981,14 +2759,15 @@ fn Editor() -> Element {
         }
     }));
     let active_board_id = model.active_board_id.clone();
-    keycaps_finding_marker::use_retire_stale_finding(
-        focused_keycaps_finding,
+    let keycaps_state = keycaps_workspace::use_keycaps_workspace_state(
         layout_owner.workspace,
         layout_owner.scope.clone(),
         layout_owner.token,
         layout_owner.revision,
         active_board_id.clone(),
     );
+    let focused_keycaps_finding = keycaps_state.focused_finding();
+    let keycaps_navigation_alive = keycaps_state.navigation_alive();
     let layer_source =
         current_scope
             .clone()
@@ -3166,46 +2945,19 @@ fn Editor() -> Element {
         },
     );
     let keymap_layer_value = keymap_layer_id();
-    let keymap_projection = use_memo(use_reactive(
-        (
-            &accepted_token,
-            &current_scope,
-            &active_board_id,
-            &keymap_layer_value,
-        ),
-        {
-            let runtime = runtime.clone();
-            move |(token, scope, board_id, layer_id)| {
-                let model = runtime.model();
-                let snapshot = model.accepted.as_ref()?;
-                if token.as_ref() != Some(&snapshot.token) {
-                    return None;
-                }
-                let view = keymap::project(
-                    snapshot,
-                    scope.as_ref(),
-                    board_id.as_ref(),
-                    layer_id.as_ref(),
-                )?;
-                Some((view, accepted_board_contours(snapshot, &board_id)))
-            }
-        },
-    ));
-    let keycaps_projection = use_memo(use_reactive(
-        (&accepted_token, &current_scope, &active_board_id),
-        {
-            let runtime = runtime.clone();
-            move |(token, scope, board_id)| {
-                let model = runtime.model();
-                let snapshot = model.accepted.as_ref()?;
-                if token.as_ref() != Some(&snapshot.token) {
-                    return None;
-                }
-                let view = keycaps_scene::project(snapshot, scope.as_ref()?, &board_id)?;
-                Some((view, accepted_board_contours(snapshot, &board_id)))
-            }
-        },
-    ));
+    let keymap_projection = keymap_workspace::use_projection(
+        runtime.clone(),
+        accepted_token,
+        current_scope.clone(),
+        active_board_id.clone(),
+        keymap_layer_value,
+    );
+    let keycaps_projection = keycaps_workspace::use_projection(
+        runtime.clone(),
+        accepted_token,
+        current_scope.clone(),
+        active_board_id.clone(),
+    );
     let encoder_input_actions = keymap::use_encoder_inputs(
         runtime.clone(),
         layer_source.clone(),
@@ -3215,7 +2967,7 @@ fn Editor() -> Element {
         runtime.clone(),
         keymap::BindingProjectionSources {
             source: layer_source.clone(),
-            view: keymap_projection().as_ref().map(|(view, _)| view.clone()),
+            view: keymap_projection.as_ref().map(|(view, _)| view.clone()),
             encoder_projection: encoder_input_actions.projection,
             current_encoder_projection: encoder_input_actions.current,
         },
@@ -3227,10 +2979,8 @@ fn Editor() -> Element {
             Rc::new(move || instance_selection.is_current(&runtime.model()))
         },
     );
-    let keymap_projection = keymap_projection.read().clone();
     let keymap_view = keymap_projection.as_ref().map(|(view, _)| view.clone());
     let keymap_contours = keymap_projection.map(|(_, contours)| contours);
-    let keycaps_projection = keycaps_projection.read().clone();
     let keycaps_view = keycaps_projection.as_ref().map(|(view, _)| view.clone());
     let keycaps_contours = keycaps_projection.map(|(_, contours)| contours);
     // Keep macro operation observation alive when another workspace hides the panel.
@@ -3252,15 +3002,7 @@ fn Editor() -> Element {
         let generation = adapter.generation;
         let mut workspace = workspace;
         let mut inspect_open = inspect_open;
-        let mut case_selection = case_viewer::CaseSelection {
-            body: case_body_selection,
-            layer: case_layer_selection,
-            display: case_display,
-            body_edit_portal: case_viewer::CaseBodyEditPortal {
-                dispatch: case_body_edit_dispatch,
-                editable: case_body_editable,
-            },
-        };
+        let mut case_selection = case_selection;
         let captured_revision = model
             .accepted
             .as_ref()
@@ -3375,15 +3117,7 @@ fn Editor() -> Element {
         adapter.generation,
         workspace,
         instance_selection,
-        case_viewer::CaseSelection {
-            body: case_body_selection,
-            layer: case_layer_selection,
-            display: case_display,
-            body_edit_portal: case_viewer::CaseBodyEditPortal {
-                dispatch: case_body_edit_dispatch,
-                editable: case_body_editable,
-            },
-        },
+        case_selection,
         on_show_mechanical_finding,
     );
     let Some(render_scope) = current_scope.clone() else {
@@ -3454,7 +3188,6 @@ fn Editor() -> Element {
         let tree_cell_anchor = tree_cell_anchor.clone();
         let generation = render_generation;
         let mut workspace = workspace;
-        let selection_kind = layout_selection_kind;
         let inspector_settings = inspector_panel_settings;
         let mut objects_open = objects_open;
         let mut inspect_open = inspect_open;
@@ -3498,7 +3231,7 @@ fn Editor() -> Element {
             };
             let activation = request.outline_action.clone();
             let scope = request.scope.clone();
-            update_layout_selection_kind_for_tree_context(selection_kind, &request.context);
+            layout_state.set_selection_kind_from_context(&request.context);
             update_tree_cell_anchor(
                 &tree_cell_anchor,
                 &owner,
@@ -3974,9 +3707,7 @@ fn Editor() -> Element {
         let generation = render_generation;
         let token = snapshot.token;
         let revision = snapshot.document.revision;
-        let mut parts_selection = parts_selection;
-        let mut parts_selection_generation = parts_selection_generation;
-        let mut parts_preview_activation = parts_preview_activation;
+        let parts_state = parts_state;
         let objects_open = objects_open;
         let mut inspect_open = inspect_open;
         move |module_id: String| {
@@ -4032,12 +3763,7 @@ fn Editor() -> Element {
                 range_part_ids: Vec::new(),
                 mode: SelectionMode::Replace,
             });
-            parts_selection.set(Some((
-                Some(scope.clone()),
-                format!("module:{module_definition_id}"),
-            )));
-            parts_selection_generation.with_mut(|value| *value = value.wrapping_add(1));
-            parts_preview_activation.with_mut(|value| *value = value.wrapping_add(1));
+            parts_state.select_mounted_module(scope.clone(), &module_definition_id);
             browse_parts_workspace(
                 workspace,
                 objects_open,
@@ -4215,7 +3941,7 @@ fn Editor() -> Element {
     let case_admission = case_workspace::Admission {
         runtime: runtime.clone(),
         adapter: adapter.clone(),
-        case_selection,
+        case_state: case_workspace_state,
         instance_selection,
         owner_scope: render_scope.clone(),
         owner_token: snapshot.token,
@@ -4223,12 +3949,12 @@ fn Editor() -> Element {
     };
     let on_case_action = {
         let admission = case_admission.clone();
-        let navigate = workspace_callbacks.navigate;
+        let navigate = workspace_routing.navigate;
         move |action| {
             if workspace() != "Case" {
                 return;
             }
-            case_workspace::apply_tree_action(action, &admission, navigate);
+            case_workspace_state.apply_tree_action(action, &admission, navigate);
         }
     };
     let on_case_display = {
@@ -4237,7 +3963,7 @@ fn Editor() -> Element {
             if workspace() != "Case" {
                 return;
             }
-            case_workspace::apply_display_request(request, &admission);
+            case_workspace_state.apply_display_request(request, &admission);
         }
     };
     let on_keymap_layer = {
@@ -4268,7 +3994,7 @@ fn Editor() -> Element {
                     map.layers.iter().any(|layer| layer.id == layer_id)
                 });
             if exists {
-                keymap_layer_id.set(layer_id);
+                keymap_state.select_layer(layer_id);
             }
         }
     };
@@ -4792,6 +4518,7 @@ fn Editor() -> Element {
     let navigate = {
         let runtime = runtime.clone();
         let adapter = adapter.clone();
+        let setup_state = setup_state;
         let mut navigate_scoped = navigate_scoped.clone();
         let generation = render_generation;
         move |(captured_scope, board_id, requested_instance): (Scope, String, Option<String>)| {
@@ -4822,8 +4549,7 @@ fn Editor() -> Element {
                 if !valid {
                     return;
                 }
-                let mut preference = instance_preference;
-                preference.set(Some(instance_selection::Preference {
+                setup_state.set_instance_preference(Some(instance_selection::Preference {
                     session_epoch: snapshot.session_epoch,
                     document_id: snapshot.document.id.clone(),
                     explicit_id: id,
@@ -4847,15 +4573,14 @@ fn Editor() -> Element {
         let mut workspace = workspace;
         let mut objects_open = objects_open;
         let mut inspect_open = inspect_open;
-        let mut body_selection = case_body_selection;
+        let mut body_selection = case_selection.body;
         let case_selection_for_owner = case_selection;
         let navigation_alive = keycaps_navigation_alive.clone();
         let inspector_settings = inspector_panel_settings;
         let fit_state = keycaps_fit_state.state.clone();
-        let mut pending_camera_fit = pending_keycaps_navigation_fit;
-        let mut focused_finding = focused_keycaps_finding;
+        let keycaps_state = keycaps_state.clone();
         let source_surface = svg.clone();
-        let select_tree = workspace_callbacks.select_tree;
+        let select_tree = workspace_routing.select_tree;
         move |request: keycaps_fit::FindingNavigationRequest| {
             let owner = keycaps_navigation::OwnerIdentity {
                 scope: &scope,
@@ -4917,13 +4642,13 @@ fn Editor() -> Element {
             } else {
                 None
             };
-            focused_finding.set(focused);
+            keycaps_state.set_focused_finding(focused);
             let focus_runtime = runtime.clone();
             let focus_adapter = adapter.clone();
             let focus_body_selection = body_selection;
             let focus_case_selection = case_selection_for_owner;
             let focus_workspace = workspace;
-            pending_camera_fit.set(None);
+            keycaps_state.set_pending_layout_fit(None);
             keycaps_navigation::dispatch_route_with_camera_basis(
                 effects,
                 &request,
@@ -4953,7 +4678,7 @@ fn Editor() -> Element {
                         pin_inspector_on_desktop(inspector_settings);
                     }
                     keycaps_navigation::RouteAction::QueueLayoutFit(request) => {
-                        pending_camera_fit.set(Some(*request));
+                        keycaps_state.set_pending_layout_fit(Some(*request));
                     }
                     keycaps_navigation::RouteAction::Report(message) => runtime.report(message),
                     keycaps_navigation::RouteAction::FocusInspector => {
@@ -5000,13 +4725,13 @@ fn Editor() -> Element {
         let adapter = adapter.clone();
         let owner = layout_owner.clone();
         let mut findings_open = layout_findings.open;
-        let mut scripts_open = geometry_scripts_open;
+        let setup_state = setup_state;
         move |()| {
             if !findings_owner_is_current(&runtime, workspace, &adapter, &owner) {
                 return;
             }
             findings_open.set(false);
-            scripts_open.set(false);
+            setup_state.set_geometry_scripts_open(false);
             if let Some(element) = web_sys::window()
                 .and_then(|window| window.document())
                 .and_then(|document| document.get_element_by_id("m1-layout-findings-trigger"))
@@ -5021,7 +4746,7 @@ fn Editor() -> Element {
         let adapter = adapter.clone();
         let owner = layout_owner.clone();
         let mut selected_tab = layout_context_tab;
-        let select_tree = workspace_callbacks.select_tree;
+        let select_tree = workspace_routing.select_tree;
         let mut findings_open = layout_findings.open;
         let mut return_target = layout_findings.return_target;
         let mut return_focus = layout_findings.return_focus;
@@ -5066,12 +4791,12 @@ fn Editor() -> Element {
         let inspector_settings = inspector_panel_settings;
         let mut pending = layout_findings.pending;
         let mut return_target = layout_findings.return_target;
-        let focused_finding = focused_keycaps_finding;
+        let keycaps_state = keycaps_state.clone();
         let svg = svg.clone();
         let alive = keycaps_navigation_alive.clone();
-        let body_selection = case_body_selection;
-        let select_tree = workspace_callbacks.select_tree;
-        let navigate = workspace_callbacks.navigate;
+        let body_selection = case_selection.body;
+        let select_tree = workspace_routing.select_tree;
+        let navigate = workspace_routing.navigate;
         let mut active_workspace = workspace;
         move |request: layout_findings::Request| {
             if !findings_owner_is_current(&runtime, workspace, &adapter, &owner)
@@ -5135,7 +4860,7 @@ fn Editor() -> Element {
                     inspect_open,
                     findings_open,
                     inspector_settings,
-                    focused_finding,
+                    keycaps_state: keycaps_state.clone(),
                     svg: svg.clone(),
                     alive: alive.clone(),
                     body_selection,
@@ -5154,11 +4879,11 @@ fn Editor() -> Element {
         let inspect_open = inspect_open;
         let findings_open = layout_findings.open;
         let inspector_settings = inspector_panel_settings;
-        let focused_finding = focused_keycaps_finding;
+        let keycaps_state = keycaps_state.clone();
         let svg = svg.clone();
         let alive = keycaps_navigation_alive.clone();
-        let body_selection = case_body_selection;
-        let select_tree = workspace_callbacks.select_tree;
+        let body_selection = case_selection.body;
+        let select_tree = workspace_routing.select_tree;
         move |(request, owner): (layout_findings::Request, LayoutOwnerIdentity)| {
             perform_layout_finding_navigation(
                 LayoutFindingNavigationContext {
@@ -5170,7 +4895,7 @@ fn Editor() -> Element {
                     inspect_open,
                     findings_open,
                     inspector_settings,
-                    focused_finding,
+                    keycaps_state: keycaps_state.clone(),
                     svg: svg.clone(),
                     alive: alive.clone(),
                     body_selection,
@@ -5187,19 +4912,17 @@ fn Editor() -> Element {
     }));
     let observed_navigation_selection = (adapter.selected_context)();
     let observed_navigation_generation = (adapter.generation)();
-    keycaps_navigation::use_pending_layout_fit(
-        pending_keycaps_navigation_fit,
+    keycaps_state.use_pending_layout_fit(
         (
             workspace(),
             observed_navigation_selection,
             observed_navigation_generation,
             version(),
         ),
-        keycaps_navigation_alive.clone(),
         {
             let runtime = runtime.clone();
             let adapter = adapter.clone();
-            let body_selection = case_body_selection;
+            let body_selection = case_selection.body;
             move || {
                 current_keycaps_navigation_owner(
                     workspace,
@@ -5272,7 +4995,7 @@ fn Editor() -> Element {
         {
             let runtime = runtime.clone();
             let adapter = adapter.clone();
-            let body_selection = case_body_selection;
+            let body_selection = case_selection.body;
             let alive = keycaps_navigation_alive.clone();
             move |action, expected| match action {
                 keycaps_navigation::FitAction::SetCamera(camera_fit) => {
@@ -5442,20 +5165,7 @@ fn Editor() -> Element {
         active_workspace,
         layout_assembly_3d(),
     );
-    use_effect(use_reactive((&transform_tool_owner,), {
-        let mut owner_state = layout_transform_tool_owner;
-        let mut active_tool = layout_transform_tool;
-        move |(transform_tool_owner,)| {
-            if owner_state
-                .peek()
-                .as_ref()
-                .is_some_and(|previous| previous != &transform_tool_owner)
-            {
-                active_tool.set(None);
-            }
-            owner_state.set(Some(transform_tool_owner.clone()));
-        }
-    }));
+    layout_state.observe_transform_tool_owner(transform_tool_owner);
     let component_inspector_key = layout_component_inspector_owner_key(
         &model,
         active_workspace,
@@ -6525,128 +6235,74 @@ fn Editor() -> Element {
     let redo = runtime.clone();
     let retry = runtime.clone();
     let recover = runtime.clone();
-    workspace_callbacks
-        .select_tree
-        .replace(Box::new(select_tree));
-    workspace_callbacks.navigate.replace(Box::new(navigate));
-    workspace_callbacks.nudge_tree.replace(Box::new(nudge_tree));
-    workspace_callbacks
-        .parts_select
-        .replace(Box::new(on_parts_select));
-    workspace_callbacks
-        .keymap_select
-        .replace(Box::new(on_keymap_select.clone()));
-    workspace_callbacks
-        .keycaps_select
-        .replace(Box::new(on_keycaps_select.clone()));
-    workspace_callbacks
-        .keycaps_finding
-        .replace(Box::new(on_keycaps_finding));
-    workspace_callbacks
-        .pcb_empty_hit
-        .replace(Box::new(on_pcb_empty_hit));
-    workspace_callbacks
-        .pcb_part_hit
-        .replace(Box::new(on_pcb_part_hit));
-    workspace_callbacks
-        .mounted_module_select
-        .replace(Box::new(on_mounted_module_select));
-    workspace_callbacks
-        .pcb_part_pointer_down
-        .replace(Box::new(on_pcb_part_pointer_down));
-    workspace_callbacks
-        .pcb_wiring_edit_board
-        .replace(Box::new(on_pcb_wiring_edit_board));
-    workspace_callbacks
-        .layout_selection_kind
-        .replace(Box::new(on_layout_selection_kind));
-    workspace_callbacks
-        .layout_snap_intent
-        .replace(Box::new(on_layout_snap_intent));
-    workspace_callbacks
-        .pcb_selection_kind
-        .replace(Box::new(on_pcb_selection_kind));
-    workspace_callbacks
-        .pcb_snap_intent
-        .replace(Box::new(on_pcb_snap_intent));
-    workspace_callbacks
-        .case_action
-        .replace(Box::new(on_case_action));
-    workspace_callbacks
-        .case_display
-        .replace(Box::new(on_case_display));
-    workspace_callbacks
-        .keymap_layer
-        .replace(Box::new(on_keymap_layer));
-    workspace_callbacks
-        .keymap_export
-        .replace(Box::new(on_keymap_export));
-    workspace_callbacks
-        .show_configured_board
-        .replace(Box::new(on_show_configured_board));
-    {
+    workspace_routing.select_tree.replace(Box::new(select_tree));
+    workspace_routing.navigate.replace(Box::new(navigate));
+    let nudge_tree = EventHandler::new(nudge_tree);
+    let parts_select = EventHandler::new(on_parts_select);
+    let keymap_select = EventHandler::new(on_keymap_select.clone());
+    let keycaps_select = EventHandler::new(on_keycaps_select.clone());
+    let keycaps_finding = EventHandler::new(on_keycaps_finding);
+    let pcb_empty_hit = EventHandler::new(on_pcb_empty_hit);
+    let pcb_part_hit = EventHandler::new(on_pcb_part_hit);
+    let mounted_module_select = EventHandler::new(on_mounted_module_select);
+    let pcb_part_pointer_down = EventHandler::new(on_pcb_part_pointer_down);
+    let pcb_wiring_edit_board = EventHandler::new(on_pcb_wiring_edit_board);
+    let on_layout_selection_kind_handler = EventHandler::new(on_layout_selection_kind);
+    let layout_snap_intent = EventHandler::new(on_layout_snap_intent);
+    let pcb_selection_kind = EventHandler::new(on_pcb_selection_kind);
+    let pcb_snap_intent = EventHandler::new(on_pcb_snap_intent);
+    let case_action = EventHandler::new(on_case_action);
+    let case_display = EventHandler::new(on_case_display);
+    let keymap_layer = EventHandler::new(on_keymap_layer);
+    let keymap_export = EventHandler::new(on_keymap_export);
+    let show_configured_board = EventHandler::new(on_show_configured_board);
+    let open_geometry_scripts = {
         let mut workspace = workspace;
         let mut objects_open = objects_open;
         let mut inspect_open = inspect_open;
-        let mut geometry_scripts_open = geometry_scripts_open;
+        let setup_state = setup_state;
         let inspector_settings = inspector_panel_settings;
-        workspace_callbacks
-            .open_geometry_scripts
-            .replace(Box::new(move |_| {
-                workspace.set("Layout");
-                objects_open.set(false);
-                inspect_open.set(true);
-                geometry_scripts_open.set(true);
-                pin_inspector_on_desktop(inspector_settings);
-            }));
-    }
-    workspace_callbacks
-        .toggle_footprints
-        .replace(Box::new(move |_| {
-            let mut footprints = layer_visibility.footprints;
-            footprints.set(!footprints());
-        }));
-    {
+        EventHandler::new(move |_| {
+            workspace.set("Layout");
+            objects_open.set(false);
+            inspect_open.set(true);
+            setup_state.set_geometry_scripts_open(true);
+            pin_inspector_on_desktop(inspector_settings);
+        })
+    };
+    let toggle_footprints = EventHandler::new(move |_| {
+        let mut footprints = layer_visibility.footprints;
+        footprints.set(!footprints());
+    });
+    let retry_save = {
         let retry = retry.clone();
-        workspace_callbacks.retry_save.replace(Box::new(move |_| {
+        EventHandler::new(move |_| {
             retry.submit(Event::RetrySave {
                 operation_id: retry.operation(),
             });
-        }));
-    }
-    {
+        })
+    };
+    let recover_saved = {
         let recover = recover.clone();
-        workspace_callbacks
-            .recover_saved
-            .replace(Box::new(move |_| recover.recover_saved()));
-    }
-
-    workspace_callbacks
-        .canvas_end_pointer
-        .replace(Box::new(end_pointer.clone()));
-    workspace_callbacks
-        .canvas_cancel_pointer
-        .replace(Box::new(cancel_pointer.clone()));
-    workspace_callbacks
-        .canvas_keyboard
-        .replace(Box::new(keyboard.clone()));
-
-    workspace_callbacks
-        .canvas_wheel
-        .replace(Box::new(wheel.clone()));
+        EventHandler::new(move |_| recover.recover_saved())
+    };
+    let canvas_end_pointer = EventHandler::new(end_pointer.clone());
+    let canvas_cancel_pointer = EventHandler::new(cancel_pointer.clone());
+    let canvas_keyboard = EventHandler::new(keyboard.clone());
+    let canvas_wheel = EventHandler::new(wheel.clone());
     let board_setup = objects::use_board_setup(
         runtime.clone(),
         version,
         workspace,
         adapter.generation,
-        workspace_callbacks.navigate,
+        workspace_routing.navigate,
     );
     let shared_objects = workspace_composition::SharedObjectsInput {
         selected_context: adapter.selected_context,
-        on_select: workspace_callbacks.select_tree,
-        on_navigate: workspace_callbacks.navigate,
-        on_nudge: workspace_callbacks.nudge_tree,
-        on_open_geometry_scripts: workspace_callbacks.open_geometry_scripts,
+        on_select: workspace_routing.select_tree,
+        on_navigate: workspace_routing.navigate,
+        on_nudge: nudge_tree,
+        on_open_geometry_scripts: open_geometry_scripts,
         board_setup,
     };
     let case_scene = case_workspace::workspace_display_scene(runtime.cad_scene(), &render_scope);
@@ -6857,9 +6513,9 @@ fn Editor() -> Element {
                 selected_layer_id: case_selected_layer_id.clone(),
                 case_selection,
                 expanded: case_tree_expanded,
-                on_action: workspace_callbacks.case_action,
-                on_select: workspace_callbacks.select_tree,
-                on_display: workspace_callbacks.case_display,
+                on_action: case_action,
+                on_select: workspace_routing.select_tree,
+                on_display: case_display,
             },
         )),
         "Parts" => {
@@ -6870,7 +6526,7 @@ fn Editor() -> Element {
                 workspace,
                 query: parts_query,
                 selected: parts_selection,
-                on_select: workspace_callbacks.parts_select,
+                on_select: parts_select,
             })
         }
         _ => workspace_composition::WorkspaceObjectsInput::Layout(Box::new(
@@ -6900,10 +6556,9 @@ fn Editor() -> Element {
         },
         layout_assembly_3d,
         {
-            let mut active_tool = layout_transform_tool;
+            let layout_state = layout_state;
             move |assembly_3d| {
-                active_tool.set(None);
-                layout_assembly_3d.set(assembly_3d);
+                layout_state.set_assembly_3d(assembly_3d);
             }
         },
         LayoutPlacementCancellation {
@@ -6926,14 +6581,7 @@ fn Editor() -> Element {
             let mirrored_pair = mirrored_pair.clone();
             let matrix_setup = matrix_setup.clone();
             let matrix_placement = matrix_placement.clone();
-            let mut pending_splay_origin_pick = pending_splay_origin_pick;
-            let layout_assembly_3d = layout_assembly_3d;
             move || {
-                pending_splay_origin_pick.set(pending_splay_origin_pick_after_view_change(
-                    layout_assembly_3d(),
-                    true,
-                    pending_splay_origin_pick(),
-                ));
                 if let Some(active) = mirrored_pair.placement.as_ref() {
                     mirrored_pair.on_cancel.call(active.owner.clone());
                 } else if let Some(form) = mirrored_pair.form.as_ref() {
@@ -6996,7 +6644,7 @@ fn Editor() -> Element {
                 let adapter = adapter.clone();
                 let owner = layout_owner.clone();
                 let mut active_tool = layout_transform_tool;
-                let on_selection_kind = workspace_callbacks.layout_selection_kind;
+                let on_selection_kind = on_layout_selection_kind_handler;
                 let matrix_ids: BTreeSet<_> =
                     matrices.iter().map(|matrix| matrix.id.clone()).collect();
                 move |tool| {
@@ -7048,7 +6696,7 @@ fn Editor() -> Element {
                 pointer_tools_visible: true,
                 pointer_tools_available,
                 active_tool: layout_transform_tool(),
-                on_selection_kind: workspace_callbacks.layout_selection_kind,
+                on_selection_kind: on_layout_selection_kind_handler,
                 on_show_properties,
                 on_transform_tool,
             };
@@ -7063,11 +6711,11 @@ fn Editor() -> Element {
                     recovery_required: model.lifecycle
                         == boardstudio_application::Lifecycle::RecoveryRequired,
                     footprints_pressed,
-                    on_toggle_footprints: workspace_callbacks.toggle_footprints,
+                    on_toggle_footprints: toggle_footprints,
                     assembly_3d: layout_assembly_3d(),
                     on_view_mode: on_layout_view_mode,
-                    on_retry_save: workspace_callbacks.retry_save,
-                    on_recover_saved: workspace_callbacks.recover_saved,
+                    on_retry_save: retry_save,
+                    on_recover_saved: recover_saved,
                     selection_kind: layout_selection_kind(),
                     snap_settings: layout_snap_settings.read().clone(),
                     command_label: "Layout commands".to_owned(),
@@ -7075,8 +6723,8 @@ fn Editor() -> Element {
                     transform,
                     menu_owner_key: format!("{layout_owner:?}"),
                     open_menu: layout_command_menu,
-                    on_selection_kind: workspace_callbacks.layout_selection_kind,
-                    on_snap_intent: workspace_callbacks.layout_snap_intent,
+                    on_selection_kind: on_layout_selection_kind_handler,
+                    on_snap_intent: layout_snap_intent,
                     show_relationships: true,
                     has_selection_context: matrix_transform_inspector.projection.is_some()
                         || component_inspector.is_some(),
@@ -7130,9 +6778,6 @@ fn Editor() -> Element {
                     inspect_open.set(true);
                 }
             };
-            workspace_callbacks
-                .pcb_transform_properties
-                .replace(Box::new(on_show_properties));
             let transform = objects::LayoutTransformMenuMount {
                 properties_available,
                 column_available: supports_kind(objects::LayoutSelectionKind::Column),
@@ -7140,8 +6785,8 @@ fn Editor() -> Element {
                 pointer_tools_visible: false,
                 pointer_tools_available: false,
                 active_tool: None,
-                on_selection_kind: workspace_callbacks.pcb_selection_kind,
-                on_show_properties: workspace_callbacks.pcb_transform_properties,
+                on_selection_kind: pcb_selection_kind,
+                on_show_properties: EventHandler::new(on_show_properties),
                 on_transform_tool: EventHandler::new(|_| {}),
             };
             workspace_composition::WorkspaceToolbarInput::Pcb(Box::new(
@@ -7153,8 +6798,8 @@ fn Editor() -> Element {
                     snap_settings: layout_snap_settings.read().clone(),
                     transform,
                     align: pcb_align.clone(),
-                    on_selection_kind: workspace_callbacks.pcb_selection_kind,
-                    on_snap_intent: workspace_callbacks.pcb_snap_intent,
+                    on_selection_kind: pcb_selection_kind,
+                    on_snap_intent: pcb_snap_intent,
                     show_relationships: false,
                     has_selection_context: false,
                     on_show_relationships: EventHandler::new(|()| {}),
@@ -7177,7 +6822,7 @@ fn Editor() -> Element {
                     footprints_visible: (layer_visibility.footprints)()
                         && !(layer_visibility.hidden)().contains("Footprints"),
                     on_view_mode,
-                    on_toggle_footprints: workspace_callbacks.toggle_footprints,
+                    on_toggle_footprints: toggle_footprints,
                 },
             )
         }
@@ -7197,7 +6842,7 @@ fn Editor() -> Element {
                     footprints_visible: (layer_visibility.footprints)()
                         && !(layer_visibility.hidden)().contains("Footprints"),
                     on_view_mode,
-                    on_toggle_footprints: workspace_callbacks.toggle_footprints,
+                    on_toggle_footprints: toggle_footprints,
                 },
             )
         }
@@ -7210,11 +6855,11 @@ fn Editor() -> Element {
         mount,
         start_pan: EventHandler::new(start_pan.clone()),
         move_pointer: EventHandler::new(move_pointer.clone()),
-        end_pointer: workspace_callbacks.canvas_end_pointer,
-        cancel_pointer: workspace_callbacks.canvas_cancel_pointer,
-        keyboard: workspace_callbacks.canvas_keyboard,
+        end_pointer: canvas_end_pointer,
+        cancel_pointer: canvas_cancel_pointer,
+        keyboard: canvas_keyboard,
         key_up: EventHandler::new(key_up.clone()),
-        wheel: workspace_callbacks.canvas_wheel,
+        wheel: canvas_wheel,
     };
     let canvas_input = match active_workspace {
         "PCB" => Some(workspace_composition::WorkspaceCanvasInput::Pcb(Box::new(
@@ -7225,10 +6870,10 @@ fn Editor() -> Element {
                 selected_ids: model.selected_part_ids.clone(),
                 generation: render_generation,
                 handlers: canvas_handlers,
-                on_empty_hit: workspace_callbacks.pcb_empty_hit,
-                on_part_hit: workspace_callbacks.pcb_part_hit,
-                on_part_pointer_down: workspace_callbacks.pcb_part_pointer_down,
-                on_module_select: workspace_callbacks.mounted_module_select,
+                on_empty_hit: pcb_empty_hit,
+                on_part_hit: pcb_part_hit,
+                on_part_pointer_down: pcb_part_pointer_down,
+                on_module_select: mounted_module_select,
             },
         ))),
         "Keymap" => Some(workspace_composition::WorkspaceCanvasInput::Keymap(
@@ -7240,7 +6885,7 @@ fn Editor() -> Element {
                 view_box: view_box.clone(),
                 selected_ids: model.selected_part_ids.iter().cloned().collect(),
                 handlers: canvas_handlers,
-                on_select_key: workspace_callbacks.keymap_select,
+                on_select_key: keymap_select,
             }),
         )),
         "Keycaps" => Some(workspace_composition::WorkspaceCanvasInput::Keycaps(
@@ -7252,7 +6897,7 @@ fn Editor() -> Element {
                 view_box: view_box.clone(),
                 selected_ids: model.selected_part_ids.iter().cloned().collect(),
                 handlers: canvas_handlers,
-                on_select_key: workspace_callbacks.keycaps_select,
+                on_select_key: keycaps_select,
             }),
         )),
         "Case" => Some(workspace_composition::WorkspaceCanvasInput::Case(Box::new(
@@ -7280,8 +6925,7 @@ fn Editor() -> Element {
             },
         )),
     };
-    let component_inspector_pending_edits =
-        use_signal(layout_component_edits::LayoutComponentInspectorEdits::default);
+    let component_inspector_pending_edits = layout_state.component_inspector_edits();
     let on_component_inspector_action = EventHandler::new({
         let runtime = runtime.clone();
         let adapter = adapter.clone();
@@ -7308,8 +6952,8 @@ fn Editor() -> Element {
                 layer_actions,
                 active_layer_id: keymap_layer_id(),
                 selected_key_id: model.selected_part_ids.first().cloned(),
-                on_layer: workspace_callbacks.keymap_layer,
-                on_export: workspace_callbacks.keymap_export,
+                on_layer: keymap_layer,
+                on_export: keymap_export,
                 firmware_export_enabled: keymap_view
                     .as_ref()
                     .is_some_and(|view| !view.keys.is_empty())
@@ -7317,7 +6961,7 @@ fn Editor() -> Element {
                         .encoder_projection
                         .as_ref()
                         .is_some_and(|projection| !projection.rows.is_empty()),
-                on_select_key: workspace_callbacks.keymap_select,
+                on_select_key: keymap_select,
                 binding_actions,
                 macro_actions,
                 admission_token: snapshot.token,
@@ -7339,8 +6983,8 @@ fn Editor() -> Element {
                     &model,
                     selected_tree_context.as_ref(),
                 ),
-                on_show_configured_board: workspace_callbacks.show_configured_board,
-                on_display: workspace_callbacks.case_display,
+                on_show_configured_board: show_configured_board,
+                on_display: case_display,
             },
         )),
         "Parts" => workspace_composition::WorkspaceInspectorInput::Parts(Box::new(
@@ -7430,7 +7074,7 @@ fn Editor() -> Element {
                             on_firmware_edit: firmware_position_actions.on_edit,
                             on_resolve: pcb_wiring_mount.on_resolve,
                             on_choose_controller: part_placement.on_choose_controller,
-                            on_edit_board_wiring: workspace_callbacks.pcb_wiring_edit_board,
+                            on_edit_board_wiring: pcb_wiring_edit_board,
                             mode_actions: pcb_wiring_mode_actions.clone(),
                             pin_actions: pcb_wiring_pin_actions.clone(),
                             apply_actions: pcb_wiring_apply_actions.clone(),
@@ -7462,13 +7106,13 @@ fn Editor() -> Element {
                     view: keycaps_view.clone(),
                     document: Rc::new((*document).clone()),
                     selected_key_id,
-                    on_select_key: workspace_callbacks.keycaps_select,
+                    on_select_key: keycaps_select,
                     settings_editor,
                     settings_actions: keycaps_settings_actions.clone(),
                     fit_state: keycaps_fit_state.state.clone(),
                     mechanical_layer_ids,
                     fit_retry: keycaps_fit_state.on_retry,
-                    fit_navigate: workspace_callbacks.keycaps_finding,
+                    fit_navigate: keycaps_finding,
                     on_export: {
                         let runtime = runtime.clone();
                         EventHandler::new(move |_: ()| runtime.export_keycaps_step())
@@ -7480,7 +7124,7 @@ fn Editor() -> Element {
             layout_workspace::InspectorInput {
                 geometry_scripts_open: geometry_scripts_open(),
                 on_close_geometry_scripts: EventHandler::new(move |()| {
-                    geometry_scripts_open.set(false);
+                    setup_state.set_geometry_scripts_open(false)
                 }),
                 context_title: context_summary
                     .as_ref()
@@ -7535,7 +7179,7 @@ fn Editor() -> Element {
                     &model,
                     selected_tree_context.as_ref(),
                 ),
-                on_select_context: workspace_callbacks.select_tree,
+                on_select_context: workspace_routing.select_tree,
                 outline_inspector: outline_inspector.clone().map(Box::new),
                 findings_return_available: (layout_findings.return_target)().as_ref().is_some_and(
                     |target| {
@@ -7723,18 +7367,13 @@ fn Editor() -> Element {
     let on_name_commit = guide_name_edit.on_commit;
     let guide_runtime = runtime.clone();
     let mut guide_adapter = adapter.clone();
-    let mut guide_preferences_for_stage = guide_preferences;
+    let setup_state_for_stage = setup_state;
     let guide_workspace_for_stage = workspace;
     let guide_project_id = document.id.clone();
     let on_stage_change = move |stage: SetupGuideStage| {
-        let Some(mut preferences) = guide_preferences_for_stage()
-            .filter(|preferences| preferences.project_id == guide_project_id)
-        else {
+        if !setup_state_for_stage.update_guide_stage(&guide_project_id, stage) {
             return;
-        };
-        preferences.current_stage = stage;
-        preferences.open = true;
-        guide_preferences_for_stage.set(Some(preferences));
+        }
         setup_guide::activate_stage(
             stage,
             guide_workspace_for_stage,
@@ -7789,15 +7428,10 @@ fn Editor() -> Element {
             mode: SelectionMode::Replace,
         });
     };
-    let mut guide_preferences_for_dismiss = guide_preferences;
+    let setup_state_for_dismiss = setup_state;
     let guide_project_id_for_dismiss = document.id.clone();
     let on_dismiss_guide = move |_| {
-        if let Some(mut preferences) = guide_preferences_for_dismiss()
-            .filter(|preferences| preferences.project_id == guide_project_id_for_dismiss)
-        {
-            preferences.open = false;
-            guide_preferences_for_dismiss.set(Some(preferences));
-        }
+        setup_state_for_dismiss.dismiss_guide(&guide_project_id_for_dismiss);
     };
     let guide_statuses = setup_guide::stage_statuses(
         &document,
@@ -7891,7 +7525,7 @@ fn Editor() -> Element {
                     {
                         layout_viewer::LayoutCanonicalViewer {
                             on_mounted_module_pick: (active_workspace == "Layout")
-                                .then_some(workspace_callbacks.mounted_module_select),
+                                .then_some(mounted_module_select),
                             keycaps_fit: if matches!(active_workspace, "Keymap" | "Keycaps") {
                                 keycaps_fit_state.state.clone()
                             } else {

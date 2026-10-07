@@ -1,4 +1,5 @@
 //! Keycaps-owned workspace surface composition.
+use super::Runtime;
 use super::keycaps_fit::{FindingNavigationRequest, KeycapsFitInspector, KeycapsFitState};
 use super::keycaps_scene::{KeycapsCanvas, KeycapsKeyList, KeycapsView};
 use super::keycaps_settings::{
@@ -7,9 +8,210 @@ use super::keycaps_settings::{
 };
 use super::objects;
 use super::workspace_composition::{CanvasEventHandlers, SharedObjectsInput};
+use super::{keycaps_finding_marker, keycaps_navigation};
+use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::Contour;
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
+
+pub(super) fn use_projection(
+    runtime: Rc<Runtime>,
+    accepted_token: Option<SnapshotToken>,
+    current_scope: Option<Scope>,
+    active_board_id: String,
+) -> Option<(Rc<KeycapsView>, Rc<[Contour]>)> {
+    use_memo(use_reactive(
+        (&accepted_token, &current_scope, &active_board_id),
+        {
+            move |(token, scope, board_id)| {
+                let model = runtime.model();
+                let snapshot = model.accepted.as_ref()?;
+                if token.as_ref() != Some(&snapshot.token) {
+                    return None;
+                }
+                let view = super::keycaps_scene::project(snapshot, scope.as_ref()?, &board_id)?;
+                Some((view, super::accepted_board_contours(snapshot, &board_id)))
+            }
+        },
+    ))
+    .read()
+    .clone()
+}
+
+#[derive(Clone)]
+pub(super) struct KeycapsWorkspaceState {
+    focused_finding: Signal<Option<keycaps_finding_marker::FocusedFinding>>,
+    pending_layout_fit: Signal<Option<keycaps_navigation::PendingLayoutFit>>,
+    navigation_alive: Rc<std::cell::Cell<bool>>,
+}
+
+pub(super) fn use_keycaps_workspace_state(
+    workspace: &'static str,
+    scope: Option<Scope>,
+    token: Option<SnapshotToken>,
+    revision: Option<u64>,
+    active_board_id: String,
+) -> KeycapsWorkspaceState {
+    let focused_finding = use_signal(|| None::<keycaps_finding_marker::FocusedFinding>);
+    let pending_layout_fit = use_signal(|| None::<keycaps_navigation::PendingLayoutFit>);
+    keycaps_finding_marker::use_retire_stale_finding(
+        focused_finding,
+        workspace,
+        scope,
+        token,
+        revision,
+        active_board_id,
+    );
+    KeycapsWorkspaceState {
+        focused_finding,
+        pending_layout_fit,
+        navigation_alive: keycaps_navigation::use_navigation_lifetime(),
+    }
+}
+
+impl KeycapsWorkspaceState {
+    pub(super) fn focused_finding(&self) -> Signal<Option<keycaps_finding_marker::FocusedFinding>> {
+        self.focused_finding
+    }
+
+    pub(super) fn navigation_alive(&self) -> Rc<std::cell::Cell<bool>> {
+        self.navigation_alive.clone()
+    }
+
+    pub(super) fn set_focused_finding(
+        &self,
+        finding: Option<keycaps_finding_marker::FocusedFinding>,
+    ) {
+        let mut focused_finding = self.focused_finding;
+        focused_finding.set(finding);
+    }
+
+    pub(super) fn focus_finding(
+        &self,
+        scope: Scope,
+        token: SnapshotToken,
+        revision: u64,
+        finding_id: String,
+    ) {
+        let navigation_id =
+            keycaps_finding_marker::next_navigation_id(self.focused_finding.peek().as_ref());
+        self.set_focused_finding(Some(keycaps_finding_marker::FocusedFinding {
+            scope,
+            token,
+            revision,
+            finding_id,
+            navigation_id,
+        }));
+    }
+
+    pub(super) fn set_pending_layout_fit(
+        &self,
+        pending: Option<keycaps_navigation::PendingLayoutFit>,
+    ) {
+        let mut pending_layout_fit = self.pending_layout_fit;
+        pending_layout_fit.set(pending);
+    }
+
+    pub(super) fn use_pending_layout_fit<T>(
+        &self,
+        observed_owner: T,
+        current_owner: impl Fn() -> keycaps_navigation::LiveNavigationOwner + 'static,
+        resolve_geometry: impl Fn(
+            &keycaps_navigation::PendingLayoutFit,
+        ) -> Option<keycaps_navigation::DestinationFitGeometry>
+        + 'static,
+        perform: impl Fn(keycaps_navigation::FitAction, keycaps_navigation::NavigationOwner) + 'static,
+    ) where
+        T: Clone + PartialEq + 'static,
+    {
+        keycaps_navigation::use_pending_layout_fit(
+            self.pending_layout_fit,
+            observed_owner,
+            self.navigation_alive.clone(),
+            current_owner,
+            resolve_geometry,
+            perform,
+        );
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod workspace_state_tests {
+    use super::*;
+    use boardstudio_application::SessionEpoch;
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::*;
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    #[component]
+    fn state_host() -> Element {
+        let scope = Scope {
+            session_epoch: SessionEpoch(8),
+            document_id: "keycaps-state".into(),
+            board_id: "board".into(),
+            instance_id: None,
+        };
+        let state = use_keycaps_workspace_state(
+            "Layout",
+            Some(scope.clone()),
+            Some(SnapshotToken(3)),
+            Some(2),
+            "board".into(),
+        );
+        let finding = state.focused_finding();
+        let navigation_id_label = finding()
+            .map(|focused| focused.navigation_id.to_string())
+            .unwrap_or_else(|| "none".into());
+        rsx! {
+            button {
+                id: "focus-finding",
+                onclick: move |_| state.focus_finding(scope.clone(), SnapshotToken(3), 2, "finding".into()),
+                "Focus finding"
+            }
+            output { id: "focused-navigation-id", "{navigation_id_label}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn focusing_the_same_finding_advances_its_navigation_identity() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(state_host);
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        let button = document
+            .get_element_by_id("focus-finding")
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap();
+        button.click();
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        assert_eq!(
+            document
+                .get_element_by_id("focused-navigation-id")
+                .unwrap()
+                .text_content()
+                .as_deref(),
+            Some("0")
+        );
+        button.click();
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        assert_eq!(
+            document
+                .get_element_by_id("focused-navigation-id")
+                .unwrap()
+                .text_content()
+                .as_deref(),
+            Some("1")
+        );
+        root.remove();
+    }
+}
 
 pub(super) struct CanvasInput {
     pub(super) view: Option<Rc<KeycapsView>>,
