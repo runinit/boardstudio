@@ -1,6 +1,6 @@
 # 10: One export-lease module owns export capture and currency
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: —
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Review: [candidate 03](../../../investigations/architecture-review-2026-10-07.html#c3)

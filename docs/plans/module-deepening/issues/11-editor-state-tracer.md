@@ -1,6 +1,6 @@
 # 11: Editor state tracer: canvas navigation and layout findings
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: —
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Review: [candidate 05](../../../investigations/architecture-review-2026-10-07.html#c5)

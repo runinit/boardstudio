@@ -1,6 +1,6 @@
 # 20: The direct edit event carries previews only
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: 18
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0005 amendment](../../../adr/0005-resolve-queued-edits-at-execution.md#amendment-commits-are-intents-the-direct-edit-event-carries-previews-only-2026-10-07)
