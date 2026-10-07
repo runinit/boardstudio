@@ -1063,22 +1063,26 @@ fn apply_patch(
             openings.remove(*opening_index);
         }
         MechanicalSettingsPatch::AddOpeningVertex { opening_index } => {
-            let opening = configuration
+            let openings = configuration
                 .openings
                 .as_mut()
-                .and_then(|openings| openings.get_mut(*opening_index))
+                .ok_or("The selected access opening is no longer available.")?;
+            let opening = openings
+                .get_mut(*opening_index)
                 .ok_or("The selected access opening is no longer available.")?;
             opening.points.push(Vec2 { x: 0.0, y: 0.0 });
-            validate_openings(configuration.openings.as_ref().unwrap())?;
+            validate_openings(openings)?;
         }
         MechanicalSettingsPatch::RemoveOpeningVertex {
             opening_index,
             point_index,
         } => {
-            let opening = configuration
+            let openings = configuration
                 .openings
                 .as_mut()
-                .and_then(|openings| openings.get_mut(*opening_index))
+                .ok_or("The selected access opening is no longer available.")?;
+            let opening = openings
+                .get_mut(*opening_index)
                 .ok_or("The selected access opening is no longer available.")?;
             if opening.points.len() <= 3 {
                 return Err("An opening footprint needs at least three vertices.".into());
@@ -1087,7 +1091,7 @@ fn apply_patch(
                 return Err("The selected opening vertex is no longer available.".into());
             }
             opening.points.remove(*point_index);
-            validate_openings(configuration.openings.as_ref().unwrap())?;
+            validate_openings(openings)?;
         }
         MechanicalSettingsPatch::SetOpeningDimension {
             opening_index,
@@ -2753,7 +2757,14 @@ mod battery_patch_tests {
         })).unwrap());
         let mut config = configuration();
         config.closure_mounts = Some(vec![]);
-        config.mounts = vec![Mount { id: "existing".into(), at: Vec2 { x: 0.0, y: 0.0 }, kind: MountKind::Hole, hole_diameter: 2.5, boss_diameter: Some(5.0), height: Some(5.0) }];
+        config.mounts = vec![Mount {
+            id: "existing".into(),
+            at: Vec2 { x: 0.0, y: 0.0 },
+            kind: MountKind::Hole,
+            hole_diameter: 2.5,
+            boss_diameter: Some(5.0),
+            height: Some(5.0),
+        }];
         document.mechanical = Some(config);
         support::open_document(&runtime, document).await;
         let current_runtime = runtime.clone();
@@ -2811,12 +2822,22 @@ mod battery_patch_tests {
         let (entered, release) = support::gate_next_core_reply(&runtime);
         assert!(controller.submit(request(
             1,
-            MechanicalSettingsPatch::SetMountDimension { collection: MechanicalMountCollection::Suspension, mount_id: "existing".into(), field: MechanicalDimension::MountPositionX, value: 7.0 }
+            MechanicalSettingsPatch::SetMountDimension {
+                collection: MechanicalMountCollection::Suspension,
+                mount_id: "existing".into(),
+                field: MechanicalDimension::MountPositionX,
+                value: 7.0
+            }
         )));
         gloo_timers::future::TimeoutFuture::new(10).await;
         support::drive_pending(&runtime);
         entered.await.unwrap();
-        let second_admitted = controller.submit(request(2, MechanicalSettingsPatch::AddMount { collection: MechanicalMountCollection::Suspension }));
+        let second_admitted = controller.submit(request(
+            2,
+            MechanicalSettingsPatch::AddMount {
+                collection: MechanicalMountCollection::Suspension,
+            },
+        ));
         gloo_timers::future::TimeoutFuture::new(10).await;
         support::drive_pending(&runtime);
         release.send(()).unwrap();
@@ -2845,8 +2866,20 @@ mod battery_patch_tests {
             operation_id: runtime.operation(),
         });
         support::run_pending(&runtime).await;
-        assert_eq!(runtime.model().accepted.unwrap().document.mechanical.as_ref().unwrap().mounts[0].at.x, 0.0);
-
+        assert_eq!(
+            runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .mechanical
+                .as_ref()
+                .unwrap()
+                .mounts[0]
+                .at
+                .x,
+            0.0
+        );
     }
 
     #[wasm_bindgen_test]
