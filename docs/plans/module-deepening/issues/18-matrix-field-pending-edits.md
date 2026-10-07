@@ -1,6 +1,6 @@
 # 18: Matrix fields complete the PendingEdits tracer
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: 16, 17
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Parent: [PendingEdits and Matrix tracer gate](05-pending-edits-module.md) · Decision: [Pending-edit settlement answer](01-decide-pending-edit-settlement.md#answer), [ADR-0005 amendment](../../../adr/0005-resolve-queued-edits-at-execution.md#amendment-a-retired-edit-is-silent-2026-10-07)
@@ -21,6 +21,14 @@ collection or introduce a second settlement policy. Preserve domain
 projection, resolver eligibility, catalogue ordering, per-field queueing and exact
 post-landing selection. Do not redesign the Runtime/helper interfaces independently;
 report any contract gap to the orchestrator and its owner.
+
+Preserve the action slice's tested owner lifetime when binding helpers: mount/editor,
+exact selection/context generation and workspace departure retire observation, while
+accepted revisions under the same owner keep it live. Retire departed observations
+before admitting edits for a new owner; this must never cancel authoritative Session
+work. EditTicket owns Runtime Scope liveness, so do not add a second Scope settlement
+check. Retain the paired departed-owner/current-owner save-failure regressions and
+the exact-selection landing tests.
 
 ## Acceptance criteria
 
