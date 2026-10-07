@@ -43,6 +43,8 @@ which remaining whole-document replacements become typed Core edits.
   saves go through ports, gates hold/fail replies and saves: [issues/01-runtime-core-and-persistence-ports.md](issues/01-runtime-core-and-persistence-ports.md).
 - 02 Settlements report where an edit landed; `Effect::Settled` carries a `Landing`, retried
   saves re-report the original: [issues/02-settlement-reports-landing.md](issues/02-settlement-reports-landing.md).
+- 03 Session resolves pending edits against the accepted document; `Event::ResolveEdit`
+  submits intent, resolved at execution: [issues/03-session-resolves-pending-edits.md](issues/03-session-resolves-pending-edits.md).
 
 ## Not yet specified
 

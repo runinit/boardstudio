@@ -1,6 +1,6 @@
 # 03: Session resolves pending edits against the accepted document
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: 02
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0005](../../../adr/0005-resolve-queued-edits-at-execution.md)
@@ -124,3 +124,44 @@ python3 scripts/check.py typecheck
   Otherwise the next intent waits forever.
 - Keep `Event` deriving `Clone, Debug, PartialEq`. Implement those traits
   manually on the resolver wrapper.
+
+## Outcome
+
+Commits: claim (this file), "Session resolves pending edits against the accepted document",
+"Tighten resolver resolution after review".
+
+- `Resolution` (`Submit(EditCommand)` / `Unchanged` / `Retire(String)`) and `EditResolver`
+  are public in `application`; `Event::ResolveEdit { operation_id, label, resolver }`
+  enqueues non-strict like `Event::Edit`. `Event`'s `Clone`/`Debug`/`PartialEq` holds:
+  the resolver prints its label and compares by pointer.
+- Resolution happens in `pump` only — the intent is never resolved at enqueue. `Submit`
+  re-enters the normal commit path (the resolved command is pushed to the queue front as an
+  `Edit` intent with the base revision set from the snapshot), so gesture/export/strict
+  handling is untouched; an empty transaction id is derived as `m1-{label}-{operation}`;
+  `Unchanged` settles completed landing at the current snapshot with no Core request;
+  `Retire` settles rejected with the resolver's reason; a preview-phase answer is retired.
+  The queue keeps draining after `Unchanged`/`Retire`.
+- Resolver purity, call timing and the exactly-once rule are documented on `EditResolver`,
+  `Resolution`, `Event::ResolveEdit` and in the crate-level docs of
+  `application/src/lib.rs`.
+- Native tests (application/tests/durable_session.rs, real `CoreEngine`): the X-then-Y
+  regression — both coordinates survive, each resolver observes the previous commit's
+  document, Undo removes Y then X; a vanished target retires with the resolver's reason;
+  `Unchanged` lands at the current snapshot, keeps the queue draining and never reaches
+  Core; a command Core rejects settles rejected with Core's own message and never saves; a
+  preview-phase resolution is retired without reaching Core; recovery and an in-progress
+  close refuse the event without calling the resolver; a reopen rejects queued intents
+  before their resolvers run; a gesture commit ahead is not disturbed and the intent behind
+  it resolves against the gesture's result. The investigation doc now points at the
+  permanent test; the reproducer file stays.
+- `Event::Edit` behaviour is unchanged; the existing base-revision-refresh test still
+  passes.
+
+Checks (all pass): `cargo test -p boardstudio-application --locked` — 29 passed (7 new);
+`cargo test -p boardstudio-web-runtime --locked` — 92 passed; `python3 scripts/check.py
+typecheck`; `wasm-pack test --headless --chrome web/crates/runtime --locked --lib` — 33
+passed; `python3 scripts/check-doc-links.py`.
+
+Follow-ups: the transaction-id "supplied" sentinel is an empty string (noted on the
+derivation site); a structured `Option<String>` would need a Core-side change and is out of
+scope here.
