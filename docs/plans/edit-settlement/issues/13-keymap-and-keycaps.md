@@ -1,6 +1,6 @@
 # 13: Keymap and Keycaps edits land through resolution
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: 06
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0005](../../../adr/0005-resolve-queued-edits-at-execution.md)
@@ -82,11 +82,11 @@ From [inventory.md](../inventory.md) (line numbers at `3368825`, orientation onl
 
 ## Acceptance criteria
 
-- [ ] Rapid test: two binding edits on different keys committed back-to-back both land; Undo removes them in order.
-- [ ] Rapid test: add layer twice queued; two layers with distinct IDs.
-- [ ] Renaming a layer removed before execution retires with a reason.
-- [ ] All four `Pending*` structs and content checks, and their messages, are gone.
-- [ ] Add/remove controls are disabled while pending; field edits are not.
+- [x] Rapid test: two binding edits on different keys committed back-to-back both land; Undo removes them in order.
+- [x] Rapid test: add layer twice queued; two layers with distinct IDs.
+- [x] Renaming a layer removed before execution retires with a reason.
+- [x] All four `Pending*` structs and content checks, and their messages, are gone.
+- [x] Add/remove controls are disabled while pending; field edits are not.
 
 ## Verification
 
@@ -100,3 +100,38 @@ wasm-pack test --headless --chrome web/crates/keycaps --locked --lib
 ## Out of scope
 
 - Keymap or keycap UI changes beyond pending/failed display.
+
+
+## Outcome
+
+Implemented in `59696a071`, `83dac997` and `947ee2b8`. Bindings, layers, macros
+and board/matrix/key keycap settings submit pure accepted-snapshot resolvers through
+`EditTicket`. The four old pending owners and content-based landing checks are gone.
+New IDs are allocated against accepted state; field edits queue during Applying and
+Saving, preserve pending/dirty values, and restore accepted values with standard
+failure feedback. Layer/key/encoder/macro ownership admission remains in place.
+
+Macro add/remove-step actions share a per-macro structural control gate because
+steps have positional identities. Step fields remain enabled. A captured preceding
+append or removal after the target preserves eligibility; a removed or shifted
+position retires with an explanation. Other macros and ordinary fields remain
+independent. No persisted IDs or shared Runtime changes were needed.
+
+Regression tests first reproduced dropped binding and macro fields, dropped layer
+adds, lost keycap sibling dimensions, same-field reversion being ignored, rejected
+binding text remaining visible, pending binding/keycap controls showing old values,
+and a shifted macro step editing its neighbor. Mounted tests now assert accepted
+results, pending/failed text, one-shot disabling, distinct layer IDs, removed-layer
+retirement and ordered Undo through real Session/Core.
+
+Review: Standards — no documented violations or required changes. Spec — the macro
+step identity finding was fixed and rereview found no remaining concrete gaps.
+
+Verification: Keymap 21 passed (the final macro correction also passed its six-test
+subset); Keycaps 27 passed; Application 29 passed; Runtime 103 passed; page Keycaps
+workspace tests 2 passed. `check.py typecheck`, `check-wasm-tests.py`, documentation
+links and `git diff --check` passed. The affected browser subsets were run directly.
+`check.py test` passed its Rust suites and then hit the existing missing
+`cad/step-oracle/Cargo.toml` fixture in the CAD check. No dependency changes.
+
+Follow-up: ticket 17 remains gated on the remaining cluster migrations.
