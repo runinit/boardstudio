@@ -53,10 +53,10 @@ finish       cleanup after the three panel migrations, export leases and workspa
 ES-20 is [edit settlement 20](../edit-settlement/issues/20-preview-only-direct-edit-event.md);
 TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. Preview-only events,
 the native Runtime, resolution constructors, outline split, typed wiring, export leases
-and Editor state are resolved. Captured Scope, keyed settlement, shared UI helpers and
-Matrix actions are merged and resolved. Matrix fields are the final implementation
-slice before the PendingEdits tracer gate; wider panel migrations still wait for that
-gate. Mechanical patch and outline intent proposals await human approval.
+and Editor state are resolved. Captured Scope, keyed settlement, shared UI helpers,
+Matrix actions and Matrix fields are merged and resolved. The complete tracer is
+verified; wider panel migrations still wait for the orchestrator's tracer gate.
+Mechanical patch and outline intent proposals await human approval.
 
 ## Decisions so far
 
@@ -78,6 +78,10 @@ gate. Mechanical patch and outline intent proposals await human approval.
 ## Progress
 
 <!-- one line per resolved build ticket -->
+
+- [Matrix fields complete the PendingEdits tracer](issues/18-matrix-field-pending-edits.md#outcome):
+  one helper owns field/action observation; native 110/8/51 and the complete browser
+  gate passed, with the documented native CAD baseline reported separately.
 
 - [Matrix one-shot actions use PendingEdits](issues/17-matrix-one-shot-pending-edits.md#outcome):
   keyed actions retain precise selection and retire departed-owner reports silently;
