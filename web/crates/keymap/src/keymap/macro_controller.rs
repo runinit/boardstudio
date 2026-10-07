@@ -7,8 +7,8 @@ use super::macro_editor::{
 use super::observed_edits::ObservedEdits;
 use crate::macro_edit::{PrecedingStructure, macro_resolver};
 use crate::runtime::Runtime;
-use boardstudio_application::{AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution};
-use boardstudio_core::model::{EditOperation, KeymapChange, KeymapMacro, MacroChange, MacroStep};
+use boardstudio_application::{AcceptedSnapshot, Durability, Lifecycle};
+use boardstudio_core::model::{MacroChange, MacroStep};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use dioxus::prelude::*;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};

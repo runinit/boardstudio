@@ -3,7 +3,7 @@ use super::observed_edits::ObservedEdits;
 use crate::layer_edit::{KeymapLayerFeedback, KeymapLayerOperation, layer_resolver};
 use crate::runtime::Runtime;
 use boardstudio_application::{
-    AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
+    AcceptedSnapshot, Durability, Lifecycle, Resolution, Scope, SnapshotToken,
 };
 use boardstudio_core::model::{EditCommand, EditOperation, KeymapChange};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
