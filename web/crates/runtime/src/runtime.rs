@@ -1,5 +1,10 @@
 //! Browser composition runs identified effects; the headless session remains authoritative.
 use crate::archive_export::{ArchiveExportOptions, ArchiveWorkFuture, archive_filename};
+use crate::export_lease::{ExportKind, ExportLease, ExportLeases};
+use crate::mechanical_package::{
+    critical_fit_drawing, mechanical_fabrication_notes, mechanical_filename_component,
+    mechanical_stl, push_mechanical_file,
+};
 use crate::pcb_wiring_mode_operation::electrical_preview_request;
 use boardstudio_application::{
     AcceptedSnapshot, Completion, Durability, Effect, Event, JobId, Lifecycle, OperationId,
@@ -102,6 +107,7 @@ struct Artifact {
     token: SnapshotToken,
     firmware: bool,
     keycaps_step: bool,
+    board_outline: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -162,27 +168,6 @@ fn firmware_export_terminal_report(
     }
 }
 
-fn firmware_export_worker_is_current(
-    expected_epoch: boardstudio_application::ExecutorEpoch,
-    current_epoch: boardstudio_application::ExecutorEpoch,
-    same_worker: bool,
-) -> bool {
-    expected_epoch == current_epoch && same_worker
-}
-
-fn firmware_export_bytes_for_delivery(
-    result: Result<Vec<u8>, String>,
-    owner_is_current: bool,
-    cancelled: bool,
-) -> Result<Vec<u8>, String> {
-    match result {
-        Ok(_) if !owner_is_current || cancelled => {
-            Err("Export scope changed before delivery.".into())
-        }
-        other => other,
-    }
-}
-
 fn pcb_wiring_is_applied(document: &ProjectDoc, plan: &ElectricalPlan) -> bool {
     let Some(board_id) = plan.board_id.as_deref() else {
         return false;
@@ -216,28 +201,6 @@ fn pcb_wiring_is_applied(document: &ProjectDoc, plan: &ElectricalPlan) -> bool {
             .all(|net| current.contains(&net) && board.net_ids.contains(&net.id))
 }
 
-fn firmware_export_capture_matches(
-    capture: &FirmwareExportCapture,
-    scope: Option<&Scope>,
-    snapshot: Option<&FirmwareAcceptedIdentity>,
-) -> bool {
-    scope == Some(&capture.scope)
-        && snapshot.is_some_and(|snapshot| {
-            snapshot.session_epoch == capture.session_epoch
-                && snapshot.document_id == capture.document_id
-                && snapshot.token == capture.token
-                && snapshot.revision == capture.revision
-                && snapshot.scene_revision == capture.revision
-        })
-}
-
-fn firmware_export_is_latest(
-    operation_id: OperationId,
-    latest_operation_id: Option<OperationId>,
-) -> bool {
-    latest_operation_id == Some(operation_id)
-}
-
 /// The document persistence port: the save Runtime performs for Session `Persist` effects.
 /// Loading, listing, deleting and the active-project preference stay on the browser store.
 /// Production saves through IndexedDB; tests install the in-process memory adapter from
@@ -261,72 +224,6 @@ impl DocumentPersistence for BrowserStore {
                 .await
                 .map_err(|error| error.to_string())
         })
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct FirmwareExportCapture {
-    scope: Scope,
-    token: SnapshotToken,
-    revision: u64,
-    session_epoch: boardstudio_application::SessionEpoch,
-    document_id: String,
-    executor_epoch: boardstudio_application::ExecutorEpoch,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct FootprintExportCapture {
-    scope: Scope,
-    token: SnapshotToken,
-    revision: u64,
-    session_epoch: boardstudio_application::SessionEpoch,
-    document_id: String,
-    executor_epoch: boardstudio_application::ExecutorEpoch,
-    core_worker_identity: usize,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct PcbHandoffCapture {
-    scope: Scope,
-    token: SnapshotToken,
-    revision: u64,
-    session_epoch: boardstudio_application::SessionEpoch,
-    document_id: String,
-    executor_epoch: boardstudio_application::ExecutorEpoch,
-    core_worker_identity: usize,
-    draft: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct MechanicalExportCapture {
-    scope: Scope,
-    token: SnapshotToken,
-    revision: u64,
-    session_epoch: boardstudio_application::SessionEpoch,
-    document_id: String,
-    executor_epoch: boardstudio_application::ExecutorEpoch,
-    core_worker_identity: usize,
-    filename: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct FirmwareAcceptedIdentity {
-    session_epoch: boardstudio_application::SessionEpoch,
-    document_id: String,
-    token: SnapshotToken,
-    revision: u64,
-    scene_revision: u64,
-}
-
-impl From<&AcceptedSnapshot> for FirmwareAcceptedIdentity {
-    fn from(snapshot: &AcceptedSnapshot) -> Self {
-        Self {
-            session_epoch: snapshot.session_epoch,
-            document_id: snapshot.document.id.clone(),
-            token: snapshot.token,
-            revision: snapshot.document.revision,
-            scene_revision: snapshot.scene.revision,
-        }
     }
 }
 
@@ -372,7 +269,7 @@ pub struct Runtime {
     next_operation: Cell<u64>,
     assets: RefCell<BTreeMap<String, Vec<u8>>>,
     artifacts: RefCell<BTreeMap<String, Artifact>>,
-    cancelled_exports: RefCell<BTreeSet<OperationId>>,
+    export_leases: RefCell<ExportLeases>,
     frames: RefCell<BTreeMap<u64, Frame>>,
     surface: RefCell<Option<SvgElement>>,
     notify: RefCell<Option<Notifier>>,
@@ -388,12 +285,6 @@ pub struct Runtime {
     keycaps_preview_generation: Cell<u64>,
     keycaps_preview_worker: RefCell<Option<(u64, Rc<CadWorker>)>>,
     cad_jobs: RefCell<BTreeMap<JobId, Rc<Cell<bool>>>>,
-    step_exports: RefCell<BTreeSet<OperationId>>,
-    keycaps_step_exports: RefCell<BTreeSet<OperationId>>,
-    firmware_exports: RefCell<BTreeMap<OperationId, FirmwareExportCapture>>,
-    footprint_exports: RefCell<BTreeMap<OperationId, FootprintExportCapture>>,
-    pcb_handoff_exports: RefCell<BTreeMap<OperationId, PcbHandoffCapture>>,
-    mechanical_exports: RefCell<BTreeMap<OperationId, MechanicalExportCapture>>,
     latest_firmware_export: Cell<Option<OperationId>>,
     firmware_export_delivery_errors: RefCell<BTreeMap<OperationId, String>>,
     export_workers: RefCell<BTreeMap<OperationId, Rc<CadWorker>>>,
@@ -456,7 +347,7 @@ impl Runtime {
             next_operation: Cell::new(1),
             assets: RefCell::new(BTreeMap::new()),
             artifacts: RefCell::new(BTreeMap::new()),
-            cancelled_exports: RefCell::new(BTreeSet::new()),
+            export_leases: RefCell::new(ExportLeases::default()),
             frames: RefCell::new(BTreeMap::new()),
             surface: RefCell::new(None),
             notify: RefCell::new(None),
@@ -473,12 +364,6 @@ impl Runtime {
             keycaps_preview_generation: Cell::new(0),
             keycaps_preview_worker: RefCell::new(None),
             cad_jobs: RefCell::new(BTreeMap::new()),
-            step_exports: RefCell::new(BTreeSet::new()),
-            keycaps_step_exports: RefCell::new(BTreeSet::new()),
-            firmware_exports: RefCell::new(BTreeMap::new()),
-            footprint_exports: RefCell::new(BTreeMap::new()),
-            pcb_handoff_exports: RefCell::new(BTreeMap::new()),
-            mechanical_exports: RefCell::new(BTreeMap::new()),
             latest_firmware_export: Cell::new(None),
             firmware_export_delivery_errors: RefCell::new(BTreeMap::new()),
             export_workers: RefCell::new(BTreeMap::new()),
@@ -1905,22 +1790,25 @@ impl Runtime {
                     outcome.clone(),
                     landing,
                 );
-                self.step_exports.borrow_mut().remove(&operation_id);
-                let is_keycaps_step_export =
-                    self.keycaps_step_exports.borrow_mut().remove(&operation_id);
-                let firmware_capture = self.firmware_exports.borrow_mut().remove(&operation_id);
-                self.footprint_exports.borrow_mut().remove(&operation_id);
-                self.pcb_handoff_exports.borrow_mut().remove(&operation_id);
-                self.mechanical_exports.borrow_mut().remove(&operation_id);
+                let lease = self.export_leases.borrow_mut().finish(operation_id);
+                let kind = lease.as_ref().map(|lease| lease.kind().clone());
+                let is_keycaps_step_export = kind == Some(ExportKind::KeycapsStep);
+                let is_board_outline_export =
+                    matches!(kind.as_ref(), Some(ExportKind::BoardOutline { .. }));
+                let firmware_capture = (kind == Some(ExportKind::Firmware))
+                    .then_some(lease.as_ref())
+                    .flatten();
+                let is_firmware_export = firmware_capture.is_some();
                 let delivery_error = self
                     .firmware_export_delivery_errors
                     .borrow_mut()
                     .remove(&operation_id);
                 self.archive_export_options.settle(operation_id);
-                let firmware_owner_is_current = firmware_capture.as_ref().is_some_and(|capture| {
-                    self.firmware_export_capture_is_current(operation_id, capture)
+                let firmware_owner_is_current = firmware_capture.is_some_and(|lease| {
+                    self.export_source_is_current(lease)
+                        && self.latest_firmware_export.get() == Some(operation_id)
                 });
-                if firmware_capture.is_some() {
+                if is_firmware_export {
                     if let Some(report) = firmware_export_terminal_report(
                         firmware_owner_is_current,
                         outcome,
@@ -1942,6 +1830,28 @@ impl Runtime {
                         TerminalOutcome::Superseded => {
                             if observed {
                                 self.changed();
+                            }
+                        }
+                    }
+                } else if is_board_outline_export {
+                    let lease_is_current = lease
+                        .as_ref()
+                        .is_some_and(|lease| self.export_source_is_current(lease));
+                    if lease_is_current {
+                        match outcome {
+                            TerminalOutcome::Completed => {}
+                            TerminalOutcome::Rejected(reason)
+                            | TerminalOutcome::PersistenceFailed(reason)
+                            | TerminalOutcome::BlockedByRecovery(reason)
+                            | TerminalOutcome::ExecutorFailed(reason) => {
+                                self.apply_report(RuntimeReport::alert(reason));
+                            }
+                            TerminalOutcome::Cancelled => self.report("Cancelled."),
+                            TerminalOutcome::Closed => self.report("Editor closed."),
+                            TerminalOutcome::Superseded => {
+                                if observed {
+                                    self.changed();
+                                }
                             }
                         }
                     }
@@ -2025,25 +1935,30 @@ impl Runtime {
                 scope,
                 snapshot,
             } => {
-                let is_keycaps_step_export =
-                    self.keycaps_step_exports.borrow().contains(&operation_id);
-                let is_step_export =
-                    self.step_exports.borrow().contains(&operation_id) || is_keycaps_step_export;
-                let is_firmware_export = self.firmware_exports.borrow().contains_key(&operation_id);
-                let is_footprint_export =
-                    self.footprint_exports.borrow().contains_key(&operation_id);
-                let is_pcb_handoff_export = self
-                    .pcb_handoff_exports
+                let kind = self
+                    .export_leases
                     .borrow()
-                    .contains_key(&operation_id);
+                    .get(operation_id)
+                    .map(|lease| lease.kind().clone());
+                let is_keycaps_step_export = kind == Some(ExportKind::KeycapsStep);
+                let is_step_export = matches!(
+                    kind.as_ref(),
+                    Some(ExportKind::Step | ExportKind::KeycapsStep)
+                );
+                let is_firmware_export = kind == Some(ExportKind::Firmware);
+                let is_footprint_export = kind == Some(ExportKind::Footprints);
+                let is_pcb_handoff_export =
+                    matches!(kind.as_ref(), Some(ExportKind::PcbHandoff { .. }));
                 let is_mechanical_export =
-                    self.mechanical_exports.borrow().contains_key(&operation_id);
-                let result = if is_pcb_handoff_export {
-                    let draft = self
-                        .pcb_handoff_exports
-                        .borrow()
-                        .get(&operation_id)
-                        .is_some_and(|capture| capture.draft);
+                    matches!(kind.as_ref(), Some(ExportKind::Mechanical { .. }));
+                let is_board_outline_export =
+                    matches!(kind.as_ref(), Some(ExportKind::BoardOutline { .. }));
+                let result = if let Some(ExportKind::BoardOutline { dxf }) = kind.as_ref() {
+                    self.board_outline_bytes(operation_id, &snapshot, &scope, *dxf)
+                        .await
+                } else if is_pcb_handoff_export {
+                    let draft =
+                        matches!(kind.as_ref(), Some(ExportKind::PcbHandoff { draft: true }));
                     self.pcb_handoff_bytes(operation_id, &snapshot, &scope, draft)
                         .await
                 } else if is_mechanical_export {
@@ -2088,24 +2003,15 @@ impl Runtime {
                         Err(reason) => Err(reason),
                     }
                 };
-                let result = if is_firmware_export {
-                    let owner_is_current =
-                        self.export_current(operation_id, snapshot.token, &scope);
-                    let cancelled = self.cancelled_exports.borrow_mut().remove(&operation_id);
-                    firmware_export_bytes_for_delivery(
-                        result.map(|(bytes, _)| bytes),
-                        owner_is_current,
-                        cancelled,
-                    )
-                    .map(|bytes| (bytes, snapshot.token))
-                } else {
-                    result
-                };
+                let result = result.and_then(|(bytes, token)| {
+                    self.export_current(operation_id, token, &scope)
+                        .then_some((bytes, token))
+                        .ok_or_else(|| "Export scope changed before delivery.".to_owned())
+                });
                 match result {
                     Ok((bytes, delivery_token)) => {
                         let current = self.export_current(operation_id, delivery_token, &scope);
-                        let cancelled = self.cancelled_exports.borrow_mut().remove(&operation_id);
-                        if !current || cancelled {
+                        if !current {
                             return self.complete(Completion::ExportFailed {
                                 operation_id,
                                 reason: "Export scope changed before delivery.".into(),
@@ -2133,11 +2039,10 @@ impl Runtime {
                                 Some("model/step".to_owned()),
                             )
                         } else if is_pcb_handoff_export {
-                            let draft = self
-                                .pcb_handoff_exports
-                                .borrow()
-                                .get(&operation_id)
-                                .is_some_and(|capture| capture.draft);
+                            let draft = matches!(
+                                kind.as_ref(),
+                                Some(ExportKind::PcbHandoff { draft: true })
+                            );
                             (
                                 format!(
                                     "{}-{}pcb-handoff.zip",
@@ -2147,15 +2052,31 @@ impl Runtime {
                                 Some("application/zip".to_owned()),
                             )
                         } else if is_mechanical_export {
-                            let filename = self
-                                .mechanical_exports
-                                .borrow()
-                                .get(&operation_id)
-                                .map(|capture| capture.filename.clone())
-                                .unwrap_or_else(|| {
-                                    format!("{}-mechanical.zip", snapshot.document.name)
-                                });
+                            let filename = match kind.as_ref() {
+                                Some(ExportKind::Mechanical { filename }) => filename.clone(),
+                                _ => format!("{}-mechanical.zip", snapshot.document.name),
+                            };
                             (filename, Some("application/zip".to_owned()))
+                        } else if is_board_outline_export {
+                            let dxf = matches!(
+                                kind.as_ref(),
+                                Some(ExportKind::BoardOutline { dxf: true })
+                            );
+                            (
+                                format!(
+                                    "{}.{}",
+                                    snapshot.document.name,
+                                    if dxf { "dxf" } else { "svg" }
+                                ),
+                                Some(
+                                    if dxf {
+                                        "application/dxf"
+                                    } else {
+                                        "image/svg+xml"
+                                    }
+                                    .to_owned(),
+                                ),
+                            )
                         } else {
                             (archive_filename(&snapshot.document.name), None)
                         };
@@ -2170,6 +2091,7 @@ impl Runtime {
                                 token: delivery_token,
                                 firmware: is_firmware_export,
                                 keycaps_step: is_keycaps_step_export,
+                                board_outline: is_board_outline_export,
                             },
                         );
                         self.complete(Completion::ExportFinished {
@@ -2179,13 +2101,10 @@ impl Runtime {
                             artifact_id,
                         })
                     }
-                    Err(reason) => {
-                        self.cancelled_exports.borrow_mut().remove(&operation_id);
-                        self.complete(Completion::ExportFailed {
-                            operation_id,
-                            reason,
-                        })
-                    }
+                    Err(reason) => self.complete(Completion::ExportFailed {
+                        operation_id,
+                        reason,
+                    }),
                 }
             }
             Effect::DeliverExport {
@@ -2194,22 +2113,29 @@ impl Runtime {
                 let artifact = self.artifacts.borrow_mut().remove(&artifact_id);
                 if let Some(artifact) = artifact
                     && token == artifact.token
-                    && self.scope().as_ref() == Some(&artifact.scope)
-                    && self
-                        .model()
-                        .accepted
-                        .as_ref()
-                        .is_some_and(|s| s.token == token)
-                    && let Err(error) = self.deliver_artifact(&artifact)
+                    && self.export_delivery_is_current(
+                        artifact.operation_id,
+                        token,
+                        &artifact.scope,
+                    )
                 {
-                    if artifact.firmware {
-                        self.firmware_export_delivery_errors
-                            .borrow_mut()
-                            .insert(artifact.operation_id, error);
-                    } else if artifact.keycaps_step {
-                        self.apply_report(RuntimeReport::alert(error));
-                    } else {
-                        self.report(error);
+                    match self.deliver_artifact(&artifact) {
+                        Ok(()) if artifact.board_outline => {
+                            self.report(format!("Saved {}.", artifact.filename));
+                        }
+                        Ok(()) => {}
+                        Err(error) if artifact.board_outline => {
+                            self.apply_report(RuntimeReport::alert(error));
+                        }
+                        Err(error) if artifact.firmware => {
+                            self.firmware_export_delivery_errors
+                                .borrow_mut()
+                                .insert(artifact.operation_id, error);
+                        }
+                        Err(error) if artifact.keycaps_step => {
+                            self.apply_report(RuntimeReport::alert(error));
+                        }
+                        Err(error) => self.report(error),
                     }
                 }
                 vec![]
@@ -2232,11 +2158,8 @@ impl Runtime {
                 vec![]
             }
             Effect::CancelExport { operation_id } => {
-                self.cancelled_exports.borrow_mut().insert(operation_id);
+                self.export_leases.borrow_mut().cancel(operation_id);
                 self.archive_export_options.cancel(operation_id);
-                self.footprint_exports.borrow_mut().remove(&operation_id);
-                self.pcb_handoff_exports.borrow_mut().remove(&operation_id);
-                self.mechanical_exports.borrow_mut().remove(&operation_id);
                 if let Some(worker) = self.export_workers.borrow_mut().remove(&operation_id) {
                     worker.close();
                 }
@@ -3970,7 +3893,7 @@ impl Runtime {
         }
         self.clear_alert();
         let operation_id = self.operation();
-        self.step_exports.borrow_mut().insert(operation_id);
+        self.begin_export_lease(operation_id, ExportKind::Step, &snapshot, &scope);
         self.submit(Event::StartExport {
             operation_id,
             scope,
@@ -4082,22 +4005,16 @@ impl Runtime {
         };
         self.clear_alert();
         let operation_id = self.operation();
-        let core = self.core.borrow().clone();
-        self.mechanical_exports.borrow_mut().insert(
+        self.begin_export_lease(
             operation_id,
-            MechanicalExportCapture {
-                scope: scope.clone(),
-                token: snapshot.token,
-                revision: snapshot.document.revision,
-                session_epoch: snapshot.session_epoch,
-                document_id: snapshot.document.id.clone(),
-                executor_epoch: self.session.borrow().core_executor_epoch(),
-                core_worker_identity: core_executor_identity(&core),
+            ExportKind::Mechanical {
                 filename: format!(
                     "{}{}-mechanical.zip",
                     snapshot.document.name, instance_suffix
                 ),
             },
+            &snapshot,
+            &scope,
         );
         self.submit(Event::StartExport {
             operation_id,
@@ -4127,7 +4044,7 @@ impl Runtime {
         }
         self.clear_alert();
         let operation_id = self.operation();
-        self.keycaps_step_exports.borrow_mut().insert(operation_id);
+        self.begin_export_lease(operation_id, ExportKind::KeycapsStep, &snapshot, &scope);
         self.submit(Event::StartExport {
             operation_id,
             scope,
@@ -4145,19 +4062,8 @@ impl Runtime {
         };
         self.clear_alert();
         let operation_id = self.operation();
-        let (_, executor_epoch) = self.current_firmware_executor();
         self.latest_firmware_export.set(Some(operation_id));
-        self.firmware_exports.borrow_mut().insert(
-            operation_id,
-            FirmwareExportCapture {
-                scope: scope.clone(),
-                token: snapshot.token,
-                revision: snapshot.document.revision,
-                session_epoch: snapshot.session_epoch,
-                document_id: snapshot.document.id.clone(),
-                executor_epoch,
-            },
-        );
+        self.begin_export_lease(operation_id, ExportKind::Firmware, &snapshot, &scope);
         self.submit(Event::StartExport {
             operation_id,
             scope,
@@ -4186,20 +4092,7 @@ impl Runtime {
         }
         self.clear_alert();
         let operation_id = self.operation();
-        let core = self.core.borrow().clone();
-        let executor_epoch = self.session.borrow().core_executor_epoch();
-        self.footprint_exports.borrow_mut().insert(
-            operation_id,
-            FootprintExportCapture {
-                scope: scope.clone(),
-                token: snapshot.token,
-                revision: snapshot.document.revision,
-                session_epoch: snapshot.session_epoch,
-                document_id: snapshot.document.id.clone(),
-                executor_epoch,
-                core_worker_identity: core_executor_identity(&core),
-            },
-        );
+        self.begin_export_lease(operation_id, ExportKind::Footprints, &snapshot, &scope);
         self.submit(Event::StartExport {
             operation_id,
             scope,
@@ -4237,20 +4130,12 @@ impl Runtime {
         }
         self.clear_alert();
         let operation_id = self.operation();
-        let core = self.core.borrow().clone();
-        let capture = PcbHandoffCapture {
-            scope: scope.clone(),
-            token: snapshot.token,
-            revision: snapshot.document.revision,
-            session_epoch: snapshot.session_epoch,
-            document_id: snapshot.document.id.clone(),
-            executor_epoch: self.session.borrow().core_executor_epoch(),
-            core_worker_identity: core_executor_identity(&core),
-            draft,
-        };
-        self.pcb_handoff_exports
-            .borrow_mut()
-            .insert(operation_id, capture);
+        self.begin_export_lease(
+            operation_id,
+            ExportKind::PcbHandoff { draft },
+            &snapshot,
+            &scope,
+        );
         self.submit(Event::StartExport {
             operation_id,
             scope,
@@ -4265,15 +4150,15 @@ impl Runtime {
         draft: bool,
     ) -> Result<(Vec<u8>, SnapshotToken), String> {
         let mut capture = self
-            .pcb_handoff_exports
+            .export_leases
             .borrow()
-            .get(&operation_id)
+            .get(operation_id)
             .cloned()
             .ok_or_else(|| "KiCad export owner was cancelled or superseded.".to_owned())?;
-        if capture.draft != draft
-            || capture.scope != *scope
-            || capture.token != initial_snapshot.token
-            || capture.revision != initial_snapshot.document.revision
+        if !matches!(capture.kind(), ExportKind::PcbHandoff { draft: captured_draft } if *captured_draft == draft)
+            || capture.scope() != scope
+            || capture.token() != initial_snapshot.token
+            || capture.snapshot().document.revision != initial_snapshot.document.revision
         {
             return Err("KiCad export no longer matches its captured board.".into());
         }
@@ -4362,7 +4247,7 @@ impl Runtime {
                 let package_plan = plan.clone();
                 async move {
                     let is_current = || {
-                        if runtime.pcb_handoff_capture_is_current(
+                        if runtime.export_lease_is_current(
                             operation_id,
                             &package_capture,
                             &package_core,
@@ -4385,7 +4270,7 @@ impl Runtime {
                         crate::pcb_handoff::HandoffPorts {
                             core: package_core.as_ref(),
                             store: &runtime.store,
-                            executor_epoch: package_capture.executor_epoch.0,
+                            executor_epoch: package_capture.executor_epoch().0,
                         },
                         is_current,
                     )
@@ -4393,7 +4278,7 @@ impl Runtime {
                 }
             },
             || {
-                if self.pcb_handoff_capture_is_current(operation_id, &capture, &core) {
+                if self.export_lease_is_current(operation_id, &capture, &core) {
                     Ok(())
                 } else {
                     Err("KiCad export was superseded before wiring protection.".into())
@@ -4409,7 +4294,7 @@ impl Runtime {
                 )
             },
             |protected_capture| {
-                if self.pcb_handoff_capture_is_current(operation_id, protected_capture, &core) {
+                if self.export_lease_is_current(operation_id, protected_capture, &core) {
                     Ok(())
                 } else {
                     Err("KiCad handoff was superseded before delivery.".into())
@@ -4418,7 +4303,7 @@ impl Runtime {
         )
         .await?;
         capture = protected_capture;
-        Ok((archive, capture.token))
+        Ok((archive, capture.token()))
     }
 
     async fn mechanical_package_bytes(
@@ -4428,23 +4313,23 @@ impl Runtime {
         scope: &Scope,
     ) -> Result<Vec<u8>, String> {
         let capture = self
-            .mechanical_exports
+            .export_leases
             .borrow()
-            .get(&operation_id)
+            .get(operation_id)
             .cloned()
             .ok_or_else(|| "Mechanical export owner was cancelled or superseded.".to_owned())?;
-        if capture.scope != *scope
-            || capture.token != initial_snapshot.token
-            || capture.revision != initial_snapshot.document.revision
-            || capture.session_epoch != initial_snapshot.session_epoch
-            || capture.document_id != initial_snapshot.document.id
+        if capture.scope() != scope
+            || capture.token() != initial_snapshot.token
+            || capture.snapshot().document.revision != initial_snapshot.document.revision
+            || capture.snapshot().session_epoch != initial_snapshot.session_epoch
+            || capture.snapshot().document.id != initial_snapshot.document.id
         {
             return Err("Mechanical export no longer matches its captured project.".into());
         }
         let core = self.core.borrow().clone();
         let runtime = self.clone();
         let ensure_current = || -> Result<(), String> {
-            if runtime.mechanical_export_capture_is_current(operation_id, &capture, &core) {
+            if runtime.export_lease_is_current(operation_id, &capture, &core) {
                 Ok(())
             } else {
                 Err("Mechanical export was cancelled, superseded, or its source changed.".into())
@@ -4483,7 +4368,7 @@ impl Runtime {
             .find(|item| item.board_id == scope.board_id)
             .map(|item| item.contours.clone())
             .ok_or_else(|| "The selected board has no resolved outline contours.".to_owned())?;
-        let executor_epoch = capture.executor_epoch.0.to_string();
+        let executor_epoch = capture.executor_epoch().0.to_string();
         let prepared = prepare_captured_step_assembly(
             core.as_ref(),
             &executor_epoch,
@@ -4498,8 +4383,8 @@ impl Runtime {
             .mechanical_assembly
             .as_ref()
             .ok_or_else(|| "Core did not resolve a generated mechanical assembly.".to_owned())?;
-        if assembly.revision != capture.revision
-            || assembly.case.revision != capture.revision
+        if assembly.revision != capture.snapshot().document.revision
+            || assembly.case.revision != capture.snapshot().document.revision
             || assembly.generation_blocked
         {
             return Err("Mechanical assembly is blocked or belongs to another revision.".into());
@@ -4541,7 +4426,7 @@ impl Runtime {
                 }
                 _ => return Err("Core returned an unexpected mechanical plate artifact.".into()),
             };
-            if result.revision != capture.revision {
+            if result.revision != capture.snapshot().document.revision {
                 return Err("Core returned a mechanical plate for another revision.".into());
             }
             for file in result.files {
@@ -4715,7 +4600,7 @@ impl Runtime {
             critical_fit_drawing(assembly, configuration)?.into_bytes(),
         )?;
         let assembly_json = serde_json::json!({
-            "revision": capture.revision,
+            "revision": capture.snapshot().document.revision,
             "pcbReference": "Nominal unpopulated PCB only; component solids are not included",
             "stack": assembly.stack,
             "diagnostics": assembly.diagnostics,
@@ -4769,28 +4654,6 @@ impl Runtime {
         }
     }
 
-    fn mechanical_export_capture_is_current(
-        &self,
-        operation_id: OperationId,
-        capture: &MechanicalExportCapture,
-        core: &Rc<dyn CoreExecutor>,
-    ) -> bool {
-        let current_core = self.core.borrow().clone();
-        self.mechanical_exports.borrow().get(&operation_id) == Some(capture)
-            && self.export_current(operation_id, capture.token, &capture.scope)
-            && self.scope().as_ref() == Some(&capture.scope)
-            && self.model().accepted.as_ref().is_some_and(|snapshot| {
-                snapshot.token == capture.token
-                    && snapshot.document.id == capture.document_id
-                    && snapshot.document.revision == capture.revision
-                    && snapshot.scene.revision == capture.revision
-                    && snapshot.session_epoch == capture.session_epoch
-            })
-            && self.session.borrow().core_executor_epoch() == capture.executor_epoch
-            && core_executor_identity(&current_core) == capture.core_worker_identity
-            && Rc::ptr_eq(core, &current_core)
-    }
-
     async fn resolve_pcb_handoff_plan(
         &self,
         operation_id: OperationId,
@@ -4798,9 +4661,9 @@ impl Runtime {
         scope: &Scope,
         instance_id: Option<&str>,
         core: &Rc<dyn CoreExecutor>,
-        capture: &PcbHandoffCapture,
+        capture: &ExportLease,
     ) -> Result<ElectricalPlan, String> {
-        if !self.pcb_handoff_capture_is_current(operation_id, capture, core) {
+        if !self.export_lease_is_current(operation_id, capture, core) {
             return Err("Accepted board changed before wiring resolution.".into());
         }
         let configuration = snapshot.document.hardware.as_ref().and_then(|hardware| {
@@ -4844,10 +4707,14 @@ impl Runtime {
             },
         };
         let reply = core
-            .request(&request_id, &capture.executor_epoch.0.to_string(), &request)
+            .request(
+                &request_id,
+                &capture.executor_epoch().0.to_string(),
+                &request,
+            )
             .await
             .map_err(|error| format!("Wiring resolution failed: {error}"))?;
-        if !self.pcb_handoff_capture_is_current(operation_id, capture, core) {
+        if !self.export_lease_is_current(operation_id, capture, core) {
             return Err("Accepted board changed during wiring resolution.".into());
         }
         let plan = match reply {
@@ -4870,14 +4737,11 @@ impl Runtime {
     async fn commit_pcb_handoff(
         self: &Rc<Self>,
         export_operation_id: OperationId,
-        capture: &PcbHandoffCapture,
+        capture: &ExportLease,
         commit: boardstudio_application::ExportCommitRequest,
-    ) -> Result<PcbHandoffCapture, String> {
-        if !self.pcb_handoff_capture_is_current(
-            export_operation_id,
-            capture,
-            &self.core.borrow().clone(),
-        ) {
+    ) -> Result<ExportLease, String> {
+        if !self.export_lease_is_current(export_operation_id, capture, &self.core.borrow().clone())
+        {
             return Err("KiCad export no longer owns the accepted wiring source.".into());
         }
         let operation_id = self.operation();
@@ -4885,8 +4749,8 @@ impl Runtime {
         self.submit(Event::ExportCommit {
             operation_id,
             export_operation_id,
-            token: capture.token,
-            scope: capture.scope.clone(),
+            token: capture.token(),
+            scope: capture.scope().clone(),
             commit,
         });
         for _ in 0..1_200 {
@@ -4900,18 +4764,21 @@ impl Runtime {
                     "Accepted board snapshot disappeared after export wiring.".to_owned()
                 })?;
                 let mut updated = capture.clone();
-                updated.token = accepted.token;
-                updated.revision = accepted.document.revision;
-                if accepted.session_epoch != updated.session_epoch
-                    || accepted.document.id != updated.document_id
-                    || accepted.scene.revision != updated.revision
-                    || !self.export_current(export_operation_id, updated.token, &updated.scope)
+                updated.advance(accepted.clone())?;
+                if accepted.session_epoch != updated.snapshot().session_epoch
+                    || accepted.document.id != updated.snapshot().document.id
+                    || accepted.scene.revision != updated.snapshot().document.revision
+                    || !self.session.borrow().export_is_current(
+                        export_operation_id,
+                        updated.token(),
+                        updated.scope(),
+                    )
                 {
                     return Err("Export wiring changed the captured project or board.".into());
                 }
-                self.pcb_handoff_exports
+                self.export_leases
                     .borrow_mut()
-                    .insert(export_operation_id, updated.clone());
+                    .begin(export_operation_id, updated.clone());
                 return Ok(updated);
             }
             TimeoutFuture::new(25).await;
@@ -4919,36 +4786,13 @@ impl Runtime {
         Err("Export wiring save did not complete.".into())
     }
 
-    fn pcb_handoff_capture_is_current(
-        &self,
-        operation_id: OperationId,
-        capture: &PcbHandoffCapture,
-        core: &Rc<dyn CoreExecutor>,
-    ) -> bool {
-        let current_core = self.core.borrow().clone();
-        let accepted = self.model().accepted;
-        self.pcb_handoff_exports.borrow().get(&operation_id) == Some(capture)
-            && self.export_current(operation_id, capture.token, &capture.scope)
-            && self.scope().as_ref() == Some(&capture.scope)
-            && accepted.as_ref().is_some_and(|snapshot| {
-                snapshot.token == capture.token
-                    && snapshot.document.id == capture.document_id
-                    && snapshot.document.revision == capture.revision
-                    && snapshot.scene.revision == capture.revision
-                    && snapshot.session_epoch == capture.session_epoch
-            })
-            && self.session.borrow().core_executor_epoch() == capture.executor_epoch
-            && core_executor_identity(&current_core) == capture.core_worker_identity
-            && Rc::ptr_eq(core, &current_core)
-    }
-
     fn require_pcb_handoff_current(
         &self,
         operation_id: OperationId,
-        capture: &PcbHandoffCapture,
+        capture: &ExportLease,
         core: &Rc<dyn CoreExecutor>,
     ) -> Result<(), String> {
-        if self.pcb_handoff_capture_is_current(operation_id, capture, core) {
+        if self.export_lease_is_current(operation_id, capture, core) {
             Ok(())
         } else {
             Err("KiCad export was cancelled, superseded, or its accepted source changed.".into())
@@ -4962,23 +4806,23 @@ impl Runtime {
         scope: &Scope,
     ) -> Result<Vec<u8>, String> {
         let capture = self
-            .footprint_exports
+            .export_leases
             .borrow()
-            .get(&operation_id)
+            .get(operation_id)
             .cloned()
             .ok_or_else(|| "Footprint export owner was cancelled or superseded.".to_owned())?;
-        if capture.scope != *scope
-            || capture.token != snapshot.token
-            || capture.revision != snapshot.document.revision
-            || capture.session_epoch != snapshot.session_epoch
-            || capture.document_id != snapshot.document.id
+        if capture.scope() != scope
+            || capture.token() != snapshot.token
+            || capture.snapshot().document.revision != snapshot.document.revision
+            || capture.snapshot().session_epoch != snapshot.session_epoch
+            || capture.snapshot().document.id != snapshot.document.id
         {
             return Err("Footprint export no longer matches its captured project.".into());
         }
         let core = self.core.borrow().clone();
         let runtime = self.clone();
         let ensure_current = || {
-            if runtime.footprint_export_capture_is_current(operation_id, &capture, &core) {
+            if runtime.export_lease_is_current(operation_id, &capture, &core) {
                 Ok(())
             } else {
                 Err("Footprint export was cancelled, superseded, or its source changed.".into())
@@ -4990,45 +4834,23 @@ impl Runtime {
                 snapshot,
                 core: core.as_ref(),
                 store: &self.store,
-                executor_epoch: capture.executor_epoch.0,
+                executor_epoch: capture.executor_epoch().0,
             },
             ensure_current,
         )
         .await
     }
 
-    fn footprint_export_capture_is_current(
-        &self,
-        operation_id: OperationId,
-        capture: &FootprintExportCapture,
-        core: &Rc<dyn CoreExecutor>,
-    ) -> bool {
-        let current_core = self.core.borrow().clone();
-        let accepted = self.model().accepted;
-        self.footprint_exports.borrow().get(&operation_id) == Some(capture)
-            && self.export_current(operation_id, capture.token, &capture.scope)
-            && self.scope().as_ref() == Some(&capture.scope)
-            && accepted.as_ref().is_some_and(|snapshot| {
-                snapshot.token == capture.token
-                    && snapshot.document.id == capture.document_id
-                    && snapshot.document.revision == capture.revision
-                    && snapshot.scene.revision == capture.revision
-                    && snapshot.session_epoch == capture.session_epoch
-            })
-            && self.session.borrow().core_executor_epoch() == capture.executor_epoch
-            && core_executor_identity(&current_core) == capture.core_worker_identity
-            && Rc::ptr_eq(core, &current_core)
-    }
-
     pub fn export_project_copy(self: &Rc<Self>) {
-        if self.model().accepted.is_none() {
+        let Some(snapshot) = self.model().accepted else {
             return;
-        }
+        };
         let Some(scope) = self.scope() else {
             return;
         };
         let operation_id = self.operation();
         self.archive_export_options.begin_archive(operation_id);
+        self.begin_export_lease(operation_id, ExportKind::ProjectCopy, &snapshot, &scope);
         self.submit(Event::StartExport {
             operation_id,
             scope,
@@ -5051,7 +4873,7 @@ impl Runtime {
             ));
             return;
         };
-        let Some(board) = snapshot
+        let Some(_board) = snapshot
             .document
             .boards
             .iter()
@@ -5063,7 +4885,7 @@ impl Runtime {
             ));
             return;
         };
-        let Some(contours) = snapshot
+        let Some(_contours) = snapshot
             .scene
             .board_contours
             .iter()
@@ -5075,75 +4897,177 @@ impl Runtime {
             ));
             return;
         };
-        let runtime = self.clone();
         let operation_id = self.operation();
-        spawn_local(async move {
-            let core = runtime.core.borrow().clone();
-            let executor_epoch = runtime.session.borrow().core_executor_epoch();
-            let request_id = format!("export-outline-{}", operation_id.0);
-            let format_name = match format {
-                boardstudio_core::model::OutlineExportFormat::Svg => "svg",
-                boardstudio_core::model::OutlineExportFormat::Dxf => "dxf",
-            };
-            let request = ArtifactRequest::ExportOutline {
-                id: request_id.clone(),
-                request: boardstudio_core::model::OutlineExportRequest {
-                    filename: format!("{}.{}", snapshot.document.name, format_name),
-                    board,
-                    contours,
-                    format,
-                },
-            };
-            let result = core
-                .artifact(&request_id, &executor_epoch.0.to_string(), &request)
-                .await
-                .map_err(|error| format!("Outline export failed: {error}"))
-                .and_then(|reply| match reply {
-                    ArtifactReply::ExportOutline { id, result } if id == request_id => Ok(result),
-                    ArtifactReply::Error { id, error } if id == request_id => {
-                        Err(format!("Outline export failed: {}", error.message))
-                    }
-                    _ => Err("Core returned an outline for another export request.".into()),
-                });
-            let current = runtime.scope().as_ref() == Some(&scope)
-                && runtime.model().accepted.as_ref().is_some_and(|current| {
-                    current.token == snapshot.token
-                        && current.session_epoch == snapshot.session_epoch
-                        && current.document.id == snapshot.document.id
-                        && current.document.revision == snapshot.document.revision
-                })
-                && runtime.session.borrow().core_executor_epoch() == executor_epoch
-                && Rc::ptr_eq(&core, &*runtime.core.borrow());
-            if !current {
-                return;
-            }
-            match result {
-                Ok(file) => {
-                    let media_type = match format {
-                        boardstudio_core::model::OutlineExportFormat::Svg => "image/svg+xml",
-                        boardstudio_core::model::OutlineExportFormat::Dxf => "application/dxf",
-                    };
-                    let delivery =
-                        deliver(file.content.as_bytes(), &file.filename, Some(media_type));
-                    match delivery {
-                        Ok(()) => runtime.report(format!("Saved {}.", file.filename)),
-                        Err(error) => runtime.apply_report(RuntimeReport::alert(error)),
-                    }
-                }
-                Err(error) => runtime.apply_report(RuntimeReport::alert(error)),
-            }
+        self.begin_export_lease(
+            operation_id,
+            ExportKind::BoardOutline {
+                dxf: matches!(format, boardstudio_core::model::OutlineExportFormat::Dxf),
+            },
+            &snapshot,
+            &scope,
+        );
+        self.submit(Event::StartExport {
+            operation_id,
+            scope,
         });
     }
+
+    async fn board_outline_bytes(
+        &self,
+        operation_id: OperationId,
+        snapshot: &AcceptedSnapshot,
+        scope: &Scope,
+        dxf: bool,
+    ) -> Result<(Vec<u8>, SnapshotToken), String> {
+        let lease = self
+            .export_leases
+            .borrow()
+            .get(operation_id)
+            .cloned()
+            .ok_or_else(|| "Outline export owner was cancelled or superseded.".to_owned())?;
+        if !matches!(lease.kind(), ExportKind::BoardOutline { dxf: captured } if *captured == dxf)
+            || lease.scope() != scope
+            || lease.token() != snapshot.token
+        {
+            return Err("Outline export no longer matches its captured board.".into());
+        }
+        let board = snapshot
+            .document
+            .boards
+            .iter()
+            .find(|board| board.id == scope.board_id)
+            .cloned()
+            .ok_or_else(|| "Select a resolved board before outline export.".to_owned())?;
+        let contours = snapshot
+            .scene
+            .board_contours
+            .iter()
+            .find(|entry| entry.board_id == scope.board_id)
+            .map(|entry| entry.contours.clone())
+            .ok_or_else(|| "The selected board has no resolved outline.".to_owned())?;
+        let format = if dxf {
+            boardstudio_core::model::OutlineExportFormat::Dxf
+        } else {
+            boardstudio_core::model::OutlineExportFormat::Svg
+        };
+        let format_name = if dxf { "dxf" } else { "svg" };
+        let request_id = format!("export-outline-{}", operation_id.0);
+        let request = ArtifactRequest::ExportOutline {
+            id: request_id.clone(),
+            request: boardstudio_core::model::OutlineExportRequest {
+                filename: format!("{}.{}", snapshot.document.name, format_name),
+                board,
+                contours,
+                format,
+            },
+        };
+        let core = self.core.borrow().clone();
+        if !self.export_lease_is_current(operation_id, &lease, &core) {
+            return Err("Outline export was cancelled, superseded, or its source changed.".into());
+        }
+        let reply = core
+            .artifact(&request_id, &lease.executor_epoch().0.to_string(), &request)
+            .await
+            .map_err(|error| format!("Outline export failed: {error}"))?;
+        if !self.export_lease_is_current(operation_id, &lease, &core) {
+            return Err("Outline export was cancelled, superseded, or its source changed.".into());
+        }
+        let file = match reply {
+            ArtifactReply::ExportOutline { id, result } if id == request_id => result,
+            ArtifactReply::Error { id, error } if id == request_id => {
+                return Err(format!("Outline export failed: {}", error.message));
+            }
+            _ => return Err("Core returned an outline for another export request.".into()),
+        };
+        Ok((file.content.into_bytes(), snapshot.token))
+    }
+
+    fn export_lease_is_current(
+        &self,
+        operation_id: OperationId,
+        lease: &ExportLease,
+        worker: &Rc<dyn CoreExecutor>,
+    ) -> bool {
+        let core = self.core.borrow().clone();
+        self.export_leases.borrow().get(operation_id) == Some(lease)
+            && self.export_current(operation_id, lease.token(), lease.scope())
+            && Rc::ptr_eq(worker, &core)
+    }
+
     fn export_current(
         &self,
         operation_id: OperationId,
         token: SnapshotToken,
         scope: &Scope,
     ) -> bool {
-        self.session
+        let core = self.core.borrow().clone();
+        let session = self.session.borrow();
+        self.export_leases
             .borrow()
-            .export_is_current(operation_id, token, scope)
-            && !self.cancelled_exports.borrow().contains(&operation_id)
+            .get(operation_id)
+            .is_some_and(|lease| {
+                let session_owns_export = session.export_is_current(operation_id, token, scope)
+                    && session.scope().as_ref() == Some(scope);
+                lease.token() == token
+                    && lease.scope() == scope
+                    && lease
+                        .require_current(
+                            session_owns_export,
+                            session.read_model().accepted.as_ref(),
+                            session.core_executor_epoch(),
+                            core_executor_identity(&core),
+                        )
+                        .is_ok()
+            })
+    }
+
+    fn begin_export_lease(
+        &self,
+        operation_id: OperationId,
+        kind: ExportKind,
+        snapshot: &AcceptedSnapshot,
+        scope: &Scope,
+    ) {
+        let core = self.core.borrow().clone();
+        let executor_epoch = self.session.borrow().core_executor_epoch();
+        self.export_leases.borrow_mut().begin(
+            operation_id,
+            ExportLease::new(
+                kind,
+                snapshot.clone(),
+                scope.clone(),
+                executor_epoch,
+                core_executor_identity(&core),
+            ),
+        );
+    }
+
+    fn export_source_is_current(&self, lease: &ExportLease) -> bool {
+        let model = self.model();
+        let core = self.core.borrow().clone();
+        let session = self.session.borrow();
+        lease.source_is_current(
+            session.scope().as_ref(),
+            model.accepted.as_ref(),
+            session.core_executor_epoch(),
+            core_executor_identity(&core),
+        )
+    }
+    fn export_delivery_is_current(
+        &self,
+        operation_id: OperationId,
+        token: SnapshotToken,
+        scope: &Scope,
+    ) -> bool {
+        self.export_leases
+            .borrow()
+            .get(operation_id)
+            .cloned()
+            .is_some_and(|lease| {
+                lease.token() == token
+                    && lease.scope() == scope
+                    && self.export_source_is_current(&lease)
+            })
     }
     fn snapshot_current(&self, token: SnapshotToken, scope: &Scope) -> bool {
         self.scope().as_ref() == Some(scope)
@@ -5152,17 +5076,6 @@ impl Runtime {
                 .accepted
                 .as_ref()
                 .is_some_and(|s| s.token == token)
-    }
-    fn firmware_export_capture_is_current(
-        &self,
-        operation_id: OperationId,
-        capture: &FirmwareExportCapture,
-    ) -> bool {
-        let model = self.model();
-        let accepted = model.accepted.as_ref().map(FirmwareAcceptedIdentity::from);
-        firmware_export_is_latest(operation_id, self.latest_firmware_export.get())
-            && self.current_firmware_executor().1 == capture.executor_epoch
-            && firmware_export_capture_matches(capture, self.scope().as_ref(), accepted.as_ref())
     }
     fn current_firmware_executor(
         &self,
@@ -5549,7 +5462,7 @@ impl Runtime {
         scope: &Scope,
     ) -> Result<Vec<u8>, String> {
         let document = snapshot.document.as_ref();
-        self.ensure_firmware_export_current(operation_id, snapshot, scope, None, None)?;
+        self.require_export_current(operation_id, snapshot, scope, None)?;
         if !document
             .boards
             .iter()
@@ -5581,13 +5494,7 @@ impl Runtime {
             Some(instance.id.as_str())
         });
         let (core, executor_epoch) = self.current_firmware_executor();
-        self.ensure_firmware_export_current(
-            operation_id,
-            snapshot,
-            scope,
-            Some(&core),
-            Some(executor_epoch),
-        )?;
+        self.require_export_current(operation_id, snapshot, scope, Some(&core))?;
         let primary = self
             .resolve_firmware_plan(
                 operation_id,
@@ -5621,13 +5528,7 @@ impl Runtime {
         } else {
             None
         };
-        self.ensure_firmware_export_current(
-            operation_id,
-            snapshot,
-            scope,
-            Some(&core),
-            Some(executor_epoch),
-        )?;
+        self.require_export_current(operation_id, snapshot, scope, Some(&core))?;
         let (request, _) = crate::firmware_request_adapter::firmware_request(
             document,
             &primary,
@@ -5641,13 +5542,7 @@ impl Runtime {
         let generated = core
             .request(&generate_id, &executor_epoch.0.to_string(), &request)
             .await;
-        self.ensure_firmware_export_current(
-            operation_id,
-            snapshot,
-            scope,
-            Some(&core),
-            Some(executor_epoch),
-        )?;
+        self.require_export_current(operation_id, snapshot, scope, Some(&core))?;
         let generated =
             generated.map_err(|error| format!("Firmware generation failed: {error}"))?;
         let package = match generated {
@@ -5675,13 +5570,7 @@ impl Runtime {
             serde_json::to_string_pretty(&serde_json::Value::Object(plan_value))
                 .map_err(|error| format!("Could not serialize electrical plan: {error}"))?,
         );
-        self.ensure_firmware_export_current(
-            operation_id,
-            snapshot,
-            scope,
-            Some(&core),
-            Some(executor_epoch),
-        )?;
+        self.require_export_current(operation_id, snapshot, scope, Some(&core))?;
         let entries = files
             .keys()
             .enumerate()
@@ -5703,13 +5592,7 @@ impl Runtime {
         let packed = core
             .archive(&pack_id, &executor_epoch.0.to_string(), &metadata, buffers)
             .await;
-        self.ensure_firmware_export_current(
-            operation_id,
-            snapshot,
-            scope,
-            Some(&core),
-            Some(executor_epoch),
-        )?;
+        self.require_export_current(operation_id, snapshot, scope, Some(&core))?;
         let packed = packed.map_err(|error| format!("Firmware packaging failed: {error}"))?;
         match serde_json::from_str::<ArchiveReply>(&packed.metadata)
             .map_err(|error| format!("Could not read firmware package result: {error}"))?
@@ -5735,13 +5618,7 @@ impl Runtime {
         executor_epoch: boardstudio_application::ExecutorEpoch,
         target: FirmwarePlanTarget<'_>,
     ) -> Result<ElectricalPlan, String> {
-        self.ensure_firmware_export_current(
-            operation_id,
-            snapshot,
-            scope,
-            Some(core),
-            Some(executor_epoch),
-        )?;
+        self.require_export_current(operation_id, snapshot, scope, Some(core))?;
         let configuration = snapshot.document.hardware.as_ref().and_then(|hardware| {
             hardware
                 .boards
@@ -5781,13 +5658,7 @@ impl Runtime {
         let reply = core
             .request(&request_id, &executor_epoch.0.to_string(), &request)
             .await;
-        self.ensure_firmware_export_current(
-            operation_id,
-            snapshot,
-            scope,
-            Some(core),
-            Some(executor_epoch),
-        )?;
+        self.require_export_current(operation_id, snapshot, scope, Some(core))?;
         let reply = reply.map_err(|error| format!("Wiring resolution failed: {error}"))?;
         let plan = match reply {
             CoreReply::ElectricalResolved { id, plan } if id == request_id => plan,
@@ -5810,36 +5681,37 @@ impl Runtime {
         Ok(plan)
     }
 
-    fn ensure_firmware_export_current(
+    fn require_export_current(
         &self,
         operation_id: OperationId,
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
-        core: Option<&Rc<dyn CoreExecutor>>,
-        executor_epoch: Option<boardstudio_application::ExecutorEpoch>,
+        worker: Option<&Rc<dyn CoreExecutor>>,
     ) -> Result<(), String> {
-        if !self.export_current(operation_id, snapshot.token, scope) {
-            return Err("Firmware export was cancelled or superseded.".into());
+        let lease = self
+            .export_leases
+            .borrow()
+            .get(operation_id)
+            .cloned()
+            .ok_or_else(|| "Export lease is no longer current.".to_owned())?;
+        if lease.token() != snapshot.token
+            || lease.scope() != scope
+            || lease.snapshot().document.revision != snapshot.document.revision
+        {
+            return Err("Export lease is no longer current.".into());
         }
-        let model = self.model();
-        if model.accepted.as_ref().is_none_or(|current| {
-            current.session_epoch != snapshot.session_epoch
-                || current.document.id != snapshot.document.id
-                || current.document.revision != snapshot.document.revision
-                || current.scene.revision != snapshot.scene.revision
-                || current.scene.revision != current.document.revision
-        }) {
-            return Err("The accepted project or scene changed during firmware export.".into());
-        }
-        if let (Some(expected_core), Some(expected_epoch)) = (core, executor_epoch) {
-            let (current_core, current_epoch) = self.current_firmware_executor();
-            if !firmware_export_worker_is_current(
-                expected_epoch,
-                current_epoch,
-                Rc::ptr_eq(expected_core, &current_core),
-            ) {
-                return Err("The Core worker changed during firmware export.".into());
-            }
+        let core = self.core.borrow().clone();
+        let session = self.session.borrow();
+        let session_owns_export = session.export_is_current(operation_id, lease.token(), scope)
+            && session.scope().as_ref() == Some(scope);
+        lease.require_current(
+            session_owns_export,
+            session.read_model().accepted.as_ref(),
+            session.core_executor_epoch(),
+            core_executor_identity(&core),
+        )?;
+        if worker.is_some_and(|worker| !Rc::ptr_eq(worker, &core)) {
+            return Err("Export lease is no longer current.".into());
         }
         Ok(())
     }
@@ -6713,47 +6585,6 @@ async fn request_exact_cad(
         .map_err(|error| format!("CAD mechanical geometry failed: {error:?}"))
 }
 
-fn push_mechanical_file(
-    files: &mut Vec<(String, Vec<u8>)>,
-    paths: &mut BTreeSet<String>,
-    path: String,
-    bytes: Vec<u8>,
-) -> Result<(), String> {
-    if path.is_empty()
-        || path.starts_with('/')
-        || path.contains('\\')
-        || path
-            .split('/')
-            .any(|part| part.is_empty() || part == "." || part == "..")
-    {
-        return Err(format!(
-            "Mechanical exporter produced an unsafe path: {path}"
-        ));
-    }
-    if !paths.insert(path.clone()) {
-        return Err(format!(
-            "Mechanical exporter produced a duplicate path: {path}"
-        ));
-    }
-    files.push((path, bytes));
-    Ok(())
-}
-
-fn mechanical_filename_component(value: &str) -> String {
-    let mut result = String::with_capacity(value.len());
-    let mut in_replacement = false;
-    for character in value.chars() {
-        if character.is_ascii_alphanumeric() || matches!(character, '_' | '-') {
-            result.push(character);
-            in_replacement = false;
-        } else if !in_replacement {
-            result.push('-');
-            in_replacement = true;
-        }
-    }
-    result
-}
-
 fn authored_case_filename(document: &ProjectDoc, scope: &Scope) -> String {
     let suffix = if document.boards.len() == 1 {
         String::new()
@@ -6781,451 +6612,6 @@ fn authored_case_filename_component(value: &str) -> String {
         }
     }
     result
-}
-
-fn mechanical_stl(mesh: &boardstudio_web_host::cad_jobs::CadMesh) -> Result<Vec<u8>, String> {
-    if mesh.positions.len() % 9 != 0 || mesh.positions.len() != mesh.normals.len() {
-        return Err("CAD returned incomplete mechanical STL triangles.".into());
-    }
-    let triangles = mesh.positions.len() / 9;
-    let triangle_count = u32::try_from(triangles)
-        .map_err(|_| "Mechanical STL exceeds the supported triangle count.".to_owned())?;
-    let byte_length = 84usize
-        .checked_add(
-            triangles
-                .checked_mul(50)
-                .ok_or_else(|| "Mechanical STL is too large.".to_owned())?,
-        )
-        .ok_or_else(|| "Mechanical STL is too large.".to_owned())?;
-    let mut bytes = vec![0u8; byte_length];
-    const HEADER: &[u8] = b"Board Studio mechanical part; coordinates in millimetres";
-    bytes[..HEADER.len()].copy_from_slice(HEADER);
-    bytes[80..84].copy_from_slice(&triangle_count.to_le_bytes());
-    for triangle in 0..triangles {
-        let offset = 84 + triangle * 50;
-        for component in 0..3 {
-            let value = mesh.normals[triangle * 9 + component];
-            bytes[offset + component * 4..offset + component * 4 + 4]
-                .copy_from_slice(&value.to_le_bytes());
-        }
-        for component in 0..9 {
-            let value = mesh.positions[triangle * 9 + component];
-            let index = offset + 12 + component * 4;
-            bytes[index..index + 4].copy_from_slice(&value.to_le_bytes());
-        }
-    }
-    Ok(bytes)
-}
-
-fn mechanical_xml_escape(value: &str) -> String {
-    value
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&apos;")
-}
-
-fn serialized_enum_label<T: serde::Serialize>(value: &T) -> String {
-    serde_json::to_value(value)
-        .ok()
-        .and_then(|value| value.as_str().map(str::to_owned))
-        .unwrap_or_default()
-}
-
-fn mechanical_fabrication_notes(document: &ProjectDoc, assembly: &MechanicalAssembly) -> String {
-    let Some(configuration) = document.mechanical.as_ref() else {
-        return String::new();
-    };
-    let mut hardware = configuration.hardware.clone().unwrap_or_default();
-    hardware.extend(assembly.generated_hardware.iter().cloned());
-    let mounts = assembly
-        .case
-        .bodies
-        .iter()
-        .find(|body| body.body.id == "plate")
-        .and_then(|body| body.body.mounts.as_ref())
-        .cloned()
-        .unwrap_or_default();
-    let method = serialized_enum_label(&configuration.method);
-    let mount = serialized_enum_label(&configuration.mount);
-    let plate_to_pcb = assembly
-        .stack
-        .iter()
-        .find(|layer| layer.id == "plate")
-        .map_or(configuration.plate_to_pcb, |layer| layer.z);
-    let material_note = if method == "pcb-fr4" {
-        "Plate substrate: FR4, no copper or plated holes. Confirm grade, finish and thickness tolerance with the fabricator."
-    } else {
-        "Material grade, finish and mechanical properties must be selected with the fabricator; no material grade is inferred from the process choice."
-    };
-    let mount_notes = if mounts.is_empty() {
-        "none".to_owned()
-    } else {
-        mounts
-            .iter()
-            .map(|item| {
-                format!(
-                    "{}: diameter {} mm at ({}, {}) mm",
-                    item.id, item.hole_diameter, item.at.x, item.at.y
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("; ")
-    };
-    let hardware_notes = if hardware.is_empty() {
-        "- No hardware specifications recorded.".to_owned()
-    } else {
-        hardware
-            .iter()
-            .map(|item| {
-                format!(
-                    "- {}: {} × {}; thread {}; length {} mm; part {}, mount {}{}{}",
-                    item.id,
-                    item.quantity,
-                    item.designation,
-                    item.thread,
-                    item.length,
-                    item.part_id,
-                    item.feature_id,
-                    item.tolerance
-                        .as_ref()
-                        .map(|value| format!("; tolerance {value}"))
-                        .unwrap_or_default(),
-                    item.notes
-                        .as_ref()
-                        .map(|value| format!("; {value}"))
-                        .unwrap_or_default(),
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
-    };
-    let processes = configuration
-        .part_processes
-        .as_ref()
-        .filter(|items| !items.is_empty())
-        .map(|items| {
-            items
-                .iter()
-                .map(|part| {
-                    format!(
-                        "- {}: {}; material {}; finished thickness {} mm; constraint set {}",
-                        part.part_id,
-                        serialized_enum_label(&part.method),
-                        part.material,
-                        part.thickness,
-                        part.constraints_version
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join("\n")
-        })
-        .unwrap_or_else(|| "- No per-part overrides.".into());
-    let gasket_note = if mount == "gasket" {
-        let thickness = configuration
-            .gasket_layout
-            .as_ref()
-            .map_or(2.0, |layout| layout.thickness);
-        let compression = configuration
-            .gasket_layout
-            .as_ref()
-            .map_or(0.15, |layout| layout.compression);
-        format!(
-            "\nGasket stock: EVA, {thickness} mm uncompressed; {}% nominal assembly compression. Exported assembly strips depict compressed thickness; cut the strip outlines from the specified uncompressed stock.\n",
-            100.0 * compression
-        )
-    } else {
-        String::new()
-    };
-    let critical_fits = configuration
-        .critical_fits
-        .as_ref()
-        .filter(|items| !items.is_empty())
-        .map(|items| {
-            items
-                .iter()
-                .map(|fit| {
-                    let length = (fit.to.x - fit.from.x).hypot(fit.to.y - fit.from.y);
-                    format!(
-                        "- {}: {} — {}: {:.3} mm, {}; from ({}, {}) to ({}, {}) mm.",
-                        fit.id,
-                        fit.part_id,
-                        fit.label,
-                        length,
-                        fit.tolerance,
-                        fit.from.x,
-                        fit.from.y,
-                        fit.to.x,
-                        fit.to.y
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join("\n")
-        })
-        .unwrap_or_else(|| "- No critical dimension annotations recorded.".into());
-    let openings = assembly
-        .nominal_plate_contours
-        .iter()
-        .filter(|contour| contour.hole)
-        .enumerate()
-        .map(|(index, contour)| {
-            let min_x = contour.points.iter().map(|point| point.x).fold(f64::INFINITY, f64::min);
-            let max_x = contour.points.iter().map(|point| point.x).fold(f64::NEG_INFINITY, f64::max);
-            let min_y = contour.points.iter().map(|point| point.y).fold(f64::INFINITY, f64::min);
-            let max_y = contour.points.iter().map(|point| point.y).fold(f64::NEG_INFINITY, f64::max);
-            format!(
-                "- Opening {}: {:.3} × {:.3} mm; review the full contour for corner radii and retention tabs.",
-                index + 1,
-                max_x - min_x,
-                max_y - min_y
-            )
-        })
-        .collect::<Vec<_>>();
-    let openings = if openings.is_empty() {
-        "- No profile openings.".to_owned()
-    } else {
-        openings.join("\n")
-    };
-    let profiles = if configuration.profiles.is_empty() {
-        "- No mechanical profiles configured.".to_owned()
-    } else {
-        configuration
-            .profiles
-            .iter()
-            .map(|profile| format!("- {}: {}", profile.definition_id, profile.source))
-            .collect::<Vec<_>>()
-            .join("\n")
-    };
-    let diagnostics = if assembly.diagnostics.is_empty() {
-        "- No resolver diagnostics.".to_owned()
-    } else {
-        assembly
-            .diagnostics
-            .iter()
-            .map(|finding| {
-                format!(
-                    "- {}: {}",
-                    serialized_enum_label(&finding.severity),
-                    finding.message
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
-    };
-    format!(
-        "# Mechanical fabrication specification\n\nRevision: {}\nProcess: {method}\nMount system: {mount}\nPlate finished thickness: {} mm\nPCB nominal thickness: {} mm\nPlate-to-PCB distance: {plate_to_pcb} mm\nPlate foam thickness: {} mm\nBottom foam thickness: {} mm\nWall thickness: {} mm\n\nThe assembled STEP includes a nominal, unpopulated PCB reference. Component solids are not included. This reference is excluded from manufacturing part exports.\n\n## Material and hardware\n\n{material_note}\nPlate mounting holes: {mount_notes}.\nHardware specifications (metadata only; threads are not modeled):\n{hardware_notes}\nFastener compatibility, washers, inserts, torque, gasket material and adhesive specifications are not inferred from hole diameter. Review recorded hardware against the assembled stack before ordering.\n\nPer-part process specifications:\n{processes}\n{gasket_note}\n## Critical fit and process allowances\n\nPlate STEP, STL, SVG, DXF and KiCad geometry uses the same resolved millimetre design. Explicit radial opening allowance: {} mm. Foam retains nominal exclusions. No automatic shrinkage, kerf or tool-radius compensation has been applied. Account for the recorded opening allowance before applying any additional reviewed CAM compensation; preserve the nominal source. CNC internal corners require a compatible tool radius or explicitly reviewed relief. Printed shrinkage and cut-sheet kerf require a measured process coupon. Critical interfaces: switch retention, stabilizer cutouts, plate-to-PCB distance, fastener fit and battery clearance. Confirm each before fabrication.\n\nRecorded critical dimensions:\n{critical_fits}\n\nNominal opening extents (bounding dimensions, not replacement profiles):\n{openings}\n\nProfile sources:\n{profiles}\n\nDiagnostics:\n{diagnostics}\n",
-        assembly.revision,
-        configuration.plate_thickness,
-        configuration.pcb_thickness,
-        configuration.plate_foam_thickness,
-        configuration.bottom_foam_thickness,
-        configuration.wall_thickness,
-        configuration.opening_allowance.unwrap_or(0.0)
-    )
-}
-
-fn critical_fit_drawing(
-    assembly: &MechanicalAssembly,
-    configuration: &boardstudio_core::model::MechanicalConfiguration,
-) -> Result<String, String> {
-    use boardstudio_core::model::Vec2;
-
-    let contours = &assembly.nominal_plate_contours;
-    let fits = configuration.critical_fits.as_deref().unwrap_or_default();
-    let mut hardware = configuration.hardware.clone().unwrap_or_default();
-    hardware.extend(assembly.generated_hardware.iter().cloned());
-    let referenced_parts = fits
-        .iter()
-        .map(|fit| fit.part_id.as_str())
-        .chain(hardware.iter().map(|item| item.part_id.as_str()))
-        .collect::<BTreeSet<_>>();
-    let reference_bodies = assembly
-        .case
-        .bodies
-        .iter()
-        .filter(|entry| {
-            entry.body.id != "plate" && referenced_parts.contains(entry.body.id.as_str())
-        })
-        .collect::<Vec<_>>();
-    let points = contours
-        .iter()
-        .flat_map(|contour| contour.points.iter())
-        .chain(fits.iter().flat_map(|fit| [&fit.from, &fit.to]))
-        .chain(reference_bodies.iter().flat_map(|entry| {
-            entry
-                .contours
-                .iter()
-                .flat_map(|contour| contour.points.iter())
-        }))
-        .collect::<Vec<_>>();
-    if points.is_empty() {
-        return Err("No plate geometry for critical-fit drawing.".into());
-    }
-    if points
-        .iter()
-        .any(|point| !point.x.is_finite() || !point.y.is_finite())
-    {
-        return Err("Invalid critical-fit coordinates.".into());
-    }
-    let min_x = points
-        .iter()
-        .map(|point| point.x)
-        .fold(f64::INFINITY, f64::min);
-    let max_x = points
-        .iter()
-        .map(|point| point.x)
-        .fold(f64::NEG_INFINITY, f64::max);
-    let min_y = points
-        .iter()
-        .map(|point| point.y)
-        .fold(f64::INFINITY, f64::min);
-    let max_y = points
-        .iter()
-        .map(|point| point.y)
-        .fold(f64::NEG_INFINITY, f64::max);
-    let width = max_x - min_x;
-    let height = max_y - min_y;
-    let path_data = |points: &[Vec2]| {
-        points
-            .iter()
-            .enumerate()
-            .map(|(index, point)| {
-                format!(
-                    "{} {} {}",
-                    if index == 0 { "M" } else { "L" },
-                    point.x,
-                    -point.y
-                )
-            })
-            .collect::<Vec<_>>()
-            .join(" ")
-    };
-    let paths = contours
-        .iter()
-        .map(|contour| format!("<path d=\"{} Z\"/>", path_data(&contour.points)))
-        .collect::<String>();
-    let reference_paths = reference_bodies
-        .iter()
-        .map(|entry| {
-            let paths = entry
-                .contours
-                .iter()
-                .map(|contour| format!("<path d=\"{} Z\"/>", path_data(&contour.points)))
-                .collect::<String>();
-            format!(
-                "<g data-part=\"{}\" fill=\"none\" stroke=\"#8c959b\" stroke-width=\"0.1\" stroke-dasharray=\"0.7 0.5\">{paths}</g>",
-                mechanical_xml_escape(&entry.body.id)
-            )
-        })
-        .collect::<String>();
-    let mounts = assembly
-        .case
-        .bodies
-        .iter()
-        .find(|body| body.body.id == "plate")
-        .and_then(|body| body.body.mounts.as_ref())
-        .into_iter()
-        .flatten()
-        .map(|mount| {
-            format!(
-                "<circle cx=\"{}\" cy=\"{}\" r=\"{}\"/>",
-                mount.at.x,
-                -mount.at.y,
-                mount.hole_diameter / 2.0
-            )
-        })
-        .collect::<String>();
-    let mut dimensions = String::new();
-    for fit in fits {
-        let dx = fit.to.x - fit.from.x;
-        let dy = fit.to.y - fit.from.y;
-        let length = dx.hypot(dy);
-        if !length.is_finite() || length <= 0.0 {
-            return Err("Critical-fit endpoints must be distinct.".into());
-        }
-        let offset = Vec2 {
-            x: -dy / length * 5.0,
-            y: dx / length * 5.0,
-        };
-        let a = Vec2 {
-            x: fit.from.x + offset.x,
-            y: fit.from.y + offset.y,
-        };
-        let b = Vec2 {
-            x: fit.to.x + offset.x,
-            y: fit.to.y + offset.y,
-        };
-        let label = format!(
-            "{}: {} — {:.3} mm {}",
-            fit.part_id, fit.label, length, fit.tolerance
-        );
-        dimensions.push_str(&format!(
-            "<g data-fit=\"{}\"><path d=\"M {} {} L {} {} M {} {} L {} {}\" fill=\"none\" stroke=\"#42657a\" stroke-width=\"0.12\"/><path d=\"M {} {} L {} {}\" fill=\"none\" stroke=\"#42657a\" stroke-width=\"0.15\" marker-start=\"url(#dimension-arrow)\" marker-end=\"url(#dimension-arrow)\"/><text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"2.2\" fill=\"#23495e\">{}</text></g>",
-            mechanical_xml_escape(&fit.id),
-            fit.from.x, -fit.from.y, a.x, -a.y,
-            fit.to.x, -fit.to.y, b.x, -b.y,
-            a.x, -a.y, b.x, -b.y,
-            (a.x + b.x) / 2.0,
-            -(a.y + b.y) / 2.0 - 1.0,
-            mechanical_xml_escape(&label),
-        ));
-    }
-    let mut callouts = String::new();
-    for (index, item) in hardware.iter().enumerate() {
-        let mount = assembly
-            .case
-            .bodies
-            .iter()
-            .find(|entry| entry.body.id == item.part_id)
-            .and_then(|entry| entry.body.mounts.as_ref())
-            .and_then(|mounts| mounts.iter().find(|mount| mount.id == item.feature_id))
-            .ok_or_else(|| {
-                format!(
-                    "Hardware {} is not linked to a generated mounting feature.",
-                    item.id
-                )
-            })?;
-        let x = max_x + 12.0;
-        let y = -max_y + index as f64 * 9.0;
-        let label = format!(
-            "{} × {}; {} × {} mm",
-            item.quantity, item.designation, item.thread, item.length
-        );
-        let feature = format!(
-            "{}/{}{}",
-            item.part_id,
-            item.feature_id,
-            item.tolerance
-                .as_ref()
-                .map(|value| format!("; {value}"))
-                .unwrap_or_default()
-        );
-        callouts.push_str(&format!(
-            "<g data-hardware=\"{}\"><path d=\"M {} {} L {} {}\" fill=\"none\" stroke=\"#705b35\" stroke-width=\"0.12\"/><circle cx=\"{}\" cy=\"{}\" r=\"0.4\" fill=\"#705b35\"/><text x=\"{}\" y=\"{}\" font-family=\"sans-serif\" font-size=\"2.3\" fill=\"#493a21\">{}<tspan x=\"{}\" dy=\"3\">{}</tspan></text></g>",
-            mechanical_xml_escape(&item.id),
-            mount.at.x, -mount.at.y, x - 2.0, y,
-            mount.at.x, -mount.at.y,
-            x, y, mechanical_xml_escape(&label), x, mechanical_xml_escape(&feature),
-        ));
-    }
-    let drawing_width = width + if hardware.is_empty() { 40.0 } else { 135.0 };
-    let drawing_height = (height + 50.0).max(hardware.len() as f64 * 9.0 + 40.0);
-    Ok(format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{drawing_width}mm\" height=\"{drawing_height}mm\" viewBox=\"{} {} {drawing_width} {drawing_height}\"><defs><marker id=\"dimension-arrow\" viewBox=\"0 0 10 10\" refX=\"5\" refY=\"5\" markerWidth=\"3\" markerHeight=\"3\" orient=\"auto-start-reverse\"><path d=\"M 0 0 L 10 5 L 0 10 Z\" fill=\"#42657a\"/></marker></defs>{reference_paths}<g fill=\"none\" stroke=\"#111\" stroke-width=\"0.15\">{paths}{mounts}<path d=\"M {min_x} {} v 4 M {max_x} {} v 4 M {min_x} {} H {max_x}\"/></g>{dimensions}{callouts}<g font-family=\"sans-serif\" font-size=\"2.5\" fill=\"#111\"><text x=\"{min_x}\" y=\"{}\">NOMINAL ASSEMBLY XY — CRITICAL FIT REVIEW</text><text x=\"{min_x}\" y=\"{}\">Extents: {:.3} × {:.3} mm</text><text x=\"{min_x}\" y=\"{}\">Nominal geometry; see specification for opening allowance.</text><text x=\"{min_x}\" y=\"{}\">Hardware callouts are specifications; threads are not modeled.</text><text x=\"{min_x}\" y=\"{}\">See FABRICATION.md for fit and hardware specifications.</text></g></svg>",
-        min_x - 20.0,
-        -max_y - 20.0,
-        -min_y + 5.0,
-        -min_y + 5.0,
-        -min_y + 7.0,
-        -max_y - 10.0,
-        -min_y + 12.0,
-        width,
-        height,
-        -min_y + 17.0,
-        -min_y + 22.0,
-        -min_y + 27.0,
-    ))
 }
 
 pub fn deployment_prefix() -> Result<&'static str, String> {
@@ -7558,36 +6944,9 @@ pub mod project_name_test_support {
 mod firmware_export_tests {
     use super::*;
     use crate::runtime::firmware_export_test_support as test_support;
-    use boardstudio_application::{ExecutorEpoch, SessionEpoch};
     use futures_channel::oneshot;
     use std::task::Poll;
     use wasm_bindgen_test::wasm_bindgen_test;
-
-    fn capture() -> FirmwareExportCapture {
-        FirmwareExportCapture {
-            scope: Scope {
-                session_epoch: SessionEpoch(5),
-                document_id: "project-a".into(),
-                board_id: "board-a".into(),
-                instance_id: None,
-            },
-            token: SnapshotToken(17),
-            revision: 6,
-            session_epoch: SessionEpoch(5),
-            document_id: "project-a".into(),
-            executor_epoch: ExecutorEpoch(11),
-        }
-    }
-
-    fn accepted(capture: &FirmwareExportCapture) -> FirmwareAcceptedIdentity {
-        FirmwareAcceptedIdentity {
-            session_epoch: capture.session_epoch,
-            document_id: capture.document_id.clone(),
-            token: capture.token,
-            revision: capture.revision,
-            scene_revision: capture.revision,
-        }
-    }
 
     fn run_export_effect(effects: Vec<Effect>) -> (OperationId, Effect) {
         let exports = effects
@@ -7812,84 +7171,6 @@ mod firmware_export_tests {
         report.clear_alert();
         assert_eq!(report.severity, RuntimeReportSeverity::Status);
         assert!(report.message.is_empty());
-    }
-
-    #[wasm_bindgen_test]
-    fn firmware_completion_is_suppressed_after_project_board_or_snapshot_changes() {
-        let capture = capture();
-        let accepted = accepted(&capture);
-        assert!(firmware_export_capture_matches(
-            &capture,
-            Some(&capture.scope),
-            Some(&accepted),
-        ));
-
-        let other_board = Scope {
-            board_id: "board-b".into(),
-            ..capture.scope.clone()
-        };
-        assert!(!firmware_export_capture_matches(
-            &capture,
-            Some(&other_board),
-            Some(&accepted),
-        ));
-
-        let mut newer_snapshot = accepted.clone();
-        newer_snapshot.token = SnapshotToken(18);
-        assert!(!firmware_export_capture_matches(
-            &capture,
-            Some(&capture.scope),
-            Some(&newer_snapshot),
-        ));
-
-        let mut other_project = accepted;
-        other_project.document_id = "project-b".into();
-        assert!(!firmware_export_capture_matches(
-            &capture,
-            Some(&capture.scope),
-            Some(&other_project),
-        ));
-    }
-
-    #[wasm_bindgen_test]
-    fn older_export_cannot_replace_a_newer_attempts_report() {
-        let first = OperationId(41);
-        let second = OperationId(42);
-        assert!(firmware_export_is_latest(second, Some(second)));
-        assert!(!firmware_export_is_latest(first, Some(second)));
-        assert!(!firmware_export_is_latest(first, None));
-    }
-
-    #[wasm_bindgen_test]
-    fn worker_replacement_at_resolution_generation_or_packaging_boundary_invalidates_attempt() {
-        let expected = ExecutorEpoch(11);
-        let stages = ["resolution", "generation", "packaging"];
-        for stage in stages {
-            assert!(firmware_export_worker_is_current(expected, expected, true));
-            assert!(
-                !firmware_export_worker_is_current(expected, ExecutorEpoch(12), false),
-                "worker replacement during {stage} must invalidate the export"
-            );
-        }
-    }
-
-    #[wasm_bindgen_test]
-    fn generation_and_zip_failures_cannot_produce_deliverable_firmware_bytes() {
-        for error in [
-            "Firmware generation failed: test worker rejection.",
-            "Firmware packaging failed: test ZIP rejection.",
-        ] {
-            let result = firmware_export_bytes_for_delivery(Err(error.into()), true, false);
-            assert_eq!(result, Err(error.into()));
-        }
-        assert_eq!(
-            firmware_export_bytes_for_delivery(Ok(vec![1, 2, 3]), false, false),
-            Err("Export scope changed before delivery.".into())
-        );
-        assert_eq!(
-            firmware_export_bytes_for_delivery(Ok(vec![1, 2, 3]), true, true),
-            Err("Export scope changed before delivery.".into())
-        );
     }
 }
 
