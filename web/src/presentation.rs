@@ -1034,7 +1034,7 @@ struct LayoutFindingNavigationContext {
     inspect_open: Signal<bool>,
     findings_open: Signal<bool>,
     inspector_settings: Signal<PanelSettings>,
-    focused_finding: Signal<Option<keycaps_finding_marker::FocusedFinding>>,
+    keycaps_state: keycaps_workspace::KeycapsWorkspaceState,
     svg: Rc<RefCell<Option<SvgElement>>>,
     alive: Rc<Cell<bool>>,
     body_selection: Signal<Option<case_viewer::BodySelection>>,
@@ -1056,7 +1056,7 @@ fn perform_layout_finding_navigation(
         mut inspect_open,
         mut findings_open,
         inspector_settings,
-        mut focused_finding,
+        keycaps_state,
         svg,
         alive,
         body_selection,
@@ -1151,14 +1151,12 @@ fn perform_layout_finding_navigation(
         }
     }
 
-    let navigation_id = keycaps_finding_marker::next_navigation_id(focused_finding.peek().as_ref());
-    focused_finding.set(Some(keycaps_finding_marker::FocusedFinding {
-        scope: scope.clone(),
-        token: request.source.token,
-        revision: request.source.revision,
-        finding_id: request.finding.id,
-        navigation_id,
-    }));
+    keycaps_state.focus_finding(
+        scope.clone(),
+        request.source.token,
+        request.source.revision,
+        request.finding.id,
+    );
     findings_open.set(false);
     objects_open.set(false);
     inspect_open.set(true);
@@ -2523,10 +2521,6 @@ fn Editor() -> Element {
     let instance_selection = InstanceSelection(instance_preference);
     let case_workspace_state = case_workspace::use_case_workspace_state();
     let case_selection = case_workspace_state.selection();
-    let focused_keycaps_finding = use_signal(|| None::<keycaps_finding_marker::FocusedFinding>);
-    let pending_keycaps_navigation_fit =
-        use_signal(|| None::<keycaps_navigation::PendingLayoutFit>);
-    let keycaps_navigation_alive = keycaps_navigation::use_navigation_lifetime();
     let case_tree_expanded = case_workspace_state.tree_expanded();
     let workspace = use_context::<WorkspaceState>().0;
     let layout_state =
@@ -2822,14 +2816,15 @@ fn Editor() -> Element {
         }
     }));
     let active_board_id = model.active_board_id.clone();
-    keycaps_finding_marker::use_retire_stale_finding(
-        focused_keycaps_finding,
+    let keycaps_state = keycaps_workspace::use_keycaps_workspace_state(
         layout_owner.workspace,
         layout_owner.scope.clone(),
         layout_owner.token,
         layout_owner.revision,
         active_board_id.clone(),
     );
+    let focused_keycaps_finding = keycaps_state.focused_finding();
+    let keycaps_navigation_alive = keycaps_state.navigation_alive();
     let layer_source =
         current_scope
             .clone()
@@ -3014,21 +3009,12 @@ fn Editor() -> Element {
         active_board_id.clone(),
         keymap_layer_value,
     );
-    let keycaps_projection = use_memo(use_reactive(
-        (&accepted_token, &current_scope, &active_board_id),
-        {
-            let runtime = runtime.clone();
-            move |(token, scope, board_id)| {
-                let model = runtime.model();
-                let snapshot = model.accepted.as_ref()?;
-                if token.as_ref() != Some(&snapshot.token) {
-                    return None;
-                }
-                let view = keycaps_scene::project(snapshot, scope.as_ref()?, &board_id)?;
-                Some((view, accepted_board_contours(snapshot, &board_id)))
-            }
-        },
-    ));
+    let keycaps_projection = keycaps_workspace::use_projection(
+        runtime.clone(),
+        accepted_token,
+        current_scope.clone(),
+        active_board_id.clone(),
+    );
     let encoder_input_actions = keymap::use_encoder_inputs(
         runtime.clone(),
         layer_source.clone(),
@@ -3052,7 +3038,6 @@ fn Editor() -> Element {
     );
     let keymap_view = keymap_projection.as_ref().map(|(view, _)| view.clone());
     let keymap_contours = keymap_projection.map(|(_, contours)| contours);
-    let keycaps_projection = keycaps_projection.read().clone();
     let keycaps_view = keycaps_projection.as_ref().map(|(view, _)| view.clone());
     let keycaps_contours = keycaps_projection.map(|(_, contours)| contours);
     // Keep macro operation observation alive when another workspace hides the panel.
@@ -4650,8 +4635,7 @@ fn Editor() -> Element {
         let navigation_alive = keycaps_navigation_alive.clone();
         let inspector_settings = inspector_panel_settings;
         let fit_state = keycaps_fit_state.state.clone();
-        let mut pending_camera_fit = pending_keycaps_navigation_fit;
-        let mut focused_finding = focused_keycaps_finding;
+        let keycaps_state = keycaps_state.clone();
         let source_surface = svg.clone();
         let select_tree = workspace_callbacks.select_tree;
         move |request: keycaps_fit::FindingNavigationRequest| {
@@ -4715,13 +4699,13 @@ fn Editor() -> Element {
             } else {
                 None
             };
-            focused_finding.set(focused);
+            keycaps_state.set_focused_finding(focused);
             let focus_runtime = runtime.clone();
             let focus_adapter = adapter.clone();
             let focus_body_selection = body_selection;
             let focus_case_selection = case_selection_for_owner;
             let focus_workspace = workspace;
-            pending_camera_fit.set(None);
+            keycaps_state.set_pending_layout_fit(None);
             keycaps_navigation::dispatch_route_with_camera_basis(
                 effects,
                 &request,
@@ -4751,7 +4735,7 @@ fn Editor() -> Element {
                         pin_inspector_on_desktop(inspector_settings);
                     }
                     keycaps_navigation::RouteAction::QueueLayoutFit(request) => {
-                        pending_camera_fit.set(Some(*request));
+                        keycaps_state.set_pending_layout_fit(Some(*request));
                     }
                     keycaps_navigation::RouteAction::Report(message) => runtime.report(message),
                     keycaps_navigation::RouteAction::FocusInspector => {
@@ -4864,7 +4848,7 @@ fn Editor() -> Element {
         let inspector_settings = inspector_panel_settings;
         let mut pending = layout_findings.pending;
         let mut return_target = layout_findings.return_target;
-        let focused_finding = focused_keycaps_finding;
+        let keycaps_state = keycaps_state.clone();
         let svg = svg.clone();
         let alive = keycaps_navigation_alive.clone();
         let body_selection = case_selection.body;
@@ -4933,7 +4917,7 @@ fn Editor() -> Element {
                     inspect_open,
                     findings_open,
                     inspector_settings,
-                    focused_finding,
+                    keycaps_state: keycaps_state.clone(),
                     svg: svg.clone(),
                     alive: alive.clone(),
                     body_selection,
@@ -4952,7 +4936,7 @@ fn Editor() -> Element {
         let inspect_open = inspect_open;
         let findings_open = layout_findings.open;
         let inspector_settings = inspector_panel_settings;
-        let focused_finding = focused_keycaps_finding;
+        let keycaps_state = keycaps_state.clone();
         let svg = svg.clone();
         let alive = keycaps_navigation_alive.clone();
         let body_selection = case_selection.body;
@@ -4968,7 +4952,7 @@ fn Editor() -> Element {
                     inspect_open,
                     findings_open,
                     inspector_settings,
-                    focused_finding,
+                    keycaps_state: keycaps_state.clone(),
                     svg: svg.clone(),
                     alive: alive.clone(),
                     body_selection,
@@ -4985,15 +4969,13 @@ fn Editor() -> Element {
     }));
     let observed_navigation_selection = (adapter.selected_context)();
     let observed_navigation_generation = (adapter.generation)();
-    keycaps_navigation::use_pending_layout_fit(
-        pending_keycaps_navigation_fit,
+    keycaps_state.use_pending_layout_fit(
         (
             workspace(),
             observed_navigation_selection,
             observed_navigation_generation,
             version(),
         ),
-        keycaps_navigation_alive.clone(),
         {
             let runtime = runtime.clone();
             let adapter = adapter.clone();
