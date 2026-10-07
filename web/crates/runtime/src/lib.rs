@@ -24,6 +24,7 @@ pub mod model_delivery;
 pub mod operation_outcomes;
 pub mod parts_preview;
 pub mod pcb_wiring_mode_operation;
+pub mod pending_edits;
 pub mod portable_archive;
 
 #[cfg(target_arch = "wasm32")]
