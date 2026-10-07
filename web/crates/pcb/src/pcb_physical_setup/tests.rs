@@ -18,8 +18,13 @@ struct Probe {
 }
 impl Probe {
     fn new() -> Self {
+        let runtime = crate::runtime::Runtime::new();
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
+            document: fixture_document("A", 1),
+        });
         Self {
-            runtime: crate::runtime::Runtime::new(),
+            runtime,
             active: Rc::new(Cell::new(true)),
             generation: Rc::new(Cell::new(1)),
             reply: Rc::new(RefCell::new(None)),
@@ -43,23 +48,29 @@ impl Probe {
             .insert("reversibleLayout".into(), serde_json::json!(true));
         doc
     }
-    fn settle(&self, outcome: TerminalOutcome) {
-        let id = self
-            .runtime
-            .events
-            .borrow()
-            .iter()
-            .find_map(|event| match event {
-                Event::ResolveEdit { operation_id, .. } => Some(*operation_id),
-                _ => None,
-            })
-            .unwrap();
-        assert!(
-            self.runtime.outcomes.settle(id, outcome),
-            "exact observer must survive hidden/source-changed view"
-        );
+    fn replace_project(&self, id: &str, revision: u64) {
+        self.runtime.submit(Event::Open {
+            operation_id: self.runtime.operation(),
+            document: fixture_document(id, revision),
+        });
+    }
+    fn release_pending_operation(&self) {
+        if self.runtime.core_entered() {
+            self.runtime.release_core();
+        } else if self.runtime.save_entered() {
+            self.runtime.release_save();
+        }
         crate::poll_detached();
     }
+}
+fn fixture_document(id: &str, revision: u64) -> boardstudio_core::model::ProjectDoc {
+    let mut document: boardstudio_core::model::ProjectDoc = serde_json::from_str(include_str!(
+        "../../../../../core/tests/fixtures/reviung41-outline-original.json"
+    ))
+    .expect("checked-in Reviung fixture is a valid saved project");
+    document.id = id.into();
+    document.revision = revision;
+    document
 }
 fn host() -> Element {
     let probe = use_context::<Probe>();
@@ -135,7 +146,7 @@ fn send(mount: &PhysicalSetupMount) {
 fn retained_rendered_controls_cannot_retarget_another_project() {
     let (probe, mut dom) = mounted();
     let old = probe.mount();
-    *probe.runtime.model.borrow_mut() = crate::runtime::model("B", 2, 1);
+    probe.replace_project("B", 1);
     flush(&mut dom);
     *probe.reply.borrow_mut() = Some(Ok(probe.changed_proposal()));
     send(&old);
@@ -151,7 +162,9 @@ fn retained_rendered_controls_reject_replaced_token_and_generation() {
     for (token, generation, revision) in [(2, 1, 1), (1, 2, 1), (1, 1, 2)] {
         let (probe, mut dom) = mounted();
         let old = probe.mount();
-        *probe.runtime.model.borrow_mut() = crate::runtime::model("A", token, revision);
+        if token != 1 || revision != 1 {
+            probe.replace_project("A", revision);
+        }
         probe.generation.set(generation);
         flush(&mut dom);
         *probe.reply.borrow_mut() = Some(Ok(probe.changed_proposal()));
@@ -187,7 +200,7 @@ fn delayed_preparation_error_and_noop_do_not_appear_under_new_source() {
         let unchanged = (*probe.runtime.model().accepted.unwrap().document).clone();
         send(&probe.mount());
         crate::poll_detached();
-        *probe.runtime.model.borrow_mut() = crate::runtime::model("B", 2, 1);
+        probe.replace_project("B", 1);
         flush(&mut dom);
         *probe.reply.borrow_mut() = Some(if failure {
             Err("old failure".into())
@@ -210,13 +223,20 @@ fn terminal_results_keep_exact_observer_but_never_retarget_feedback() {
         TerminalOutcome::Cancelled,
     ] {
         let (probe, mut dom) = mounted();
+        match &result {
+            TerminalOutcome::Completed => probe.runtime.hold_next_save(),
+            TerminalOutcome::PersistenceFailed(reason) => {
+                probe.runtime.fail_next_save(reason.clone())
+            }
+            TerminalOutcome::Cancelled => probe.runtime.hold_next_core(),
+        }
         *probe.reply.borrow_mut() = Some(Ok(probe.changed_proposal()));
         send(&probe.mount());
         crate::poll_detached();
         assert_eq!(probe.edits(), 1);
-        *probe.runtime.model.borrow_mut() = crate::runtime::model("B", 2, 1);
+        probe.replace_project("B", 1);
         flush(&mut dom);
-        probe.settle(result);
+        probe.release_pending_operation();
         flush(&mut dom);
         assert!(
             probe.mount().projection.project_feedback.is_none(),
@@ -229,7 +249,7 @@ fn terminal_results_keep_exact_observer_but_never_retarget_feedback() {
 fn case_transport_keeps_the_rendered_scope() {
     let (probe, mut dom) = mounted();
     let old = probe.mount();
-    *probe.runtime.model.borrow_mut() = crate::runtime::model("B", 2, 1);
+    probe.replace_project("B", 1);
     flush(&mut dom);
     *probe.reply.borrow_mut() = Some(Ok(probe.changed_proposal()));
     old.submit(PhysicalSetupIntent::CaseTransport(
@@ -241,16 +261,13 @@ fn case_transport_keeps_the_rendered_scope() {
 #[test]
 fn exact_accepted_proposal_advances_only_its_feedback_attribution() {
     let (probe, mut dom) = mounted();
-    let mut proposal = probe.changed_proposal();
+    let proposal = probe.changed_proposal();
+    probe.runtime.hold_next_save();
     *probe.reply.borrow_mut() = Some(Ok(proposal.clone()));
     send(&probe.mount());
     crate::poll_detached();
     assert_eq!(probe.edits(), 1);
-    let mut next = crate::runtime::model("A", 2, 2);
-    proposal.revision = 2;
-    next.accepted.as_mut().unwrap().document = std::sync::Arc::new(proposal);
-    *probe.runtime.model.borrow_mut() = next;
-    probe.settle(TerminalOutcome::Completed);
+    probe.release_pending_operation();
     flush(&mut dom);
     assert_eq!(
         probe.mount().projection.project_feedback.as_deref(),
@@ -265,12 +282,13 @@ fn exact_accepted_proposal_advances_only_its_feedback_attribution() {
 #[test]
 fn hidden_guide_keeps_observer_and_restores_only_same_owner_result() {
     let (probe, mut dom) = mounted();
+    probe.runtime.fail_next_save("disk");
     *probe.reply.borrow_mut() = Some(Ok(probe.changed_proposal()));
     send(&probe.mount());
     crate::poll_detached();
     probe.active.set(false);
     flush(&mut dom);
-    probe.settle(TerminalOutcome::PersistenceFailed("disk".into()));
+    probe.release_pending_operation();
     flush(&mut dom);
     assert!(probe.mount().projection.project_feedback.is_none());
     probe.active.set(true);
@@ -287,13 +305,14 @@ fn detached_normalization_and_outcome_survive_unmount_without_signal_access() {
         let (probe, dom) = mounted();
         let proposal = probe.changed_proposal();
         if submitted {
+            probe.runtime.hold_next_core();
             *probe.reply.borrow_mut() = Some(Ok(proposal.clone()));
         }
         send(&probe.mount());
         crate::poll_detached();
         drop(dom);
         if submitted {
-            probe.settle(TerminalOutcome::Cancelled);
+            probe.release_pending_operation();
         } else {
             *probe.reply.borrow_mut() = Some(Ok(proposal));
             crate::poll_detached();
@@ -305,17 +324,14 @@ fn detached_normalization_and_outcome_survive_unmount_without_signal_access() {
 #[test]
 fn hidden_success_restores_feedback_for_its_exact_accepted_proposal() {
     let (probe, mut dom) = mounted();
-    let mut proposal = probe.changed_proposal();
+    let proposal = probe.changed_proposal();
+    probe.runtime.hold_next_save();
     *probe.reply.borrow_mut() = Some(Ok(proposal.clone()));
     send(&probe.mount());
     crate::poll_detached();
     probe.active.set(false);
     flush(&mut dom);
-    let mut next = crate::runtime::model("A", 2, 2);
-    proposal.revision = 2;
-    next.accepted.as_mut().unwrap().document = std::sync::Arc::new(proposal);
-    *probe.runtime.model.borrow_mut() = next;
-    probe.settle(TerminalOutcome::Completed);
+    probe.release_pending_operation();
     flush(&mut dom);
     assert!(probe.mount().projection.project_feedback.is_none());
     probe.active.set(true);

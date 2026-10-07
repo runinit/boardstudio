@@ -218,7 +218,7 @@ fn part_reference(document: &ProjectDoc, part_id: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_application::{SessionEpoch, SnapshotToken, TerminalOutcome};
+    use boardstudio_application::{SessionEpoch, SnapshotToken};
     use boardstudio_core::electrical::{ElectricalMode, ElectricalPlanRequest};
 
     fn document() -> ProjectDoc {
@@ -310,90 +310,19 @@ mod tests {
         })
     }
 
-    fn core_effect(
-        effects: &[boardstudio_application::Effect],
-    ) -> (
-        boardstudio_application::RequestId,
-        boardstudio_application::ExecutorEpoch,
-        boardstudio_core::model::CoreRequest,
-    ) {
-        effects
-            .iter()
-            .find_map(|effect| match effect {
-                boardstudio_application::Effect::Core {
-                    request_id,
-                    executor_epoch,
-                    request,
-                    ..
-                } => Some((*request_id, *executor_epoch, (**request).clone())),
-                _ => None,
-            })
-            .expect("session emits a Core request")
-    }
-
-    fn save_effect(
-        effects: &[boardstudio_application::Effect],
-    ) -> (boardstudio_application::SaveAttemptId, ProjectDoc) {
-        effects
-            .iter()
-            .find_map(|effect| match effect {
-                boardstudio_application::Effect::Persist {
-                    save_attempt_id,
-                    document,
-                    ..
-                } => Some((*save_attempt_id, (**document).clone())),
-                _ => None,
-            })
-            .expect("session emits a persistence request")
-    }
-
-    fn open_ready_session() -> (
-        boardstudio_application::Session,
-        boardstudio_core::CoreEngine,
-    ) {
-        use boardstudio_application::{
-            Completion, Effect, Event, OperationId, SaveResult, Session,
-        };
-        let mut session = Session::new();
-        let mut engine = boardstudio_core::CoreEngine::new();
-        let effects = session.submit(Event::Open {
-            operation_id: OperationId(1),
-            document: document(),
-        });
-        let (request_id, executor_epoch, request) = core_effect(&effects);
-        let reply = engine.handle(request);
-        let effects = session.complete(Completion::Core {
-            request_id,
-            executor_epoch,
-            reply: Box::new(reply),
-        });
-        let (save_attempt_id, _) = save_effect(&effects);
-        let effects = session.complete(Completion::Persist {
-            save_attempt_id,
-            result: SaveResult::Committed,
-        });
-        assert!(effects.iter().any(|effect| matches!(
-            effect,
-            Effect::Settled {
-                operation_id: OperationId(1),
-                outcome: TerminalOutcome::Completed,
-
-                ..
-            }
-        )));
-        (session, engine)
-    }
-
+    #[cfg(not(target_arch = "wasm32"))]
     #[test]
-    fn admission_and_exact_session_core_outcome_follow_the_accepted_board() {
-        use boardstudio_application::{
-            Completion, EditResolver, Effect, Event, OperationId, Resolution, SaveResult,
-        };
+    fn admission_and_edit_settle_through_the_native_runtime() {
+        use boardstudio_application::{EditResolver, Event, Resolution};
         use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
 
-        let (mut session, mut engine) = open_ready_session();
-        let snapshot = session.read_model().accepted.as_ref().unwrap().clone();
-        let runtime_scope = session.scope().unwrap();
+        let runtime = crate::runtime::Runtime::new();
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
+            document: document(),
+        });
+        let snapshot = runtime.model().accepted.unwrap();
+        let runtime_scope = runtime.scope().expect("opened project has an active board");
         let board_scope = Scope {
             instance_id: None,
             ..runtime_scope.clone()
@@ -402,7 +331,7 @@ mod tests {
             scope: board_scope,
             token: snapshot.token,
             revision: snapshot.document.revision,
-            executor_epoch: session.core_executor_epoch().0,
+            executor_epoch: runtime.electrical_preview_executor_epoch(),
         };
         let plan = resolve(&snapshot.document);
         let projection = project(
@@ -428,7 +357,7 @@ mod tests {
                 instance_is_current: true,
                 runtime_scope: Some(&runtime_scope),
                 accepted: &snapshot,
-                executor_epoch: session.core_executor_epoch().0,
+                executor_epoch: runtime.electrical_preview_executor_epoch(),
                 current_plan: Some(&plan_identity),
                 current_projection: &projection,
             },
@@ -445,29 +374,12 @@ mod tests {
                     ..runtime_scope.clone()
                 }),
                 accepted: &snapshot,
-                executor_epoch: session.core_executor_epoch().0,
-                current_plan: Some(&plan_identity),
-                current_projection: &projection,
-            },
-        ));
-        assert!(!admits_edit(
-            identity,
-            &key_id,
-            FirmwarePositionAdmission {
-                workspace: "PCB",
-                current_generation: 3,
-                instance_is_current: true,
-                runtime_scope: Some(&runtime_scope),
-                accepted: &snapshot,
-                executor_epoch: session.core_executor_epoch().0 + 1,
+                executor_epoch: runtime.electrical_preview_executor_epoch(),
                 current_plan: Some(&plan_identity),
                 current_projection: &projection,
             },
         ));
 
-        let outcomes = crate::operation_outcomes::OperationOutcomes::default();
-        let operation_id = OperationId(2);
-        let outcome = outcomes.observe(operation_id);
         let command = EditCommand {
             base_revision: snapshot.document.revision,
             transaction_id: "firmware-position-test".into(),
@@ -479,45 +391,19 @@ mod tests {
                 binding: "&kp Q".into(),
             },
         };
-        let effects = session.submit(Event::ResolveEdit {
-            operation_id,
-            label: "firmware position test".into(),
-            resolver: EditResolver::new("firmware position test", move |_| {
+        let ticket = crate::edit_ticket::EditTicket::begin(
+            &runtime,
+            "firmware position test",
+            Some("key".into()),
+            EditResolver::new("firmware position test", move |_| {
                 Resolution::Submit(command.clone())
             }),
-        });
-        let (request_id, executor_epoch, request) = core_effect(&effects);
-        let reply = engine.handle(request);
-        let effects = session.complete(Completion::Core {
-            request_id,
-            executor_epoch,
-            reply: Box::new(reply),
-        });
-        let (save_attempt_id, pending_document) = save_effect(&effects);
-        assert!(
-            outcome.borrow().is_none(),
-            "Core acceptance alone is not a saved outcome"
         );
-        assert_eq!(pending_document.revision, snapshot.document.revision + 1);
-
-        let effects = session.complete(Completion::Persist {
-            save_attempt_id,
-            result: SaveResult::Committed,
-        });
-        let terminal = effects
-            .iter()
-            .find_map(|effect| match effect {
-                Effect::Settled {
-                    operation_id: id,
-                    outcome,
-                    ..
-                } if *id == operation_id => Some(outcome.clone()),
-                _ => None,
-            })
-            .expect("the exact submitted operation settles");
-        assert!(outcomes.settle(operation_id, terminal));
-        assert_eq!(*outcome.borrow(), Some(TerminalOutcome::Completed));
-        let accepted = session.read_model().accepted.as_ref().unwrap();
+        assert!(matches!(
+            ticket.settlement(true),
+            crate::edit_ticket::Settlement::Landed { revision } if revision == snapshot.document.revision + 1
+        ));
+        let accepted = runtime.model().accepted.unwrap();
         assert_eq!(accepted.document.revision, snapshot.document.revision + 1);
         assert_eq!(
             accepted

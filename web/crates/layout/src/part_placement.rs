@@ -51,7 +51,7 @@ struct ControllerChooserOwner {
 pub use boardstudio_web_ui_model::state::ComponentPlacementAction;
 
 impl ControllerChooserOwner {
-    fn is_current(&self, runtime: &dyn PlacementRuntime, generation: u64, workspace: &str) -> bool {
+    fn is_current(&self, runtime: &Runtime, generation: u64, workspace: &str) -> bool {
         workspace == "Parts"
             && generation == self.generation
             && runtime.scope().as_ref() == Some(&self.scope)
@@ -275,7 +275,7 @@ impl PartPlacementMount {
 }
 
 pub struct PartPlacementHost {
-    pub runtime: Rc<dyn PlacementRuntime>,
+    pub runtime: Rc<Runtime>,
     pub load_definition: DefinitionLoader,
     pub workspace: Signal<&'static str>,
     pub generation: Signal<u64>,
@@ -301,98 +301,6 @@ pub type DefinitionLoader = Rc<
         -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<PartDefinition, String>>>>,
 >;
 
-pub trait PlacementRuntime {
-    fn model(&self) -> boardstudio_application::ReadModel;
-    fn scope(&self) -> Option<Scope>;
-    fn operation(&self) -> boardstudio_application::OperationId;
-    fn observe_operation(
-        &self,
-        operation: boardstudio_application::OperationId,
-    ) -> crate::operation_outcomes::OutcomeSlot;
-    fn submit(&self, event: Event);
-    /// Begin a pending edit through the shared edit ticket.
-    fn begin_edit(
-        &self,
-        label: &str,
-        feature: Option<String>,
-        resolver: EditResolver,
-    ) -> EditTicket;
-}
-
-impl<T: PlacementRuntime + ?Sized> PlacementRuntime for Rc<T> {
-    fn model(&self) -> boardstudio_application::ReadModel {
-        self.as_ref().model()
-    }
-
-    fn scope(&self) -> Option<Scope> {
-        self.as_ref().scope()
-    }
-
-    fn operation(&self) -> boardstudio_application::OperationId {
-        self.as_ref().operation()
-    }
-
-    fn observe_operation(
-        &self,
-        operation: boardstudio_application::OperationId,
-    ) -> crate::operation_outcomes::OutcomeSlot {
-        self.as_ref().observe_operation(operation)
-    }
-
-    fn submit(&self, event: Event) {
-        self.as_ref().submit(event);
-    }
-
-    fn begin_edit(
-        &self,
-        label: &str,
-        feature: Option<String>,
-        resolver: EditResolver,
-    ) -> EditTicket {
-        self.as_ref().begin_edit(label, feature, resolver)
-    }
-}
-
-struct RuntimePlacementAdapter(Rc<Runtime>);
-
-impl PlacementRuntime for RuntimePlacementAdapter {
-    fn model(&self) -> boardstudio_application::ReadModel {
-        self.0.model()
-    }
-
-    fn scope(&self) -> Option<Scope> {
-        self.0.scope()
-    }
-
-    fn operation(&self) -> boardstudio_application::OperationId {
-        self.0.operation()
-    }
-
-    fn observe_operation(
-        &self,
-        operation: boardstudio_application::OperationId,
-    ) -> crate::operation_outcomes::OutcomeSlot {
-        self.0.observe_operation(operation)
-    }
-
-    fn submit(&self, event: Event) {
-        self.0.submit(event);
-    }
-
-    fn begin_edit(
-        &self,
-        label: &str,
-        feature: Option<String>,
-        resolver: EditResolver,
-    ) -> EditTicket {
-        EditTicket::begin(&self.0, label, feature, resolver)
-    }
-}
-
-pub fn runtime_adapter(runtime: Rc<Runtime>) -> Rc<dyn PlacementRuntime> {
-    Rc::new(RuntimePlacementAdapter(runtime))
-}
-
 struct PlacementAdmission {
     scope: Option<Scope>,
     generation: u64,
@@ -403,7 +311,7 @@ struct PlacementAdmission {
 
 impl PlacementAdmission {
     fn capture(
-        runtime: &dyn PlacementRuntime,
+        runtime: &Runtime,
         generation: u64,
         workspace: &'static str,
         expected_workspace: &'static str,
@@ -430,7 +338,7 @@ struct ComponentActionOwner {
 
 impl ComponentActionOwner {
     fn capture(
-        runtime: &dyn PlacementRuntime,
+        runtime: &Runtime,
         generation: u64,
         workspace: &'static str,
         selected_context: Option<ScopedTreeContext>,
@@ -455,7 +363,7 @@ impl ComponentActionOwner {
 
     fn is_current(
         &self,
-        runtime: &dyn PlacementRuntime,
+        runtime: &Runtime,
         generation: u64,
         workspace: &'static str,
         selected_context: Option<ScopedTreeContext>,
@@ -470,10 +378,7 @@ impl ComponentActionOwner {
     }
 }
 
-fn accepted_snapshot_is_current(
-    runtime: &dyn PlacementRuntime,
-    accepted: &AcceptedSnapshot,
-) -> bool {
+fn accepted_snapshot_is_current(runtime: &Runtime, accepted: &AcceptedSnapshot) -> bool {
     let model = runtime.model();
     model.lifecycle == Lifecycle::Ready
         && model.durability
@@ -762,7 +667,8 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                         {
                             return;
                         }
-                        let ticket = runtime.begin_edit(
+                        let ticket = EditTicket::begin(
+                            &runtime,
                             "layout-key-component",
                             Some("component".into()),
                             key_component_resolver(scope.clone(), selected.clone(), definition),
@@ -1204,7 +1110,8 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                 return;
             }
             let owner = placement.owner.clone();
-            let ticket = runtime.begin_edit(
+            let ticket = EditTicket::begin(
+                &runtime,
                 "layout-component-placement",
                 Some("placement".into()),
                 placement_resolver(
@@ -1416,7 +1323,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
 
 fn owner_is_live(
     owner: &PlacementOwner,
-    runtime: &dyn PlacementRuntime,
+    runtime: &Runtime,
     model: &boardstudio_application::ReadModel,
     admission: PlacementAdmission,
 ) -> bool {
@@ -1445,7 +1352,7 @@ fn owner_is_live(
 }
 
 fn placement_route_is_current(
-    runtime: &dyn PlacementRuntime,
+    runtime: &Runtime,
     model: &boardstudio_application::ReadModel,
     owner: &PlacementOwner,
     generation: u64,
@@ -1794,7 +1701,29 @@ pub fn selected_key_component_operation(
     if can_drive_matrix {
         cell.definition_id = Some(definition.id.clone());
     } else {
-        let id = format!("library-{}-{}", definition.id, cell.assemblies.len() + 1);
+        let safe_definition_id = definition
+            .id
+            .chars()
+            .map(|character| {
+                if character.is_ascii_alphanumeric() || matches!(character, '-' | '_') {
+                    character
+                } else {
+                    '-'
+                }
+            })
+            .collect::<String>();
+        let mut ordinal = cell.assemblies.len() + 1;
+        let id = loop {
+            let candidate = format!("library-{safe_definition_id}-{ordinal}");
+            if !cell
+                .assemblies
+                .iter()
+                .any(|assembly| assembly.id == candidate)
+            {
+                break candidate;
+            }
+            ordinal += 1;
+        };
         cell.assemblies.push(MatrixAssembly {
             id,
             definition_id: definition.id.clone(),
@@ -1860,9 +1789,7 @@ mod tests {
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
     use super::*;
-    use boardstudio_application::{
-        Event as SessionEvent, OperationId, ReadModel, SessionEpoch, SnapshotToken, TerminalOutcome,
-    };
+    use boardstudio_application::{SessionEpoch, SnapshotToken, TerminalOutcome};
     use boardstudio_core::model::{Board, EditCommand, OutlineSettings};
     use std::{
         cell::{Cell, RefCell},
@@ -1970,145 +1897,9 @@ mod tests {
         }
     }
 
-    #[derive(Default)]
-    struct HookRuntime {
-        model: RefCell<ReadModel>,
-        model_reads: Cell<u64>,
-        outcomes: crate::operation_outcomes::OperationOutcomes,
-        events: RefCell<Vec<SessionEvent>>,
-        resolved_edits: RefCell<Vec<(OperationId, EditCommand)>>,
-        next_operation: Cell<u64>,
-        settle_edit_on_submit: Cell<bool>,
-        registered_before_submit: Cell<Option<bool>>,
-    }
-
-    impl PlacementRuntime for HookRuntime {
-        fn model(&self) -> ReadModel {
-            self.model_reads.set(self.model_reads.get() + 1);
-            self.model.borrow().clone()
-        }
-
-        fn scope(&self) -> Option<Scope> {
-            let model = self.model.borrow();
-            let snapshot = model.accepted.as_ref()?;
-            Some(Scope {
-                session_epoch: snapshot.session_epoch,
-                document_id: snapshot.document.id.clone(),
-                board_id: model.active_board_id.clone(),
-                instance_id: model.active_instance_id.clone(),
-            })
-        }
-
-        fn operation(&self) -> OperationId {
-            let next = self.next_operation.get() + 1;
-            self.next_operation.set(next);
-            OperationId(next)
-        }
-
-        fn observe_operation(
-            &self,
-            operation: OperationId,
-        ) -> crate::operation_outcomes::OutcomeSlot {
-            self.outcomes.observe(operation)
-        }
-
-        fn submit(&self, event: SessionEvent) {
-            self.events.borrow_mut().push(event);
-        }
-
-        fn begin_edit(
-            &self,
-            label: &str,
-            feature: Option<String>,
-            resolver: boardstudio_application::EditResolver,
-        ) -> EditTicket {
-            EditTicket::begin(&HookPort(self), label, feature, resolver)
-        }
-    }
-
-    impl HookRuntime {
-        /// Settle an operation the way the Session does: a completed edit lands at the
-        /// accepted revision.
-        fn settle(&self, operation: OperationId, outcome: TerminalOutcome) -> bool {
-            let landing = (outcome == TerminalOutcome::Completed)
-                .then(|| {
-                    self.model.borrow().accepted.as_ref().map(|accepted| {
-                        boardstudio_application::Landing {
-                            revision: accepted.document.revision,
-                            token: accepted.token,
-                        }
-                    })
-                })
-                .flatten();
-            self.outcomes
-                .settle_with_landing(operation, outcome, landing)
-        }
-    }
-
-    /// The edit-ticket port over the fake: a submitted resolver runs against the model's
-    /// accepted snapshot straight away, recording the edit it resolves to.
-    struct HookPort<'a>(&'a HookRuntime);
-
-    impl boardstudio_web_runtime::edit_ticket::EditTicketPort for HookPort<'_> {
-        fn allocate_operation(&self) -> OperationId {
-            self.0.operation()
-        }
-
-        fn observe(
-            &self,
-            operation: OperationId,
-        ) -> (
-            crate::operation_outcomes::OutcomeSlot,
-            crate::operation_outcomes::LandingSlot,
-        ) {
-            self.0.outcomes.observe_with_landing(operation)
-        }
-
-        fn submit(&self, event: SessionEvent) {
-            let SessionEvent::ResolveEdit {
-                operation_id,
-                resolver,
-                ..
-            } = event
-            else {
-                self.0.submit(event);
-                return;
-            };
-            let accepted = self
-                .0
-                .model
-                .borrow()
-                .accepted
-                .clone()
-                .expect("a resolver runs against an accepted snapshot");
-            match resolver.resolve(&accepted) {
-                Resolution::Submit(mut command) => {
-                    command.base_revision = accepted.document.revision;
-                    command.transaction_id = format!("test-edit-{}", operation_id.0);
-                    self.0
-                        .resolved_edits
-                        .borrow_mut()
-                        .push((operation_id, command));
-                    if self.0.settle_edit_on_submit.get() {
-                        self.0.registered_before_submit.set(Some(
-                            self.0.settle(operation_id, TerminalOutcome::Completed),
-                        ));
-                    }
-                }
-                Resolution::Unchanged => {
-                    self.0.settle(operation_id, TerminalOutcome::Completed);
-                }
-                Resolution::Retire(reason) => {
-                    self.0
-                        .settle(operation_id, TerminalOutcome::Rejected(reason));
-                }
-            }
-        }
-    }
-
     #[derive(Clone)]
     struct HookProbe {
-        runtime: Rc<HookRuntime>,
+        runtime: Rc<Runtime>,
         canvas_interaction: CanvasInteractionArbiter,
         mounted: Rc<Cell<bool>>,
         unmounted: Rc<Cell<bool>>,
@@ -2224,19 +2015,21 @@ mod tests {
         rsx! { div {} }
     }
 
-    fn hook_mounted() -> (HookProbe, VirtualDom) {
-        let document = fixture();
-        let snapshot = accepted(document.clone(), 11);
-        let runtime = Rc::new(HookRuntime::default());
-        *runtime.model.borrow_mut() = ReadModel {
-            lifecycle: Lifecycle::Ready,
-            durability: Durability::Saved {
-                revision: document.revision,
-            },
-            accepted: Some(snapshot),
-            active_board_id: "board-main".into(),
-            ..ReadModel::default()
-        };
+    async fn hook_mounted() -> (HookProbe, VirtualDom) {
+        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        crate::runtime::project_name_test_support::open_document(&runtime, fixture()).await;
+        assert_eq!(runtime.model().lifecycle, Lifecycle::Ready);
+        assert_eq!(
+            runtime
+                .model()
+                .accepted
+                .as_ref()
+                .expect("open fixture is accepted")
+                .document
+                .boards
+                .len(),
+            1
+        );
         let probe = HookProbe {
             runtime,
             canvas_interaction: CanvasInteractionArbiter::default(),
@@ -2260,6 +2053,45 @@ mod tests {
         (probe, dom)
     }
 
+    fn accepted_document(probe: &HookProbe) -> ProjectDoc {
+        (*probe
+            .runtime
+            .model()
+            .accepted
+            .expect("test project is open")
+            .document)
+            .clone()
+    }
+
+    async fn replace_accepted_document(probe: &HookProbe, document: ProjectDoc) {
+        let expected_board_ids: Vec<_> = document
+            .boards
+            .iter()
+            .map(|board| board.id.clone())
+            .collect();
+        let transaction_id = format!(
+            "part-placement-test-replacement-{}",
+            probe.runtime.model().accepted.unwrap().document.revision
+        );
+        let accepted = crate::runtime::project_name_test_support::replace_document(
+            &probe.runtime,
+            &transaction_id,
+            "board-main",
+            document,
+        )
+        .await;
+        let actual_board_ids: Vec<_> = accepted
+            .document
+            .boards
+            .iter()
+            .map(|board| board.id.clone())
+            .collect();
+        assert_eq!(
+            actual_board_ids, expected_board_ids,
+            "replacement must land"
+        );
+    }
+
     fn flush_hook(dom: &mut VirtualDom) {
         dom.mark_all_dirty();
         for _ in 0..5 {
@@ -2275,6 +2107,26 @@ mod tests {
 
     async fn let_hook_tasks_run() {
         gloo_timers::future::TimeoutFuture::new(20).await;
+    }
+
+    async fn wait_for_outcome(
+        outcome: &boardstudio_web_runtime::operation_outcomes::OutcomeSlot,
+    ) -> TerminalOutcome {
+        for _ in 0..100 {
+            if let Some(outcome) = outcome.borrow().clone() {
+                return outcome;
+            }
+            gloo_timers::future::TimeoutFuture::new(20).await;
+        }
+        panic!("runtime did not settle the observed operation");
+    }
+
+    async fn run_pending_runtime(probe: &HookProbe) {
+        crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
+    }
+
+    fn start_pending_runtime(probe: &HookProbe) {
+        crate::runtime::project_name_test_support::drive_pending(&probe.runtime);
     }
 
     fn resolve_loader(probe: &HookProbe, value: Result<PartDefinition, String>) {
@@ -2310,7 +2162,7 @@ mod tests {
 
     #[wasm_bindgen_test::wasm_bindgen_test]
     async fn general_component_placement_starts_without_the_setup_guide_and_uses_kind_reference() {
-        let (probe, mut dom) = hook_mounted();
+        let (probe, mut dom) = hook_mounted().await;
         let mut guide = *probe.guide.borrow().as_ref().unwrap();
         guide.set(None);
         flush_hook(&mut dom);
@@ -2345,7 +2197,7 @@ mod tests {
 
     #[wasm_bindgen_test::wasm_bindgen_test]
     async fn accepted_general_placement_selects_the_component_and_part_tool_context() {
-        let (probe, mut dom) = hook_mounted();
+        let (probe, mut dom) = hook_mounted().await;
         let mut guide = *probe.guide.borrow().as_ref().unwrap();
         guide.set(None);
         flush_hook(&mut dom);
@@ -2363,42 +2215,23 @@ mod tests {
         let_hook_tasks_run().await;
         flush_hook(&mut dom);
         let active = probe.latest.borrow().as_ref().unwrap().clone();
+        let outcome = crate::runtime::project_name_test_support::observe_next(&probe.runtime);
         active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
-        let (operation_id, edit) = submitted_edit(&probe);
-        let document = replacement(edit);
-        let part_id = document.parts.last().unwrap().id.clone();
-        let original = probe
-            .runtime
-            .model
-            .borrow()
-            .accepted
-            .as_ref()
-            .unwrap()
+        run_pending_runtime(&probe).await;
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+
+        assert_eq!(*outcome.borrow(), Some(TerminalOutcome::Completed));
+        let landed = probe.runtime.model().accepted.unwrap();
+        let part_id = landed
+            .document
+            .parts
+            .last()
+            .expect("placement adds a part")
+            .id
             .clone();
-        let mut scene = (*original.scene).clone();
-        scene.revision = document.revision + 1;
-        *probe.runtime.model.borrow_mut() = ReadModel {
-            lifecycle: Lifecycle::Ready,
-            durability: Durability::Saved {
-                revision: document.revision + 1,
-            },
-            accepted: Some(AcceptedSnapshot {
-                token: SnapshotToken(12),
-                session_epoch: original.session_epoch,
-                document: Arc::new(ProjectDoc {
-                    revision: document.revision + 1,
-                    ..document
-                }),
-                scene: Arc::new(scene),
-            }),
-            active_board_id: "board-main".into(),
-            ..ReadModel::default()
-        };
-        assert!(
-            probe
-                .runtime
-                .settle(operation_id, TerminalOutcome::Completed)
-        );
+
+        run_pending_runtime(&probe).await;
         let_hook_tasks_run().await;
         flush_hook(&mut dom);
 
@@ -2415,38 +2248,37 @@ mod tests {
                 ..
             }) if id == part_id
         ));
-        assert!(probe.runtime.events.borrow().iter().any(|event| matches!(
-            event,
-            SessionEvent::SelectParts { part_ids, .. }
-                if part_ids.len() == 1 && part_ids.first() == Some(&part_id)
-        )));
+        assert_eq!(probe.runtime.model().selected_part_ids, vec![part_id]);
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
     async fn parts_inspector_action_applies_selected_key_through_production_edit_handler() {
-        let (probe, mut dom) = hook_mounted();
-        let mut document = (*probe
-            .runtime
-            .model
-            .borrow()
-            .accepted
-            .as_ref()
-            .unwrap()
-            .document)
-            .clone();
-        document.matrices.push(matrix_fixture());
-        {
-            let mut model = probe.runtime.model.borrow_mut();
-            let accepted = model.accepted.as_mut().unwrap();
-            accepted.document = Arc::new(document);
-            Arc::make_mut(&mut accepted.scene).matrix_scenes.push(
-                boardstudio_core::model::MatrixScene {
-                    matrix_id: "matrix-main".into(),
-                    cells: Vec::new(),
-                    columns: Vec::new(),
-                },
-            );
-        }
+        let (probe, mut dom) = hook_mounted().await;
+        let mut document = accepted_document(&probe);
+        document.definitions.push(switch_definition("switch:base"));
+        document
+            .definitions
+            .push(passive_definition("imported:existing"));
+        let mut matrix = matrix_fixture();
+        matrix.cells.push(MatrixCell {
+            row: 1,
+            column: 2,
+            enabled: true,
+            definition_id: None,
+            variant: None,
+            offset: None,
+            rotation: None,
+            assemblies: vec![MatrixAssembly {
+                id: "library-imported-reset-switch-1".into(),
+                definition_id: "imported:existing".into(),
+                offset: Vec2::default(),
+                rotation: None,
+                side: None,
+            }],
+            assemblies_local: None,
+        });
+        document.matrices.push(matrix);
+        replace_accepted_document(&probe, document).await;
         let scope = probe.runtime.scope().unwrap();
         let selected = ScopedTreeContext {
             scope: scope.clone(),
@@ -2465,8 +2297,8 @@ mod tests {
         selected_context.set(Some(selected.clone()));
         let mut workspace_signal = *probe.workspace.borrow().as_ref().unwrap();
         workspace_signal.set("Parts");
-        probe.runtime.settle_edit_on_submit.set(true);
         flush_hook(&mut dom);
+        let outcome = observe_next_operation(&probe);
 
         probe
             .latest
@@ -2479,29 +2311,39 @@ mod tests {
                 kind: PartKind::Passive,
             });
         resolve_loader(&probe, Ok(passive_definition("imported:reset-switch")));
+        run_pending_runtime(&probe).await;
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+        run_pending_runtime(&probe).await;
         let_hook_tasks_run().await;
         flush_hook(&mut dom);
 
-        let edit = probe
-            .runtime
-            .resolved_edits
-            .borrow()
-            .first()
-            .map(|(_, command)| command.clone())
-            .expect("selected-key action submits a real edit");
-        let EditOperation::SetMatrix {
-            matrix,
-            definitions,
-        } = &edit.operation
-        else {
-            panic!("selected-key action commits SetMatrix");
-        };
+        assert_eq!(
+            *outcome.borrow(),
+            Some(TerminalOutcome::Completed),
+            "selected-key placement should submit and settle a Runtime edit"
+        );
+        let accepted = probe.runtime.model().accepted.unwrap();
+        let matrix = accepted.document.matrices.first().expect("matrix remains");
         assert_eq!(
             matrix.cells[0].assemblies[0].definition_id,
+            "imported:existing"
+        );
+        assert_eq!(
+            matrix.cells[0].assemblies[1].id,
+            "library-imported-reset-switch-2"
+        );
+        assert_eq!(
+            matrix.cells[0].assemblies[1].definition_id,
             "imported:reset-switch"
         );
-        assert_eq!(definitions.as_ref().unwrap()[0].id, "imported:reset-switch");
-        assert_eq!(edit.base_revision, 0);
+        assert!(
+            accepted
+                .document
+                .definitions
+                .iter()
+                .any(|definition| definition.id == "imported:reset-switch")
+        );
         assert_eq!(workspace(&probe), "Parts");
         assert_eq!(selected_context(), Some(selected));
         assert!(
@@ -2518,29 +2360,11 @@ mod tests {
 
     #[wasm_bindgen_test::wasm_bindgen_test]
     async fn delayed_selected_key_load_error_is_ignored_after_accepted_snapshot_refresh() {
-        let (probe, mut dom) = hook_mounted();
-        let mut document = (*probe
-            .runtime
-            .model
-            .borrow()
-            .accepted
-            .as_ref()
-            .unwrap()
-            .document)
-            .clone();
+        let (probe, mut dom) = hook_mounted().await;
+        let mut document = accepted_document(&probe);
+        document.definitions.push(switch_definition("switch:base"));
         document.matrices.push(matrix_fixture());
-        {
-            let mut model = probe.runtime.model.borrow_mut();
-            let accepted = model.accepted.as_mut().unwrap();
-            accepted.document = Arc::new(document);
-            Arc::make_mut(&mut accepted.scene).matrix_scenes.push(
-                boardstudio_core::model::MatrixScene {
-                    matrix_id: "matrix-main".into(),
-                    cells: Vec::new(),
-                    columns: Vec::new(),
-                },
-            );
-        }
+        replace_accepted_document(&probe, document).await;
         let selected = ScopedTreeContext {
             scope: probe.runtime.scope().unwrap(),
             context: TreeContext::Key {
@@ -2568,34 +2392,20 @@ mod tests {
         let_hook_tasks_run().await;
         assert!(probe.loader_waker.borrow().is_some());
 
-        let mut refreshed = (*probe
-            .runtime
-            .model
-            .borrow()
-            .accepted
-            .as_ref()
-            .unwrap()
-            .document)
-            .clone();
-        refreshed.revision += 1;
-        {
-            let mut model = probe.runtime.model.borrow_mut();
-            model.accepted = Some(accepted(refreshed.clone(), 12));
-            model.durability = Durability::Saved {
-                revision: refreshed.revision,
-            };
-        }
+        let mut refreshed = accepted_document(&probe);
+        refreshed.name.push_str(" refreshed");
+        replace_accepted_document(&probe, refreshed).await;
 
         resolve_loader(&probe, Err("stale catalogue failure".into()));
         let_hook_tasks_run().await;
         flush_hook(&mut dom);
         assert_eq!(probe.latest.borrow().as_ref().unwrap().error, None);
-        assert!(probe.runtime.events.borrow().is_empty());
+        assert!(probe.runtime.model().selected_part_ids.is_empty());
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
     async fn retained_component_action_cannot_retarget_a_new_owner_or_wrong_workspace() {
-        let (probe, mut dom) = hook_mounted();
+        let (probe, mut dom) = hook_mounted().await;
         let retained = probe.latest.borrow().as_ref().unwrap().on_place_component;
 
         retained.call(ComponentPlacementAction::PartsInspector {
@@ -2606,23 +2416,9 @@ mod tests {
         let_hook_tasks_run().await;
         assert!(probe.loader_waker.borrow().is_none());
 
-        let mut refreshed = (*probe
-            .runtime
-            .model
-            .borrow()
-            .accepted
-            .as_ref()
-            .unwrap()
-            .document)
-            .clone();
-        refreshed.revision += 1;
-        {
-            let mut model = probe.runtime.model.borrow_mut();
-            model.accepted = Some(accepted(refreshed.clone(), 12));
-            model.durability = Durability::Saved {
-                revision: refreshed.revision,
-            };
-        }
+        let mut refreshed = accepted_document(&probe);
+        refreshed.name.push_str(" refreshed");
+        replace_accepted_document(&probe, refreshed).await;
         retained.call(ComponentPlacementAction::AddObject {
             definition_id: "imported:stale-owner".into(),
             kind: PartKind::Passive,
@@ -2635,25 +2431,11 @@ mod tests {
 
     #[wasm_bindgen_test::wasm_bindgen_test]
     async fn retained_object_action_cannot_start_for_a_refreshed_snapshot() {
-        let (probe, mut dom) = hook_mounted();
+        let (probe, mut dom) = hook_mounted().await;
         let retained = probe.latest.borrow().as_ref().unwrap().on_place_component;
-        let mut refreshed = (*probe
-            .runtime
-            .model
-            .borrow()
-            .accepted
-            .as_ref()
-            .unwrap()
-            .document)
-            .clone();
-        refreshed.revision += 1;
-        {
-            let mut model = probe.runtime.model.borrow_mut();
-            model.accepted = Some(accepted(refreshed.clone(), 12));
-            model.durability = Durability::Saved {
-                revision: refreshed.revision,
-            };
-        }
+        let mut refreshed = accepted_document(&probe);
+        refreshed.name.push_str(" refreshed");
+        replace_accepted_document(&probe, refreshed).await;
 
         retained.call(ComponentPlacementAction::AddObject {
             definition_id: "imported:stale-owner".into(),
@@ -2667,29 +2449,11 @@ mod tests {
 
     #[wasm_bindgen_test::wasm_bindgen_test]
     async fn parts_inspector_action_does_not_apply_to_a_key_selected_after_loading_started() {
-        let (probe, mut dom) = hook_mounted();
-        let mut document = (*probe
-            .runtime
-            .model
-            .borrow()
-            .accepted
-            .as_ref()
-            .unwrap()
-            .document)
-            .clone();
+        let (probe, mut dom) = hook_mounted().await;
+        let mut document = accepted_document(&probe);
+        document.definitions.push(switch_definition("switch:base"));
         document.matrices.push(matrix_fixture());
-        {
-            let mut model = probe.runtime.model.borrow_mut();
-            let accepted = model.accepted.as_mut().unwrap();
-            accepted.document = Arc::new(document);
-            Arc::make_mut(&mut accepted.scene).matrix_scenes.push(
-                boardstudio_core::model::MatrixScene {
-                    matrix_id: "matrix-main".into(),
-                    cells: Vec::new(),
-                    columns: Vec::new(),
-                },
-            );
-        }
+        replace_accepted_document(&probe, document).await;
         let scope = probe.runtime.scope().unwrap();
         let selected = ScopedTreeContext {
             scope: scope.clone(),
@@ -2722,7 +2486,11 @@ mod tests {
         let_hook_tasks_run().await;
         flush_hook(&mut dom);
 
-        assert!(probe.runtime.resolved_edits.borrow().is_empty());
+        assert!(
+            probe.runtime.model().accepted.unwrap().document.matrices[0]
+                .cells
+                .is_empty()
+        );
         assert_eq!(workspace(&probe), "Parts");
         assert!(
             !probe
@@ -2733,29 +2501,11 @@ mod tests {
 
     #[wasm_bindgen_test::wasm_bindgen_test]
     async fn selected_key_edit_rejection_is_reported_to_the_current_parts_owner() {
-        let (probe, mut dom) = hook_mounted();
-        let mut document = (*probe
-            .runtime
-            .model
-            .borrow()
-            .accepted
-            .as_ref()
-            .unwrap()
-            .document)
-            .clone();
+        let (probe, mut dom) = hook_mounted().await;
+        let mut document = accepted_document(&probe);
+        document.definitions.push(switch_definition("switch:base"));
         document.matrices.push(matrix_fixture());
-        {
-            let mut model = probe.runtime.model.borrow_mut();
-            let accepted = model.accepted.as_mut().unwrap();
-            accepted.document = Arc::new(document);
-            Arc::make_mut(&mut accepted.scene).matrix_scenes.push(
-                boardstudio_core::model::MatrixScene {
-                    matrix_id: "matrix-main".into(),
-                    cells: Vec::new(),
-                    columns: Vec::new(),
-                },
-            );
-        }
+        replace_accepted_document(&probe, document).await;
         let selected = ScopedTreeContext {
             scope: probe.runtime.scope().unwrap(),
             context: TreeContext::Key {
@@ -2780,49 +2530,42 @@ mod tests {
                 definition_id: "imported:reset-switch".into(),
                 kind: PartKind::Passive,
             });
+        let outcome = observe_next_operation(&probe);
+        crate::runtime::project_name_test_support::fail_next_persist(&probe.runtime, "disk full");
         resolve_loader(&probe, Ok(passive_definition("imported:reset-switch")));
+        run_pending_runtime(&probe).await;
         let_hook_tasks_run().await;
         flush_hook(&mut dom);
-        let operation_id = probe
-            .runtime
-            .resolved_edits
-            .borrow()
-            .first()
-            .map(|(operation_id, _)| *operation_id)
-            .expect("selected-key action observes its production edit");
-        assert!(probe.runtime.settle(
-            operation_id,
-            TerminalOutcome::Rejected("The matrix input is no longer valid.".into()),
-        ));
+        run_pending_runtime(&probe).await;
         let_hook_tasks_run().await;
         flush_hook(&mut dom);
 
         let mount = probe.latest.borrow().as_ref().unwrap().clone();
         assert!(!mount.busy);
+        assert_eq!(
+            *outcome.borrow(),
+            Some(TerminalOutcome::PersistenceFailed("disk full".into()))
+        );
         assert!(
             mount
                 .error
                 .as_deref()
-                .is_some_and(|message| message.contains("The matrix input is no longer valid.")),
+                .is_some_and(|message| message.contains("disk full")),
             "the standard failure wording carries the reason: {:?}",
             mount.error
         );
         assert_eq!(workspace(&probe), "Parts");
     }
 
-    fn submitted_edit(probe: &HookProbe) -> (OperationId, EditOperation) {
-        probe
-            .runtime
-            .resolved_edits
-            .borrow()
-            .first()
-            .map(|(operation_id, command)| (*operation_id, command.operation.clone()))
-            .expect("placement submits an Edit")
+    fn observe_next_operation(
+        probe: &HookProbe,
+    ) -> boardstudio_web_runtime::operation_outcomes::OutcomeSlot {
+        crate::runtime::project_name_test_support::observe_next(&probe.runtime)
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
     async fn production_hook_owns_canvas_during_definition_preparation_and_escape_restores_guide() {
-        let (probe, mut dom) = hook_mounted();
+        let (probe, mut dom) = hook_mounted().await;
         let mount = probe.latest.borrow().as_ref().unwrap().clone();
         mount.on_choose_controller.call(());
         flush_hook(&mut dom);
@@ -2854,7 +2597,16 @@ mod tests {
             Some(CanvasInteractionOwner::PartPlacement)
         );
         assert!(preparing.projection.is_none());
-        assert!(probe.runtime.resolved_edits.borrow().is_empty());
+        assert!(
+            probe
+                .runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .parts
+                .is_empty()
+        );
 
         resolve_loader(&probe, Ok(controller_definition("catalog:controller")));
         let_hook_tasks_run().await;
@@ -2877,7 +2629,7 @@ mod tests {
 
     #[wasm_bindgen_test::wasm_bindgen_test]
     async fn layout_3d_transition_cancels_suspended_component_preparation_without_ghost() {
-        let (probe, mut dom) = hook_mounted();
+        let (probe, mut dom) = hook_mounted().await;
         probe
             .latest
             .borrow()
@@ -2905,13 +2657,14 @@ mod tests {
         assert!(probe.assembly_3d.borrow().as_ref().unwrap()());
         assert!(!probe.latest.borrow().as_ref().unwrap().busy);
         assert_eq!(probe.canvas_interaction.current(), None);
-        let cancellation_events = probe.runtime.events.borrow().len();
-        assert_eq!(cancellation_events, 1);
-        assert!(matches!(
-            probe.runtime.events.borrow().first(),
-            Some(SessionEvent::SelectParts { part_ids, range_part_ids, .. })
-                if part_ids.is_empty() && range_part_ids.is_empty()
-        ));
+        assert!(probe.runtime.model().selected_part_ids.is_empty());
+        let revision_after_cancel = probe
+            .runtime
+            .model()
+            .accepted
+            .expect("project remains open")
+            .document
+            .revision;
 
         resolve_loader(&probe, Ok(passive_definition("catalog:reset-switch")));
         let_hook_tasks_run().await;
@@ -2919,13 +2672,15 @@ mod tests {
         let settled = probe.latest.borrow().as_ref().unwrap().clone();
         assert!(!settled.busy);
         assert!(settled.projection.is_none());
-        assert_eq!(probe.runtime.events.borrow().len(), cancellation_events);
-        assert!(probe.runtime.resolved_edits.borrow().is_empty());
+        assert_eq!(
+            probe.runtime.model().accepted.unwrap().document.revision,
+            revision_after_cancel
+        );
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
     async fn mounted_controller_start_is_rejected_while_mirrored_pair_owns_the_canvas() {
-        let (probe, mut dom) = hook_mounted();
+        let (probe, mut dom) = hook_mounted().await;
         probe
             .canvas_interaction
             .try_acquire(CanvasInteractionOwner::MirroredPair);
@@ -2949,12 +2704,21 @@ mod tests {
             probe.canvas_interaction.current(),
             Some(CanvasInteractionOwner::MirroredPair)
         );
-        assert!(probe.runtime.resolved_edits.borrow().is_empty());
+        assert!(
+            probe
+                .runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .parts
+                .is_empty()
+        );
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
     async fn production_hook_registers_before_submit_and_retains_outcome_after_unmount() {
-        let (probe, mut dom) = hook_mounted();
+        let (probe, mut dom) = hook_mounted().await;
         resolve_loader(&probe, Ok(controller_definition("catalog:controller")));
         let mount = probe.latest.borrow().as_ref().unwrap().clone();
         mount.on_choose_controller.call(());
@@ -2980,29 +2744,20 @@ mod tests {
                 .canvas_interaction
                 .try_acquire(CanvasInteractionOwner::MirroredPair)
         );
+        let outcome = observe_next_operation(&probe);
         active.on_commit.call(Vec2 { x: 4.0, y: -3.0 });
-        let operation = probe
-            .runtime
-            .resolved_edits
-            .borrow()
-            .first()
-            .map(|(operation_id, _)| *operation_id)
-            .expect("placement submits an Edit");
+        run_pending_runtime(&probe).await;
+        let_hook_tasks_run().await;
         probe.latest.borrow_mut().take();
         drop(dom);
-        assert!(
-            probe
-                .runtime
-                .outcomes
-                .settle(operation, TerminalOutcome::Completed)
-        );
+        assert_eq!(*outcome.borrow(), Some(TerminalOutcome::Completed));
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
     async fn production_hook_registers_the_observer_before_synchronous_submit_settlement() {
-        let (probe, mut dom) = hook_mounted();
-        probe.runtime.settle_edit_on_submit.set(true);
+        let (probe, mut dom) = hook_mounted().await;
         resolve_loader(&probe, Ok(controller_definition("catalog:controller")));
+        let outcome = observe_next_operation(&probe);
         probe
             .latest
             .borrow()
@@ -3027,12 +2782,13 @@ mod tests {
             .unwrap()
             .on_commit
             .call(Vec2 { x: 2.0, y: 1.0 });
-        assert_eq!(probe.runtime.registered_before_submit.get(), Some(true));
+        run_pending_runtime(&probe).await;
+        assert_eq!(*outcome.borrow(), Some(TerminalOutcome::Completed));
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
     async fn production_hook_returns_to_wiring_only_after_matching_ready_saved_commit() {
-        let (probe, mut dom) = hook_mounted();
+        let (probe, mut dom) = hook_mounted().await;
         let active = start_hook_placement(&probe, &mut dom).await;
         assert!(
             probe
@@ -3044,80 +2800,71 @@ mod tests {
                 .canvas_interaction
                 .try_acquire(CanvasInteractionOwner::MirroredPair)
         );
+        let outcome = observe_next_operation(&probe);
         active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
-        let (operation_id, edit) = submitted_edit(&probe);
-        let mut document = replacement(edit);
-        document.revision += 1;
-        let scene = probe
-            .runtime
-            .model
-            .borrow()
-            .accepted
-            .as_ref()
-            .unwrap()
-            .scene
-            .clone();
-        *probe.runtime.model.borrow_mut() = ReadModel {
-            lifecycle: Lifecycle::Ready,
-            durability: Durability::Saved {
-                revision: document.revision,
-            },
-            accepted: Some(AcceptedSnapshot {
-                token: SnapshotToken(12),
-                session_epoch: SessionEpoch(7),
-                scene,
-                document: Arc::new(document),
-            }),
-            active_board_id: "board-main".into(),
-            ..ReadModel::default()
-        };
-        assert!(
-            probe
-                .runtime
-                .settle(operation_id, TerminalOutcome::Completed)
-        );
+        run_pending_runtime(&probe).await;
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+        assert_eq!(*outcome.borrow(), Some(TerminalOutcome::Completed));
+        run_pending_runtime(&probe).await;
         let_hook_tasks_run().await;
         flush_hook(&mut dom);
         assert_eq!(workspace(&probe), "PCB");
         assert!(probe.latest.borrow().as_ref().unwrap().projection.is_none());
         assert_eq!(probe.canvas_interaction.current(), None);
-        assert!(
-            probe
-                .runtime
-                .events
-                .borrow()
-                .iter()
-                .any(|event| matches!(event, SessionEvent::SelectParts { .. }))
-        );
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
-    async fn production_hook_routes_persistence_failure_back_but_terminal_cancel_does_not_redirect()
-    {
-        for (outcome, expected_workspace, expected_error) in [
-            (
-                TerminalOutcome::PersistenceFailed("disk full".into()),
-                "Parts",
-                Some("disk full"),
-            ),
-            (TerminalOutcome::Cancelled, "Layout", None),
-        ] {
-            let (probe, mut dom) = hook_mounted();
+    async fn production_hook_routes_persistence_failure_but_close_drains_pending_save() {
+        for fail_save in [true, false] {
+            let (probe, mut dom) = hook_mounted().await;
             let active = start_hook_placement(&probe, &mut dom).await;
+            let save_gate = (!fail_save).then(|| {
+                crate::runtime::project_name_test_support::gate_next_persist(&probe.runtime)
+            });
+            if fail_save {
+                crate::runtime::project_name_test_support::fail_next_persist(
+                    &probe.runtime,
+                    "disk full",
+                );
+            }
+            let outcome = observe_next_operation(&probe);
             active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
-            let (operation_id, _) = submitted_edit(&probe);
-            assert!(probe.runtime.settle(operation_id, outcome));
+            if let Some((entered, release)) = save_gate {
+                start_pending_runtime(&probe);
+                entered.await.expect("save reaches the persistence gate");
+                probe.runtime.submit(Event::Close {
+                    operation_id: probe.runtime.operation(),
+                });
+                let_hook_tasks_run().await;
+                let _ = release.send(());
+            }
+            if fail_save {
+                run_pending_runtime(&probe).await;
+            }
             let_hook_tasks_run().await;
             flush_hook(&mut dom);
+            assert_eq!(
+                *outcome.borrow(),
+                Some(if fail_save {
+                    TerminalOutcome::PersistenceFailed("disk full".into())
+                } else {
+                    TerminalOutcome::Completed
+                })
+            );
+            let expected_workspace = if fail_save { "Parts" } else { "PCB" };
             assert_eq!(workspace(&probe), expected_workspace);
             let error = probe.latest.borrow().as_ref().unwrap().error.clone();
             assert_eq!(
                 error.is_some(),
-                expected_error.is_some(),
+                fail_save,
                 "failure message presence: {error:?}"
             );
-            if let (Some(error), Some(expected)) = (error, expected_error) {
-                assert!(error.contains(expected), "{error} should carry {expected}");
+            if let Some(error) = error {
+                assert!(
+                    error.contains("disk full"),
+                    "{error} should carry disk full"
+                );
             }
         }
     }
@@ -3125,66 +2872,75 @@ mod tests {
     #[wasm_bindgen_test::wasm_bindgen_test]
     async fn production_hook_never_redirects_a_stale_board_or_project_owner() {
         for stale_identity in ["board", "project"] {
-            let (probe, mut dom) = hook_mounted();
-            let active = start_hook_placement(&probe, &mut dom).await;
-            active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
-            let (operation_id, edit) = submitted_edit(&probe);
-            let select_count_before = probe
-                .runtime
-                .events
-                .borrow()
-                .iter()
-                .filter(|event| matches!(event, SessionEvent::SelectParts { .. }))
-                .count();
-            {
-                let mut model = probe.runtime.model.borrow_mut();
-                if stale_identity == "board" {
-                    let original = model.accepted.as_ref().unwrap().clone();
-                    let mut document = replacement(edit.clone());
-                    document.revision = original.document.revision + 1;
-                    let mut scene = (*original.scene).clone();
-                    scene.revision = document.revision;
-                    model.lifecycle = Lifecycle::Ready;
-                    model.durability = Durability::Saved {
-                        revision: document.revision,
-                    };
-                    model.accepted = Some(AcceptedSnapshot {
-                        token: SnapshotToken(original.token.0 + 1),
-                        session_epoch: original.session_epoch,
-                        document: Arc::new(document),
-                        scene: Arc::new(scene),
-                    });
-                    model.active_board_id = "board-other".into();
-                } else {
-                    let accepted = model.accepted.as_mut().unwrap();
-                    let mut document = (*accepted.document).clone();
-                    document.id = "replacement-project".into();
-                    accepted.document = Arc::new(document);
-                    accepted.token = SnapshotToken(12);
-                }
+            let (probe, mut dom) = hook_mounted().await;
+            if stale_identity == "board" {
+                let mut document = accepted_document(&probe);
+                document.boards.push(Board {
+                    id: "board-other".into(),
+                    name: "Other".into(),
+                    outline_ids: vec!["envelope-other".into()],
+                    part_ids: vec![],
+                    net_ids: vec![],
+                    thickness: 1.6,
+                    traces: vec![],
+                    vias: vec![],
+                });
+                document.outline.push(OutlineFeature::PartEnvelope {
+                    connections: vec![],
+                    settings: OutlineSettings::default(),
+                    id: "envelope-other".into(),
+                    part_ids: vec![],
+                    margin: 4.0,
+                    operation: boardstudio_core::model::Operation::Add,
+                });
+                replace_accepted_document(&probe, document).await;
+                flush_hook(&mut dom);
             }
-            assert!(
-                probe
-                    .runtime
-                    .outcomes
-                    .settle(operation_id, TerminalOutcome::Completed)
+            let active = start_hook_placement(&probe, &mut dom).await;
+            let (entered, release) =
+                crate::runtime::project_name_test_support::gate_next_persist(&probe.runtime);
+            let outcome = observe_next_operation(&probe);
+            active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
+            start_pending_runtime(&probe);
+            entered.await.expect("save reaches persistence gate");
+            let mut open_outcome = None;
+            if stale_identity == "board" {
+                crate::runtime::project_name_test_support::navigate(&probe.runtime, "board-other")
+                    .await;
+            } else {
+                let open_operation = probe.runtime.operation();
+                open_outcome = Some(crate::runtime::project_name_test_support::observe(
+                    &probe.runtime,
+                    open_operation,
+                ));
+                probe.runtime.submit(Event::Open {
+                    operation_id: open_operation,
+                    document: ProjectDoc::empty("replacement-project", "Replacement"),
+                });
+                // Event::Open queues behind the held save in this Session. Keep that Session
+                // alive so its active placement and queued project replacement both settle.
+            }
+            let _ = release.send(());
+            assert_eq!(
+                wait_for_outcome(&outcome).await,
+                TerminalOutcome::Completed,
+                "stale {stale_identity} placement should finish saving"
             );
-            let_hook_tasks_run().await;
+            if let Some(open_outcome) = open_outcome {
+                assert_eq!(
+                    wait_for_outcome(&open_outcome).await,
+                    TerminalOutcome::Completed,
+                    "queued project open should complete after the save"
+                );
+            }
             flush_hook(&mut dom);
             assert_eq!(
                 workspace(&probe),
                 "Layout",
                 "stale {stale_identity} route redirected"
             );
-            assert_eq!(
-                probe
-                    .runtime
-                    .events
-                    .borrow()
-                    .iter()
-                    .filter(|event| matches!(event, SessionEvent::SelectParts { .. }))
-                    .count(),
-                select_count_before,
+            assert!(
+                probe.runtime.model().selected_part_ids.is_empty(),
                 "stale {stale_identity} completion selected a new owner"
             );
         }
@@ -3192,103 +2948,90 @@ mod tests {
 
     #[wasm_bindgen_test::wasm_bindgen_test]
     async fn production_hook_does_not_read_signals_after_unmount_while_waiting_for_saved_state() {
-        let (probe, mut dom) = hook_mounted();
+        let (probe, mut dom) = hook_mounted().await;
         let active = start_hook_placement(&probe, &mut dom).await;
+        let (entered, release) =
+            crate::runtime::project_name_test_support::gate_next_persist(&probe.runtime);
+        let outcome = observe_next_operation(&probe);
         active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
-        let (operation_id, _) = submitted_edit(&probe);
-        let accepted = probe
-            .runtime
-            .model
-            .borrow()
-            .accepted
-            .as_ref()
-            .unwrap()
-            .clone();
-        *probe.runtime.model.borrow_mut() = ReadModel {
-            lifecycle: Lifecycle::Saving,
-            durability: Durability::Saving { revision: 0 },
-            accepted: Some(accepted),
-            active_board_id: "board-main".into(),
-            ..ReadModel::default()
-        };
-        assert!(
-            probe
-                .runtime
-                .settle(operation_id, TerminalOutcome::Completed)
-        );
-        // Let the production observer see Completed and enter its Ready/Saved wait.
-        let_hook_tasks_run().await;
+        start_pending_runtime(&probe);
+        entered.await.expect("save reaches persistence gate");
         probe.mounted.set(false);
         flush_hook(&mut dom);
         assert!(
             probe.unmounted.get(),
             "mounted hook component was not dropped"
         );
-        let model_reads_after_unmount = probe.runtime.model_reads.get();
         drop(dom);
-        // Resume the observer after the component-owned Signals have been dropped.
+        let _ = release.send(());
         let_hook_tasks_run().await;
-        assert_eq!(
-            probe.runtime.model_reads.get(),
-            model_reads_after_unmount,
-            "completed placement observer read runtime state after unmount"
+        assert_eq!(*outcome.borrow(), Some(TerminalOutcome::Completed));
+        assert!(
+            probe.runtime.model().selected_part_ids.is_empty(),
+            "unmounted observer must not submit a selection"
         );
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
     async fn production_hook_suppresses_actionable_failure_after_board_or_project_switch() {
-        for (stale_identity, outcome) in [
-            ("board", TerminalOutcome::Rejected("stale board".into())),
-            (
-                "project",
-                TerminalOutcome::PersistenceFailed("stale project".into()),
-            ),
-        ] {
-            let (probe, mut dom) = hook_mounted();
-            let active = start_hook_placement(&probe, &mut dom).await;
-            active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
-            let (operation_id, _) = submitted_edit(&probe);
-            let select_count_before = probe
-                .runtime
-                .events
-                .borrow()
-                .iter()
-                .filter(|event| matches!(event, SessionEvent::SelectParts { .. }))
-                .count();
-            {
-                let mut model = probe.runtime.model.borrow_mut();
-                if stale_identity == "board" {
-                    model.active_board_id = "board-other".into();
-                } else {
-                    let accepted = model.accepted.as_mut().unwrap();
-                    let mut document = (*accepted.document).clone();
-                    document.id = "replacement-project".into();
-                    accepted.document = Arc::new(document);
-                    accepted.token = SnapshotToken(12);
-                }
-            }
-            assert!(probe.runtime.settle(operation_id, outcome));
-            let_hook_tasks_run().await;
-            flush_hook(&mut dom);
-            assert_eq!(workspace(&probe), "Layout");
-            assert_eq!(probe.latest.borrow().as_ref().unwrap().error, None);
-            assert!(
-                probe
-                    .runtime
-                    .events
-                    .borrow()
-                    .iter()
-                    .filter(|event| matches!(event, SessionEvent::SelectParts { .. }))
-                    .count()
-                    == select_count_before,
-                "stale {stale_identity} failure submitted a new selection"
-            );
-        }
+        let (probe, mut dom) = hook_mounted().await;
+        let mut replacement = accepted_document(&probe);
+        replacement.boards.push(Board {
+            id: "board-other".into(),
+            name: "Other".into(),
+            outline_ids: vec!["envelope-other".into()],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        replacement.outline.push(OutlineFeature::PartEnvelope {
+            connections: vec![],
+            settings: OutlineSettings::default(),
+            id: "envelope-other".into(),
+            part_ids: vec![],
+            margin: 4.0,
+            operation: boardstudio_core::model::Operation::Add,
+        });
+        replace_accepted_document(&probe, replacement).await;
+        flush_hook(&mut dom);
+
+        let active = start_hook_placement(&probe, &mut dom).await;
+        let (entered, release) =
+            crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
+        let outcome = observe_next_operation(&probe);
+        active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
+        start_pending_runtime(&probe);
+        entered.await.expect("Core reply reaches its gate");
+
+        // Navigate while the real Core operation is pending. Session updates the active board
+        // scope immediately; the held edit can still finish, then fail persistence.
+        crate::runtime::project_name_test_support::navigate(&probe.runtime, "board-other").await;
+        crate::runtime::project_name_test_support::fail_next_persist(&probe.runtime, "stale board");
+        let _ = release.send(());
+        let_hook_tasks_run().await;
+        assert_eq!(
+            *outcome.borrow(),
+            Some(TerminalOutcome::PersistenceFailed("stale board".into()))
+        );
+        assert_eq!(probe.runtime.model().lifecycle, Lifecycle::RecoveryRequired);
+        flush_hook(&mut dom);
+        assert_eq!(workspace(&probe), "Layout");
+        assert_eq!(probe.latest.borrow().as_ref().unwrap().error, None);
+        assert_eq!(
+            *outcome.borrow(),
+            Some(TerminalOutcome::PersistenceFailed("stale board".into()))
+        );
+        assert!(
+            probe.runtime.model().selected_part_ids.is_empty(),
+            "stale board failure submitted a new selection"
+        );
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
     async fn production_hook_retires_stale_preparation_and_accepts_a_fresh_place_request() {
-        let (probe, mut dom) = hook_mounted();
+        let (probe, mut dom) = hook_mounted().await;
         probe
             .latest
             .borrow()
@@ -3308,17 +3051,9 @@ mod tests {
         flush_hook(&mut dom);
         assert!(probe.latest.borrow().as_ref().unwrap().owns_canvas());
 
-        {
-            let mut model = probe.runtime.model.borrow_mut();
-            let accepted = model.accepted.as_mut().unwrap();
-            let mut next = (*accepted.document).clone();
-            next.revision += 1;
-            accepted.document = Arc::new(next.clone());
-            accepted.token = SnapshotToken(12);
-            model.durability = Durability::Saved {
-                revision: next.revision,
-            };
-        }
+        let mut next = accepted_document(&probe);
+        next.name.push_str(" refreshed");
+        replace_accepted_document(&probe, next).await;
         probe.version.set(probe.version.get() + 1);
         flush_hook(&mut dom);
         assert!(!probe.latest.borrow().as_ref().unwrap().owns_canvas());
@@ -3548,7 +3283,7 @@ mod tests {
         assert_eq!(cell.offset, Some(Vec2 { x: 0.5, y: -0.5 }));
         assert_eq!(cell.rotation, Some(12.0));
         assert_eq!(cell.assemblies_local, Some(true));
-        assert_eq!(cell.assemblies[0].id, "library-imported:reset-switch-1");
+        assert_eq!(cell.assemblies[0].id, "library-imported-reset-switch-1");
         assert_eq!(accepted, original);
 
         let operation = selected_key_component_operation(

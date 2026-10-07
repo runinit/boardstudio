@@ -1014,6 +1014,6 @@ impl OutlineInspectorProjection {
     }
 }
 
-#[cfg(all(test, not(target_arch = "wasm32")))]
+#[cfg(all(test, target_arch = "wasm32"))]
 #[path = "hook_tests.rs"]
-mod dormant_hook_tests;
+mod hook_tests;

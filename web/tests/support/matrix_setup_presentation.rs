@@ -48,7 +48,7 @@ pub mod parts {
 mod tests {
     use super::*;
     use crate::{matrix_setup_operation::MatrixSetupPreset, runtime};
-    use boardstudio_application::{Event, TerminalOutcome};
+    use boardstudio_application::Event;
     use dioxus::prelude::*;
     use std::{
         cell::{Cell, RefCell},
@@ -87,21 +87,23 @@ mod tests {
                     preset: MatrixSetupPreset::MxSolder,
                 });
         }
-        fn settle(&self) {
-            let id = self
-                .runtime
-                .events
-                .borrow()
-                .iter()
-                .find_map(|event| match event {
-                    Event::ResolveEdit { operation_id, .. } => Some(*operation_id),
-                    _ => None,
-                })
-                .unwrap();
-            assert!(
-                self.runtime.outcomes.settle(id, TerminalOutcome::Completed),
-                "exact admitted observer must survive hidden/unmounted owner"
-            );
+        fn hold_pending_operation(&self) {
+            self.runtime.hold_next_core();
+            self.runtime.hold_next_save();
+        }
+        fn release_core(&self) {
+            self.runtime.release_core();
+        }
+        fn release_save(&self) {
+            self.runtime.release_save();
+        }
+        fn release_pending_operation(&self) {
+            if self.runtime.core_entered() {
+                self.runtime.release_core();
+            }
+            if self.runtime.save_entered() {
+                self.runtime.release_save();
+            }
             crate::poll_detached();
         }
     }
@@ -151,6 +153,7 @@ mod tests {
             workspace: Rc::new(Cell::new("Layout")),
             latest: Rc::default(),
         };
+        crate::open_document(&probe.runtime, "A", 10, false);
         let mut dom = VirtualDom::new(host);
         dom.provide_root_context(probe.clone());
         dom.rebuild_to_vec();
@@ -169,14 +172,12 @@ mod tests {
     #[test]
     fn configured_board_instance_can_open_matrix_setup() {
         let (probe, mut dom) = mounted();
-        let mut model = runtime::model("A", 1, 10);
-        let accepted = model.accepted.as_mut().unwrap();
-        let document = std::sync::Arc::make_mut(&mut accepted.document);
-        document.hardware = Some(serde_json::from_value(serde_json::json!({"instances":[{
-            "id":"primary", "name":"Primary", "boardId":"board", "half":"single", "role":"standalone", "flipped":false, "constructionLinked":false
-        }]})).unwrap());
-        model.active_instance_id = Some("primary".into());
-        *probe.runtime.model.borrow_mut() = model;
+        crate::open_document(&probe.runtime, "A", 10, true);
+        probe.runtime.submit(Event::Navigate {
+            operation_id: probe.runtime.operation(),
+            board_id: "board".into(),
+            instance_id: Some("primary".into()),
+        });
         flush(&probe, &mut dom);
         assert!(
             probe.mount().can_open,
@@ -187,7 +188,11 @@ mod tests {
     #[test]
     fn nonexistent_physical_instance_cannot_open_matrix_setup() {
         let (probe, mut dom) = mounted();
-        probe.runtime.model.borrow_mut().active_instance_id = Some("missing".into());
+        probe.runtime.submit(Event::Navigate {
+            operation_id: probe.runtime.operation(),
+            board_id: "board".into(),
+            instance_id: Some("missing".into()),
+        });
         flush(&probe, &mut dom);
         assert!(!probe.mount().can_open);
     }
@@ -196,6 +201,7 @@ mod tests {
         let (probe, mut dom) = mounted();
         open(&probe, &mut dom);
         prepared();
+        probe.hold_pending_operation();
         probe.create();
         crate::poll_detached();
         probe.workspace.set("Case");
@@ -204,7 +210,7 @@ mod tests {
             probe.mount().projection.is_some(),
             "hiding must retain the admitted owner"
         );
-        probe.settle();
+        probe.release_pending_operation();
         flush(&probe, &mut dom);
         assert!(probe.mount().projection.is_none());
         probe.workspace.set("Layout");
@@ -224,37 +230,22 @@ mod tests {
         let (probe, mut dom) = mounted();
         open(&probe, &mut dom);
         prepared();
+        probe.hold_pending_operation();
         probe.create();
         crate::poll_detached();
-        let mut matrix = probe
-            .runtime
-            .events
-            .borrow()
-            .iter()
-            .find_map(|event| match event {
-                Event::ResolveEdit { resolver, .. } => match resolver.resolve(
-                    probe.runtime.model.borrow().accepted.as_ref().unwrap(),
-                ) {
-                    boardstudio_application::Resolution::Submit(command) => match &command.operation {
-                    boardstudio_core::model::EditOperation::SetMatrix { matrix, .. } => {
-                        Some(matrix.clone())
-                    }
-                    _ => None,
-                    },
-                    _ => None,
-                },
-                _ => None,
-            })
-            .unwrap();
-        matrix.part_ids = vec!["created-key".into()];
-        let mut model = runtime::model("A", 2, 11);
-        std::sync::Arc::make_mut(&mut model.accepted.as_mut().unwrap().document)
-            .matrices
-            .push(matrix);
-        model.durability = boardstudio_application::Durability::Saving { revision: 11 };
-        *probe.runtime.model.borrow_mut() = model;
-        probe.settle();
+        probe.release_core();
         flush(&probe, &mut dom);
+        let created_part_ids = probe
+            .runtime
+            .model()
+            .accepted
+            .unwrap()
+            .document
+            .matrices
+            .last()
+            .unwrap()
+            .part_ids
+            .clone();
         assert!(
             !probe
                 .runtime
@@ -264,8 +255,8 @@ mod tests {
                 .any(|event| matches!(event, Event::SelectParts { .. })),
             "terminal completion alone cannot select an unsaved proposal"
         );
-        probe.runtime.model.borrow_mut().durability =
-            boardstudio_application::Durability::Saved { revision: 11 };
+        probe.release_save();
+        crate::poll_detached();
         flush(&probe, &mut dom);
         flush(&probe, &mut dom);
         let events = probe.runtime.events.borrow();
@@ -277,7 +268,7 @@ mod tests {
             })
             .collect();
         assert_eq!(selections.len(), 1);
-        assert_eq!(selections[0].0, &["created-key"]);
+        assert_eq!(selections[0].0, &created_part_ids);
         assert_eq!(
             *selections[0].1,
             boardstudio_application::SelectionMode::Replace
@@ -289,16 +280,17 @@ mod tests {
         let (probe, mut dom) = mounted();
         open(&probe, &mut dom);
         prepared();
+        probe.hold_pending_operation();
         probe.create();
         crate::poll_detached();
         assert_eq!(probe.edits(), 1);
-        *probe.runtime.model.borrow_mut() = runtime::model("B", 2, 1);
+        crate::open_document(&probe.runtime, "B", 1, false);
         flush(&probe, &mut dom);
         assert!(
             !probe.mount().can_open,
             "pending exact outcome is still retained"
         );
-        probe.settle();
+        probe.release_pending_operation();
         flush(&probe, &mut dom);
         assert!(
             probe.mount().can_open,
@@ -314,16 +306,19 @@ mod tests {
         );
     }
     #[test]
-    fn completed_creation_without_accepted_snapshot_releases_its_slot() {
+    fn closed_session_completion_releases_its_slot() {
         let (probe, mut dom) = mounted();
         open(&probe, &mut dom);
         prepared();
+        probe.hold_pending_operation();
         probe.create();
         crate::poll_detached();
-        *probe.runtime.model.borrow_mut() = Default::default();
-        probe.settle();
+        probe.runtime.submit(Event::Close {
+            operation_id: probe.runtime.operation(),
+        });
+        probe.release_pending_operation();
         flush(&probe, &mut dom);
-        *probe.runtime.model.borrow_mut() = runtime::model("B", 2, 1);
+        crate::open_document(&probe.runtime, "B", 1, false);
         flush(&probe, &mut dom);
         assert!(probe.mount().can_open);
     }
@@ -342,12 +337,13 @@ mod tests {
     fn admitted_outcome_survives_editor_unmount_until_exact_terminal() {
         let (probe, mut dom) = mounted();
         open(&probe, &mut dom);
+        probe.hold_pending_operation();
         prepared();
         probe.create();
         crate::poll_detached();
         assert_eq!(probe.edits(), 1);
         drop(dom);
-        probe.settle();
+        probe.release_pending_operation();
     }
     #[test]
     fn changed_accepted_token_during_normalization_never_submits() {
@@ -355,7 +351,7 @@ mod tests {
         open(&probe, &mut dom);
         probe.create();
         crate::poll_detached();
-        *probe.runtime.model.borrow_mut() = runtime::model("A", 2, 11);
+        crate::open_document(&probe.runtime, "A", 11, false);
         prepared();
         crate::poll_detached();
         flush(&probe, &mut dom);

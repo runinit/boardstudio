@@ -327,18 +327,18 @@ fn infer_switch_family(definition: &PartDefinition) -> Option<MechanicalSwitchFa
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(not(target_arch = "wasm32"))]
     use boardstudio_application::{
-        AcceptedSnapshot, Completion, EditResolver, Effect, Event, OperationId, Resolution,
-        SaveResult, Session, TerminalOutcome,
+        AcceptedSnapshot, EditResolver, Event, OperationId, Resolution, TerminalOutcome,
     };
-    use boardstudio_core::model::{
-        EditOperation, EditPhase, MechanicalPartProfile, MechanicalProfileSource, PartDefinition,
-    };
-    use boardstudio_core::{
-        CoreEngine,
-        model::{ProjectDoc, Vec2},
-    };
+    #[cfg(not(target_arch = "wasm32"))]
+    use boardstudio_core::model::{EditOperation, EditPhase};
+    use boardstudio_core::model::{MechanicalPartProfile, MechanicalProfileSource, PartDefinition};
+    use boardstudio_core::model::{ProjectDoc, Vec2};
+    #[cfg(not(target_arch = "wasm32"))]
+    use std::rc::Rc;
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn fixed_commit(
         operation_id: OperationId,
         command: boardstudio_core::model::EditCommand,
@@ -387,61 +387,29 @@ mod tests {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn document(definitions: Vec<PartDefinition>) -> ProjectDoc {
         let mut document = ProjectDoc::empty("parts-fit", "Parts fit fixture");
         document.definitions = definitions;
         document
     }
 
-    fn advance(session: &mut Session, core: &mut CoreEngine, initial: Vec<Effect>) {
-        let mut pending = initial;
-        while let Some(effect) = pending.pop() {
-            match effect {
-                Effect::Core {
-                    request_id,
-                    executor_epoch,
-                    request,
-                    ..
-                } => {
-                    let reply = core.handle(*request);
-                    pending.extend(session.complete(Completion::Core {
-                        request_id,
-                        executor_epoch,
-                        reply: Box::new(reply),
-                    }));
-                }
-                Effect::Persist {
-                    save_attempt_id, ..
-                } => {
-                    pending.extend(session.complete(Completion::Persist {
-                        save_attempt_id,
-                        result: SaveResult::Committed,
-                    }));
-                }
-                _ => {}
-            }
-        }
-    }
-
-    fn open(document: ProjectDoc) -> (Session, CoreEngine) {
-        let mut session = Session::new();
-        let mut core = CoreEngine::new();
-        let effects = session.submit(Event::Open {
+    #[cfg(not(target_arch = "wasm32"))]
+    fn open(document: ProjectDoc) -> Rc<boardstudio_web_runtime::runtime::Runtime> {
+        let runtime = boardstudio_web_runtime::runtime::Runtime::new();
+        runtime.submit(Event::Open {
             operation_id: OperationId(1),
             document,
         });
-        advance(&mut session, &mut core, effects);
-        (session, core)
+        runtime
     }
 
-    fn accepted(session: &Session) -> AcceptedSnapshot {
-        session
-            .read_model()
-            .accepted
-            .clone()
-            .expect("open accepted")
+    #[cfg(not(target_arch = "wasm32"))]
+    fn accepted(runtime: &boardstudio_web_runtime::runtime::Runtime) -> AcceptedSnapshot {
+        runtime.model().accepted.clone().expect("open accepted")
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn edit_owner(
         snapshot: &AcceptedSnapshot,
         scope: Option<Scope>,
@@ -452,17 +420,19 @@ mod tests {
         ProfileEditOwner::new(OperationId(view_id), snapshot, scope, source, definition)
     }
 
-    /// Submit one profile save as intent and drive its effects to completion.
+    /// Submit one profile save to the real native Runtime and read its terminal outcome.
+    #[cfg(not(target_arch = "wasm32"))]
     fn resolve_profile(
-        session: &mut Session,
-        core: &mut CoreEngine,
+        runtime: &boardstudio_web_runtime::runtime::Runtime,
         operation: u64,
         source: ProfileDefinitionSource,
         definition: &PartDefinition,
         profile: MechanicalPartProfile,
     ) -> Vec<TerminalOutcome> {
-        let effects = session.submit(Event::ResolveEdit {
-            operation_id: OperationId(operation),
+        let operation_id = OperationId(operation);
+        let outcome = runtime.observe_operation(operation_id);
+        runtime.submit(Event::ResolveEdit {
+            operation_id,
             label: "parts-mechanical-profile".into(),
             resolver: mechanical_profile_resolver(
                 source,
@@ -471,49 +441,21 @@ mod tests {
                 profile,
             ),
         });
-        let mut settlements = Vec::new();
-        let mut pending = effects;
-        while let Some(effect) = pending.pop() {
-            match effect {
-                Effect::Core {
-                    request_id,
-                    executor_epoch,
-                    request,
-                    ..
-                } => {
-                    let reply = core.handle(*request);
-                    pending.extend(session.complete(Completion::Core {
-                        request_id,
-                        executor_epoch,
-                        reply: Box::new(reply),
-                    }));
-                }
-                Effect::Persist {
-                    save_attempt_id, ..
-                } => {
-                    pending.extend(session.complete(Completion::Persist {
-                        save_attempt_id,
-                        result: SaveResult::Committed,
-                    }));
-                }
-                Effect::Settled { outcome, .. } => settlements.push(outcome),
-                _ => {}
-            }
-        }
-        settlements
+        vec![outcome.borrow().clone().expect("Runtime settled the edit")]
     }
 
     #[test]
+    #[cfg(not(target_arch = "wasm32"))]
     fn profile_save_lands_against_the_latest_accepted_document_and_round_trips_history() {
         let mut target = definition("switch", "Switch");
         let existing_profile = profile("switch", "Original source");
         target.mechanical_profile = Some(existing_profile.clone());
         let original = document(vec![target.clone(), definition("other", "Other")]);
-        let (mut session, mut core) = open(original.clone());
+        let runtime = open(original.clone());
 
         // An unrelated accepted edit lands while the profile editor is open.
-        let mut unrelated = session
-            .read_model()
+        let mut unrelated = runtime
+            .model()
             .accepted
             .as_ref()
             .unwrap()
@@ -521,7 +463,7 @@ mod tests {
             .as_ref()
             .clone();
         unrelated.name = "Renamed project during draft".into();
-        let effects = session.submit(fixed_commit(
+        runtime.submit(fixed_commit(
             OperationId(2),
             boardstudio_core::model::EditCommand {
                 base_revision: 0,
@@ -533,13 +475,11 @@ mod tests {
                 },
             },
         ));
-        advance(&mut session, &mut core, effects);
 
         let edited_profile = profile("switch", "Parts library");
         assert_eq!(
             resolve_profile(
-                &mut session,
-                &mut core,
+                &runtime,
                 3,
                 ProfileDefinitionSource::Project,
                 &target,
@@ -548,7 +488,7 @@ mod tests {
             vec![TerminalOutcome::Completed],
             "the profile save lands against the renamed document"
         );
-        let document = accepted(&session).document;
+        let document = accepted(&runtime).document;
         assert_eq!(document.name, "Renamed project during draft");
         assert_eq!(
             document.definitions[0].mechanical_profile,
@@ -556,35 +496,33 @@ mod tests {
         );
         assert_eq!(document.definitions[1], original.definitions[1]);
 
-        let effects = session.submit(Event::Undo {
+        runtime.submit(Event::Undo {
             operation_id: OperationId(4),
         });
-        advance(&mut session, &mut core, effects);
         assert_eq!(
-            accepted(&session).document.definitions[0].mechanical_profile,
+            accepted(&runtime).document.definitions[0].mechanical_profile,
             Some(existing_profile)
         );
-        let effects = session.submit(Event::Redo {
+        runtime.submit(Event::Redo {
             operation_id: OperationId(5),
         });
-        advance(&mut session, &mut core, effects);
         assert_eq!(
-            accepted(&session).document.definitions[0].mechanical_profile,
+            accepted(&runtime).document.definitions[0].mechanical_profile,
             Some(edited_profile)
         );
     }
 
     #[test]
+    #[cfg(not(target_arch = "wasm32"))]
     fn saving_a_selected_catalogue_definition_materializes_only_that_definition() {
         let original = document(vec![definition("other", "Other")]);
-        let (mut session, mut core) = open(original.clone());
+        let runtime = open(original.clone());
         let selected_definition = definition("bundled-switch", "Bundled switch");
         let draft = profile("bundled-switch", "Parts library");
 
         assert_eq!(
             resolve_profile(
-                &mut session,
-                &mut core,
+                &runtime,
                 2,
                 ProfileDefinitionSource::Generator,
                 &selected_definition,
@@ -593,7 +531,7 @@ mod tests {
             vec![TerminalOutcome::Completed],
             "a bundled entry saves as a project override"
         );
-        let proposed = accepted(&session).document;
+        let proposed = accepted(&runtime).document;
         assert_eq!(proposed.definitions.len(), 2);
         assert_eq!(proposed.definitions[0], original.definitions[0]);
         assert_eq!(proposed.definitions[1].id, "bundled-switch");
@@ -602,13 +540,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(target_arch = "wasm32"))]
     fn profile_save_retires_a_removed_project_definition_and_skips_unchanged_profiles() {
         let target = definition("switch", "Switch");
-        let (mut session, mut core) = open(document(vec![target.clone()]));
+        let runtime = open(document(vec![target.clone()]));
         assert_eq!(
             resolve_profile(
-                &mut session,
-                &mut core,
+                &runtime,
                 2,
                 ProfileDefinitionSource::Project,
                 &target,
@@ -620,8 +558,7 @@ mod tests {
         // Saving the identical profile again resolves Unchanged without a revision.
         assert_eq!(
             resolve_profile(
-                &mut session,
-                &mut core,
+                &runtime,
                 3,
                 ProfileDefinitionSource::Project,
                 &target,
@@ -630,12 +567,12 @@ mod tests {
             vec![TerminalOutcome::Completed],
             "an unchanged save completes quietly"
         );
-        assert_eq!(accepted(&session).document.revision, 1);
+        assert_eq!(accepted(&runtime).document.revision, 1);
 
         // Remove the definition, then queue another save of it.
-        let mut without = accepted(&session).document.as_ref().clone();
+        let mut without = accepted(&runtime).document.as_ref().clone();
         without.definitions.clear();
-        let effects = session.submit(fixed_commit(
+        runtime.submit(fixed_commit(
             OperationId(4),
             boardstudio_core::model::EditCommand {
                 base_revision: 1,
@@ -647,11 +584,9 @@ mod tests {
                 },
             },
         ));
-        advance(&mut session, &mut core, effects);
         assert_eq!(
             resolve_profile(
-                &mut session,
-                &mut core,
+                &runtime,
                 5,
                 ProfileDefinitionSource::Project,
                 &target,
@@ -663,13 +598,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(target_arch = "wasm32"))]
     fn profile_save_updates_a_definition_materialized_while_the_editor_was_open() {
         let selected = definition("bundled-switch", "Bundled switch");
-        let (mut session, mut core) = open(document(vec![definition("other", "Other")]));
+        let runtime = open(document(vec![definition("other", "Other")]));
         // Another edit materializes the same catalogue definition first.
-        let mut materialized = accepted(&session).document.as_ref().clone();
+        let mut materialized = accepted(&runtime).document.as_ref().clone();
         materialized.definitions.push(selected.clone());
-        let effects = session.submit(fixed_commit(
+        runtime.submit(fixed_commit(
             OperationId(2),
             boardstudio_core::model::EditCommand {
                 base_revision: 0,
@@ -681,10 +617,9 @@ mod tests {
                 },
             },
         ));
-        advance(&mut session, &mut core, effects);
-        let mut latest = accepted(&session).document.as_ref().clone();
+        let mut latest = accepted(&runtime).document.as_ref().clone();
         latest.definitions[1].name = "Edited meanwhile".into();
-        let effects = session.submit(fixed_commit(
+        runtime.submit(fixed_commit(
             OperationId(3),
             boardstudio_core::model::EditCommand {
                 base_revision: 1,
@@ -696,12 +631,10 @@ mod tests {
                 },
             },
         ));
-        advance(&mut session, &mut core, effects);
 
         assert_eq!(
             resolve_profile(
-                &mut session,
-                &mut core,
+                &runtime,
                 4,
                 ProfileDefinitionSource::Generator,
                 &selected,
@@ -709,7 +642,7 @@ mod tests {
             ),
             vec![TerminalOutcome::Completed]
         );
-        let document = accepted(&session).document;
+        let document = accepted(&runtime).document;
         assert_eq!(
             document.definitions.len(),
             2,
@@ -723,6 +656,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(target_arch = "wasm32"))]
     fn profile_save_queued_behind_a_custom_definition_field_edit_keeps_the_field_edit() {
         use crate::parts_custom_definition::{DefinitionEdit, definition_field_resolver};
 
@@ -733,13 +667,12 @@ mod tests {
             Vec2 { x: 5.0, y: 3.0 },
             Vec2 { x: -5.0, y: 3.0 },
         ];
-        let (mut session, mut core) = open(document(vec![target.clone()]));
-        let mut parked = None;
-        let mut settlements = Vec::new();
+        let runtime = open(document(vec![target.clone()]));
+        runtime.hold_next_core();
+        let field_outcome = runtime.observe_operation(OperationId(2));
+        let profile_outcome = runtime.observe_operation(OperationId(3));
 
-        // The custom-definition field edit runs first; its Core reply is held so the
-        // profile save queues behind it.
-        let effects = session.submit(Event::ResolveEdit {
+        runtime.submit(Event::ResolveEdit {
             operation_id: OperationId(2),
             label: "parts-definition-field".into(),
             resolver: definition_field_resolver(
@@ -748,77 +681,33 @@ mod tests {
                 0,
             ),
         });
-        let mut pending = effects;
-        while let Some(effect) = pending.pop() {
-            if let Effect::Core {
-                request_id,
-                executor_epoch,
-                request,
-                ..
-            } = effect
-            {
-                parked = Some((request_id, executor_epoch, request));
-            }
-        }
-        assert!(parked.is_some(), "the field edit reached Core and is held");
+        assert!(runtime.core_entered(), "the field edit reached held Core");
 
-        // The profile save queues freely behind the pending field edit.
-        let effects = session.submit(Event::ResolveEdit {
+        runtime.submit(Event::ResolveEdit {
             operation_id: OperationId(3),
             label: "parts-mechanical-profile".into(),
             resolver: mechanical_profile_resolver(
                 ProfileDefinitionSource::Project,
                 "switch".into(),
-                target.clone(),
+                target,
                 profile("switch", "Parts library"),
             ),
         });
         assert!(
-            effects.is_empty(),
-            "the profile save waits for the head of the queue"
+            profile_outcome.borrow().is_none(),
+            "the profile save queues behind Core"
         );
 
-        // Releasing the held reply resolves the queued save against the document the
-        // field edit produced, keeping the field edit's value.
-        let (request_id, executor_epoch, request) = parked.unwrap();
-        let reply = core.handle(*request);
-        let mut pending = session.complete(Completion::Core {
-            request_id,
-            executor_epoch,
-            reply: Box::new(reply),
-        });
-        while let Some(effect) = pending.pop() {
-            match effect {
-                Effect::Core {
-                    request_id,
-                    executor_epoch,
-                    request,
-                    ..
-                } => {
-                    let reply = core.handle(*request);
-                    pending.extend(session.complete(Completion::Core {
-                        request_id,
-                        executor_epoch,
-                        reply: Box::new(reply),
-                    }));
-                }
-                Effect::Persist {
-                    save_attempt_id, ..
-                } => {
-                    pending.extend(session.complete(Completion::Persist {
-                        save_attempt_id,
-                        result: SaveResult::Committed,
-                    }));
-                }
-                Effect::Settled { outcome, .. } => settlements.push(outcome),
-                _ => {}
-            }
-        }
+        runtime.release_core();
         assert_eq!(
-            settlements,
-            vec![TerminalOutcome::Completed, TerminalOutcome::Completed]
+            field_outcome.borrow().clone(),
+            Some(TerminalOutcome::Completed)
         );
-        let document = accepted(&session).document;
+        assert_eq!(
+            profile_outcome.borrow().clone(),
+            Some(TerminalOutcome::Completed)
+        );
+        let document = accepted(&runtime).document;
         assert_eq!(
             crate::parts_custom_definition::courtyard_bounds(&document.definitions[0].courtyard).0,
             12.5,
@@ -829,29 +718,26 @@ mod tests {
             Some(profile("switch", "Parts library"))
         );
 
-        // Undo removes the profile save first, then the field edit.
-        let effects = session.submit(Event::Undo {
+        runtime.submit(Event::Undo {
             operation_id: OperationId(4),
         });
-        advance(&mut session, &mut core, effects);
         assert_eq!(
-            accepted(&session).document.definitions[0].mechanical_profile,
+            accepted(&runtime).document.definitions[0].mechanical_profile,
             None
         );
         assert_eq!(
             crate::parts_custom_definition::courtyard_bounds(
-                &accepted(&session).document.definitions[0].courtyard
+                &accepted(&runtime).document.definitions[0].courtyard
             )
             .0,
             12.5
         );
-        let effects = session.submit(Event::Undo {
+        runtime.submit(Event::Undo {
             operation_id: OperationId(5),
         });
-        advance(&mut session, &mut core, effects);
         assert_eq!(
             crate::parts_custom_definition::courtyard_bounds(
-                &accepted(&session).document.definitions[0].courtyard
+                &accepted(&runtime).document.definitions[0].courtyard
             )
             .0,
             10.0,
@@ -888,11 +774,12 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(target_arch = "wasm32"))]
     fn standard_profile_request_rejects_superseded_operation_and_returned_view_aba() {
         let target = definition("bundled-switch", "Switch");
-        let (session, _) = open(document(vec![]));
-        let snapshot = accepted(&session);
-        let scope = session.scope();
+        let runtime = open(document(vec![]));
+        let snapshot = accepted(&runtime);
+        let scope = runtime.scope();
         let owner = edit_owner(
             &snapshot,
             scope.clone(),
