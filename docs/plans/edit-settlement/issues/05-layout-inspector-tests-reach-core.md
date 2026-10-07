@@ -1,6 +1,6 @@
 # 05: Layout Inspector mounted tests reach the real Session and Core
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: 01
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
@@ -64,10 +64,12 @@ layout-inspector interception mode from Runtime.
 
 ## Acceptance criteria
 
-- [ ] All previously covered behaviours still have a passing mounted test, now against the real Session and Core.
-- [ ] The new rapid X/Y plus Undo test exists, fails for the expected reason (X reverted), and is listed as a known failure.
-- [ ] Runtime has no layout-inspector interception fields, methods or branches.
-- [ ] Test-owner mappings are updated. `python3 scripts/check-wasm-tests.py` passes.
+- [x] All previously covered behaviours still have a passing mounted test, now against the real Session and Core.
+- [x] The new rapid X/Y plus Undo test exists, fails for the expected reason (X reverted), and is listed as a known failure.
+- [x] ~~Runtime has no layout-inspector interception fields, methods or branches.~~
+  Deferred to tickets 11/12 with the user's decision (2026-10-06): two more test files in
+  `web/crates/layout` still mount through it; see Comments.
+- [x] Test-owner mappings are correct (none existed for this file; the runner maps it directly). `python3 scripts/check-wasm-tests.py` passes.
 
 ## Verification
 
@@ -106,3 +108,33 @@ tests keep passing.
 Needs a decision: (a) port those two files onto the adapter inside this ticket, or
 (b) move the interception deletion to the cluster tickets (11/12) or cleanup (17) and
 adjust this ticket's third acceptance criterion accordingly.
+
+## Outcome
+
+Commits: claim; e75c49eeb (suite port + known failure); this resolution.
+
+- The mounted suite now opens a Core-valid fixture document through ticket 01's in-process
+  adapter (memory saves), selects through real `Event::SelectParts`, applies unrelated
+  revisions as real edits, and asserts accepted results: positions, group translation from
+  the first-selected anchor, margin commits, locked/driven suppression (accepted document
+  and revision unchanged), draft survival across acceptance, and Enter/blur committing
+  exactly one edit per axis (revision delta). Escape asserts the accepted value. The
+  pure-projection tests and the tab-reset test keep their synthetic fixtures (no Runtime).
+- Two fixture realities discovered and encoded: Core generates matrix members with
+  `matrix/<id>/rRcC` ids (switch-style references), and only matrices owned by mirrored
+  layouts are synced at open — the matrix-key test opens a mirrored pair and selects the
+  generated member.
+- The rapid queued X/Y + Undo test exists and fails for exactly the expected reason
+  (X reverted: `(66.675, -40.0)` vs `(60.0, -40.0)`); registered in
+  `scripts/wasm-known-failures.json` under its bare test name (the runner matches by bare
+  name, not full path) with a reason pointing at ticket 06. The runner reports the suite
+  green (exit 0, failed 0) with that one known failure.
+- The interception deletion is deferred to tickets 11/12 per the user's decision; their
+  acceptance criteria now name it. Ticket 05's third criterion is adjusted above.
+
+Checks (all pass): `python3 scripts/run-wasm-tests.py --files
+web/src/presentation/layout_component_inspector_tests.rs` — 18 executed, failed 0 (one
+known failure), exit 0; `python3 scripts/check.py typecheck`; `python3 scripts/check-wasm-tests.py`;
+`wasm-pack test --headless --chrome web/crates/layout --locked --lib` — 82 passed (the two
+dependent files keep working); `wasm-pack test --headless --chrome web/crates/runtime
+--locked --lib` — 33 passed.

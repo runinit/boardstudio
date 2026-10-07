@@ -88,6 +88,10 @@ Operations used across these: `SelectOutline`, `CopyOutline`, `RemoveOutline`,
 - [ ] SetFeature on a feature deleted before execution retires with a reason.
 - [ ] `Pending`, its settle effect and per-action content checks are gone; `submit_action` submits intents.
 - [ ] One-shot controls are disabled while pending; settings fields are not.
+- [ ] `outline_lifecycle_browser_tests.rs` runs against the real Session and Core
+  (accepted-result assertions, no interception); once both this file and ticket 11's are
+  off it, delete the layout-inspector interception from Runtime (deferred from ticket 05;
+  see its Comments).
 
 ## Verification
 

@@ -47,6 +47,9 @@ which remaining whole-document replacements become typed Core edits.
   submits intent, resolved at execution: [issues/03-session-resolves-pending-edits.md](issues/03-session-resolves-pending-edits.md).
 - 04 The edit ticket module landed in the web runtime crate: one port, one outcome
   mapping, standard wording, `is_pending`: [issues/04-web-edit-ticket.md](issues/04-web-edit-ticket.md).
+- 05 Layout Inspector mounted tests reach the real Session and Core; the rapid queued X/Y
+  regression is a known failure until 06; interception deletion deferred to 11/12:
+  [issues/05-layout-inspector-tests-reach-core.md](issues/05-layout-inspector-tests-reach-core.md).
 
 ## Not yet specified
 

@@ -106,6 +106,10 @@ line numbers at `3368825`, orientation only):
 - [ ] The "accepted value changed" and "Wait for the current matrix change" messages are gone.
 - [ ] One-shot controls (setup, placement, preset, delete, unlink, duplicate, add row/column) are disabled while pending.
 - [ ] All listed `Pending*` structs and heuristics are gone; no action sends `Event::Edit` commits directly.
+- [ ] `objects/matrix_transform_inspector_tests.rs` runs against the real Session and Core
+  (accepted-result assertions, no interception); once both this file and ticket 12's are
+  off it, delete the layout-inspector interception from Runtime (deferred from ticket 05;
+  see its Comments).
 
 ## Verification
 
