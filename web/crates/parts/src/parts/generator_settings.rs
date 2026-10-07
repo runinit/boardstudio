@@ -67,6 +67,7 @@ struct GeneratorSubmission {
     owner: GeneratorOwner,
     ticket: EditTicket,
     draft_sequence: u64,
+    apply: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -692,11 +693,29 @@ fn rebase_generator_candidate(
     );
     merge_generator_field(&base.pads, &candidate.pads, &mut rebased.pads);
     merge_generator_field(&base.models, &candidate.models, &mut rebased.models);
-    merge_generator_field(
+    if let (Some(base), Some(latest), Some(candidate), Some(target)) = (
         &base.generator,
+        &latest.generator,
         &candidate.generator,
-        &mut rebased.generator,
-    );
+        rebased.generator.as_mut(),
+    ) {
+        // Apply commits changed settings; unchanged keys retain preceding uploads.
+        target.source = candidate.source.clone();
+        target.version = candidate.version.clone();
+        target.parameters = latest.parameters.clone();
+        for (key, value) in &candidate.parameters {
+            if base.parameters.get(key) != Some(value) {
+                target.parameters.insert(key.clone(), value.clone());
+            }
+        }
+        for key in base
+            .parameters
+            .keys()
+            .filter(|key| !candidate.parameters.contains_key(*key))
+        {
+            target.parameters.remove(key);
+        }
+    }
     merge_generator_field(
         &base.mechanical_profile,
         &candidate.mechanical_profile,
@@ -810,7 +829,7 @@ pub fn GeneratorSettingsEditor(
                     // accepted document for the requested values.
                     Settlement::Landed { .. } => {
                         pending_action.set(None);
-                        if sequence.get() == pending.draft_sequence {
+                        if pending.apply && sequence.get() == pending.draft_sequence {
                             store.set(None);
                             edits.set(BTreeMap::new());
                         }
@@ -818,6 +837,10 @@ pub fn GeneratorSettingsEditor(
                     }
                     Settlement::Failed { message } => {
                         pending_action.set(None);
+                        if pending.apply && sequence.get() == pending.draft_sequence {
+                            store.set(None);
+                            edits.set(BTreeMap::new());
+                        }
                         feedback.set(Some(ScopedFeedback {
                             owner: pending.owner.clone(),
                             message,
@@ -1124,6 +1147,7 @@ pub fn GeneratorSettingsEditor(
                 owner,
                 ticket,
                 draft_sequence,
+                apply: false,
             }));
             feedback.set(None);
         });
@@ -1171,6 +1195,7 @@ pub fn GeneratorSettingsEditor(
                 owner: current_owner.clone(),
                 ticket,
                 draft_sequence: sequence.get(),
+                apply: true,
             }));
             feedback.set(None);
         }
@@ -1917,6 +1942,99 @@ mod tests {
                 .name,
             fixture.first.name
         );
+        fixture.runtime.unsubscribe();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn queued_apply_preserves_a_preceding_generator_model_upload() {
+        let runtime = support::new_runtime();
+        let base = definition();
+        let mut doc = boardstudio_core::model::ProjectDoc::empty("upload-apply", "Upload Apply");
+        doc.definitions.push(base.clone());
+        support::open_document(&runtime, doc).await;
+        let accepted = runtime.model().accepted.unwrap();
+        let owner = make_owner(&accepted, runtime.scope(), None, &base, 1, 1).unwrap();
+        let asset = Asset {
+            id: String::new(),
+            name: "Model".into(),
+            media_type: "model/stl".into(),
+            sha256: "a".repeat(64),
+            license: None,
+            source: None,
+        };
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        let upload = EditTicket::begin(
+            &runtime,
+            "upload-test",
+            None,
+            generator_model_upload_resolver(
+                owner.clone(),
+                base.clone(),
+                "switch_3dmodel_filename".into(),
+                asset,
+                71,
+            ),
+        );
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        let apply = EditTicket::begin(
+            &runtime,
+            "apply-test",
+            None,
+            generator_apply_resolver(owner, changed_candidate(&base)),
+        );
+        release.send(()).unwrap();
+        gloo_timers::future::TimeoutFuture::new(30).await;
+        support::run_pending(&runtime).await;
+        assert!(matches!(upload.settlement(true), Settlement::Landed { .. }));
+        assert!(matches!(apply.settlement(true), Settlement::Landed { .. }));
+        let accepted = runtime.model().accepted.unwrap();
+        assert_eq!(
+            accepted.document.definitions[0]
+                .generator
+                .as_ref()
+                .unwrap()
+                .parameters
+                .get("switch_3dmodel_filename"),
+            Some(&Value::String(
+                "boardstudio-asset:generator-model-71".into()
+            ))
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn failed_apply_restores_accepted_parameters_and_reports_failure() {
+        let (root, fixture, _) = mount_generator_editor().await;
+        let initial = take_initial_default_request(&fixture.requests).await;
+        finish_request(initial, Err("superseded".into())).await;
+        dispatch_width(&root, "20");
+        let request = take_request(&fixture.requests, 20.0).await;
+        let prepared = candidate(&request);
+        finish_request(request, Ok(prepared)).await;
+        wait_for_text(
+            &root,
+            "[role='status']",
+            "Current generator preview is ready",
+        )
+        .await;
+        support::fail_next_core_reply(&fixture.runtime, "controlled Apply failure");
+        root.query_selector(".m1-generator-settings > button.m1-generator-apply")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        gloo_timers::future::TimeoutFuture::new(30).await;
+        support::run_pending(&fixture.runtime).await;
+        wait_for_text(&root, "[role='alert']", "controlled Apply failure").await;
+        let input = root
+            .query_selector("input[aria-label='Keycap Width']")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap();
+        assert_eq!(input.value(), "18");
         fixture.runtime.unsubscribe();
         root.remove();
     }

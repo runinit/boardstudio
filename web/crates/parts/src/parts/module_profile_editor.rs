@@ -157,14 +157,6 @@ fn module_profile_owner_is_current(
         .then_some(snapshot)
 }
 
-fn merge_module_profile_field<T: Clone + PartialEq>(original: &T, draft: &T, latest: &T) -> T {
-    if draft == original {
-        latest.clone()
-    } else {
-        draft.clone()
-    }
-}
-
 fn module_profile_resolver(
     owner: ModuleProfileOwner,
     original: ModuleDefinition,
@@ -198,21 +190,12 @@ fn module_profile_resolver(
                 {
                     return Err("The module source, circuit, or connector mapping changed. Re-select it before editing its profile.".into());
                 }
-                latest.volumes =
-                    merge_module_profile_field(&original.volumes, &draft.volumes, &latest.volumes);
-                latest.openings = merge_module_profile_field(
-                    &original.openings,
-                    &draft.openings,
-                    &latest.openings,
-                );
-                latest.models =
-                    merge_module_profile_field(&original.models, &draft.models, &latest.models);
                 if let Some(rotary) = &rotary {
-                    latest.electrical.rotary_profile = merge_module_profile_field(
-                        &original.electrical.rotary_profile,
-                        rotary,
-                        &latest.electrical.rotary_profile,
-                    );
+                    latest.electrical.rotary_profile = rotary.clone();
+                } else {
+                    latest.volumes = draft.volumes.clone();
+                    latest.openings = draft.openings.clone();
+                    latest.models = draft.models.clone();
                 }
                 if reviewed
                     && !latest.volumes.is_empty()
@@ -734,5 +717,95 @@ pub fn ModuleProfileEditor(
             if busy { p { class: "m1-parts-loading", role: "status", "Saving module profile…" } }
             if let Some(message) = visible_error { p { class: "m1-parts-load-error", role: "alert", "{message}" } }
         }
+    }
+}
+
+#[cfg(test)]
+mod settlement_tests {
+    use super::*;
+    use boardstudio_core::model::ProjectDoc;
+    use boardstudio_web_runtime::runtime::project_name_test_support as support;
+    use wasm_bindgen_test::*;
+
+    #[wasm_bindgen_test]
+    async fn queued_rotary_save_can_return_to_the_original_value() {
+        let definition: ModuleDefinition = serde_json::from_value(serde_json::json!({
+            "id":"module", "name":"Module", "family":"encoder", "variant":"test",
+            "source":{"repository":"test", "revision":"test", "path":"test", "license":"test"},
+            "board":{"contours":[]}, "electrical":{"protocol":"gpio", "rotaryProfile":{"a":"A", "b":"B", "common":"C", "steps":20}}
+        })).unwrap();
+        let runtime = support::new_runtime();
+        let mut document = ProjectDoc::empty("module-profile", "Module profile");
+        document.module_definitions.push(definition.clone());
+        support::open_document(&runtime, document).await;
+        let accepted = runtime.model().accepted.unwrap();
+        let owner = module_profile_owner(&accepted, &definition, runtime.scope(), 1, true);
+        let original_rotary = definition.electrical.rotary_profile.clone();
+        let mut changed = original_rotary.clone().unwrap();
+        changed.steps = Some(24);
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        let first = EditTicket::begin(
+            &runtime,
+            "rotary-test",
+            None,
+            module_profile_resolver(
+                owner.clone(),
+                definition.clone(),
+                ModuleProfileDraft::from_definition(&definition),
+                Some(Some(changed)),
+                false,
+            ),
+        );
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        let second = EditTicket::begin(
+            &runtime,
+            "rotary-test",
+            None,
+            module_profile_resolver(
+                owner,
+                definition.clone(),
+                ModuleProfileDraft::from_definition(&definition),
+                Some(original_rotary),
+                false,
+            ),
+        );
+        release.send(()).unwrap();
+        gloo_timers::future::TimeoutFuture::new(30).await;
+        support::run_pending(&runtime).await;
+        assert!(matches!(first.settlement(true), Settlement::Landed { .. }));
+        assert!(matches!(second.settlement(true), Settlement::Landed { .. }));
+        assert_eq!(
+            runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .module_definitions[0]
+                .electrical
+                .rotary_profile
+                .as_ref()
+                .unwrap()
+                .steps,
+            Some(20)
+        );
+        runtime.submit(boardstudio_application::Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        support::run_pending(&runtime).await;
+        assert_eq!(
+            runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .module_definitions[0]
+                .electrical
+                .rotary_profile
+                .as_ref()
+                .unwrap()
+                .steps,
+            Some(24)
+        );
     }
 }

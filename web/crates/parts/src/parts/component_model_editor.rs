@@ -810,7 +810,8 @@ fn ModelVectorEditor(
                             {
                                 let _ = input.blur();
                             } else if key == "Escape" {
-                                draft.with_mut(|values| values[index] = current[index].to_string());
+                                let restored = submissions.peek()[index].as_ref().map(|(submitted, _)| submitted.clone()).unwrap_or_else(|| current[index].to_string());
+                                draft.with_mut(|values| values[index] = restored);
                                 error.set(None);
                             }
                         }
@@ -976,6 +977,40 @@ mod settlement_tests {
                 .offset,
             Vec3::default()
         );
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        commit(&x, "7").await;
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        x.focus().unwrap();
+        type_value(&x, "8");
+        tick().await;
+        let escape = web_sys::KeyboardEventInit::new();
+        escape.set_key("Escape");
+        escape.set_bubbles(true);
+        x.dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape).unwrap(),
+        )
+        .unwrap();
+        tick().await;
+        x.blur().unwrap();
+        tick().await;
+        release.send(()).unwrap();
+        tick().await;
+        support::run_pending(&runtime).await;
+        tick().await;
+        assert_eq!(
+            initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
+                .unwrap()
+                .offset
+                .x,
+            7.0,
+            "Escape cancels typing without reversing the preceding committed edit"
+        );
+        runtime.submit(boardstudio_application::Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        support::run_pending(&runtime).await;
+        tick().await;
         support::fail_next_core_reply(&runtime, "controlled model failure");
         commit(&x, "12").await;
         support::run_pending(&runtime).await;

@@ -30,6 +30,7 @@ struct AssemblyDraft {
 struct AssemblySubmission {
     target: AssemblyAction,
     ticket: EditTicket,
+    view_generation: u64,
     scope: Option<Scope>,
     document_id: String,
     session_epoch: boardstudio_application::SessionEpoch,
@@ -37,7 +38,10 @@ struct AssemblySubmission {
 
 #[derive(Clone)]
 enum AssemblyAction {
-    Assembly(String),
+    Assembly {
+        id: String,
+        created: bool,
+    },
     Matrix(String),
     BoardAssembly {
         scope: Scope,
@@ -45,6 +49,62 @@ enum AssemblyAction {
         assembly_id: String,
         placement_seed: String,
     },
+}
+
+fn derived_identity(root: &str, id: &str) -> bool {
+    id == root
+        || id
+            .strip_prefix(&format!("{root}-"))
+            .is_some_and(|suffix| suffix.parse::<u64>().is_ok())
+}
+
+fn saved_assembly_for_submission<'a>(
+    document: &'a ProjectDoc,
+    id: &str,
+    created: bool,
+) -> Option<&'a AssemblyDefinition> {
+    if created {
+        document
+            .assemblies
+            .iter()
+            .rev()
+            .find(|assembly| derived_identity(id, &assembly.id))
+    } else {
+        document
+            .assemblies
+            .iter()
+            .find(|assembly| assembly.id == id)
+    }
+}
+
+fn placed_parts_for_submission(document: &ProjectDoc, board_id: &str, seed: &str) -> Vec<String> {
+    let Some(board) = document.boards.iter().find(|board| board.id == board_id) else {
+        return Vec::new();
+    };
+    let placement_of = |part: &Part| {
+        part.properties
+            .as_ref()
+            .and_then(|properties| properties.get("assemblyId"))
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned)
+    };
+    let Some(placement) = document
+        .parts
+        .iter()
+        .rev()
+        .filter(|part| board.part_ids.contains(&part.id))
+        .find_map(|part| placement_of(part).filter(|id| derived_identity(seed, id)))
+    else {
+        return Vec::new();
+    };
+    document
+        .parts
+        .iter()
+        .filter(|part| {
+            board.part_ids.contains(&part.id) && placement_of(part).as_ref() == Some(&placement)
+        })
+        .map(|part| part.id.clone())
+        .collect()
 }
 
 fn assembly_save_resolver(draft: AssemblyDraft, definitions: Vec<PartDefinition>) -> EditResolver {
@@ -251,6 +311,7 @@ pub fn SavedAssembliesEditor(
     let assembly_orientation = use_context::<super::PartsAssemblyOrientation>().0;
     let has_preset_definitions = !preset_definitions.is_empty();
     let mut editing = use_signal(|| None::<AssemblyDraft>);
+    let mut editor_generation = use_signal(|| 0_u64);
     let mut pending = use_signal(Vec::<AssemblySubmission>::new);
     let preparing_apply = use_signal(|| false);
     let preparing_place = use_signal(|| false);
@@ -266,7 +327,8 @@ pub fn SavedAssembliesEditor(
             let mut retained = Vec::new();
             for waiting in &submissions {
                 let model = runtime.model();
-                let live = workspace() == "Parts"
+                let live = editor_generation() == waiting.view_generation
+                    && workspace() == "Parts"
                     && runtime.scope() == waiting.scope
                     && model.accepted.as_ref().is_some_and(|accepted| {
                         accepted.document.id == waiting.document_id
@@ -281,8 +343,8 @@ pub fn SavedAssembliesEditor(
                             continue;
                         };
                         match &waiting.target {
-                            AssemblyAction::Assembly(id) => {
-                                if let Some(saved) = accepted.document.assemblies.iter().rev().find(|assembly| assembly.id == *id || assembly.id.starts_with(&format!("{id}-"))) {
+                            AssemblyAction::Assembly { id, created } => {
+                                if let Some(saved) = saved_assembly_for_submission(&accepted.document, id, *created) {
                                     editing.with_mut(|draft| {
                                         if let Some(draft) = draft.as_mut().filter(|draft| draft.value.id == *id) {
                                             draft.base = Some(saved.clone());
@@ -299,11 +361,7 @@ pub fn SavedAssembliesEditor(
                             }
                             AssemblyAction::BoardAssembly { scope, board_id, assembly_id, placement_seed } => {
                                 if !editing.peek().as_ref().is_some_and(|draft| draft.value.id == *assembly_id) { continue; }
-                                let Some(board) = accepted.document.boards.iter().find(|board| board.id == *board_id) else { continue; };
-                                let part_ids = accepted.document.parts.iter().filter(|part| board.part_ids.contains(&part.id)
-                                    && part.properties.as_ref().and_then(|properties| properties.get("assemblyId")).and_then(serde_json::Value::as_str)
-                                        .is_some_and(|id| id == placement_seed || id.starts_with(&format!("{placement_seed}-"))))
-                                    .map(|part| part.id.clone()).collect::<Vec<_>>();
+                                let part_ids = placed_parts_for_submission(&accepted.document, board_id, placement_seed);
                                 if let Some(first) = part_ids.first() {
                                     selected_context.set(super::super::objects::context_for_part(&model, first).map(|context| super::super::objects::ScopedTreeContext { scope: scope.clone(), context }));
                                     editing.set(None);
@@ -327,6 +385,7 @@ pub fn SavedAssembliesEditor(
         let scope = scope.clone();
         move |assembly: AssemblyDefinition| {
             feedback.set(None);
+            editor_generation += 1;
             editing.set(Some(AssemblyDraft {
                 base: Some(assembly.clone()),
                 value: assembly,
@@ -343,6 +402,7 @@ pub fn SavedAssembliesEditor(
         move |_| match next_id(&snapshot.document) {
             Ok(id) => {
                 feedback.set(None);
+                editor_generation += 1;
                 editing.set(Some(AssemblyDraft {
                     base: None,
                     value: AssemblyDefinition {
@@ -366,7 +426,7 @@ pub fn SavedAssembliesEditor(
         let scope = scope.clone();
         move |_| {
             if pending.read().iter().any(|edit| {
-                matches!(edit.target, AssemblyAction::Assembly(_)) && edit.ticket.is_pending()
+                matches!(edit.target, AssemblyAction::Assembly { .. }) && edit.ticket.is_pending()
             }) || workspace() != "Parts"
             {
                 return;
@@ -421,6 +481,7 @@ pub fn SavedAssembliesEditor(
                 recipe,
             );
             feedback.set(None);
+            editor_generation += 1;
             editing.set(Some(AssemblyDraft {
                 base: None,
                 value,
@@ -443,6 +504,7 @@ pub fn SavedAssembliesEditor(
                     members: assembly.members.clone(),
                 };
                 feedback.set(None);
+                editor_generation += 1;
                 editing.set(Some(AssemblyDraft {
                     base: None,
                     value,
@@ -477,6 +539,7 @@ pub fn SavedAssembliesEditor(
                 assembly,
                 preparing_apply,
                 pending,
+                editor_generation,
                 feedback,
             );
         }
@@ -503,6 +566,7 @@ pub fn SavedAssembliesEditor(
                 origin_y,
                 preparing,
                 pending,
+                editor_generation,
                 feedback,
             );
         }
@@ -514,7 +578,7 @@ pub fn SavedAssembliesEditor(
         let definitions = definitions.clone();
         move |_| {
             if pending.read().iter().any(|edit| {
-                matches!(edit.target, AssemblyAction::Assembly(_)) && edit.ticket.is_pending()
+                matches!(edit.target, AssemblyAction::Assembly { .. }) && edit.ticket.is_pending()
             }) || workspace() != "Parts"
             {
                 return;
@@ -542,8 +606,12 @@ pub fn SavedAssembliesEditor(
                 assembly_save_resolver(draft.clone(), definitions.clone()),
             );
             pending.write().push(AssemblySubmission {
-                target: AssemblyAction::Assembly(draft.value.id.clone()),
+                target: AssemblyAction::Assembly {
+                    id: draft.value.id.clone(),
+                    created: draft.base.is_none(),
+                },
                 ticket,
+                view_generation: editor_generation(),
                 scope: draft.scope.clone(),
                 document_id: draft.document_id.clone(),
                 session_epoch: draft.session_epoch,
@@ -597,7 +665,7 @@ pub fn SavedAssembliesEditor(
                     snapshot: snapshot.clone(),
                     draft,
                     definitions: definitions.clone(),
-                    save_pending: pending.read().iter().any(|edit| matches!(edit.target, AssemblyAction::Assembly(_)) && edit.ticket.is_pending()),
+                    save_pending: pending.read().iter().any(|edit| matches!(edit.target, AssemblyAction::Assembly { .. }) && edit.ticket.is_pending()),
                     place_pending: preparing_place() || pending.read().iter().any(|edit| matches!(edit.target, AssemblyAction::BoardAssembly { .. }) && edit.ticket.is_pending()),
                     matrix_pending: preparing_apply() || pending.read().iter().any(|edit| matches!(edit.target, AssemblyAction::Matrix(_)) && edit.ticket.is_pending()),
                     selected_context,
@@ -606,7 +674,7 @@ pub fn SavedAssembliesEditor(
                     on_apply: apply_to_matrix,
                     on_change: move |updated: AssemblyDraft| { editing.set(Some(updated)); feedback.set(None); },
                     on_save: save,
-                    on_close: move |_| { editing.set(None); feedback.set(None); },
+                    on_close: move |_| { editor_generation += 1; editing.set(None); feedback.set(None); },
                 }
             }
         }
@@ -625,8 +693,10 @@ fn begin_place_assembly_on_board(
     origin_y: String,
     mut preparing: Signal<bool>,
     mut pending: Signal<Vec<AssemblySubmission>>,
+    editor_generation: Signal<u64>,
     mut feedback: Signal<Option<String>>,
 ) {
+    let view_generation = editor_generation();
     if preparing()
         || pending.read().iter().any(|edit| {
             matches!(edit.target, AssemblyAction::BoardAssembly { .. }) && edit.ticket.is_pending()
@@ -717,6 +787,13 @@ fn begin_place_assembly_on_board(
             Ok::<_, String>(())
         }
         .await;
+        if editor_generation() != view_generation
+            || workspace() != "Parts"
+            || runtime.scope().as_ref() != Some(&scope)
+        {
+            preparing.set(false);
+            return;
+        }
         preparing.set(false);
         if let Err(error) = normalized {
             feedback.set(Some(error));
@@ -758,6 +835,7 @@ fn begin_place_assembly_on_board(
                 placement_seed: placement_id,
             },
             ticket,
+            view_generation,
             scope: Some(scope),
             document_id: project_id,
             session_epoch,
@@ -776,8 +854,10 @@ fn begin_apply_assembly_to_matrix(
     assembly: AssemblyDefinition,
     mut preparing: Signal<bool>,
     mut pending: Signal<Vec<AssemblySubmission>>,
+    editor_generation: Signal<u64>,
     mut feedback: Signal<Option<String>>,
 ) {
+    let view_generation = editor_generation();
     if preparing()
         || pending.read().iter().any(|edit| {
             matches!(edit.target, AssemblyAction::Matrix(_)) && edit.ticket.is_pending()
@@ -855,6 +935,13 @@ fn begin_apply_assembly_to_matrix(
             Ok::<_, String>((matrix, definitions))
         }
         .await;
+        if editor_generation() != view_generation
+            || workspace() != "Parts"
+            || runtime.scope().as_ref() != Some(&scope)
+        {
+            preparing.set(false);
+            return;
+        }
         preparing.set(false);
         let (_matrix, definitions) = match prepared {
             Ok(prepared) => prepared,
@@ -890,6 +977,7 @@ fn begin_apply_assembly_to_matrix(
         pending.write().push(AssemblySubmission {
             target: AssemblyAction::Matrix(matrix_id),
             ticket,
+            view_generation,
             scope: Some(scope),
             document_id,
             session_epoch,
@@ -2238,6 +2326,172 @@ mod resolution_tests {
         gloo_timers::future::TimeoutFuture::new(30).await;
         support::run_pending(runtime).await;
     }
+    fn mounted_host() -> Element {
+        let runtime = use_context::<Rc<crate::runtime::Runtime>>();
+        let version = use_signal(|| 0_u64);
+        use_context_provider(|| version);
+        let _ = version();
+        use_hook({
+            let runtime = runtime.clone();
+            move || {
+                runtime.subscribe(Rc::new(move || {
+                    let mut version = version;
+                    version += 1;
+                }))
+            }
+        });
+        let workspace = use_signal(|| "Parts");
+        use_context_provider(|| crate::presentation::WorkspaceState(workspace));
+        let selection = use_signal(|| None);
+        use_context_provider(|| super::super::PartsAssemblySelection(selection));
+        let orientation = use_signal(super::super::assembly_presets::SwitchOrientation::default);
+        use_context_provider(|| super::super::PartsAssemblyOrientation(orientation));
+        let generation = use_signal(|| 1_u64);
+        use_context_provider(|| super::super::PartsSelectionGeneration(generation));
+        let activation = use_signal(|| 0_u64);
+        use_context_provider(|| super::super::PartsPreviewActivation(activation));
+        let theme = use_memo(|| "light");
+        use_context_provider(|| crate::presentation::ResolvedTheme(theme));
+        let selected_context = use_signal(|| None);
+        let scope = use_signal(|| runtime.scope());
+        let adapter = use_hook(|| {
+            crate::presentation::SelectionAdapter::new(selected_context, scope, generation)
+        });
+        use_context_provider(|| adapter.clone());
+        let accepted = runtime.model().accepted.unwrap();
+        rsx! { SavedAssembliesEditor { snapshot: accepted.clone(), scope: runtime.scope(), definitions: accepted.document.definitions.clone(), preset_definitions: Vec::new(), selected_context, on_place: |_| {}, on_board_placed: |_| {} } }
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_board_placement_selects_new_parts_only_after_landing() {
+        let runtime = support::new_runtime();
+        let mut document = document();
+        document.assemblies.push(assembly());
+        support::open_document(&runtime, document).await;
+        let dom_document = web_sys::window().unwrap().document().unwrap();
+        let root = dom_document.create_element("div").unwrap();
+        dom_document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(mounted_host);
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        let button = |label: &str| {
+            let buttons = root.query_selector_all("button").unwrap();
+            (0..buttons.length())
+                .filter_map(|index| buttons.get(index))
+                .map(|button| button.dyn_into::<web_sys::HtmlElement>().unwrap())
+                .find(|button| button.text_content().as_deref() == Some(label))
+                .unwrap()
+        };
+        button("Assembly").click();
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        let (mut entered, release) = support::gate_next_persist(&runtime);
+        button("Place on selected board").click();
+        let mut held = false;
+        for _ in 0..100 {
+            support::drive_pending(&runtime);
+            gloo_timers::future::TimeoutFuture::new(20).await;
+            if entered.try_recv().unwrap().is_some() {
+                held = true;
+                break;
+            }
+        }
+        assert!(held, "{}", root.text_content().unwrap_or_default());
+        assert!(runtime.model().selected_part_ids.is_empty());
+        assert!(button("Place on selected board").has_attribute("disabled"));
+        release.send(()).unwrap();
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        support::run_pending(&runtime).await;
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        let model = runtime.model();
+        assert_eq!(model.selected_part_ids.len(), 1);
+        assert!(
+            model
+                .accepted
+                .unwrap()
+                .document
+                .parts
+                .iter()
+                .any(|part| model.selected_part_ids.contains(&part.id))
+        );
+        runtime.unsubscribe();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn assembly_followup_keeps_exact_save_and_placement_identity() {
+        let original = document();
+        let recipe = assembly();
+        let (proposal, ids) = super::super::assembly_presets::document_with_assembly(
+            &original,
+            &recipe,
+            &[],
+            &[],
+            "board",
+            Vec2::default(),
+            "placement",
+        )
+        .unwrap();
+        let mut existing = proposal.clone();
+        existing
+            .parts
+            .iter_mut()
+            .find(|part| part.id == ids[0])
+            .unwrap()
+            .reference = "Existing placement".into();
+        existing.assemblies.push(recipe.clone());
+        let mut sibling = recipe.clone();
+        sibling.id = "assembly-1".into();
+        existing.assemblies.push(sibling.clone());
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, existing).await;
+        let accepted = runtime.model().accepted.unwrap();
+        let scope = runtime.scope().unwrap();
+        let mut value = recipe.clone();
+        value.name = "Updated".into();
+        let save = EditTicket::begin(
+            &runtime,
+            "save-identity-test",
+            None,
+            assembly_save_resolver(
+                AssemblyDraft {
+                    base: Some(recipe),
+                    value,
+                    assets: Vec::new(),
+                    document_id: accepted.document.id.clone(),
+                    session_epoch: accepted.session_epoch,
+                    scope: Some(scope.clone()),
+                },
+                Vec::new(),
+            ),
+        );
+        support::run_pending(&runtime).await;
+        assert!(matches!(save.settlement(true), Settlement::Landed { .. }));
+        let accepted = runtime.model().accepted.unwrap();
+        assert_eq!(
+            saved_assembly_for_submission(&accepted.document, "assembly", false)
+                .unwrap()
+                .id,
+            "assembly"
+        );
+        assert_eq!(accepted.document.assemblies[1], sibling);
+        let place = EditTicket::begin(
+            &runtime,
+            "place-identity-test",
+            None,
+            assembly_place_resolver(scope, proposal, Vec::new(), "placement".into(), ids.clone()),
+        );
+        support::run_pending(&runtime).await;
+        assert!(matches!(place.settlement(true), Settlement::Landed { .. }));
+        let accepted = runtime.model().accepted.unwrap();
+        let selected = placed_parts_for_submission(&accepted.document, "board", "placement");
+        assert_eq!(selected, vec!["placement-1/primary".to_string()]);
+        assert!(accepted.document.parts.iter().any(|part| part.id == ids[0]));
+    }
+
     #[wasm_bindgen_test]
     async fn matrix_recipe_keeps_queued_geometry_and_undo_order() {
         let runtime = support::new_runtime();
