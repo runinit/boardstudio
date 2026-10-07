@@ -88,11 +88,11 @@ line numbers at `3368825`, orientation only):
 
 ## Acceptance criteria
 
-- [ ] Mounted test: width, Tab, height, Enter with Core replies gated; after release both values are in the accepted definition and one Undo reverts only height.
-- [ ] Mounted test: rename, then a field edit queued behind it; both survive.
-- [ ] Mounted test: failing the save returns the field to the accepted value with the edit ticket's inline message.
-- [ ] Mounted test: deleting the definition before the queued edit runs retires it with a reason.
-- [ ] Neither action sends `Event::Edit` directly; both submit intents.
+- [x] Mounted test: width, Tab, height, Enter with Core replies gated; after release both values are in the accepted definition and one Undo reverts only height.
+- [x] Mounted test: rename, then a field edit queued behind it; both survive.
+- [x] Mounted test: failing the save returns the field to the accepted value with the edit ticket's inline message.
+- [x] Mounted test: deleting the definition before the queued edit runs retires it with a reason.
+- [x] Neither action sends `Event::Edit` directly; both submit intents.
 
 ## Verification
 
