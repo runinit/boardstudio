@@ -2649,26 +2649,13 @@ fn Editor() -> Element {
         })
     });
     let instance_selection = use_context_provider(|| InstanceSelection(instance_preference));
-    let case_body_selection = use_signal(|| None::<case_viewer::BodySelection>);
-    let case_layer_selection = use_signal(|| None::<case_viewer::LayerSelection>);
+    let case_workspace_state = case_workspace::use_case_workspace_state();
+    let case_selection = case_workspace_state.selection();
     let focused_keycaps_finding = use_signal(|| None::<keycaps_finding_marker::FocusedFinding>);
     let pending_keycaps_navigation_fit =
         use_signal(|| None::<keycaps_navigation::PendingLayoutFit>);
     let keycaps_navigation_alive = keycaps_navigation::use_navigation_lifetime();
-    let case_display = use_signal(std::collections::BTreeMap::new);
-    let case_body_edit_dispatch = use_signal(|| None::<case_viewer::CaseBodyEditDispatch>);
-    let case_body_editable = use_signal(|| false);
-    let case_selection = case_viewer::CaseSelection {
-        body: case_body_selection,
-        layer: case_layer_selection,
-        display: case_display,
-        body_edit_portal: case_viewer::CaseBodyEditPortal {
-            dispatch: case_body_edit_dispatch,
-            editable: case_body_editable,
-        },
-    };
-    use_context_provider(|| case_selection);
-    let case_tree_expanded = use_signal(BTreeSet::<String>::new);
+    let case_tree_expanded = case_workspace_state.tree_expanded();
     let workspace = use_context::<WorkspaceState>().0;
     let canvas_navigation = use_canvas_navigation_state(workspace);
     let return_workspace = use_context::<ExportReturnWorkspace>().0;
@@ -3252,15 +3239,7 @@ fn Editor() -> Element {
         let generation = adapter.generation;
         let mut workspace = workspace;
         let mut inspect_open = inspect_open;
-        let mut case_selection = case_viewer::CaseSelection {
-            body: case_body_selection,
-            layer: case_layer_selection,
-            display: case_display,
-            body_edit_portal: case_viewer::CaseBodyEditPortal {
-                dispatch: case_body_edit_dispatch,
-                editable: case_body_editable,
-            },
-        };
+        let mut case_selection = case_selection;
         let captured_revision = model
             .accepted
             .as_ref()
@@ -3375,15 +3354,7 @@ fn Editor() -> Element {
         adapter.generation,
         workspace,
         instance_selection,
-        case_viewer::CaseSelection {
-            body: case_body_selection,
-            layer: case_layer_selection,
-            display: case_display,
-            body_edit_portal: case_viewer::CaseBodyEditPortal {
-                dispatch: case_body_edit_dispatch,
-                editable: case_body_editable,
-            },
-        },
+        case_selection,
         on_show_mechanical_finding,
     );
     let Some(render_scope) = current_scope.clone() else {
@@ -4215,7 +4186,7 @@ fn Editor() -> Element {
     let case_admission = case_workspace::Admission {
         runtime: runtime.clone(),
         adapter: adapter.clone(),
-        case_selection,
+        case_state: case_workspace_state,
         instance_selection,
         owner_scope: render_scope.clone(),
         owner_token: snapshot.token,
@@ -4228,7 +4199,7 @@ fn Editor() -> Element {
             if workspace() != "Case" {
                 return;
             }
-            case_workspace::apply_tree_action(action, &admission, navigate);
+            case_workspace_state.apply_tree_action(action, &admission, navigate);
         }
     };
     let on_case_display = {
@@ -4237,7 +4208,7 @@ fn Editor() -> Element {
             if workspace() != "Case" {
                 return;
             }
-            case_workspace::apply_display_request(request, &admission);
+            case_workspace_state.apply_display_request(request, &admission);
         }
     };
     let on_keymap_layer = {
@@ -4847,7 +4818,7 @@ fn Editor() -> Element {
         let mut workspace = workspace;
         let mut objects_open = objects_open;
         let mut inspect_open = inspect_open;
-        let mut body_selection = case_body_selection;
+        let mut body_selection = case_selection.body;
         let case_selection_for_owner = case_selection;
         let navigation_alive = keycaps_navigation_alive.clone();
         let inspector_settings = inspector_panel_settings;
@@ -5069,7 +5040,7 @@ fn Editor() -> Element {
         let focused_finding = focused_keycaps_finding;
         let svg = svg.clone();
         let alive = keycaps_navigation_alive.clone();
-        let body_selection = case_body_selection;
+        let body_selection = case_selection.body;
         let select_tree = workspace_callbacks.select_tree;
         let navigate = workspace_callbacks.navigate;
         let mut active_workspace = workspace;
@@ -5157,7 +5128,7 @@ fn Editor() -> Element {
         let focused_finding = focused_keycaps_finding;
         let svg = svg.clone();
         let alive = keycaps_navigation_alive.clone();
-        let body_selection = case_body_selection;
+        let body_selection = case_selection.body;
         let select_tree = workspace_callbacks.select_tree;
         move |(request, owner): (layout_findings::Request, LayoutOwnerIdentity)| {
             perform_layout_finding_navigation(
@@ -5199,7 +5170,7 @@ fn Editor() -> Element {
         {
             let runtime = runtime.clone();
             let adapter = adapter.clone();
-            let body_selection = case_body_selection;
+            let body_selection = case_selection.body;
             move || {
                 current_keycaps_navigation_owner(
                     workspace,
@@ -5272,7 +5243,7 @@ fn Editor() -> Element {
         {
             let runtime = runtime.clone();
             let adapter = adapter.clone();
-            let body_selection = case_body_selection;
+            let body_selection = case_selection.body;
             let alive = keycaps_navigation_alive.clone();
             move |action, expected| match action {
                 keycaps_navigation::FitAction::SetCamera(camera_fit) => {

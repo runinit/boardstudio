@@ -16,6 +16,59 @@ pub(super) use boardstudio_web_case::case_selection::{SelectedPartSummary, selec
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
 
+/// State shared by Case's tree, Inspector, and viewer mount. The page supplies
+/// current projections and routes actions; this handle owns Case selection.
+#[derive(Clone, Copy)]
+pub(super) struct CaseWorkspaceState {
+    selection: CaseSelection,
+    tree_expanded: Signal<BTreeSet<String>>,
+}
+
+pub(super) fn use_case_workspace_state() -> CaseWorkspaceState {
+    let selection = CaseSelection {
+        body: use_signal(|| None::<BodySelection>),
+        layer: use_signal(|| None::<super::case_viewer::LayerSelection>),
+        display: use_signal(std::collections::BTreeMap::new),
+        body_edit_portal: super::case_viewer::CaseBodyEditPortal {
+            dispatch: use_signal(|| None::<super::case_viewer::CaseBodyEditDispatch>),
+            editable: use_signal(|| false),
+        },
+    };
+    let state = CaseWorkspaceState {
+        selection,
+        tree_expanded: use_signal(BTreeSet::new),
+    };
+    use_context_provider(|| selection);
+    state
+}
+
+impl CaseWorkspaceState {
+    /// Selection interaction shared with the viewer and its Inspector.
+    pub(super) fn selection(self) -> CaseSelection {
+        self.selection
+    }
+
+    /// Tree expansion is edited by the mounted Case tree.
+    pub(super) fn tree_expanded(self) -> Signal<BTreeSet<String>> {
+        self.tree_expanded
+    }
+
+    /// Apply a tree action only while the captured Case owner is still current.
+    pub(super) fn apply_tree_action(
+        self,
+        action: TreeAction,
+        owner: &Admission,
+        on_navigate: EventHandler<(Scope, String, Option<String>)>,
+    ) {
+        apply_tree_action(action, owner, on_navigate);
+    }
+
+    /// Persist a display change only after the captured Case owner is validated.
+    pub(super) fn apply_display_request(self, request: DisplayRequest, owner: &Admission) {
+        apply_display_request(request, owner);
+    }
+}
+
 /// Case rows report intent to the page owner, which applies these changes to
 /// the existing SelectionAdapter and CaseSelection signals.
 #[derive(Clone)]
@@ -66,7 +119,7 @@ pub(super) enum DisplayAction {
 pub(super) struct Admission {
     pub(super) runtime: Rc<Runtime>,
     pub(super) adapter: SelectionAdapter,
-    pub(super) case_selection: CaseSelection,
+    pub(super) case_state: CaseWorkspaceState,
     pub(super) instance_selection: InstanceSelection,
     pub(super) owner_scope: Scope,
     pub(super) owner_token: SnapshotToken,
@@ -592,7 +645,7 @@ pub(super) fn apply_tree_action(
 ) {
     let runtime = &owner.runtime;
     let adapter = &owner.adapter;
-    let mut case_selection = owner.case_selection;
+    let mut case_selection = owner.case_state.selection();
     let instance_selection = owner.instance_selection;
     let expected_scope = &owner.owner_scope;
     let expected_token = owner.owner_token;
@@ -745,7 +798,7 @@ pub(super) fn apply_tree_action(
 pub(super) fn apply_display_request(request: DisplayRequest, owner: &Admission) {
     let runtime = &owner.runtime;
     let adapter = &owner.adapter;
-    let case_selection = owner.case_selection;
+    let case_selection = owner.case_state.selection();
     let instance_selection = owner.instance_selection;
     let owner_scope = &owner.owner_scope;
     let owner_token = owner.owner_token;
@@ -1339,21 +1392,8 @@ mod mounted_live_scene_tests {
         let instance_selection = use_context::<InstanceSelection>();
         let model = runtime.model();
         let scope = runtime.scope();
-        let selected_body = use_signal(|| None::<BodySelection>);
-        let selected_layer = use_signal(|| None);
-        let display = use_signal(std::collections::BTreeMap::new);
-        let body_edit_dispatch =
-            use_signal(|| None::<super::super::case_viewer::CaseBodyEditDispatch>);
-        let body_editable = use_signal(|| false);
-        let case_selection = CaseSelection {
-            body: selected_body,
-            layer: selected_layer,
-            display,
-            body_edit_portal: super::super::case_viewer::CaseBodyEditPortal {
-                dispatch: body_edit_dispatch,
-                editable: body_editable,
-            },
-        };
+        let state = use_case_workspace_state();
+        let case_selection = state.selection();
         let initial_scope = scope.clone();
         let selection_for_hook = case_selection;
         use_hook({
@@ -1363,9 +1403,8 @@ mod mounted_live_scene_tests {
                 }
             }
         });
-        use_context_provider(|| case_selection);
         let selected_context = use_signal(|| None::<ScopedTreeContext>);
-        let expanded = use_signal(std::collections::BTreeSet::new);
+        let expanded = state.tree_expanded();
         let display_scene = scope
             .as_ref()
             .and_then(|scope| workspace_display_scene(runtime.cad_scene(), scope));
