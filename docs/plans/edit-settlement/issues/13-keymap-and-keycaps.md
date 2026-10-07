@@ -104,7 +104,7 @@ wasm-pack test --headless --chrome web/crates/keycaps --locked --lib
 
 ## Outcome
 
-Implemented in `59696a071`, `83dac997` and `947ee2b8`. Bindings, layers, macros
+Implemented in `e49193e72`, `221792968` and `4e07db17c`. Bindings, layers, macros
 and board/matrix/key keycap settings submit pure accepted-snapshot resolvers through
 `EditTicket`. The four old pending owners and content-based landing checks are gone.
 New IDs are allocated against accepted state; field edits queue during Applying and
