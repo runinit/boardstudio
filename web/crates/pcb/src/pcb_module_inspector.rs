@@ -121,7 +121,12 @@ fn PcbMountedModuleInspector(
         move || alive.set(false)
     });
     let version = use_context::<Signal<u64>>()();
-    use_effect(use_reactive((&version,), {
+    let pending_operations = tickets
+        .read()
+        .iter()
+        .map(|(_, ticket)| ticket.operation())
+        .collect::<Vec<_>>();
+    use_effect(use_reactive((&version, &pending_operations), {
         let runtime = input.runtime.clone();
         let scope = input.scope.clone();
         let module_id = input.module_id.clone();
@@ -149,7 +154,21 @@ fn PcbMountedModuleInspector(
                         }
                         .into(),
                     ),
-                    Settlement::Failed { message } => Some(message),
+                    Settlement::Failed { message } => {
+                        if action == "placement"
+                            && *latest.peek() == Some(ticket.operation())
+                            && committed_draft.peek().as_ref() == Some(&*draft.peek())
+                            && let Some(accepted) = runtime.model().accepted
+                            && let Some(module) = accepted
+                                .document
+                                .modules
+                                .iter()
+                                .find(|module| module.id == module_id)
+                        {
+                            draft.set(module.clone());
+                        }
+                        Some(message)
+                    }
                     Settlement::Retired => None,
                 };
                 if *latest.peek() == Some(ticket.operation()) {
@@ -163,19 +182,23 @@ fn PcbMountedModuleInspector(
         }
     }));
     let accepted_instance = instance.clone();
-    use_effect(use_reactive!(|accepted_instance| {
-        let pending_save = tickets
-            .peek()
+    let pending_save = preparing.get()
+        || tickets
+            .read()
             .iter()
             .any(|(action, ticket)| action == "placement" && ticket.is_pending());
-        if *draft.peek() == *previous_accepted.peek()
-            || (!pending_save && committed_draft.peek().as_ref() == Some(&*draft.peek()))
-        {
-            draft.set(accepted_instance.clone());
-        }
-        let mut previous_accepted = previous_accepted;
-        previous_accepted.set(accepted_instance);
-    }));
+    use_effect(use_reactive(
+        (&accepted_instance, &pending_save),
+        move |(accepted_instance, pending_save)| {
+            if *draft.peek() == *previous_accepted.peek()
+                || (!pending_save && committed_draft.peek().as_ref() == Some(&*draft.peek()))
+            {
+                draft.set(accepted_instance.clone());
+            }
+            let mut previous_accepted = previous_accepted;
+            previous_accepted.set(accepted_instance);
+        },
+    ));
     let module_name = definition.name.clone();
     let automatic_connector_id = format!("{}/vik-host-connector", instance.id);
     let scope = input.scope.clone();
@@ -979,10 +1002,7 @@ fn mounted_selection_current(
         return false;
     }
     let model = runtime.model();
-    matches!(
-        model.lifecycle,
-        Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
-    ) && super::selection::context_is_current(&model, scope, &selected.context)
+    super::selection::context_is_current(&model, scope, &selected.context)
         && model.accepted.as_ref().is_some_and(|snapshot| {
             snapshot.document.id == scope.document_id
                 && snapshot.session_epoch == scope.session_epoch
@@ -1418,6 +1438,85 @@ mod mounted_save_replacement_tests {
             1.0
         );
         root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn failed_placement_restores_accepted_coordinates() {
+        use crate::runtime::project_name_test_support as support;
+        for preserve_draft in [false, true] {
+            let runtime = support::new_runtime();
+            support::open_document(
+                &runtime,
+                module_document("module-failure-project", "Queue project", 1.0),
+            )
+            .await;
+            let probe = Rc::new(Probe {
+                initial_scope: runtime.scope().unwrap(),
+                runtime: runtime.clone(),
+                module_id: "placement-collision".into(),
+            });
+            let document = web_sys::window().unwrap().document().unwrap();
+            let root = document.create_element("div").unwrap();
+            document.body().unwrap().append_child(&root).unwrap();
+            let dom = VirtualDom::new(mounted_editor_host);
+            dom.provide_root_context(probe);
+            dioxus_web::launch::launch_virtual_dom(
+                dom,
+                dioxus_web::Config::new().rootnode(root.clone().into()),
+            );
+            settle().await;
+            let x = root
+                .query_selector("input[type='number']")
+                .unwrap()
+                .unwrap()
+                .dyn_into::<HtmlInputElement>()
+                .unwrap();
+            let save = root
+                .query_selector(".m1-pcb-module-actions button.m1-primary-button")
+                .unwrap()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlElement>()
+                .unwrap();
+            support::fail_next_core_reply(&runtime, "injected placement refusal");
+            let input_event = web_sys::EventInit::new();
+            input_event.set_bubbles(true);
+            x.set_value("7.25");
+            x.dispatch_event(
+                &web_sys::Event::new_with_event_init_dict("input", &input_event).unwrap(),
+            )
+            .unwrap();
+            settle().await;
+            save.click();
+            settle().await;
+            if preserve_draft {
+                x.set_value("8");
+                x.dispatch_event(
+                    &web_sys::Event::new_with_event_init_dict("input", &input_event).unwrap(),
+                )
+                .unwrap();
+                settle().await;
+            }
+            for _ in 0..12 {
+                support::run_pending(&runtime).await;
+                settle().await;
+            }
+            assert_eq!(
+                runtime.model().accepted.unwrap().document.modules[0].at.x,
+                1.0
+            );
+            assert_eq!(
+                x.value(),
+                if preserve_draft { "8" } else { "1" },
+                "failure restores the committed draft and preserves later typing"
+            );
+            let text = root.text_content().unwrap();
+            assert!(
+                text.contains("injected placement refusal"),
+                "mounted text: {text}"
+            );
+            runtime.unsubscribe();
+            root.remove();
+        }
     }
 
     #[wasm_bindgen_test]
