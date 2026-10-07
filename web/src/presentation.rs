@@ -8180,9 +8180,17 @@ fn Editor() -> Element {
             )));
             return;
         }
+        let target_document_id = expected_document_id.clone();
         let resolver = boardstudio_application::EditResolver::new(
             "setup-project-name",
             move |accepted: &boardstudio_application::AcceptedSnapshot| {
+                if accepted.session_epoch != expected_epoch
+                    || accepted.document.id != target_document_id
+                {
+                    return boardstudio_application::Resolution::Retire(
+                        "The project is no longer open.".into(),
+                    );
+                }
                 if accepted.document.name == proposed {
                     return boardstudio_application::Resolution::Unchanged;
                 }

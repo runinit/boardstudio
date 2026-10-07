@@ -987,7 +987,11 @@ fn commit_project_name(
     if name.is_empty() {
         return None;
     }
+    let target = owner.clone();
     let resolver = EditResolver::new("project-name", move |accepted: &AcceptedSnapshot| {
+        if ProjectNameOwner::from(accepted) != target {
+            return Resolution::Retire("The project is no longer open.".into());
+        }
         let Some(document) = renamed_document(&accepted.document, &name) else {
             return Resolution::Unchanged;
         };

@@ -164,7 +164,13 @@ pub fn use_board_inspector(
             }
             let board_id = owner.board_id.clone();
             let name = name.to_owned();
+            let target_scope = owner.scope.clone();
             let resolver = EditResolver::new("board-name", move |accepted: &AcceptedSnapshot| {
+                if accepted.session_epoch != target_scope.session_epoch
+                    || accepted.document.id != target_scope.document_id
+                {
+                    return Resolution::Retire("The project is no longer open.".into());
+                }
                 let mut document = accepted.document.as_ref().clone();
                 let Some(board) = document
                     .boards

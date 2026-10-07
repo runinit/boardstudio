@@ -497,13 +497,12 @@ pub fn use_mechanical_settings_mount(
         {
             selected_layer.clear();
         }
-        let enabled = current.editable && !controller.is_busy();
+        let enabled = current.editable;
         let disabled_reason = disabled_reason(
             &runtime,
             workspace,
             instance_selection,
             &current,
-            controller.is_busy(),
         );
         let on_request = EventHandler::new({
             let controller = controller.clone();
@@ -1491,7 +1490,6 @@ fn disabled_reason(
     workspace: Signal<&'static str>,
     instance_selection: InstanceSelection,
     current: &MechanicalSettingsCurrent,
-    _busy: bool,
 ) -> Option<String> {
     if workspace() != "Case" {
         return Some("Mechanical settings are available in the Case workspace.".into());

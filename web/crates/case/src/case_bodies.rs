@@ -25,12 +25,25 @@ pub struct CaseBodiesProps {
 pub struct CaseBodyRequest {
     pub editor_instance_id: u64,
     pub request_id: u64,
-    /// Stable scope/body/mount/field owner for numeric draft feedback; `None` for buttons.
+    /// Stable field or one-shot action owner for feedback.
     pub field_id: Option<String>,
     pub scope: Scope,
     pub snapshot_token: SnapshotToken,
     pub revision: u64,
     pub edit: CaseBodyEdit,
+}
+
+impl CaseBodyEdit {
+    pub(crate) fn action_id(&self) -> Option<String> {
+        match self {
+            Self::AddBody => Some("add-body".into()),
+            Self::AddMount { body_id } => Some(format!("body:{body_id}:add-mount")),
+            Self::RemoveMount { body_id, mount_id } => {
+                Some(format!("body:{body_id}:mount:{mount_id}:remove"))
+            }
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, PartialEq)]
@@ -40,7 +53,7 @@ pub struct CaseBodyEditFeedback {
     pub snapshot_token: SnapshotToken,
     pub revision: u64,
     pub request_id: u64,
-    /// Echoed from the request so only the owning numeric draft consumes field feedback.
+    /// Echoed from the request so only the owning control consumes feedback.
     pub field_id: Option<String>,
     pub state: CaseBodyEditState,
     pub message: Option<String>,
@@ -227,7 +240,10 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
     };
     let emit_edit = {
         let emit = emit_edit_with_field.clone();
-        Rc::new(move |edit| emit(edit, None)) as Rc<dyn Fn(CaseBodyEdit)>
+        Rc::new(move |edit: CaseBodyEdit| {
+            let field_id = edit.action_id();
+            emit(edit, field_id);
+        }) as Rc<dyn Fn(CaseBodyEdit)>
     };
 
     let feedback = props
@@ -238,9 +254,11 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
         })
         .cloned()
         .collect::<Vec<_>>();
-    let actions_pending = feedback
-        .iter()
-        .any(|entry| entry.field_id.is_none() && entry.state == CaseBodyEditState::Pending);
+    let action_pending = |id: &str| {
+        feedback.iter().any(|entry| {
+            entry.field_id.as_deref() == Some(id) && entry.state == CaseBodyEditState::Pending
+        })
+    };
     let mut selection_for_effect = selected_body;
     let scope = props.scope.clone();
     let saved_add = feedback
@@ -270,7 +288,7 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
     }
 
     let can_edit = props.editable;
-    let can_add = can_edit && !actions_pending && board.is_some();
+    let can_add = can_edit && !action_pending("add-body") && board.is_some();
     let body_id = active_body.map(|body| body.id.clone());
     let editor_key = body_id
         .as_ref()
@@ -448,7 +466,7 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                             }
                             div { class: "m1-case-subsection-content",
                                 button {
-                                    r#type: "button", disabled: !can_edit || actions_pending,
+                                    r#type: "button", disabled: !can_edit || action_pending(&format!("body:{body_id}:add-mount")),
                                     onclick: { let submit = emit_edit.clone(); let body_id = body_id.clone(); move |_| submit(CaseBodyEdit::AddMount { body_id: body_id.clone() }) },
                                     "+ Add mount"
                                 }
@@ -463,7 +481,7 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                                         fieldset { key: "{mount_id}", class: "m1-case-mount-editor",
                                             legend { "{mount_label}" }
                                             button {
-                                                r#type: "button", disabled: !can_edit || actions_pending,
+                                                r#type: "button", disabled: !can_edit || action_pending(&format!("body:{body_id}:mount:{mount_id}:remove")),
                                                 "aria-label": "Remove {mount_label}",
                                                 onclick: { let submit = submit_remove.clone(); let body_id = body_id.clone(); let mount_id = mount_id.clone(); move |_| submit(CaseBodyEdit::RemoveMount { body_id: body_id.clone(), mount_id: mount_id.clone() }) },
                                                 "Remove"
@@ -535,12 +553,12 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                             }
                             div { class: "m1-case-subsection-content",
                                 if body.gasket.is_some() {
-                                    button { r#type: "button", disabled: !can_edit || actions_pending,
+                                    button { r#type: "button", disabled: !can_edit,
                                         onclick: { let submit = emit_edit.clone(); let body_id = body_id.clone(); move |_| submit(CaseBodyEdit::SetGasket { body_id: body_id.clone(), gasket: None }) },
                                         "Remove"
                                     }
                                 } else {
-                                    button { r#type: "button", disabled: !can_edit || actions_pending,
+                                    button { r#type: "button", disabled: !can_edit,
                                         onclick: { let submit = emit_edit.clone(); let body_id = body_id.clone(); move |_| submit(CaseBodyEdit::SetGasket { body_id: body_id.clone(), gasket: Some(Gasket { inset: 2.0, width: 2.0, depth: 1.5 }) }) },
                                         "+ Add gasket"
                                     }
@@ -673,7 +691,7 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
             let mut blocked_attempt = blocked_attempt;
             let mut dirty = dirty;
             let value_text = draft();
-            if submitted_draft().as_deref() == Some(value_text.as_str()) {
+            if !dirty() || submitted_draft().as_deref() == Some(value_text.as_str()) {
                 return;
             }
             // Enter commits the draft and then the native input blurs. Ignore that

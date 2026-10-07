@@ -337,15 +337,11 @@ fn submit_body_edit(
     {
         return;
     }
-    let one_shot = matches!(
-        request.edit,
-        CaseBodyEdit::AddBody | CaseBodyEdit::AddMount { .. } | CaseBodyEdit::RemoveMount { .. }
-    );
-    if one_shot
-        && pending.peek().iter().any(|entry| {
-            std::mem::discriminant(&entry.request.edit) == std::mem::discriminant(&request.edit)
-                && entry.request.edit.body_id() == request.edit.body_id()
-        })
+    if let Some(action_id) = request.edit.action_id()
+        && pending
+            .peek()
+            .iter()
+            .any(|entry| entry.request.edit.action_id().as_ref() == Some(&action_id))
     {
         return;
     }

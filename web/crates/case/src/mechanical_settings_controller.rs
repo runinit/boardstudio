@@ -40,7 +40,7 @@ enum ProfileTargetKind {
 /// The page copies only accepted Arc handles and the small configuration projection displayed
 /// by the controls. `editable` must be computed from the current Runtime, workspace,
 /// physical-instance, readiness, preview, gesture, lifecycle and durability admission guards.
-/// It must exclude this controller's own in-flight bit; use `is_busy` to disable the UI. The
+/// It excludes this controller's pending requests so fields remain editable. The
 /// controller still re-reads it at every asynchronous boundary.
 #[derive(Clone)]
 pub struct MechanicalSettingsCurrent {
