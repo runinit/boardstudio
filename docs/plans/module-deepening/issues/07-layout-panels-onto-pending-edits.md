@@ -1,6 +1,6 @@
 # 07: Layout panels settle through `PendingEdits`
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: 05, 06, 12 (shares `web/src/presentation.rs`)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)

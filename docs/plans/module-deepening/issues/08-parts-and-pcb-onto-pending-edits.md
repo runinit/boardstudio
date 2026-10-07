@@ -1,6 +1,6 @@
 # 08: Parts and PCB panels settle through `PendingEdits`
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: 05, 19
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)

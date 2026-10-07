@@ -1,6 +1,6 @@
 # 09: Case, Keymap, Keycaps and Library settle through `PendingEdits`
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: 05
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
